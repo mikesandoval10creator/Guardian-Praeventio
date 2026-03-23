@@ -20,7 +20,13 @@ import { Zettelkasten } from './pages/Zettelkasten';
 import { Findings } from './pages/Findings';
 import { Audits } from './pages/Audits';
 import { Projects } from './pages/Projects';
+import { Documents } from './pages/Documents';
+import { Calendar } from './pages/Calendar';
 import { EPP } from './pages/EPP';
+import { PTSGenerator } from './pages/PTSGenerator';
+import { BioAnalysis } from './pages/BioAnalysis';
+import { DigitalTwin } from './pages/DigitalTwin';
+import { NormativeDetail } from './pages/NormativeDetail';
 import { Assets } from './pages/Assets';
 import { PublicNodeView } from './pages/PublicNodeView';
 import { Profile } from './pages/Profile';
@@ -68,9 +74,13 @@ function AppRoutes() {
             <Route path="training" element={<Training />} />
             <Route path="workers" element={<Workers />} />
             <Route path="epp" element={<EPP />} />
+            <Route path="pts" element={<PTSGenerator />} />
+            <Route path="bio-analysis" element={<BioAnalysis />} />
+            <Route path="digital-twin" element={<DigitalTwin />} />
             <Route path="assets" element={<Assets />} />
             <Route path="history" element={<History />} />
             <Route path="normatives" element={<Normatives />} />
+            <Route path="normatives/:id" element={<NormativeDetail />} />
             <Route path="hygiene" element={<Hygiene />} />
             <Route path="medicine" element={<Medicine />} />
             <Route path="ergonomics" element={<Ergonomics />} />
@@ -82,6 +92,8 @@ function AppRoutes() {
             <Route path="audits" element={<Audits />} />
             <Route path="attendance" element={<Attendance />} />
             <Route path="projects" element={<Projects />} />
+            <Route path="documents" element={<Documents />} />
+            <Route path="calendar" element={<Calendar />} />
             <Route path="ai-hub" element={<AIHub />} />
             <Route path="profile" element={user ? <Profile /> : <Navigate to="/login" />} />
           </Route>

@@ -61,6 +61,28 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin();
+
+      match /emergency_messages/{messageId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.projectId == projectId;
+        allow update, delete: if isAdmin();
+      }
+
+      match /emergency_checkins/{checkinId} {
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated() && request.resource.data.projectId == projectId && (request.resource.data.workerId == request.auth.uid || isAdmin());
+        allow delete: if isAdmin();
+      }
+
+      match /epp_items/{itemId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin();
+      }
+
+      match /epp_assignments/{assignmentId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAdmin();
+      }
     }
 
     match /nodes/{nodeId} {

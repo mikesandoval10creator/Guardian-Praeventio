@@ -56,11 +56,26 @@ export interface WeatherData {
 
 export interface EPPItem {
   id: string;
+  projectId: string;
   name: string;
   category: string;
   description: string;
   imageUrl: string;
   required: boolean;
+  stock: number;
+  createdAt: string;
+}
+
+export interface EPPAssignment {
+  id: string;
+  projectId: string;
+  workerId: string;
+  workerName: string;
+  eppItemId: string;
+  eppItemName: string;
+  assignedAt: string;
+  expiresAt?: string;
+  status: 'active' | 'replaced' | 'expired';
 }
 
 export interface Worker {

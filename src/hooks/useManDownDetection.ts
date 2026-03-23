@@ -3,6 +3,7 @@ import { useZettelkasten } from './useZettelkasten';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { NodeType } from '../types';
+import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
 
 const INACTIVITY_THRESHOLD = 30000; // 30 seconds for demo, should be higher in production
 const MOVEMENT_THRESHOLD = 0.5; // Sensitivity for accelerometer
@@ -38,6 +39,24 @@ export function useManDownDetection() {
     if (!selectedProject || !user) return;
     
     try {
+      const location = await new Promise<string>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve('Ubicación GPS no soportada por el navegador');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve(`${position.coords.latitude}, ${position.coords.longitude}`);
+          },
+          (error) => {
+            console.warn('Error fetching geolocation:', error);
+            resolve('Error al obtener ubicación GPS');
+          },
+          { timeout: 5000 }
+        );
+      });
+
+      // 1. Add Zettelkasten Node
       await addNode({
         type: NodeType.EMERGENCY,
         title: `ALERTA: Hombre Caído - ${user.displayName || 'Trabajador'}`,
@@ -51,24 +70,22 @@ export function useManDownDetection() {
           userName: user.displayName,
           timestamp: new Date().toISOString(),
           status: 'Activa',
-          location: await new Promise<string>((resolve) => {
-            if (!navigator.geolocation) {
-              resolve('Ubicación GPS no soportada por el navegador');
-              return;
-            }
-            navigator.geolocation.getCurrentPosition(
-              (position) => {
-                resolve(`${position.coords.latitude}, ${position.coords.longitude}`);
-              },
-              (error) => {
-                console.warn('Error fetching geolocation:', error);
-                resolve('Error al obtener ubicación GPS');
-              },
-              { timeout: 5000 }
-            );
-          })
+          location: location
         }
       });
+
+      // 2. Send Emergency Message to Crisis Chat
+      const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
+      await addDoc(messagesRef, {
+        projectId: selectedProject.id,
+        senderId: user.uid,
+        senderName: 'SISTEMA AUTOMÁTICO',
+        senderRole: 'ALERTA MAN DOWN',
+        text: `🚨 ALERTA CRÍTICA: Se ha detectado una posible caída o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. Ubicación: ${location}`,
+        type: 'emergency',
+        timestamp: serverTimestamp()
+      });
+
       setIsAlerting(false);
       setCountdown(10);
     } catch (error) {

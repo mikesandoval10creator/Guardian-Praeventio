@@ -20,12 +20,34 @@ import { useProject } from '../contexts/ProjectContext';
 import { useManDownDetection } from '../hooks/useManDownDetection';
 import { DynamicEvacuationMap } from '../components/emergency/DynamicEvacuationMap';
 import { EmergencyDashboard } from '../components/emergency/EmergencyDashboard';
+import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from '../services/firebase';
 
 export function Emergency() {
   const { selectedProject } = useProject();
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
   const { isActive, isAlerting, countdown, startDetection, stopDetection } = useManDownDetection();
+
+  React.useEffect(() => {
+    if (!selectedProject?.id) return;
+    const projectRef = doc(db, 'projects', selectedProject.id);
+    const unsubscribe = onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setIsCrisisMode(docSnap.data().isEmergencyActive || false);
+      }
+    });
+    return () => unsubscribe();
+  }, [selectedProject?.id]);
+
+  const toggleCrisisMode = async () => {
+    if (!selectedProject?.id) return;
+    try {
+      const projectRef = doc(db, 'projects', selectedProject.id);
+      await setDoc(projectRef, { isEmergencyActive: !isCrisisMode }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `projects/${selectedProject.id}`);
+    }
+  };
 
   const protocols = [
     { id: 'P1', title: 'Protocolo de Incendio', category: 'Fuego', lastReview: '2024-01-15', status: 'active' },
@@ -90,7 +112,7 @@ export function Emergency() {
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setIsCrisisMode(!isCrisisMode)}
+            onClick={toggleCrisisMode}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
               isCrisisMode 
                 ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 

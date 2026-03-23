@@ -61,6 +61,70 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["type", "title", "description"]
+    },
+    "EmergencyMessage": {
+      "title": "Emergency Message",
+      "description": "A message sent during a crisis.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "sender": { "type": "string" },
+        "role": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["info", "alert", "emergency"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["projectId", "sender", "role", "text", "type", "timestamp"]
+    },
+    "EmergencyCheckIn": {
+      "title": "Emergency Check-In",
+      "description": "A worker's status during an emergency.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "workerId": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["safe", "danger", "unknown"] },
+        "lastLocation": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["projectId", "workerId", "name", "status", "timestamp"]
+    },
+    "EPPItem": {
+      "title": "EPP Item",
+      "description": "A piece of Personal Protective Equipment in the catalog.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "required": { "type": "boolean" },
+        "stock": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["projectId", "name", "category", "stock"]
+    },
+    "EPPAssignment": {
+      "title": "EPP Assignment",
+      "description": "Record of an EPP item assigned to a worker.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "workerId": { "type": "string" },
+        "workerName": { "type": "string" },
+        "eppItemId": { "type": "string" },
+        "eppItemName": { "type": "string" },
+        "assignedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "replaced", "expired"] }
+      },
+      "required": ["projectId", "workerId", "eppItemId", "assignedAt", "status"]
     }
   },
   "firestore": {
@@ -79,6 +143,22 @@
     "/nodes/{nodeId}": {
       "schema": "Node",
       "description": "Zettelkasten knowledge nodes."
+    },
+    "/projects/{projectId}/emergency_messages/{messageId}": {
+      "schema": "EmergencyMessage",
+      "description": "Messages sent during an emergency."
+    },
+    "/projects/{projectId}/emergency_checkins/{checkinId}": {
+      "schema": "EmergencyCheckIn",
+      "description": "Worker check-ins during an emergency."
+    },
+    "/projects/{projectId}/epp_items/{itemId}": {
+      "schema": "EPPItem",
+      "description": "EPP catalog items for a project."
+    },
+    "/projects/{projectId}/epp_assignments/{assignmentId}": {
+      "schema": "EPPAssignment",
+      "description": "EPP assignments to workers."
     }
   }
 }

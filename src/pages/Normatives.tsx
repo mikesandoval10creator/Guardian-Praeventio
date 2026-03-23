@@ -11,6 +11,7 @@ import {
   Filter,
   Bookmark
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 
 interface Normative {
@@ -25,8 +26,14 @@ interface Normative {
 }
 
 export function Normatives() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [savedIds, setSavedIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('savedNormatives');
+    return saved ? JSON.parse(saved) : [];
+  });
   const { data: normatives, loading } = useFirestoreCollection<Normative>('normatives');
 
   const seedNormatives = async () => {
@@ -105,11 +112,21 @@ export function Normatives() {
     }
   };
 
-  const filteredNormatives = normatives.filter(norm => 
-    norm.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    norm.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    norm.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const toggleSave = (id: string) => {
+    setSavedIds(prev => {
+      const newSaved = prev.includes(id) ? prev.filter(savedId => savedId !== id) : [...prev, id];
+      localStorage.setItem('savedNormatives', JSON.stringify(newSaved));
+      return newSaved;
+    });
+  };
+
+  const filteredNormatives = normatives.filter(norm => {
+    const matchesSearch = norm.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          norm.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          norm.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSaved = showSavedOnly ? savedIds.includes(norm.id) : true;
+    return matchesSearch && matchesSaved;
+  });
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -127,8 +144,15 @@ export function Normatives() {
             {isSeeding ? <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-5 h-5" />}
             <span>Sincronizar Biblioteca</span>
           </button>
-          <button className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
-            <Bookmark className="w-5 h-5" />
+          <button 
+            onClick={() => setShowSavedOnly(!showSavedOnly)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all shadow-lg active:scale-95 ${
+              showSavedOnly 
+                ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
+                : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
+            }`}
+          >
+            <Bookmark className={`w-5 h-5 ${showSavedOnly ? 'fill-current' : ''}`} />
             <span>Mis Guardados</span>
           </button>
         </div>
@@ -165,9 +189,19 @@ export function Normatives() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 hover:border-emerald-500/30 transition-all group relative overflow-hidden"
+              onClick={() => navigate(`/normatives/${norm.id}`)}
+              className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 hover:border-emerald-500/30 transition-all group relative overflow-hidden cursor-pointer"
             >
-              <div className="absolute top-0 right-0 p-4">
+              <div className="absolute top-0 right-0 p-4 flex items-center gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSave(norm.id);
+                  }}
+                  className="p-2 rounded-lg hover:bg-white/5 transition-colors group/bookmark"
+                >
+                  <Bookmark className={`w-5 h-5 ${savedIds.includes(norm.id) ? 'text-emerald-500 fill-emerald-500' : 'text-zinc-500 group-hover/bookmark:text-emerald-400'}`} />
+                </button>
                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
                   norm.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
                 }`}>
@@ -207,6 +241,7 @@ export function Normatives() {
                     href={norm.url} 
                     target="_blank" 
                     rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-1.5 text-emerald-500 hover:text-emerald-400 text-sm font-bold transition-colors"
                   >
                     <span>Ver Documento</span>

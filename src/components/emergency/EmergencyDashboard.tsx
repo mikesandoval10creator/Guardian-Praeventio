@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   AlertTriangle, 
@@ -13,12 +13,35 @@ import {
   Zap,
   Loader2
 } from 'lucide-react';
+import { useProject } from '../../contexts/ProjectContext';
+import { db, collection, onSnapshot, handleFirestoreError, OperationType } from '../../services/firebase';
 import { EmergencyCheckIn } from './EmergencyCheckIn';
 import { CrisisChat } from './CrisisChat';
 import { DynamicEvacuationMap } from './DynamicEvacuationMap';
 
 export function EmergencyDashboard() {
+  const { selectedProject } = useProject();
   const [activeTab, setActiveTab] = useState<'overview' | 'checkin' | 'chat' | 'map'>('overview');
+  const [stats, setStats] = useState({ total: 0, safe: 0, danger: 0, unknown: 0 });
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+
+    const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
+    const unsubscribe = onSnapshot(checkinsRef, (snapshot) => {
+      const workers = snapshot.docs.map(doc => doc.data());
+      setStats({
+        total: workers.length,
+        safe: workers.filter(w => w.status === 'safe').length,
+        danger: workers.filter(w => w.status === 'danger').length,
+        unknown: workers.filter(w => w.status === 'unknown').length,
+      });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `projects/${selectedProject.id}/emergency_checkins`);
+    });
+
+    return () => unsubscribe();
+  }, [selectedProject?.id]);
 
   const tabs = [
     { id: 'overview', label: 'Resumen', icon: Activity },
@@ -50,7 +73,9 @@ export function EmergencyDashboard() {
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-rose-200" />
-                <span className="text-sm font-black uppercase tracking-widest">75% Personal a Salvo</span>
+                <span className="text-sm font-black uppercase tracking-widest">
+                  {stats.total > 0 ? Math.round((stats.safe / stats.total) * 100) : 0}% Personal a Salvo
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-rose-200" />
@@ -106,12 +131,12 @@ export function EmergencyDashboard() {
                     </div>
                     <div>
                       <h4 className="text-2xl font-black text-white uppercase tracking-tight">Personal Seguro</h4>
-                      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">32 de 45 trabajadores reportados</p>
+                      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">{stats.safe} de {stats.total} trabajadores reportados</p>
                     </div>
                     <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
                       <motion.div 
                         initial={{ width: 0 }}
-                        animate={{ width: '71%' }}
+                        animate={{ width: `${stats.total > 0 ? (stats.safe / stats.total) * 100 : 0}%` }}
                         className="h-full bg-emerald-500" 
                       />
                     </div>

@@ -10,6 +10,9 @@ import {
   MessageSquare,
   ShieldAlert
 } from 'lucide-react';
+import { useFirebase } from '../../contexts/FirebaseContext';
+import { useProject } from '../../contexts/ProjectContext';
+import { db, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 
 interface Message {
   id: string;
@@ -21,14 +24,44 @@ interface Message {
 }
 
 export function CrisisChat() {
-  const [messages, setMessages] = useState<Message[]>([
-    { id: '1', sender: 'Sistema', role: 'Seguridad', text: 'Protocolo de Emergencia Activado. Todos los trabajadores deben reportar su estado.', timestamp: '10:45 AM', type: 'emergency' },
-    { id: '2', sender: 'Juan Pérez', role: 'Operador', text: 'Estoy a salvo en el punto de encuentro A.', timestamp: '10:46 AM', type: 'info' },
-    { id: '3', sender: 'Carlos Ruiz', role: 'Mantenimiento', text: 'Humo detectado en Sector B - Planta 2. Necesito apoyo.', timestamp: '10:48 AM', type: 'emergency' },
-    { id: '4', sender: 'Seguridad Central', role: 'Admin', text: 'Equipo de respuesta en camino al Sector B.', timestamp: '10:49 AM', type: 'alert' },
-  ]);
+  const { user } = useFirebase();
+  const { selectedProject } = useProject();
+  const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+
+    const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
+    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newMessages = snapshot.docs.map(doc => {
+        const data = doc.data();
+        let timeString = '';
+        if (data.timestamp) {
+          const date = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+          timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        return {
+          id: doc.id,
+          sender: data.sender || 'Usuario',
+          role: data.role || 'Operador',
+          text: data.text || '',
+          timestamp: timeString,
+          type: data.type || 'info',
+          isMe: data.senderId === user?.uid
+        } as Message & { isMe: boolean };
+      });
+      setMessages(newMessages);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `projects/${selectedProject.id}/emergency_messages`);
+    });
+
+    return () => unsubscribe();
+  }, [selectedProject?.id, user?.uid]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -36,21 +69,46 @@ export function CrisisChat() {
     }
   }, [messages]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !selectedProject?.id || !user) return;
 
-    const msg: Message = {
-      id: Date.now().toString(),
-      sender: 'Yo',
-      role: 'Usuario',
-      text: newMessage,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      type: 'info'
-    };
-
-    setMessages([...messages, msg]);
+    const messageText = newMessage;
     setNewMessage('');
+
+    try {
+      const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
+      await addDoc(messagesRef, {
+        projectId: selectedProject.id,
+        senderId: user.uid,
+        sender: user.displayName || 'Usuario',
+        role: 'Operador', // In a real app, get from user profile
+        text: messageText,
+        type: 'info',
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/emergency_messages`);
+    }
+  };
+
+  const handleQuickAction = async (actionText: string, type: 'info' | 'alert' | 'emergency') => {
+    if (!selectedProject?.id || !user) return;
+
+    try {
+      const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
+      await addDoc(messagesRef, {
+        projectId: selectedProject.id,
+        senderId: user.uid,
+        sender: user.displayName || 'Usuario',
+        role: 'Operador',
+        text: actionText,
+        type: type,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/emergency_messages`);
+    }
   };
 
   return (
@@ -82,30 +140,30 @@ export function CrisisChat() {
         className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide"
       >
         <AnimatePresence initial={false}>
-          {messages.map((msg) => (
+          {messages.map((msg: any) => (
             <motion.div
               key={msg.id}
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              className={`flex flex-col ${msg.sender === 'Yo' ? 'items-end' : 'items-start'}`}
+              className={`flex flex-col ${msg.isMe ? 'items-end' : 'items-start'}`}
             >
               <div className={`max-w-[85%] p-4 rounded-2xl space-y-2 ${
                 msg.type === 'emergency' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' :
                 msg.type === 'alert' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' :
-                msg.sender === 'Yo' ? 'bg-white text-black' : 'bg-zinc-800 text-white'
+                msg.isMe ? 'bg-white text-black' : 'bg-zinc-800 text-white'
               }`}>
                 <div className="flex items-center justify-between gap-4 mb-1">
                   <span className={`text-[8px] font-black uppercase tracking-widest ${
                     msg.type === 'emergency' ? 'text-white/80' :
                     msg.type === 'alert' ? 'text-black/60' :
-                    msg.sender === 'Yo' ? 'text-black/60' : 'text-zinc-500'
+                    msg.isMe ? 'text-black/60' : 'text-zinc-500'
                   }`}>
-                    {msg.sender} • {msg.role}
+                    {msg.isMe ? 'Yo' : msg.sender} • {msg.role}
                   </span>
                   <span className={`text-[8px] font-bold uppercase tracking-widest ${
                     msg.type === 'emergency' ? 'text-white/60' :
                     msg.type === 'alert' ? 'text-black/40' :
-                    msg.sender === 'Yo' ? 'text-black/40' : 'text-zinc-600'
+                    msg.isMe ? 'text-black/40' : 'text-zinc-600'
                   }`}>
                     {msg.timestamp}
                   </span>
@@ -140,13 +198,22 @@ export function CrisisChat() {
 
       {/* Quick Actions Footer */}
       <div className="px-4 py-2 bg-rose-500/5 border-t border-white/5 flex items-center gap-4 overflow-x-auto scrollbar-hide">
-        <button className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all">
+        <button 
+          onClick={() => handleQuickAction('Fuego detectado en mi sector.', 'emergency')}
+          className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all"
+        >
           Reportar Fuego
         </button>
-        <button className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all">
+        <button 
+          onClick={() => handleQuickAction('Necesito asistencia médica urgente.', 'emergency')}
+          className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all"
+        >
           Solicitar Médico
         </button>
-        <button className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all">
+        <button 
+          onClick={() => handleQuickAction('Iniciando evacuación del sector.', 'alert')}
+          className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all"
+        >
           Evacuación Completa
         </button>
       </div>

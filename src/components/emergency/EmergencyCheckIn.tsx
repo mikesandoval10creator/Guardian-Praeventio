@@ -10,6 +10,9 @@ import {
   ShieldAlert,
   Users
 } from 'lucide-react';
+import { useFirebase } from '../../contexts/FirebaseContext';
+import { useProject } from '../../contexts/ProjectContext';
+import { db, collection, query, onSnapshot, doc, setDoc, getDocs, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 
 interface WorkerStatus {
   id: string;
@@ -20,18 +23,103 @@ interface WorkerStatus {
 }
 
 export function EmergencyCheckIn() {
+  const { user } = useFirebase();
+  const { selectedProject } = useProject();
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
   const [myStatus, setMyStatus] = useState<'safe' | 'danger' | 'unknown'>('unknown');
-  const [workers, setWorkers] = useState<WorkerStatus[]>([
-    { id: '1', name: 'Juan Pérez', status: 'safe', timestamp: '10:45 AM' },
-    { id: '2', name: 'María García', status: 'unknown', timestamp: '10:40 AM' },
-    { id: '3', name: 'Carlos Ruiz', status: 'danger', lastLocation: 'Sector B - Planta 2', timestamp: '10:48 AM' },
-    { id: '4', name: 'Ana López', status: 'safe', timestamp: '10:46 AM' },
-  ]);
+  const [workers, setWorkers] = useState<WorkerStatus[]>([]);
 
-  const handleStatusUpdate = (status: 'safe' | 'danger') => {
-    setMyStatus(status);
-    // In a real app, this would update Firestore
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+
+    // Listen to emergency state (could be a document in the project)
+    const projectRef = doc(db, 'projects', selectedProject.id);
+    const unsubscribeProject = onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setIsEmergencyActive(docSnap.data().isEmergencyActive || false);
+      }
+    });
+
+    // Listen to check-ins
+    const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
+    const unsubscribeCheckins = onSnapshot(checkinsRef, (snapshot) => {
+      const newWorkers = snapshot.docs.map(doc => {
+        const data = doc.data();
+        let timeString = '';
+        if (data.timestamp) {
+          const date = data.timestamp.toDate ? data.timestamp.toDate() : new Date(data.timestamp);
+          timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        if (data.workerId === user?.uid) {
+          setMyStatus(data.status);
+        }
+
+        return {
+          id: doc.id,
+          name: data.name || 'Desconocido',
+          status: data.status || 'unknown',
+          lastLocation: data.lastLocation,
+          timestamp: timeString
+        } as WorkerStatus;
+      });
+      setWorkers(newWorkers);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `projects/${selectedProject.id}/emergency_checkins`);
+    });
+
+    return () => {
+      unsubscribeProject();
+      unsubscribeCheckins();
+    };
+  }, [selectedProject?.id, user?.uid]);
+
+  const handleStatusUpdate = async (status: 'safe' | 'danger') => {
+    if (!selectedProject?.id || !user) return;
+
+    try {
+      const checkinRef = doc(db, `projects/${selectedProject.id}/emergency_checkins`, user.uid);
+      await setDoc(checkinRef, {
+        projectId: selectedProject.id,
+        workerId: user.uid,
+        name: user.displayName || 'Usuario',
+        status: status,
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/emergency_checkins`);
+    }
+  };
+
+  const toggleEmergency = async () => {
+    if (!selectedProject?.id) return;
+    try {
+      const projectRef = doc(db, 'projects', selectedProject.id);
+      const newStatus = !isEmergencyActive;
+      await setDoc(projectRef, { isEmergencyActive: newStatus }, { merge: true });
+
+      if (newStatus) {
+        // Populate emergency_checkins with all workers
+        const workersRef = collection(db, `projects/${selectedProject.id}/workers`);
+        const workersSnap = await getDocs(workersRef);
+        
+        const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
+        
+        // In a real app, use a batch write here
+        for (const workerDoc of workersSnap.docs) {
+          const workerData = workerDoc.data();
+          await setDoc(doc(checkinsRef, workerDoc.id), {
+            projectId: selectedProject.id,
+            workerId: workerDoc.id,
+            name: workerData.name || 'Desconocido',
+            status: 'unknown',
+            timestamp: serverTimestamp()
+          });
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `projects/${selectedProject.id}`);
+    }
   };
 
   const stats = {
@@ -52,7 +140,7 @@ export function EmergencyCheckIn() {
           </span>
         </div>
         <button
-          onClick={() => setIsEmergencyActive(!isEmergencyActive)}
+          onClick={toggleEmergency}
           className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
             isEmergencyActive 
               ? 'bg-zinc-800 text-zinc-400 hover:text-white' 
