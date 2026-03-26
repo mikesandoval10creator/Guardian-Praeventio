@@ -9,16 +9,30 @@ import {
   Home, 
   Book, 
   User, 
+  Users,
   Settings,
   HelpCircle,
   LogOut,
   Bell,
   Activity,
   AlertTriangle,
+  ShieldAlert,
   ClipboardCheck,
   Briefcase,
   Truck,
-  Clock
+  Clock,
+  Network,
+  ClipboardList,
+  UserCheck,
+  BookOpen,
+  Calendar,
+  Folder,
+  AlertOctagon,
+  Grid,
+  Droplets,
+  HeartPulse,
+  Award,
+  BarChart3
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { ProjectSelector } from './ProjectSelector';
@@ -30,27 +44,35 @@ interface SidebarProps {
 
 const menuItems = [
   { title: 'Inicio', icon: Home, path: '/', color: 'text-emerald-500' },
+  { title: 'Pizarra', icon: Network, path: '/zettelkasten', color: 'text-emerald-400' },
   { title: 'Proyectos', icon: Briefcase, path: '/projects', color: 'text-blue-500' },
-  { title: 'El Cerebro', icon: Zap, path: '/zettelkasten', color: 'text-emerald-400' },
-  { title: 'Gestión de Riesgos', icon: Shield, path: '/risks', color: 'text-indigo-500' },
-  { title: 'Matriz IA (IPERC)', icon: Zap, path: '/matrix', color: 'text-violet-500' },
-  { title: 'Mapa de Evacuación', icon: Map, path: '/evacuation', color: 'text-pink-500' },
-  { title: 'Plan de Emergencia', icon: FileText, path: '/emergency', color: 'text-amber-500' },
-  { title: 'Trabajadores', icon: User, path: '/workers', color: 'text-emerald-500' },
-  { title: 'Asistencia', icon: Clock, path: '/attendance', color: 'text-emerald-400' },
-  { title: 'Gestión de EPP', icon: Shield, path: '/epp', color: 'text-blue-400' },
-  { title: 'Generador PTS', icon: FileText, path: '/pts', color: 'text-emerald-400' },
-  { title: 'Bio-Análisis', icon: Activity, path: '/bio-analysis', color: 'text-rose-400' },
-  { title: 'Gemelo Digital', icon: Map, path: '/digital-twin', color: 'text-indigo-400' },
-  { title: 'Gestión de Activos', icon: Truck, path: '/assets', color: 'text-amber-400' },
-  { title: 'AI Hub: El Guardián', icon: Zap, path: '/ai-hub', color: 'text-blue-500' },
-  { title: 'Capacitaciones', icon: Activity, path: '/training', color: 'text-blue-500' },
-  { title: 'Normativas', icon: Book, path: '/normatives', color: 'text-zinc-500' },
-  { title: 'Higiene y Salud', icon: Shield, path: '/hygiene', color: 'text-teal-500' },
-  { title: 'Medicina Ocupacional', icon: Activity, path: '/medicine', color: 'text-rose-500' },
-  { title: 'Ergonomía', icon: Layout, path: '/ergonomics', color: 'text-orange-500' },
   { title: 'Hallazgos', icon: AlertTriangle, path: '/findings', color: 'text-amber-500' },
-  { title: 'Auditorías', icon: ClipboardCheck, path: '/audits', color: 'text-blue-500' },
+  { title: 'Auditorías', icon: ClipboardList, path: '/audits', color: 'text-emerald-500' },
+  { title: 'Asistencia', icon: UserCheck, path: '/attendance', color: 'text-blue-400' },
+  { title: 'Capacitaciones', icon: BookOpen, path: '/training', color: 'text-violet-500' },
+  { title: 'Calendario', icon: Calendar, path: '/calendar', color: 'text-violet-500' },
+  { title: 'Documentos', icon: Folder, path: '/documents', color: 'text-violet-500' },
+  { title: 'EPP', icon: Shield, path: '/epp', color: 'text-violet-500' },
+  { title: 'Riesgos', icon: AlertOctagon, path: '/risks', color: 'text-violet-500' },
+  { title: 'Matriz', icon: Grid, path: '/matrix', color: 'text-violet-500' },
+  { title: 'Trabajadores', icon: Users, path: '/workers', color: 'text-violet-500' },
+  { title: 'PTS', icon: FileText, path: '/pts', color: 'text-violet-500' },
+  { title: 'Bio-Análisis', icon: Activity, path: '/bio-analysis', color: 'text-violet-500' },
+  { title: 'Normativas', icon: Book, path: '/normatives', color: 'text-violet-500' },
+  { title: 'Glosario', icon: BookOpen, path: '/glossary', color: 'text-violet-500' },
+  { title: 'Emergencia', icon: AlertTriangle, path: '/emergency', color: 'text-violet-500' },
+  { title: 'Evacuación', icon: Map, path: '/evacuation', color: 'text-violet-500' },
+  { title: 'Higiene', icon: Droplets, path: '/hygiene', color: 'text-violet-500' },
+  { title: 'Medicina', icon: HeartPulse, path: '/medicine', color: 'text-violet-500' },
+  { title: 'Ergonomía', icon: UserCheck, path: '/ergonomics', color: 'text-violet-500' },
+  { title: 'Historia', icon: Clock, path: '/history', color: 'text-violet-500' },
+  { title: 'Reportabilidad', icon: BarChart3, path: '/analytics', color: 'text-indigo-500' },
+  { title: 'Reportes SUSESO', icon: FileText, path: '/suseso', color: 'text-blue-500' },
+  { title: 'AI Hub', icon: Zap, path: '/ai-hub', color: 'text-violet-500' },
+  { title: 'Entrenamiento IA', icon: Zap, path: '/knowledge-ingestion', color: 'text-emerald-500' },
+  { title: 'Muro', icon: Users, path: '/safety-feed', color: 'text-emerald-500' },
+  { title: 'Telemetría', icon: Activity, path: '/telemetry', color: 'text-violet-500' },
+  { title: 'Gamificación', icon: Award, path: '/gamification', color: 'text-violet-500' },
 ];
 
 const secondaryItems = [
@@ -85,7 +107,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             className="fixed top-0 left-0 bottom-0 w-[280px] bg-zinc-950 border-r border-white/10 z-[70] flex flex-col shadow-2xl"
           >
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-transparent">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.3)]">
                   <Shield className="w-5 h-5 text-white" />
@@ -104,7 +126,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto py-4 px-3 no-scrollbar">
+            <div className="flex-1 min-h-0 overflow-y-auto py-4 px-3 custom-scrollbar">
               <div className="mb-6 px-3">
                 <ProjectSelector />
               </div>
@@ -136,7 +158,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 })}
               </div>
 
-              <div className="mt-6 space-y-1">
+              <div className="mt-6 space-y-1 pb-12">
                 <p className="px-3 text-[7px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-2">Sistema y Cuenta</p>
                 {secondaryItems.map((item) => (
                   <Link
@@ -153,7 +175,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-white/10 bg-zinc-900/50">
+            <div className="p-4 border-t border-white/10 bg-zinc-900/50 shrink-0">
               <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all group">
                 <LogOut className="w-4 h-4" />
                 <span className="text-[9px] font-black uppercase tracking-widest">Cerrar Sesión</span>

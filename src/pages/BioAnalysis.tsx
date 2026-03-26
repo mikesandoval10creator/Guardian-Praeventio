@@ -1,141 +1,197 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User } from 'lucide-react';
+import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User, Shield, Zap, Save, LineChart as LineChartIcon, HeartPulse } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useZettelkasten } from '../hooks/useZettelkasten';
+import { NodeType } from '../types';
+import { analyzeBioImage } from '../services/geminiService';
+import { CompensatoryExercisesModal } from '../components/bio/CompensatoryExercisesModal';
+
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { FaceLandmarker, PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function BioAnalysis() {
+  const { user } = useFirebase();
   const { selectedProject } = useProject();
+  const { addNode } = useZettelkasten();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [metrics, setMetrics] = useState({
     fatigue: 0,
     posture: 100,
-    attention: 100
+    attention: 100,
+    epp: 100
   });
+  const [history, setHistory] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<string[]>([]);
+  const [lastAnalysisImage, setLastAnalysisImage] = useState<string | null>(null);
+  const [isExercisesModalOpen, setIsExercisesModalOpen] = useState(false);
+
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+  const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const requestRef = useRef<number>(0);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    let animationFrameId: number;
+    let isMounted = true;
+    const loadModels = async () => {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        
+        const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+            delegate: "GPU"
+          },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1
+        });
 
-    const drawSimulatedMesh = () => {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      if (!canvas || !video || !isAnalyzing) return;
+        const poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+            delegate: "GPU"
+          },
+          runningMode: "VIDEO",
+          numPoses: 1
+        });
 
+        if (isMounted) {
+          faceLandmarkerRef.current = faceLandmarker;
+          poseLandmarkerRef.current = poseLandmarker;
+        }
+      } catch (error) {
+        console.error("Error loading mediapipe models:", error);
+      }
+    };
+    loadModels();
+    return () => {
+      isMounted = false;
+      if (faceLandmarkerRef.current) faceLandmarkerRef.current.close();
+      if (poseLandmarkerRef.current) poseLandmarkerRef.current.close();
+    };
+  }, []);
+
+  // Real-time mesh drawing and analysis
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    const predictWebcam = () => {
+      if (!video || !canvas || !cameraActive || !faceLandmarkerRef.current || !poseLandmarkerRef.current) return;
+      
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Match canvas size to video
-      canvas.width = video.clientWidth;
-      canvas.height = video.clientHeight;
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        requestRef.current = requestAnimationFrame(predictWebcam);
+        return;
+      }
 
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw simulated face mesh points
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const radiusX = 60 + Math.sin(Date.now() / 500) * 5; // Slight breathing effect
-      const radiusY = 80 + Math.cos(Date.now() / 500) * 5;
+      let currentFatigue = 0;
+      let currentPosture = 100;
+      let currentAttention = 100;
+      let newAlerts: string[] = [];
 
-      ctx.strokeStyle = 'rgba(16, 185, 129, 0.5)'; // Emerald 500
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.8)';
-      ctx.lineWidth = 1;
+      const startTimeMs = performance.now();
+      
+      // Face detection
+      const faceResults = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
+      if (faceResults.faceLandmarks) {
+        const drawingUtils = new DrawingUtils(ctx);
+        for (const landmarks of faceResults.faceLandmarks) {
+          drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: "#10B981", lineWidth: 1 });
+          drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE, { color: "#3B82F6" });
+          drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_LEFT_EYE, { color: "#3B82F6" });
+          drawingUtils.drawConnectors(landmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: "#E0E0E0" });
+        }
 
-      // Draw points around an ellipse (simulating face contour)
-      const numPoints = 20;
-      const points = [];
-      for (let i = 0; i < numPoints; i++) {
-        const angle = (i / numPoints) * Math.PI * 2;
-        const x = centerX + Math.cos(angle) * radiusX + (Math.random() * 4 - 2);
-        const y = centerY + Math.sin(angle) * radiusY + (Math.random() * 4 - 2);
-        points.push({ x, y });
-        
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Connect some points to simulate a mesh
-      ctx.beginPath();
-      for (let i = 0; i < points.length; i++) {
-        const p1 = points[i];
-        const p2 = points[(i + 1) % points.length];
-        const p3 = points[(i + 5) % points.length]; // Cross connections
-        
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        
-        if (i % 3 === 0) {
-           ctx.moveTo(p1.x, p1.y);
-           ctx.lineTo(p3.x, p3.y);
+        if (faceResults.faceBlendshapes && faceResults.faceBlendshapes.length > 0) {
+          const blendshapes = faceResults.faceBlendshapes[0].categories;
+          const eyeBlinkLeft = blendshapes.find(b => b.categoryName === 'eyeBlinkLeft')?.score || 0;
+          const eyeBlinkRight = blendshapes.find(b => b.categoryName === 'eyeBlinkRight')?.score || 0;
+          const jawOpen = blendshapes.find(b => b.categoryName === 'jawOpen')?.score || 0;
+          
+          // Fatigue logic
+          if (eyeBlinkLeft > 0.5 && eyeBlinkRight > 0.5) {
+            currentFatigue += 50;
+          }
+          if (jawOpen > 0.3) {
+            currentFatigue += 30; // Yawning
+          }
+          
+          // Attention logic (head pitch/yaw estimation from blendshapes or landmarks)
+          const headPitch = blendshapes.find(b => b.categoryName === 'headPitch')?.score || 0;
+          if (Math.abs(headPitch) > 0.3) {
+            currentAttention -= 40;
+          }
         }
       }
-      ctx.stroke();
 
-      // Draw simulated eye tracking
-      const leftEyeX = centerX - 25;
-      const rightEyeX = centerX + 25;
-      const eyeY = centerY - 15;
-      
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)'; // Blue 500 for eyes
-      ctx.beginPath();
-      ctx.arc(leftEyeX, eyeY, 8, 0, Math.PI * 2);
-      ctx.arc(rightEyeX, eyeY, 8, 0, Math.PI * 2);
-      ctx.stroke();
+      // Pose detection
+      const poseResults = poseLandmarkerRef.current.detectForVideo(video, startTimeMs);
+      if (poseResults.landmarks) {
+        const drawingUtils = new DrawingUtils(ctx);
+        for (const landmark of poseResults.landmarks) {
+          drawingUtils.drawLandmarks(landmark, { radius: 3, color: "#F59E0B" });
+          drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS, { color: "#F59E0B", lineWidth: 2 });
+          
+          // Basic posture logic (e.g., shoulders level)
+          const leftShoulder = landmark[11];
+          const rightShoulder = landmark[12];
+          if (leftShoulder && rightShoulder) {
+            const shoulderDiff = Math.abs(leftShoulder.y - rightShoulder.y);
+            if (shoulderDiff > 0.1) {
+              currentPosture -= 30;
+            }
+          }
+        }
+      }
 
-      // Draw gaze direction line
-      const gazeOffsetX = Math.sin(Date.now() / 1000) * 15;
-      const gazeOffsetY = Math.cos(Date.now() / 1000) * 5;
-      
-      ctx.beginPath();
-      ctx.moveTo(leftEyeX, eyeY);
-      ctx.lineTo(leftEyeX + gazeOffsetX, eyeY + gazeOffsetY);
-      ctx.moveTo(rightEyeX, eyeY);
-      ctx.lineTo(rightEyeX + gazeOffsetX, eyeY + gazeOffsetY);
-      ctx.stroke();
+      if (isAnalyzing) {
+        // Draw scanning effect
+        const scanY = (Date.now() / 10) % canvas.height;
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+        ctx.fillRect(0, scanY, canvas.width, 2);
+        ctx.shadowColor = 'rgba(16, 185, 129, 0.8)';
+        ctx.shadowBlur = 10;
+      }
 
-      animationFrameId = requestAnimationFrame(drawSimulatedMesh);
+      // Update metrics smoothly
+      setMetrics(prev => ({
+        fatigue: Math.min(100, Math.max(0, prev.fatigue * 0.9 + currentFatigue * 0.1)),
+        posture: Math.min(100, Math.max(0, prev.posture * 0.9 + currentPosture * 0.1)),
+        attention: Math.min(100, Math.max(0, prev.attention * 0.9 + currentAttention * 0.1)),
+        epp: prev.epp // EPP still needs Gemini for object detection
+      }));
+
+      requestRef.current = requestAnimationFrame(predictWebcam);
     };
 
-    if (isAnalyzing && cameraActive) {
-      interval = setInterval(() => {
-        // Simulate fluctuating metrics
-        setMetrics(prev => {
-          const newFatigue = Math.min(100, Math.max(0, prev.fatigue + (Math.random() * 10 - 3)));
-          const newPosture = Math.min(100, Math.max(0, prev.posture + (Math.random() * 10 - 5)));
-          const newAttention = Math.min(100, Math.max(0, prev.attention + (Math.random() * 10 - 5)));
-          
-          const newAlerts = [];
-          if (newFatigue > 70) newAlerts.push('Signos de fatiga detectados. Se recomienda pausa activa.');
-          if (newPosture < 60) newAlerts.push('Postura incorrecta. Riesgo ergonómico (REBA/RULA).');
-          if (newAttention < 50) newAlerts.push('Baja atención detectada. Posible distracción.');
-          
-          setAlerts(newAlerts);
-          
-          return {
-            fatigue: newFatigue,
-            posture: newPosture,
-            attention: newAttention
-          };
-        });
-      }, 2000);
-
-      drawSimulatedMesh();
+    if (cameraActive) {
+      requestRef.current = requestAnimationFrame(predictWebcam);
     }
     
     return () => {
-      clearInterval(interval);
-      cancelAnimationFrame(animationFrameId);
-      // Clear canvas when stopping
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
       }
     };
-  }, [isAnalyzing, cameraActive]);
+  }, [cameraActive, isAnalyzing]);
 
   const toggleCamera = async () => {
     if (cameraActive) {
@@ -144,12 +200,15 @@ export function BioAnalysis() {
       if (videoRef.current) videoRef.current.srcObject = null;
       setCameraActive(false);
       setIsAnalyzing(false);
+      setLastAnalysisImage(null);
     } else {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          setCameraActive(true);
+          videoRef.current.addEventListener('loadeddata', () => {
+            setCameraActive(true);
+          });
         }
       } catch (err) {
         console.error("Error accessing camera:", err);
@@ -158,20 +217,111 @@ export function BioAnalysis() {
     }
   };
 
+  const captureAndAnalyze = async () => {
+    if (!videoRef.current || !cameraActive) return;
+
+    setIsAiProcessing(true);
+    setIsAnalyzing(true);
+
+    try {
+      // 1. Capture frame
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error("Could not get canvas context");
+      
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+      setLastAnalysisImage(canvas.toDataURL('image/jpeg'));
+
+      // 2. Call Gemini Vision
+      const result = await analyzeBioImage(base64Image);
+      
+      const newMetrics = {
+        fatigue: result.fatigue || 0,
+        posture: result.posture || 100,
+        attention: result.attention || 100,
+        epp: result.epp || 100
+      };
+
+      setMetrics(newMetrics);
+      setAlerts(result.alerts || []);
+      
+      setHistory(prev => {
+        const newHistory = [...prev, {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          ...newMetrics
+        }];
+        return newHistory.slice(-10); // Keep last 10 readings
+      });
+
+    } catch (error) {
+      console.error("Error analyzing image:", error);
+      alert("Error al analizar la imagen con IA.");
+    } finally {
+      setIsAiProcessing(false);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const saveToZettelkasten = async () => {
+    if (!selectedProject || !user) {
+      alert("Selecciona un proyecto primero.");
+      return;
+    }
+
+    if (alerts.length === 0) {
+      alert("No hay alertas críticas para guardar.");
+      return;
+    }
+
+    try {
+      // 1. Save to dedicated findings collection
+      const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/findings`), {
+        title: `Hallazgo Bio-Análisis: ${alerts[0]}`,
+        description: `Se detectaron las siguientes anomalías mediante Bio-Análisis (Computer Vision):\n\n${alerts.map(a => `- ${a}`).join('\n')}\n\nMétricas:\n- Fatiga: ${metrics.fatigue}%\n- Postura: ${metrics.posture}%\n- Atención: ${metrics.attention}%\n- EPP: ${metrics.epp}%`,
+        type: 'Condición Subestándar',
+        status: 'Abierto',
+        priority: 'Alta',
+        projectId: selectedProject.id,
+        reportedBy: user.displayName || user.email || 'Usuario',
+        createdAt: serverTimestamp()
+      });
+
+      // 2. Save to Zettelkasten
+      await addNode({
+        projectId: selectedProject.id,
+        type: NodeType.FINDING,
+        title: `Hallazgo Bio-Análisis: ${alerts[0]}`,
+        description: `Se detectaron las siguientes anomalías mediante Bio-Análisis (Computer Vision):\n\n${alerts.map(a => `- ${a}`).join('\n')}\n\nMétricas:\n- Fatiga: ${metrics.fatigue}%\n- Postura: ${metrics.posture}%\n- Atención: ${metrics.attention}%\n- EPP: ${metrics.epp}%`,
+        tags: ['bio-analisis', 'ia', 'hallazgo', 'vision'],
+        connections: [],
+        metadata: {
+          findingId: docRef.id
+        }
+      });
+      alert("Hallazgo guardado en la Red Neuronal y Hallazgos exitosamente.");
+    } catch (error) {
+      console.error("Error saving to Zettelkasten:", error);
+      alert("Error al guardar en la Red Neuronal.");
+    }
+  };
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-4xl font-black text-white uppercase tracking-tighter">Bio-Análisis</h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-2">
-            Detección de Fatiga y Postura en Tiempo Real
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Bio-Análisis</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+            Computer Vision & IA para Detección de Riesgos
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={toggleCamera}
-            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 ${
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
               cameraActive ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-white text-black hover:bg-zinc-200'
             }`}
           >
@@ -181,13 +331,14 @@ export function BioAnalysis() {
           
           {cameraActive && (
             <button 
-              onClick={() => setIsAnalyzing(!isAnalyzing)}
-              className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center gap-2 ${
-                isAnalyzing ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-emerald-500 text-white hover:bg-emerald-600'
+              onClick={captureAndAnalyze}
+              disabled={isAiProcessing}
+              className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
+                isAiProcessing ? 'bg-zinc-500 text-white cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'
               }`}
             >
-              <Activity className="w-4 h-4" />
-              <span>{isAnalyzing ? 'Pausar Análisis' : 'Iniciar Análisis'}</span>
+              {isAiProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              <span>{isAiProcessing ? 'Analizando...' : 'Analizar con IA'}</span>
             </button>
           )}
         </div>
@@ -196,11 +347,14 @@ export function BioAnalysis() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Camera Feed */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden relative aspect-video">
+          <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden relative aspect-video shadow-2xl">
             {!cameraActive ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
                 <Camera className="w-16 h-16 mb-4 opacity-50" />
                 <p className="text-sm font-bold uppercase tracking-widest">Cámara Desactivada</p>
+                {lastAnalysisImage && (
+                  <img src={lastAnalysisImage} alt="Last analysis" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+                )}
               </div>
             ) : (
               <>
@@ -212,7 +366,7 @@ export function BioAnalysis() {
                   className="w-full h-full object-cover"
                 />
                 
-                {/* Canvas for simulated mesh overlay */}
+                {/* Canvas for mesh overlay */}
                 <canvas 
                   ref={canvasRef}
                   className="absolute inset-0 w-full h-full pointer-events-none z-10"
@@ -224,25 +378,15 @@ export function BioAnalysis() {
                     {/* Scanning effect */}
                     <motion.div 
                       animate={{ top: ['0%', '100%', '0%'] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                      className="absolute left-0 right-0 h-1 bg-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.8)] z-10"
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="absolute left-0 right-0 h-1 bg-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.8)] z-10"
                     />
                     
-                    {/* Simulated Face/Body Tracking Box */}
-                    <div className="absolute top-1/4 left-1/4 right-1/4 bottom-1/4 border-2 border-emerald-500/50 rounded-xl flex items-start justify-between p-2">
-                      <div className="w-4 h-4 border-t-2 border-l-2 border-emerald-500" />
-                      <div className="w-4 h-4 border-t-2 border-r-2 border-emerald-500" />
-                    </div>
-                    <div className="absolute top-1/4 left-1/4 right-1/4 bottom-1/4 flex items-end justify-between p-2">
-                      <div className="w-4 h-4 border-b-2 border-l-2 border-emerald-500" />
-                      <div className="w-4 h-4 border-b-2 border-r-2 border-emerald-500" />
-                    </div>
-
                     {/* Live Stats Overlay */}
                     <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl p-3">
-                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-widest">
-                        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                        Analizando
+                      <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-widest">
+                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                        Procesando con Gemini Vision...
                       </div>
                     </div>
                   </div>
@@ -253,10 +397,30 @@ export function BioAnalysis() {
 
           {/* Alerts Section */}
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
-            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-500" />
-              Alertas en Tiempo Real
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                Resultados del Análisis
+              </h3>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsExercisesModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                >
+                  <HeartPulse className="w-3 h-3" />
+                  Pausa Activa
+                </button>
+                {alerts.length > 0 && (
+                  <button 
+                    onClick={saveToZettelkasten}
+                    className="flex items-center gap-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
+                  >
+                    <Save className="w-3 h-3" />
+                    Guardar Hallazgo
+                  </button>
+                )}
+              </div>
+            </div>
             
             <div className="space-y-3">
               {alerts.length > 0 ? (
@@ -346,24 +510,81 @@ export function BioAnalysis() {
                   />
                 </div>
               </div>
+
+              {/* EPP */}
+              <div>
+                <div className="flex justify-between items-end mb-2">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-zinc-400" />
+                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Cumplimiento EPP</span>
+                  </div>
+                  <span className={`text-lg font-black ${metrics.epp < 80 ? 'text-rose-500' : 'text-white'}`}>
+                    {Math.round(metrics.epp)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    className={`h-full ${metrics.epp < 80 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                    animate={{ width: `${metrics.epp}%` }}
+                    transition={{ type: 'spring', bounce: 0 }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
+            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-6 flex items-center gap-2">
+              <LineChartIcon className="w-4 h-4 text-indigo-500" />
+              Tendencia de Métricas
+            </h3>
+            <div className="h-48 w-full">
+              {history.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={history} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                    <XAxis dataKey="time" stroke="#666" fontSize={10} tickMargin={10} />
+                    <YAxis stroke="#666" fontSize={10} domain={[0, 100]} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#18181b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '12px' }}
+                      itemStyle={{ fontWeight: 'bold' }}
+                    />
+                    <Line type="monotone" dataKey="fatigue" name="Fatiga" stroke="#f43f5e" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="posture" name="Postura" stroke="#eab308" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="attention" name="Atención" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="epp" name="EPP" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500">
+                  <Activity className="w-8 h-8 mb-2 opacity-50" />
+                  <p className="text-xs font-bold uppercase tracking-widest">Sin datos históricos</p>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-3xl p-6">
             <h3 className="text-sm font-black text-blue-500 uppercase tracking-widest mb-2 flex items-center gap-2">
               <RefreshCw className="w-4 h-4" />
-              Zettelkasten Sync
+              Sincronización Neuronal
             </h3>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              Los datos biométricos se analizan localmente. Las anomalías persistentes generarán un nodo de "Hallazgo" en el Grafo de Conocimiento para análisis predictivo.
+              Los datos biométricos y de EPP son analizados por Gemini Vision. Si se detectan anomalías críticas, puedes guardarlas directamente como un nodo de "Hallazgo" en la Red Neuronal para análisis predictivo y auditoría.
             </p>
             <div className="flex items-center gap-2 text-[10px] font-black text-blue-400 uppercase tracking-widest">
               <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-              Sincronización Activa
+              Conexión IA Activa
             </div>
           </div>
         </div>
       </div>
+
+      <CompensatoryExercisesModal
+        isOpen={isExercisesModalOpen}
+        onClose={() => setIsExercisesModalOpen(false)}
+        metrics={metrics}
+      />
     </div>
   );
 }

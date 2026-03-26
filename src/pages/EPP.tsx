@@ -16,17 +16,22 @@ import {
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { EPPItem, EPPAssignment, Worker } from '../types';
 import { db, serverTimestamp } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, where } from 'firebase/firestore';
 import { AssignEPPModal } from '../components/epp/AssignEPPModal';
+import { EPPVerificationModal } from '../components/epp/EPPVerificationModal';
+import { Sparkles } from 'lucide-react';
 
 export function EPP() {
   const { selectedProject } = useProject();
+  const { user, userRole, isAdmin } = useFirebase();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
   const [isAdding, setIsAdding] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   
   const [newItem, setNewItem] = useState({
     name: '',
@@ -41,8 +46,11 @@ export function EPP() {
     selectedProject ? `projects/${selectedProject.id}/epp_items` : null
   );
 
+  const isWorker = userRole === 'worker' && !isAdmin;
+
   const { data: eppAssignments } = useFirestoreCollection<EPPAssignment>(
-    selectedProject ? `projects/${selectedProject.id}/epp_assignments` : null
+    selectedProject ? `projects/${selectedProject.id}/epp_assignments` : null,
+    isWorker && user ? [where('workerId', '==', user.uid)] : []
   );
 
   const { data: workers } = useFirestoreCollection<Worker>(
@@ -76,48 +84,60 @@ export function EPP() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-4xl font-black text-white uppercase tracking-tighter">Gestión de EPP</h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gestión de EPP</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             Catálogo Maestro e Inventario de Seguridad
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-zinc-900/50 border border-white/10 rounded-2xl px-4 py-2 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
-              <Package className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Total Items</p>
-              <p className="text-sm font-bold text-white">{eppItems?.length || 0}</p>
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
+          <div className="bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-md sm:rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                <Package className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-[7px] sm:text-[8px] font-black text-zinc-500 uppercase tracking-widest leading-tight">Total Items</p>
+                <p className="text-xs sm:text-sm font-bold text-white mt-0.5">{eppItems?.length || 0}</p>
+              </div>
             </div>
           </div>
           <button 
-            onClick={() => setIsAssigning(true)}
-            className="bg-zinc-800 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-700 transition-all shadow-xl shadow-black/5 flex items-center gap-2 border border-white/10"
+            onClick={() => setIsVerifying(true)}
+            className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:from-emerald-500 hover:to-teal-500 transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 border border-emerald-400/20 w-full sm:w-auto"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>Asignar EPP</span>
+            <Sparkles className="w-4 h-4" />
+            <span>Verificar con IA</span>
           </button>
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="bg-white text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Añadir al Catálogo</span>
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+              onClick={() => setIsAssigning(true)}
+              className="bg-zinc-800 text-white px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-zinc-700 transition-all shadow-xl shadow-black/5 flex items-center justify-center gap-2 border border-white/10 flex-1 sm:flex-none"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Asignar EPP</span>
+            </button>
+            <button 
+              onClick={() => setIsAdding(true)}
+              className="bg-white text-black px-4 py-3 sm:py-3 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2 flex-1 sm:flex-none"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Añadir al Catálogo</span>
+              <span className="sm:hidden">Añadir</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'En Stock', value: (eppItems || []).reduce((acc, item) => acc + (item.stock || 0), 0).toString(), icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
           { label: 'Por Reponer', value: (eppItems || []).filter(item => (item.stock || 0) < 10).length.toString(), icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-          { label: 'Vencimientos', value: '0', icon: Clock, color: 'text-red-500', bg: 'bg-red-500/10' },
+          { label: 'Vencimientos', value: (eppAssignments || []).filter(a => a.status === 'active' && a.expiresAt && new Date(a.expiresAt) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)).length.toString(), icon: Clock, color: 'text-red-500', bg: 'bg-red-500/10' },
           { label: 'Asignados', value: (eppAssignments || []).filter(a => a.status === 'active').length.toString(), icon: Shield, color: 'text-blue-500', bg: 'bg-blue-500/10' },
         ].map((stat, i) => (
           <motion.div
@@ -125,29 +145,29 @@ export function EPP() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 flex items-center gap-4 group hover:border-white/10 transition-all"
+            className="bg-zinc-900/50 border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-3 sm:gap-4 group hover:border-white/10 transition-all"
           >
-            <div className={`w-12 h-12 rounded-2xl ${stat.bg} flex items-center justify-center border border-white/5`}>
-              <stat.icon className={`w-6 h-6 ${stat.color}`} />
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${stat.bg} flex items-center justify-center border border-white/5 shrink-0`}>
+              <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
             </div>
             <div>
-              <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{stat.label}</p>
-              <p className="text-xl font-black text-white tracking-tight">{stat.value}</p>
+              <p className="text-[7px] sm:text-[8px] font-black text-zinc-500 uppercase tracking-widest leading-tight">{stat.label}</p>
+              <p className="text-lg sm:text-xl font-black text-white tracking-tight mt-0.5">{stat.value}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col md:flex-row gap-3 sm:gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+          <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
             placeholder="Buscar EPP por nombre o descripción..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            className="w-full bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0">
@@ -155,7 +175,7 @@ export function EPP() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
+              className={`px-4 sm:px-6 py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
                 activeCategory === cat 
                   ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20' 
                   : 'bg-zinc-900/50 text-zinc-500 border-white/5 hover:border-white/10 hover:text-white'
@@ -168,20 +188,20 @@ export function EPP() {
       </div>
 
       {/* Catalog Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {filteredEPP.map((item, index) => (
           <motion.div
             key={item.id}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.05 }}
-            className="bg-zinc-900/30 border border-white/5 rounded-[2.5rem] p-6 group hover:border-emerald-500/30 transition-all relative overflow-hidden"
+            className="bg-zinc-900/30 border border-white/5 rounded-3xl sm:rounded-[2.5rem] p-4 sm:p-6 group hover:border-emerald-500/30 transition-all relative overflow-hidden flex flex-col"
           >
-            <div className="absolute top-0 right-0 p-6">
+            <div className="absolute top-0 right-0 p-4 sm:p-6">
               <div className={`w-2 h-2 rounded-full ${item.required ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`} />
             </div>
 
-            <div className="aspect-square rounded-3xl bg-zinc-800/50 border border-white/5 mb-6 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-500">
+            <div className="aspect-square rounded-2xl sm:rounded-3xl bg-zinc-800/50 border border-white/5 mb-4 sm:mb-6 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-500">
               <img 
                 src={item.imageUrl || undefined} 
                 alt={item.name}
@@ -190,27 +210,27 @@ export function EPP() {
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3 flex-1">
               <div className="flex items-center gap-2">
-                <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
+                <span className="text-[7px] sm:text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
                   {item.category}
                 </span>
               </div>
-              <h3 className="text-lg font-black text-white uppercase tracking-tight leading-tight">
+              <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-tight leading-tight">
                 {item.name}
               </h3>
-              <p className="text-xs text-zinc-500 line-clamp-2 leading-relaxed">
+              <p className="text-[10px] sm:text-xs text-zinc-500 line-clamp-2 leading-relaxed">
                 {item.description}
               </p>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between">
+            <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/5 flex items-center justify-between">
               <div className="flex flex-col">
-                <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Stock Disponible</span>
-                <span className="text-sm font-bold text-white">{item.stock || 0} u.</span>
+                <span className="text-[7px] sm:text-[8px] font-black text-zinc-600 uppercase tracking-widest">Stock Disponible</span>
+                <span className="text-xs sm:text-sm font-bold text-white mt-0.5">{item.stock || 0} u.</span>
               </div>
-              <button className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-emerald-500 transition-all group/btn">
-                <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+              <button className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-emerald-500 transition-all group/btn">
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover/btn:translate-x-1 transition-transform" />
               </button>
             </div>
           </motion.div>
@@ -218,10 +238,10 @@ export function EPP() {
       </div>
 
       {filteredEPP.length === 0 && !loading && (
-        <div className="text-center py-20 bg-zinc-900/20 rounded-[3rem] border border-dashed border-white/5">
-          <Shield className="w-16 h-16 text-zinc-800 mx-auto mb-6" />
-          <h3 className="text-xl font-black text-white uppercase tracking-tight">No se encontraron items</h3>
-          <p className="text-zinc-500 text-sm mt-2 uppercase tracking-widest font-bold">Ajusta tus filtros de búsqueda</p>
+        <div className="text-center py-12 sm:py-20 bg-zinc-900/20 rounded-3xl sm:rounded-[3rem] border border-dashed border-white/5 px-4">
+          <Shield className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-800 mx-auto mb-4 sm:mb-6" />
+          <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight">No se encontraron items</h3>
+          <p className="text-zinc-500 text-xs sm:text-sm mt-2 uppercase tracking-widest font-bold">Ajusta tus filtros de búsqueda</p>
         </div>
       )}
 
@@ -340,6 +360,12 @@ export function EPP() {
         projectId={selectedProject?.id}
         eppItems={eppItems || []}
         workers={workers || []}
+      />
+      <EPPVerificationModal
+        isOpen={isVerifying}
+        onClose={() => setIsVerifying(false)}
+        workers={workers || []}
+        eppItems={eppItems || []}
       />
     </div>
   );

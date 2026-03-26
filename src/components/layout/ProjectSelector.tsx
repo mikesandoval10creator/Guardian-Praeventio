@@ -40,9 +40,9 @@ export function ProjectSelector() {
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-2xl z-20 overflow-hidden"
+              className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-2xl z-20 overflow-hidden flex flex-col max-h-[60vh]"
             >
-              <div className="p-2 space-y-1">
+              <div className="p-2 space-y-1 overflow-y-auto custom-scrollbar">
                 {projects.map((project) => (
                   <button
                     key={project.id}

@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { ZettelkastenNode } from '../types';
+import { ZettelkastenNode, EnvironmentContext } from '../types';
 import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
+import { fetchEnvironmentContext } from '../services/orchestratorService';
 
 interface UniversalKnowledgeContextType {
   nodes: ZettelkastenNode[];
   loading: boolean;
   projectClusters: Record<string, ZettelkastenNode[]>;
+  environment: EnvironmentContext | null;
   stats: {
     totalNodes: number;
     totalConnections: number;
@@ -22,7 +24,34 @@ const UniversalKnowledgeContext = createContext<UniversalKnowledgeContextType | 
 export function UniversalKnowledgeProvider({ children }: { children: React.ReactNode }) {
   const [nodes, setNodes] = useState<ZettelkastenNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [environment, setEnvironment] = useState<EnvironmentContext | null>(null);
   const { isAuthReady, user } = useFirebase();
+
+  // Fetch Environment Data (Orchestrator)
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadEnvironment = async () => {
+      try {
+        const envData = await fetchEnvironmentContext();
+        if (isMounted) {
+          setEnvironment(envData);
+        }
+      } catch (error) {
+        console.error('Error loading environment context:', error);
+      }
+    };
+
+    loadEnvironment();
+    
+    // Refresh environment data every 15 minutes
+    const interval = setInterval(loadEnvironment, 15 * 60 * 1000);
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isAuthReady || !user) {
@@ -88,7 +117,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   }, [nodes]);
 
   return (
-    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, stats }}>
+    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, environment, stats }}>
       {children}
     </UniversalKnowledgeContext.Provider>
   );

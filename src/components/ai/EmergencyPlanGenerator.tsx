@@ -7,6 +7,7 @@ import { NodeType } from '../../types';
 import { FileText, Loader2, Zap, Shield, CheckCircle2, Save, Download, X } from 'lucide-react';
 import { Button } from '../shared/Card';
 import ReactMarkdown from 'react-markdown';
+import { jsPDF } from 'jspdf';
 
 export function EmergencyPlanGenerator() {
   const [loading, setLoading] = useState(false);
@@ -34,6 +35,123 @@ export function EmergencyPlanGenerator() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!plan || !selectedProject) return;
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+    
+    // --- Header (Industrial Style) ---
+    doc.setFillColor(24, 24, 27); // Zinc 900
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    
+    // Accent line
+    doc.setFillColor(244, 63, 94); // Rose 500
+    doc.rect(0, 40, pageWidth, 2, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PRAEVENTIO GUARD', margin, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(161, 161, 170); // Zinc 400
+    doc.text('SISTEMA DE GESTIÓN DE SEGURIDAD Y SALUD EN EL TRABAJO', margin, 32);
+
+    // Document Info Box
+    doc.setFillColor(244, 244, 245); // Zinc 100
+    doc.rect(margin, 50, contentWidth, 30, 'F');
+    doc.setDrawColor(212, 212, 216); // Zinc 300
+    doc.rect(margin, 50, contentWidth, 30, 'S');
+
+    doc.setTextColor(39, 39, 42); // Zinc 800
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`TIPO DE DOCUMENTO: PLAN DE EMERGENCIA (PE)`, margin + 5, 60);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`PROYECTO: ${selectedProject?.name || 'N/A'}`, margin + 5, 70);
+    doc.text(`FECHA DE EMISIÓN: ${new Date().toLocaleDateString('es-CL')}`, margin + 5, 76);
+
+    // --- Content ---
+    doc.setTextColor(39, 39, 42); // Zinc 800
+    doc.setFontSize(11);
+    
+    // Simple markdown parsing for PDF
+    const lines = plan.split('\n');
+    let yPos = 95;
+
+    lines.forEach(line => {
+      if (yPos > pageHeight - margin - 20) {
+        doc.addPage();
+        yPos = margin + 10;
+      }
+
+      if (line.startsWith('## ')) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(24, 24, 27);
+        doc.text(line.replace('## ', ''), margin, yPos);
+        yPos += 8;
+      } else if (line.startsWith('# ')) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(244, 63, 94); // Rose
+        doc.text(line.replace('# ', ''), margin, yPos);
+        yPos += 10;
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.setTextColor(39, 39, 42);
+        doc.text(line.replace(/\*\*/g, ''), margin, yPos);
+        yPos += 6;
+      } else if (line.startsWith('- ')) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        doc.setTextColor(63, 63, 70);
+        const splitText = doc.splitTextToSize(`• ${line.replace('- ', '')}`, contentWidth - 5);
+        doc.text(splitText, margin + 5, yPos);
+        yPos += (splitText.length * 5) + 2;
+      } else if (line.trim() !== '') {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        doc.setTextColor(63, 63, 70);
+        // Remove bold markdown for regular text
+        const cleanLine = line.replace(/\*\*/g, '');
+        const splitText = doc.splitTextToSize(cleanLine, contentWidth);
+        doc.text(splitText, margin, yPos);
+        yPos += (splitText.length * 5) + 2;
+      } else {
+        yPos += 4; // Empty line spacing
+      }
+    });
+    
+    // --- Footer ---
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      
+      // Footer line
+      doc.setDrawColor(212, 212, 216);
+      doc.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+
+      doc.setFontSize(8);
+      doc.setTextColor(113, 113, 122); // Zinc 500
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Documento generado automáticamente por Praeventio Guard AI`, margin, pageHeight - 8);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin - 20, pageHeight - 8);
+    }
+    
+    doc.save(`Praeventio_PE_${new Date().getTime()}.pdf`);
   };
 
   const handleSave = async () => {
@@ -70,7 +188,7 @@ export function EmergencyPlanGenerator() {
           </div>
           <div>
             <h3 className="text-xl font-black text-white uppercase tracking-tight">Generador de Planes de Emergencia</h3>
-            <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Generación automática basada en el Zettelkasten</p>
+            <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Generación automática basada en la Red Neuronal</p>
           </div>
         </div>
         {!plan ? (
@@ -84,6 +202,14 @@ export function EmergencyPlanGenerator() {
           </Button>
         ) : (
           <div className="flex items-center gap-2">
+            <Button
+              onClick={handleDownloadPDF}
+              disabled={loading}
+              className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              PDF
+            </Button>
             <Button
               onClick={handleSave}
               disabled={loading || saved}

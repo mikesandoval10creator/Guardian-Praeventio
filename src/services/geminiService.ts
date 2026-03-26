@@ -1,6 +1,283 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
+import { ZettelkastenNode } from '../types';
 
 const API_KEY = process.env.GEMINI_API_KEY;
+
+export const autoConnectNodes = async (newNode: ZettelkastenNode, existingNodes: ZettelkastenNode[]): Promise<string[]> => {
+  if (!API_KEY) return [];
+  if (existingNodes.length === 0) return [];
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    
+    // Limit to recent or relevant nodes to avoid huge prompts
+    const recentNodes = existingNodes.slice(0, 50).map(n => ({
+      id: n.id,
+      title: n.title,
+      type: n.type,
+      tags: n.tags
+    }));
+
+    const prompt = `Eres el motor de inteligencia de un sistema Zettelkasten de Prevención de Riesgos.
+    Acaba de ingresar un nuevo nodo al sistema:
+    - Título: ${newNode.title}
+    - Tipo: ${newNode.type}
+    - Descripción: ${newNode.description}
+    - Etiquetas: ${newNode.tags.join(', ')}
+
+    Aquí tienes una lista de nodos existentes en el sistema:
+    ${JSON.stringify(recentNodes, null, 2)}
+
+    Tu tarea es encontrar qué nodos existentes están semánticamente relacionados con el nuevo nodo y deberían conectarse.
+    Busca relaciones causales, normativas aplicables, planes de acción relacionados, o incidentes similares.
+    
+    Responde ÚNICAMENTE con un JSON que contenga un array de IDs de los nodos que deben conectarse.
+    Ejemplo: { "connections": ["id1", "id2"] }`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            connections: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            }
+          },
+          required: ["connections"]
+        }
+      }
+    });
+
+    const result = JSON.parse(response.text || '{"connections": []}');
+    return result.connections || [];
+  } catch (error) {
+    console.error("Error auto-connecting nodes:", error);
+    return [];
+  }
+};
+
+export const analyzePostureWithAI = async (base64Image: string, mimeType: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Analiza esta imagen de un trabajador. Evalúa su postura utilizando principios ergonómicos (similares a RULA/REBA).
+  Identifica los ángulos y la tensión en el cuello, tronco, brazos y piernas si son visibles.
+  Proporciona una puntuación de riesgo del 1 al 10 (donde 10 es el riesgo más alto).
+  
+  Responde en formato JSON estricto con la siguiente estructura:
+  - score: number (1-10)
+  - findings: array de strings (hallazgos clave sobre la postura)
+  - recommendations: array de strings (recomendaciones para mejorar la ergonomía)
+  - bodyParts: object con las siguientes propiedades (strings describiendo el estado):
+    - neck: estado del cuello
+    - trunk: estado del tronco
+    - arms: estado de los brazos
+    - legs: estado de las piernas`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: [
+        { text: prompt },
+        { inlineData: { data: base64Image, mimeType: mimeType } }
+      ]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          score: { type: Type.NUMBER },
+          findings: { type: Type.ARRAY, items: { type: Type.STRING } },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          bodyParts: {
+            type: Type.OBJECT,
+            properties: {
+              neck: { type: Type.STRING },
+              trunk: { type: Type.STRING },
+              arms: { type: Type.STRING },
+              legs: { type: Type.STRING }
+            },
+            required: ["neck", "trunk", "arms", "legs"]
+          }
+        },
+        required: ["score", "findings", "recommendations", "bodyParts"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateEmergencyScenario = async (context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Genera un escenario de simulacro de emergencia dinámico y realista basado en este contexto de sitio:
+  ${context}
+  
+  El escenario debe ser específico y detallado.
+  Responde en formato JSON estricto con los siguientes campos:
+  - title (string)
+  - type (string, uno de: "Incendio", "Derrame", "Sismo", "Accidente", "Explosión")
+  - description (string)
+  - location (string)
+  - coordinates (object con x e y como numbers entre 0 y 100)
+  - criticality (string, "Alta" o "Crítica")
+  - responseSteps (array de strings con pasos de acción)
+  - requiredEPP (array de strings)
+  - emergencyContacts (array de strings con nombres de roles o entidades)`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          type: { type: Type.STRING },
+          description: { type: Type.STRING },
+          location: { type: Type.STRING },
+          coordinates: {
+            type: Type.OBJECT,
+            properties: {
+              x: { type: Type.NUMBER },
+              y: { type: Type.NUMBER }
+            },
+            required: ["x", "y"]
+          },
+          criticality: { type: Type.STRING },
+          responseSteps: { type: Type.ARRAY, items: { type: Type.STRING } },
+          requiredEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
+          emergencyContacts: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["title", "type", "description", "location", "coordinates", "criticality", "responseSteps", "requiredEPP", "emergencyContacts"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const simulateRiskPropagation = async (nodeTitle: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Analiza el siguiente nodo de riesgo o incidente: "${nodeTitle}".
+  Basado en el contexto del sistema (nodos conectados y entorno):
+  ${context}
+  
+  Predice cómo este riesgo podría propagarse o afectar a otros elementos del sistema (trabajadores, maquinaria, procesos).
+  Identifica qué otros nodos podrían verse comprometidos y explica por qué.
+  
+  Responde en formato JSON estricto con la siguiente estructura:
+  - affectedNodes: array de strings (títulos de los nodos que podrían verse afectados)
+  - explanation: string (explicación detallada de la propagación del riesgo)
+  - recommendedActions: array de strings (acciones preventivas inmediatas para detener la propagación)`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          affectedNodes: { type: Type.ARRAY, items: { type: Type.STRING } },
+          explanation: { type: Type.STRING },
+          recommendedActions: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["affectedNodes", "explanation", "recommendedActions"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateRealisticIoTEvent = async (context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Genera un evento de telemetría IoT realista basado en el siguiente contexto del proyecto y clima actual:
+  ${context}
+  
+  El evento debe ser una lectura de un sensor (wearable de un trabajador o sensor de maquinaria) que tenga sentido dado el clima o el tipo de proyecto.
+  
+  Responde en formato JSON estricto con la siguiente estructura:
+  - type (string, "wearable" o "machinery")
+  - source (string, nombre del dispositivo o trabajador)
+  - metric (string, métrica medida, ej. "Frecuencia Cardíaca", "Velocidad Viento", "Temperatura Motor")
+  - value (number, valor de la métrica)
+  - unit (string, unidad de medida)
+  - status (string, "normal", "warning" o "critical")`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          type: { type: Type.STRING },
+          source: { type: Type.STRING },
+          metric: { type: Type.STRING },
+          value: { type: Type.NUMBER },
+          unit: { type: Type.STRING },
+          status: { type: Type.STRING }
+        },
+        required: ["type", "source", "metric", "value", "unit", "status"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const processDocumentToNodes = async (text: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Analiza el siguiente documento de prevención de riesgos o normativa y divídelo en "Nodos Maestros" de conocimiento.
+  Cada nodo debe representar un concepto, regla, procedimiento o protocolo específico y autocontenido.
+  
+  DOCUMENTO:
+  ${text}
+  
+  Responde en formato JSON estricto con un array de nodos. Cada nodo debe tener:
+  - title (string, corto y descriptivo)
+  - content (string, el contenido detallado del nodo, manteniendo la información técnica)
+  - tags (array de strings, palabras clave relevantes)`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-pro-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            content: { type: Type.STRING },
+            tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["title", "content", "tags"]
+        }
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '[]');
+};
 
 export const analyzeRiskWithAI = async (description: string, nodesContext?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
@@ -34,7 +311,36 @@ export const analyzeRiskWithAI = async (description: string, nodesContext?: stri
   return JSON.parse(response.text);
 };
 
-export const predictGlobalIncidents = async (nodesContext: string) => {
+export const analyzeFastCheck = async (observation: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Analiza la siguiente observación rápida de seguridad en terreno (Fast Check) y clasifícala para el sistema Zettelkasten.
+    
+    OBSERVACIÓN:
+    ${observation}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          titulo: { type: Type.STRING, description: "Título corto y descriptivo" },
+          tipo: { type: Type.STRING, description: "RISK, INCIDENT, o TASK" },
+          criticidad: { type: Type.STRING, description: "Baja, Media, Alta, Crítica" },
+          tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+          accionInmediata: { type: Type.STRING, description: "Qué hacer inmediatamente" }
+        },
+        required: ["titulo", "tipo", "criticidad", "tags", "accionInmediata"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const predictGlobalIncidents = async (nodesContext: string, environmentContext: string = '') => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -43,6 +349,9 @@ export const predictGlobalIncidents = async (nodesContext: string) => {
     contents: `Analiza la siguiente red neuronal de seguridad (Zettelkasten) y detecta los 3 nodos de riesgo con mayor probabilidad de fallo o incidente en las próximas 48 horas.
     Considera conexiones entre trabajadores, falta de EPP, normativas no cumplidas y condiciones de entorno.
     
+    ENTORNO ACTUAL (Clima, Sismos, etc.):
+    ${environmentContext}
+
     RED DE CONOCIMIENTO:
     ${nodesContext}`,
     config: {
@@ -111,10 +420,185 @@ export const calculateDynamicEvacuation = async (nodesContext: string, currentIn
 };
 
 
-export const generateEmergencyPlan = async (projectName: string, context: string) => {
+export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, glossaryContext: string = '', envContext: string = '', zettelkastenContext: string = '', documentType: string = 'PTS') => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const isPE = documentType === 'Plan de Emergencia';
+
+  const prompt = `
+    Actúa como un Prevencionista de Riesgos Senior en Chile.
+    Genera un ${isPE ? 'Plan de Emergencia (PE)' : 'Procedimiento de Trabajo Seguro (PTS)'} detallado para la siguiente situación/tarea:
+    Nombre: ${taskName}
+    Descripción: ${taskDescription}
+    Nivel de Riesgo Esperado: ${riskLevel}
+    Normativa Principal a Cumplir: ${normative}
+    Contexto Ambiental Actual (Telemetría): ${envContext}
+    Contexto Histórico y Operativo (Zettelkasten): ${zettelkastenContext}
+    
+    GLOSARIO TÉCNICO DE REFERENCIA:
+    Utiliza estrictamente los términos de este glosario en tu redacción para mantener la estandarización:
+    ${glossaryContext}
+    
+    El documento debe incluir:
+    1. Objetivo
+    2. Alcance
+    3. Responsabilidades
+    4. ${isPE ? 'Equipos de Emergencia y Rescate requeridos' : 'Equipos de Protección Individual (EPI) / EPP requeridos'} (Considera el contexto ambiental)
+    5. ${isPE ? 'Escenarios de Riesgo y Medidas Preventivas' : 'Riesgos Asociados y Medidas Correctoras (Controles)'} (Incluye riesgos ambientales derivados de la telemetría y lecciones aprendidas del Zettelkasten)
+    6. ${isPE ? 'Procedimiento de Evacuación y Respuesta Paso a Paso' : 'Procedimiento Paso a Paso de la tarea'}
+    7. ${isPE ? 'Comunicaciones y Contactos de Emergencia' : 'Respuesta a Emergencias'} (Incluye protocolos para sismos o clima adverso si aplica)
+    
+    Asegúrate de que el contenido sea profesional, técnico y cumpla estrictamente con la normativa indicada (${normative}) y sea adecuado para un nivel de riesgo ${riskLevel}.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3.1-pro-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          objetivo: { type: Type.STRING },
+          alcance: { type: Type.STRING },
+          responsabilidades: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING } 
+          },
+          epp: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING } 
+          },
+          riesgos: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                riesgo: { type: Type.STRING },
+                control: { type: Type.STRING }
+              }
+            }
+          },
+          pasos: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          emergencias: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        },
+        required: ['objetivo', 'alcance', 'responsabilidades', 'epp', 'riesgos', 'pasos', 'emergencias']
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const analyzeSafetyImage = async (base64Image: string, mimeType: string, context: string = '') => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  const prompt = `
+    Actúa como un Inspector de Seguridad Industrial Senior.
+    Analiza la siguiente imagen de un entorno de trabajo o trabajador.
+    Contexto adicional: ${context}
+    
+    Identifica:
+    1. Actos o condiciones inseguras.
+    2. Equipos de Protección Personal (EPP) faltantes o mal utilizados.
+    3. Nivel de severidad del riesgo observado.
+    4. Recomendaciones de acción inmediata.
+    
+    Responde en formato JSON estricto.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-pro-preview",
+    contents: {
+      parts: [
+        { text: prompt },
+        { inlineData: { data: base64Image, mimeType: mimeType } }
+      ]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING, description: "Título corto del hallazgo principal" },
+          description: { type: Type.STRING, description: "Descripción detallada de lo observado" },
+          severity: { type: Type.STRING, enum: ["Baja", "Media", "Alta", "Crítica"] },
+          category: { type: Type.STRING, enum: ["Seguridad", "Salud", "Higiene", "Ergonomía", "Ambiental"] },
+          missingEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
+          unsafeConditions: { type: Type.ARRAY, items: { type: Type.STRING } },
+          immediateAction: { type: Type.STRING },
+          tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["title", "description", "severity", "category", "missingEPP", "unsafeConditions", "immediateAction", "tags"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateISOAuditChecklist = async (isoStandard: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Genera un checklist de auditoría estructurado basado en la norma ${isoStandard}.
+  Utiliza el siguiente contexto del proyecto (Zettelkasten) para hacer las preguntas relevantes y específicas a la realidad de la empresa:
+  ${context}
+  
+  El checklist debe contener entre 5 y 10 preguntas clave de auditoría.
+  
+  Responde en formato JSON estricto con la siguiente estructura:
+  - title: string (Título de la auditoría)
+  - description: string (Breve descripción del objetivo)
+  - items: array de objetos, cada uno con:
+    - id: string (identificador único, ej. "1.1")
+    - question: string (La pregunta de auditoría)
+    - reference: string (Cláusula ISO de referencia, ej. "ISO 45001:2018 - 8.1.2")`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-pro-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          description: { type: Type.STRING },
+          items: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                id: { type: Type.STRING },
+                question: { type: Type.STRING },
+                reference: { type: Type.STRING }
+              },
+              required: ["id", "question", "reference"]
+            }
+          }
+        },
+        required: ["title", "description", "items"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateEmergencyPlan = async (projectName: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un "Plan de Emergencia (PE)" detallado para el proyecto ${projectName}.
@@ -176,18 +660,21 @@ export const getSafetyAdvice = async (weather: any) => {
   return response.text;
 };
 
-export const generateActionPlan = async (findingTitle: string, findingDescription: string = '', severity: string = 'Media') => {
+export const generateActionPlan = async (findingTitle: string, findingDescription: string = '', severity: string = 'Media', workerProposal?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Genera un plan de acción correctivo para el siguiente hallazgo de seguridad.
+  const promptContent = `Genera un plan de acción correctivo para el siguiente hallazgo de seguridad.
     Título: ${findingTitle}
     Descripción: ${findingDescription}
     Severidad: ${severity}
+    ${workerProposal ? `Propuesta de Mejora del Trabajador: ${workerProposal}\n    Por favor, integra y valora la propuesta del trabajador en el plan de acción si es viable y segura.` : ''}
     
-    Proporciona una lista de tareas concretas, plazos sugeridos y responsables típicos.`,
+    Proporciona una lista de tareas concretas, plazos sugeridos y responsables típicos.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: promptContent,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -508,4 +995,864 @@ export const generateSafetyCapsule = async (workerName: string, role: string, co
   });
 
   return JSON.parse(response.text);
+};
+
+export const suggestRisksWithAI = async (industry: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            criticidad: { type: Type.STRING, enum: ["Baja", "Media", "Alta", "Crítica"] },
+            recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
+            controles: { type: Type.ARRAY, items: { type: Type.STRING } },
+            normativa: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["title", "description", "criticidad", "recomendaciones", "controles", "normativa"]
+        }
+      }
+    }
+  });
+  return JSON.parse(response.text);
+};
+
+export const generateCompensatoryExercises = async (fatigue: number, posture: number, attention: number) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Genera una rutina rápida de ejercicios compensatorios (pausa activa) basada en las siguientes métricas biométricas de un trabajador:
+  - Fatiga: ${fatigue}% (Alta fatiga requiere ejercicios de activación y descanso visual)
+  - Calidad Postural: ${posture}% (Baja postura requiere estiramientos de espalda, cuello y hombros)
+  - Atención: ${attention}% (Baja atención requiere ejercicios de respiración y enfoque)
+  
+  La rutina debe durar máximo 3-5 minutos.
+  Responde en formato JSON estricto con la siguiente estructura:
+  - title (string)
+  - description (string)
+  - exercises (array de objetos con: name (string), duration (string), instructions (string))`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: { type: Type.STRING },
+          description: { type: Type.STRING },
+          exercises: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                duration: { type: Type.STRING },
+                instructions: { type: Type.STRING }
+              },
+              required: ["name", "duration", "instructions"]
+            }
+          }
+        },
+        required: ["title", "description", "exercises"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const analyzeBioImage = async (base64Image: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: 'gemini-3.1-flash-preview',
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Image
+          }
+        },
+        {
+          text: `Analiza esta imagen de un trabajador en un entorno industrial/laboral. 
+          Evalúa los siguientes aspectos y devuelve un JSON estricto:
+          1. fatigue: Nivel de fatiga (0 a 100, donde 100 es muy fatigado). Busca ojos cerrados, bostezos, cabeza caída.
+          2. posture: Calidad postural (0 a 100, donde 100 es postura perfecta). Evalúa ergonomía (REBA/RULA aproximado).
+          3. attention: Nivel de atención (0 a 100, donde 100 es muy atento). Busca mirada al frente, concentración.
+          4. epp: Cumplimiento de EPP (0 a 100). Busca casco, lentes, chaleco, etc.
+          5. alerts: Array de strings con alertas críticas detectadas (ej. "Falta casco", "Postura de alto riesgo", "Signos de somnolencia"). Si todo está bien, array vacío.`
+        }
+      ]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          fatigue: { type: Type.NUMBER },
+          posture: { type: Type.NUMBER },
+          attention: { type: Type.NUMBER },
+          epp: { type: Type.NUMBER },
+          alerts: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["fatigue", "posture", "attention", "epp", "alerts"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generatePredictiveForecast = async (projectName: string, context: string, weatherContext?: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `
+    Actúa como un experto en análisis predictivo de seguridad industrial (HSE) con un enfoque de "Prevención Empática".
+    Tu objetivo no es solo evitar accidentes, sino cuidar el bienestar físico y mental de los trabajadores.
+    
+    Basado en los siguientes datos del proyecto "${projectName}":
+    
+    CONTEXTO OPERATIVO Y DE RIESGOS:
+    ${context}
+    
+    CONTEXTO AMBIENTAL (CLIMA/SISMOS):
+    ${weatherContext || 'Sin datos ambientales recientes.'}
+    
+    Genera un pronóstico de riesgo para las próximas 48 horas.
+    Cruza los datos ambientales con las tareas operativas para sugerir medidas de cuidado activo (ej. si hay mucho calor y trabajo físico, sugerir pausas de hidratación y rotaciones cortas).
+    
+    Responde en formato JSON con la siguiente estructura:
+    {
+      "riskLevel": "Bajo" | "Medio" | "Alto" | "Crítico",
+      "score": number (0-100),
+      "topRisks": [
+        { "title": string, "probability": number, "impact": string, "mitigation": string }
+      ],
+      "recommendations": [string],
+      "empatheticActions": [string],
+      "aiInsight": string
+    }
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          riskLevel: { type: Type.STRING, enum: ["Bajo", "Medio", "Alto", "Crítico"] },
+          score: { type: Type.NUMBER },
+          topRisks: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                probability: { type: Type.NUMBER },
+                impact: { type: Type.STRING },
+                mitigation: { type: Type.STRING }
+              },
+              required: ["title", "probability", "impact", "mitigation"]
+            }
+          },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          empatheticActions: { type: Type.ARRAY, items: { type: Type.STRING } },
+          aiInsight: { type: Type.STRING }
+        },
+        required: ["riskLevel", "score", "topRisks", "recommendations", "empatheticActions", "aiInsight"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateEmergencyPlanJSON = async (scenario: string, description: string, normative: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `
+    Genera un Plan de Emergencia detallado para el siguiente escenario:
+    Escenario: ${scenario}
+    Descripción: ${description}
+    Normativa Principal a Cumplir: ${normative}
+    
+    El Plan de Emergencia debe incluir:
+    1. Objetivo del Plan
+    2. Alcance
+    3. Cadena de Mando y Comunicaciones
+    4. Acciones Inmediatas (Primeros 5 minutos)
+    5. Procedimiento de Evacuación
+    6. Equipos de Emergencia Requeridos
+    
+    Asegúrate de que el contenido sea profesional, técnico y cumpla estrictamente con la normativa indicada (${normative}).
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          objetivo: { type: Type.STRING },
+          alcance: { type: Type.STRING },
+          cadenaMando: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING } 
+          },
+          accionesInmediatas: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING } 
+          },
+          evacuacion: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          equipos: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        },
+        required: ['objetivo', 'alcance', 'cadenaMando', 'accionesInmediatas', 'evacuacion', 'equipos']
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const forecastSafetyEvents = async (nodesContext: string, historicalData?: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Actúa como un analista predictivo de seguridad industrial.
+    Realiza un pronóstico de eventos de seguridad para los próximos 7 días basado en la red de conocimiento actual y datos históricos.
+    
+    RED DE CONOCIMIENTO (Zettelkasten):
+    ${nodesContext}
+    
+    DATOS HISTÓRICOS / TENDENCIAS:
+    ${historicalData || 'No hay datos históricos específicos proporcionados.'}
+    
+    Identifica tendencias, días de mayor riesgo y áreas críticas que requieren atención preventiva.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          pronosticoSemanal: { type: Type.STRING, description: "Resumen ejecutivo del pronóstico" },
+          diasCriticos: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                dia: { type: Type.STRING },
+                nivelRiesgo: { type: Type.STRING, enum: ["Bajo", "Medio", "Alto", "Crítico"] },
+                razon: { type: Type.STRING }
+              },
+              required: ["dia", "nivelRiesgo", "razon"]
+            }
+          },
+          tendenciasDetectadas: { type: Type.ARRAY, items: { type: Type.STRING } },
+          recomendacionesEstrategicas: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["pronosticoSemanal", "diasCriticos", "tendenciasDetectadas", "recomendacionesEstrategicas"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const analyzeZettelkastenNetwork = async (nodesContext: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Analiza la red neuronal de conocimiento (Zettelkasten) de Praeventio Guard.
+    
+    NODOS ACTUALES:
+    ${nodesContext}
+    
+    Identifica patrones ocultos, riesgos sistémicos y proporciona recomendaciones estratégicas basadas en la interconexión de estos datos.
+    Actúa como "El Guardián", una IA experta en prevención de riesgos.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          analysis: { type: Type.STRING, description: "Análisis profundo de la red." },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Recomendaciones estratégicas." }
+        },
+        required: ["analysis", "recommendations"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const predictAccidents = async (nodesContext: string, telemetryContext: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Actúa como "El Guardián", el núcleo de IA predictiva de Praeventio Guard.
+    Analiza los datos históricos del Zettelkasten y la telemetría actual para predecir posibles accidentes antes de que ocurran.
+    
+    HISTORIAL ZETTELKASTEN:
+    ${nodesContext}
+    
+    TELEMETRÍA ACTUAL (Clima, IoT, Biometría):
+    ${telemetryContext}
+    
+    Identifica patrones y genera predicciones de riesgos inminentes. Para cada predicción, proporciona una probabilidad (0-100), una descripción detallada del riesgo cruzando variables (ej. Clima + Fatiga + Tipo de Faena), y una medida de control inmediata basada en la normativa chilena (ej. DS 594, Ley 16.744).`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          predictions: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING, description: "Título corto de la predicción." },
+                probability: { type: Type.NUMBER, description: "Probabilidad del 0 al 100." },
+                description: { type: Type.STRING, description: "Descripción detallada cruzando variables." },
+                preventiveAction: { type: Type.STRING, description: "Medida de control inmediata y fundamento legal." },
+                severity: { type: Type.STRING, description: "Severidad: 'Baja', 'Media', 'Alta', 'Crítica'" }
+              },
+              required: ["title", "probability", "description", "preventiveAction", "severity"]
+            }
+          }
+        },
+        required: ["predictions"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const analyzeSiteMapDensity = async (nodesContext: string, workersContext: string, assetsContext: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Analiza la densidad y distribución geoespacial del proyecto para identificar riesgos por aglomeración o proximidad a peligros.
+    
+    RIESGOS E INCIDENTES (Zettelkasten):
+    ${nodesContext}
+    
+    UBICACIÓN DE PERSONAL:
+    ${workersContext}
+    
+    UBICACIÓN DE ACTIVOS Y SENSORES:
+    ${assetsContext}
+
+    Identifica "puntos calientes" de riesgo y proporciona recomendaciones de redistribución o alerta.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          puntosCalientes: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                sector: { type: Type.STRING },
+                nivelRiesgo: { type: Type.STRING, enum: ["Bajo", "Medio", "Alto", "Crítico"] },
+                descripcion: { type: Type.STRING },
+                recomendacion: { type: Type.STRING }
+              },
+              required: ["sector", "nivelRiesgo", "descripcion", "recomendacion"]
+            }
+          },
+          insightGlobal: { type: Type.STRING },
+          alertaInmediata: { type: Type.BOOLEAN }
+        },
+        required: ["puntosCalientes", "insightGlobal", "alertaInmediata"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generateTrainingQuiz = async (topic: string, description: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Genera un quiz de 3 preguntas de selección múltiple sobre el siguiente tema de capacitación:
+    TEMA: ${topic}
+    DESCRIPCIÓN: ${description}
+    
+    Cada pregunta debe tener 4 opciones y solo una correcta. 
+    El tono debe ser educativo y enfocado en la prevención de riesgos.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            question: { type: Type.STRING },
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
+            correctIndex: { type: Type.NUMBER, description: "Índice de la opción correcta (0-3)" },
+            explanation: { type: Type.STRING, description: "Breve explicación de por qué es la correcta" }
+          },
+          required: ["question", "options", "correctIndex", "explanation"]
+        }
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const validateRiskImageClick = async (imageBase64: string, x: number, y: number, width: number, height: number, gameContext: string = '') => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  // Clean up base64 prefix if present
+  const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: {
+      parts: [
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: "image/jpeg"
+          }
+        },
+        {
+          text: `
+            Contexto del juego: ${gameContext}
+            El usuario ha hecho clic en la imagen en las coordenadas relativas X: ${(x / width * 100).toFixed(2)}%, Y: ${(y / height * 100).toFixed(2)}%.
+            Analiza la imagen en esa ubicación específica y determina si el usuario ha encontrado lo que se le pide en el contexto del juego.
+            
+            Devuelve el resultado en formato JSON con la siguiente estructura:
+            {
+              "isRisk": boolean, // true si el usuario acertó (encontró el riesgo/objetivo), false si no
+              "foundObject": "Nombre del objeto encontrado (ej. 'Guardián Praeventio', 'Extintor'). Vacío si no encontró nada.",
+              "riskDescription": "Descripción breve de lo que encontró (si isRisk es true)",
+              "explanation": "Explicación de por qué acertó o falló."
+            }
+          `
+        }
+      ]
+    },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          isRisk: { type: Type.BOOLEAN },
+          foundObject: { type: Type.STRING },
+          riskDescription: { type: Type.STRING },
+          explanation: { type: Type.STRING }
+        },
+        required: ["isRisk", "foundObject", "riskDescription", "explanation"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[]) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Actúa como un experto en logística de emergencias y evacuación industrial. 
+    Calcula la ruta de evacuación más segura y dinámica dadas las siguientes condiciones en tiempo real:
+    
+    EMERGENCIAS ACTIVAS E INCIDENTES:
+    ${activeEmergencies.map(e => `- ${e.title}: ${e.description}`).join('\n')}
+    
+    ESTADO DEL PERSONAL (Digital Twin):
+    ${workers.map(w => `- Trabajador ${w.id}: Estado ${w.status}, Caído: ${w.isFallen ? 'Sí' : 'No'}, Posición [${w.position.join(', ')}]`).join('\n')}
+    
+    ESTADO DE MAQUINARIA (Digital Twin):
+    ${machinery.map(m => `- Máquina ${m.id} (${m.type}): Estado ${m.status}, Posición [${m.position.join(', ')}]`).join('\n')}
+    
+    Considera que las rutas tradicionales podrían estar bloqueadas por las emergencias o por maquinaria en estado crítico.
+    Prioriza la asistencia a trabajadores caídos (isFallen: true).
+    
+    Proporciona:
+    1. El nombre de la ruta más segura.
+    2. Un array de áreas o rutas bloqueadas (ej. 'R1', 'R2').
+    3. Tiempo estimado de evacuación.
+    4. Nivel de prioridad/alerta (Rojo, Amarillo, Verde).
+    5. Instrucciones paso a paso claras y precisas.
+    6. Nombre del punto de encuentro óptimo.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          rutaSegura: { type: Type.STRING },
+          rutasBloqueadas: { type: Type.ARRAY, items: { type: Type.STRING } },
+          tiempoEstimado: { type: Type.STRING },
+          nivelAlerta: { type: Type.STRING, enum: ["Rojo", "Amarillo", "Verde"] },
+          instrucciones: { type: Type.ARRAY, items: { type: Type.STRING } },
+          puntoEncuentroNombre: { type: Type.STRING }
+        },
+        required: ["rutaSegura", "rutasBloqueadas", "tiempoEstimado", "nivelAlerta", "instrucciones", "puntoEncuentroNombre"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const processAudioWithAI = async (base64Audio: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  const reportIncidentDeclaration: FunctionDeclaration = {
+    name: "reportIncident",
+    description: "Reporta un nuevo incidente, hallazgo o riesgo de seguridad en la faena.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Título breve del incidente" },
+        description: { type: Type.STRING, description: "Descripción detallada de lo ocurrido" },
+        severity: { type: Type.STRING, description: "Severidad: 'Baja', 'Media', 'Alta', 'Crítica'" },
+        category: { type: Type.STRING, description: "Categoría: 'Seguridad', 'Salud Ocupacional', 'Medio Ambiente', 'Infraestructura'" }
+      },
+      required: ["title", "description", "severity", "category"]
+    }
+  };
+
+  // 1. Transcribe and get AI response
+  const result = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
+      {
+        parts: [
+          {
+            inlineData: {
+              mimeType: "audio/webm",
+              data: base64Audio,
+            },
+          },
+          { text: "Eres el Guardián de Praeventio, un asistente experto en seguridad y salud ocupacional. Responde de forma concisa y profesional en español. Si el usuario quiere reportar un incidente, usa la herramienta reportIncident. Si pregunta algo sobre seguridad, dale una recomendación basada en normativas chilenas." },
+        ],
+      },
+    ],
+    config: {
+      tools: [{ functionDeclarations: [reportIncidentDeclaration] }],
+    }
+  });
+
+  let aiText = result.text || "";
+  let functionCall = null;
+
+  if (result.functionCalls && result.functionCalls.length > 0) {
+    const call = result.functionCalls[0];
+    if (call.name === "reportIncident") {
+      functionCall = call.args;
+      aiText = `He registrado el incidente: ${call.args.title}. Se ha clasificado con severidad ${call.args.severity}. ¿Necesitas reportar algo más o requieres asistencia inmediata?`;
+    }
+  }
+
+  if (!aiText) {
+    aiText = "No pude entender el audio o procesar la solicitud.";
+  }
+
+  // 2. Generate Speech
+  const ttsResponse = await ai.models.generateContent({
+    model: "gemini-2.5-flash-preview-tts",
+    contents: [{ parts: [{ text: aiText }] }],
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: 'Kore' },
+        },
+      },
+    },
+  });
+
+  const base64AudioResponse = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+  
+  return {
+    text: aiText,
+    audioBase64: base64AudioResponse,
+    functionCall: functionCall
+  };
+};
+
+export const analyzeVisionImage = async (base64Image: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
+      {
+        parts: [
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: base64Image,
+            },
+          },
+          { text: "Analiza esta imagen de un entorno laboral. Identifica: 1. EPP detectado (casco, guantes, etc.). 2. Riesgos potenciales (caídas, cables, falta de orden). 3. Recomendaciones de seguridad. Responde en formato JSON con los campos: eppDetected (array), risksDetected (array), recommendations (array), summary (string)." },
+        ],
+      },
+    ],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          eppDetected: { type: Type.ARRAY, items: { type: Type.STRING } },
+          risksDetected: { type: Type.ARRAY, items: { type: Type.STRING } },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          summary: { type: Type.STRING }
+        },
+        required: ["eppDetected", "risksDetected", "recommendations", "summary"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const verifyEPPWithAI = async (base64Image: string, workerName: string, requiredEPP: string[]) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Analiza esta imagen de un trabajador (${workerName}). 
+  EPP Requerido: ${requiredEPP.join(', ')}.
+  Verifica si el trabajador está usando TODO el EPP requerido.
+  Responde en formato JSON con los campos:
+  isCompliant (boolean),
+  detectedEPP (array de strings),
+  missingEPP (array de strings),
+  recommendations (array de strings),
+  confidence (number entre 0 y 1).`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: [
+      {
+        parts: [
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: base64Image,
+            },
+          },
+          { text: prompt },
+        ],
+      },
+    ],
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          isCompliant: { type: Type.BOOLEAN },
+          detectedEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
+          missingEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          confidence: { type: Type.NUMBER }
+        },
+        required: ["isCompliant", "detectedEPP", "missingEPP", "recommendations", "confidence"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const analyzeZettelkastenHealth = async (nodes: any[]) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const nodesContext = nodes.map(n => `- [${n.type}] ID: ${n.id}, Título: ${n.title}, Descripción: ${n.description}`).join('\n');
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Analiza la salud de la red de conocimiento (Zettelkasten) de seguridad.
+    Identifica:
+    1. "Sinapsis Faltantes": Conexiones lógicas que deberían existir entre nodos (ej: un Riesgo y una Normativa, o un Trabajador y un EPP).
+    2. "Brechas de Conocimiento": Temas críticos que no tienen suficientes nodos.
+    3. "Nodos Aislados": Nodos importantes sin conexiones.
+    
+    RED ACTUAL:
+    ${nodesContext}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          healthScore: { type: Type.NUMBER, description: "Puntaje de salud de la red (0-100)" },
+          missingSynapses: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                sourceId: { type: Type.STRING },
+                targetId: { type: Type.STRING },
+                reason: { type: Type.STRING },
+                sourceTitle: { type: Type.STRING },
+                targetTitle: { type: Type.STRING }
+              },
+              required: ["sourceId", "targetId", "reason", "sourceTitle", "targetTitle"]
+            }
+          },
+          knowledgeGaps: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                topic: { type: Type.STRING },
+                priority: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
+                suggestion: { type: Type.STRING }
+              },
+              required: ["topic", "priority", "suggestion"]
+            }
+          }
+        },
+        required: ["healthScore", "missingSynapses", "knowledgeGaps"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const analyzeFeedPostForZettelkasten = async (content: string, imageBase64: string | null, userName: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  const parts: any[] = [{ text: `Analiza esta publicación del muro de seguridad hecha por ${userName}.
+  Contenido: "${content}"
+  
+  Determina si esta publicación representa un RIESGO (Risk) o un INCIDENTE (Incident) que deba ser registrado en el sistema Zettelkasten.
+  Si es solo un comentario general, tip o felicitación, isRelevant debe ser false.
+  Si es un riesgo o incidente, isRelevant debe ser true, y debes extraer un título, descripción, nivel de criticidad y etiquetas (tags).` }];
+
+  if (imageBase64) {
+    parts.push({
+      inlineData: {
+        data: imageBase64.replace(/^data:image\/\w+;base64,/, ""),
+        mimeType: imageBase64.startsWith('data:image/png') ? 'image/png' : 'image/jpeg'
+      }
+    });
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: { parts },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          isRelevant: { type: Type.BOOLEAN, description: "True si es un riesgo o incidente que debe ir al Zettelkasten" },
+          type: { type: Type.STRING, description: "RISK o INCIDENT" },
+          title: { type: Type.STRING },
+          description: { type: Type.STRING },
+          criticidad: { type: Type.STRING, description: "Baja, Media, Alta, Critica" },
+          tags: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING }
+          }
+        },
+        required: ["isRelevant"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text.trim());
+};
+
+export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  const prompt = `Eres el Director de Inteligencia Artificial de Prevención de Riesgos.
+  Genera un Resumen Ejecutivo Gerencial basado en los siguientes KPIs y datos del sistema Zettelkasten.
+  
+  KPIs Actuales:
+  ${JSON.stringify(stats, null, 2)}
+  
+  Resumen de Nodos Recientes (Muestra):
+  ${JSON.stringify(nodes.slice(0, 20).map(n => ({ tipo: n.type, titulo: n.title, estado: n.metadata?.status || n.metadata?.level })), null, 2)}
+  
+  Tu tarea es redactar un informe ejecutivo de 3 a 4 párrafos que:
+  1. Analice la situación actual de seguridad (Índices de frecuencia, gravedad, cumplimiento).
+  2. Destaque los riesgos críticos o hallazgos más relevantes.
+  3. Proporcione recomendaciones estratégicas para la gerencia.
+  
+  El tono debe ser formal, analítico y orientado a la toma de decisiones ejecutivas.
+  
+  Responde ÚNICAMENTE con un JSON que contenga:
+  - titulo: Título del informe
+  - resumen: El texto del resumen ejecutivo (puede contener saltos de línea)
+  - nivelAlertaGlobal: "Normal", "Precaución", "Crítico"
+  - recomendacionesClave: Array de 3 a 5 strings con acciones concretas.`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          titulo: { type: Type.STRING },
+          resumen: { type: Type.STRING },
+          nivelAlertaGlobal: { type: Type.STRING, enum: ["Normal", "Precaución", "Crítico"] },
+          recomendacionesClave: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        },
+        required: ["titulo", "resumen", "nivelAlertaGlobal", "recomendacionesClave"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text.trim());
 };

@@ -1,12 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Upload, Shield, AlertTriangle, Loader2, X, CheckCircle2, Info, Sparkles, Save } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
 import { useZettelkasten } from '../../hooks/useZettelkasten';
 import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+import { analyzeVisionImage } from '../../services/geminiService';
 
 interface AnalysisResult {
   eppDetected: string[];
@@ -45,27 +43,7 @@ export function VisionAnalyzer() {
     try {
       const base64Image = image.split(',')[1];
       
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: "image/jpeg",
-                  data: base64Image,
-                },
-              },
-              { text: "Analiza esta imagen de un entorno laboral. Identifica: 1. EPP detectado (casco, guantes, etc.). 2. Riesgos potenciales (caídas, cables, falta de orden). 3. Recomendaciones de seguridad. Responde en formato JSON con los campos: eppDetected (array), risksDetected (array), recommendations (array), summary (string)." },
-            ],
-          },
-        ],
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-
-      const analysis = JSON.parse(response.text || '{}');
+      const analysis = await analyzeVisionImage(base64Image);
       setResult(analysis);
     } catch (err) {
       console.error('Error analyzing image:', err);
@@ -234,7 +212,7 @@ export function VisionAnalyzer() {
                   ) : (
                     <Save className="w-4 h-4" />
                   )}
-                  <span>{saved ? 'Guardado en Zettelkasten' : 'Guardar Hallazgo'}</span>
+                  <span>{saved ? 'Guardado en Red Neuronal' : 'Guardar Hallazgo'}</span>
                 </button>
               </motion.div>
             ) : (

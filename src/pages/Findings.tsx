@@ -12,18 +12,56 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Zap
 } from 'lucide-react';
 import { useZettelkasten } from '../hooks/useZettelkasten';
 import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { AddFindingModal } from '../components/findings/AddFindingModal';
+import { generateActionPlan } from '../services/geminiService';
 
 export function Findings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const { nodes, loading } = useZettelkasten();
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const { nodes, loading, addNode, addConnection } = useZettelkasten();
   const { selectedProject } = useProject();
+
+  const handleGeneratePlan = async (finding: any) => {
+    setProcessingId(finding.id);
+    try {
+      const plan = await generateActionPlan(finding.title, finding.description, finding.metadata.severity);
+      
+      for (const tarea of plan.tareas) {
+        const taskNode = await addNode({
+          type: NodeType.TASK,
+          title: tarea.titulo,
+          description: tarea.descripcion,
+          tags: ['Acción Correctiva', tarea.prioridad, 'IA'],
+          projectId: finding.projectId,
+          connections: [finding.id],
+          metadata: {
+            priority: tarea.prioridad,
+            deadline: `${tarea.plazoDias} días`,
+            status: 'pending',
+            source: 'AI_Finding_Plan'
+          }
+        });
+        
+        if (taskNode) {
+          await addConnection(finding.id, taskNode.id);
+        }
+      }
+      
+      alert(`Se han generado ${plan.tareas.length} tareas de acción correctiva vinculadas a este hallazgo.`);
+    } catch (error) {
+      console.error('Error generating action plan:', error);
+      alert('Error al generar el plan de acción con IA.');
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
   const findings = nodes.filter(n => 
     n.type === NodeType.FINDING && 
@@ -159,6 +197,17 @@ export function Findings() {
                   }`}>
                     {finding.metadata.status}
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGeneratePlan(finding);
+                    }}
+                    disabled={processingId === finding.id}
+                    className="flex items-center gap-1.5 px-2 py-1 bg-zinc-900 text-white rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-black transition-all disabled:opacity-50"
+                  >
+                    {processingId === finding.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 text-amber-400" />}
+                    Plan IA
+                  </button>
                   <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
                 </div>
               </div>

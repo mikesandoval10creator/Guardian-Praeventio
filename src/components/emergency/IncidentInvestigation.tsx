@@ -146,7 +146,7 @@ export function IncidentInvestigation() {
                   }`}
                 >
                   {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                  {saved ? 'Guardado' : 'Guardar en Zettelkasten'}
+                  {saved ? 'Guardado' : 'Guardar en Red Neuronal'}
                 </button>
               </div>
               <p className="text-sm text-zinc-300 leading-relaxed">{analysis.summary}</p>

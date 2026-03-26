@@ -7,6 +7,7 @@ interface Project {
   name: string;
   description: string;
   location: string;
+  coordinates?: { lat: number; lng: number };
   industry: string;
   status: 'active' | 'completed' | 'archived';
   startDate: string;
@@ -19,7 +20,7 @@ interface ProjectContextType {
   projects: Project[];
   selectedProject: Project | null;
   setSelectedProject: (project: Project | null) => void;
-  createProject: (project: Omit<Project, 'id'>) => Promise<void>;
+  createProject: (project: Omit<Project, 'id'>) => Promise<string>;
   loading: boolean;
 }
 
@@ -29,18 +30,21 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
-  const { isAuthReady, user } = useFirebase();
+  const { isAuthReady, user, isAdmin } = useFirebase();
 
-  const createProject = async (projectData: Omit<Project, 'id'>) => {
+  const createProject = async (projectData: Omit<Project, 'id'>): Promise<string> => {
     try {
       const { addDoc } = await import('firebase/firestore');
-      await addDoc(collection(db, 'projects'), {
+      const docRef = await addDoc(collection(db, 'projects'), {
         ...projectData,
         createdAt: new Date().toISOString(),
-        createdBy: user?.uid
+        createdBy: user?.uid,
+        members: [user?.uid]
       });
+      return docRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'projects');
+      throw error;
     }
   };
 
@@ -52,7 +56,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // In a real app, we might filter projects by user access
+    // For now, let everyone see all projects to avoid complex member management
     const q = query(collection(db, 'projects'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {

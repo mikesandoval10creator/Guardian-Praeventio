@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { generatePersonalizedSafetyPlan } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType, ZettelkastenNode } from '../../types';
-import { BrainCircuit, Loader2, ShieldCheck, Zap, AlertCircle, Heart } from 'lucide-react';
+import { BrainCircuit, Loader2, ShieldCheck, Zap, AlertCircle, Heart, Save } from 'lucide-react';
 import { Button } from '../shared/Card';
+import { db, serverTimestamp } from '../../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { useZettelkasten } from '../../hooks/useZettelkasten';
 
 interface PersonalizedSafetyPlanProps {
   worker: ZettelkastenNode;
@@ -11,8 +14,10 @@ interface PersonalizedSafetyPlanProps {
 
 export function PersonalizedSafetyPlan({ worker }: PersonalizedSafetyPlanProps) {
   const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [plan, setPlan] = useState<any>(null);
   const { nodes } = useUniversalKnowledge();
+  const { addNode } = useZettelkasten();
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -40,6 +45,43 @@ export function PersonalizedSafetyPlan({ worker }: PersonalizedSafetyPlanProps) 
       console.error('Error generating personalized plan:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!plan || !worker.projectId) return;
+    setIsSaving(true);
+    try {
+      // Save to Firestore
+      const planRef = await addDoc(collection(db, `projects/${worker.projectId}/personalized_plans`), {
+        projectId: worker.projectId,
+        workerId: worker.id,
+        workerName: worker.title,
+        plan: plan,
+        createdAt: serverTimestamp()
+      });
+
+      // Save to Zettelkasten
+      await addNode({
+        type: NodeType.DOCUMENT,
+        title: `Plan de Seguridad: ${worker.title}`,
+        description: `Plan de seguridad personalizado generado por IA para ${worker.title}.`,
+        tags: ['plan', 'seguridad', 'ia', 'personalizado'],
+        projectId: worker.projectId,
+        connections: [worker.id],
+        metadata: {
+          planId: planRef.id,
+          workerId: worker.id,
+          documentType: 'personalized_plan',
+          content: plan
+        }
+      });
+
+      setPlan(null); // Reset after saving
+    } catch (error) {
+      console.error('Error saving personalized plan:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -130,13 +172,32 @@ export function PersonalizedSafetyPlan({ worker }: PersonalizedSafetyPlanProps) 
             </ul>
           </div>
 
-          <Button
-            onClick={() => setPlan(null)}
-            variant="outline"
-            className="w-full py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest"
-          >
-            Generar Nuevo Plan
-          </Button>
+          <div className="flex gap-4">
+            <Button
+              onClick={() => setPlan(null)}
+              variant="outline"
+              className="flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest"
+            >
+              Descartar
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Guardar Plan
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       )}
     </div>

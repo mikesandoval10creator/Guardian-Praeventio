@@ -129,49 +129,49 @@ export function Normatives() {
   });
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Normativas</h1>
-          <p className="text-zinc-400 mt-1">Biblioteca de leyes, decretos y estándares de seguridad</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Normativas</h1>
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Biblioteca de leyes, decretos y estándares de seguridad</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={seedNormatives}
             disabled={isSeeding}
-            className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 px-4 py-2 rounded-xl font-medium transition-all disabled:opacity-50"
+            className="flex items-center justify-center gap-2 bg-zinc-900/50 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 px-4 py-3 sm:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 w-full sm:w-auto"
           >
-            {isSeeding ? <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-5 h-5" />}
+            {isSeeding ? <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" /> : <Download className="w-4 h-4" />}
             <span>Sincronizar Biblioteca</span>
           </button>
           <button 
             onClick={() => setShowSavedOnly(!showSavedOnly)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all shadow-lg active:scale-95 ${
+            className={`flex items-center justify-center gap-2 px-4 py-3 sm:py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg active:scale-95 w-full sm:w-auto ${
               showSavedOnly 
                 ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
                 : 'bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700'
             }`}
           >
-            <Bookmark className={`w-5 h-5 ${showSavedOnly ? 'fill-current' : ''}`} />
+            <Bookmark className={`w-4 h-4 ${showSavedOnly ? 'fill-current' : ''}`} />
             <span>Mis Guardados</span>
           </button>
         </div>
       </div>
 
       {/* Search & Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="md:col-span-3 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+      <div className="flex flex-col md:flex-row gap-3 mb-8">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Buscar por título, código o categoría (ej: Ley 16.744)..."
+            placeholder="Buscar por título, código o categoría..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 sm:py-2.5 pl-10 pr-4 text-[10px] sm:text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium"
           />
         </div>
-        <button className="flex items-center justify-center gap-2 bg-zinc-900/50 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl py-3 transition-all">
-          <Filter className="w-5 h-5" />
+        <button className="flex items-center justify-center gap-2 bg-zinc-900/50 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl py-3 sm:py-2.5 px-6 transition-all w-full md:w-auto text-[10px] font-black uppercase tracking-widest">
+          <Filter className="w-4 h-4" />
           <span>Filtrar</span>
         </button>
       </div>

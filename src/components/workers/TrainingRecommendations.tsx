@@ -3,7 +3,10 @@ import { motion } from 'framer-motion';
 import { GraduationCap, Loader2, AlertCircle, CheckCircle2, Zap } from 'lucide-react';
 import { generateTrainingRecommendations } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
-import { ZettelkastenNode } from '../../types';
+import { ZettelkastenNode, NodeType } from '../../types';
+import { db, serverTimestamp } from '../../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { useZettelkasten } from '../../hooks/useZettelkasten';
 
 interface TrainingRecommendationsProps {
   worker: ZettelkastenNode;
@@ -17,8 +20,10 @@ interface Recommendation {
 
 export function TrainingRecommendations({ worker }: TrainingRecommendationsProps) {
   const [loading, setLoading] = useState(false);
+  const [assigningIndex, setAssigningIndex] = useState<number | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const { nodes } = useUniversalKnowledge();
+  const { addNode } = useZettelkasten();
 
   const fetchRecommendations = async () => {
     setLoading(true);
@@ -49,6 +54,47 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
   useEffect(() => {
     fetchRecommendations();
   }, [worker.id]);
+
+  const handleAssign = async (rec: Recommendation, index: number) => {
+    if (!worker.projectId) return;
+    setAssigningIndex(index);
+    try {
+      // Save to Firestore
+      const trainingRef = await addDoc(collection(db, `projects/${worker.projectId}/trainings`), {
+        projectId: worker.projectId,
+        workerId: worker.id,
+        workerName: worker.title,
+        title: rec.title,
+        description: rec.description,
+        priority: rec.priority,
+        status: 'assigned',
+        createdAt: serverTimestamp()
+      });
+
+      // Save to Zettelkasten
+      await addNode({
+        type: NodeType.TRAINING,
+        title: `Capacitación: ${rec.title}`,
+        description: `Asignada a ${worker.title}. ${rec.description}`,
+        tags: ['capacitacion', 'ia', rec.priority.toLowerCase()],
+        projectId: worker.projectId,
+        connections: [worker.id],
+        metadata: {
+          trainingId: trainingRef.id,
+          workerId: worker.id,
+          priority: rec.priority,
+          status: 'pending'
+        }
+      });
+
+      // Remove the assigned recommendation from the list
+      setRecommendations(prev => prev.filter((_, i) => i !== index));
+    } catch (error) {
+      console.error('Error assigning training:', error);
+    } finally {
+      setAssigningIndex(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -98,8 +144,16 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
               </div>
               <p className="text-xs text-zinc-500 leading-relaxed">{rec.description}</p>
               <div className="mt-4 flex items-center justify-end">
-                <button className="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-400 transition-colors flex items-center gap-1">
-                  Asignar Curso <CheckCircle2 className="w-3 h-3" />
+                <button 
+                  onClick={() => handleAssign(rec, i)}
+                  disabled={assigningIndex === i}
+                  className="text-[10px] font-black text-indigo-500 uppercase tracking-widest hover:text-indigo-400 transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  {assigningIndex === i ? (
+                    <>Asignando... <Loader2 className="w-3 h-3 animate-spin" /></>
+                  ) : (
+                    <>Asignar Curso <CheckCircle2 className="w-3 h-3" /></>
+                  )}
                 </button>
               </div>
             </motion.div>

@@ -13,9 +13,7 @@ import {
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../../types';
-import { GoogleGenAI } from '@google/genai';
-
-const API_KEY = process.env.GEMINI_API_KEY;
+import { calculateDynamicEvacuationRoute } from '../../services/geminiService';
 
 export function DynamicEvacuationMap() {
   const { nodes } = useUniversalKnowledge();
@@ -23,38 +21,24 @@ export function DynamicEvacuationMap() {
   const [routeData, setRouteData] = useState<any>(null);
 
   const activeEmergencies = useMemo(() => {
-    return nodes.filter(n => n.type === NodeType.EMERGENCY && n.metadata?.status === 'active');
+    return nodes.filter(n => {
+      if (n.type === NodeType.EMERGENCY && n.metadata?.status === 'active') return true;
+      if (n.type === NodeType.INCIDENT) return true; // Include all incidents
+      if (n.type === NodeType.RISK && n.metadata?.level === 'Crítico') return true; // Include critical risks
+      return false;
+    });
   }, [nodes]);
 
   const calculateRoute = async () => {
-    if (!API_KEY) return;
     setIsCalculating(true);
     
     try {
-      const ai = new GoogleGenAI({ apiKey: API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Actúa como un experto en logística de emergencias. 
-        Calcula la ruta de evacuación más segura dadas las siguientes emergencias activas:
-        ${activeEmergencies.map(e => `- ${e.title}: ${e.description}`).join('\n')}
-        
-        Considera que las rutas tradicionales podrían estar bloqueadas.`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "object",
-            properties: {
-              safeRoute: { type: "string" },
-              blockedAreas: { type: "array", items: { type: "string" } },
-              estimatedTime: { type: "string" },
-              priority: { type: "string" }
-            },
-            required: ["safeRoute", "blockedAreas", "estimatedTime", "priority"]
-          }
-        }
-      });
-
-      setRouteData(JSON.parse(response.text));
+      const twinState = JSON.parse(localStorage.getItem('twinState') || '{}');
+      const workers = twinState.workers ? Object.values(twinState.workers) : [];
+      const machinery = twinState.machinery ? Object.values(twinState.machinery) : [];
+      
+      const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery);
+      setRouteData(data);
     } catch (error) {
       console.error('Error calculating route:', error);
     } finally {
@@ -91,7 +75,6 @@ export function DynamicEvacuationMap() {
       </header>
 
       <div className="relative aspect-video bg-black/40 rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center">
-        {/* Placeholder for actual map integration */}
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent" />
           <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
@@ -173,7 +156,7 @@ export function DynamicEvacuationMap() {
         <div>
           <h4 className="text-sm font-bold text-white">Inteligencia de Evacuación</h4>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            El sistema monitorea constantemente los nodos de emergencia en el Zettelkasten y recalcula las rutas de escape evitando zonas de peligro reportadas en tiempo real.
+            El sistema monitorea constantemente los nodos de emergencia en la Red Neuronal y recalcula las rutas de escape evitando zonas de peligro reportadas en tiempo real.
           </p>
         </div>
       </div>

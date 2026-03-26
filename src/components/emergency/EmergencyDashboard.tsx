@@ -14,21 +14,50 @@ import {
   Loader2
 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
-import { db, collection, onSnapshot, handleFirestoreError, OperationType } from '../../services/firebase';
+import { useFirebase } from '../../contexts/FirebaseContext';
+import { db, collection, onSnapshot, doc, handleFirestoreError, OperationType, query, where } from '../../services/firebase';
 import { EmergencyCheckIn } from './EmergencyCheckIn';
 import { CrisisChat } from './CrisisChat';
 import { DynamicEvacuationMap } from './DynamicEvacuationMap';
 
 export function EmergencyDashboard() {
   const { selectedProject } = useProject();
+  const { user, userRole, isAdmin } = useFirebase();
   const [activeTab, setActiveTab] = useState<'overview' | 'checkin' | 'chat' | 'map'>('overview');
   const [stats, setStats] = useState({ total: 0, safe: 0, danger: 0, unknown: 0 });
+  const [activeProtocol, setActiveProtocol] = useState<string>('Emergencia General');
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
+
+  const isWorker = userRole === 'worker' && !isAdmin;
 
   useEffect(() => {
     if (!selectedProject?.id) return;
 
-    const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
-    const unsubscribe = onSnapshot(checkinsRef, (snapshot) => {
+    const projectRef = doc(db, 'projects', selectedProject.id);
+    const unsubscribeProject = onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.activeEmergencyProtocol) {
+          setActiveProtocol(data.activeEmergencyProtocol);
+        }
+        if (data.emergencyStartTime) {
+          const startTime = data.emergencyStartTime.toDate ? data.emergencyStartTime.toDate().getTime() : new Date(data.emergencyStartTime).getTime();
+          const updateTimer = () => {
+            setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+          };
+          updateTimer();
+          const interval = setInterval(updateTimer, 1000);
+          return () => clearInterval(interval);
+        }
+      }
+    });
+
+    let checkinsQuery = query(collection(db, `projects/${selectedProject.id}/emergency_checkins`));
+    if (isWorker && user) {
+      checkinsQuery = query(collection(db, `projects/${selectedProject.id}/emergency_checkins`), where('workerId', '==', user.uid));
+    }
+
+    const unsubscribeCheckins = onSnapshot(checkinsQuery, (snapshot) => {
       const workers = snapshot.docs.map(doc => doc.data());
       setStats({
         total: workers.length,
@@ -40,8 +69,17 @@ export function EmergencyDashboard() {
       handleFirestoreError(error, OperationType.LIST, `projects/${selectedProject.id}/emergency_checkins`);
     });
 
-    return () => unsubscribe();
-  }, [selectedProject?.id]);
+    return () => {
+      unsubscribeProject();
+      unsubscribeCheckins();
+    };
+  }, [selectedProject?.id, isWorker, user]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   const tabs = [
     { id: 'overview', label: 'Resumen', icon: Activity },
@@ -67,7 +105,7 @@ export function EmergencyDashboard() {
               </div>
               <div>
                 <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Emergencia Activa</h2>
-                <p className="text-rose-200 text-xs font-bold uppercase tracking-widest mt-1">Protocolo P1: Incendio en Sector B</p>
+                <p className="text-rose-200 text-xs font-bold uppercase tracking-widest mt-1">{activeProtocol}</p>
               </div>
             </div>
             <div className="flex items-center gap-6">
@@ -79,7 +117,7 @@ export function EmergencyDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-rose-200" />
-                <span className="text-sm font-black uppercase tracking-widest">Tiempo: 12:45 min</span>
+                <span className="text-sm font-black uppercase tracking-widest">Tiempo: {formatTime(elapsedTime)} min</span>
               </div>
             </div>
           </div>

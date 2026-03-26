@@ -1,13 +1,59 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { KnowledgeGraph } from '../components/shared/KnowledgeGraph';
-import { Brain, Network, Zap, Info, Clock, Activity, ArrowRight } from 'lucide-react';
+import { Brain, Network, Zap, Info, Clock, Activity, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useZettelkasten } from '../hooks/useZettelkasten';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { analyzeZettelkastenNetwork, predictAccidents } from '../services/geminiService';
+import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 export function Zettelkasten() {
   const { nodes, loading } = useZettelkasten();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiInsight, setAiInsight] = useState<any>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const [predictions, setPredictions] = useState<any[]>([]);
+
+  const handleAnalyze = async () => {
+    if (nodes.length === 0) return;
+    setIsAnalyzing(true);
+    try {
+      const context = nodes.map(n => `${n.type}: ${n.title} - ${n.description}`).join('\n');
+      const result = await analyzeZettelkastenNetwork(context);
+      setAiInsight(result);
+    } catch (error) {
+      console.error("Error analyzing nodes:", error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handlePredict = async () => {
+    if (nodes.length === 0) return;
+    setIsPredicting(true);
+    try {
+      const context = nodes.map(n => `${n.type}: ${n.title} - ${n.description}`).join('\n');
+      
+      // Gather telemetry context from localStorage
+      const twinState = JSON.parse(localStorage.getItem('twinState') || '{}');
+      const bioMetrics = JSON.parse(localStorage.getItem('bioMetricsHistory') || '[]');
+      const latestBio = bioMetrics.length > 0 ? bioMetrics[bioMetrics.length - 1] : null;
+      
+      const telemetryContext = `
+        Estado Maquinaria: ${JSON.stringify(twinState.machinery || {})}
+        Estado Trabajadores: ${JSON.stringify(twinState.workers || {})}
+        Última Biometría: ${latestBio ? JSON.stringify(latestBio) : 'Sin datos recientes'}
+      `;
+
+      const result = await predictAccidents(context, telemetryContext);
+      setPredictions(result.predictions || []);
+    } catch (error) {
+      console.error("Error predicting accidents:", error);
+    } finally {
+      setIsPredicting(false);
+    }
+  };
 
   const recentNodes = [...nodes]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -21,27 +67,27 @@ export function Zettelkasten() {
       : 0
   };
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="bg-emerald-500/10 p-4 rounded-3xl border border-emerald-500/20">
-            <Brain className="w-8 h-8 text-emerald-500" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="bg-emerald-500/10 p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-emerald-500/20 shrink-0">
+            <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
           </div>
           <div>
-            <h1 className="text-3xl font-black uppercase tracking-tighter text-white">El Cerebro</h1>
-            <p className="text-zinc-500 text-sm font-medium">Red Neuronal de Prevención y Conocimiento</p>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white leading-tight">El Cerebro</h1>
+            <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">Red Neuronal de Prevención y Conocimiento</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="bg-zinc-900/50 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Conciencia Activa</span>
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+          <div className="bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
+            <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500" />
+            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Conciencia Activa</span>
           </div>
-          <div className="bg-zinc-900/50 border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-2">
-            <Network className="w-4 h-4 text-emerald-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Sinapsis en Tiempo Real</span>
+          <div className="bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
+            <Network className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />
+            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Sinapsis en Tiempo Real</span>
           </div>
         </div>
       </div>
@@ -56,7 +102,7 @@ export function Zettelkasten() {
           <Info className="w-5 h-5 text-blue-500" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-xs font-black uppercase tracking-widest text-white">¿Cómo funciona el Zettelkasten?</h3>
+          <h3 className="text-xs font-black uppercase tracking-widest text-white">¿Cómo funciona la Red Neuronal?</h3>
           <p className="text-[11px] text-zinc-500 leading-relaxed max-w-2xl">
             Cada análisis de riesgo, trabajador o normativa se convierte en un "nodo" de conocimiento. 
             El sistema conecta automáticamente estos nodos para revelar patrones invisibles, 
@@ -133,6 +179,88 @@ export function Zettelkasten() {
               </p>
             </div>
           </div>
+          <div className="pt-4 border-t border-white/5">
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || nodes.length === 0}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+            >
+              {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              Analizar Red Neuronal
+            </button>
+            
+            {aiInsight && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 p-4 bg-zinc-950 border border-emerald-500/30 rounded-2xl"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="w-4 h-4 text-emerald-500" />
+                  <h4 className="text-xs font-black text-emerald-500 uppercase tracking-widest">Insight de El Guardián</h4>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">{aiInsight.analysis}</p>
+                {aiInsight.recommendations && aiInsight.recommendations.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {aiInsight.recommendations.map((rec: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-[10px] text-zinc-400">
+                        <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </motion.div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 space-y-4 md:col-span-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black uppercase tracking-widest text-white">AI Hub Predictivo</h3>
+            <ShieldAlert className="w-4 h-4 text-rose-500" />
+          </div>
+          <p className="text-[10px] text-zinc-400 leading-relaxed">
+            Cruza datos de la Red Neuronal con telemetría en tiempo real para predecir accidentes antes de que ocurran.
+          </p>
+          <button
+            onClick={handlePredict}
+            disabled={isPredicting || nodes.length === 0}
+            className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20"
+          >
+            {isPredicting ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+            Predecir Riesgos Inminentes
+          </button>
+
+          {predictions.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+              {predictions.map((pred, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="p-4 bg-zinc-950 border border-rose-500/30 rounded-2xl flex flex-col h-full"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold text-white line-clamp-1">{pred.title}</h4>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-full shrink-0 ${
+                      pred.probability > 70 ? 'bg-rose-500/20 text-rose-500' : 
+                      pred.probability > 40 ? 'bg-amber-500/20 text-amber-500' : 
+                      'bg-emerald-500/20 text-emerald-500'
+                    }`}>
+                      {pred.probability}% Prob.
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mb-3 flex-grow">{pred.description}</p>
+                  <div className="bg-rose-500/10 p-3 rounded-xl border border-rose-500/20 mt-auto">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-1">Acción Preventiva Inmediata</p>
+                    <p className="text-[10px] text-rose-200">{pred.preventiveAction}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

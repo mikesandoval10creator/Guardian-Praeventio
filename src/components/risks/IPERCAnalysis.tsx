@@ -84,7 +84,8 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
           controles: result.controles,
           normativa: result.normativa,
           originalDescription: description,
-          actionPlan: actionPlan
+          actionPlan: actionPlan,
+          status: 'pending_approval'
         },
         connections: [],
         projectId: projectId
@@ -190,7 +191,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/30 space-y-3">
             <h4 className="text-[9px] font-black uppercase tracking-widest text-amber-600 flex items-center gap-2">
               <BrainCircuit className="w-3 h-3" />
-              Conocimiento Similar en Zettelkasten
+              Conocimiento Similar en la Red Neuronal
             </h4>
             <div className="space-y-3">
               {similarRisks.map((risk) => (
@@ -252,18 +253,18 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
               onClick={handleSaveToZettelkasten}
               disabled={saved}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
-                saved ? 'bg-emerald-100 text-emerald-600' : 'bg-zinc-900 text-white hover:bg-black'
+                saved ? 'bg-amber-100 text-amber-600' : 'bg-zinc-900 text-white hover:bg-black'
               }`}
             >
               {saved ? (
                 <>
                   <CheckCircle2 className="w-3 h-3" />
-                  Guardado
+                  Enviado a Revisión
                 </>
               ) : (
                 <>
                   <Save className="w-3 h-3" />
-                  Guardar en Zettelkasten
+                  Sugerir a la Matriz
                 </>
               )}
             </Button>

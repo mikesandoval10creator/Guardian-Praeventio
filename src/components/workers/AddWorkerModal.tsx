@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Phone, Briefcase, Loader2 } from 'lucide-react';
+import { X, User, Mail, Phone, Briefcase, Loader2, ShieldAlert } from 'lucide-react';
 import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useIndustryIntegration } from '../../hooks/useIndustryIntegration';
 import { NodeType } from '../../types';
 
 interface AddWorkerModalProps {
@@ -13,7 +14,9 @@ interface AddWorkerModalProps {
 
 export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalProps) {
   const { addNode } = useZettelkasten();
+  const { getEPP, availableRoles } = useIndustryIntegration();
   const [loading, setLoading] = useState(false);
+  const [suggestedEPP, setSuggestedEPP] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -21,6 +24,16 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
     phone: '',
     status: 'active' as const
   });
+
+  // Update EPP suggestions when role changes
+  useEffect(() => {
+    if (formData.role.length > 2) {
+      const epp = getEPP(formData.role);
+      setSuggestedEPP(epp);
+    } else {
+      setSuggestedEPP([]);
+    }
+  }, [formData.role, getEPP]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +50,8 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
           email: formData.email,
           phone: formData.phone,
           role: formData.role,
-          projectId: projectId || null
+          projectId: projectId || null,
+          requiredEPP: suggestedEPP // Inject the smart EPP requirement
         },
         connections: [],
         projectId: projectId
@@ -51,7 +65,8 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
         ...formData,
         joinedAt: new Date().toISOString(),
         projectId: projectId || null,
-        nodeId: node.id
+        nodeId: node.id,
+        requiredEPP: suggestedEPP // Save required EPP to worker profile
       };
 
       await addDoc(collection(db, path), workerData);
@@ -116,13 +131,50 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
                   <input
                     required
                     type="text"
+                    list="roles-list"
                     value={formData.role}
                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    placeholder="Ej: Supervisor de Seguridad"
+                    placeholder="Ej: Soldador, Operador de Grúa..."
                     className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   />
+                  <datalist id="roles-list">
+                    {availableRoles.map(role => (
+                      <option key={role} value={role} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
+
+              {/* Zettelkasten AI Suggestion Box */}
+              <AnimatePresence>
+                {suggestedEPP.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 mt-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShieldAlert className="w-4 h-4 text-emerald-500" />
+                        <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">
+                          Matriz EPP Automática (Red Neuronal)
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400 mb-3">
+                        Según el cargo de <strong>{formData.role}</strong>, el sistema asignará automáticamente los siguientes EPP:
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedEPP.map((epp, idx) => (
+                          <span key={idx} className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-1 rounded-md">
+                            {epp}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-1.5">

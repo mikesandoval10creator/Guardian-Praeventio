@@ -10,12 +10,12 @@ export function Assets() {
   const { selectedProject } = useProject();
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-4xl font-black text-white uppercase tracking-tighter">Gestión de Activos</h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gestión de Activos</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {selectedProject 
               ? `Maquinaria y Equipos para: ${selectedProject.name}`
               : 'Base de Datos Centralizada de Activos Industriales'}

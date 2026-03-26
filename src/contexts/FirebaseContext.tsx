@@ -8,6 +8,7 @@ interface FirebaseContextType {
   loading: boolean;
   isAdmin: boolean;
   isAuthReady: boolean;
+  userRole: string;
 }
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
@@ -16,6 +17,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<string>('client');
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
@@ -37,9 +39,11 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           });
+          setUserRole('client');
         } else {
           const userData = userDoc.data();
           setIsAdmin(userData.role === 'admin');
+          setUserRole(userData.role || 'client');
         }
 
         // Seed initial nodes if collection is empty
@@ -63,6 +67,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         setIsAdmin(false);
+        setUserRole('client');
       }
       
       setLoading(false);
@@ -73,7 +78,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady }}>
+    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady, userRole }}>
       {children}
     </FirebaseContext.Provider>
   );

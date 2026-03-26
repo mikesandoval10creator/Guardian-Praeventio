@@ -13,7 +13,8 @@ import {
   Minimize2,
   Filter,
   Info,
-  Search
+  Search,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -24,6 +25,9 @@ export function KnowledgeGraph() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [filter, setFilter] = useState<NodeType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [propagatingNode, setPropagatingNode] = useState<string | null>(null);
+  const [isSimulatingPropagation, setIsSimulatingPropagation] = useState(false);
+  const [propagationResult, setPropagationResult] = useState<any>(null);
 
   const graphData = useMemo(() => {
     const data = getGraphData();
@@ -50,6 +54,61 @@ export function KnowledgeGraph() {
 
     return { nodes: filteredNodes, links: filteredLinks };
   }, [getGraphData, filter, searchQuery]);
+
+  const handleSimulatePropagation = async (node: ZettelkastenNode) => {
+    if (propagatingNode === node.id) {
+      setPropagatingNode(null);
+      setPropagationResult(null);
+      return;
+    }
+
+    setPropagatingNode(node.id);
+    setIsSimulatingPropagation(true);
+    setPropagationResult(null);
+
+    try {
+      const { simulateRiskPropagation } = await import('../../services/geminiService');
+      const context = graphData.nodes
+        .slice(0, 20)
+        .map(n => `- ${n.type}: ${n.title}`)
+        .join('\n');
+      
+      const result = await simulateRiskPropagation(node.title, context);
+      setPropagationResult(result);
+    } catch (error) {
+      console.error('Error simulating propagation:', error);
+    } finally {
+      setIsSimulatingPropagation(false);
+    }
+  };
+
+  const affectedNodes = useMemo(() => {
+    if (!propagatingNode) return new Set<string>();
+    const affected = new Set<string>([propagatingNode]);
+    
+    if (propagationResult && propagationResult.affectedNodes) {
+      const data = getGraphData();
+      const affectedTitles = new Set(propagationResult.affectedNodes.map((t: string) => t.toLowerCase()));
+      data.nodes.forEach(n => {
+        if (affectedTitles.has(n.title.toLowerCase())) {
+          affected.add(n.id);
+        }
+      });
+      return affected;
+    }
+
+    const data = getGraphData();
+    // Simple 1-level propagation for demo while loading
+    data.links.forEach(link => {
+      const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
+      const targetId = typeof link.target === 'string' ? link.target : (link.target as any).id;
+      
+      if (sourceId === propagatingNode) affected.add(targetId);
+      if (targetId === propagatingNode) affected.add(sourceId);
+    });
+    
+    return affected;
+  }, [propagatingNode, getGraphData, propagationResult]);
 
   const getNodeColor = (type: NodeType) => {
     switch (type) {
@@ -100,14 +159,14 @@ export function KnowledgeGraph() {
   return (
     <div className={`relative bg-zinc-950 rounded-3xl border border-white/5 overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'}`}>
       {/* Header / Controls */}
-      <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between z-10 pointer-events-none">
-        <div className="flex items-center gap-4 pointer-events-auto">
-          <div className="bg-zinc-900/80 backdrop-blur-md border border-white/10 p-2 rounded-2xl flex flex-wrap gap-2">
+      <div className="absolute top-0 left-0 right-0 p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between z-10 pointer-events-none gap-2 sm:gap-0">
+        <div className="flex items-center gap-2 sm:gap-4 pointer-events-auto w-full sm:w-auto overflow-x-auto no-scrollbar">
+          <div className="bg-zinc-900/80 backdrop-blur-md border border-white/10 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl flex flex-nowrap sm:flex-wrap gap-1.5 sm:gap-2 min-w-max">
             {(['all', NodeType.PROJECT, NodeType.WORKER, NodeType.RISK, NodeType.FINDING, NodeType.AUDIT, NodeType.NORMATIVE] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setFilter(t)}
-                className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${
                   filter === t ? 'bg-emerald-500 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'
                 }`}
               >
@@ -117,22 +176,22 @@ export function KnowledgeGraph() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+        <div className="flex items-center gap-2 pointer-events-auto w-full sm:w-auto">
+          <div className="relative group flex-1 sm:flex-none">
+            <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
             <input
               type="text"
               placeholder="Buscar nodos..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-11 pr-4 py-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all w-48 focus:w-64"
+              className="pl-9 sm:pl-11 pr-3 sm:pr-4 py-2 sm:py-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all w-full sm:w-48 sm:focus:w-64"
             />
           </div>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all"
+            className="p-2 sm:p-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-xl sm:rounded-2xl text-zinc-400 hover:text-white transition-all shrink-0"
           >
-            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            {isFullscreen ? <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
         </div>
       </div>
@@ -168,6 +227,15 @@ export function KnowledgeGraph() {
           ctx.arc(node.x, node.y, 4, 0, 2 * Math.PI, false);
           ctx.fillStyle = color;
           ctx.fill();
+
+          // Propagation effect
+          if (affectedNodes.has(node.id)) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 4 * (1.5 + Math.sin(Date.now() / 200) * 0.2), 0, 2 * Math.PI, false);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 0.5 / globalScale;
+            ctx.stroke();
+          }
           
           // Draw border
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
@@ -260,11 +328,56 @@ export function KnowledgeGraph() {
                 </div>
               )}
 
-              <div className="pt-8 border-t border-white/5">
-                <button className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95">
+              <div className="pt-8 border-t border-white/5 flex flex-col gap-3">
+                <button 
+                  onClick={() => handleSimulatePropagation(selectedNode)}
+                  disabled={isSimulatingPropagation}
+                  className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                    propagatingNode === selectedNode.id 
+                      ? 'bg-rose-500 text-white' 
+                      : 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
+                  } disabled:opacity-50`}
+                >
+                  <Zap className={`w-4 h-4 ${isSimulatingPropagation ? 'animate-pulse' : ''}`} />
+                  {isSimulatingPropagation ? 'Simulando...' : propagatingNode === selectedNode.id ? 'Detener Simulación' : 'Simular Propagación de Riesgo'}
+                </button>
+                <button className="w-full py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95">
                   Ver Nodo Completo
                 </button>
               </div>
+
+              {propagationResult && propagatingNode === selectedNode.id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl space-y-4"
+                >
+                  <div className="flex items-center gap-2 text-rose-500">
+                    <AlertTriangle className="w-4 h-4" />
+                    <h4 className="text-[10px] font-black uppercase tracking-widest">Análisis de Propagación</h4>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs text-zinc-300 leading-relaxed">
+                      {propagationResult.explanation}
+                    </p>
+                  </div>
+
+                  {propagationResult.recommendedActions && propagationResult.recommendedActions.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Acciones Recomendadas</h5>
+                      <ul className="space-y-2">
+                        {propagationResult.recommendedActions.map((action: string, i: number) => (
+                          <li key={i} className="text-xs text-zinc-400 flex items-start gap-2">
+                            <span className="text-rose-500 mt-0.5">•</span>
+                            <span>{action}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </motion.div>
+              )}
             </div>
           </motion.div>
         )}

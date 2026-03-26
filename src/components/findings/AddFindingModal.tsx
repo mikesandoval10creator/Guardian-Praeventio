@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, MapPin, Tag, Loader2, Shield, Activity, Zap, Sparkles } from 'lucide-react';
+import { X, AlertTriangle, MapPin, Tag, Loader2, Shield, Activity, Zap, Sparkles, Camera } from 'lucide-react';
 import { useZettelkasten } from '../../hooks/useZettelkasten';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
-import { generateActionPlan } from '../../services/geminiService';
+import { generateActionPlan, analyzeSafetyImage } from '../../services/geminiService';
 
 interface AddFindingModalProps {
   isOpen: boolean;
@@ -13,9 +13,12 @@ interface AddFindingModalProps {
 
 export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
   const [loading, setLoading] = useState(false);
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [generateAIPlan, setGenerateAIPlan] = useState(true);
   const { addNode, addConnection } = useZettelkasten();
   const { selectedProject } = useProject();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -24,6 +27,50 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
     category: 'Seguridad',
     tags: ''
   });
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAnalyzingImage(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Data = reader.result as string;
+        const base64Image = base64Data.split(',')[1];
+        const mimeType = file.type;
+
+        const analysis = await analyzeSafetyImage(base64Image, mimeType, `Proyecto: ${selectedProject?.name}`);
+        
+        let newDescription = analysis.description;
+        if (analysis.unsafeConditions && analysis.unsafeConditions.length > 0) {
+          newDescription += `\n\nCondiciones Inseguras:\n${analysis.unsafeConditions.map((c: string) => `- ${c}`).join('\n')}`;
+        }
+        if (analysis.missingEPP && analysis.missingEPP.length > 0) {
+          newDescription += `\n\nEPP Faltante:\n${analysis.missingEPP.map((e: string) => `- ${e}`).join('\n')}`;
+        }
+        if (analysis.immediateAction) {
+          newDescription += `\n\nAcción Inmediata: ${analysis.immediateAction}`;
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          title: analysis.title || prev.title,
+          description: newDescription,
+          severity: analysis.severity || prev.severity,
+          category: analysis.category || prev.category,
+          tags: analysis.tags ? analysis.tags.join(', ') : prev.tags
+        }));
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      alert('Error al analizar la imagen con IA.');
+    } finally {
+      setIsAnalyzingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,9 +154,9 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent sticky top-0 z-10 backdrop-blur-md">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
                   <AlertTriangle className="w-6 h-6 text-amber-500" />
@@ -122,6 +169,35 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
               <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                 <X className="w-5 h-5 text-zinc-500" />
               </button>
+            </div>
+
+            <div className="p-6 border-b border-white/5 bg-zinc-800/50">
+              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-500/30 rounded-2xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  capture="environment" 
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                />
+                {isAnalyzingImage ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                    <p className="text-xs font-bold text-amber-500 uppercase tracking-widest text-center">Analizando imagen con IA...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                      <Camera className="w-6 h-6 text-amber-500" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-amber-500 uppercase tracking-widest">Inspección Visual IA</p>
+                      <p className="text-[10px] text-zinc-400 mt-1">Sube o toma una foto para autocompletar el hallazgo</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -189,7 +265,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Describe lo observado y el riesgo potencial..."
-                  rows={3}
+                  rows={5}
                   className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
                 />
               </div>
@@ -229,7 +305,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || isAnalyzingImage}
                 className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black font-black py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 uppercase tracking-widest text-xs mt-2"
               >
                 {loading ? (

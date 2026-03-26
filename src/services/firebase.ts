@@ -1,15 +1,36 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocFromServer, serverTimestamp, writeBatch, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+
+// Enable offline persistence
+enableMultiTabIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    console.warn('Multiple tabs open, persistence can only be enabled in one tab at a a time.');
+  } else if (err.code === 'unimplemented') {
+    console.warn('The current browser does not support all of the features required to enable persistence');
+  }
+});
+
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+
+export const getMessagingInstance = async () => {
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+    const supported = await isSupported();
+    if (supported) {
+      return getMessaging(app);
+    }
+  }
+  return null;
+};
 
 // Auth helper functions
 export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
@@ -94,12 +115,15 @@ export {
   orderBy,
   limit,
   serverTimestamp,
+  writeBatch,
   onAuthStateChanged,
   ref,
   uploadBytes,
   getDownloadURL,
   deleteObject,
-  listAll
+  listAll,
+  getToken,
+  onMessage
 };
 
 export type { User };

@@ -27,6 +27,8 @@ export enum NodeType {
   PROJECT = 'Proyecto',
   EMERGENCY = 'Emergencia',
   ASSET = 'Activo',
+  TRAINING = 'Capacitación',
+  ATTENDANCE = 'Asistencia',
 }
 
 export interface ZettelkastenNode {
@@ -52,6 +54,24 @@ export interface WeatherData {
   altitude: number;
   location: string;
   recommendations: string[];
+  windSpeed?: number;
+  sunrise?: number;
+  sunset?: number;
+}
+
+export interface SeismicData {
+  magnitude: number;
+  location: string;
+  time: number;
+  depth: number;
+  alertLevel: 'green' | 'yellow' | 'orange' | 'red';
+  url?: string;
+}
+
+export interface EnvironmentContext {
+  weather: WeatherData | null;
+  seismic: SeismicData | null;
+  lastUpdated: number;
 }
 
 export interface EPPItem {
@@ -90,6 +110,10 @@ export interface Worker {
   projectId?: string;
   nodeId?: string;
   eppIds?: string[];
+  requiredEPP?: string[];
+  coordinates?: { lat: number; lng: number }; // Added for SiteMap
+  medicalClearanceDate?: string; // Added for Access Control
+  certifications?: string[]; // Added for Access Control
 }
 
 export interface TrainingSession {
@@ -101,6 +125,51 @@ export interface TrainingSession {
   status: 'scheduled' | 'completed';
   attendees: string[];
   projectId?: string;
+  youtubeUrl?: string;
+  points?: number;
+  isCurated?: boolean; // If true, it's in the global library
+}
+
+export interface SafetyPost {
+  id: string;
+  userId: string;
+  userName: string;
+  userPhoto?: string;
+  content: string;
+  type: 'SafetyMoment' | 'Tip' | 'SuccessStory' | 'Warning';
+  imageUrl?: string;
+  likes: string[]; // User IDs
+  comments: {
+    userId: string;
+    userName: string;
+    text: string;
+    createdAt: string;
+  }[];
+  createdAt: string;
+  projectId?: string;
+  zettelkastenNodeId?: string;
+}
+
+export interface SafetySolution {
+  id: string;
+  title: string;
+  problem: string;
+  solution: string;
+  successRate: number; // 0-100
+  implementations: number;
+  tags: string[];
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface UserStats {
+  userId: string;
+  userName: string;
+  userPhoto?: string;
+  points: number;
+  completedTrainings: number;
+  safetyPosts: number;
+  rank: number;
 }
 
 export interface Asset {
@@ -113,4 +182,5 @@ export interface Asset {
   operatorId?: string;
   projectId: string;
   createdAt: string;
+  coordinates?: { lat: number; lng: number }; // Added for SiteMap
 }

@@ -16,7 +16,7 @@ export function Help() {
   const faqs = [
     { q: '¿Cómo inicio un análisis IPERC con IA?', a: 'Ve al módulo de Gestión de Riesgos o Matriz IA y presiona el botón "Análisis IA". Describe el peligro y Gemini generará el análisis.' },
     { q: '¿Cómo gestiono múltiples proyectos?', a: 'Utiliza el selector de proyectos en la barra lateral izquierda para cambiar entre tus diferentes espacios de trabajo.' },
-    { q: '¿Qué es el Zettelkasten?', a: 'Es nuestro sistema de gestión del conocimiento que conecta nodos de información (trabajadores, riesgos, leyes) para crear inteligencia preventiva.' },
+    { q: '¿Qué es la Red Neuronal?', a: 'Es nuestro sistema de gestión del conocimiento que conecta nodos de información (trabajadores, riesgos, leyes) para crear inteligencia preventiva.' },
     { q: '¿Cómo descargo reportes de seguridad?', a: 'En cada módulo (Riesgos, Trabajadores, etc.) encontrarás botones de descarga para exportar la información en formatos PDF o Excel.' },
   ];
 

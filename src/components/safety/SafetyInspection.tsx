@@ -11,14 +11,15 @@ interface InspectionItem {
   question: string;
   status: 'Cumple' | 'No Cumple' | 'N/A';
   observation: string;
+  workerProposal?: string;
 }
 
 export function SafetyInspection() {
   const [title, setTitle] = useState('');
   const [items, setItems] = useState<InspectionItem[]>([
-    { id: '1', question: '¿El personal utiliza su EPP completo?', status: 'Cumple', observation: '' },
-    { id: '2', question: '¿Las herramientas están en buen estado?', status: 'Cumple', observation: '' },
-    { id: '3', question: '¿El área de trabajo está limpia y ordenada?', status: 'Cumple', observation: '' },
+    { id: '1', question: '¿El personal utiliza su EPP completo?', status: 'Cumple', observation: '', workerProposal: '' },
+    { id: '2', question: '¿Las herramientas están en buen estado?', status: 'Cumple', observation: '', workerProposal: '' },
+    { id: '3', question: '¿El área de trabajo está limpia y ordenada?', status: 'Cumple', observation: '', workerProposal: '' },
   ]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -26,7 +27,7 @@ export function SafetyInspection() {
   const { selectedProject } = useProject();
 
   const handleAddItem = () => {
-    setItems([...items, { id: Date.now().toString(), question: '', status: 'Cumple', observation: '' }]);
+    setItems([...items, { id: Date.now().toString(), question: '', status: 'Cumple', observation: '', workerProposal: '' }]);
   };
 
   const handleRemoveItem = (id: string) => {
@@ -57,27 +58,30 @@ export function SafetyInspection() {
       // 2. Generate Action Plans for "No Cumple" items
       const nonCompliantItems = items.filter(i => i.status === 'No Cumple');
       if (nonCompliantItems.length > 0) {
-        const context = nonCompliantItems.map(i => `${i.question}: ${i.observation}`).join('\n');
-        const plan = await generateActionPlan(context);
+        for (const item of nonCompliantItems) {
+          const context = `${item.question}: ${item.observation}`;
+          const plan = await generateActionPlan(`Inspección: ${title}`, context, 'Alta', item.workerProposal);
 
-        for (const task of plan.tareas) {
-          const taskNode = await addNode({
-            type: NodeType.TASK,
-            title: task.titulo,
-            description: task.descripcion,
-            tags: ['Acción Correctiva', task.prioridad],
-            metadata: {
-              status: 'Pendiente',
-              priority: task.prioridad,
-              deadline: new Date(Date.now() + task.plazoDias * 24 * 60 * 60 * 1000).toISOString(),
-              source: 'Inspección AI'
-            },
-            projectId: selectedProject?.id,
-            connections: []
-          });
+          for (const task of plan.tareas) {
+            const taskNode = await addNode({
+              type: NodeType.TASK,
+              title: task.titulo,
+              description: task.descripcion,
+              tags: ['Acción Correctiva', task.prioridad],
+              metadata: {
+                status: 'Pendiente',
+                priority: task.prioridad,
+                deadline: new Date(Date.now() + task.plazoDias * 24 * 60 * 60 * 1000).toISOString(),
+                source: 'Inspección AI',
+                workerProposal: item.workerProposal
+              },
+              projectId: selectedProject?.id,
+              connections: []
+            });
 
-          if (taskNode) {
-            await addConnection(inspectionNode.id, taskNode.id);
+            if (taskNode) {
+              await addConnection(inspectionNode.id, taskNode.id);
+            }
           }
         }
       }
@@ -99,7 +103,7 @@ export function SafetyInspection() {
           </div>
           <div>
             <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Nueva Inspección de Seguridad</h3>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Generación Automática de Acciones Correctivas</p>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Auditoría Colaborativa y Generación de Acciones</p>
           </div>
         </div>
         <Button
@@ -172,19 +176,30 @@ export function SafetyInspection() {
                   </button>
                 </div>
                 {item.status === 'No Cumple' && (
-                  <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        value={item.observation}
-                        onChange={(e) => handleUpdateItem(item.id, { observation: e.target.value })}
-                        placeholder="Describe la desviación observada..."
-                        className="w-full bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/30 rounded-lg px-3 py-2 text-xs outline-none focus:border-red-500"
-                      />
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={item.observation}
+                          onChange={(e) => handleUpdateItem(item.id, { observation: e.target.value })}
+                          placeholder="Describe la desviación observada..."
+                          className="w-full bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/30 rounded-lg px-3 py-2 text-xs outline-none focus:border-red-500"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 text-[8px] font-black text-red-500 uppercase tracking-widest">
+                        <Wand2 className="w-3 h-3" />
+                        Plan IA Activo
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-[8px] font-black text-red-500 uppercase tracking-widest">
-                      <Wand2 className="w-3 h-3" />
-                      Plan IA Activo
+                    <div className="flex-1">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Propuesta de Mejora (Trabajador)</label>
+                      <textarea
+                        value={item.workerProposal || ''}
+                        onChange={(e) => handleUpdateItem(item.id, { workerProposal: e.target.value })}
+                        placeholder="¿Qué sugiere el trabajador para solucionar esto?"
+                        className="w-full bg-white dark:bg-zinc-900 border border-emerald-100 dark:border-emerald-900/30 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500 resize-none h-16"
+                      />
                     </div>
                   </div>
                 )}

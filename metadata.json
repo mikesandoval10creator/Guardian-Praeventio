@@ -1,5 +1,5 @@
 {
   "name": "Praeventio Guard",
-  "description": "Plataforma integral de seguridad, salud y excelencia operacional con IA y enfoque preventivo.",
+  "description": "Plataforma integral de seguridad y excelencia operacional con IA, análisis predictivo y monitoreo en tiempo real.",
   "requestFramePermissions": ["camera", "microphone", "geolocation"]
 }

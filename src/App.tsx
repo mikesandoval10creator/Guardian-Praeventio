@@ -6,6 +6,7 @@ import { Workers } from './pages/Workers';
 import { History } from './pages/History';
 import { Risks } from './pages/Risks';
 import { Emergency } from './pages/Emergency';
+import { EmergencyGenerator } from './pages/EmergencyGenerator';
 import { Matrix } from './pages/Matrix';
 import { Training } from './pages/Training';
 import { Normatives } from './pages/Normatives';
@@ -21,11 +22,11 @@ import { Findings } from './pages/Findings';
 import { Audits } from './pages/Audits';
 import { Projects } from './pages/Projects';
 import { Documents } from './pages/Documents';
+import { DocumentViewer } from './pages/DocumentViewer';
 import { Calendar } from './pages/Calendar';
 import { EPP } from './pages/EPP';
 import { PTSGenerator } from './pages/PTSGenerator';
 import { BioAnalysis } from './pages/BioAnalysis';
-import { DigitalTwin } from './pages/DigitalTwin';
 import { NormativeDetail } from './pages/NormativeDetail';
 import { Assets } from './pages/Assets';
 import { PublicNodeView } from './pages/PublicNodeView';
@@ -33,16 +34,31 @@ import { Profile } from './pages/Profile';
 import { Login } from './pages/Login';
 import { Splash } from './pages/Splash';
 import { AIHub } from './pages/AIHub';
+import { SafetyFeed } from './pages/SafetyFeed';
+import { PredictiveGuard } from './pages/PredictiveGuard';
 import { Attendance } from './pages/Attendance';
+import { SafeDriving } from './pages/SafeDriving';
+import { Telemetry } from './pages/Telemetry';
+import { SiteMap } from './pages/SiteMap';
+import { Gamification } from './pages/Gamification';
+import { KnowledgeIngestion } from './pages/KnowledgeIngestion';
+import { Analytics } from './pages/Analytics';
+import { SusesoReports } from './pages/SusesoReports';
+import { Glossary } from './pages/Glossary';
 import { GuardianVoiceAssistant } from './components/ai/GuardianVoiceAssistant';
 import { FirebaseProvider, useFirebase } from './contexts/FirebaseContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { UniversalKnowledgeProvider } from './contexts/UniversalKnowledgeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
+import { useAutoLogout } from './hooks/useAutoLogout';
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
   const [hasEntered, setHasEntered] = useState(false);
+  
+  // Initialize auto-logout for enterprise security
+  useAutoLogout();
 
   if (loading) {
     return (
@@ -62,42 +78,56 @@ function AppRoutes() {
   return (
     <UniversalKnowledgeProvider>
       <ProjectProvider>
-        <Routes>
-          <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-          <Route path="/public/node/:nodeId" element={<PublicNodeView />} />
-          <Route path="/" element={<RootLayout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="evacuation" element={<Evacuation />} />
-            <Route path="emergency" element={<Emergency />} />
-            <Route path="matrix" element={<Matrix />} />
-            <Route path="risks" element={<Risks />} />
-            <Route path="training" element={<Training />} />
-            <Route path="workers" element={<Workers />} />
-            <Route path="epp" element={<EPP />} />
-            <Route path="pts" element={<PTSGenerator />} />
-            <Route path="bio-analysis" element={<BioAnalysis />} />
-            <Route path="digital-twin" element={<DigitalTwin />} />
-            <Route path="assets" element={<Assets />} />
-            <Route path="history" element={<History />} />
-            <Route path="normatives" element={<Normatives />} />
-            <Route path="normatives/:id" element={<NormativeDetail />} />
-            <Route path="hygiene" element={<Hygiene />} />
-            <Route path="medicine" element={<Medicine />} />
-            <Route path="ergonomics" element={<Ergonomics />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="help" element={<Help />} />
-            <Route path="zettelkasten" element={<Zettelkasten />} />
-            <Route path="findings" element={<Findings />} />
-            <Route path="audits" element={<Audits />} />
-            <Route path="attendance" element={<Attendance />} />
-            <Route path="projects" element={<Projects />} />
-            <Route path="documents" element={<Documents />} />
-            <Route path="calendar" element={<Calendar />} />
-            <Route path="ai-hub" element={<AIHub />} />
-            <Route path="profile" element={user ? <Profile /> : <Navigate to="/login" />} />
-          </Route>
-        </Routes>
+        <NotificationProvider>
+          <Routes>
+            <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+            <Route path="/public/node/:nodeId" element={<PublicNodeView />} />
+            <Route path="/" element={<RootLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="evacuation" element={<Evacuation />} />
+              <Route path="emergency" element={<Emergency />} />
+              <Route path="emergency-generator" element={<EmergencyGenerator />} />
+              <Route path="matrix" element={<Matrix />} />
+              <Route path="risks" element={<Risks />} />
+              <Route path="training" element={<Training />} />
+              <Route path="workers" element={<Workers />} />
+              <Route path="epp" element={<EPP />} />
+              <Route path="pts" element={<PTSGenerator />} />
+              <Route path="bio-analysis" element={<BioAnalysis />} />
+              <Route path="assets" element={<Assets />} />
+              <Route path="history" element={<History />} />
+              <Route path="normatives" element={<Normatives />} />
+              <Route path="normatives/:id" element={<NormativeDetail />} />
+              <Route path="glossary" element={<Glossary />} />
+              <Route path="hygiene" element={<Hygiene />} />
+              <Route path="medicine" element={<Medicine />} />
+              <Route path="ergonomics" element={<Ergonomics />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="help" element={<Help />} />
+              <Route path="zettelkasten" element={<Zettelkasten />} />
+              <Route path="findings" element={<Findings />} />
+              <Route path="audits" element={<Audits />} />
+              <Route path="attendance" element={<Attendance />} />
+              <Route path="safe-driving" element={<SafeDriving />} />
+              <Route path="telemetry" element={<Telemetry />} />
+              <Route path="site-map" element={<SiteMap />} />
+              <Route path="gamification" element={<Gamification />} />
+              <Route path="projects" element={<Projects />} />
+              <Route path="safety-feed" element={<SafetyFeed />} />
+              <Route path="predictive-guard" element={<PredictiveGuard />} />
+              <Route path="documents" element={<Documents />} />
+              <Route path="documents/:id" element={<DocumentViewer />} />
+              <Route path="calendar" element={<Calendar />} />
+              <Route path="ai-hub" element={<AIHub />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="suseso" element={<SusesoReports />} />
+              <Route path="knowledge-ingestion" element={<KnowledgeIngestion />} />
+              <Route path="profile" element={user ? <Profile /> : <Navigate to="/login" />} />
+            </Route>
+          </Routes>
+          {user && <GuardianVoiceAssistant />}
+        </NotificationProvider>
       </ProjectProvider>
     </UniversalKnowledgeProvider>
   );
@@ -109,7 +139,6 @@ export default function App() {
       <FirebaseProvider>
         <BrowserRouter>
           <AppRoutes />
-          <GuardianVoiceAssistant />
         </BrowserRouter>
       </FirebaseProvider>
     </ErrorBoundary>

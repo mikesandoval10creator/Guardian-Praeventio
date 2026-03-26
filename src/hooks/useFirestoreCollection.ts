@@ -9,7 +9,7 @@ import {
 import { db } from '../services/firebase';
 
 export function useFirestoreCollection<T = DocumentData>(
-  collectionPath: string,
+  collectionPath: string | null | undefined,
   constraints: QueryConstraint[] = []
 ) {
   const [data, setData] = useState<T[]>([]);
@@ -17,6 +17,12 @@ export function useFirestoreCollection<T = DocumentData>(
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    if (!collectionPath) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     const colRef = collection(db, collectionPath);
     const q = query(colRef, ...constraints);

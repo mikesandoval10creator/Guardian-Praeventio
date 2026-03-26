@@ -16,6 +16,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+import { AddEventModal } from '../components/calendar/AddEventModal';
+
 interface Event {
   id: string;
   title: string;
@@ -48,21 +50,21 @@ export function Calendar() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-4xl font-black text-white uppercase tracking-tighter">Calendario Operativo</h1>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-2">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Calendario Operativo</h1>
+          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             Planificación Táctica y Control de Hitos
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-zinc-900/50 border border-white/10 rounded-2xl p-1">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex items-center justify-between bg-zinc-900/50 border border-white/10 rounded-2xl p-1 w-full sm:w-auto">
             <button onClick={prevMonth} className="p-2 hover:bg-white/5 rounded-xl text-zinc-400 hover:text-white transition-all">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <span className="px-4 text-xs font-black text-white uppercase tracking-widest min-w-[140px] text-center">
+            <span className="px-2 sm:px-4 text-[10px] sm:text-xs font-black text-white uppercase tracking-widest min-w-[120px] sm:min-w-[140px] text-center">
               {format(currentDate, 'MMMM yyyy', { locale: es })}
             </span>
             <button onClick={nextMonth} className="p-2 hover:bg-white/5 rounded-xl text-zinc-400 hover:text-white transition-all">
@@ -71,7 +73,7 @@ export function Calendar() {
           </div>
           <button 
             onClick={() => setIsAdding(true)}
-            className="bg-white text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center gap-2"
+            className="bg-white text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
             <span>Agendar Evento</span>
@@ -155,6 +157,7 @@ export function Calendar() {
           ))}
         </div>
       </div>
+      <AddEventModal isOpen={isAdding} onClose={() => setIsAdding(false)} />
     </div>
   );
 }

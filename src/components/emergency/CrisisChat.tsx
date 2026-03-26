@@ -24,7 +24,7 @@ interface Message {
 }
 
 export function CrisisChat() {
-  const { user } = useFirebase();
+  const { user, isAdmin } = useFirebase();
   const { selectedProject } = useProject();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -82,7 +82,7 @@ export function CrisisChat() {
         projectId: selectedProject.id,
         senderId: user.uid,
         sender: user.displayName || 'Usuario',
-        role: 'Operador', // In a real app, get from user profile
+        role: isAdmin ? 'Admin' : 'Operador',
         text: messageText,
         type: 'info',
         timestamp: serverTimestamp()
@@ -101,7 +101,7 @@ export function CrisisChat() {
         projectId: selectedProject.id,
         senderId: user.uid,
         sender: user.displayName || 'Usuario',
-        role: 'Operador',
+        role: isAdmin ? 'Admin' : 'Operador',
         text: actionText,
         type: type,
         timestamp: serverTimestamp()

@@ -1,20 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles } from 'lucide-react';
+import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi } from 'lucide-react';
 import { getChatResponse } from '../../services/geminiService';
 import { useZettelkasten } from '../../hooks/useZettelkasten';
 import { useProject } from '../../contexts/ProjectContext';
 import ReactMarkdown from 'react-markdown';
+import { getOfflineResponse } from '../../lib/offlineKnowledge';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  isOffline?: boolean;
 }
 
 export function AsesorChat() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingQueries, setPendingQueries] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -28,6 +32,41 @@ export function AsesorChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { nodes } = useZettelkasten();
   const { selectedProject } = useProject();
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (pendingQueries.length > 0) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `**¡Conexión Restaurada!** 🌐\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\n¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
+          timestamp: new Date()
+        }]);
+        setPendingQueries([]); // Clear pending queries after notifying
+      }
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [pendingQueries]);
+
+  useEffect(() => {
+    const handleOpenChat = (e: any) => {
+      setIsOpen(true);
+      if (e.detail?.query) {
+        setInput(e.detail.query);
+      }
+    };
+    window.addEventListener('open-ai-chat', handleOpenChat);
+    return () => window.removeEventListener('open-ai-chat', handleOpenChat);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -49,17 +88,36 @@ export function AsesorChat() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setLoading(true);
 
+    if (!isOnline) {
+      // Handle Offline Mode
+      setTimeout(() => {
+        const offlineResponse = getOfflineResponse(currentInput);
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: offlineResponse,
+          timestamp: new Date(),
+          isOffline: true
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        setPendingQueries(prev => [...prev, currentInput]);
+        setLoading(false);
+      }, 600);
+      return;
+    }
+
     try {
       // Prepare context from Zettelkasten nodes
-      const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id);
+      const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id || n.projectId === 'global');
       const context = projectNodes.map(n => 
         `- [${n.type}] ${n.title}: ${n.description} (Tags: ${n.tags.join(', ')})`
       ).join('\n');
 
-      const response = await getChatResponse(input, context);
+      const response = await getChatResponse(currentInput, context);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -85,19 +143,6 @@ export function AsesorChat() {
 
   return (
     <>
-      {/* Floating Button */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 text-white group"
-      >
-        <Brain className="w-7 h-7 group-hover:animate-pulse" />
-        <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-zinc-950 flex items-center justify-center">
-          <Sparkles className="w-2 h-2 text-white" />
-        </div>
-      </motion.button>
-
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
@@ -105,7 +150,7 @@ export function AsesorChat() {
             initial={{ opacity: 0, y: 100, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.9 }}
-            className="fixed bottom-24 right-6 z-50 w-[400px] h-[600px] bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 z-50 w-[calc(100vw-3rem)] md:w-[400px] h-[600px] max-h-[80vh] bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent flex items-center justify-between">
@@ -116,8 +161,17 @@ export function AsesorChat() {
                 <div>
                   <h3 className="text-sm font-bold text-white">El Guardián</h3>
                   <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Conciencia Activa</span>
+                    {isOnline ? (
+                      <>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Conciencia Activa</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        <span className="text-[10px] text-amber-500 font-bold uppercase tracking-widest">Modo Offline</span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -150,6 +204,12 @@ export function AsesorChat() {
                       <div className="markdown-body prose prose-invert prose-sm max-w-none">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
+                      {msg.isOffline && (
+                        <div className="mt-2 flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-widest">
+                          <WifiOff className="w-3 h-3" />
+                          Respuesta Offline
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

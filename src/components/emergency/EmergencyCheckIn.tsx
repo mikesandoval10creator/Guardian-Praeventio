@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
-import { db, collection, query, onSnapshot, doc, setDoc, getDocs, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
+import { db, collection, query, onSnapshot, doc, setDoc, getDocs, writeBatch, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 
 interface WorkerStatus {
   id: string;
@@ -105,10 +105,11 @@ export function EmergencyCheckIn() {
         
         const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
         
-        // In a real app, use a batch write here
+        const batch = writeBatch(db);
         for (const workerDoc of workersSnap.docs) {
           const workerData = workerDoc.data();
-          await setDoc(doc(checkinsRef, workerDoc.id), {
+          const checkinDocRef = doc(checkinsRef, workerDoc.id);
+          batch.set(checkinDocRef, {
             projectId: selectedProject.id,
             workerId: workerDoc.id,
             name: workerData.name || 'Desconocido',
@@ -116,6 +117,7 @@ export function EmergencyCheckIn() {
             timestamp: serverTimestamp()
           });
         }
+        await batch.commit();
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `projects/${selectedProject.id}`);

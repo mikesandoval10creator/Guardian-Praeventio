@@ -35,8 +35,12 @@ export function PublicNodeView() {
         if (nodeSnap.exists()) {
           const nodeData = { id: nodeSnap.id, ...nodeSnap.data() } as ZettelkastenNode;
           
-          // Check if public (or we can just allow it for now if we have the ID)
-          // In a real app, we'd check nodeData.isPublic
+          if (nodeData.isPublic === false) {
+             setError('Nodo no encontrado o no es público.');
+             setLoading(false);
+             return;
+          }
+          
           setNode(nodeData);
 
           // Fetch connections
@@ -69,6 +73,7 @@ export function PublicNodeView() {
       case NodeType.EPP: return Shield;
       case NodeType.MACHINE: return Cpu;
       case NodeType.NORMATIVE: return FileText;
+      case NodeType.DOCUMENT: return FileText;
       default: return Info;
     }
   };
@@ -79,6 +84,7 @@ export function PublicNodeView() {
       case NodeType.RISK: return 'text-rose-500 bg-rose-500/10 border-rose-500/20';
       case NodeType.EPP: return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
       case NodeType.NORMATIVE: return 'text-violet-500 bg-violet-500/10 border-violet-500/20';
+      case NodeType.DOCUMENT: return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
       default: return 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
     }
   };
@@ -140,28 +146,28 @@ export function PublicNodeView() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-zinc-900 border border-white/10 rounded-[40px] p-8 md:p-12 relative overflow-hidden"
+          className="bg-zinc-900 border border-white/10 rounded-[2rem] sm:rounded-[40px] p-6 sm:p-8 md:p-12 relative overflow-hidden"
         >
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-            {React.createElement(getNodeIcon(node.type), { size: 200 })}
+          <div className="absolute top-0 right-0 p-4 sm:p-8 opacity-5">
+            {React.createElement(getNodeIcon(node.type), { size: 150, className: "sm:w-[200px] sm:h-[200px]" })}
           </div>
 
-          <div className="relative z-10 space-y-8">
+          <div className="relative z-10 space-y-6 sm:space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-4">
                 <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${getNodeColor(node.type)}`}>
                   {React.createElement(getNodeIcon(node.type), { className: 'w-4 h-4' })}
                   <span className="text-[10px] font-black uppercase tracking-widest">{node.type}</span>
                 </div>
-                <h1 className="text-4xl md:text-5xl font-black text-white uppercase tracking-tighter leading-none">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white uppercase tracking-tighter leading-tight">
                   {node.title}
                 </h1>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <div className="p-4 bg-white rounded-2xl shadow-xl">
-                  <QrCode className="w-12 h-12 text-black" />
+              <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-start gap-4 md:gap-2">
+                <div className="p-3 sm:p-4 bg-white rounded-2xl shadow-xl order-2 md:order-1">
+                  <QrCode className="w-10 h-10 sm:w-12 sm:h-12 text-black" />
                 </div>
-                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest">ID: {node.id.slice(0, 8)}</span>
+                <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest order-1 md:order-2">ID: {node.id.slice(0, 8)}</span>
               </div>
             </div>
 

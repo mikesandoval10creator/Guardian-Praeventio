@@ -41,6 +41,13 @@
         "position": { "type": "string" },
         "status": { "type": "string", "enum": ["active", "inactive"] },
         "certifications": { "type": "array", "items": { "type": "string" } },
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["projectId", "name", "position", "status"]
@@ -51,12 +58,14 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "type": { "type": "string", "enum": ["worker", "machine", "risk", "law", "epp", "inspection", "incident", "cost", "report"] },
+        "type": { "type": "string", "enum": ["Trabajador", "Máquina", "Riesgo", "Normativa", "EPP", "Inspección", "Incidente", "Costo", "Reporte", "Tarea", "Documento", "Higiene", "Medicina", "Ergonomía", "Hallazgo", "Auditoría", "Proyecto", "Emergencia", "Activo", "Capacitación"] },
         "title": { "type": "string" },
         "description": { "type": "string" },
         "tags": { "type": "array", "items": { "type": "string" } },
         "connections": { "type": "array", "items": { "type": "string" }, "description": "IDs of other connected nodes." },
         "metadata": { "type": "object" },
+        "projectId": { "type": "string" },
+        "isPublic": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
@@ -125,6 +134,67 @@
         "status": { "type": "string", "enum": ["active", "replaced", "expired"] }
       },
       "required": ["projectId", "workerId", "eppItemId", "assignedAt", "status"]
+    },
+    "TrainingSession": {
+      "title": "Training Session",
+      "description": "A safety training session for workers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "duration": { "type": "number" },
+        "status": { "type": "string", "enum": ["scheduled", "completed"] },
+        "attendees": { "type": "array", "items": { "type": "string" } },
+        "projectId": { "type": "string" },
+        "youtubeUrl": { "type": "string" },
+        "points": { "type": "number" },
+        "isCurated": { "type": "boolean" }
+      },
+      "required": ["title", "date", "status"]
+    },
+    "SafetyPost": {
+      "title": "Safety Post",
+      "description": "A social post related to safety.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string", "enum": ["SafetyMoment", "Tip", "SuccessStory", "Warning"] },
+        "imageUrl": { "type": "string" },
+        "likes": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "projectId": { "type": "string" }
+      },
+      "required": ["userId", "content", "type", "createdAt"]
+    },
+    "Asset": {
+      "title": "Asset",
+      "description": "A physical asset like machinery or tools.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Maquinaria", "Vehículo", "Herramienta"] },
+        "status": { "type": "string", "enum": ["Operativo", "En Mantenimiento", "Fuera de Servicio"] },
+        "lastMaintenance": { "type": "string", "format": "date-time" },
+        "nextMaintenance": { "type": "string", "format": "date-time" },
+        "operatorId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "coordinates": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "status", "projectId"]
     }
   },
   "firestore": {
@@ -159,6 +229,18 @@
     "/projects/{projectId}/epp_assignments/{assignmentId}": {
       "schema": "EPPAssignment",
       "description": "EPP assignments to workers."
+    },
+    "/projects/{projectId}/trainings/{trainingId}": {
+      "schema": "TrainingSession",
+      "description": "Training sessions for a project."
+    },
+    "/projects/{projectId}/safety_posts/{postId}": {
+      "schema": "SafetyPost",
+      "description": "Safety social posts for a project."
+    },
+    "/projects/{projectId}/assets/{assetId}": {
+      "schema": "Asset",
+      "description": "Assets for a project."
     }
   }
 }

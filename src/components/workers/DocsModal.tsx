@@ -55,22 +55,28 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
 
   if (!worker) return null;
 
-  const handleUpload = async () => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !worker) return;
+    const file = e.target.files[0];
     setIsUploading(true);
     try {
-      // Simulate file upload
-      const docName = prompt('Nombre del documento:', 'Certificación de Altura');
-      if (!docName) return;
-
+      const docName = file.name;
       const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
       
-      // 1. AI Compliance Check
+      // 1. Upload to Firebase Storage
+      const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const { storage } = await import('../../services/firebase');
+      const storageRef = ref(storage, `documents/${worker.id}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // 2. AI Compliance Check
       const compliance = await analyzeDocumentCompliance(docName, worker.role);
 
       const newDoc = {
         name: docName,
-        type: 'PDF',
-        url: 'https://example.com/doc.pdf',
+        type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+        url: downloadURL,
         createdAt: new Date().toISOString(),
         workerId: worker.id,
         compliance
@@ -78,7 +84,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
 
       const docRef = await addDoc(collection(db, path), newDoc);
 
-      // 2. Create Zettelkasten Node
+      // 3. Create Zettelkasten Node
       const docNode = await addNode({
         type: NodeType.DOCUMENT,
         title: docName,
@@ -87,7 +93,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
         metadata: { 
           documentId: docRef.id, 
           workerId: worker.id,
-          type: 'PDF',
+          type: newDoc.type,
           compliance
         },
         connections: [],
@@ -148,14 +154,17 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Archivos ({documents.length})</h3>
-                <button 
-                  onClick={handleUpload}
-                  disabled={isUploading}
-                  className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                >
+                <label className={`flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                   {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                   <span>Subir</span>
-                </button>
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    onChange={handleUpload}
+                    disabled={isUploading}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  />
+                </label>
               </div>
 
               <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
@@ -221,7 +230,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
 
             <div className="p-4 bg-amber-500/5 border-t border-white/5 text-center">
               <p className="text-[10px] text-zinc-500 font-medium">
-                Los documentos son enlazados automáticamente al Zettelkasten para análisis de cumplimiento.
+                Los documentos son enlazados automáticamente a la Red Neuronal para análisis de cumplimiento.
               </p>
             </div>
           </motion.div>

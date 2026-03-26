@@ -3,6 +3,7 @@ import { ZettelkastenNode } from '../types';
 import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { saveForSync, syncWithFirebase, isOnline, SyncAction } from '../utils/pwa-offline';
+import { autoConnectNodes } from '../services/geminiService';
 
 export const useZettelkasten = () => {
   const [nodes, setNodes] = useState<ZettelkastenNode[]>([]);
@@ -76,12 +77,44 @@ export const useZettelkasten = () => {
         return newNode;
       }
       await setDoc(doc(db, 'nodes', id), newNode);
+
+      // Auto-connect in background
+      autoConnectNodes(newNode, nodes).then(async (connections) => {
+        if (!connections || connections.length === 0) return;
+        
+        for (const targetId of connections) {
+          if (targetId !== newNode.id) {
+            const targetNode = nodes.find(n => n.id === targetId);
+            if (targetNode) {
+              const updates = [];
+              const timeNow = new Date().toISOString();
+              
+              const newConnections1 = [...(newNode.connections || []), targetId];
+              updates.push(updateDoc(doc(db, 'nodes', newNode.id), {
+                connections: newConnections1,
+                updatedAt: timeNow
+              }));
+
+              if (!targetNode.connections.includes(newNode.id)) {
+                const newConnections2 = [...(targetNode.connections || []), newNode.id];
+                updates.push(updateDoc(doc(db, 'nodes', targetId), {
+                  connections: newConnections2,
+                  updatedAt: timeNow
+                }));
+              }
+
+              await Promise.all(updates);
+            }
+          }
+        }
+      }).catch(err => console.error("Auto-connect failed:", err));
+
       return newNode;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `nodes/${id}`);
       return null;
     }
-  }, [user]);
+  }, [user, nodes]);
 
   const addConnection = useCallback(async (id1: string, id2: string) => {
     if (!user) return;
@@ -142,6 +175,28 @@ export const useZettelkasten = () => {
     }
   }, [user, nodes]);
 
+  const updateNode = useCallback(async (id: string, updates: Partial<ZettelkastenNode>) => {
+    if (!user) return;
+    const now = new Date().toISOString();
+    const finalUpdates = { ...updates, updatedAt: now };
+    
+    try {
+      if (!isOnline()) {
+        await saveForSync({
+          type: 'update',
+          collection: 'nodes',
+          data: { id, updates: finalUpdates }
+        });
+        setNodes(prev => prev.map(n => n.id === id ? { ...n, ...finalUpdates } : n));
+        return;
+      }
+      await updateDoc(doc(db, 'nodes', id), finalUpdates);
+      setNodes(prev => prev.map(n => n.id === id ? { ...n, ...finalUpdates } : n));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `nodes/${id}`);
+    }
+  }, [user]);
+
   const getConnectedNodes = useCallback((id: string) => {
     const node = nodes.find(n => n.id === id);
     if (!node) return [];
@@ -186,6 +241,7 @@ export const useZettelkasten = () => {
     nodes,
     loading,
     addNode,
+    updateNode,
     addConnection,
     connectNodes: addConnection, // Alias for backward compatibility
     getConnectedNodes,

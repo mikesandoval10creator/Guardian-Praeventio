@@ -120,7 +120,7 @@ export function NormativeDetail() {
                   {normative.status === 'active' ? 'Vigente' : 'Actualizada'}
                 </span>
               </div>
-              <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">
                 {normative.title}
               </h1>
             </div>
