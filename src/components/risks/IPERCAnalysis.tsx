@@ -20,7 +20,7 @@ interface IPERCAnalysisProps {
 }
 
 const getCriticalityColor = (criticidad?: string) => {
-  switch (criticidad?.toLowerCase()) {
+  switch (String(criticidad || '').toLowerCase()) {
     case 'crítica': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
     case 'alta': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
     case 'media': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
@@ -145,7 +145,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
       const eppNodes: RiskNode[] = [];
 
       for (const control of result.controles) {
-        const isEPP = eppKeywords.some(k => control.toLowerCase().includes(k));
+        const isEPP = eppKeywords.some(k => String(control || '').toLowerCase().includes(k));
         if (isEPP) {
           const eppNode = await addNode({
             type: NodeType.EPP,
@@ -182,7 +182,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
     const terms = description.toLowerCase().split(' ');
     return allNodes
       .filter(n => n.type === NodeType.RISK)
-      .filter(n => terms.some(t => t.length > 3 && n.title.toLowerCase().includes(t)))
+      .filter(n => terms.some(t => t.length > 3 && (n.title || '').toLowerCase().includes(t)))
       .slice(0, 3);
   }, [allNodes, description]);
 

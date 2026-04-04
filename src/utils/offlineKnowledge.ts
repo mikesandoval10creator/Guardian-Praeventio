@@ -39,13 +39,13 @@ export const OFFLINE_KNOWLEDGE_BASE: OfflineTopic[] = [
 ];
 
 export const getOfflineResponse = (query: string, nodes?: any[]): string => {
-  const lowerQuery = query.toLowerCase();
+  const lowerQuery = String(query || '').toLowerCase();
   
   // First, try to find matching nodes from Risk Network
   if (nodes && nodes.length > 0) {
     const matchingNodes = nodes.filter(node => 
       node.title.toLowerCase().includes(lowerQuery) || 
-      node.description.toLowerCase().includes(lowerQuery) ||
+      (node.description || '').toLowerCase().includes(lowerQuery) ||
       node.tags.some((t: string) => t.toLowerCase().includes(lowerQuery))
     );
 

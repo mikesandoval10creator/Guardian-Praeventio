@@ -89,7 +89,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
         type: NodeType.DOCUMENT,
         title: docName,
         description: `Documento para ${worker.name}: ${docName}\n\nAnálisis IA: ${compliance.reason}`,
-        tags: ['documento', 'trabajador', worker.name.toLowerCase(), compliance.isCompliant ? 'cumple' : 'pendiente'],
+        tags: ['documento', 'trabajador', String(worker.name || '').toLowerCase(), compliance.isCompliant ? 'cumple' : 'pendiente'],
         metadata: { 
           documentId: docRef.id, 
           workerId: worker.id,

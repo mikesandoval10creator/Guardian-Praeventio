@@ -3,6 +3,57 @@ import { RiskNode } from '../types';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
+export const enrichNodeData = async (nodeData: any) => {
+  if (!API_KEY) return nodeData;
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Eres un experto en prevención de riesgos laborales (SST) en Chile.
+  Se ha detectado un registro incompleto en el sistema de gestión de riesgos.
+  Tu tarea es completar la información faltante con datos técnicos, verídicos y precisos, basados en normativas y estándares de seguridad industrial. No uses texto de relleno ni simules datos, proporciona información real y aplicable.
+  
+  Datos actuales del registro:
+  Título: ${nodeData.title || 'Faltante'}
+  Descripción: ${nodeData.description || 'Faltante'}
+  Tipo: ${nodeData.type || 'Desconocido'}
+  Tags: ${nodeData.tags?.join(', ') || 'Ninguno'}
+  
+  Devuelve un JSON con los campos 'title' y 'description' completados profesionalmente. Si es un riesgo, incluye 'criticidad' (Baja, Media, Alta, Crítica).`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "Título técnico y preciso" },
+            description: { type: Type.STRING, description: "Descripción detallada, técnica y verídica del elemento" },
+            criticidad: { type: Type.STRING, description: "Nivel de criticidad si aplica (Baja, Media, Alta, Crítica)" }
+          },
+          required: ["title", "description"]
+        }
+      }
+    });
+    
+    const result = JSON.parse(response.text || '{}');
+    
+    return {
+      ...nodeData,
+      title: result.title || nodeData.title,
+      description: result.description || nodeData.description,
+      metadata: {
+        ...nodeData.metadata,
+        ...(result.criticidad && nodeData.type === 'Riesgo' ? { criticidad: result.criticidad } : {})
+      }
+    };
+  } catch (error) {
+    console.error("Error enriching node data:", error);
+    return nodeData;
+  }
+};
+
 export const generateEmbedding = async (text: string): Promise<number[]> => {
   if (!API_KEY) return [];
   try {

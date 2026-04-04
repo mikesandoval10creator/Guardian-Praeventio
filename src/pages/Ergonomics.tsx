@@ -38,8 +38,8 @@ export function Ergonomics() {
   );
 
   const filteredAssessments = ergoNodes.filter(node => 
-    node.metadata.workstation.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    node.metadata.assessmentType.toLowerCase().includes(searchTerm.toLowerCase())
+    (node.metadata?.workstation || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (node.metadata?.assessmentType || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   const totalWorkers = workers.length || 1; // Prevent division by zero

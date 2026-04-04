@@ -97,9 +97,9 @@ export function Projects() {
   };
 
   const filteredProjects = projects.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.industry.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.location.toLowerCase().includes(searchTerm.toLowerCase())
+    (p.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (p.industry || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (p.location || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   if (selectedProject) {

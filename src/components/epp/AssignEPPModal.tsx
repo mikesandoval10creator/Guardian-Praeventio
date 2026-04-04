@@ -124,7 +124,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
         type: NodeType.EPP,
         title: `Asignación: ${item.name} a ${worker.name}`,
         description: `Se ha asignado ${item.name} a ${worker.name}. Acta de entrega generada.`,
-        tags: ['epp', 'asignacion', item.category.toLowerCase(), 'acta'],
+        tags: ['epp', 'asignacion', String(item.category || '').toLowerCase(), 'acta'],
         projectId,
         connections: [worker.id], // Connect to worker node if it exists
         metadata: {

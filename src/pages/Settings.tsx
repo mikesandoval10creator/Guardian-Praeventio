@@ -1,5 +1,5 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings as SettingsIcon, 
   Shield, 
@@ -10,16 +10,239 @@ import {
   Globe, 
   Palette,
   ChevronRight,
+  ChevronDown,
   Zap,
   Smartphone,
-  WifiOff
+  WifiOff,
+  Network
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { logOut } from '../services/firebase';
+import { useNotifications } from '../contexts/NotificationContext';
+import { useNavigate } from 'react-router-dom';
+import { useFirebase } from '../contexts/FirebaseContext';
 
 export function Settings() {
   const { notificationPermissionStatus, requestPermission } = usePushNotifications();
   const isOnline = useOnlineStatus();
+  const { addNotification } = useNotifications();
+  const navigate = useNavigate();
+  const { user } = useFirebase();
+  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  // Settings States
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState('30');
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [pushNotifs, setPushNotifs] = useState(notificationPermissionStatus === 'granted');
+  const [aiDetail, setAiDetail] = useState('equilibrado');
+  const [aiProactive, setAiProactive] = useState(true);
+  const [language, setLanguage] = useState('es');
+
+  const handleLogout = async () => {
+    try {
+      await logOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
+  const handleSectionClick = (title: string) => {
+    setActiveSection(prev => prev === title ? null : title);
+  };
+
+  const handleThemeToggle = () => {
+    const root = window.document.documentElement;
+    if (isDark) {
+      root.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      setIsDark(false);
+    } else {
+      root.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      setIsDark(true);
+    }
+  };
+
+  const renderSectionContent = (title: string) => {
+    switch (title) {
+      case 'Perfil y Cuenta':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nombre de Usuario</label>
+              <input 
+                type="text" 
+                disabled 
+                value={user?.displayName || 'Usuario Praeventio'} 
+                className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white opacity-50 cursor-not-allowed" 
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Correo Electrónico</label>
+              <input 
+                type="email" 
+                disabled 
+                value={user?.email || ''} 
+                className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white opacity-50 cursor-not-allowed" 
+              />
+            </div>
+            <p className="text-xs text-zinc-500">Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.</p>
+          </div>
+        );
+      case 'Seguridad y Privacidad':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+              <div>
+                <h4 className="text-sm font-bold text-white">Autenticación de Dos Factores (2FA)</h4>
+                <p className="text-xs text-zinc-500">Añade una capa extra de seguridad a tu cuenta.</p>
+              </div>
+              <button onClick={() => setMfaEnabled(!mfaEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${mfaEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Tiempo de Expiración de Sesión</label>
+              <select value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+                <option value="15">15 minutos de inactividad</option>
+                <option value="30">30 minutos de inactividad</option>
+                <option value="60">1 hora de inactividad</option>
+                <option value="never">Nunca (No recomendado)</option>
+              </select>
+            </div>
+            <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-colors border border-white/10">
+              Cambiar Contraseña
+            </button>
+          </div>
+        );
+      case 'Notificaciones':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+              <div>
+                <h4 className="text-sm font-bold text-white">Alertas por Correo Electrónico</h4>
+                <p className="text-xs text-zinc-500">Resúmenes diarios y alertas críticas.</p>
+              </div>
+              <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${emailNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+              <div>
+                <h4 className="text-sm font-bold text-white">Notificaciones Push (Navegador)</h4>
+                <p className="text-xs text-zinc-500">Alertas en tiempo real en tu dispositivo.</p>
+              </div>
+              <button onClick={() => {
+                setPushNotifs(!pushNotifs);
+                if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
+              }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${pushNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        );
+      case 'Configuración de IA':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nivel de Detalle del Asistente</label>
+              <select value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+                <option value="conciso">Conciso (Respuestas directas y cortas)</option>
+                <option value="equilibrado">Equilibrado (Recomendado)</option>
+                <option value="detallado">Detallado (Explicaciones exhaustivas y normativas)</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+              <div>
+                <h4 className="text-sm font-bold text-white">Análisis Predictivo Autónomo</h4>
+                <p className="text-xs text-zinc-500">Permite a la IA analizar datos en segundo plano.</p>
+              </div>
+              <button onClick={() => setAiProactive(!aiProactive)} className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${aiProactive ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        );
+      case 'Base de Datos y Red Neuronal':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 text-center">
+                <Database className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
+                <span className="text-2xl font-black text-white">1.2GB</span>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Almacenamiento</p>
+              </div>
+              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 text-center">
+                <Network className="w-6 h-6 text-indigo-500 mx-auto mb-2" />
+                <span className="text-2xl font-black text-white">842</span>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Nodos Activos</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => addNotification({title: 'Exportación Iniciada', message: 'Tus datos se están preparando para descarga.', type: 'success'})} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold rounded-xl transition-colors border border-emerald-500/20">
+                Exportar Datos (JSON)
+              </button>
+              <button onClick={() => addNotification({title: 'Caché Limpiada', message: 'Se ha liberado espacio local correctamente.', type: 'success'})} className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-colors border border-white/10">
+                Limpiar Caché
+              </button>
+            </div>
+          </div>
+        );
+      case 'Interfaz y Tema':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+              <div>
+                <h4 className="text-sm font-bold text-white">Modo Oscuro</h4>
+                <p className="text-xs text-zinc-500">Cambia entre tema claro y oscuro</p>
+              </div>
+              <button 
+                onClick={handleThemeToggle} 
+                className={`w-12 h-6 rounded-full transition-colors relative ${isDark ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isDark ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        );
+      case 'Idioma y Región':
+        return (
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
+              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+                <option value="es">Español (Latinoamérica)</option>
+                <option value="en">English (US)</option>
+                <option value="pt">Português (Brasil)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
+              <select className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+                <option value="America/Santiago">America/Santiago (GMT-4)</option>
+                <option value="America/Lima">America/Lima (GMT-5)</option>
+                <option value="America/Bogota">America/Bogota (GMT-5)</option>
+                <option value="America/Mexico_City">America/Mexico_City (GMT-6)</option>
+              </select>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    addNotification({
+      title: 'Acción Restringida',
+      message: 'Para eliminar tu cuenta permanentemente, por favor contacta al administrador del sistema.',
+      type: 'warning'
+    });
+  };
 
   const sections = [
     { title: 'Perfil y Cuenta', icon: User, description: 'Gestiona tu información personal y preferencias de acceso.' },
@@ -89,28 +312,52 @@ export function Settings() {
       </div>
 
       <div className="space-y-3 sm:space-y-4">
-        {sections.map((section, index) => (
-          <motion.div
-            key={section.title}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className="bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 transition-all group cursor-pointer"
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg sm:rounded-xl bg-zinc-800 flex items-center justify-center text-emerald-500 border border-white/5">
-                  <section.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+        {sections.map((section, index) => {
+          const isActive = activeSection === section.title;
+          return (
+            <motion.div
+              key={section.title}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              className={`bg-zinc-900/50 border rounded-xl sm:rounded-2xl transition-all ${isActive ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10 hover:border-emerald-500/30'}`}
+            >
+              <div 
+                onClick={() => handleSectionClick(section.title)}
+                className="p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group"
+              >
+                <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1">
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg sm:rounded-xl flex items-center justify-center transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-emerald-500 border border-white/5 group-hover:bg-zinc-800/80'}`}>
+                    <section.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-400' : 'text-white group-hover:text-emerald-400'}`}>{section.title}</h3>
+                    <p className="text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{section.description}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h3 className="font-bold text-white text-sm sm:text-base group-hover:text-emerald-400 transition-colors truncate">{section.title}</h3>
-                  <p className="text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{section.description}</p>
-                </div>
+                <motion.div animate={{ rotate: isActive ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${isActive ? 'text-emerald-500' : 'text-zinc-600 group-hover:text-emerald-500'}`} />
+                </motion.div>
               </div>
-              <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-zinc-600 group-hover:text-emerald-500 transition-colors" />
-            </div>
-          </motion.div>
-        ))}
+              
+              <AnimatePresence>
+                {isActive && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+                      {renderSectionContent(section.title)}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          );
+        })}
       </div>
 
       <div className="mt-8 sm:mt-12 p-4 sm:p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl sm:rounded-3xl">
@@ -122,10 +369,16 @@ export function Settings() {
           Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <button className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 active:scale-95">
+          <button 
+            onClick={handleLogout}
+            className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 active:scale-95"
+          >
             Cerrar Sesión Global
           </button>
-          <button className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500 hover:bg-rose-600 text-white text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20 active:scale-95">
+          <button 
+            onClick={handleDeleteAccount}
+            className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500 hover:bg-rose-600 text-white text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20 active:scale-95"
+          >
             Eliminar Cuenta
           </button>
         </div>

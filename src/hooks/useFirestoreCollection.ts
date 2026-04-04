@@ -34,10 +34,18 @@ export function useFirestoreCollection<T = DocumentData>(
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const items = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as T[];
+        const items = snapshot.docs.map((doc) => {
+          const data = doc.data();
+          if (collectionPath === 'nodes' || collectionPath.includes('/nodes')) {
+            if (data.content && !data.description) {
+              data.description = data.content;
+            }
+          }
+          return {
+            id: doc.id,
+            ...data,
+          };
+        }) as T[];
         setFetchedData(items);
         setLoading(false);
       },

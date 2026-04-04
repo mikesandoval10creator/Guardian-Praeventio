@@ -84,8 +84,8 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
   };
 
   const filteredAssets = assets.filter(a => 
-    a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    a.type.toLowerCase().includes(searchTerm.toLowerCase())
+    (a.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (a.type || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   return (

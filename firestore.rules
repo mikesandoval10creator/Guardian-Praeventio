@@ -53,11 +53,11 @@ service cloud.firestore {
     }
 
     function isValidNode(data) {
-      return hasRequiredFields(['type', 'title', 'content', 'createdAt', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'type', 'title', 'content', 'tags', 'connections', 'metadata', 'projectId', 'isPublic', 'createdAt', 'updatedAt']) &&
+      return hasRequiredFields(['type', 'title', 'description', 'createdAt', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'type', 'title', 'description', 'tags', 'connections', 'metadata', 'projectId', 'isPublic', 'createdAt', 'updatedAt']) &&
              data.type is string &&
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
-             data.content is string && data.content.size() > 0 && data.content.size() < 50000 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 50000 &&
              (data.tags == null || isValidList(data.tags, 50)) &&
              (data.connections == null || isValidList(data.connections, 200));
     }

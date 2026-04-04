@@ -113,7 +113,7 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
           type: NodeType.TRAINING,
           title: `Capacitación: ${rec.title}`,
           description: `Asignada a ${worker.title}. ${rec.description}`,
-          tags: ['capacitacion', 'ia', rec.priority.toLowerCase()],
+          tags: ['capacitacion', 'ia', String(rec.priority || '').toLowerCase()],
           projectId: worker.projectId,
           connections: [worker.id],
           metadata: {

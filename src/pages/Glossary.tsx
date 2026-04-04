@@ -60,8 +60,8 @@ export function Glossary() {
   const categories = Array.from(new Set(Object.values(parsedGlossary).map(item => item.category))).sort();
 
   const filteredGlossary = Object.values(parsedGlossary).filter((details) => {
-    const matchesSearch = details.term.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          details.definition.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (details.term || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) || 
+                          (details.definition || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesCategory = selectedCategory ? details.category === selectedCategory : true;
     return matchesSearch && matchesCategory;
   });

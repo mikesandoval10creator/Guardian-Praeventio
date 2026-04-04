@@ -79,9 +79,9 @@ export function Workers() {
   const { data: workers, loading } = useFirestoreCollection<Worker & { isPendingSync?: boolean }>(collectionPath);
   
   const filteredWorkers = workers.filter(worker => {
-    const matchesSearch = worker.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          worker.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          worker.role.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (worker.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+                          (worker.email || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+                          (worker.role || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesRole = filterRole === 'all' || worker.role === filterRole;
     return matchesSearch && matchesRole;
   });

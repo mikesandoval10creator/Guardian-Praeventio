@@ -44,7 +44,7 @@ export function AIEPPScannerModal({ isOpen, onClose, workerName, onApply }: AIEP
       // Map detected EPP names back to catalog IDs
       const detectedIds = analysis.detectedEPP.map((name: string) => {
         // Simple fuzzy match or exact match
-        const found = eppCatalog.find(e => e.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(e.name.toLowerCase()));
+        const found = eppCatalog.find(e => String(e.name || '').toLowerCase().includes(String(name || '').toLowerCase()) || String(name || '').toLowerCase().includes(String(e.name || '').toLowerCase()));
         return found?.id;
       }).filter(Boolean) as string[];
 

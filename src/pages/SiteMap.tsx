@@ -104,7 +104,7 @@ export function SiteMap() {
     return nodes.filter(n => 
       n.metadata?.lat === undefined && 
       (n.type === NodeType.RISK || n.type === NodeType.INCIDENT || n.type === NodeType.ASSET) &&
-      n.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      (n.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) &&
       (!selectedProject || n.projectId === selectedProject.id)
     );
   }, [nodes, searchTerm, selectedProject]);

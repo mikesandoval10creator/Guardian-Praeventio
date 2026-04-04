@@ -149,9 +149,9 @@ export function Normatives() {
   };
 
   const filteredNormatives = normatives.filter(norm => {
-    const matchesSearch = norm.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          norm.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          norm.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (norm.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+                          (norm.code || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+                          (norm.category || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesSaved = showSavedOnly ? savedIds.includes(norm.id) : true;
     return matchesSearch && matchesSaved;
   });

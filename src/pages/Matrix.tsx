@@ -21,7 +21,8 @@ import {
   Save,
   Loader2,
   Database,
-  Briefcase
+  Briefcase,
+  Grid
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
@@ -40,7 +41,7 @@ import { es } from 'date-fns/locale';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
 
 const getCriticalityColor = (criticidad?: string) => {
-  switch (criticidad?.toLowerCase()) {
+  switch (String(criticidad || '').toLowerCase()) {
     case 'crítica': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
     case 'alta': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
     case 'media': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
@@ -50,7 +51,7 @@ const getCriticalityColor = (criticidad?: string) => {
 };
 
 const getCriticalityTextColor = (criticidad?: string) => {
-  switch (criticidad?.toLowerCase()) {
+  switch (String(criticidad || '').toLowerCase()) {
     case 'crítica': return 'text-rose-500';
     case 'alta': return 'text-orange-500';
     case 'media': return 'text-amber-500';
@@ -62,7 +63,7 @@ const getCriticalityTextColor = (criticidad?: string) => {
 export function Matrix() {
   const { selectedProject } = useProject();
   const { isAdmin } = useFirebase();
-  const { updateNode, addNode, deleteNode, nodes } = useRiskEngine();
+  const { updateNode, addNode, deleteNode, nodes, loading } = useRiskEngine();
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSuggesting, setIsSuggesting] = useState(false);
@@ -156,7 +157,7 @@ export function Matrix() {
     if (!selectedProject || !isOnline) return;
     setIsSuggesting(true);
     try {
-      const context = `Proyecto: ${selectedProject.name}. Descripción: ${selectedProject.description}. INDUSTRIA: ${selectedProject.industry || 'General'}. Genera riesgos ESPECÍFICOS para esta industria, aplicando protocolos y normativas chilenas correspondientes al rubro.`;
+      const context = `Proyecto: ${selectedProject.name || 'Sin nombre'}. Descripción: ${selectedProject.description || 'Sin descripción'}. INDUSTRIA: ${selectedProject.industry || 'General'}. Genera riesgos ESPECÍFICOS para esta industria, aplicando protocolos y normativas chilenas correspondientes al rubro.`;
       const suggestions = await suggestRisksWithAI(selectedProject.industry || 'General', context);
       
       for (const suggestion of suggestions) {
@@ -223,8 +224,8 @@ export function Matrix() {
   const ipercNodes = nodes.filter(node => 
     node.type === NodeType.RISK && 
     node.projectId === selectedProject?.id &&
-    (node.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     node.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    ((node.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) || 
+     (node.description || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()))
   );
 
   const approvedRisks = ipercNodes.filter(node => node.metadata?.status !== 'pending_approval');
@@ -381,8 +382,8 @@ export function Matrix() {
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {[
-          { label: 'Riesgos Críticos', value: approvedRisks.filter(n => n.metadata?.criticidad?.toLowerCase() === 'crítica' || n.metadata?.criticidad?.toLowerCase() === 'alta').length, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-          { label: 'Riesgos Medios', value: approvedRisks.filter(n => n.metadata?.criticidad?.toLowerCase() === 'media').length, icon: Info, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: 'Riesgos Críticos', value: approvedRisks.filter(n => String(n.metadata?.criticidad || '').toLowerCase() === 'crítica' || String(n.metadata?.criticidad || '').toLowerCase() === 'alta').length, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+          { label: 'Riesgos Medios', value: approvedRisks.filter(n => String(n.metadata?.criticidad || '').toLowerCase() === 'media').length, icon: Info, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Controles Activos', value: approvedRisks.length * 2, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
         ].map((stat, i) => (
           <div key={i} className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 flex items-center gap-4">

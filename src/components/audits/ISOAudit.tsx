@@ -35,7 +35,7 @@ export function ISOAudit() {
     n.tags.some(t => t.includes('ISO')) &&
     (!selectedProject || n.projectId === selectedProject.id) &&
     (n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     n.description.toLowerCase().includes(searchTerm.toLowerCase()))
+     (n.description || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const stats = {

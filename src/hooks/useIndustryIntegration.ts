@@ -43,7 +43,7 @@ export function useIndustryIntegration() {
 
   const getEPP = useCallback((role: string) => {
     // Búsqueda flexible (case-insensitive y parcial)
-    const normalizedRole = role.toLowerCase();
+    const normalizedRole = String(role || '').toLowerCase();
     const matchedKey = Object.keys(ROLE_EPP).find(k => normalizedRole.includes(k.toLowerCase()));
     
     return matchedKey ? ROLE_EPP[matchedKey] : ['Casco de seguridad', 'Zapatos de seguridad', 'Chaleco reflectante', 'Lentes de seguridad'];

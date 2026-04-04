@@ -29,8 +29,8 @@ export function Medicine() {
   );
 
   const filteredRecords = medicalNodes.filter(node => 
-    node.metadata.patient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    node.metadata.examType.toLowerCase().includes(searchTerm.toLowerCase())
+    (node.metadata?.patient || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (node.metadata?.examType || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   const stats = {

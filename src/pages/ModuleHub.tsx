@@ -270,8 +270,8 @@ export function ModuleHub() {
       try {
         const relatedNodesContext = nodes
           .filter(n => hub.keywords.some((k: string) => 
-            n.tags.some(t => t.toLowerCase().includes(k.toLowerCase())) || 
-            n.title.toLowerCase().includes(k.toLowerCase())
+            (n.tags || []).some(t => String(t || '').toLowerCase().includes(String(k || '').toLowerCase())) || 
+            (n.title || '').toLowerCase().includes(String(k || '').toLowerCase())
           ))
           .slice(0, 5)
           .map(n => `${n.title}: ${n.description}`)
@@ -300,8 +300,8 @@ export function ModuleHub() {
   // Filter Risk nodes based on hub keywords
   const relatedNodes = nodes
     .filter(n => hub.keywords.some((k: string) => 
-      n.tags.some(t => t.toLowerCase().includes(k.toLowerCase())) || 
-      n.title.toLowerCase().includes(k.toLowerCase())
+      (n.tags || []).some(t => String(t || '').toLowerCase().includes(String(k || '').toLowerCase())) || 
+      (n.title || '').toLowerCase().includes(String(k || '').toLowerCase())
     ))
     .slice(0, 3);
 

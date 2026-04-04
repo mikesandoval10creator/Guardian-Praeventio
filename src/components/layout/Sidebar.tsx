@@ -41,8 +41,9 @@ import {
   Wrench,
   Car
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ProjectSelector } from './ProjectSelector';
+import { logOut } from '../../services/firebase';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -160,6 +161,7 @@ const secondaryItems = [
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     const activeGroup = menuGroups.find(group => 
       group.items.some(item => location.pathname === item.path)
@@ -179,6 +181,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const toggleGroup = (title: string) => {
     setOpenGroup(prev => prev === title ? null : title);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logOut();
+      onClose(); // Close sidebar on mobile
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
   };
 
   return (
@@ -330,7 +342,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
             {/* Footer */}
             <div className="p-4 border-t border-zinc-200 dark:border-white/5 bg-white dark:bg-zinc-950 shrink-0">
-              <button className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"
+              >
                 <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 <span className="text-xs font-bold tracking-wide">Cerrar Sesión</span>
               </button>

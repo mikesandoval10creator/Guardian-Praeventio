@@ -76,8 +76,8 @@ export function Attendance() {
   };
 
   const filteredWorkers = workers.filter(w => 
-    w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    w.role.toLowerCase().includes(searchTerm.toLowerCase())
+    (w.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (w.role || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   const evaluateWorkerAccess = (worker: Worker) => {
@@ -100,7 +100,7 @@ export function Attendance() {
     }
 
     // 3. Check Certifications based on role
-    const roleLower = worker.role.toLowerCase();
+    const roleLower = String(worker.role || '').toLowerCase();
     if (roleLower.includes('altura') || roleLower.includes('eléctrico') || roleLower.includes('soldador')) {
       if (!worker.certifications || worker.certifications.length === 0) {
         reasons.push('Falta certificación técnica para el cargo');
@@ -108,7 +108,7 @@ export function Attendance() {
     }
 
     // For demonstration purposes: if the worker's name includes "Demo Block", force a block
-    if (worker.name.toLowerCase().includes('demo block')) {
+    if (String(worker.name || '').toLowerCase().includes('demo block')) {
       reasons.push('Bloqueo de demostración activado');
     }
 

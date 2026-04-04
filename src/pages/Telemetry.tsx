@@ -333,7 +333,7 @@ export function Telemetry() {
           if (event.status === 'critical' || (event.status === 'warning' && worker.status === 'normal')) {
             worker.status = event.status;
             // If it's a fall detection or extreme heart rate, mark as fallen
-            if (event.metric.toLowerCase().includes('caída') || (event.metric.toLowerCase().includes('ritmo') && event.value > 160)) {
+            if (String(event.metric || '').toLowerCase().includes('caída') || (String(event.metric || '').toLowerCase().includes('ritmo') && event.value > 160)) {
               worker.isFallen = true;
             }
           }

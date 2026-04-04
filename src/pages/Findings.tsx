@@ -68,7 +68,7 @@ export function Findings() {
     n.type === NodeType.FINDING && 
     (!selectedProject || n.projectId === selectedProject.id) &&
     (n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     n.description.toLowerCase().includes(searchTerm.toLowerCase()))
+     (n.description || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const stats = {

@@ -60,8 +60,8 @@ export function EPP() {
   const categories = ['Todos', ...new Set((eppItems || []).map(item => item.category))];
 
   const filteredEPP = (eppItems || []).filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (item.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+                         (item.description || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesCategory = activeCategory === 'Todos' || item.category === activeCategory;
     return matchesSearch && matchesCategory;
   });

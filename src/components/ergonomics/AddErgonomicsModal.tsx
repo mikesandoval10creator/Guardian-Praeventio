@@ -43,7 +43,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
         type: NodeType.ERGONOMICS,
         title: `${formData.type} - ${formData.workstation}`,
         description: `Evaluación ergonómica de tipo ${formData.type} en el puesto ${formData.workstation}. Nivel de riesgo: ${formData.risk}. Observaciones: ${formData.observations}`,
-        tags: ['ergonomia', formData.type.toLowerCase(), formData.risk],
+        tags: ['ergonomia', String(formData.type || '').toLowerCase(), formData.risk],
         metadata: {
           workstation: formData.workstation,
           assessmentType: formData.type,

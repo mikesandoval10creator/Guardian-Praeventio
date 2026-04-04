@@ -62,7 +62,7 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
               type: NodeType.WORKER,
               title: formData.name,
               description: `Trabajador: ${formData.role}. Contacto: ${formData.email}`,
-              tags: ['trabajador', formData.role.toLowerCase()],
+              tags: ['trabajador', String(formData.role || '').toLowerCase()],
               metadata: {
                 email: formData.email,
                 phone: formData.phone,
@@ -82,7 +82,7 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
           type: NodeType.WORKER,
           title: formData.name,
           description: `Trabajador: ${formData.role}. Contacto: ${formData.email}`,
-          tags: ['trabajador', formData.role.toLowerCase()],
+          tags: ['trabajador', String(formData.role || '').toLowerCase()],
           metadata: {
             email: formData.email,
             phone: formData.phone,

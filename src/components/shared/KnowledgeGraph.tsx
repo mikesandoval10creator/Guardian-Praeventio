@@ -46,10 +46,10 @@ export function KnowledgeGraph() {
     }
 
     if (searchQuery) {
-      const lowQuery = searchQuery.toLowerCase();
+      const lowQuery = String(searchQuery || '').toLowerCase();
       filteredNodes = filteredNodes.filter(n => 
         n.title.toLowerCase().includes(lowQuery) || 
-        n.description.toLowerCase().includes(lowQuery) ||
+        (n.description || '').toLowerCase().includes(lowQuery) ||
         n.tags.some(t => t.toLowerCase().includes(lowQuery))
       );
     }

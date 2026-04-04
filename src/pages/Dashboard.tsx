@@ -499,12 +499,12 @@ export function Dashboard() {
                     <AlertTriangle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Estrés Térmico
                   </span>
                 )}
-                {weather?.condition?.toLowerCase().includes('lluvia') && (
+                {String(weather?.condition || '').toLowerCase().includes('lluvia') && (
                   <span className="flex items-center gap-1 bg-blue-500 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <Droplets className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Lluvia
                   </span>
                 )}
-                {weather?.temp && weather.temp <= 30 && (!weather.windSpeed || weather.windSpeed <= 40) && (!weather.condition?.toLowerCase().includes('lluvia')) && (
+                {weather?.temp && weather.temp <= 30 && (!weather.windSpeed || weather.windSpeed <= 40) && (!String(weather?.condition || '').toLowerCase().includes('lluvia')) && (
                   <span className="flex items-center gap-1 bg-emerald-500 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Óptimo
                   </span>

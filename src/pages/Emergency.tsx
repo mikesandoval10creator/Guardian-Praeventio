@@ -88,8 +88,8 @@ export function Emergency() {
   const protocols = protocolsData && protocolsData.length > 0 ? protocolsData : defaultProtocols;
 
   const filteredProtocols = protocols.filter(p => 
-    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+    (p.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (p.category || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   return (

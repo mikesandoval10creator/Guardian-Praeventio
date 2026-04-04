@@ -37,7 +37,7 @@ export function Audits() {
     n.type === NodeType.AUDIT && 
     (!selectedProject || n.projectId === selectedProject.id) &&
     (n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     n.description.toLowerCase().includes(searchTerm.toLowerCase()))
+     (n.description || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const stats = {

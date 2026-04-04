@@ -45,7 +45,7 @@ export function AddMedicineModal({ isOpen, onClose, projectId }: AddMedicineModa
         type: NodeType.MEDICINE,
         title: `Examen ${formData.type} - ${formData.patient}`,
         description: `Examen médico de tipo ${formData.type} para el trabajador ${formData.patient}. Resultado: ${formData.result}. Observaciones: ${formData.observations}`,
-        tags: ['medicina', formData.type.toLowerCase(), formData.result.toLowerCase().replace(' ', '-')],
+        tags: ['medicina', String(formData.type || '').toLowerCase(), String(formData.result || '').toLowerCase().replace(' ', '-')],
         metadata: {
           patient: formData.patient,
           examType: formData.type,

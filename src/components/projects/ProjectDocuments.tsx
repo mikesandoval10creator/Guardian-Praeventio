@@ -134,7 +134,7 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
   };
 
   const filteredDocs = documents.filter(d => 
-    d.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (d.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   return (

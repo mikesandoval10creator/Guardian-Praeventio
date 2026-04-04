@@ -82,7 +82,7 @@ export function Documents() {
   const categories = ['Todos', 'Legal', 'Técnico', 'SST', 'Administrativo'];
 
   const filteredDocs = (documents || []).filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (doc.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesCategory = activeCategory === 'Todos' || doc.category === activeCategory;
     return matchesSearch && matchesCategory;
   });

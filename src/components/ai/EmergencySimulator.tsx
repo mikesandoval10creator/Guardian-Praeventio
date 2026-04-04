@@ -57,14 +57,14 @@ export function EmergencySimulator() {
     if (!scenario || !selectedProject) return;
     
     // Trigger the global emergency state
-    triggerEmergency(scenario.type.toLowerCase());
+    triggerEmergency(String(scenario.type || '').toLowerCase());
 
     // Add to Zettelkasten as a real incident
     await addNode({
       type: NodeType.INCIDENT,
       title: `[SIMULACRO ESCALADO] ${scenario.title}`,
       description: scenario.description,
-      tags: ['simulacro', 'emergencia', scenario.type.toLowerCase()],
+      tags: ['simulacro', 'emergencia', String(scenario.type || '').toLowerCase()],
       projectId: selectedProject.id,
       connections: [],
       metadata: {

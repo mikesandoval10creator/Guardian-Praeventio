@@ -65,10 +65,14 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     const q = query(collection(db, 'nodes'), orderBy('updatedAt', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const newNodes = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as RiskNode[];
+      const newNodes = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          description: data.description || data.content || ''
+        };
+      }) as RiskNode[];
       
       setNodes(newNodes);
       setLoading(false);

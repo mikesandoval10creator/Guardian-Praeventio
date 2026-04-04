@@ -84,9 +84,9 @@ export function MinsalProtocols() {
       // Gather context from Zettelkasten
       const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id);
       const relevantNodes = projectNodes.filter(n => 
-        n.title.toLowerCase().includes(protocolId.toLowerCase()) || 
-        n.description.toLowerCase().includes(protocolId.toLowerCase()) ||
-        n.tags.some(t => t.toLowerCase().includes(protocolId.toLowerCase()))
+        (n.title || '').toLowerCase().includes(String(protocolId || '').toLowerCase()) || 
+        (n.description || '').toLowerCase().includes(String(protocolId || '').toLowerCase()) ||
+        (n.tags || []).some(t => String(t || '').toLowerCase().includes(String(protocolId || '').toLowerCase()))
       );
 
       const context = relevantNodes.map(n => `[${n.type}] ${n.title}: ${n.description}`).join('\n');

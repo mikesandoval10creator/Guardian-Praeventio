@@ -26,7 +26,7 @@ export function useAutonomousAlerts() {
         if (wind > 30) {
           const heightTasks = nodes.filter(n => 
             (n.type === NodeType.TASK || n.type === NodeType.RISK) &&
-            (n.title.toLowerCase().includes('altura') || n.description.toLowerCase().includes('altura') || n.tags.includes('altura')) &&
+            (n.title.toLowerCase().includes('altura') || (n.description || '').toLowerCase().includes('altura') || n.tags.includes('altura')) &&
             n.projectId === selectedProject.id
           );
 

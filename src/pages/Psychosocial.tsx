@@ -40,8 +40,8 @@ export function Psychosocial() {
   );
 
   const filteredAssessments = psychoNodes.filter(node => 
-    node.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    node.metadata.department?.toLowerCase().includes(searchTerm.toLowerCase())
+    (node.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+    (node.metadata?.department || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
 
   const totalWorkers = workers.length || 1; // Prevent division by zero

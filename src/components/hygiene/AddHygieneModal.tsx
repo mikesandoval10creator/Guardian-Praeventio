@@ -39,7 +39,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
         type: NodeType.HYGIENE,
         title: `${formData.parameter} - ${formData.location}`,
         description: `Medición de ${formData.parameter} en ${formData.location}. Valor: ${formData.value}${selectedParam.unit}. Límite: ${selectedParam.limit}${selectedParam.unit}.`,
-        tags: ['higiene', formData.parameter.toLowerCase(), isSafe ? 'seguro' : 'alerta'],
+        tags: ['higiene', String(formData.parameter || '').toLowerCase(), isSafe ? 'seguro' : 'alerta'],
         metadata: {
           parameter: formData.parameter,
           value: numericValue,

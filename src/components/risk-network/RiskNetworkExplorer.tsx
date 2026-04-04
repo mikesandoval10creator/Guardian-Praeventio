@@ -28,7 +28,7 @@ export function RiskNetworkExplorer() {
   const graphData = useMemo(() => {
     const filteredNodes = nodes.filter(n => {
       const matchesSearch = n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          n.description.toLowerCase().includes(searchTerm.toLowerCase());
+                          (n.description || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesType = filterType === 'All' || n.type === filterType;
       return matchesSearch && matchesType;
     });

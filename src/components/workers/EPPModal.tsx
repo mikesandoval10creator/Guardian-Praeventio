@@ -69,7 +69,7 @@ export function EPPModal({ isOpen, onClose, worker, projectId }: EPPModalProps) 
               type: NodeType.EPP,
               title: eppItem.name,
               description: eppItem.description,
-              tags: ['epp', eppItem.category.toLowerCase()],
+              tags: ['epp', String(eppItem.category || '').toLowerCase()],
               metadata: { eppId: eppItem.id, category: eppItem.category },
               connections: [],
               projectId: projectId

@@ -199,8 +199,8 @@ export function Training() {
     try {
       // Find nodes connected to the user (heuristic: nodes with user's name or relevant tags)
       const userNodes = nodes.filter(n => 
-        n.title.toLowerCase().includes(user?.displayName?.toLowerCase() || '') ||
-        n.description.toLowerCase().includes(user?.displayName?.toLowerCase() || '') ||
+        (n.title || '').toLowerCase().includes(String(user?.displayName || '').toLowerCase()) ||
+        (n.description || '').toLowerCase().includes(String(user?.displayName || '').toLowerCase()) ||
         n.type === 'Riesgo' || n.type === 'Incidente'
       ).slice(0, 10);
 
