@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Upload, Shield, AlertTriangle, Loader2, X, CheckCircle2, Info, Sparkles, Save } from 'lucide-react';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { Camera, Upload, Shield, AlertTriangle, Loader2, X, CheckCircle2, Info, Sparkles, Save, WifiOff } from 'lucide-react';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { analyzeVisionImage } from '../../services/geminiService';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface AnalysisResult {
   eppDetected: string[];
@@ -20,8 +21,9 @@ export function VisionAnalyzer() {
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+  const isOnline = useOnlineStatus();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,7 +39,7 @@ export function VisionAnalyzer() {
   };
 
   const analyzeImage = async () => {
-    if (!image) return;
+    if (!image || !isOnline) return;
     setIsAnalyzing(true);
     setSaved(false);
     try {
@@ -123,10 +125,17 @@ export function VisionAnalyzer() {
 
           <button
             onClick={analyzeImage}
-            disabled={!image || isAnalyzing}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-800 disabled:text-zinc-600 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 active:scale-[0.98]"
+            disabled={!image || isAnalyzing || !isOnline}
+            className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${
+              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : isAnalyzing ? 'bg-blue-600/50 text-white cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
+            }`}
           >
-            {isAnalyzing ? (
+            {!isOnline ? (
+              <>
+                <WifiOff className="w-5 h-5" />
+                <span>Requiere Conexión</span>
+              </>
+            ) : isAnalyzing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span>Analizando con Gemini...</span>

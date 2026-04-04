@@ -22,7 +22,7 @@
 #### AI & Machine Learning
 - ✅ Vertex AI Gemini Integration: Asistente "El Guardián".
 - ✅ Ergonomic Intelligence (REBA/RULA): Evaluaciones semi-automatizadas.
-- ✅ Knowledge Graph (Zettelkasten): Grafo de conocimiento neuronal para normativas y riesgos.
+- ✅ Knowledge Graph (Risk Network): Grafo de conocimiento neuronal para normativas y riesgos.
 - ✅ Guardian Voice Assistant: Comandos de voz y análisis experto en tiempo real.
 - ✅ Vision Analyzer: Detección de EPP y riesgos mediante Computer Vision (Gemini 3.1 Flash).
 - ✅ Análisis Predictivo de Incidentes: Modelos para predecir accidentes basados en data histórica.
@@ -31,7 +31,7 @@
 - ✅ Auditoría de Cumplimiento con IA: Evaluación automatizada de proyectos contra normativas.
 - ✅ Recomendaciones de Capacitación IA: Planes de entrenamiento personalizados para trabajadores.
 - ✅ Análisis de Asistencia y Fatiga: Detección de riesgos por patrones de trabajo.
-- ✅ Cápsulas de Seguridad Personalizadas: Micro-entrenamiento adaptativo basado en el Zettelkasten.
+- ✅ Cápsulas de Seguridad Personalizadas: Micro-entrenamiento adaptativo basado en el Risk Network.
 - ✅ Rutas de Evacuación Dinámicas: IA para cálculo de rutas seguras en tiempo real.
 
 #### UI, Dashboards & Modules
@@ -46,7 +46,7 @@
 - ✅ "Hombre Caído" (Man Down): Detección automática de inmovilidad.
 
 #### PWA & Offline Excellence
-- ✅ Funcionalidad Offline (Zettelkasten): Sincronización automática vía IndexedDB (idb).
+- ✅ Funcionalidad Offline (Risk Network): Sincronización automática vía IndexedDB (idb).
 
 ### 2. En Desarrollo Activo (🚧)
 

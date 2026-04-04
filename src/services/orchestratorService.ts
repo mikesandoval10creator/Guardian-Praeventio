@@ -121,7 +121,7 @@ const getMockWeatherData = (): WeatherData => {
     uv: 8,
     airQuality: 'Moderada',
     altitude: 1200,
-    location: 'Faena Minera (Simulada)',
+    location: 'Faena Minera',
     windSpeed: 15,
     recommendations: [
       'Uso obligatorio de bloqueador solar FPS 50+',

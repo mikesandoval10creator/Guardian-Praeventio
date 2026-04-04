@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getMessagingInstance } from '../services/firebase';
+import { getToken, onMessage } from 'firebase/messaging';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
@@ -35,6 +37,39 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     localStorage.setItem('praeventio_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  useEffect(() => {
+    const setupMessaging = async () => {
+      try {
+        const messaging = await getMessagingInstance();
+        if (!messaging) return;
+
+        // Request permission and get token
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await getToken(messaging, {
+            // VAPID key should be configured in a real production environment
+            // vapidKey: 'YOUR_PUBLIC_VAPID_KEY_HERE'
+          });
+          console.log('FCM Token:', token);
+          
+          // Handle incoming messages when app is in foreground
+          onMessage(messaging, (payload) => {
+            console.log('Message received. ', payload);
+            addNotification({
+              title: payload.notification?.title || 'Nueva Notificación',
+              message: payload.notification?.body || '',
+              type: 'info'
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error setting up Firebase Messaging:', error);
+      }
+    };
+
+    setupMessaging();
+  }, []);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const addNotification = (n: Omit<Notification, 'id' | 'time' | 'read' | 'createdAt'>) => {
@@ -47,7 +82,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
     setNotifications(prev => [newNotification, ...prev]);
     
-    // Simulate Push Notification if supported
+    // Trigger Push Notification if supported
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(n.title, { body: n.message });
     }

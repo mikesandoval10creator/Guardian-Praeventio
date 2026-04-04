@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, AlertCircle, Shield, Loader2, Play, X, Info, Sparkles, MapPin, Users, Phone } from 'lucide-react';
+import { Zap, AlertCircle, Shield, Loader2, Play, X, Info, Sparkles, MapPin, Users, Phone, WifiOff, Siren } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { generateEmergencyScenario } from '../../services/geminiService';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useEmergency } from '../../contexts/EmergencyContext';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { NodeType } from '../../types';
 
 interface Scenario {
   title: string;
@@ -20,11 +24,15 @@ interface Scenario {
 export function EmergencySimulator() {
   const { nodes } = useUniversalKnowledge();
   const { selectedProject } = useProject();
+  const { addNode } = useRiskEngine();
+  const { triggerEmergency } = useEmergency();
   const [isGenerating, setIsGenerating] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [activeStep, setActiveStep] = useState(0);
+  const isOnline = useOnlineStatus();
 
   const generateScenario = async () => {
+    if (!isOnline) return;
     setIsGenerating(true);
     setScenario(null);
     setActiveStep(0);
@@ -43,6 +51,30 @@ export function EmergencySimulator() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleTriggerRealEmergency = async () => {
+    if (!scenario || !selectedProject) return;
+    
+    // Trigger the global emergency state
+    triggerEmergency(scenario.type.toLowerCase());
+
+    // Add to Zettelkasten as a real incident
+    await addNode({
+      type: NodeType.INCIDENT,
+      title: `[SIMULACRO ESCALADO] ${scenario.title}`,
+      description: scenario.description,
+      tags: ['simulacro', 'emergencia', scenario.type.toLowerCase()],
+      projectId: selectedProject.id,
+      connections: [],
+      metadata: {
+        location: scenario.location,
+        criticality: scenario.criticality,
+        isDrill: true
+      }
+    });
+    
+    setScenario(null);
   };
 
   return (
@@ -65,11 +97,19 @@ export function EmergencySimulator() {
             </p>
             <button
               onClick={generateScenario}
-              disabled={isGenerating}
-              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-amber-500/20 flex items-center gap-3 disabled:opacity-50"
+              disabled={isGenerating || !isOnline}
+              className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 disabled:opacity-50 ${
+                !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-500/20'
+              }`}
             >
-              {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-              <span>Generar Simulacro Dinámico</span>
+              {!isOnline ? (
+                <WifiOff className="w-5 h-5" />
+              ) : isGenerating ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Play className="w-5 h-5" />
+              )}
+              <span>{!isOnline ? 'Requiere Conexión' : 'Generar Simulacro Dinámico'}</span>
             </button>
           </div>
         ) : (
@@ -160,12 +200,21 @@ export function EmergencySimulator() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setScenario(null)}
-                  className="w-full py-4 rounded-2xl bg-zinc-800 text-white font-black text-[10px] uppercase tracking-widest hover:bg-zinc-700 transition-all border border-white/10"
-                >
-                  Finalizar Simulacro
-                </button>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={handleTriggerRealEmergency}
+                    className="flex-1 py-4 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20 flex items-center justify-center gap-2"
+                  >
+                    <Siren className="w-4 h-4" />
+                    Escalar a Emergencia Real
+                  </button>
+                  <button
+                    onClick={() => setScenario(null)}
+                    className="flex-1 py-4 rounded-2xl bg-zinc-800 text-white font-black text-[10px] uppercase tracking-widest hover:bg-zinc-700 transition-all border border-white/10"
+                  >
+                    Finalizar Simulacro
+                  </button>
+                </div>
               </div>
             </div>
           </div>

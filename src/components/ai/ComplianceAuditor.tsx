@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, Loader2, AlertCircle, CheckCircle2, Zap, BarChart3, ArrowRight, FileWarning } from 'lucide-react';
+import { ShieldCheck, Loader2, AlertCircle, CheckCircle2, Zap, BarChart3, ArrowRight, FileWarning, WifiOff } from 'lucide-react';
 import { auditProjectComplianceWithAI } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 export function ComplianceAuditor() {
   const [loading, setLoading] = useState(false);
   const [auditResult, setAuditResult] = useState<any>(null);
   const { nodes } = useUniversalKnowledge();
   const { selectedProject } = useProject();
+  const isOnline = useOnlineStatus();
 
   const handleAudit = async () => {
-    if (!selectedProject) return;
+    if (!selectedProject || !isOnline) return;
     setLoading(true);
     setAuditResult(null);
     try {
@@ -54,11 +56,19 @@ export function ComplianceAuditor() {
         </div>
         <button
           onClick={handleAudit}
-          disabled={loading || !selectedProject}
-          className="bg-emerald-500 hover:bg-emerald-600 text-black px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50"
+          disabled={loading || !selectedProject || !isOnline}
+          className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50 ${
+            !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 text-black'
+          }`}
         >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-          Ejecutar Auditoría
+          {!isOnline ? (
+            <WifiOff className="w-4 h-4" />
+          ) : loading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Zap className="w-4 h-4" />
+          )}
+          {!isOnline ? 'Requiere Conexión' : 'Ejecutar Auditoría'}
         </button>
       </header>
 

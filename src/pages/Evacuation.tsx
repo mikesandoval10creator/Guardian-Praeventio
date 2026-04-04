@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GoogleMap, useJsApiLoader, OverlayView } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, OverlayView, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
 import { 
   Map as MapIcon, 
   Navigation, 
@@ -22,11 +22,14 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { calculateDynamicEvacuationRoute, generateEmergencyPlan } from '../services/geminiService';
 import { db, collection, addDoc, serverTimestamp, query, orderBy, limit } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { NodeType } from '../types';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { WifiOff } from 'lucide-react';
+import { useEmergency } from '../contexts/EmergencyContext';
 
 const containerStyle = {
   width: '100%',
@@ -54,7 +57,7 @@ interface IoTEvent {
 export function Evacuation() {
   const { selectedProject } = useProject();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -68,7 +71,10 @@ export function Evacuation() {
   const [savingPlan, setSavingPlan] = useState(false);
   const [emergencyPlan, setEmergencyPlan] = useState<string | null>(null);
   const [aiRoute, setAiRoute] = useState<any>(null);
+  const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [lastRecalculation, setLastRecalculation] = useState<Date | null>(null);
+  const isOnline = useOnlineStatus();
+  const { triggerEmergency } = useEmergency();
 
   const emergencyNodes = nodes.filter(n => (n.type === NodeType.EMERGENCY || n.type === NodeType.ASSET) && n.metadata?.lat && n.metadata?.lng);
   const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT);
@@ -88,6 +94,7 @@ export function Evacuation() {
   }, []);
 
   const runDynamicCalculation = async (triggerReason: string = "Manual") => {
+    if (!isOnline) return;
     setCalculating(true);
     try {
       // Get real workers and machinery data from local storage or context if available, 
@@ -101,18 +108,6 @@ export function Evacuation() {
         const parsed = JSON.parse(storedTelemetry);
         workers = parsed.workers || [];
         machinery = parsed.machinery || [];
-      } else {
-         workers = [
-          { id: 'W-01', position: [-2, 0, 2], status: 'normal', isFallen: false },
-          { id: 'W-02', position: [3, 0, -1], status: 'warning', isFallen: false },
-          { id: 'W-03', position: [0, 0, 4], status: 'normal', isFallen: false },
-          { id: 'W-04', position: [-4, 0, -3], status: 'critical', isFallen: true },
-        ];
-
-        machinery = [
-          { id: 'M-01', type: 'truck', position: [5, 0, 5], status: 'normal' },
-          { id: 'M-02', type: 'crane', position: [-5, 0, 0], status: 'warning' },
-        ];
       }
 
       const activeEmergencies = [
@@ -123,6 +118,9 @@ export function Evacuation() {
       const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery);
       setAiRoute(data);
       setLastRecalculation(new Date());
+
+      // Clear previous directions
+      setDirectionsResponse(null);
     } catch (error) {
       console.error('Error calculating dynamic route:', error);
     } finally {
@@ -146,10 +144,11 @@ export function Evacuation() {
   }, [recentEvents]);
 
   const handleGenerateEmergencyPlan = async () => {
+    if (!isOnline) return;
     setGeneratingPlan(true);
     try {
       const context = nodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n');
-      const plan = await generateEmergencyPlan(selectedProject?.name || 'Proyecto Actual', context);
+      const plan = await generateEmergencyPlan(selectedProject?.name || 'Proyecto Actual', context, selectedProject?.industry);
       setEmergencyPlan(plan);
     } catch (error) {
       console.error('Error generating emergency plan:', error);
@@ -172,7 +171,7 @@ export function Evacuation() {
         status: 'active'
       });
 
-      // Create Zettelkasten Node
+      // Create Risk Node
       await addNode({
         type: NodeType.DOCUMENT,
         title: `Plan de Emergencia - ${new Date().toLocaleDateString()}`,
@@ -212,36 +211,54 @@ export function Evacuation() {
     { id: 'R3', name: 'Ruta de Emergencia Este', status: aiRoute?.rutasBloqueadas?.includes('R3') ? 'blocked' : 'clear', capacity: '50 personas', time: 'N/A' },
   ];
 
+  const directionsCallback = useCallback((
+    result: google.maps.DirectionsResult | null,
+    status: google.maps.DirectionsStatus
+  ) => {
+    if (status === 'OK' && result) {
+      setDirectionsResponse(result);
+    } else {
+      console.error(`Directions request failed: ${status}`);
+    }
+  }, []);
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <MapIcon className="w-8 h-8 text-emerald-500" />
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-2 sm:gap-3 leading-tight">
+            <MapIcon className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
             Mapa de Evacuación Dinámico
           </h1>
-          <p className="text-zinc-400 mt-1 font-medium">
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">
             {selectedProject 
               ? `Plan de evacuación inteligente para: ${selectedProject.name}`
               : 'Gestión de rutas adaptativas basadas en el Grafo de Conocimiento'}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          <button 
+            onClick={() => triggerEmergency('sismo')}
+            className="flex items-center justify-center gap-2 bg-red-600/20 border border-red-500/50 text-red-500 px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-red-600/30 active:scale-95 w-full sm:w-auto"
+          >
+            <AlertCircle className="w-4 h-4" />
+            <span>Activar Alarma Manual</span>
+          </button>
           <button 
             onClick={handleGenerateEmergencyPlan}
-            disabled={generatingPlan}
-            className="flex items-center gap-2 bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+            disabled={generatingPlan || !isOnline}
+            className={`flex items-center justify-center gap-2 bg-zinc-900 border border-white/10 text-white px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 w-full sm:w-auto ${!isOnline ? 'cursor-not-allowed opacity-50' : 'hover:bg-zinc-800'}`}
           >
-            {generatingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            <span>Generar Plan de Emergencia (PE)</span>
+            {!isOnline ? <WifiOff className="w-4 h-4" /> : generatingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+            <span>{!isOnline ? 'Requiere Conexión' : 'Generar Plan de Emergencia (PE)'}</span>
           </button>
           <button 
             onClick={() => runDynamicCalculation()}
-            disabled={calculating}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
+            disabled={calculating || !isOnline}
+            className={`flex items-center justify-center gap-2 text-white px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg active:scale-95 disabled:opacity-50 w-full sm:w-auto ${!isOnline ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed shadow-none' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'}`}
           >
-            {calculating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            <span>Recalcular Ruta</span>
+            {!isOnline ? <WifiOff className="w-4 h-4" /> : calculating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            <span>{!isOnline ? 'Requiere Conexión' : 'Recalcular Ruta'}</span>
           </button>
         </div>
       </div>
@@ -400,6 +417,31 @@ export function Evacuation() {
                 }}
               >
                 {/* Emergency Nodes Overlay */}
+                {aiRoute?.startPoint && aiRoute?.endPoint && !directionsResponse && (
+                  <DirectionsService
+                    options={{
+                      origin: aiRoute.startPoint,
+                      destination: aiRoute.endPoint,
+                      travelMode: google.maps.TravelMode.WALKING,
+                    }}
+                    callback={directionsCallback}
+                  />
+                )}
+
+                {directionsResponse && (
+                  <DirectionsRenderer
+                    directions={directionsResponse}
+                    options={{
+                      polylineOptions: {
+                        strokeColor: aiRoute?.nivelAlerta === 'Rojo' ? '#ef4444' : '#10b981',
+                        strokeWeight: 6,
+                        strokeOpacity: 0.8,
+                      },
+                      suppressMarkers: false,
+                    }}
+                  />
+                )}
+
                 {emergencyNodes.slice(0, 5).map((node, i) => (
                   <OverlayView
                     key={node.id}

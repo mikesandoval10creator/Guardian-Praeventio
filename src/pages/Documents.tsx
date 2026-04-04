@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Folder, 
@@ -13,14 +13,17 @@ import {
   CheckCircle2,
   Loader2,
   X,
-  Upload
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { db, serverTimestamp } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { AddDocumentModal } from '../components/documents/AddDocumentModal';
+import { EditDocumentModal } from '../components/documents/EditDocumentModal';
 
 interface Document {
   id: string;
@@ -32,6 +35,7 @@ interface Document {
   updatedAt: string;
   url?: string;
   projectId: string;
+  isPendingSync?: boolean;
 }
 
 import { useNavigate } from 'react-router-dom';
@@ -42,6 +46,34 @@ export function Documents() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
   const [isAdding, setIsAdding] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [docToEdit, setDocToEdit] = useState<Document | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const isOnline = useOnlineStatus();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (activeDropdown && !(e.target as Element).closest('.dropdown-container')) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeDropdown]);
+
+  const handleDelete = async (docId: string) => {
+    if (!selectedProject) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este documento?')) return;
+
+    try {
+      const docRef = doc(db, `projects/${selectedProject.id}/documents`, docId);
+      await deleteDoc(docRef);
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('Error al eliminar el documento');
+    }
+  };
 
   const { data: documents, loading } = useFirestoreCollection<Document>(
     selectedProject ? `projects/${selectedProject.id}/documents` : null
@@ -60,7 +92,7 @@ export function Documents() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gestión Documental</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Gestión Documental</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             Repositorio Central de Evidencia y Cumplimiento
           </p>
@@ -68,7 +100,7 @@ export function Documents() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={() => setIsAdding(true)}
-            className="bg-white text-black px-6 py-3 sm:py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2 w-full sm:w-auto"
+            className="bg-white text-black px-6 py-3 sm:py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload className="w-4 h-4" />
             <span>Subir Documento</span>
@@ -88,14 +120,14 @@ export function Documents() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 flex items-center gap-4"
+            className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-3xl p-6 flex items-center gap-4 shadow-sm"
           >
             <div className={`w-12 h-12 rounded-2xl ${stat.bg} flex items-center justify-center border border-white/5`}>
               <stat.icon className={`w-6 h-6 ${stat.color}`} />
             </div>
             <div>
               <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{stat.label}</p>
-              <p className="text-xl font-black text-white tracking-tight">{stat.value}</p>
+              <p className="text-xl font-black text-zinc-900 dark:text-white tracking-tight">{stat.value}</p>
             </div>
           </motion.div>
         ))}
@@ -110,7 +142,7 @@ export function Documents() {
             placeholder="Buscar documentos..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
           />
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
@@ -121,7 +153,7 @@ export function Documents() {
               className={`px-4 sm:px-6 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
                 activeCategory === cat 
                   ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20' 
-                  : 'bg-zinc-900/50 text-zinc-500 border-white/5 hover:border-white/10 hover:text-white'
+                  : 'bg-white dark:bg-zinc-900/50 text-zinc-500 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 hover:text-zinc-900 dark:hover:text-white shadow-sm'
               }`}
             >
               {cat}
@@ -131,11 +163,11 @@ export function Documents() {
       </div>
 
       {/* Documents List */}
-      <div className="bg-zinc-900/30 border border-white/5 rounded-2xl sm:rounded-[2.5rem] overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-2xl sm:rounded-[2.5rem] overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[600px]">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-zinc-200 dark:border-white/5">
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Nombre del Archivo</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Categoría</th>
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Versión</th>
@@ -144,7 +176,7 @@ export function Documents() {
                 <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-4 sm:px-6 py-10 sm:py-20 text-center">
@@ -154,17 +186,17 @@ export function Documents() {
                 </tr>
               ) : filteredDocs.length > 0 ? (
                 filteredDocs.map((doc) => (
-                  <tr key={doc.id} className="group hover:bg-white/5 transition-colors">
+                  <tr key={doc.id} className="group hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors">
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
                       <div 
                         className="flex items-center gap-2 sm:gap-3 cursor-pointer"
                         onClick={() => navigate(`/documents/${doc.id}`)}
                       >
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-800 flex items-center justify-center border border-white/5 shrink-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-white/5 shrink-0">
                           <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-400" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xs sm:text-sm font-bold text-white uppercase tracking-tight hover:text-emerald-400 transition-colors truncate">{doc.name}</p>
+                          <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-tight hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate">{doc.name}</p>
                           <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest truncate">{doc.type || 'Documento IA'}</p>
                         </div>
                       </div>
@@ -176,12 +208,20 @@ export function Documents() {
                       <span className="text-[8px] sm:text-[9px] font-bold text-zinc-400 uppercase tracking-wider">v{doc.version || '1.0'}</span>
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
-                      <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${
-                        doc.status === 'Vigente' ? 'bg-emerald-500/10 text-emerald-500' :
-                        doc.status === 'Vencido' ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'
-                      }`}>
-                        {doc.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${
+                          doc.status === 'Vigente' ? 'bg-emerald-500/10 text-emerald-500' :
+                          doc.status === 'Vencido' ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'
+                        }`}>
+                          {doc.status}
+                        </span>
+                        {doc.isPendingSync && (
+                          <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                            <RefreshCw className="w-2 h-2 animate-spin" />
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
                       <span className="text-[8px] sm:text-[9px] font-bold text-zinc-500 uppercase tracking-wider whitespace-nowrap">
@@ -192,7 +232,7 @@ export function Documents() {
                       <div className="flex items-center gap-1 sm:gap-2">
                         <button 
                           onClick={() => navigate(`/documents/${doc.id}`)}
-                          className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-all"
+                          className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
                           title="Ver Documento"
                         >
                           <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -202,19 +242,60 @@ export function Documents() {
                             href={doc.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-all"
+                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
                             title="Descargar Original"
                           >
                             <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                           </a>
                         ) : (
-                          <button disabled className="p-1.5 sm:p-2 rounded-lg text-zinc-600 cursor-not-allowed" title="Sin archivo original">
+                          <button disabled className="p-1.5 sm:p-2 rounded-lg text-zinc-400 dark:text-zinc-600 cursor-not-allowed" title="Sin archivo original">
                             <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                           </button>
                         )}
-                        <button className="p-1.5 sm:p-2 hover:bg-white/10 rounded-lg text-zinc-400 hover:text-white transition-all">
-                          <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </button>
+                        <div className="relative dropdown-container">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveDropdown(activeDropdown === doc.id ? null : doc.id);
+                            }}
+                            className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                          >
+                            <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" />
+                          </button>
+                          <AnimatePresence>
+                            {activeDropdown === doc.id && (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute right-0 mt-1 w-32 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
+                              >
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDocToEdit(doc);
+                                    setIsEditing(true);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
+                                >
+                                  Editar
+                                </button>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(doc.id);
+                                    setActiveDropdown(null);
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                                >
+                                  Eliminar
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -222,7 +303,7 @@ export function Documents() {
               ) : (
                 <tr>
                   <td colSpan={6} className="px-4 sm:px-6 py-10 sm:py-20 text-center">
-                    <Folder className="w-8 h-8 sm:w-12 sm:h-12 text-zinc-800 mx-auto mb-3 sm:mb-4" />
+                    <Folder className="w-8 h-8 sm:w-12 sm:h-12 text-zinc-300 dark:text-zinc-800 mx-auto mb-3 sm:mb-4" />
                     <p className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest">No se encontraron documentos</p>
                   </td>
                 </tr>
@@ -233,11 +314,22 @@ export function Documents() {
       </div>
       
       {selectedProject && (
-        <AddDocumentModal 
-          isOpen={isAdding} 
-          onClose={() => setIsAdding(false)} 
-          projectId={selectedProject.id} 
-        />
+        <>
+          <AddDocumentModal 
+            isOpen={isAdding} 
+            onClose={() => setIsAdding(false)} 
+            projectId={selectedProject.id} 
+          />
+          <EditDocumentModal
+            isOpen={isEditing}
+            onClose={() => {
+              setIsEditing(false);
+              setDocToEdit(null);
+            }}
+            document={docToEdit}
+            projectId={selectedProject.id}
+          />
+        </>
       )}
     </div>
   );

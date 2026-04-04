@@ -10,7 +10,7 @@
 ## Prioridad 2: Expansión de IA y Robustez
 - [x] Implementar Guardian Voice Assistant (Voz y Análisis experto).
 - [x] Implementar Vision Analyzer (Detección de EPP y Riesgos).
-- [x] Implementar PWA Offline Support (Zettelkasten).
+- [x] Implementar PWA Offline Support (Risk Network).
 - [x] Implementar Análisis Predictivo de Incidentes (AIHub).
 - [x] Implementar Generación Automática de Informes (PTS, PE).
 
@@ -20,10 +20,10 @@
 - [x] Optimizar Rutas de Evacuación Dinámicas.
 - [ ] Integrar con ERP/HRM (SAP, Oracle).
 
-## Prioridad 4: Evolución 10x (Zettelkasten)
+## Prioridad 4: Evolución 10x (Risk Network)
 - [x] ProjectContext: Aislar datos entre workspaces.
 - [x] UniversalKnowledgeContext: Relaciones semánticas globales.
-- [x] Generación de QR para Trabajador (via Zettelkasten).
-- [ ] IPERC Inteligente (via Zettelkasten).
-- [ ] Planes de Acción desde Inspecciones (via Zettelkasten).
-- [x] Importación Masiva de Trabajadores (Zettelkasten).
+- [x] Generación de QR para Trabajador (via Risk Network).
+- [ ] IPERC Inteligente (via Risk Network).
+- [ ] Planes de Acción desde Inspecciones (via Risk Network).
+- [x] Importación Masiva de Trabajadores (Risk Network).

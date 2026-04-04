@@ -8,25 +8,50 @@ import {
   Brain, 
   Loader2,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  WifiOff
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { forecastSafetyEvents } from '../../services/geminiService';
 import { Card } from '../shared/Card';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { cacheAIResponse, getCachedAIResponse } from '../../utils/pwa-offline';
 
 export function SafetyForecast() {
-  const { nodes } = useUniversalKnowledge();
+  const { nodes, environment } = useUniversalKnowledge();
   const [forecast, setForecast] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const isOnline = useOnlineStatus();
 
   const runForecast = async () => {
+    if (!isOnline) {
+      setIsLoading(true);
+      try {
+        const cached = await getCachedAIResponse('safety-forecast');
+        if (cached) {
+          setForecast(cached);
+        }
+      } catch (e) {
+        console.error('Error loading cached forecast', e);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const nodesCtx = nodes.slice(0, 50).map(n => `${n.type}: ${n.title} (${n.description})`).join('\n');
-      const result = await forecastSafetyEvents(nodesCtx);
+      const envContext = environment ? `Clima actual: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h. Sismos recientes: ${environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud + ' en ' + environment.earthquakes[0].RefGeografica : 'Ninguno'}.` : 'Sin datos ambientales.';
+      const result = await forecastSafetyEvents(nodesCtx, envContext);
       setForecast(result);
+      await cacheAIResponse('safety-forecast', result);
     } catch (error) {
       console.error('Error running forecast:', error);
+      const cached = await getCachedAIResponse('safety-forecast');
+      if (cached) {
+        setForecast(cached);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -36,7 +61,7 @@ export function SafetyForecast() {
     if (nodes.length > 0 && !forecast) {
       runForecast();
     }
-  }, [nodes]);
+  }, [nodes, isOnline]);
 
   return (
     <Card className="p-8 bg-zinc-900 border-white/10 overflow-hidden relative">
@@ -57,11 +82,19 @@ export function SafetyForecast() {
           </div>
           <button 
             onClick={runForecast}
-            disabled={isLoading}
-            className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest text-white transition-all flex items-center gap-2 disabled:opacity-50"
+            disabled={isLoading || !isOnline}
+            className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50 ${
+              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
+            }`}
           >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-            Actualizar Pronóstico
+            {!isOnline ? (
+              <WifiOff className="w-4 h-4" />
+            ) : isLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Brain className="w-4 h-4" />
+            )}
+            {!isOnline ? 'Requiere Conexión' : 'Actualizar Pronóstico'}
           </button>
         </div>
 

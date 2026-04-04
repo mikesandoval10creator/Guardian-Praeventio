@@ -1,27 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain, ShieldAlert } from 'lucide-react';
+import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain, ShieldAlert, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { ZettelkastenNode, NodeType } from '../types';
+import { RiskNode, NodeType } from '../types';
 import { where, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
-import { generatePTS } from '../services/geminiService';
+import { generatePTS, generatePTSWithManufacturerData } from '../services/geminiService';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export function PTSGenerator() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
   const [documentType, setDocumentType] = useState('PTS');
   const [taskName, setTaskName] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
+  const [machineryDetails, setMachineryDetails] = useState('');
   const [normative, setNormative] = useState('DS 594 (Condiciones Sanitarias y Ambientales)');
   const [riskLevel, setRiskLevel] = useState('Media');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -30,9 +36,10 @@ export function PTSGenerator() {
   const [generatedPTS, setGeneratedPTS] = useState<any>(null);
   const [selectedRiskId, setSelectedRiskId] = useState<string>('');
   const pdfRef = useRef<HTMLDivElement>(null);
+  const isOnline = useOnlineStatus();
 
-  // Fetch approved risks from Zettelkasten
-  const { data: nodes } = useFirestoreCollection<ZettelkastenNode>(
+  // Fetch approved risks from Risk Network
+  const { data: nodes } = useFirestoreCollection<RiskNode>(
     'nodes',
     selectedProject ? [where('projectId', '==', selectedProject.id)] : []
   );
@@ -64,20 +71,25 @@ export function PTSGenerator() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!taskName || !taskDescription) return;
+    if (!taskName || !taskDescription || !isOnline) return;
 
     setIsGenerating(true);
     try {
-      const envContext = environment ? `Clima actual: ${environment.weather?.temp}°C, Viento: ${environment.weather?.windSpeed}km/h. Sismos recientes: ${environment.seismic?.magnitude || 'Ninguno'}` : 'Sin datos ambientales en tiempo real.';
+      const envContext = environment ? `Clima actual: ${environment.weather?.temp}°C, Viento: ${environment.weather?.windSpeed}km/h. Sismos recientes: ${environment.earthquakes && environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud : 'Ninguno'}` : 'Sin datos ambientales en tiempo real.';
       
-      // Extract relevant Zettelkasten context (e.g., related incidents or risks)
+      // Extract relevant Risk Network context (e.g., related incidents or risks)
       const zkContext = nodes
         .filter(n => n.type === NodeType.INCIDENT || n.type === NodeType.RISK)
         .slice(0, 5) // Limit to top 5 for context size
         .map(n => `${n.title}: ${n.description}`)
         .join('\n');
 
-      const result = await generatePTS(taskName, taskDescription, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
+      let result;
+      if (machineryDetails.trim() !== '') {
+        result = await generatePTSWithManufacturerData(taskName, taskDescription, machineryDetails, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
+      } else {
+        result = await generatePTS(taskName, taskDescription, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
+      }
       setGeneratedPTS(result);
     } catch (error) {
       console.error('Error generating PTS:', error);
@@ -140,7 +152,7 @@ export function PTSGenerator() {
         createdAt: serverTimestamp()
       });
 
-      // 4. Add to Zettelkasten
+      // 4. Add to Risk Network
       await addNode({
         type: NodeType.DOCUMENT,
         title: taskName,
@@ -305,6 +317,18 @@ export function PTSGenerator() {
                 />
               </div>
 
+              <div>
+                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
+                  Maquinaria y Herramientas (Opcional)
+                </label>
+                <textarea
+                  value={machineryDetails}
+                  onChange={(e) => setMachineryDetails(e.target.value)}
+                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-24"
+                  placeholder="Ej: Esmeril angular Makita 9557NB, Andamio Layher Allround... (La IA buscará manuales del fabricante)"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
@@ -341,10 +365,19 @@ export function PTSGenerator() {
 
               <button
                 type="submit"
-                disabled={isGenerating || !taskName || !taskDescription}
-                className="w-full bg-emerald-500 text-white font-black uppercase tracking-widest py-4 rounded-xl hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={isGenerating || !taskName || !taskDescription || !isOnline}
+                className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                  !isOnline 
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    : 'bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
               >
-                {isGenerating ? (
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-5 h-5" />
+                    Requiere Conexión
+                  </>
+                ) : isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     Generando {documentType}...
@@ -393,14 +426,14 @@ export function PTSGenerator() {
                 <div className="flex gap-2">
                   <button 
                     onClick={handleSave}
-                    disabled={isSaving}
+                    disabled={isSaving || !isOnline}
                     className="w-10 h-10 rounded-xl bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 hover:text-black transition-colors disabled:opacity-50"
                   >
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   </button>
                   <button 
                     onClick={handleDownloadPDF}
-                    disabled={isDownloading}
+                    disabled={isDownloading || !isOnline}
                     className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
                   >
                     {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
@@ -457,9 +490,40 @@ export function PTSGenerator() {
                   <p className="text-zinc-700 leading-relaxed pl-8">{generatedPTS.alcance}</p>
                 </section>
 
+                {generatedPTS.marcoLegal && generatedPTS.marcoLegal.length > 0 && (
+                  <section>
+                    <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">3</div>
+                      Marco Legal y Normativo
+                    </h3>
+                    <ul className="list-disc list-inside text-zinc-700 space-y-2 pl-8">
+                      {generatedPTS.marcoLegal.map((ley: string, i: number) => (
+                        <li key={i}>{ley}</li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {generatedPTS.evaluacionMatematica && (
+                  <section>
+                    <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">4</div>
+                      Evaluación Matemática del Riesgo
+                    </h3>
+                    <div className="pl-8 text-zinc-700 prose prose-zinc max-w-none">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkMath]} 
+                        rehypePlugins={[rehypeKatex]}
+                      >
+                        {generatedPTS.evaluacionMatematica}
+                      </ReactMarkdown>
+                    </div>
+                  </section>
+                )}
+
                 <section>
                   <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">3</div>
+                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">5</div>
                     Responsabilidades
                   </h3>
                   <ul className="list-disc list-inside text-zinc-700 space-y-2 pl-8">
@@ -471,7 +535,7 @@ export function PTSGenerator() {
 
                 <section>
                   <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">4</div>
+                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">6</div>
                     {documentType === 'PTS' ? 'Equipos de Protección Individual (EPI)' : 'Equipos de Emergencia y Rescate'}
                   </h3>
                   <div className="flex flex-wrap gap-2 pl-8">
@@ -485,7 +549,7 @@ export function PTSGenerator() {
 
                 <section>
                   <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">5</div>
+                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">7</div>
                     {documentType === 'PTS' ? 'Riesgos y Medidas Correctoras' : 'Escenarios de Riesgo y Medidas Preventivas'}
                   </h3>
                   <div className="space-y-4 pl-8">
@@ -506,7 +570,7 @@ export function PTSGenerator() {
 
                 <section>
                   <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
-                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">6</div>
+                    <div className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs">8</div>
                     {documentType === 'PTS' ? 'Procedimiento Paso a Paso' : 'Procedimiento de Evacuación y Respuesta'}
                   </h3>
                   <div className="space-y-4 pl-8">
@@ -524,7 +588,7 @@ export function PTSGenerator() {
                 {generatedPTS.emergencias && generatedPTS.emergencias.length > 0 && (
                   <section>
                     <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
-                      <div className="w-6 h-6 rounded bg-red-100 flex items-center justify-center text-red-600 text-xs">7</div>
+                      <div className="w-6 h-6 rounded bg-red-100 flex items-center justify-center text-red-600 text-xs">9</div>
                       {documentType === 'PTS' ? 'Respuesta a Emergencias' : 'Comunicaciones y Contactos de Emergencia'}
                     </h3>
                     <div className="space-y-4 pl-8">
@@ -537,6 +601,28 @@ export function PTSGenerator() {
                         </div>
                       ))}
                     </div>
+                  </section>
+                )}
+
+                {generatedPTS.fuentesFabricante && generatedPTS.fuentesFabricante.length > 0 && (
+                  <section>
+                    <h3 className="text-lg font-black uppercase tracking-tight mb-3 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-blue-100 flex items-center justify-center text-blue-600 text-xs">10</div>
+                      Fuentes del Fabricante Consultadas
+                    </h3>
+                    <ul className="list-disc list-inside text-zinc-700 space-y-2 pl-8">
+                      {generatedPTS.fuentesFabricante.map((fuente: string, i: number) => (
+                        <li key={i} className="text-sm break-all">
+                          {fuente.startsWith('http') ? (
+                            <a href={fuente} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                              {fuente}
+                            </a>
+                          ) : (
+                            fuente
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   </section>
                 )}
               </div>

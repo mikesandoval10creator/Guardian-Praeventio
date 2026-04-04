@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { useZettelkasten } from './useZettelkasten';
+import { useRiskEngine } from './useRiskEngine';
 import { NodeType } from '../types';
 
-// Diccionarios de Conocimiento Base (Zettelkasten Estático)
+// Diccionarios de Conocimiento Base (Risk Network Estático)
 const INDUSTRY_NORMATIVES: Record<string, string[]> = {
   'Minería': ['D.S. 132/2004 (Reglamento de Seguridad Minera)', 'D.S. 594/1999 (Condiciones Sanitarias)', 'Ley 16.744 (Accidentes del Trabajo)', 'D.S. 72/1985'],
   'Construcción': ['D.S. 594/1999 (Condiciones Sanitarias)', 'Ley 16.744 (Accidentes del Trabajo)', 'NCh 1508 (Estudio de Mecánica de Suelos)', 'NCh 349 (Disposiciones de Seguridad en Excavación)'],
@@ -28,7 +28,7 @@ const INDUSTRY_TRAINING: Record<string, string[]> = {
 };
 
 export function useIndustryIntegration() {
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
 
   // Funciones de consulta estática
   const getNormatives = useCallback((industry: string) => {
@@ -58,7 +58,7 @@ export function useIndustryIntegration() {
     return ['Inducción ODI General', 'Uso de Extintores', 'Manejo Manual de Cargas']; // Default
   }, []);
 
-  // Función para inyectar conocimiento al Zettelkasten (Nodos)
+  // Función para inyectar conocimiento a la Risk Network (Nodos)
   const bootstrapProjectKnowledge = useCallback(async (projectId: string, industry: string) => {
     try {
       const normatives = getNormatives(industry);

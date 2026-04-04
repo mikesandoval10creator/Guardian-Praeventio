@@ -10,25 +10,33 @@ import {
   Building2,
   User,
   Activity,
-  Send
+  Send,
+  HardDrive,
+  Loader2
 } from 'lucide-react';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { NodeType } from '../types';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { handleFirestoreError, OperationType } from '../services/firebase';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 export function SusesoReports() {
-  const { nodes } = useZettelkasten();
+  const { nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const [activeTab, setActiveTab] = useState<'DIAT' | 'DIEP'>('DIAT');
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const isOnline = useOnlineStatus();
 
   // Filter incidents for the current project
   const incidents = nodes.filter(n => n.type === NodeType.INCIDENT && (!selectedProject || n.projectId === selectedProject.id));
   const selectedIncident = incidents.find(i => i.id === selectedIncidentId);
+
+  const [isSavingToDrive, setIsSavingToDrive] = useState(false);
+  const [savedToDrive, setSavedToDrive] = useState(false);
 
   const handleExportPDF = async () => {
     if (!selectedIncident) return;
@@ -58,8 +66,8 @@ export function SusesoReports() {
   };
 
   const handleShareDocument = async () => {
-    if (!selectedIncident) return;
-    setIsSending(true);
+    if (!selectedIncident || !selectedProject) return;
+    setIsSavingToDrive(true);
     try {
       const reportElement = document.getElementById('suseso-form');
       if (!reportElement) return;
@@ -76,26 +84,47 @@ export function SusesoReports() {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // Get PDF as Blob
       const pdfBlob = pdf.output('blob');
-      const fileName = `${activeTab}_${selectedIncident.title.replace(/\s+/g, '_')}.pdf`;
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: `Reporte ${activeTab}`,
-          text: `Reporte ${activeTab} generado por Praeventio Guard`,
+      
+      // Upload to Firebase Storage
+      const { storage, ref, uploadBytes, getDownloadURL, collection, addDoc, db } = await import('../services/firebase');
+      const fileName = `${activeTab}_${selectedIncident.title.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      const storageRef = ref(storage, `suseso_reports/${selectedProject.id}/${fileName}`);
+      
+      await uploadBytes(storageRef, pdfBlob);
+      const downloadUrl = await getDownloadURL(storageRef);
+      
+      // Save metadata to Firestore
+      try {
+        await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
+          name: `${activeTab}: ${selectedIncident.title}`,
+          type: 'pdf',
+          url: downloadUrl,
+          projectId: selectedProject.id,
+          category: 'SST',
+          status: 'Vigente',
+          version: '1.0',
+          updatedAt: new Date().toISOString(),
+          size: pdfBlob.size
         });
-      } else {
-        // Fallback to download if Web Share API is not supported
-        pdf.save(fileName);
-        alert('Documento descargado. Puedes subirlo manualmente a tu Google Drive u otro almacenamiento en la nube para derivarlo a la SUSESO.');
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/documents`);
       }
+
+      setSavedToDrive(true);
+      
+      // Reset after 3 seconds
+      setTimeout(() => {
+        setSavedToDrive(false);
+      }, 3000);
+      
     } catch (error) {
       console.error("Error sharing PDF:", error);
-      alert('Hubo un error al intentar compartir el documento.');
+      alert('Hubo un error al intentar guardar el documento en la nube.');
     } finally {
-      setIsSending(false);
+      setIsSavingToDrive(false);
     }
   };
 
@@ -188,11 +217,34 @@ export function SusesoReports() {
                   </button>
                   <button
                     onClick={handleShareDocument}
-                    disabled={isSending}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-colors disabled:opacity-50 shadow-lg shadow-blue-500/20"
+                    disabled={isSavingToDrive || savedToDrive || !isOnline}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-70 shadow-lg ${
+                      savedToDrive 
+                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20' 
+                        : 'bg-blue-500 text-white hover:bg-blue-600 shadow-blue-500/20'
+                    }`}
                   >
-                    <Send className="w-4 h-4" />
-                    {isSending ? 'Procesando...' : 'Guardar en Drive / Compartir'}
+                    {isSavingToDrive ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Guardando...
+                      </>
+                    ) : savedToDrive ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Guardado en Drive
+                      </>
+                    ) : !isOnline ? (
+                      <>
+                        <AlertTriangle className="w-4 h-4" />
+                        Requiere Conexión
+                      </>
+                    ) : (
+                      <>
+                        <HardDrive className="w-4 h-4" />
+                        Guardar en Drive
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

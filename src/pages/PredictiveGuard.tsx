@@ -10,21 +10,24 @@ import {
   Activity,
   Calendar,
   ArrowRight,
-  Info
+  Info,
+  WifiOff
 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useProject } from '../contexts/ProjectContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePredictiveForecast } from '../services/geminiService';
 import { NodeType } from '../types';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function PredictiveGuard() {
   const { selectedProject } = useProject();
-  const { nodes } = useZettelkasten();
+  const { nodes } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [forecast, setForecast] = useState<any>(null);
+  const isOnline = useOnlineStatus();
 
   const generateForecast = async () => {
     if (!selectedProject) return;
@@ -35,7 +38,7 @@ export function PredictiveGuard() {
       const projectNodes = nodes.filter(n => n.projectId === selectedProject.id);
       const context = projectNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n');
       
-      const weatherContext = environment.weather ? 
+      const weatherContext = environment?.weather ? 
         `Temperatura: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed || 0}km/h, Condición: ${environment.weather.condition}` : 
         'Sin datos climáticos.';
 
@@ -77,11 +80,15 @@ export function PredictiveGuard() {
         </div>
         <Button 
           onClick={generateForecast} 
-          disabled={isAnalyzing}
-          className="bg-zinc-900 border-white/10 hover:bg-zinc-800 text-white font-black text-[10px] uppercase tracking-widest px-8 py-4 rounded-2xl flex items-center gap-2"
+          disabled={isAnalyzing || !isOnline}
+          className={`bg-zinc-900 border-white/10 hover:bg-zinc-800 text-white font-black text-[10px] uppercase tracking-widest px-8 py-4 rounded-2xl flex items-center gap-2 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse text-amber-500' : 'text-amber-500'}`} />
-          {isAnalyzing ? 'Analizando...' : 'Actualizar Pronóstico'}
+          {!isOnline ? (
+            <WifiOff className="w-4 h-4 text-zinc-500" />
+          ) : (
+            <Zap className={`w-4 h-4 ${isAnalyzing ? 'animate-pulse text-amber-500' : 'text-amber-500'}`} />
+          )}
+          {!isOnline ? 'Requiere Conexión' : isAnalyzing ? 'Analizando...' : 'Actualizar Pronóstico'}
         </Button>
       </div>
 

@@ -38,10 +38,31 @@ export const OFFLINE_KNOWLEDGE_BASE: OfflineTopic[] = [
   }
 ];
 
-export const getOfflineResponse = (query: string): string => {
+export const getOfflineResponse = (query: string, nodes?: any[]): string => {
   const lowerQuery = query.toLowerCase();
   
-  // Find the best matching topic
+  // First, try to find matching nodes from Risk Network
+  if (nodes && nodes.length > 0) {
+    const matchingNodes = nodes.filter(node => 
+      node.title.toLowerCase().includes(lowerQuery) || 
+      node.description.toLowerCase().includes(lowerQuery) ||
+      node.tags.some((t: string) => t.toLowerCase().includes(lowerQuery))
+    );
+
+    if (matchingNodes.length > 0) {
+      // Sort by relevance (basic: title match first)
+      matchingNodes.sort((a, b) => {
+        const aTitleMatch = a.title.toLowerCase().includes(lowerQuery) ? 1 : 0;
+        const bTitleMatch = b.title.toLowerCase().includes(lowerQuery) ? 1 : 0;
+        return bTitleMatch - aTitleMatch;
+      });
+
+      const topNode = matchingNodes[0];
+      return `(Respuesta desde Base de Conocimiento Offline)\n\n**${topNode.title}**\n${topNode.description}\n\n*Nota: Esta información fue recuperada de tu red neuronal local. Al conectarte, la IA podrá analizarla más a fondo.*`;
+    }
+  }
+
+  // Fallback to hardcoded topics
   for (const topic of OFFLINE_KNOWLEDGE_BASE) {
     if (topic.keywords.some(kw => lowerQuery.includes(kw))) {
       return topic.content;

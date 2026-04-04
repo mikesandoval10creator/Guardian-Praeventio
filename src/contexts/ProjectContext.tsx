@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { db, collection, onSnapshot, query, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
+import { usePendingActions } from '../hooks/usePendingActions';
 
 interface Project {
   id: string;
@@ -14,6 +15,7 @@ interface Project {
   endDate?: string;
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
+  isPendingSync?: boolean;
 }
 
 interface ProjectContextType {
@@ -27,13 +29,55 @@ interface ProjectContextType {
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
 export function ProjectProvider({ children }: { children: ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [fetchedProjects, setFetchedProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const { isAuthReady, user, isAdmin } = useFirebase();
+  const pendingActions = usePendingActions('projects');
+
+  const projects = useMemo(() => {
+    let combined = [...fetchedProjects];
+    
+    pendingActions.forEach(action => {
+      if (action.type === 'update' && action.data.id) {
+        const index = combined.findIndex(p => p.id === action.data.id);
+        if (index !== -1) {
+          combined[index] = { ...combined[index], ...action.data };
+        }
+      } else if (action.type === 'delete' && action.data.id) {
+        combined = combined.filter(p => p.id !== action.data.id);
+      }
+    });
+    
+    const pendingCreates = pendingActions
+      .filter(a => a.type === 'create')
+      .map(a => ({
+        ...a.data,
+        id: `pending-${a.id}`,
+        isPendingSync: true
+      })) as Project[];
+      
+    return [...pendingCreates, ...combined];
+  }, [fetchedProjects, pendingActions]);
 
   const createProject = async (projectData: Omit<Project, 'id'>): Promise<string> => {
     try {
+      if (!navigator.onLine) {
+        const { saveForSync } = await import('../utils/pwa-offline');
+        await saveForSync({
+          type: 'create',
+          collection: 'projects',
+          data: {
+            ...projectData,
+            createdAt: new Date().toISOString(),
+            createdBy: user?.uid,
+            members: [user?.uid]
+          }
+        });
+        alert('Proyecto guardado para sincronización cuando haya conexión.');
+        return 'offline-id-' + Date.now();
+      }
+
       const { addDoc } = await import('firebase/firestore');
       const docRef = await addDoc(collection(db, 'projects'), {
         ...projectData,
@@ -50,7 +94,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isAuthReady || !user) {
-      setProjects([]);
+      setFetchedProjects([]);
       setSelectedProject(null);
       setLoading(false);
       return;
@@ -65,7 +109,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         ...doc.data()
       })) as Project[];
       
-      setProjects(newProjects);
+      setFetchedProjects(newProjects);
       
       // Auto-select first project if none selected
       if (newProjects.length > 0 && !selectedProject) {

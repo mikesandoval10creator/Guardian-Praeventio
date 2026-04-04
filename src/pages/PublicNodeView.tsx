@@ -16,12 +16,12 @@ import {
   MapPin
 } from 'lucide-react';
 import { db, doc, getDoc, collection, query, where, getDocs } from '../services/firebase';
-import { ZettelkastenNode, NodeType } from '../types';
+import { RiskNode, NodeType } from '../types';
 
 export function PublicNodeView() {
   const { nodeId } = useParams<{ nodeId: string }>();
-  const [node, setNode] = useState<ZettelkastenNode | null>(null);
-  const [connections, setConnections] = useState<ZettelkastenNode[]>([]);
+  const [node, setNode] = useState<RiskNode | null>(null);
+  const [connections, setConnections] = useState<RiskNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +33,7 @@ export function PublicNodeView() {
         const nodeSnap = await getDoc(nodeRef);
 
         if (nodeSnap.exists()) {
-          const nodeData = { id: nodeSnap.id, ...nodeSnap.data() } as ZettelkastenNode;
+          const nodeData = { id: nodeSnap.id, ...nodeSnap.data() } as RiskNode;
           
           if (nodeData.isPublic === false) {
              setError('Nodo no encontrado o no es público.');
@@ -49,7 +49,7 @@ export function PublicNodeView() {
             const connSnaps = await Promise.all(connPromises);
             const connData = connSnaps
               .filter(s => s.exists())
-              .map(s => ({ id: s.id, ...s.data() } as ZettelkastenNode));
+              .map(s => ({ id: s.id, ...s.data() } as RiskNode));
             setConnections(connData);
           }
         } else {

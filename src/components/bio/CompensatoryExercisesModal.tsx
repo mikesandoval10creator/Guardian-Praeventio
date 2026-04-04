@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Activity, Play, CheckCircle2, Clock, Info } from 'lucide-react';
+import { X, Activity, Play, CheckCircle2, Clock, Info, WifiOff } from 'lucide-react';
 import { generateCompensatoryExercises } from '../../services/geminiService';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface CompensatoryExercisesModalProps {
   isOpen: boolean;
@@ -17,9 +18,15 @@ export function CompensatoryExercisesModal({ isOpen, onClose, metrics }: Compens
   const [loading, setLoading] = useState(true);
   const [routine, setRoutine] = useState<any>(null);
   const [activeExercise, setActiveExercise] = useState<number | null>(null);
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
     if (isOpen) {
+      if (!isOnline) {
+        setLoading(false);
+        setRoutine(null);
+        return;
+      }
       setLoading(true);
       generateCompensatoryExercises(metrics.fatigue, metrics.posture, metrics.attention)
         .then(data => {
@@ -36,12 +43,17 @@ export function CompensatoryExercisesModal({ isOpen, onClose, metrics }: Compens
     }
   }, [isOpen, metrics]);
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      {isOpen && (
         <motion.div
+          key="modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        >
+          <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
@@ -66,7 +78,15 @@ export function CompensatoryExercisesModal({ isOpen, onClose, metrics }: Compens
           </div>
 
           <div className="p-6 overflow-y-auto flex-1">
-            {loading ? (
+            {!isOnline ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+                <WifiOff className="w-12 h-12 text-zinc-500 mb-2" />
+                <h3 className="text-lg font-bold text-white">Sin Conexión</h3>
+                <p className="text-sm text-zinc-400 max-w-md">
+                  La generación de rutinas de pausa activa requiere conexión a internet para analizar tus métricas con IA.
+                </p>
+              </div>
+            ) : loading ? (
               <div className="flex flex-col items-center justify-center py-12 space-y-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
                 <p className="text-sm text-zinc-400 animate-pulse">Analizando biometría y diseñando rutina...</p>
@@ -137,7 +157,8 @@ export function CompensatoryExercisesModal({ isOpen, onClose, metrics }: Compens
             </button>
           </div>
         </motion.div>
-      </div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 }

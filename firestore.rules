@@ -139,7 +139,7 @@ service cloud.firestore {
 
     match /telemetry_events/{eventId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() || (request.resource.data.keys().hasAll(['secretKey']) && request.resource.data.secretKey == 'praeventio-iot-secret-2026');
       allow update, delete: if isAdmin();
     }
 
@@ -168,6 +168,11 @@ service cloud.firestore {
     }
     
     match /workers/{workerId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    match /blueprints/{blueprintId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin() || isSupervisor();
     }

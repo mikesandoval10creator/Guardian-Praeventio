@@ -1,31 +1,34 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Zap, Network, AlertCircle, CheckCircle2, Loader2, Sparkles, ArrowRight } from 'lucide-react';
+import { Brain, Zap, Network, AlertCircle, CheckCircle2, Loader2, Sparkles, ArrowRight, WifiOff } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
-import { analyzeZettelkastenHealth } from '../../services/geminiService';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { analyzeRiskNetworkHealth } from '../../services/geminiService';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
-export function ZettelkastenHealth() {
+export function RiskNetworkHealth() {
   const { nodes, stats, loading: nodesLoading } = useUniversalKnowledge();
-  const { addConnection } = useZettelkasten();
+  const { addConnection } = useRiskEngine();
   const [analyzing, setAnalyzing] = useState(false);
   const [insights, setInsights] = useState<any>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const isOnline = useOnlineStatus();
 
   const analyzeHealth = async () => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0 || !isOnline) return;
     setAnalyzing(true);
     try {
-      const data = await analyzeZettelkastenHealth(nodes);
+      const data = await analyzeRiskNetworkHealth(nodes);
       setInsights(data);
     } catch (error) {
-      console.error('Error analyzing Zettelkasten health:', error);
+      console.error('Error analyzing Risk Network health:', error);
     } finally {
       setAnalyzing(false);
     }
   };
 
   const handleAutoConnect = async (sourceId: string, targetId: string, synapseId: string) => {
+    if (!isOnline) return;
     setConnecting(synapseId);
     try {
       await addConnection(sourceId, targetId);
@@ -57,11 +60,19 @@ export function ZettelkastenHealth() {
         </div>
         <button
           onClick={analyzeHealth}
-          disabled={analyzing || nodes.length === 0}
-          className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-50"
+          disabled={analyzing || nodes.length === 0 || !isOnline}
+          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
+            !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
+          }`}
         >
-          {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          <span>Auditar Red con IA</span>
+          {!isOnline ? (
+            <WifiOff className="w-4 h-4" />
+          ) : analyzing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
+          <span>{!isOnline ? 'Requiere Conexión' : 'Auditar Red con IA'}</span>
         </button>
       </div>
 

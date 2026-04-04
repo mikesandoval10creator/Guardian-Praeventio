@@ -1,23 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Brain, Zap, AlertTriangle, Shield, CheckCircle2, Loader2, FileText, Download, X } from 'lucide-react';
+import { Brain, Zap, AlertTriangle, Shield, CheckCircle2, Loader2, FileText, Download, X, WifiOff, Scale } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { predictGlobalIncidents, generateSafetyReport } from '../../services/geminiService';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 export function PredictiveAnalysis() {
-  const { nodes, loading: nodesLoading } = useUniversalKnowledge();
+  const { nodes, loading: nodesLoading, environment } = useUniversalKnowledge();
   const [analyzing, setAnalyzing] = useState(false);
   const [results, setResults] = useState<any>(null);
   const [generatingReport, setGeneratingReport] = useState<string | null>(null);
   const [report, setReport] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const isOnline = useOnlineStatus();
+  const reportRef = useRef<HTMLDivElement>(null);
 
   const runAnalysis = async () => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0 || !isOnline) return;
     setAnalyzing(true);
     try {
       const context = nodes.map(n => `- [${n.type}] ${n.title}: ${n.description} (Tags: ${n.tags.join(', ')})`).join('\n');
-      const data = await predictGlobalIncidents(context);
+      const envContext = environment ? `Clima: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h. Sismos recientes: ${environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud + ' en ' + environment.earthquakes[0].RefGeografica : 'Ninguno'}.` : 'Sin datos ambientales.';
+      const data = await predictGlobalIncidents(context, envContext);
       setResults(data);
     } catch (error) {
       console.error('Error running predictive analysis:', error);
@@ -26,17 +36,59 @@ export function PredictiveAnalysis() {
     }
   };
 
-  const handleGenerateReport = async (nodeId: string, title: string, description: string) => {
+  const handleGenerateReport = async (nodeId: string, title: string, description: string, mitigacion: string, fundamentoLegal?: string) => {
+    if (!isOnline) return;
     setGeneratingReport(nodeId);
     try {
       const node = nodes.find(n => n.id === nodeId);
       const connections = node?.connections.map(id => nodes.find(n => n.id === id)?.title).join(', ') || 'Ninguna';
-      const pts = await generateSafetyReport('PTS', `${title}: ${description}\nConexiones: ${connections}`);
+      const envContext = environment ? `Clima: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h. Sismos: ${environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud : 'Ninguno'}.` : 'Sin datos ambientales.';
+      
+      const context = `
+Riesgo Principal: ${title}
+Descripción/Razón: ${description}
+Mitigación Sugerida por IA: ${mitigacion}
+Fundamento Legal: ${fundamentoLegal || 'No especificado'}
+Nodos Relacionados (Zettelkasten): ${connections}
+Contexto Ambiental: ${envContext}
+      `;
+      
+      const pts = await generateSafetyReport('PTS', context);
       setReport(pts);
     } catch (error) {
       console.error('Error generating report:', error);
     } finally {
       setGeneratingReport(null);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!reportRef.current) return;
+    setDownloading(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#18181b' // zinc-900
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('PTS_Generado_Guardian_AI.pdf');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -69,10 +121,17 @@ export function PredictiveAnalysis() {
             </div>
             <button
               onClick={runAnalysis}
-              disabled={analyzing || nodes.length === 0}
-              className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2 active:scale-95"
+              disabled={analyzing || nodes.length === 0 || !isOnline}
+              className={`px-6 py-3 rounded-xl font-bold transition-all shadow-lg disabled:opacity-50 flex items-center gap-2 active:scale-95 ${
+                !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-500/20'
+              }`}
             >
-              {analyzing ? (
+              {!isOnline ? (
+                <>
+                  <WifiOff className="w-4 h-4" />
+                  <span>Requiere Conexión</span>
+                </>
+              ) : analyzing ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Analizando...</span>
@@ -145,17 +204,31 @@ export function PredictiveAnalysis() {
                         <p className="text-emerald-400/80 text-[11px] leading-snug">{pred.mitigacionSugerida}</p>
                       </div>
 
+                      {pred.fundamentoLegal && (
+                        <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-2">
+                          <Scale className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest mb-1">Fundamento Legal</p>
+                            <p className="text-blue-400/80 text-[11px] leading-snug">{pred.fundamentoLegal}</p>
+                          </div>
+                        </div>
+                      )}
+
                       <button
-                        onClick={() => handleGenerateReport(pred.nodoId, pred.titulo, pred.razon)}
-                        disabled={generatingReport === pred.nodoId}
-                        className="w-full py-2 rounded-xl bg-white/5 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                        onClick={() => handleGenerateReport(pred.nodoId, pred.titulo, pred.razon, pred.mitigacionSugerida, pred.fundamentoLegal)}
+                        disabled={generatingReport === pred.nodoId || !isOnline}
+                        className={`w-full py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                          !isOnline ? 'bg-zinc-800 border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                        }`}
                       >
-                        {generatingReport === pred.nodoId ? (
+                        {!isOnline ? (
+                          <WifiOff className="w-3 h-3" />
+                        ) : generatingReport === pred.nodoId ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
                         ) : (
                           <FileText className="w-3 h-3" />
                         )}
-                        Generar PTS con IA
+                        {!isOnline ? 'Requiere Conexión' : 'Generar PTS con IA'}
                       </button>
                     </motion.div>
                   ))}
@@ -169,7 +242,13 @@ export function PredictiveAnalysis() {
       {/* Report Modal/Overlay */}
       <AnimatePresence>
         {report && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <motion.div
+            key="modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -194,9 +273,12 @@ export function PredictiveAnalysis() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar" ref={reportRef}>
                 <div className="markdown-body prose prose-invert max-w-none">
-                  <ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
                     {report}
                   </ReactMarkdown>
                 </div>
@@ -206,13 +288,26 @@ export function PredictiveAnalysis() {
                 <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
                   Este documento es una sugerencia basada en IA. Debe ser validado por un experto.
                 </p>
-                <button className="px-6 py-3 rounded-xl bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-zinc-200 transition-all flex items-center gap-2">
-                  <Download className="w-4 h-4" />
-                  Descargar PDF
+                <button 
+                  onClick={handleDownloadPDF}
+                  disabled={downloading}
+                  className="px-6 py-3 rounded-xl bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-zinc-200 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {downloading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generando PDF...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Descargar PDF
+                    </>
+                  )}
                 </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

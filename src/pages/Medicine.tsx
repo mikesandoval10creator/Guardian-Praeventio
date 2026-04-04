@@ -13,13 +13,13 @@ import {
   Calendar
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddMedicineModal } from '../components/medicine/AddMedicineModal';
 
 export function Medicine() {
   const { selectedProject } = useProject();
-  const { nodes, loading } = useZettelkasten();
+  const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 

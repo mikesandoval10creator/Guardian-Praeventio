@@ -1,11 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
 import { analyzeRiskWithAI, generateActionPlan } from '../../services/geminiService';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
-import { NodeType, ZettelkastenNode } from '../../types';
-import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCircuit, ListChecks } from 'lucide-react';
+import { NodeType, RiskNode } from '../../types';
+import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCircuit, ListChecks, WifiOff } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface AnalysisResult {
   criticidad: string;
@@ -18,6 +19,16 @@ interface IPERCAnalysisProps {
   onClose?: () => void;
 }
 
+const getCriticalityColor = (criticidad?: string) => {
+  switch (criticidad?.toLowerCase()) {
+    case 'crítica': return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
+    case 'alta': return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
+    case 'media': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'baja': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+    default: return 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20';
+  }
+};
+
 export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,9 +36,10 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
   const [saved, setSaved] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [actionPlan, setActionPlan] = useState<any[] | null>(null);
-  const { addNode, addConnection } = useZettelkasten();
+  const { addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
   const { nodes: allNodes } = useUniversalKnowledge();
+  const isOnline = useOnlineStatus();
 
   const nodesContext = useMemo(() => {
     return allNodes
@@ -43,7 +55,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
     setSaved(false);
     setActionPlan(null);
     try {
-      const data = await analyzeRiskWithAI(description, nodesContext);
+      const data = await analyzeRiskWithAI(description, nodesContext, selectedProject?.industry);
       setResult(data);
     } catch (error) {
       console.error('Error analyzing risk:', error);
@@ -65,7 +77,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
     }
   };
 
-  const handleSaveToZettelkasten = async () => {
+  const handleSaveToMatrix = async () => {
     if (!result || !description) return;
     setLoading(true);
     
@@ -130,7 +142,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
 
       // 3. Create EPP Nodes (for each control that looks like an EPP)
       const eppKeywords = ['casco', 'guantes', 'botas', 'lentes', 'arnés', 'protector', 'mascarilla', 'epp'];
-      const eppNodes: ZettelkastenNode[] = [];
+      const eppNodes: RiskNode[] = [];
 
       for (const control of result.controles) {
         const isEPP = eppKeywords.some(k => control.toLowerCase().includes(k));
@@ -177,32 +189,32 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
-        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+        <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 ml-1">
           Descripción de la Tarea o Peligro
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ej: Trabajos en altura sobre 1.8m en andamios móviles..."
-          className="w-full h-32 p-4 bg-zinc-50 dark:bg-zinc-800 border-2 border-zinc-100 dark:border-zinc-700 rounded-3xl text-sm outline-none focus:border-emerald-500 transition-colors resize-none"
+          className="w-full h-32 p-4 bg-zinc-800/50 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none"
         />
 
         {similarRisks.length > 0 && (
-          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800/30 space-y-3">
-            <h4 className="text-[9px] font-black uppercase tracking-widest text-amber-600 flex items-center gap-2">
-              <BrainCircuit className="w-3 h-3" />
+          <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-500 flex items-center gap-2">
+              <BrainCircuit className="w-4 h-4" />
               Conocimiento Similar en la Red Neuronal
             </h4>
             <div className="space-y-3">
               {similarRisks.map((risk) => (
                 <div key={risk.id} className="space-y-2">
-                  <div className="px-2 py-1 bg-white dark:bg-zinc-800 rounded-lg text-[10px] font-bold text-zinc-600 border border-amber-200 dark:border-amber-800/50 inline-block">
+                  <div className="px-2 py-1 bg-zinc-800 rounded-lg text-xs font-medium text-zinc-300 border border-amber-500/30 inline-block">
                     {risk.title}
                   </div>
                   {risk.metadata?.controles && (
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {risk.metadata.controles.slice(0, 2).map((c: string, i: number) => (
-                        <span key={i} className="text-[9px] text-amber-700 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/40 px-2 py-0.5 rounded-md">
+                        <span key={i} className="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
                           • {c}
                         </span>
                       ))}
@@ -214,71 +226,76 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
           </div>
         )}
 
-        <Button
+        <button
           onClick={handleAnalyze}
-          disabled={loading || !description.trim()}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          disabled={loading || !description.trim() || !isOnline}
+          className={`w-full py-3 rounded-xl font-medium text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
+            !isOnline 
+              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
+              : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+          }`}
         >
-          {loading ? (
+          {!isOnline ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Analizando con IA...
+              <WifiOff className="w-5 h-5" />
+              <span>Requiere Conexión</span>
+            </>
+          ) : loading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Analizando con IA...</span>
             </>
           ) : (
             <>
-              <Zap className="w-4 h-4" />
-              Generar Matriz IPERC
+              <Zap className="w-5 h-5" />
+              <span>Generar Matriz IPERC</span>
             </>
           )}
-        </Button>
+        </button>
       </div>
 
       {result && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700">
+          <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-xl border border-white/5">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-xl ${
-                result.criticidad === 'Crítica' ? 'bg-red-100 text-red-600' :
-                result.criticidad === 'Alta' ? 'bg-orange-100 text-orange-600' :
-                'bg-emerald-100 text-emerald-600'
-              }`}>
+              <div className={`p-2.5 rounded-xl border ${getCriticalityColor(result.criticidad)}`}>
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest">Criticidad</span>
-                <span className="text-sm font-black uppercase">{result.criticidad}</span>
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Criticidad</span>
+                <span className="text-sm font-bold text-white uppercase">{result.criticidad}</span>
               </div>
             </div>
-            <Button
-              onClick={handleSaveToZettelkasten}
+            <button
+              onClick={handleSaveToMatrix}
               disabled={saved}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
-                saved ? 'bg-amber-100 text-amber-600' : 'bg-zinc-900 text-white hover:bg-black'
+              className={`px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 transition-all ${
+                saved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-white/10'
               }`}
             >
               {saved ? (
                 <>
-                  <CheckCircle2 className="w-3 h-3" />
-                  Enviado a Revisión
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Enviado a Revisión</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-3 h-3" />
-                  Sugerir a la Matriz
+                  <Save className="w-4 h-4" />
+                  <span>Sugerir a la Matriz</span>
                 </>
               )}
-            </Button>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                <Shield className="w-3 h-3" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2 ml-1">
+                <Shield className="w-4 h-4" />
                 Controles Sugeridos
               </h4>
               <div className="space-y-2">
                 {result.controles.map((control, i) => (
-                  <div key={i} className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-[11px] leading-relaxed border-l-4 border-emerald-500">
+                  <div key={i} className="p-3 bg-zinc-800/30 rounded-xl text-sm text-zinc-300 leading-relaxed border-l-2 border-emerald-500">
                     {control}
                   </div>
                 ))}
@@ -286,13 +303,13 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                <Plus className="w-3 h-3" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2 ml-1">
+                <Plus className="w-4 h-4" />
                 Recomendaciones
               </h4>
               <div className="space-y-2">
                 {result.recomendaciones.map((rec, i) => (
-                  <div key={i} className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-xl text-[11px] leading-relaxed border-l-4 border-blue-500">
+                  <div key={i} className="p-3 bg-zinc-800/30 rounded-xl text-sm text-zinc-300 leading-relaxed border-l-2 border-blue-500">
                     {rec}
                   </div>
                 ))}
@@ -300,54 +317,54 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
             </div>
           </div>
 
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800/30">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">
+          <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-2">
               Normativa Aplicable (Chile)
             </h4>
-            <p className="text-[11px] text-blue-800 dark:text-blue-300 leading-relaxed font-medium">
+            <p className="text-sm text-blue-200 leading-relaxed">
               {result.normativa}
             </p>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-2">
-                <ListChecks className="w-3 h-3" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2 ml-1">
+                <ListChecks className="w-4 h-4" />
                 Plan de Acción IA
               </h4>
               {!actionPlan && (
-                <Button
+                <button
                   onClick={handleGenerateActionPlan}
-                  disabled={generatingPlan}
-                  className="bg-zinc-800 text-white hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest flex items-center gap-2"
+                  disabled={generatingPlan || !isOnline}
+                  className={`bg-zinc-800 text-white hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors border border-white/10 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  {generatingPlan ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                  Generar Tareas
-                </Button>
+                  {!isOnline ? <WifiOff className="w-4 h-4" /> : generatingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {!isOnline ? 'Offline' : 'Generar Tareas'}
+                </button>
               )}
             </div>
 
             {actionPlan && (
               <div className="grid grid-cols-1 gap-3">
                 {actionPlan.map((task, i) => (
-                  <div key={i} className="p-4 bg-zinc-800/50 border border-white/5 rounded-2xl flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <h5 className="text-[11px] font-black text-white uppercase tracking-tight">{task.title}</h5>
-                      <p className="text-[10px] text-zinc-400 leading-relaxed">{task.description}</p>
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
-                          task.priority === 'high' ? 'bg-red-500/10 text-red-500' :
-                          task.priority === 'medium' ? 'bg-amber-500/10 text-amber-500' :
-                          'bg-blue-500/10 text-blue-500'
+                  <div key={i} className="p-4 bg-zinc-800/50 border border-white/5 rounded-xl flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-bold text-white">{task.title}</h5>
+                      <p className="text-xs text-zinc-400 leading-relaxed">{task.description}</p>
+                      <div className="flex items-center gap-3 pt-1">
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${
+                          task.priority === 'high' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/20' :
+                          task.priority === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20' :
+                          'bg-blue-500/20 text-blue-400 border border-blue-500/20'
                         }`}>
                           Prioridad: {task.priority}
                         </span>
-                        <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
                           Plazo: {task.deadline}
                         </span>
                       </div>
                     </div>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-1" />
                   </div>
                 ))}
               </div>

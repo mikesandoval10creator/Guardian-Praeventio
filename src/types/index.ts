@@ -22,6 +22,7 @@ export enum NodeType {
   HYGIENE = 'Higiene',
   MEDICINE = 'Medicina',
   ERGONOMICS = 'Ergonomía',
+  PSYCHOSOCIAL = 'Psicosocial',
   FINDING = 'Hallazgo',
   AUDIT = 'Auditoría',
   PROJECT = 'Proyecto',
@@ -31,7 +32,7 @@ export enum NodeType {
   ATTENDANCE = 'Asistencia',
 }
 
-export interface ZettelkastenNode {
+export interface RiskNode {
   id: string;
   type: NodeType;
   title: string;
@@ -43,6 +44,8 @@ export interface ZettelkastenNode {
   isPublic?: boolean;
   createdAt: string;
   updatedAt: string;
+  embedding?: number[];
+  isPendingSync?: boolean;
 }
 
 export interface WeatherData {
@@ -71,6 +74,7 @@ export interface SeismicData {
 export interface EnvironmentContext {
   weather: WeatherData | null;
   seismic: SeismicData | null;
+  earthquakes?: any[];
   lastUpdated: number;
 }
 
@@ -114,6 +118,9 @@ export interface Worker {
   coordinates?: { lat: number; lng: number }; // Added for SiteMap
   medicalClearanceDate?: string; // Added for Access Control
   certifications?: string[]; // Added for Access Control
+  contractStatus?: 'Vigente' | 'Vencido' | 'Por Vencer';
+  odiSigned?: boolean;
+  digitalSignatureStatus?: 'Firmado' | 'Pendiente' | 'Rechazado';
 }
 
 export interface TrainingSession {
@@ -147,7 +154,7 @@ export interface SafetyPost {
   }[];
   createdAt: string;
   projectId?: string;
-  zettelkastenNodeId?: string;
+  riskNodeId?: string;
 }
 
 export interface SafetySolution {
@@ -183,4 +190,5 @@ export interface Asset {
   projectId: string;
   createdAt: string;
   coordinates?: { lat: number; lng: number }; // Added for SiteMap
+  isPendingSync?: boolean;
 }

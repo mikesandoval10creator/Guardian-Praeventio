@@ -11,12 +11,16 @@ import {
   Loader2, 
   Calendar,
   User,
-  Wrench
+  Wrench,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
 import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 import { where } from 'firebase/firestore';
 import { Asset } from '../../types';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { saveForSync } from '../../utils/pwa-offline';
 
 interface MaquinariaManagerProps {
   projectId: string;
@@ -26,6 +30,7 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(false);
+  const isOnline = useOnlineStatus();
   
   const { data: assets, loading: fetching } = useFirestoreCollection<Asset>(
     'assets',
@@ -45,11 +50,23 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      await addDoc(collection(db, 'assets'), {
+      const assetData = {
         ...formData,
         projectId,
         createdAt: new Date().toISOString()
-      });
+      };
+
+      if (!isOnline) {
+        await saveForSync({
+          type: 'create',
+          collection: 'assets',
+          data: assetData
+        });
+        alert('Activo guardado para sincronización cuando haya conexión.');
+      } else {
+        await addDoc(collection(db, 'assets'), assetData);
+      }
+      
       setIsAdding(false);
       setFormData({
         name: '',
@@ -86,9 +103,13 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
         
         <button 
           onClick={() => setIsAdding(!isAdding)}
-          className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5"
+          className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all border bg-zinc-800 hover:bg-zinc-700 text-white border-white/5"
         >
-          {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {isAdding ? (
+            <X className="w-4 h-4" />
+          ) : (
+            <Plus className="w-4 h-4" />
+          )}
           <span>{isAdding ? 'Cancelar' : 'Añadir Activo'}</span>
         </button>
       </div>
@@ -152,9 +173,13 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 uppercase tracking-widest text-[10px]"
+                className="w-full font-black py-3 rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                {loading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4" />
+                )}
                 Guardar Activo
               </button>
             </div>
@@ -206,6 +231,12 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
                     }`}>
                       {asset.status}
                     </span>
+                    {asset.isPendingSync && (
+                      <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                        <RefreshCw className="w-2 h-2 animate-spin" />
+                        Pendiente
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

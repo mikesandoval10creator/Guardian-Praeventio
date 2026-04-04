@@ -1,26 +1,32 @@
 import React, { useState } from 'react';
 import { KnowledgeGraph } from '../components/shared/KnowledgeGraph';
-import { Brain, Network, Zap, Info, Clock, Activity, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { RiskNetworkExplorer } from '../components/risk-network/RiskNetworkExplorer';
+import { RiskNetworkHealth } from '../components/risk-network/RiskNetworkHealth';
+import { RiskNetworkManager } from '../components/risk-network/RiskNetworkManager';
+import { Brain, Network, Zap, Info, Clock, Activity, ArrowRight, Sparkles, Loader2, Maximize2, Minimize2, Box, LayoutGrid, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { analyzeZettelkastenNetwork, predictAccidents } from '../services/geminiService';
+import { analyzeRiskNetwork, predictAccidents } from '../services/geminiService';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
-export function Zettelkasten() {
-  const { nodes, loading } = useZettelkasten();
+export function RiskNetwork() {
+  const { nodes, loading } = useRiskEngine();
+  const [activeTab, setActiveTab] = useState<'graph' | 'explorer' | 'health' | 'manager'>('graph');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiInsight, setAiInsight] = useState<any>(null);
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictions, setPredictions] = useState<any[]>([]);
+  const isOnline = useOnlineStatus();
 
   const handleAnalyze = async () => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0 || !isOnline) return;
     setIsAnalyzing(true);
     try {
       const context = nodes.map(n => `${n.type}: ${n.title} - ${n.description}`).join('\n');
-      const result = await analyzeZettelkastenNetwork(context);
+      const result = await analyzeRiskNetwork(context);
       setAiInsight(result);
     } catch (error) {
       console.error("Error analyzing nodes:", error);
@@ -30,7 +36,7 @@ export function Zettelkasten() {
   };
 
   const handlePredict = async () => {
-    if (nodes.length === 0) return;
+    if (nodes.length === 0 || !isOnline) return;
     setIsPredicting(true);
     try {
       const context = nodes.map(n => `${n.type}: ${n.title} - ${n.description}`).join('\n');
@@ -67,57 +73,117 @@ export function Zettelkasten() {
       : 0
   };
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border">
+    <div className={`p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border`}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <div className="bg-emerald-500/10 p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-emerald-500/20 shrink-0">
-            <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="bg-emerald-500/10 p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-emerald-500/20 shrink-0">
+              <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white leading-tight">El Cerebro</h1>
+              <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">Red Neuronal de Prevención y Conocimiento</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white leading-tight">El Cerebro</h1>
-            <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">Red Neuronal de Prevención y Conocimiento</p>
-          </div>
-        </div>
 
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
-          <div className="bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
-            <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500" />
-            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Conciencia Activa</span>
-          </div>
-          <div className="bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
-            <Network className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />
-            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Sinapsis en Tiempo Real</span>
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
+            <div className="bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
+              <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500" />
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Conciencia Activa</span>
+            </div>
+            <div className="bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
+              <Network className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Sinapsis en Tiempo Real</span>
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Info Banner */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-zinc-900 border border-white/10 rounded-3xl p-6 flex items-start gap-4"
-      >
-        <div className="bg-blue-500/10 p-2 rounded-xl">
-          <Info className="w-5 h-5 text-blue-500" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-xs font-black uppercase tracking-widest text-white">¿Cómo funciona la Red Neuronal?</h3>
-          <p className="text-[11px] text-zinc-500 leading-relaxed max-w-2xl">
-            Cada análisis de riesgo, trabajador o normativa se convierte en un "nodo" de conocimiento. 
-            El sistema conecta automáticamente estos nodos para revelar patrones invisibles, 
-            permitiendo una gestión proactiva basada en la interconexión de datos.
-          </p>
-        </div>
-      </motion.div>
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-zinc-900 border border-white/10 rounded-3xl p-6 flex items-start gap-4"
+        >
+          <div className="bg-blue-500/10 p-2 rounded-xl">
+            <Info className="w-5 h-5 text-blue-500" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xs font-black uppercase tracking-widest text-white">¿Cómo funciona la Red Neuronal?</h3>
+            <p className="text-[11px] text-zinc-500 leading-relaxed max-w-2xl">
+              Cada análisis de riesgo, trabajador o normativa se convierte en un "nodo" de conocimiento. 
+              El sistema conecta automáticamente estos nodos para revelar patrones invisibles, 
+              permitiendo una gestión proactiva basada en la interconexión de datos.
+            </p>
+          </div>
+        </motion.div>
 
-      {/* Graph Container */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Visualización del Grafo</h2>
-          <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Interactúa con los nodos para ver detalles</span>
-        </div>
-        <KnowledgeGraph />
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1 bg-zinc-900/50 border border-white/5 rounded-2xl w-fit">
+        {[
+          { id: 'graph', label: 'Grafo 3D', icon: Network },
+          { id: 'explorer', label: 'Explorador', icon: LayoutGrid },
+          { id: 'health', label: 'Salud de Red', icon: Activity },
+          { id: 'manager', label: 'Gestor', icon: Settings },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === tab.id 
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="space-y-8">
+        {activeTab === 'graph' && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Visualización del Grafo</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Interactúa con los nodos para ver detalles</span>
+              </div>
+            </div>
+            <KnowledgeGraph />
+          </motion.div>
+        )}
+
+        {activeTab === 'explorer' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <RiskNetworkExplorer />
+          </motion.div>
+        )}
+
+        {activeTab === 'health' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <RiskNetworkHealth />
+          </motion.div>
+        )}
+
+        {activeTab === 'manager' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <RiskNetworkManager />
+          </motion.div>
+        )}
       </div>
 
       {/* Insights Section */}
@@ -182,11 +248,11 @@ export function Zettelkasten() {
           <div className="pt-4 border-t border-white/5">
             <button
               onClick={handleAnalyze}
-              disabled={isAnalyzing || nodes.length === 0}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+              disabled={isAnalyzing || nodes.length === 0 || !isOnline}
+              className="w-full flex items-center justify-center gap-2 bg-[var(--btn-secondary-bg)] hover:opacity-80 disabled:opacity-50 text-[var(--btn-secondary-text,white)] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg"
             >
               {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              Analizar Red Neuronal
+              {isOnline ? 'Analizar Red Neuronal' : 'Requiere Conexión'}
             </button>
             
             {aiInsight && (
@@ -225,11 +291,11 @@ export function Zettelkasten() {
           </p>
           <button
             onClick={handlePredict}
-            disabled={isPredicting || nodes.length === 0}
+            disabled={isPredicting || nodes.length === 0 || !isOnline}
             className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20"
           >
             {isPredicting ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-            Predecir Riesgos Inminentes
+            {isOnline ? 'Predecir Riesgos Inminentes' : 'Requiere Conexión'}
           </button>
 
           {predictions.length > 0 && (

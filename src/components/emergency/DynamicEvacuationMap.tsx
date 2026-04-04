@@ -55,26 +55,26 @@ export function DynamicEvacuationMap() {
   }, [activeEmergencies.length]);
 
   return (
-    <section className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 space-y-6">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
-            <Navigation className="w-6 h-6" />
+    <section className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-8 space-y-4 sm:space-y-6">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20 shrink-0">
+            <Navigation className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Rutas Dinámicas</h3>
-            <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Cálculo de Evacuación en Tiempo Real</p>
+            <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight leading-tight">Rutas Dinámicas</h3>
+            <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">Cálculo de Evacuación en Tiempo Real</p>
           </div>
         </div>
         {activeEmergencies.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-rose-500/10 border border-rose-500/20 rounded-full animate-pulse">
-            <AlertCircle className="w-3 h-3 text-rose-500" />
-            <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Emergencia Detectada</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-full animate-pulse self-start sm:self-auto">
+            <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+            <span className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest">Emergencia Detectada</span>
           </div>
         )}
       </header>
 
-      <div className="relative aspect-video bg-black/40 rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center">
+      <div className="relative aspect-square sm:aspect-video bg-black/40 rounded-xl sm:rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent" />
           <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
@@ -87,49 +87,49 @@ export function DynamicEvacuationMap() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-4"
+              className="flex flex-col items-center gap-3 sm:gap-4 p-4 text-center"
             >
-              <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
-              <p className="text-xs font-black text-zinc-500 uppercase tracking-widest animate-pulse">Recalculando Rutas Seguras...</p>
+              <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-blue-500 animate-spin" />
+              <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest animate-pulse">Recalculando Rutas Seguras...</p>
             </motion.div>
           ) : routeData ? (
             <motion.div
               key="route"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-full h-full p-8 flex flex-col justify-center"
+              className="w-full h-full p-4 sm:p-8 flex flex-col justify-center overflow-y-auto custom-scrollbar"
             >
-              <div className="max-w-md space-y-6">
-                <div className="space-y-2">
+              <div className="max-w-md space-y-4 sm:space-y-6 mx-auto w-full">
+                <div className="space-y-1 sm:space-y-2">
                   <div className="flex items-center gap-2 text-emerald-500">
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span className="text-sm font-black uppercase tracking-widest">Ruta Óptima Encontrada</span>
+                    <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                    <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Ruta Óptima Encontrada</span>
                   </div>
-                  <h4 className="text-2xl font-black text-white leading-tight uppercase tracking-tighter">
+                  <h4 className="text-lg sm:text-2xl font-black text-white leading-tight uppercase tracking-tighter">
                     {routeData.safeRoute}
                   </h4>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Tiempo Est.</p>
-                    <p className="text-lg font-black text-white">{routeData.estimatedTime}</p>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="p-3 sm:p-4 bg-white/5 rounded-xl border border-white/5">
+                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Tiempo Est.</p>
+                    <p className="text-base sm:text-lg font-black text-white">{routeData.estimatedTime}</p>
                   </div>
-                  <div className="p-4 bg-white/5 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Prioridad</p>
-                    <p className={`text-lg font-black uppercase ${
+                  <div className="p-3 sm:p-4 bg-white/5 rounded-xl border border-white/5">
+                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Prioridad</p>
+                    <p className={`text-base sm:text-lg font-black uppercase ${
                       routeData.priority === 'Alta' ? 'text-rose-500' : 'text-emerald-500'
                     }`}>{routeData.priority}</p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
-                    <XCircle className="w-3 h-3" /> Áreas Bloqueadas / Peligrosas
+                  <p className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
+                    <XCircle className="w-3 h-3 shrink-0" /> Áreas Bloqueadas / Peligrosas
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {routeData.blockedAreas.map((area: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[10px] font-bold text-rose-400 uppercase">
+                      <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] sm:text-[10px] font-bold text-rose-400 uppercase">
                         {area}
                       </span>
                     ))}
@@ -138,24 +138,24 @@ export function DynamicEvacuationMap() {
               </div>
             </motion.div>
           ) : (
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/5">
-                <MapIcon className="w-8 h-8 text-zinc-700" />
+            <div className="text-center space-y-3 sm:space-y-4 p-4">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/5">
+                <MapIcon className="w-6 h-6 sm:w-8 sm:h-8 text-zinc-700" />
               </div>
               <div>
-                <p className="text-sm font-bold text-zinc-500">No hay emergencias activas.</p>
-                <p className="text-[10px] font-medium text-zinc-600 uppercase tracking-widest">El sistema de rutas dinámicas está en espera.</p>
+                <p className="text-xs sm:text-sm font-bold text-zinc-500">No hay emergencias activas.</p>
+                <p className="text-[9px] sm:text-[10px] font-medium text-zinc-600 uppercase tracking-widest mt-1">El sistema de rutas dinámicas está en espera.</p>
               </div>
             </div>
           )}
         </AnimatePresence>
       </div>
 
-      <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl flex items-start gap-4">
-        <Zap className="w-5 h-5 text-blue-500 mt-1" />
+      <div className="p-3 sm:p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl sm:rounded-2xl flex items-start gap-3 sm:gap-4">
+        <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mt-0.5 sm:mt-1 shrink-0" />
         <div>
-          <h4 className="text-sm font-bold text-white">Inteligencia de Evacuación</h4>
-          <p className="text-xs text-zinc-500 leading-relaxed">
+          <h4 className="text-xs sm:text-sm font-bold text-white">Inteligencia de Evacuación</h4>
+          <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed mt-1">
             El sistema monitorea constantemente los nodos de emergencia en la Red Neuronal y recalcula las rutas de escape evitando zonas de peligro reportadas en tiempo real.
           </p>
         </div>

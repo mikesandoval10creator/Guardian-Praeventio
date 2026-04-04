@@ -1,22 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User, Shield, Zap, Save, LineChart as LineChartIcon, HeartPulse } from 'lucide-react';
+import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User, Shield, Zap, Save, LineChart as LineChartIcon, HeartPulse, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { analyzeBioImage } from '../services/geminiService';
 import { CompensatoryExercisesModal } from '../components/bio/CompensatoryExercisesModal';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { FaceLandmarker, PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function BioAnalysis() {
   const { user } = useFirebase();
   const { selectedProject } = useProject();
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -28,10 +30,16 @@ export function BioAnalysis() {
     attention: 100,
     epp: 100
   });
+  const [eppDetails, setEppDetails] = useState<{ detected: string[], missing: string[] }>({
+    detected: [],
+    missing: []
+  });
   const [history, setHistory] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<string[]>([]);
   const [lastAnalysisImage, setLastAnalysisImage] = useState<string | null>(null);
   const [isExercisesModalOpen, setIsExercisesModalOpen] = useState(false);
+  const [isModelsLoaded, setIsModelsLoaded] = useState(false);
+  const isOnline = useOnlineStatus();
 
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -67,6 +75,7 @@ export function BioAnalysis() {
         if (isMounted) {
           faceLandmarkerRef.current = faceLandmarker;
           poseLandmarkerRef.current = poseLandmarker;
+          setIsModelsLoaded(true);
         }
       } catch (error) {
         console.error("Error loading mediapipe models:", error);
@@ -246,6 +255,10 @@ export function BioAnalysis() {
       };
 
       setMetrics(newMetrics);
+      setEppDetails({
+        detected: result.detectedEPP || [],
+        missing: result.missingEPP || []
+      });
       setAlerts(result.alerts || []);
       
       setHistory(prev => {
@@ -265,7 +278,7 @@ export function BioAnalysis() {
     }
   };
 
-  const saveToZettelkasten = async () => {
+  const saveToRiskNetwork = async () => {
     if (!selectedProject || !user) {
       alert("Selecciona un proyecto primero.");
       return;
@@ -289,7 +302,7 @@ export function BioAnalysis() {
         createdAt: serverTimestamp()
       });
 
-      // 2. Save to Zettelkasten
+      // 2. Save to Risk Network
       await addNode({
         projectId: selectedProject.id,
         type: NodeType.FINDING,
@@ -309,6 +322,7 @@ export function BioAnalysis() {
   };
 
   return (
+    <PremiumFeatureGuard featureName="Bio-Análisis en Tiempo Real" description="Utiliza computer vision para detectar fatiga, postura y uso de EPP en tiempo real.">
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
@@ -321,24 +335,25 @@ export function BioAnalysis() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={toggleCamera}
+            disabled={!isModelsLoaded}
             className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
-              cameraActive ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-white text-black hover:bg-zinc-200'
+              !isModelsLoaded ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : cameraActive ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-white text-black hover:bg-zinc-200'
             }`}
           >
-            <Camera className="w-4 h-4" />
-            <span>{cameraActive ? 'Detener Cámara' : 'Iniciar Cámara'}</span>
+            {!isModelsLoaded ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            <span>{!isModelsLoaded ? 'Cargando Modelos...' : cameraActive ? 'Detener Cámara' : 'Iniciar Cámara'}</span>
           </button>
           
           {cameraActive && (
             <button 
               onClick={captureAndAnalyze}
-              disabled={isAiProcessing}
+              disabled={isAiProcessing || !isOnline}
               className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
-                isAiProcessing ? 'bg-zinc-500 text-white cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                !isOnline ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : isAiProcessing ? 'bg-zinc-500 text-white cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-600'
               }`}
             >
-              {isAiProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              <span>{isAiProcessing ? 'Analizando...' : 'Analizar con IA'}</span>
+              {!isOnline ? <WifiOff className="w-4 h-4" /> : isAiProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              <span>{!isOnline ? 'Requiere Conexión' : isAiProcessing ? 'Analizando...' : 'Analizar con IA'}</span>
             </button>
           )}
         </div>
@@ -412,7 +427,7 @@ export function BioAnalysis() {
                 </button>
                 {alerts.length > 0 && (
                   <button 
-                    onClick={saveToZettelkasten}
+                    onClick={saveToRiskNetwork}
                     className="flex items-center gap-2 bg-blue-500/20 text-blue-400 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"
                   >
                     <Save className="w-3 h-3" />
@@ -442,6 +457,52 @@ export function BioAnalysis() {
                 </div>
               )}
             </div>
+
+            {/* EPP Details Section */}
+            {(eppDetails.detected.length > 0 || eppDetails.missing.length > 0) && (
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <h4 className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-indigo-500" />
+                  Detalle de EPP Detectado
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+                    <h5 className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <CheckCircle2 className="w-3 h-3" /> EPP Presente
+                    </h5>
+                    {eppDetails.detected.length > 0 ? (
+                      <ul className="space-y-2">
+                        {eppDetails.detected.map((item, i) => (
+                          <li key={i} className="text-xs text-zinc-300 flex items-center gap-2">
+                            <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-zinc-500 italic">No se detectó EPP.</p>
+                    )}
+                  </div>
+                  <div className="bg-rose-500/5 border border-rose-500/20 rounded-xl p-4">
+                    <h5 className="text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-3 h-3" /> EPP Faltante
+                    </h5>
+                    {eppDetails.missing.length > 0 ? (
+                      <ul className="space-y-2">
+                        {eppDetails.missing.map((item, i) => (
+                          <li key={i} className="text-xs text-zinc-300 flex items-center gap-2">
+                            <div className="w-1 h-1 rounded-full bg-rose-500" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-zinc-500 italic">No se detectaron faltantes.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -586,5 +647,6 @@ export function BioAnalysis() {
         metrics={metrics}
       />
     </div>
+    </PremiumFeatureGuard>
   );
 }

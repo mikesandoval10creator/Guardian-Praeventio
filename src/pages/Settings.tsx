@@ -11,12 +11,15 @@ import {
   Palette,
   ChevronRight,
   Zap,
-  Smartphone
+  Smartphone,
+  WifiOff
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function Settings() {
   const { notificationPermissionStatus, requestPermission } = usePushNotifications();
+  const isOnline = useOnlineStatus();
 
   const sections = [
     { title: 'Perfil y Cuenta', icon: User, description: 'Gestiona tu información personal y preferencias de acceso.' },
@@ -60,9 +63,21 @@ export function Settings() {
               {notificationPermissionStatus !== 'granted' && (
                 <button 
                   onClick={requestPermission}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors"
+                  disabled={!isOnline}
+                  className={`px-4 py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors flex items-center gap-2 ${
+                    !isOnline 
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' 
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                  }`}
                 >
-                  Activar Notificaciones
+                  {!isOnline ? (
+                    <>
+                      <WifiOff className="w-3 h-3" />
+                      Requiere Conexión
+                    </>
+                  ) : (
+                    'Activar Notificaciones'
+                  )}
                 </button>
               )}
             </div>
@@ -98,20 +113,20 @@ export function Settings() {
         ))}
       </div>
 
-      <div className="mt-12 p-6 bg-rose-500/5 border border-rose-500/10 rounded-3xl">
-        <div className="flex items-center gap-3 mb-4">
-          <Shield className="w-6 h-6 text-rose-500" />
-          <h3 className="text-lg font-bold text-white">Zona de Peligro</h3>
+      <div className="mt-8 sm:mt-12 p-4 sm:p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl sm:rounded-3xl">
+        <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+          <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500" />
+          <h3 className="text-base sm:text-lg font-bold text-white uppercase tracking-widest">Zona de Peligro</h3>
         </div>
-        <p className="text-zinc-500 text-sm mb-6">
+        <p className="text-[10px] sm:text-sm text-zinc-500 mb-4 sm:mb-6 leading-relaxed">
           Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.
         </p>
-        <div className="flex flex-wrap gap-4">
-          <button className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-sm font-bold rounded-xl transition-all border border-rose-500/20">
-            Cerrar Sesión en todos los dispositivos
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <button className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 active:scale-95">
+            Cerrar Sesión Global
           </button>
-          <button className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-rose-500/20">
-            Eliminar Cuenta Permanentemente
+          <button className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500 hover:bg-rose-600 text-white text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20 active:scale-95">
+            Eliminar Cuenta
           </button>
         </div>
       </div>

@@ -3,17 +3,25 @@ import { motion } from 'framer-motion';
 import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { ZettelkastenNode, NodeType } from '../types';
+import { RiskNode, NodeType } from '../types';
 import { where, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/firebase';
+import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import { generateEmergencyPlanJSON } from '../services/geminiService';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirebase } from '../contexts/FirebaseContext';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { WifiOff } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 export function EmergencyGenerator() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const [scenario, setScenario] = useState('');
   const [description, setDescription] = useState('');
   const [normative, setNormative] = useState('DS 594 / Ley 16.744');
@@ -22,8 +30,12 @@ export function EmergencyGenerator() {
   const [generatedPlan, setGeneratedPlan] = useState<any>(null);
   const [selectedRiskId, setSelectedRiskId] = useState<string>('');
 
-  // Fetch approved risks from Zettelkasten
-  const { data: nodes } = useFirestoreCollection<ZettelkastenNode>(
+  const [isDownloading, setIsDownloading] = useState(false);
+  const pdfRef = React.useRef<HTMLDivElement>(null);
+  const isOnline = useOnlineStatus();
+
+  // Fetch approved risks from Risk Network
+  const { data: nodes } = useFirestoreCollection<RiskNode>(
     'nodes',
     selectedProject ? [where('projectId', '==', selectedProject.id)] : []
   );
@@ -53,11 +65,11 @@ export function EmergencyGenerator() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!scenario || !description) return;
+    if (!scenario || !description || !isOnline) return;
 
     setIsGenerating(true);
     try {
-      const data = await generateEmergencyPlanJSON(scenario, description, normative);
+      const data = await generateEmergencyPlanJSON(scenario, description, normative, selectedProject?.industry);
       if (data) {
         setGeneratedPlan(data);
       }
@@ -69,11 +81,46 @@ export function EmergencyGenerator() {
   };
 
   const handleSave = async () => {
-    if (!generatedPlan || !selectedProject || !user) return;
+    if (!generatedPlan || !selectedProject || !user || !pdfRef.current) return;
     
     setIsSaving(true);
     try {
-      // 1. Save document to Firestore
+      // 1. Generate PDF Blob
+      const canvas = await html2canvas(pdfRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
+      const pdfBlob = pdf.output('blob');
+
+      // 2. Upload to Storage
+      const timestamp = new Date().getTime();
+      const fileName = `PE_${scenario.replace(/\s+/g, '_')}_${timestamp}.pdf`;
+      const storageRef = ref(storage, `projects/${selectedProject.id}/documents/${fileName}`);
+      await uploadBytes(storageRef, pdfBlob);
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      // 3. Save document to Firestore
       const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
         name: `Plan de Emergencia: ${scenario}`,
         category: 'Plan de Emergencia',
@@ -82,11 +129,12 @@ export function EmergencyGenerator() {
         uploadedBy: user.displayName || user.email || 'Usuario',
         projectId: selectedProject.id,
         content: generatedPlan, // Storing the structured JSON
+        url: downloadUrl, // Storing the PDF URL
         isGenerated: true,
         createdAt: serverTimestamp()
       });
 
-      // 2. Add to Zettelkasten
+      // 4. Add to Risk Network
       await addNode({
         type: NodeType.DOCUMENT,
         title: `Plan de Emergencia: ${scenario}`,
@@ -98,11 +146,12 @@ export function EmergencyGenerator() {
           documentId: docRef.id,
           category: 'Plan de Emergencia',
           status: 'Vigente',
-          isGenerated: true
+          isGenerated: true,
+          pdfUrl: downloadUrl
         }
       });
 
-      // 3. Add to Emergency Protocols
+      // 5. Add to Emergency Protocols
       await addDoc(collection(db, `projects/${selectedProject.id}/emergency_protocols`), {
         title: `Plan de Emergencia: ${scenario}`,
         category: 'Generado por IA',
@@ -119,6 +168,45 @@ export function EmergencyGenerator() {
       alert('Error al guardar el Plan de Emergencia');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!pdfRef.current || !generatedPlan) return;
+    
+    setIsDownloading(true);
+    try {
+      const canvas = await html2canvas(pdfRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      
+      pdf.save(`PE_${scenario.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Error al descargar el PDF');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -206,10 +294,17 @@ export function EmergencyGenerator() {
 
               <button
                 type="submit"
-                disabled={isGenerating || !scenario || !description}
-                className="w-full bg-rose-500 hover:bg-rose-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-6 py-4 rounded-xl font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 mt-4"
+                disabled={isGenerating || !scenario || !description || !isOnline}
+                className={`w-full px-6 py-4 rounded-xl font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 mt-4 ${
+                  !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : isGenerating ? 'bg-rose-500/50 text-white cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 text-white'
+                }`}
               >
-                {isGenerating ? (
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-4 h-4" />
+                    Requiere Conexión
+                  </>
+                ) : isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     Generando Plan...
@@ -229,6 +324,7 @@ export function EmergencyGenerator() {
         <div className="lg:col-span-2">
           {generatedPlan ? (
             <motion.div
+              ref={pdfRef}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-8 text-zinc-900 shadow-2xl"
@@ -238,16 +334,22 @@ export function EmergencyGenerator() {
                   <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tighter text-zinc-900 leading-tight">Plan de Emergencia</h2>
                   <p className="text-sm sm:text-base text-rose-600 font-bold mt-1">{scenario}</p>
                 </div>
-                <div className="flex gap-2 self-end sm:self-auto">
+                <div className="flex gap-2 self-end sm:self-auto" data-html2canvas-ignore="true">
                   <button 
                     onClick={handleSave}
-                    disabled={isSaving}
+                    disabled={isSaving || !isOnline}
                     className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors disabled:opacity-50"
+                    title="Guardar en Drive y Risk Network"
                   >
                     {isSaving ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Save className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
-                  <button className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors">
-                    <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <button 
+                    onClick={handleDownloadPDF}
+                    disabled={isDownloading || !isOnline}
+                    className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors disabled:opacity-50"
+                    title="Descargar PDF"
+                  >
+                    {isDownloading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Download className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
                 </div>
               </div>
@@ -263,8 +365,36 @@ export function EmergencyGenerator() {
                   <p className="text-sm sm:text-base text-zinc-700 leading-relaxed">{generatedPlan.alcance}</p>
                 </section>
 
+                {generatedPlan.marcoLegal && generatedPlan.marcoLegal.length > 0 && (
+                  <section>
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">3. Marco Legal y Normativo</h3>
+                    <ul className="space-y-2">
+                      {generatedPlan.marcoLegal.map((ley: string, i: number) => (
+                        <li key={i} className="flex gap-2 sm:gap-3 text-sm sm:text-base text-zinc-700">
+                          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0 mt-0.5" />
+                          <span>{ley}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {generatedPlan.evaluacionMatematica && (
+                  <section>
+                    <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">4. Evaluación Matemática del Riesgo</h3>
+                    <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-200 text-sm sm:text-base text-zinc-700 leading-relaxed prose prose-zinc max-w-none prose-p:my-2 prose-headings:mb-3 prose-headings:mt-4">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkMath]} 
+                        rehypePlugins={[rehypeKatex]}
+                      >
+                        {generatedPlan.evaluacionMatematica}
+                      </ReactMarkdown>
+                    </div>
+                  </section>
+                )}
+
                 <section>
-                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">3. Cadena de Mando y Comunicaciones</h3>
+                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">5. Cadena de Mando y Comunicaciones</h3>
                   <ul className="space-y-2">
                     {generatedPlan.cadenaMando.map((item: string, i: number) => (
                       <li key={i} className="flex gap-2 sm:gap-3 text-sm sm:text-base text-zinc-700">
@@ -276,7 +406,7 @@ export function EmergencyGenerator() {
                 </section>
 
                 <section>
-                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">4. Acciones Inmediatas</h3>
+                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">6. Acciones Inmediatas</h3>
                   <ul className="space-y-2">
                     {generatedPlan.accionesInmediatas.map((item: string, i: number) => (
                       <li key={i} className="flex gap-2 sm:gap-3 text-sm sm:text-base text-zinc-700">
@@ -288,7 +418,7 @@ export function EmergencyGenerator() {
                 </section>
 
                 <section>
-                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">5. Procedimiento de Evacuación</h3>
+                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">7. Procedimiento de Evacuación</h3>
                   <ul className="space-y-2">
                     {generatedPlan.evacuacion.map((item: string, i: number) => (
                       <li key={i} className="flex gap-2 sm:gap-3 text-sm sm:text-base text-zinc-700">
@@ -302,7 +432,7 @@ export function EmergencyGenerator() {
                 </section>
 
                 <section>
-                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">6. Equipos de Emergencia Requeridos</h3>
+                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-zinc-400 mb-2 sm:mb-3">8. Equipos de Emergencia Requeridos</h3>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {generatedPlan.equipos.map((equipo: string, i: number) => (
                       <span key={i} className="bg-rose-50 text-rose-700 px-2 sm:px-3 py-1 rounded-md sm:rounded-lg text-xs sm:text-sm font-medium border border-rose-100">

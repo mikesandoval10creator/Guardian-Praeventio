@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { 
   User as UserIcon, 
   Shield, 
@@ -29,9 +30,12 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { TrainingSession, SafetyPost } from '../types';
 import { motion } from 'framer-motion';
 
+import { MFASetupModal } from '../components/auth/MFASetupModal';
+
 export function Profile() {
   const { user, isAdmin } = useFirebase();
   const navigate = useNavigate();
+  const [isMfaSetupOpen, setIsMfaSetupOpen] = useState(false);
 
   const { data: sessions } = useFirestoreCollection<TrainingSession>('training');
 
@@ -163,7 +167,15 @@ export function Profile() {
 
       {/* Settings & Logout */}
       <div className="px-4 pt-8 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Button 
+            variant="secondary" 
+            onClick={() => setIsMfaSetupOpen(true)}
+            className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 border-zinc-200 dark:border-zinc-800"
+          >
+            <Shield className="w-4 h-4" />
+            MFA
+          </Button>
           <Button 
             variant="secondary" 
             onClick={() => navigate('/settings')}
@@ -182,6 +194,15 @@ export function Profile() {
           </Button>
         </div>
       </div>
+
+      <MFASetupModal 
+        isOpen={isMfaSetupOpen} 
+        onClose={() => setIsMfaSetupOpen(false)} 
+        onComplete={() => {
+          localStorage.setItem('mfa_setup_completed', 'true');
+          setIsMfaSetupOpen(false);
+        }} 
+      />
     </div>
   );
 }

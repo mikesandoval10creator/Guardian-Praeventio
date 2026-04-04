@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save } from 'lucide-react';
+import { Search, Loader2, AlertTriangle, CheckCircle2, Zap, FileText, ArrowRight, Save, WifiOff } from 'lucide-react';
 import { investigateIncidentWithAI } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 export function IncidentInvestigation() {
   const [incidentTitle, setIncidentTitle] = useState('');
@@ -15,10 +16,11 @@ export function IncidentInvestigation() {
   const [saved, setSaved] = useState(false);
   const { nodes } = useUniversalKnowledge();
   const { selectedProject } = useProject();
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
+  const isOnline = useOnlineStatus();
 
   const handleInvestigate = async () => {
-    if (!incidentTitle || !selectedProject) return;
+    if (!incidentTitle || !selectedProject || !isOnline) return;
     setLoading(true);
     setAnalysis(null);
     setSaved(false);
@@ -117,11 +119,27 @@ export function IncidentInvestigation() {
         </div>
         <button
           onClick={handleInvestigate}
-          disabled={loading || !incidentTitle || !selectedProject}
-          className="w-full bg-amber-500 hover:bg-amber-600 text-black font-black py-4 rounded-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading || !incidentTitle || !selectedProject || !isOnline}
+          className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${
+            !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : loading || !incidentTitle || !selectedProject ? 'bg-amber-600/50 text-white cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600 text-black shadow-amber-500/20'
+          }`}
         >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
-          <span className="uppercase tracking-widest text-sm">Iniciar Investigación IA</span>
+          {!isOnline ? (
+            <>
+              <WifiOff className="w-5 h-5" />
+              <span>Requiere Conexión</span>
+            </>
+          ) : loading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Investigando...</span>
+            </>
+          ) : (
+            <>
+              <Zap className="w-5 h-5" />
+              <span>Iniciar Investigación IA</span>
+            </>
+          )}
         </button>
       </div>
 

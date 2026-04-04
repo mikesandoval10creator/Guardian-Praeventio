@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Shield,
   X,
-  Youtube
+  Youtube,
+  Gamepad2,
+  WifiOff
 } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -24,9 +26,12 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useFirebase } from '../contexts/FirebaseContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { generateSafetyCapsule, generateTrainingQuiz } from '../services/geminiService';
 import { TrainingSession } from '../types';
+import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { saveForSync } from '../utils/pwa-offline';
 
 interface QuizQuestion {
   question: string;
@@ -45,7 +50,7 @@ export function Training() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
-  const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
   const [capsule, setCapsule] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -66,7 +71,8 @@ export function Training() {
   });
 
   const { data: allSessions, loading } = useFirestoreCollection<TrainingSession>('training');
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
+  const isOnline = useOnlineStatus();
 
   const filteredSessions = allSessions.filter(session => {
     if (activeTab === 'library') return session.isCurated;
@@ -80,14 +86,26 @@ export function Training() {
     e.preventDefault();
     
     try {
-      const collectionRef = collection(db, 'training');
-      await addDoc(collectionRef, {
+      const sessionData = {
         ...newSessionForm,
         date: new Date().toISOString(),
         status: 'scheduled',
         attendees: [],
         projectId: newSessionForm.isCurated ? null : selectedProject?.id
-      });
+      };
+
+      if (!isOnline) {
+        await saveForSync({
+          type: 'create',
+          collection: 'training',
+          data: sessionData
+        });
+        alert('Sesión guardada para sincronización cuando haya conexión.');
+      } else {
+        const collectionRef = collection(db, 'training');
+        await addDoc(collectionRef, sessionData);
+      }
+      
       setIsCreatingSession(false);
       setNewSessionForm({ title: '', description: '', youtubeUrl: '', duration: 15, points: 100, isCurated: false });
     } catch (error) {
@@ -139,7 +157,7 @@ export function Training() {
   };
 
   const handleStartQuiz = async () => {
-    if (!activeVideoSession) return;
+    if (!activeVideoSession || !isOnline) return;
     setIsGeneratingQuiz(true);
     try {
       const questions = await generateTrainingQuiz(activeVideoSession.title, activeVideoSession.description);
@@ -176,6 +194,7 @@ export function Training() {
   };
 
   const handleGenerateCapsule = async () => {
+    if (!isOnline) return;
     setGeneratingCapsule(true);
     try {
       // Find nodes connected to the user (heuristic: nodes with user's name or relevant tags)
@@ -226,27 +245,30 @@ export function Training() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-emerald-500" />
+          <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
             Capacitaciones & Formación
           </h1>
-          <p className="text-zinc-400 mt-1 font-medium italic">"El conocimiento es la primera línea de defensa"</p>
+          <p className="text-zinc-400 mt-1 font-medium italic text-xs sm:text-base">"El conocimiento es la primera línea de defensa"</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <button 
             onClick={handleGenerateCapsule}
-            disabled={generatingCapsule}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-blue-500/20 active:scale-95 disabled:opacity-50"
+            disabled={generatingCapsule || !isOnline}
+            title={!isOnline ? 'Requiere conexión a internet' : ''}
+            className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 ${
+              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20'
+            }`}
           >
-            {generatingCapsule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            <span>Cápsula de Seguridad IA</span>
+            {generatingCapsule ? <Loader2 className="w-4 h-4 animate-spin" /> : !isOnline ? <WifiOff className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+            <span>{!isOnline ? 'Requiere Conexión' : 'Cápsula de Seguridad IA'}</span>
           </button>
           <button 
             onClick={() => setIsCreatingSession(true)}
-            className="flex items-center gap-2 bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95"
+            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-white"
           >
             <Plus className="w-4 h-4" />
             <span>Nueva Sesión</span>
@@ -317,9 +339,9 @@ export function Training() {
               initial={{ opacity: 0, scale: 0.9, y: 40 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-xl overflow-hidden flex flex-col shadow-2xl"
+              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-xl overflow-hidden flex flex-col shadow-2xl max-h-[90vh]"
             >
-              <div className="p-8 border-b border-white/5 flex justify-between items-center">
+              <div className="p-8 border-b border-white/5 flex justify-between items-center shrink-0">
                 <h2 className="text-xl font-black text-white uppercase tracking-tighter">Nueva Capacitación</h2>
                 <button 
                   onClick={() => setIsCreatingSession(false)}
@@ -329,7 +351,7 @@ export function Training() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreateSession} className="p-8 space-y-6">
+              <form onSubmit={handleCreateSession} className="p-8 space-y-6 overflow-y-auto custom-scrollbar">
                 <div>
                   <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">Título</label>
                   <input
@@ -478,11 +500,14 @@ export function Training() {
                 </button>
                 <button 
                   onClick={handleStartQuiz}
-                  disabled={isGeneratingQuiz}
-                  className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-[10px] uppercase tracking-widest hover:from-amber-400 hover:to-orange-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                  disabled={isGeneratingQuiz || !isOnline}
+                  title={!isOnline ? 'Requiere conexión a internet' : ''}
+                  className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
+                    !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-400 hover:to-orange-500 shadow-lg shadow-amber-500/20'
+                  }`}
                 >
-                  {isGeneratingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Brain className="w-4 h-4" />}
-                  Validar Conocimiento (Quiz IA)
+                  {isGeneratingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : !isOnline ? <WifiOff className="w-4 h-4" /> : <Brain className="w-4 h-4" />}
+                  {isOnline ? 'Validar Conocimiento (Quiz IA)' : 'Requiere Conexión'}
                 </button>
               </div>
             </motion.div>
@@ -495,9 +520,9 @@ export function Training() {
               initial={{ opacity: 0, scale: 0.9, y: 40 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl"
+              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl max-h-[90vh]"
             >
-              <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-amber-500/10 to-transparent">
+              <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-amber-500/10 to-transparent shrink-0">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
                     <Brain className="w-6 h-6" />
@@ -519,7 +544,7 @@ export function Training() {
                 )}
               </div>
 
-              <div className="p-10 space-y-8">
+              <div className="p-10 space-y-8 overflow-y-auto custom-scrollbar">
                 {!isQuizFinished ? (
                   <>
                     <div className="space-y-4">
@@ -611,43 +636,45 @@ export function Training() {
       </AnimatePresence>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         {[
           { label: 'Total Sesiones', value: allSessions.length, icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/10' },
           { label: 'Completadas', value: allSessions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
           { label: 'Programadas', value: allSessions.filter(s => s.status === 'scheduled').length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Participantes', value: allSessions.reduce((acc, s) => acc + (s.attendees?.length || 0), 0), icon: Users, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
         ].map((stat, i) => (
-          <div key={i} className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 shadow-xl hover:border-white/20 transition-all">
-            <div className="flex items-center gap-4 mb-4">
-              <div className={`w-12 h-12 ${stat.bg} rounded-2xl flex items-center justify-center border border-white/5`}>
-                <stat.icon className={`w-6 h-6 ${stat.color}`} />
+          <div key={i} className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl hover:border-white/20 transition-all">
+            <div className="flex items-center gap-2 sm:gap-4 mb-2 sm:mb-4">
+              <div className={`w-8 h-8 sm:w-12 sm:h-12 ${stat.bg} rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/5`}>
+                <stat.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${stat.color}`} />
               </div>
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{stat.label}</span>
+              <span className="text-[8px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">{stat.label}</span>
             </div>
-            <div className="text-4xl font-black text-white tracking-tighter">{stat.value}</div>
+            <div className="text-2xl sm:text-4xl font-black text-white tracking-tighter">{stat.value}</div>
           </div>
         ))}
       </div>
 
       {/* Tabs & Search */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex bg-zinc-900/50 p-1.5 rounded-2xl border border-white/10 self-start shadow-inner">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+        <div className="flex bg-zinc-900/50 p-1.5 rounded-2xl border border-white/10 self-start shadow-inner overflow-x-auto custom-scrollbar max-w-full">
           {[
             { id: 'all', label: 'Mis Cursos' },
             { id: 'library', label: 'Biblioteca Global' },
             { id: 'upcoming', label: 'Próximas' },
             { id: 'completed', label: 'Completadas' },
+            { id: 'gamification', label: 'Gamificación', icon: <Gamepad2 className="w-4 h-4 mr-2 inline-block" /> },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                 activeTab === tab.id 
                   ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
                   : 'text-zinc-500 hover:text-white'
               }`}
             >
+              {tab.icon}
               {tab.label}
             </button>
           ))}
@@ -662,54 +689,64 @@ export function Training() {
         </div>
       </div>
 
-      {/* Sessions Grid */}
-      {loading ? (
+      {/* Content Area */}
+      {activeTab === 'gamification' ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+        >
+          <FindTheGuardian />
+        </motion.div>
+      ) : loading ? (
         <div className="flex flex-col items-center justify-center py-32 gap-4">
           <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
           <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Cargando Conocimiento...</p>
         </div>
       ) : filteredSessions.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
           {filteredSessions.map((session, index) => (
             <motion.div
               key={session.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-zinc-900/50 border border-white/10 rounded-[32px] p-8 hover:border-emerald-500/30 transition-all group shadow-xl hover:shadow-emerald-500/5"
+              className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-[32px] p-4 sm:p-8 hover:border-emerald-500/30 transition-all group shadow-xl hover:shadow-emerald-500/5 flex flex-col"
             >
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-center gap-4">
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 ${
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 sm:mb-6">
+                <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+                  <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/5 shrink-0 ${
                     session.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
                   }`}>
-                    {session.status === 'completed' ? <Award className="w-7 h-7" /> : <Play className="w-7 h-7" />}
+                    {session.status === 'completed' ? <Award className="w-5 h-5 sm:w-7 sm:h-7" /> : <Play className="w-5 h-5 sm:w-7 sm:h-7" />}
                   </div>
-                  <div>
-                    <h3 className="font-black text-white text-xl uppercase tracking-tight group-hover:text-emerald-400 transition-colors">{session.title}</h3>
-                    <div className="flex items-center gap-3 text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-1">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>{new Date(session.date).toLocaleDateString()} · {session.duration} min</span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-black text-white text-base sm:text-xl uppercase tracking-tight group-hover:text-emerald-400 transition-colors truncate">{session.title}</h3>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[8px] sm:text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-1">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        <span>{new Date(session.date).toLocaleDateString()} · {session.duration} min</span>
+                      </div>
                       {session.points && (
-                        <>
-                          <span className="w-1 h-1 rounded-full bg-zinc-700" />
+                        <div className="flex items-center gap-1">
+                          <span className="w-1 h-1 rounded-full bg-zinc-700 hidden sm:block" />
                           <span className="text-amber-500 flex items-center gap-1">
-                            <Award className="w-3.5 h-3.5" />
+                            <Award className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                             {session.points} PTS
                           </span>
-                        </>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                <div className="flex flex-row sm:flex-col items-center sm:items-end w-full sm:w-auto justify-between sm:justify-end gap-2 shrink-0">
+                  <span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest ${
                     session.status === 'completed' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-black'
                   }`}>
                     {session.status === 'completed' ? 'Completada' : 'Programada'}
                   </span>
                   {session.youtubeUrl && (
-                    <span className="flex items-center gap-1 text-[9px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-2 py-1 rounded-md border border-red-500/20">
+                    <span className="flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-2 py-1 rounded-md border border-red-500/20">
                       <Youtube className="w-3 h-3" />
                       Video
                     </span>
@@ -717,40 +754,40 @@ export function Training() {
                 </div>
               </div>
 
-              <p className="text-zinc-400 text-sm mb-8 line-clamp-2 font-medium leading-relaxed">
+              <p className="text-zinc-400 text-xs sm:text-sm mb-4 sm:mb-8 line-clamp-2 font-medium leading-relaxed flex-1">
                 {session.description || 'Sin descripción detallada para esta sesión de capacitación.'}
               </p>
 
-              <div className="flex items-center justify-between pt-6 border-t border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="flex -space-x-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 sm:pt-6 border-t border-white/5 mt-auto">
+                <div className="flex items-center justify-between sm:justify-start w-full sm:w-auto gap-3">
+                  <div className="flex -space-x-2 sm:-space-x-3">
                     {[1, 2, 3].map((_, i) => (
-                      <div key={i} className="w-8 h-8 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center text-[10px] font-black text-zinc-500 shadow-lg">
+                      <div key={i} className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center text-[8px] sm:text-[10px] font-black text-zinc-500 shadow-lg">
                         U
                       </div>
                     ))}
                   </div>
-                  <span className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">
+                  <span className="text-[8px] sm:text-[10px] text-zinc-500 font-black uppercase tracking-widest">
                     {session.attendees?.length || 0} participantes
                   </span>
                 </div>
                 {session.isCurated ? (
                   <button 
                     onClick={() => handleAssignToProject(session)}
-                    className="px-6 py-2.5 rounded-xl bg-blue-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-400 transition-all shadow-lg shadow-blue-500/20"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-blue-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-blue-400 transition-all shadow-lg shadow-blue-500/20"
                   >
                     Asignar a mi Proyecto
                   </button>
                 ) : session.youtubeUrl ? (
                   <button 
                     onClick={() => setActiveVideoSession(session)}
-                    className="text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95"
+                    className="w-full sm:w-auto justify-center text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-red-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
                   >
                     <Youtube className="w-4 h-4" />
                     <span>Ver Video</span>
                   </button>
                 ) : (
-                  <button className="text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95">
+                  <button className="w-full sm:w-auto justify-center text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-emerald-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none">
                     <span>Ver Detalles</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>

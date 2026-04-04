@@ -1,19 +1,40 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Upload, FileText, CheckCircle2, Loader2, Sparkles, Database, AlertTriangle } from 'lucide-react';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { Brain, Upload, FileText, CheckCircle2, Loader2, Sparkles, Database, AlertTriangle, WifiOff } from 'lucide-react';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { processDocumentToNodes } from '../services/geminiService';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { NodeType } from '../types';
 
 export function KnowledgeIngestion() {
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; nodesAdded: number; message: string } | null>(null);
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
+  const isOnline = useOnlineStatus();
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      setText(prev => prev + (prev ? '\n\n' : '') + content);
+      setIsUploading(false);
+    };
+    reader.onerror = () => {
+      setIsUploading(false);
+      alert('Error al leer el archivo');
+    };
+    reader.readAsText(file);
+  };
 
   const handleProcess = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || !isOnline) return;
     
     setIsProcessing(true);
     setResult(null);
@@ -95,23 +116,45 @@ export function KnowledgeIngestion() {
               <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
                 {text.length} caracteres
               </div>
-              <button
-                onClick={handleProcess}
-                disabled={!text.trim() || isProcessing}
-                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Procesando...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Asimilar Conocimiento
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                  {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                  {isUploading ? 'Cargando...' : 'Cargar Archivo (TXT)'}
+                  <input 
+                    type="file" 
+                    accept=".txt,.md,.json" 
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                  />
+                </label>
+                <button
+                  onClick={handleProcess}
+                  disabled={!text.trim() || isProcessing || !isOnline}
+                  className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
+                    !isOnline 
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed'
+                  }`}
+                >
+                  {!isOnline ? (
+                    <>
+                      <WifiOff className="w-4 h-4" />
+                      Requiere Conexión
+                    </>
+                  ) : isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Asimilar Conocimiento
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {result && (

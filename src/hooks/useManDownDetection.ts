@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useZettelkasten } from './useZettelkasten';
+import { useRiskEngine } from './useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { NodeType } from '../types';
@@ -13,7 +13,7 @@ export function useManDownDetection() {
   const [isAlerting, setIsAlerting] = useState(false);
   const [countdown, setCountdown] = useState(10);
   const lastMovementTime = useRef(Date.now());
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -56,7 +56,7 @@ export function useManDownDetection() {
         );
       });
 
-      // 1. Add Zettelkasten Node
+      // 1. Add Risk Node
       await addNode({
         type: NodeType.EMERGENCY,
         title: `ALERTA: Hombre Caído - ${user.displayName || 'Trabajador'}`,

@@ -2,14 +2,18 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { registerSW } from 'virtual:pwa-register';
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.log('ServiceWorker registration failed: ', err);
-    });
-  });
-}
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('Nueva actualización disponible. ¿Deseas recargar?')) {
+      updateSW(true);
+    }
+  },
+  onOfflineReady() {
+    console.log('Praeventio Guard está listo para operar sin conexión.');
+  },
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

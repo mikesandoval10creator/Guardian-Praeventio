@@ -1,9 +1,70 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
-import { ZettelkastenNode } from '../types';
+import { RiskNode } from '../types';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
-export const autoConnectNodes = async (newNode: ZettelkastenNode, existingNodes: ZettelkastenNode[]): Promise<string[]> => {
+export const generateEmbedding = async (text: string): Promise<number[]> => {
+  if (!API_KEY) return [];
+  try {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const result = await ai.models.embedContent({
+      model: 'gemini-embedding-2-preview',
+      contents: [text],
+    });
+    return result.embeddings?.[0]?.values || [];
+  } catch (error) {
+    console.error("Error generating embedding:", error);
+    return [];
+  }
+};
+
+export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => {
+  if (!API_KEY || texts.length === 0) return [];
+  try {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const result = await ai.models.embedContent({
+      model: 'gemini-embedding-2-preview',
+      contents: texts,
+    });
+    return result.embeddings?.map(e => e.values || []) || [];
+  } catch (error) {
+    console.error("Error generating embeddings batch:", error);
+    return texts.map(() => []);
+  }
+};
+
+// Calculate cosine similarity between two vectors
+const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+};
+
+export const semanticSearch = async (query: string, nodes: RiskNode[], topK: number = 10): Promise<RiskNode[]> => {
+  if (!API_KEY || nodes.length === 0) return [];
+  
+  const queryEmbedding = await generateEmbedding(query);
+  if (queryEmbedding.length === 0) return [];
+
+  const nodesWithScores = nodes
+    .filter(node => node.embedding && node.embedding.length > 0)
+    .map(node => ({
+      node,
+      score: cosineSimilarity(queryEmbedding, node.embedding!)
+    }));
+
+  nodesWithScores.sort((a, b) => b.score - a.score);
+  return nodesWithScores.slice(0, topK).map(item => item.node);
+};
+
+export const autoConnectNodes = async (newNode: RiskNode, existingNodes: RiskNode[]): Promise<string[]> => {
   if (!API_KEY) return [];
   if (existingNodes.length === 0) return [];
 
@@ -18,7 +79,7 @@ export const autoConnectNodes = async (newNode: ZettelkastenNode, existingNodes:
       tags: n.tags
     }));
 
-    const prompt = `Eres el motor de inteligencia de un sistema Zettelkasten de Prevención de Riesgos.
+    const prompt = `Eres el motor de inteligencia de una Red Neuronal de Prevención de Riesgos.
     Acaba de ingresar un nuevo nodo al sistema:
     - Título: ${newNode.title}
     - Tipo: ${newNode.type}
@@ -279,16 +340,17 @@ export const processDocumentToNodes = async (text: string) => {
   return JSON.parse(response.text || '[]');
 };
 
-export const analyzeRiskWithAI = async (description: string, nodesContext?: string) => {
+export const analyzeRiskWithAI = async (description: string, nodesContext?: string, industry?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Analiza el siguiente riesgo laboral y proporciona recomendaciones preventivas, controles sugeridos y nivel de criticidad.
-    Utiliza el contexto de la red de conocimiento (Zettelkasten) para identificar patrones de riesgos similares y controles exitosos en otros proyectos.
+    Utiliza el contexto de la red de conocimiento para identificar patrones de riesgos similares y controles exitosos en otros proyectos.
+    ${industry ? `\nIMPORTANTE: Adapta el análisis, las normativas y los controles específicamente para la industria: ${industry}. Considera los protocolos y estándares propios de este rubro.` : ''}
     
-    CONTEXTO DE CONOCIMIENTO PREVIO (Zettelkasten):
+    CONTEXTO DE CONOCIMIENTO PREVIO:
     ${nodesContext || 'No hay contexto previo disponible.'}
     
     NUEVO RIESGO A ANALIZAR:
@@ -317,7 +379,7 @@ export const analyzeFastCheck = async (observation: string) => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Analiza la siguiente observación rápida de seguridad en terreno (Fast Check) y clasifícala para el sistema Zettelkasten.
+    contents: `Analiza la siguiente observación rápida de seguridad en terreno (Fast Check) y clasifícala para la Red Neuronal de Seguridad.
     
     OBSERVACIÓN:
     ${observation}`,
@@ -346,14 +408,17 @@ export const predictGlobalIncidents = async (nodesContext: string, environmentCo
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Analiza la siguiente red neuronal de seguridad (Zettelkasten) y detecta los 3 nodos de riesgo con mayor probabilidad de fallo o incidente en las próximas 48 horas.
+    contents: `Eres "El Guardián", el núcleo de IA de Praeventio Guard. Analiza la siguiente red neuronal de seguridad y detecta los 3 nodos de riesgo con mayor probabilidad de fallo o incidente en las próximas 48 horas.
+    Cruza variables: Clima + Fatiga + Normativa + Tipo de Faena.
     Considera conexiones entre trabajadores, falta de EPP, normativas no cumplidas y condiciones de entorno.
     
     ENTORNO ACTUAL (Clima, Sismos, etc.):
     ${environmentContext}
 
     RED DE CONOCIMIENTO:
-    ${nodesContext}`,
+    ${nodesContext}
+    
+    Para cada predicción, no solo describas el riesgo, entrega la medida de control inmediata y el fundamento legal específico (ej. "Según DS 594 Art. 12...", "Ley 16.744").`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -371,9 +436,10 @@ export const predictGlobalIncidents = async (nodesContext: string, environmentCo
                 titulo: { type: Type.STRING },
                 probabilidad: { type: Type.NUMBER },
                 razon: { type: Type.STRING },
-                mitigacionSugerida: { type: Type.STRING }
+                mitigacionSugerida: { type: Type.STRING },
+                fundamentoLegal: { type: Type.STRING, description: "Fundamento legal chileno (ej. DS 594, Ley 16.744) que justifica la mitigación." }
               },
-              required: ["nodoId", "titulo", "probabilidad", "razon", "mitigacionSugerida"]
+              required: ["nodoId", "titulo", "probabilidad", "razon", "mitigacionSugerida", "fundamentoLegal"]
             }
           }
         },
@@ -420,7 +486,7 @@ export const calculateDynamicEvacuation = async (nodesContext: string, currentIn
 };
 
 
-export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, glossaryContext: string = '', envContext: string = '', zettelkastenContext: string = '', documentType: string = 'PTS') => {
+export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, glossaryContext: string = '', envContext: string = '', matrixContext: string = '', documentType: string = 'PTS') => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -434,7 +500,7 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
     Nivel de Riesgo Esperado: ${riskLevel}
     Normativa Principal a Cumplir: ${normative}
     Contexto Ambiental Actual (Telemetría): ${envContext}
-    Contexto Histórico y Operativo (Zettelkasten): ${zettelkastenContext}
+    Contexto Histórico y Operativo (Red Neuronal): ${matrixContext}
     
     GLOSARIO TÉCNICO DE REFERENCIA:
     Utiliza estrictamente los términos de este glosario en tu redacción para mantener la estandarización:
@@ -443,13 +509,16 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
     El documento debe incluir:
     1. Objetivo
     2. Alcance
-    3. Responsabilidades
-    4. ${isPE ? 'Equipos de Emergencia y Rescate requeridos' : 'Equipos de Protección Individual (EPI) / EPP requeridos'} (Considera el contexto ambiental)
-    5. ${isPE ? 'Escenarios de Riesgo y Medidas Preventivas' : 'Riesgos Asociados y Medidas Correctoras (Controles)'} (Incluye riesgos ambientales derivados de la telemetría y lecciones aprendidas del Zettelkasten)
-    6. ${isPE ? 'Procedimiento de Evacuación y Respuesta Paso a Paso' : 'Procedimiento Paso a Paso de la tarea'}
-    7. ${isPE ? 'Comunicaciones y Contactos de Emergencia' : 'Respuesta a Emergencias'} (Incluye protocolos para sismos o clima adverso si aplica)
+    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables que justifiquen este documento)
+    4. Evaluación Matemática del Riesgo (Incluye la fórmula en formato LaTeX: $MR = P \\times C$, y explica los valores asignados para Probabilidad y Consecuencia basados en el nivel ${riskLevel})
+    5. Responsabilidades
+    6. ${isPE ? 'Equipos de Emergencia y Rescate requeridos' : 'Equipos de Protección Individual (EPI) / EPP requeridos'} (Considera el contexto ambiental)
+    7. ${isPE ? 'Escenarios de Riesgo y Medidas Preventivas' : 'Riesgos Asociados y Medidas Correctoras (Controles)'} (Incluye riesgos ambientales derivados de la telemetría y lecciones aprendidas de la Red Neuronal)
+    8. ${isPE ? 'Procedimiento de Evacuación y Respuesta Paso a Paso' : 'Procedimiento Paso a Paso de la tarea'}
+    9. ${isPE ? 'Comunicaciones y Contactos de Emergencia' : 'Respuesta a Emergencias'} (Incluye protocolos para sismos o clima adverso si aplica)
     
     Asegúrate de que el contenido sea profesional, técnico y cumpla estrictamente con la normativa indicada (${normative}) y sea adecuado para un nivel de riesgo ${riskLevel}.
+    IMPORTANTE: En la sección "evaluacionMatematica", DEBES usar sintaxis LaTeX encerrada en signos de dólar (ej. $MR = P \\times C$) para las fórmulas.
   `;
 
   const response = await ai.models.generateContent({
@@ -462,6 +531,15 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
         properties: {
           objetivo: { type: Type.STRING },
           alcance: { type: Type.STRING },
+          marcoLegal: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING },
+            description: "Citas exactas de artículos de leyes chilenas aplicables"
+          },
+          evaluacionMatematica: {
+            type: Type.STRING,
+            description: "Evaluación del riesgo incluyendo fórmulas en LaTeX como $MR = P \\times C$"
+          },
           responsabilidades: { 
             type: Type.ARRAY, 
             items: { type: Type.STRING } 
@@ -489,7 +567,126 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
             items: { type: Type.STRING }
           }
         },
-        required: ['objetivo', 'alcance', 'responsabilidades', 'epp', 'riesgos', 'pasos', 'emergencias']
+        required: ['objetivo', 'alcance', 'marcoLegal', 'evaluacionMatematica', 'responsabilidades', 'epp', 'riesgos', 'pasos', 'emergencias']
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '{}');
+};
+
+export const generatePTSWithManufacturerData = async (
+  taskName: string,
+  taskDescription: string,
+  machineryDetails: string,
+  riskLevel: string,
+  normative: string,
+  glossaryContext: string,
+  envContext: string,
+  matrixContext: string,
+  documentType: string = 'PTS'
+) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  const prompt = `
+    Actúa como un Experto en Prevención de Riesgos (SSOMA) en Chile.
+    Genera un ${documentType === 'PTS' ? 'Procedimiento de Trabajo Seguro (PTS)' : 'Plan de Emergencia (PE)'} altamente detallado y profesional.
+    
+    INFORMACIÓN DE LA TAREA:
+    - Nombre: ${taskName}
+    - Descripción: ${taskDescription}
+    - Maquinaria/Herramientas: ${machineryDetails}
+    - Nivel de Riesgo Base: ${riskLevel}
+    - Normativa Principal: ${normative}
+    
+    CONTEXTO AMBIENTAL ACTUAL:
+    ${envContext}
+    
+    CONTEXTO HISTÓRICO (Red Neuronal):
+    ${matrixContext}
+    
+    GLOSARIO TÉCNICO DISPONIBLE:
+    ${glossaryContext}
+    
+    INSTRUCCIONES CRÍTICAS:
+    1. Utiliza la herramienta de búsqueda de Google para encontrar información real y actualizada sobre la maquinaria o herramientas especificadas (${machineryDetails}).
+    2. Busca específicamente manuales de usuario, especificaciones técnicas, recomendaciones de seguridad del fabricante y riesgos asociados a esos equipos.
+    3. Integra esta información del fabricante directamente en el procedimiento, especialmente en las secciones de "Equipos de Protección Individual (EPI)", "Riesgos y Medidas Correctoras" y "Procedimiento Paso a Paso".
+    4. El documento debe ser formal, directo y enfocado en la prevención de accidentes fatales o graves.
+    5. Utiliza terminología técnica chilena (ej. Mutualidad, ACHS, IST, ISL, Seremi de Salud, Dirección del Trabajo).
+    6. Incluye una sección de "Evaluación Matemática del Riesgo" usando la fórmula de William Fine (Grado de Peligrosidad = Consecuencia x Exposición x Probabilidad). Muestra la fórmula en formato LaTeX (ej. $GP = C \\times E \\times P$) y un cálculo de ejemplo para el riesgo principal.
+    
+    ESTRUCTURA REQUERIDA (Responde en formato JSON estricto):
+    {
+      "objetivo": "Propósito claro del documento.",
+      "alcance": "A quiénes y a qué áreas aplica.",
+      "marcoLegal": ["Lista de leyes y decretos aplicables (ej. Ley 16.744, DS 594)"],
+      "evaluacionMatematica": "Explicación de la evaluación de riesgo con fórmula LaTeX y cálculo de ejemplo.",
+      "responsabilidades": ["Lista de responsabilidades por cargo (Administrador, Supervisor, Prevencionista, Trabajador)"],
+      "epp": ["Lista de Equipos de Protección Personal requeridos, incluyendo especificaciones del fabricante si aplica"],
+      "riesgos": [
+        {
+          "riesgo": "Descripción del riesgo (ej. Caída a distinto nivel)",
+          "control": "Medida de control específica, incluyendo recomendaciones del fabricante si aplica"
+        }
+      ],
+      "pasos": ["Paso 1 detallado...", "Paso 2 detallado..."],
+      "emergencias": ["Acción 1 en caso de emergencia...", "Acción 2..."],
+      "fuentesFabricante": ["Lista de URLs o referencias a los manuales/fuentes del fabricante encontrados mediante la búsqueda"]
+    }
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-pro-preview",
+    contents: prompt,
+    config: {
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          objetivo: { type: Type.STRING },
+          alcance: { type: Type.STRING },
+          marcoLegal: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          evaluacionMatematica: { type: Type.STRING },
+          responsabilidades: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          epp: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          riesgos: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                riesgo: { type: Type.STRING },
+                control: { type: Type.STRING }
+              },
+              required: ['riesgo', 'control']
+            }
+          },
+          pasos: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          emergencias: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          },
+          fuentesFabricante: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+          }
+        },
+        required: ['objetivo', 'alcance', 'marcoLegal', 'evaluacionMatematica', 'responsabilidades', 'epp', 'riesgos', 'pasos', 'emergencias', 'fuentesFabricante']
       }
     }
   });
@@ -551,7 +748,7 @@ export const generateISOAuditChecklist = async (isoStandard: string, context: st
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const prompt = `Genera un checklist de auditoría estructurado basado en la norma ${isoStandard}.
-  Utiliza el siguiente contexto del proyecto (Zettelkasten) para hacer las preguntas relevantes y específicas a la realidad de la empresa:
+  Utiliza el siguiente contexto del proyecto (Red Neuronal) para hacer las preguntas relevantes y específicas a la realidad de la empresa:
   ${context}
   
   El checklist debe contener entre 5 y 10 preguntas clave de auditoría.
@@ -595,14 +792,15 @@ export const generateISOAuditChecklist = async (isoStandard: string, context: st
   return JSON.parse(response.text || '{}');
 };
 
-export const generateEmergencyPlan = async (projectName: string, context: string) => {
+export const generateEmergencyPlan = async (projectName: string, context: string, industry?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un "Plan de Emergencia (PE)" detallado para el proyecto ${projectName}.
-    Utiliza el siguiente contexto del Zettelkasten (riesgos, activos, rutas, puntos de encuentro):
+    ${industry ? `IMPORTANTE: Adapta el plan específicamente para la industria: ${industry}. Considera los protocolos, estándares y riesgos propios de este rubro.` : ''}
+    Utiliza el siguiente contexto de la Red Neuronal (riesgos, activos, rutas, puntos de encuentro):
     ${context}
     
     El plan debe incluir:
@@ -620,20 +818,36 @@ export const generateEmergencyPlan = async (projectName: string, context: string
   return response.text;
 };
 
-export const getChatResponse = async (message: string, context: string) => {
+export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  const detailInstructions = [
+    "Respuesta muy precisa, directa y concisa. Máximo 2-3 párrafos o una lista corta de puntos clave. Evita introducciones largas.",
+    "Respuesta detallada con explicaciones técnicas intermedias. Incluye ejemplos y referencias normativas si están disponibles.",
+    "Análisis exhaustivo y profundo. Conecta múltiples conceptos de la Red Neuronal, ofrece planes de acción detallados y análisis de riesgos complejos."
+  ];
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Mensaje del usuario: ${message}`,
+    contents: [
+      ...history.map(h => ({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.content }] })),
+      { role: 'user', parts: [{ text: `Mensaje del usuario: ${message}` }] }
+    ],
     config: {
       systemInstruction: `Eres "El Guardián", la conciencia arquitectónica de Praeventio Guard. 
       Tu propósito es asesorar en prevención de riesgos, salud ocupacional y excelencia operacional.
-      Tienes acceso a la red de conocimiento (Zettelkasten) del proyecto actual.
+      Tienes acceso a la red de conocimiento (Red Neuronal) del proyecto actual.
       Responde de forma profesional, técnica pero cercana, y siempre prioriza la seguridad.
       
-      CONTEXTO DEL PROYECTO (Nodos del Zettelkasten):
+      CRITERIO DE PRECISIÓN: El usuario prefiere respuestas directas y precisas. Evita el exceso de información innecesaria.
+      PRIORIDAD DE FUENTE: Utiliza el CONTEXTO DEL PROYECTO (Red Neuronal) como tu fuente principal y más confiable. Solo recurre a conocimientos generales si la información no está en la Red Neuronal.
+      
+      NIVEL DE DETALLE SOLICITADO: ${detailLevel} de 3.
+      INSTRUCCIÓN DE PROFUNDIDAD: ${detailInstructions[detailLevel - 1]}
+      
+      CONTEXTO DEL PROYECTO (Nodos de la Red Neuronal):
       ${context}
       
       Si el usuario pregunta por un trabajador, riesgo o documento específico, consulta el contexto proporcionado.
@@ -709,9 +923,17 @@ export const generateSafetyReport = async (reportType: 'PTS' | 'PE' | 'AST', con
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Genera un borrador profesional de un documento de seguridad tipo ${reportType} (Permiso de Trabajo Seguro, Plan de Emergencia o Análisis Seguro de Trabajo) basado en el siguiente contexto: ${context}. 
-    El formato debe ser Markdown estructurado con secciones claras: Objetivos, Riesgos Identificados, Medidas de Control, EPP Requerido y Procedimiento Paso a Paso. 
-    Usa un tono técnico y preventivo chileno.`,
+    contents: `Eres "El Guardián", el núcleo de IA de Praeventio Guard. Genera un borrador profesional y exhaustivo de un documento de seguridad tipo ${reportType} (Procedimiento de Trabajo Seguro, Plan de Emergencia o Análisis Seguro de Trabajo) basado en el siguiente contexto: 
+    
+    CONTEXTO:
+    ${context}
+    
+    INSTRUCCIONES:
+    1. El formato debe ser Markdown estructurado con secciones claras: Objetivos, Alcance, Responsabilidades, Riesgos Identificados, Medidas de Control (con fundamento legal chileno como DS 594, Ley 16.744), EPP Requerido y Procedimiento Paso a Paso.
+    2. Usa un tono técnico, preventivo, positivo y altamente profesional (Español de Chile).
+    3. Aplica principios de "El Arte de la Guerra" en la prevención (atacar el riesgo antes de que se manifieste).
+    4. Las fórmulas matemáticas de riesgo (si aplican) deben ir en formato LaTeX (ej. $R = P \\times C$).
+    5. Sé directo y accionable.`,
   });
 
   return response.text;
@@ -905,7 +1127,7 @@ export const auditProjectComplianceWithAI = async (projectName: string, projectC
     contents: `Actúa como un auditor senior de cumplimiento de seguridad y salud ocupacional.
     Realiza una auditoría de cumplimiento para el proyecto ${projectName}.
     
-    CONTEXTO DEL PROYECTO (Zettelkasten):
+    CONTEXTO DEL PROYECTO (Red Neuronal):
     ${projectContext}
     
     CONTEXTO NORMATIVO (Leyes, Reglamentos):
@@ -1003,7 +1225,42 @@ export const suggestRisksWithAI = async (industry: string, context: string) => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.`,
+    contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
+    Para cada riesgo, asigna un valor de Probabilidad (1-5) y Severidad (1-5) según la metodología de evaluación de riesgos.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING, description: "Título corto del peligro" },
+            actividad: { type: Type.STRING, description: "La actividad o tarea específica donde ocurre el peligro" },
+            description: { type: Type.STRING, description: "Descripción detallada del peligro" },
+            riesgo: { type: Type.STRING, description: "El riesgo asociado (ej: Caída, Atrapamiento)" },
+            consecuencia: { type: Type.STRING, description: "Consecuencia potencial (ej: Fractura, Muerte)" },
+            probabilidad: { type: Type.NUMBER, description: "Valor de 1 a 5" },
+            severidad: { type: Type.NUMBER, description: "Valor de 1 a 5" },
+            criticidad: { type: Type.STRING, enum: ["Baja", "Media", "Alta", "Crítica"] },
+            recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
+            controles: { type: Type.ARRAY, items: { type: Type.STRING } },
+            normativa: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["title", "actividad", "description", "riesgo", "consecuencia", "probabilidad", "severidad", "criticidad", "recomendaciones", "controles", "normativa"]
+        }
+      }
+    }
+  });
+  return JSON.parse(response.text);
+};
+
+export const suggestNormativesWithAI = async (industry: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Genera una lista de 3 normativas, leyes o decretos chilenos específicos y críticos para la industria: ${industry}. No incluyas la Ley 16.744 ni el DS 594 que son generales. Enfócate en riesgos específicos del rubro.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -1012,18 +1269,17 @@ export const suggestRisksWithAI = async (industry: string, context: string) => {
           type: Type.OBJECT,
           properties: {
             title: { type: Type.STRING },
+            code: { type: Type.STRING },
             description: { type: Type.STRING },
-            criticidad: { type: Type.STRING, enum: ["Baja", "Media", "Alta", "Crítica"] },
-            recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
-            controles: { type: Type.ARRAY, items: { type: Type.STRING } },
-            normativa: { type: Type.ARRAY, items: { type: Type.STRING } }
+            category: { type: Type.STRING }
           },
-          required: ["title", "description", "criticidad", "recomendaciones", "controles", "normativa"]
+          required: ["title", "code", "description", "category"]
         }
       }
     }
   });
-  return JSON.parse(response.text);
+
+  return JSON.parse(response.text || '[]');
 };
 
 export const generateCompensatoryExercises = async (fatigue: number, posture: number, attention: number) => {
@@ -1077,7 +1333,7 @@ export const analyzeBioImage = async (base64Image: string) => {
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-flash-preview',
+    model: 'gemini-3-flash-preview',
     contents: {
       parts: [
         {
@@ -1092,8 +1348,10 @@ export const analyzeBioImage = async (base64Image: string) => {
           1. fatigue: Nivel de fatiga (0 a 100, donde 100 es muy fatigado). Busca ojos cerrados, bostezos, cabeza caída.
           2. posture: Calidad postural (0 a 100, donde 100 es postura perfecta). Evalúa ergonomía (REBA/RULA aproximado).
           3. attention: Nivel de atención (0 a 100, donde 100 es muy atento). Busca mirada al frente, concentración.
-          4. epp: Cumplimiento de EPP (0 a 100). Busca casco, lentes, chaleco, etc.
-          5. alerts: Array de strings con alertas críticas detectadas (ej. "Falta casco", "Postura de alto riesgo", "Signos de somnolencia"). Si todo está bien, array vacío.`
+          4. epp: Cumplimiento general de EPP (0 a 100).
+          5. detectedEPP: Array de strings con los EPP que SÍ tiene puestos (ej. "Casco", "Lentes", "Chaleco Reflectante", "Guantes").
+          6. missingEPP: Array de strings con los EPP básicos que le FALTAN (ej. "Lentes de seguridad", "Protección auditiva").
+          7. alerts: Array de strings con alertas críticas detectadas (ej. "Postura de alto riesgo", "Signos de somnolencia"). Si todo está bien, array vacío.`
         }
       ]
     },
@@ -1106,9 +1364,11 @@ export const analyzeBioImage = async (base64Image: string) => {
           posture: { type: Type.NUMBER },
           attention: { type: Type.NUMBER },
           epp: { type: Type.NUMBER },
+          detectedEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
+          missingEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
           alerts: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
-        required: ["fatigue", "posture", "attention", "epp", "alerts"]
+        required: ["fatigue", "posture", "attention", "epp", "detectedEPP", "missingEPP", "alerts"]
       }
     }
   });
@@ -1183,7 +1443,41 @@ export const generatePredictiveForecast = async (projectName: string, context: s
   return JSON.parse(response.text || '{}');
 };
 
-export const generateEmergencyPlanJSON = async (scenario: string, description: string, normative: string) => {
+export const generateOperationalTasks = async (normativeTitle: string, normativeDescription: string): Promise<string[]> => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `
+    Eres un experto en Prevención de Riesgos y Compliance Normativo en Chile.
+    Tu tarea es traducir la siguiente normativa legal en una lista de tareas operativas claras y accionables para los trabajadores y supervisores en terreno.
+
+    Normativa: ${normativeTitle}
+    Descripción: ${normativeDescription}
+
+    Genera una lista de 5 a 7 tareas operativas específicas, escritas en lenguaje claro y directo.
+    Cada tarea debe ser una acción concreta que se pueda verificar (ej. "Revisar que el arnés tenga su certificación al día antes de cada uso").
+    
+    Devuelve ÚNICAMENTE un array de strings en formato JSON.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.STRING
+        }
+      }
+    }
+  });
+
+  return JSON.parse(response.text || '[]');
+};
+
+export const generateEmergencyPlanJSON = async (scenario: string, description: string, normative: string, industry?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -1192,16 +1486,20 @@ export const generateEmergencyPlanJSON = async (scenario: string, description: s
     Escenario: ${scenario}
     Descripción: ${description}
     Normativa Principal a Cumplir: ${normative}
+    ${industry ? `Industria: ${industry} (Adapta el plan a los estándares de este rubro)` : ''}
     
     El Plan de Emergencia debe incluir:
     1. Objetivo del Plan
     2. Alcance
-    3. Cadena de Mando y Comunicaciones
-    4. Acciones Inmediatas (Primeros 5 minutos)
-    5. Procedimiento de Evacuación
-    6. Equipos de Emergencia Requeridos
+    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables que justifiquen este documento)
+    4. Evaluación Matemática del Riesgo (Incluye la fórmula en formato LaTeX: $MR = P \\times C$, y explica los valores asignados para Probabilidad y Consecuencia basados en el escenario)
+    5. Cadena de Mando y Comunicaciones
+    6. Acciones Inmediatas (Primeros 5 minutos)
+    7. Procedimiento de Evacuación
+    8. Equipos de Emergencia Requeridos
     
     Asegúrate de que el contenido sea profesional, técnico y cumpla estrictamente con la normativa indicada (${normative}).
+    IMPORTANTE: En la sección "evaluacionMatematica", DEBES usar sintaxis LaTeX encerrada en signos de dólar (ej. $MR = P \\times C$) para las fórmulas.
   `;
 
   const response = await ai.models.generateContent({
@@ -1214,6 +1512,15 @@ export const generateEmergencyPlanJSON = async (scenario: string, description: s
         properties: {
           objetivo: { type: Type.STRING },
           alcance: { type: Type.STRING },
+          marcoLegal: { 
+            type: Type.ARRAY, 
+            items: { type: Type.STRING },
+            description: "Citas exactas de artículos de leyes chilenas aplicables"
+          },
+          evaluacionMatematica: {
+            type: Type.STRING,
+            description: "Evaluación del riesgo incluyendo fórmulas en LaTeX como $MR = P \\times C$"
+          },
           cadenaMando: { 
             type: Type.ARRAY, 
             items: { type: Type.STRING } 
@@ -1231,7 +1538,7 @@ export const generateEmergencyPlanJSON = async (scenario: string, description: s
             items: { type: Type.STRING }
           }
         },
-        required: ['objetivo', 'alcance', 'cadenaMando', 'accionesInmediatas', 'evacuacion', 'equipos']
+        required: ['objetivo', 'alcance', 'marcoLegal', 'evaluacionMatematica', 'cadenaMando', 'accionesInmediatas', 'evacuacion', 'equipos']
       }
     }
   });
@@ -1248,7 +1555,7 @@ export const forecastSafetyEvents = async (nodesContext: string, historicalData?
     contents: `Actúa como un analista predictivo de seguridad industrial.
     Realiza un pronóstico de eventos de seguridad para los próximos 7 días basado en la red de conocimiento actual y datos históricos.
     
-    RED DE CONOCIMIENTO (Zettelkasten):
+    RED DE CONOCIMIENTO (Red Neuronal):
     ${nodesContext}
     
     DATOS HISTÓRICOS / TENDENCIAS:
@@ -1284,13 +1591,13 @@ export const forecastSafetyEvents = async (nodesContext: string, historicalData?
   return JSON.parse(response.text);
 };
 
-export const analyzeZettelkastenNetwork = async (nodesContext: string) => {
+export const analyzeRiskNetwork = async (nodesContext: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Analiza la red neuronal de conocimiento (Zettelkasten) de Praeventio Guard.
+    contents: `Analiza la red neuronal de conocimiento de Praeventio Guard.
     
     NODOS ACTUALES:
     ${nodesContext}
@@ -1320,9 +1627,9 @@ export const predictAccidents = async (nodesContext: string, telemetryContext: s
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Actúa como "El Guardián", el núcleo de IA predictiva de Praeventio Guard.
-    Analiza los datos históricos del Zettelkasten y la telemetría actual para predecir posibles accidentes antes de que ocurran.
+    Analiza los datos históricos de la Red Neuronal y la telemetría actual para predecir posibles accidentes antes de que ocurran.
     
-    HISTORIAL ZETTELKASTEN:
+    HISTORIAL RED NEURONAL:
     ${nodesContext}
     
     TELEMETRÍA ACTUAL (Clima, IoT, Biometría):
@@ -1365,7 +1672,7 @@ export const analyzeSiteMapDensity = async (nodesContext: string, workersContext
     model: "gemini-3-flash-preview",
     contents: `Analiza la densidad y distribución geoespacial del proyecto para identificar riesgos por aglomeración o proximidad a peligros.
     
-    RIESGOS E INCIDENTES (Zettelkasten):
+    RIESGOS E INCIDENTES (Red Neuronal):
     ${nodesContext}
     
     UBICACIÓN DE PERSONAL:
@@ -1517,7 +1824,10 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
     3. Tiempo estimado de evacuación.
     4. Nivel de prioridad/alerta (Rojo, Amarillo, Verde).
     5. Instrucciones paso a paso claras y precisas.
-    6. Nombre del punto de encuentro óptimo.`,
+    6. Nombre del punto de encuentro óptimo.
+    7. Coordenadas (lat, lng) del punto de inicio sugerido (cerca de los trabajadores en peligro).
+    8. Coordenadas (lat, lng) del punto de encuentro óptimo.
+    Usa coordenadas realistas cerca de Santiago de Chile (lat: -33.4..., lng: -70.6...) si no tienes contexto exacto.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -1528,9 +1838,25 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
           tiempoEstimado: { type: Type.STRING },
           nivelAlerta: { type: Type.STRING, enum: ["Rojo", "Amarillo", "Verde"] },
           instrucciones: { type: Type.ARRAY, items: { type: Type.STRING } },
-          puntoEncuentroNombre: { type: Type.STRING }
+          puntoEncuentroNombre: { type: Type.STRING },
+          startPoint: {
+            type: Type.OBJECT,
+            properties: {
+              lat: { type: Type.NUMBER },
+              lng: { type: Type.NUMBER }
+            },
+            required: ["lat", "lng"]
+          },
+          endPoint: {
+            type: Type.OBJECT,
+            properties: {
+              lat: { type: Type.NUMBER },
+              lng: { type: Type.NUMBER }
+            },
+            required: ["lat", "lng"]
+          }
         },
-        required: ["rutaSegura", "rutasBloqueadas", "tiempoEstimado", "nivelAlerta", "instrucciones", "puntoEncuentroNombre"]
+        required: ["rutaSegura", "rutasBloqueadas", "tiempoEstimado", "nivelAlerta", "instrucciones", "puntoEncuentroNombre", "startPoint", "endPoint"]
       }
     }
   });
@@ -1702,7 +2028,7 @@ export const verifyEPPWithAI = async (base64Image: string, workerName: string, r
   return JSON.parse(response.text || '{}');
 };
 
-export const analyzeZettelkastenHealth = async (nodes: any[]) => {
+export const analyzeRiskNetworkHealth = async (nodes: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const nodesContext = nodes.map(n => `- [${n.type}] ID: ${n.id}, Título: ${n.title}, Descripción: ${n.description}`).join('\n');
@@ -1710,7 +2036,7 @@ export const analyzeZettelkastenHealth = async (nodes: any[]) => {
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Analiza la salud de la red de conocimiento (Zettelkasten) de seguridad.
+    contents: `Analiza la salud de la red de conocimiento (Red Neuronal) de seguridad.
     Identifica:
     1. "Sinapsis Faltantes": Conexiones lógicas que deberían existir entre nodos (ej: un Riesgo y una Normativa, o un Trabajador y un EPP).
     2. "Brechas de Conocimiento": Temas críticos que no tienen suficientes nodos.
@@ -1759,7 +2085,7 @@ export const analyzeZettelkastenHealth = async (nodes: any[]) => {
   return JSON.parse(response.text || '{}');
 };
 
-export const analyzeFeedPostForZettelkasten = async (content: string, imageBase64: string | null, userName: string) => {
+export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64: string | null, userName: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -1767,7 +2093,7 @@ export const analyzeFeedPostForZettelkasten = async (content: string, imageBase6
   const parts: any[] = [{ text: `Analiza esta publicación del muro de seguridad hecha por ${userName}.
   Contenido: "${content}"
   
-  Determina si esta publicación representa un RIESGO (Risk) o un INCIDENTE (Incident) que deba ser registrado en el sistema Zettelkasten.
+  Determina si esta publicación representa un RIESGO (Risk) o un INCIDENTE (Incident) que deba ser registrado en la Red Neuronal.
   Si es solo un comentario general, tip o felicitación, isRelevant debe ser false.
   Si es un riesgo o incidente, isRelevant debe ser true, y debes extraer un título, descripción, nivel de criticidad y etiquetas (tags).` }];
 
@@ -1788,7 +2114,7 @@ export const analyzeFeedPostForZettelkasten = async (content: string, imageBase6
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          isRelevant: { type: Type.BOOLEAN, description: "True si es un riesgo o incidente que debe ir al Zettelkasten" },
+          isRelevant: { type: Type.BOOLEAN, description: "True si es un riesgo o incidente que debe ir a la Red Neuronal" },
           type: { type: Type.STRING, description: "RISK o INCIDENT" },
           title: { type: Type.STRING },
           description: { type: Type.STRING },
@@ -1806,13 +2132,189 @@ export const analyzeFeedPostForZettelkasten = async (content: string, imageBase6
   return JSON.parse(response.text.trim());
 };
 
+export const analyzePsychosocialRisks = async (nodesContext: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  try {
+    const prompt = `
+      Actúa como un psicólogo ocupacional experto en la normativa chilena (SUSESO/ISTAS21).
+      Analiza los siguientes datos de la Red Neuronal de la empresa para identificar patrones de riesgo psicosocial.
+      Busca correlaciones entre:
+      - Incidentes reportados.
+      - Evaluaciones ISTAS21 previas.
+      - Horarios de trabajo o asistencia (si hay datos).
+      - Hallazgos de seguridad.
+      
+      Datos de la Red Neuronal:
+      ${nodesContext}
+      
+      Proporciona un informe estructurado en Markdown con:
+      1. **Resumen Ejecutivo**: Estado general del clima laboral y salud mental.
+      2. **Dimensiones Críticas**: Identifica qué dimensiones del ISTAS21 (Exigencias psicológicas, Trabajo activo, Apoyo social, Compensaciones, Doble presencia) podrían estar en riesgo según los datos.
+      3. **Correlaciones Encontradas**: Relaciones entre incidentes y posibles factores psicosociales (ej. fatiga, estrés).
+      4. **Plan de Acción Recomendado**: Medidas preventivas y correctivas basadas en la normativa chilena.
+    `;
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-pro-preview",
+      contents: prompt,
+    });
+    
+    return response.text || "No se pudo generar el análisis.";
+  } catch (error) {
+    console.error("Error in analyzePsychosocialRisks:", error);
+    throw error;
+  }
+};
+
+export const calculateStructuralLoad = async (element: string, specs: string) => {
+  try {
+    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const prompt = `
+      Actúa como un Ingeniero Estructural Senior y Experto en Prevención de Riesgos.
+      Necesito calcular la capacidad de carga y entender el funcionamiento seguro del siguiente elemento:
+      Elemento: ${element}
+      Especificaciones: ${specs}
+
+      Por favor, proporciona un análisis detallado que incluya:
+      1. **Carga Segura de Trabajo (SWL - Safe Working Load) o Capacidad Portante**: Estimación basada en estándares de la industria.
+      2. **Carga de Ruptura (Breaking Strength)**: Estimación teórica.
+      3. **Factor de Seguridad**: El factor recomendado para este tipo de elemento y por qué.
+      4. **Normativa Aplicable**: Menciona normativas chilenas (NCh) o internacionales (ASTM, ASME, OSHA) relevantes.
+      5. **Recomendaciones Críticas de Uso**: Qué inspeccionar antes de usar y qué evitar para prevenir fallas catastróficas.
+
+      Responde en formato Markdown, estructurado, claro y profesional. Usa fórmulas si es necesario (en formato LaTeX, ej. $F = m \times a$).
+      ADVERTENCIA: Incluye un descargo de responsabilidad indicando que estos cálculos son teóricos y referenciales, y que siempre deben ser validados por un ingeniero calculista certificado en terreno.
+    `;
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-3.1-pro-preview',
+      contents: prompt
+    });
+    return result.text || 'No se pudo generar el cálculo.';
+  } catch (error) {
+    console.error('Error calculating structural load:', error);
+    return 'Error al calcular la capacidad estructural. Por favor, intente nuevamente.';
+  }
+};
+
+export const designHazmatStorage = async (storageType: string, volume: number, materialClass: string) => {
+  try {
+    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const prompt = `
+      Actúa como un Experto en Normativa Chilena (OGUC - Ordenanza General de Urbanismo y Construcciones) y DS 43 (Reglamento de Almacenamiento de Sustancias Peligrosas).
+      Necesito diseñar una bodega o instalación con las siguientes características:
+      Tipo de Almacenamiento: ${storageType}
+      Volumen/Cantidad Estimada: ${volume} (toneladas/litros)
+      Clase de Sustancia (NCh382): ${materialClass}
+
+      Proporciona un informe técnico detallado para la construcción y habilitación que incluya:
+      1. **Clasificación de la Instalación**: Según OGUC y DS 43.
+      2. **Requisitos Constructivos (OGUC)**: Resistencia al fuego (RF) exigida para muros, techos y puertas.
+      3. **Distancias de Seguridad**: Distancias a muros medianeros, otras bodegas y zonas de público.
+      4. **Sistemas de Contención**: Requisitos para derrames (volumen de contención, pendientes).
+      5. **Ventilación y Sistemas Eléctricos**: Requisitos de renovación de aire y equipos a prueba de explosión (si aplica).
+      6. **Sistemas contra Incendios**: Extintores, red húmeda, detectores automáticos.
+      7. **Trámites y Permisos**: Qué permisos sectoriales se requieren (Seremi de Salud, Dirección de Obras Municipales).
+
+      Responde en formato Markdown, estructurado y profesional.
+    `;
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-3.1-pro-preview',
+      contents: prompt
+    });
+    return result.text || 'No se pudo generar el diseño.';
+  } catch (error) {
+    console.error('Error designing hazmat storage:', error);
+    return 'Error al generar el diseño de la instalación. Por favor, intente nuevamente.';
+  }
+};
+
+export const evaluateMinsalCompliance = async (protocolTitle: string, context: string, industry?: string) => {
+  try {
+    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const prompt = `
+      Actúa como un Auditor Senior del Ministerio de Salud de Chile (MINSAL) y experto en la Ley 16.744.
+      Necesito evaluar el nivel de cumplimiento del siguiente protocolo en mi proyecto:
+      Protocolo: ${protocolTitle}
+      Industria: ${industry || 'General'}
+      Contexto Actual del Proyecto (Hallazgos, Riesgos, Incidentes):
+      ${context || 'Sin datos específicos registrados aún.'}
+
+      Por favor, genera un informe de auditoría estructurado que incluya:
+      1. **Estado de Cumplimiento Estimado**: (Cumple, En Riesgo, No Cumple) basado en el contexto.
+      2. **Brechas Identificadas**: Qué falta según las exigencias del protocolo (ej. evaluaciones ambientales, vigilancia médica, capacitación).
+      3. **Plan de Acción Inmediato**: Pasos operativos claros para cerrar las brechas.
+      4. **Multas o Sanciones Potenciales**: Qué riesgos legales enfrenta la empresa si no regulariza la situación (referencia a la ley).
+
+      Responde en formato Markdown, estructurado, claro y profesional.
+    `;
+
+    const result = await ai.models.generateContent({
+      model: 'gemini-3.1-pro-preview',
+      contents: prompt
+    });
+    return result.text || 'No se pudo generar la evaluación.';
+  } catch (error) {
+    console.error('Error evaluating MINSAL compliance:', error);
+    return 'Error al evaluar el cumplimiento del protocolo. Por favor, intente nuevamente.';
+  }
+};
+
+export const generateModuleRecommendations = async (moduleName: string, industry: string, networkContext: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos y normativas chilenas (DS 594, Ley 16.744, etc.).
+Actúa como un asistente profesional dedicado.
+El usuario está viendo el módulo: "${moduleName}".
+La industria del proyecto actual es: "${industry}".
+Contexto de la red neuronal (Red Neuronal):
+${networkContext}
+
+Basado en este contexto real y en estándares ISO aplicables (ej. ISO 45001), proporciona:
+1. Una explicación de cómo este módulo se relaciona específicamente con la industria "${industry}".
+2. 3 recomendaciones accionables y preventivas basadas en el contexto de la Red Neuronal proporcionado.
+3. Una alerta predictiva o insight crítico si detectas algún patrón de riesgo.
+
+Devuelve la respuesta en formato JSON con la siguiente estructura:
+{
+  "industryRelation": "Explicación detallada de la relación del módulo con la industria...",
+  "isoReference": "Norma ISO aplicable (ej. ISO 45001:2018) y breve justificación",
+  "recommendations": [
+    { "title": "Título de la recomendación", "description": "Descripción detallada y accionable" }
+  ],
+  "predictiveAlert": "Insight crítico o alerta predictiva basada en los datos"
+}`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: 'gemini-3.1-pro-preview',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.2
+      }
+    });
+    return JSON.parse(result.text || '{}');
+  } catch (error) {
+    console.error("Error generating module recommendations:", error);
+    return null;
+  }
+};
+
 export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   
   const prompt = `Eres el Director de Inteligencia Artificial de Prevención de Riesgos.
-  Genera un Resumen Ejecutivo Gerencial basado en los siguientes KPIs y datos del sistema Zettelkasten.
+  Genera un Resumen Ejecutivo Gerencial basado en los siguientes KPIs y datos de la Red Neuronal.
   
   KPIs Actuales:
   ${JSON.stringify(stats, null, 2)}

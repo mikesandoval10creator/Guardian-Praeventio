@@ -13,7 +13,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddHygieneModal } from '../components/hygiene/AddHygieneModal';
 
@@ -26,7 +26,7 @@ const iconMap: Record<string, any> = {
 
 export function Hygiene() {
   const { selectedProject } = useProject();
-  const { nodes, loading } = useZettelkasten();
+  const { nodes, loading } = useRiskEngine();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const hygieneNodes = nodes.filter(node => 
@@ -37,17 +37,17 @@ export function Hygiene() {
   const alerts = hygieneNodes.filter(n => n.metadata.status === 'warning');
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Higiene y Salud</h1>
-          <p className="text-zinc-400 mt-1">Monitoreo de agentes ambientales y salud ocupacional</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Higiene y Salud</h1>
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Monitoreo de agentes ambientales y salud ocupacional</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+          className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95 w-full sm:w-auto"
         >
-          <Plus className="w-5 h-5" />
+          <Plus className="w-4 h-4" />
           <span>Nuevo Registro</span>
         </button>
       </div>

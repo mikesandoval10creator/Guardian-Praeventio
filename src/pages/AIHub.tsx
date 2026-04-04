@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, Zap, Shield, Database, Network, Cpu, TrendingUp, Loader2, Share2 } from 'lucide-react';
+import { Brain, Zap, Shield, Database, Network, Cpu, TrendingUp, Loader2, Share2, WifiOff } from 'lucide-react';
 import { VisionAnalyzer } from '../components/ai/VisionAnalyzer';
 import { PredictiveAnalysis } from '../components/ai/PredictiveAnalysis';
 import { EthicsGuardian } from '../components/ai/EthicsGuardian';
@@ -8,19 +8,27 @@ import { ReportGenerator } from '../components/ai/ReportGenerator';
 import { EmergencyPlanGenerator } from '../components/ai/EmergencyPlanGenerator';
 import { IncidentInvestigation } from '../components/emergency/IncidentInvestigation';
 import { ComplianceAuditor } from '../components/ai/ComplianceAuditor';
-import { ZettelkastenExplorer } from '../components/zettelkasten/ZettelkastenExplorer';
-import { ZettelkastenManager } from '../components/zettelkasten/ZettelkastenManager';
-import { ZettelkastenHealth } from '../components/zettelkasten/ZettelkastenHealth';
+import { RiskNetworkExplorer } from '../components/risk-network/RiskNetworkExplorer';
+import { RiskNetworkManager } from '../components/risk-network/RiskNetworkManager';
+import { RiskNetworkHealth } from '../components/risk-network/RiskNetworkHealth';
 import { SafetyForecast } from '../components/ai/SafetyForecast';
 import { EmergencySimulator } from '../components/ai/EmergencySimulator';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { motion } from 'framer-motion';
+
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+import { BlueprintViewer } from '../components/blueprints/BlueprintViewer';
+import { StructuralCalculator } from '../components/engineering/StructuralCalculator';
+import { HazmatStorageDesigner } from '../components/engineering/HazmatStorageDesigner';
 
 export function AIHub() {
   const { nodes, stats, loading: nodesLoading } = useUniversalKnowledge();
+  const isOnline = useOnlineStatus();
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 sm:space-y-12">
+    <PremiumFeatureGuard featureName="AI Hub Predictivo" description="Accede a la inteligencia artificial avanzada para predecir accidentes, analizar imágenes en tiempo real y generar planes de emergencia automáticamente.">
+      <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 sm:space-y-12">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
         <div className="space-y-1.5 sm:space-y-2">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -32,13 +40,24 @@ export function AIHub() {
           <p className="text-zinc-500 font-medium text-[10px] sm:text-lg">Conciencia Situacional Automatizada y Análisis Predictivo</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mt-2 sm:mt-0">
-          <Link to="/knowledge-ingestion" className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2">
-            <Database className="w-4 h-4" />
-            Entrenar IA
+          <Link 
+            to={isOnline ? "/knowledge-ingestion" : "#"} 
+            onClick={(e) => { if (!isOnline) e.preventDefault(); }}
+            className={`px-4 py-2.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+              !isOnline 
+                ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' 
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+            }`}
+            title={!isOnline ? 'Requiere conexión a internet' : ''}
+          >
+            {!isOnline ? <WifiOff className="w-4 h-4" /> : <Database className="w-4 h-4" />}
+            {!isOnline ? 'Requiere Conexión' : 'Entrenar IA'}
           </Link>
           <div className="flex items-center justify-center gap-3 sm:gap-4 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
-            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)] shrink-0" />
-            <span className="text-[8px] sm:text-[10px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest truncate">Guardian Praeventio: Online</span>
+            <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500'} shrink-0`} />
+            <span className={`text-[8px] sm:text-[10px] font-black ${isOnline ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'} uppercase tracking-widest truncate`}>
+              Guardian Praeventio: {isOnline ? 'Online' : 'Offline'}
+            </span>
           </div>
         </div>
       </header>
@@ -99,7 +118,7 @@ export function AIHub() {
         <EmergencySimulator />
       </section>
 
-      {/* Red Neuronal Explorer Section */}
+      {/* Risk Network Explorer Section */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -116,13 +135,13 @@ export function AIHub() {
             Exportar Grafo
           </button>
         </div>
-        <ZettelkastenExplorer />
+        <RiskNetworkExplorer />
       </section>
 
-      {/* Red Neuronal Health Section */}
-      <ZettelkastenHealth />
+      {/* Risk Network Health Section */}
+      <RiskNetworkHealth />
 
-      {/* Red Neuronal Manager Section */}
+      {/* Risk Network Manager Section */}
       <section className="space-y-6">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 border border-indigo-500/20">
@@ -133,9 +152,30 @@ export function AIHub() {
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Conexión Manual de Inteligencia Operativa</p>
           </div>
         </div>
-        <ZettelkastenManager />
+        <RiskNetworkManager />
       </section>
 
+      {/* Engineering and Design Section */}
+      <section className="space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 border border-orange-500/20">
+            <Shield className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Ingeniería y Diseño Seguro</h2>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Cálculos Estructurales y Normativa OGUC/DS43</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-8">
+          <BlueprintViewer />
+          <PremiumFeatureGuard featureName="Herramientas de Ingeniería" description="Actualiza a Premium para acceder a la Calculadora Estructural y Diseño de Bodegas Hazmat.">
+            <div className="grid grid-cols-1 gap-8">
+              <StructuralCalculator />
+              <HazmatStorageDesigner />
+            </div>
+          </PremiumFeatureGuard>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
@@ -192,5 +232,6 @@ export function AIHub() {
         </div>
       </div>
     </div>
+    </PremiumFeatureGuard>
   );
 }

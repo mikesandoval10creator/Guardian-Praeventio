@@ -27,9 +27,9 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { NodeType, ZettelkastenNode, Worker, Asset } from '../types';
+import { NodeType, RiskNode, Worker, Asset } from '../types';
 import { where } from 'firebase/firestore';
 import { analyzeSiteMapDensity } from '../services/geminiService';
 import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
@@ -51,7 +51,7 @@ const defaultCenter = {
 export function SiteMap() {
   const { selectedProject } = useProject();
   const { nodes } = useUniversalKnowledge();
-  const { updateNode } = useZettelkasten();
+  const { updateNode } = useRiskEngine();
   
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -59,10 +59,10 @@ export function SiteMap() {
   });
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [selectedHotspot, setSelectedHotspot] = useState<ZettelkastenNode | null>(null);
+  const [selectedHotspot, setSelectedHotspot] = useState<RiskNode | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isPlacing, setIsPlacing] = useState(false);
-  const [nodeToPlace, setNodeToPlace] = useState<ZettelkastenNode | null>(null);
+  const [nodeToPlace, setNodeToPlace] = useState<RiskNode | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeLayers, setActiveLayers] = useState({
     risks: true,

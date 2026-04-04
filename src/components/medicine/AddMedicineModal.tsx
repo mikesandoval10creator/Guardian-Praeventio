@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Stethoscope, User, Calendar, Loader2 } from 'lucide-react';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 
 interface AddMedicineModalProps {
@@ -26,7 +26,7 @@ const results = [
 ];
 
 export function AddMedicineModal({ isOpen, onClose, projectId }: AddMedicineModalProps) {
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     patient: '',
@@ -76,12 +76,22 @@ export function AddMedicineModal({ isOpen, onClose, projectId }: AddMedicineModa
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <motion.div
+          key="modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-zinc-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
+            className="relative bg-zinc-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
           >
             <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-rose-500/10 to-transparent">
               <div className="flex items-center gap-3">
@@ -194,7 +204,7 @@ export function AddMedicineModal({ isOpen, onClose, projectId }: AddMedicineModa
               </div>
             </form>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

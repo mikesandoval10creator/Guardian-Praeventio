@@ -26,19 +26,22 @@ import {
   Pie,
   Cell
 } from 'recharts';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { generateExecutiveSummary } from '../services/geminiService';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 export function Analytics() {
-  const { nodes } = useZettelkasten();
+  const { nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const [isGenerating, setIsGenerating] = useState(false);
   const [executiveSummary, setExecutiveSummary] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const isOnline = useOnlineStatus();
 
   // Filter nodes by project
   const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id);
@@ -110,12 +113,25 @@ export function Analytics() {
   const incidentTrendData = calculateTrendData();
 
   const handleGenerateSummary = async () => {
+    if (!isOnline) {
+      const cached = await getCachedAIResponse('analytics-summary');
+      if (cached) {
+        setExecutiveSummary(cached);
+      }
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const summary = await generateExecutiveSummary(stats, projectNodes);
       setExecutiveSummary(summary);
+      await cacheAIResponse('analytics-summary', summary);
     } catch (error) {
       console.error("Error generating summary:", error);
+      const cached = await getCachedAIResponse('analytics-summary');
+      if (cached) {
+        setExecutiveSummary(cached);
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -171,7 +187,7 @@ export function Analytics() {
             ) : (
               <BrainCircuit className="w-4 h-4 text-emerald-400" />
             )}
-            Generar Resumen IA
+            {isOnline ? 'Generar Resumen IA' : 'Cargar Resumen Guardado'}
           </button>
           <button
             onClick={handleExportPDF}

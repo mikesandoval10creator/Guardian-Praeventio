@@ -7,6 +7,8 @@ import { useGamification } from '../hooks/useGamification';
 import confetti from 'canvas-confetti';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+import { ExtinguisherSimulator } from '../components/gamification/ExtinguisherSimulator';
 
 interface LeaderboardUser {
   id: string;
@@ -176,6 +178,7 @@ export function Gamification() {
       title: 'Buscando al Guardián',
       description: 'Encuentra al Guardián Praeventio (casco blanco, lentes verdes) y 3 extintores ocultos en la faena.',
       thumbnail: 'https://images.unsplash.com/photo-1541888086425-d81bb19240f5?auto=format&fit=crop&q=80&w=800',
+      fallbackThumbnail: 'https://images.unsplash.com/photo-1541888086425-d81bb19240f5?auto=format&fit=crop&q=80&w=800',
       points: 100,
       locked: false,
       requiredPoints: 0,
@@ -187,6 +190,7 @@ export function Gamification() {
       title: 'La Garra del EPP',
       description: 'Identifica al trabajador que no está usando el EPP correcto.',
       thumbnail: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&q=80&w=800',
+      fallbackThumbnail: 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&q=80&w=800',
       points: 100,
       locked: stats.points < 100,
       requiredPoints: 100
@@ -196,6 +200,7 @@ export function Gamification() {
       title: 'Simulador de Extintores',
       description: 'Identifica el riesgo de incendio en la imagen.',
       thumbnail: 'https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&q=80&w=800',
+      fallbackThumbnail: 'https://images.unsplash.com/photo-1605810230434-7631ac76ec81?auto=format&fit=crop&q=80&w=800',
       points: 150,
       locked: stats.points < 200,
       requiredPoints: 200
@@ -203,6 +208,7 @@ export function Gamification() {
   ];
 
   return (
+    <PremiumFeatureGuard featureName="Gamificación y Recompensas" description="Motiva a tu equipo con un sistema de medallas, desafíos diarios y rankings basados en su participación en seguridad.">
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
         <div className="space-y-2">
@@ -210,14 +216,14 @@ export function Gamification() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20 shrink-0">
               <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gamificación</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gamificación</h1>
           </div>
-          <p className="text-xs sm:text-sm md:text-lg text-zinc-500 font-medium">Recompensas, Medallas y Aprendizaje Interactivo</p>
+          <p className="text-[10px] sm:text-xs md:text-sm text-zinc-500 font-medium">Recompensas, Medallas y Aprendizaje Interactivo</p>
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-4 bg-zinc-900/50 border border-white/5 rounded-2xl p-4 w-full md:w-auto">
           <div className="flex flex-col items-start sm:items-end">
-            <span className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest">Puntos Totales</span>
-            <span className="text-xl sm:text-2xl font-black text-amber-500">{stats.points.toLocaleString()} PTS</span>
+            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest">Puntos Totales</span>
+            <span className="text-lg sm:text-xl md:text-2xl font-black text-amber-500">{stats.points.toLocaleString()} PTS</span>
           </div>
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-500/20 flex items-center justify-center border-2 border-amber-500 shrink-0">
             <Star className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500 fill-amber-500" />
@@ -235,12 +241,12 @@ export function Gamification() {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-lg font-black text-white uppercase tracking-tight">Misión Diaria</h2>
-                <span className={`${dailyChallengeCompleted ? 'bg-emerald-500' : 'bg-amber-500'} text-white text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full transition-colors duration-500`}>
+                <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-tight">Misión Diaria</h2>
+                <span className={`${dailyChallengeCompleted ? 'bg-emerald-500' : 'bg-amber-500'} text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full transition-colors duration-500`}>
                   +150 PTS
                 </span>
               </div>
-              <p className={`text-sm ${dailyChallengeCompleted ? 'text-emerald-200/70' : 'text-amber-200/70'} transition-colors duration-500`}>
+              <p className={`text-xs sm:text-sm ${dailyChallengeCompleted ? 'text-emerald-200/70' : 'text-amber-200/70'} transition-colors duration-500`}>
                 {dailyChallengeCompleted ? '¡Misión completada! Vuelve mañana para un nuevo desafío.' : 'Completa 1 juego interactivo y reporta 1 hallazgo de seguridad.'}
               </p>
             </div>
@@ -264,7 +270,7 @@ export function Gamification() {
             <button 
               onClick={handleClaimDaily}
               disabled={dailyChallengeCompleted || dailyProgress < 100}
-              className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors shadow-lg shrink-0 ${
+              className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-colors shadow-lg shrink-0 ${
                 dailyChallengeCompleted 
                   ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 cursor-not-allowed shadow-none'
                   : dailyProgress >= 100
@@ -282,35 +288,35 @@ export function Gamification() {
       <div className="flex flex-col sm:flex-row bg-zinc-900/50 p-1.5 rounded-2xl border border-white/10 self-start shadow-inner w-full sm:w-fit gap-1 sm:gap-0">
         <button
           onClick={() => setActiveTab('medals')}
-          className={`flex-1 sm:flex-none px-4 sm:px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'medals' 
               ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' 
               : 'text-zinc-500 hover:text-white'
           }`}
         >
-          <Award className="w-4 h-4" />
+          <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           Medallas
         </button>
         <button
           onClick={() => setActiveTab('games')}
-          className={`flex-1 sm:flex-none px-4 sm:px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'games' 
               ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/20' 
               : 'text-zinc-500 hover:text-white'
           }`}
         >
-          <Target className="w-4 h-4" />
-          Juegos Interactivos
+          <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          Juegos
         </button>
         <button
           onClick={() => setActiveTab('ranking')}
-          className={`flex-1 sm:flex-none px-4 sm:px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'ranking' 
               ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
               : 'text-zinc-500 hover:text-white'
           }`}
         >
-          <Crown className="w-4 h-4" />
+          <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           Ranking
         </button>
       </div>
@@ -394,6 +400,7 @@ export function Gamification() {
                   <img 
                     src={game.thumbnail} 
                     alt={game.title}
+                    onError={(e) => { e.currentTarget.src = game.fallbackThumbnail; }}
                     className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${game.locked ? 'grayscale opacity-50' : ''}`}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent" />
@@ -519,7 +526,15 @@ export function Gamification() {
 
       {/* Game Modal */}
       <AnimatePresence>
-        {activeGame && (
+        {activeGame === 'g3' ? (
+          <ExtinguisherSimulator 
+            onComplete={(points) => {
+              addPoints(points, 'Simulador de Extintores completado');
+              setActiveGame(null);
+            }} 
+            onClose={() => setActiveGame(null)} 
+          />
+        ) : activeGame && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: 40 }}
@@ -572,6 +587,7 @@ export function Gamification() {
                   <img 
                     ref={imageRef}
                     src={games.find(g => g.id === activeGame)?.thumbnail.replace('w=800', 'w=1200')} 
+                    onError={(e) => { e.currentTarget.src = games.find(g => g.id === activeGame)?.fallbackThumbnail?.replace('w=800', 'w=1200') || ''; }}
                     alt="Faena"
                     className="w-full h-auto"
                     onClick={handleImageClick}
@@ -645,6 +661,7 @@ export function Gamification() {
         )}
       </AnimatePresence>
     </div>
+    </PremiumFeatureGuard>
   );
 }
 

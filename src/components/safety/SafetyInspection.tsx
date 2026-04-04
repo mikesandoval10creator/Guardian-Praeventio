@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ClipboardCheck, Plus, Trash2, Save, Loader2, CheckCircle2, Wand2 } from 'lucide-react';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { generateActionPlan } from '../../services/geminiService';
@@ -23,7 +23,7 @@ export function SafetyInspection() {
   ]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
-  const { addNode, addConnection } = useZettelkasten();
+  const { addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
 
   const handleAddItem = () => {

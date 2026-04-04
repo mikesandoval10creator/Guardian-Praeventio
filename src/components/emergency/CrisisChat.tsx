@@ -28,7 +28,19 @@ export function CrisisChat() {
   const { selectedProject } = useProject();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (activeDropdown && !(e.target as Element).closest('.dropdown-container')) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeDropdown]);
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -112,32 +124,72 @@ export function CrisisChat() {
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-zinc-900/80 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl">
+    <div className="flex flex-col h-[600px] bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-sm">
       {/* Header */}
-      <div className="p-4 border-b border-white/5 bg-rose-500/10 flex items-center justify-between">
+      <div className="p-4 border-b border-rose-200 dark:border-white/5 bg-rose-50 dark:bg-rose-500/10 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-rose-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/20">
             <ShieldAlert className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-sm font-black text-white uppercase tracking-tight">Canal de Crisis</h3>
-            <p className="text-[10px] text-rose-500 font-bold uppercase tracking-widest animate-pulse">Comunicación Crítica Activa</p>
+            <h3 className="text-sm font-black text-rose-900 dark:text-white uppercase tracking-tight">Canal de Crisis</h3>
+            <p className="text-[10px] text-rose-600 dark:text-rose-500 font-bold uppercase tracking-widest animate-pulse">Comunicación Crítica Activa</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 transition-colors">
+          <button className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors">
             <Phone className="w-4 h-4" />
           </button>
-          <button className="p-2 hover:bg-white/5 rounded-lg text-zinc-400 transition-colors">
-            <MoreVertical className="w-4 h-4" />
-          </button>
+          <div className="relative dropdown-container">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveDropdown(activeDropdown === 'menu' ? null : 'menu');
+              }}
+              className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+            <AnimatePresence>
+              {activeDropdown === 'menu' && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
+                >
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Handle mute
+                      setActiveDropdown(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+                  >
+                    Silenciar
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Handle close
+                      setActiveDropdown(null);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                  >
+                    Cerrar Canal
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
       {/* Messages Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide"
+        className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide bg-zinc-50 dark:bg-transparent"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg: any) => (
@@ -150,20 +202,20 @@ export function CrisisChat() {
               <div className={`max-w-[85%] p-4 rounded-2xl space-y-2 ${
                 msg.type === 'emergency' ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' :
                 msg.type === 'alert' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' :
-                msg.isMe ? 'bg-white text-black' : 'bg-zinc-800 text-white'
+                msg.isMe ? 'bg-zinc-900 dark:bg-white text-white dark:text-black' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent shadow-sm dark:shadow-none'
               }`}>
                 <div className="flex items-center justify-between gap-4 mb-1">
                   <span className={`text-[8px] font-black uppercase tracking-widest ${
                     msg.type === 'emergency' ? 'text-white/80' :
                     msg.type === 'alert' ? 'text-black/60' :
-                    msg.isMe ? 'text-black/60' : 'text-zinc-500'
+                    msg.isMe ? 'text-white/60 dark:text-black/60' : 'text-zinc-500'
                   }`}>
                     {msg.isMe ? 'Yo' : msg.sender} • {msg.role}
                   </span>
                   <span className={`text-[8px] font-bold uppercase tracking-widest ${
                     msg.type === 'emergency' ? 'text-white/60' :
                     msg.type === 'alert' ? 'text-black/40' :
-                    msg.isMe ? 'text-black/40' : 'text-zinc-600'
+                    msg.isMe ? 'text-white/40 dark:text-black/40' : 'text-zinc-400 dark:text-zinc-600'
                   }`}>
                     {msg.timestamp}
                   </span>
@@ -178,14 +230,14 @@ export function CrisisChat() {
       {/* Input Area */}
       <form 
         onSubmit={handleSendMessage}
-        className="p-4 bg-black/20 border-t border-white/5 flex items-center gap-3"
+        className="p-4 bg-white dark:bg-black/20 border-t border-zinc-200 dark:border-white/5 flex items-center gap-3"
       >
         <input
           type="text"
           placeholder="Escribe un mensaje crítico..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          className="flex-1 bg-zinc-800 border border-white/5 rounded-xl py-3 px-4 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all"
+          className="flex-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all"
         />
         <button 
           type="submit"
@@ -197,22 +249,22 @@ export function CrisisChat() {
       </form>
 
       {/* Quick Actions Footer */}
-      <div className="px-4 py-2 bg-rose-500/5 border-t border-white/5 flex items-center gap-4 overflow-x-auto scrollbar-hide">
+      <div className="px-4 py-2 bg-rose-50 dark:bg-rose-500/5 border-t border-rose-100 dark:border-white/5 flex items-center gap-4 overflow-x-auto scrollbar-hide">
         <button 
           onClick={() => handleQuickAction('Fuego detectado en mi sector.', 'emergency')}
-          className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all"
+          className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
         >
           Reportar Fuego
         </button>
         <button 
           onClick={() => handleQuickAction('Necesito asistencia médica urgente.', 'emergency')}
-          className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all"
+          className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
         >
           Solicitar Médico
         </button>
         <button 
           onClick={() => handleQuickAction('Iniciando evacuación del sector.', 'alert')}
-          className="whitespace-nowrap px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-[9px] font-black text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all"
+          className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
         >
           Evacuación Completa
         </button>

@@ -1,28 +1,37 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ClipboardCheck, Calendar, User, Loader2, Shield, Activity, FileText } from 'lucide-react';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 
 interface AddAuditModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialType?: string;
 }
 
-export function AddAuditModal({ isOpen, onClose }: AddAuditModalProps) {
+export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddAuditModalProps) {
   const [loading, setLoading] = useState(false);
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     auditor: '',
     date: new Date().toISOString().split('T')[0],
-    type: 'Interna',
+    type: initialType,
+    isoStandard: 'ISO 45001:2018',
     scope: '',
     tags: ''
   });
+
+  // Reset form when opened with new initialType
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormData(prev => ({ ...prev, type: initialType }));
+    }
+  }, [isOpen, initialType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,11 +39,17 @@ export function AddAuditModal({ isOpen, onClose }: AddAuditModalProps) {
     
     setLoading(true);
     try {
+      const finalTags = formData.tags.split(',').map(t => t.trim()).filter(t => t);
+      if (formData.type === 'Certificación') {
+        finalTags.push(formData.isoStandard);
+        finalTags.push('ISO');
+      }
+
       await addNode({
         type: NodeType.AUDIT,
         title: formData.title,
         description: formData.description,
-        tags: formData.tags.split(',').map(t => t.trim()).filter(t => t),
+        tags: finalTags,
         projectId: selectedProject.id,
         connections: [],
         metadata: {
@@ -54,6 +69,7 @@ export function AddAuditModal({ isOpen, onClose }: AddAuditModalProps) {
         auditor: '',
         date: new Date().toISOString().split('T')[0],
         type: 'Interna',
+        isoStandard: 'ISO 45001:2018',
         scope: '',
         tags: ''
       });
@@ -67,11 +83,14 @@ export function AddAuditModal({ isOpen, onClose }: AddAuditModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+        <motion.div
+          key="modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          <div
             onClick={onClose}
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
@@ -109,34 +128,49 @@ export function AddAuditModal({ isOpen, onClose }: AddAuditModalProps) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Tipo</label>
-                  <select
-                    value={formData.type}
-                    onChange={e => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                  >
-                    <option>Interna</option>
-                    <option>Externa</option>
-                    <option>Certificación</option>
-                    <option>Gubernamental</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Programada</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      required
-                      type="date"
-                      value={formData.date}
-                      onChange={e => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Tipo</label>
+            <select
+              value={formData.type}
+              onChange={e => setFormData({ ...formData, type: e.target.value })}
+              className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            >
+              <option>Interna</option>
+              <option>Externa</option>
+              <option>Certificación</option>
+              <option>Gubernamental</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Programada</label>
+            <div className="relative">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input
+                required
+                type="date"
+                value={formData.date}
+                onChange={e => setFormData({ ...formData, date: e.target.value })}
+                className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              />
+            </div>
+          </div>
+        </div>
+
+        {formData.type === 'Certificación' && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Norma ISO</label>
+            <select
+              value={formData.isoStandard}
+              onChange={e => setFormData({ ...formData, isoStandard: e.target.value })}
+              className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+            >
+              <option value="ISO 45001:2018">ISO 45001:2018 (SST)</option>
+              <option value="ISO 9001:2015">ISO 9001:2015 (Calidad)</option>
+              <option value="ISO 14001:2015">ISO 14001:2015 (Medio Ambiente)</option>
+            </select>
+          </div>
+        )}
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Auditor Responsable</label>
@@ -193,7 +227,7 @@ export function AddAuditModal({ isOpen, onClose }: AddAuditModalProps) {
               </button>
             </form>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

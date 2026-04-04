@@ -8,14 +8,14 @@ Acceso ilimitado a las funciones de consulta y concienciación:
 - **Guardián Interactivo:** Consulta básica de EPP y recomendaciones de seguridad.
 - **Biblioteca de Normativas:** Acceso a documentos legales y normativos estándar.
 - **Botón de Emergencia:** Funcionalidad de alerta básica.
-- **Red de Conocimiento (Zettelkasten):** Hasta 50 nodos de conocimiento personal.
+- **Red de Conocimiento (Risk Network):** Hasta 50 nodos de conocimiento personal.
 
 ## 2. Plan Premium (Suscripción)
 Diseñado para Supervisores, Prevencionistas y Empresas:
 - **Matriz IPERC con IA:** Generación automática de matrices de riesgo personalizadas.
 - **Gestión de Proyectos Ilimitada:** Control total sobre múltiples frentes de trabajo.
 - **Análisis Predictivo:** IA que predice riesgos basados en datos históricos y ambientales.
-- **Zettelkasten Empresarial:** Nodos ilimitados y conexiones colaborativas.
+- **Risk Network Empresarial:** Nodos ilimitados y conexiones colaborativas.
 - **Reportes Avanzados:** Generación de informes PDF/Excel para auditorías.
 - **Soporte Prioritario:** Acceso directo a expertos en seguridad.
 

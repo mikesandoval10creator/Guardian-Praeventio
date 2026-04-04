@@ -9,17 +9,20 @@ import {
   CheckCircle2, 
   AlertTriangle,
   ArrowRight,
-  Info
+  Info,
+  WifiOff
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { auditAISuggestion } from '../../services/geminiService';
 import { NodeType } from '../../types';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 export function EthicsGuardian() {
   const { nodes } = useUniversalKnowledge();
   const [input, setInput] = useState('');
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const isOnline = useOnlineStatus();
 
   const normativesContext = useMemo(() => {
     return nodes
@@ -29,7 +32,7 @@ export function EthicsGuardian() {
   }, [nodes]);
 
   const handleAudit = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !isOnline) return;
     setLoading(true);
     try {
       const auditResult = await auditAISuggestion(input, normativesContext);
@@ -69,11 +72,24 @@ export function EthicsGuardian() {
           />
           <button
             onClick={handleAudit}
-            disabled={loading || !input.trim()}
-            className="absolute bottom-4 right-4 bg-purple-500 hover:bg-purple-600 disabled:bg-zinc-800 disabled:text-zinc-600 text-white px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg shadow-purple-500/20 active:scale-95"
+            disabled={loading || !input.trim() || !isOnline}
+            className={`absolute bottom-4 right-4 px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg active:scale-95 ${
+              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/20 disabled:opacity-50'
+            }`}
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-            <span>Auditar</span>
+            {!isOnline ? (
+              <>
+                <WifiOff className="w-4 h-4" />
+                <span>Requiere Conexión</span>
+              </>
+            ) : loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <ShieldCheck className="w-4 h-4" />
+                <span>Auditar</span>
+              </>
+            )}
           </button>
         </div>
 

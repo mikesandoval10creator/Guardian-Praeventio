@@ -18,13 +18,17 @@ import {
   BarChart3,
   Settings,
   Layout,
-  FileText
+  FileText,
+  WifiOff,
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function Projects() {
   const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
@@ -33,6 +37,7 @@ export function Projects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'assets'>('overview');
+  const isOnline = useOnlineStatus();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -47,11 +52,30 @@ export function Projects() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Require MFA before saving a project
+    if (localStorage.getItem('mfa_setup_completed') !== 'true') {
+      window.dispatchEvent(new CustomEvent('require-mfa', {
+        detail: {
+          isForced: false,
+          onSuccess: () => {
+            // Re-trigger submit after MFA is completed
+            executeSubmit();
+          }
+        }
+      }));
+      return;
+    }
+
+    executeSubmit();
+  };
+
+  const executeSubmit = async () => {
     setIsCreating(true);
     try {
       const newProjectId = await createProject(formData);
       
-      // Bootstrap Zettelkasten knowledge for this industry
+      // Bootstrap Risk Network knowledge for this industry
       await bootstrapProjectKnowledge(newProjectId, formData.industry);
 
       setIsModalOpen(false);
@@ -210,17 +234,23 @@ export function Projects() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">Gestión de Proyectos</h1>
-          <p className="text-zinc-500 font-medium text-[10px] sm:text-sm mt-1">Administra tus faenas, industrias y niveles de riesgo</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">Gestión de Proyectos</h1>
+          <p className="text-zinc-500 font-medium text-[9px] sm:text-xs md:text-sm mt-1">Administra tus faenas, industrias y niveles de riesgo</p>
         </div>
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => setIsModalOpen(true)}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all w-full sm:w-auto shrink-0"
+          disabled={!isOnline}
+          title={!isOnline ? 'Requiere conexión a internet' : ''}
+          className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
+            !isOnline 
+              ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' 
+              : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+          }`}
         >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-          Nuevo Proyecto
+          {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
+          {!isOnline ? 'Requiere Conexión' : 'Nuevo Proyecto'}
         </motion.button>
       </div>
 
@@ -231,8 +261,8 @@ export function Projects() {
             <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[8px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Proyectos Activos</p>
-            <p className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.status === 'active').length}</p>
+            <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Proyectos Activos</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.status === 'active').length}</p>
           </div>
         </div>
         <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm">
@@ -240,8 +270,8 @@ export function Projects() {
             <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[8px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Industrias Cubiertas</p>
-            <p className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white">{new Set(projects.map(p => p.industry)).size}</p>
+            <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Industrias Cubiertas</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{new Set(projects.map(p => p.industry)).size}</p>
           </div>
         </div>
         <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm sm:col-span-2 md:col-span-1">
@@ -249,8 +279,8 @@ export function Projects() {
             <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
           </div>
           <div className="min-w-0">
-            <p className="text-[8px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Riesgo Crítico</p>
-            <p className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.riskLevel === 'Crítico').length}</p>
+            <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Riesgo Crítico</p>
+            <p className="text-lg sm:text-xl md:text-2xl font-black text-zinc-900 dark:text-white">{projects.filter(p => p.riskLevel === 'Crítico').length}</p>
           </div>
         </div>
       </div>
@@ -269,10 +299,10 @@ export function Projects() {
 
       {/* Projects List */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-12 sm:py-20 gap-4">
-          <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 animate-spin" />
-          <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest">Sincronizando Proyectos...</p>
-        </div>
+          <div className="flex flex-col items-center justify-center py-12 sm:py-20 gap-4">
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 animate-spin" />
+            <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest">Sincronizando Proyectos...</p>
+          </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredProjects.map((project) => (
@@ -285,10 +315,16 @@ export function Projects() {
               }`}
             >
               {/* Status Badge */}
-              <div className="absolute top-3 sm:top-4 right-3 sm:right-4">
+              <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex items-center gap-2">
+                {project.isPendingSync && (
+                  <span className="px-2 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-500/20 text-orange-600 dark:text-orange-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                    <RefreshCw className="w-2 h-2 animate-spin" />
+                    Pendiente
+                  </span>
+                )}
                 <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${
-                  project.status === 'active' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 
-                  project.status === 'completed' ? 'bg-blue-500/10 text-blue-600 dark:text-blue-500' : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-500'
+                  project.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 
+                  project.status === 'completed' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500' : 'bg-zinc-100 dark:bg-zinc-500/10 text-zinc-600 dark:text-zinc-500'
                 }`}>
                   {project.status === 'active' ? 'Activo' : project.status === 'completed' ? 'Completado' : 'Archivado'}
                 </span>
@@ -300,8 +336,8 @@ export function Projects() {
                     <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500 group-hover:text-emerald-500 transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-black text-zinc-900 dark:text-white truncate uppercase tracking-tight">{project.name}</h3>
-                    <p className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{project.industry}</p>
+                    <h3 className="text-sm sm:text-base md:text-lg font-black text-zinc-900 dark:text-white truncate uppercase tracking-tight">{project.name}</h3>
+                    <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{project.industry}</p>
                   </div>
                 </div>
 
@@ -350,9 +386,9 @@ export function Projects() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-4 sm:p-8 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-500/5 dark:from-emerald-500/10 to-transparent shrink-0">
+              <div className="p-4 sm:p-8 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-50 dark:from-emerald-500/5 to-transparent shrink-0">
                 <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-10 h-10 sm:w-12 h-12 rounded-xl sm:rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 sm:w-12 h-12 rounded-xl sm:rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center shrink-0">
                     <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 dark:text-emerald-500" />
                   </div>
                   <div>
@@ -380,19 +416,22 @@ export function Projects() {
                   </div>
                   <div className="space-y-1.5 sm:space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Industria / Rubro</label>
-                    <select
-                      value={formData.industry}
-                      onChange={e => setFormData({ ...formData, industry: e.target.value })}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
-                    >
-                      {INDUSTRY_SECTORS.map(sector => (
-                        <optgroup key={sector.sector} label={sector.sector}>
-                          {sector.subsectors.map(subsector => (
-                            <option key={subsector} value={subsector}>{subsector}</option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formData.industry}
+                        onChange={e => setFormData({ ...formData, industry: e.target.value })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
+                      >
+                        {INDUSTRY_SECTORS.map(sector => (
+                          <optgroup key={sector.sector} label={sector.sector}>
+                            {sector.subsectors.map(subsector => (
+                              <option key={subsector} value={subsector}>{subsector}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
 
@@ -438,13 +477,16 @@ export function Projects() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-1.5 sm:space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Nivel de Riesgo Base</label>
-                    <select
-                      value={formData.riskLevel}
-                      onChange={e => setFormData({ ...formData, riskLevel: e.target.value as any })}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
-                    >
-                      {RISK_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formData.riskLevel}
+                        onChange={e => setFormData({ ...formData, riskLevel: e.target.value as any })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
+                      >
+                        {RISK_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                    </div>
                   </div>
                   <div className="space-y-1.5 sm:space-y-2">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha de Inicio</label>

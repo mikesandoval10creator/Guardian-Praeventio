@@ -17,6 +17,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { es } from 'date-fns/locale';
 
 import { AddEventModal } from '../components/calendar/AddEventModal';
+import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
 
 interface Event {
   id: string;
@@ -33,6 +34,7 @@ export function Calendar() {
   const { selectedProject } = useProject();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
 
   const { data: events, loading } = useFirestoreCollection<Event>(
     selectedProject ? `projects/${selectedProject.id}/events` : null
@@ -109,7 +111,8 @@ export function Calendar() {
                   {dayEvents.map(event => (
                     <div 
                       key={event.id}
-                      className="p-1.5 rounded-lg bg-zinc-800 border border-white/5 text-[8px] font-bold text-white uppercase tracking-wider truncate"
+                      onClick={() => setSelectedEvent(event)}
+                      className="p-1.5 rounded-lg bg-zinc-800 border border-white/5 text-[8px] font-bold text-white uppercase tracking-wider truncate cursor-pointer hover:bg-zinc-700 transition-colors"
                     >
                       {event.title}
                     </div>
@@ -131,7 +134,11 @@ export function Calendar() {
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sincronizando Agenda...</p>
             </div>
           ) : (events || []).slice(0, 3).map(event => (
-            <div key={event.id} className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 space-y-4 group hover:border-emerald-500/30 transition-all">
+            <div 
+              key={event.id} 
+              onClick={() => setSelectedEvent(event)}
+              className="bg-zinc-900/50 border border-white/5 rounded-3xl p-6 space-y-4 group hover:border-emerald-500/30 transition-all cursor-pointer"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
                   {event.type}
@@ -158,6 +165,11 @@ export function Calendar() {
         </div>
       </div>
       <AddEventModal isOpen={isAdding} onClose={() => setIsAdding(false)} />
+      <EventDetailsModal 
+        isOpen={!!selectedEvent} 
+        onClose={() => setSelectedEvent(null)} 
+        event={selectedEvent} 
+      />
     </div>
   );
 }

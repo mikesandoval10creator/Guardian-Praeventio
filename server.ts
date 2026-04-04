@@ -26,7 +26,12 @@ app.use(session({
 // OAuth Configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
+const SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/fitness.activity.read',
+  'https://www.googleapis.com/auth/fitness.heart_rate.read',
+  'https://www.googleapis.com/auth/fitness.body.read'
+].join(' ');
 
 // API Routes
 app.get("/api/auth/google/url", (req, res) => {
@@ -133,6 +138,106 @@ app.post("/api/calendar/sync", async (req, res) => {
   } catch (error) {
     console.error('Error syncing with Google Calendar:', error);
     res.status(500).json({ error: "Failed to sync with Google Calendar" });
+  }
+});
+
+// Proxy for Google Fit API
+app.post("/api/fitness/sync", async (req, res) => {
+  const { tokens } = req.body;
+  
+  if (!tokens || !tokens.access_token) {
+    return res.status(401).json({ error: "No access token provided" });
+  }
+
+  try {
+    const endTime = Date.now();
+    const startTime = endTime - (7 * 24 * 60 * 60 * 1000); // Last 7 days
+
+    const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${tokens.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        aggregateBy: [
+          { dataTypeName: 'com.google.heart_rate.bpm' },
+          { dataTypeName: 'com.google.step_count.delta' }
+        ],
+        bucketByTime: { durationMillis: 86400000 },
+        startTimeMillis: startTime,
+        endTimeMillis: endTime
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Google Fit API error:', errorText);
+      return res.status(response.status).json({ error: "Failed to fetch Google Fit data" });
+    }
+
+    const data = await response.json();
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error syncing with Google Fit:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// IoT Webhook Ingestion Endpoint
+app.post("/api/telemetry/ingest", async (req, res) => {
+  const { secretKey, type, source, metric, value, unit, status, projectId } = req.body;
+
+  if (secretKey !== 'praeventio-iot-secret-2026') {
+    return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
+  }
+
+  if (!type || !source || !metric || value === undefined) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    
+    // Construct Firestore REST API URL
+    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents/telemetry_events`;
+
+    // Format payload for Firestore REST API
+    const firestorePayload = {
+      fields: {
+        secretKey: { stringValue: secretKey },
+        type: { stringValue: type },
+        source: { stringValue: source },
+        metric: { stringValue: metric },
+        value: { doubleValue: Number(value) },
+        unit: { stringValue: unit || "" },
+        status: { stringValue: status || "normal" },
+        projectId: { stringValue: projectId || "global" },
+        timestamp: { timestampValue: new Date().toISOString() }
+      }
+    };
+
+    const response = await fetch(firestoreUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(firestorePayload)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Firestore REST API error:', errorData);
+      throw new Error(`Firestore error: ${response.status}`);
+    }
+
+    res.json({ success: true, message: "Telemetry event ingested successfully" });
+  } catch (error) {
+    console.error('Error ingesting telemetry:', error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

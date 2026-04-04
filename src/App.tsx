@@ -13,11 +13,12 @@ import { Normatives } from './pages/Normatives';
 import { Hygiene } from './pages/Hygiene';
 import { Medicine } from './pages/Medicine';
 import { Ergonomics } from './pages/Ergonomics';
+import { Psychosocial } from './pages/Psychosocial';
 import { Notifications } from './pages/Notifications';
 import { Settings } from './pages/Settings';
 import { Help } from './pages/Help';
 import { Evacuation } from './pages/Evacuation';
-import { Zettelkasten } from './pages/Zettelkasten';
+import { RiskNetwork } from './pages/RiskNetwork';
 import { Findings } from './pages/Findings';
 import { Audits } from './pages/Audits';
 import { Projects } from './pages/Projects';
@@ -34,6 +35,7 @@ import { Profile } from './pages/Profile';
 import { Login } from './pages/Login';
 import { Splash } from './pages/Splash';
 import { AIHub } from './pages/AIHub';
+import { ModuleHub } from './pages/ModuleHub';
 import { SafetyFeed } from './pages/SafetyFeed';
 import { PredictiveGuard } from './pages/PredictiveGuard';
 import { Attendance } from './pages/Attendance';
@@ -45,13 +47,19 @@ import { KnowledgeIngestion } from './pages/KnowledgeIngestion';
 import { Analytics } from './pages/Analytics';
 import { SusesoReports } from './pages/SusesoReports';
 import { Glossary } from './pages/Glossary';
+import { MinsalProtocols } from './pages/MinsalProtocols';
 import { GuardianVoiceAssistant } from './components/ai/GuardianVoiceAssistant';
 import { FirebaseProvider, useFirebase } from './contexts/FirebaseContext';
 import { ProjectProvider } from './contexts/ProjectContext';
 import { UniversalKnowledgeProvider } from './contexts/UniversalKnowledgeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { EmergencyProvider } from './contexts/EmergencyContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
 import { useAutoLogout } from './hooks/useAutoLogout';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { OfflineSyncManager } from './components/OfflineSyncManager';
+import { EmergencyOverlay } from './components/shared/EmergencyOverlay';
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -76,14 +84,17 @@ function AppRoutes() {
   }
 
   return (
-    <UniversalKnowledgeProvider>
-      <ProjectProvider>
-        <NotificationProvider>
-          <Routes>
-            <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
-            <Route path="/public/node/:nodeId" element={<PublicNodeView />} />
-            <Route path="/" element={<RootLayout />}>
-              <Route index element={<Dashboard />} />
+    <SubscriptionProvider>
+      <UniversalKnowledgeProvider>
+        <ProjectProvider>
+          <NotificationProvider>
+            <EmergencyProvider>
+              <EmergencyOverlay />
+              <Routes>
+              <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
+              <Route path="/public/node/:nodeId" element={<PublicNodeView />} />
+              <Route path="/" element={<RootLayout />}>
+                <Route index element={<Dashboard />} />
               <Route path="evacuation" element={<Evacuation />} />
               <Route path="emergency" element={<Emergency />} />
               <Route path="emergency-generator" element={<EmergencyGenerator />} />
@@ -98,14 +109,16 @@ function AppRoutes() {
               <Route path="history" element={<History />} />
               <Route path="normatives" element={<Normatives />} />
               <Route path="normatives/:id" element={<NormativeDetail />} />
+              <Route path="minsal-protocols" element={<MinsalProtocols />} />
               <Route path="glossary" element={<Glossary />} />
               <Route path="hygiene" element={<Hygiene />} />
               <Route path="medicine" element={<Medicine />} />
               <Route path="ergonomics" element={<Ergonomics />} />
+              <Route path="psychosocial" element={<Psychosocial />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="settings" element={<Settings />} />
               <Route path="help" element={<Help />} />
-              <Route path="zettelkasten" element={<Zettelkasten />} />
+              <Route path="risk-network" element={<RiskNetwork />} />
               <Route path="findings" element={<Findings />} />
               <Route path="audits" element={<Audits />} />
               <Route path="attendance" element={<Attendance />} />
@@ -119,6 +132,7 @@ function AppRoutes() {
               <Route path="documents" element={<Documents />} />
               <Route path="documents/:id" element={<DocumentViewer />} />
               <Route path="calendar" element={<Calendar />} />
+              <Route path="hub/:id" element={<ModuleHub />} />
               <Route path="ai-hub" element={<AIHub />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="suseso" element={<SusesoReports />} />
@@ -127,9 +141,11 @@ function AppRoutes() {
             </Route>
           </Routes>
           {user && <GuardianVoiceAssistant />}
+          </EmergencyProvider>
         </NotificationProvider>
       </ProjectProvider>
     </UniversalKnowledgeProvider>
+    </SubscriptionProvider>
   );
 }
 
@@ -138,6 +154,8 @@ export default function App() {
     <ErrorBoundary>
       <FirebaseProvider>
         <BrowserRouter>
+          <OfflineIndicator />
+          <OfflineSyncManager />
           <AppRoutes />
         </BrowserRouter>
       </FirebaseProvider>

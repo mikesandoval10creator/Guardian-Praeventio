@@ -13,36 +13,39 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <>
-          <motion.div
+          <motion.div 
+            key="modal-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="fixed inset-x-4 top-[10%] bottom-[10%] md:inset-auto md:w-full md:max-w-2xl bg-white dark:bg-zinc-900 rounded-[32px] shadow-2xl z-[51] overflow-hidden flex flex-col"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           >
-            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-800/50">
-              <h2 className="text-lg font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
-                {title}
-              </h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5 text-zinc-500" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {children}
-            </div>
+            <div
+              onClick={onClose}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl max-h-[90vh] bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between bg-zinc-900 shrink-0">
+                <h2 className="text-lg font-bold text-white truncate pr-4">
+                  {title}
+                </h2>
+                <button
+                  onClick={onClose}
+                  className="p-2 hover:bg-white/5 rounded-xl transition-colors shrink-0 text-zinc-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                {children}
+              </div>
+            </motion.div>
           </motion.div>
-        </>
       )}
     </AnimatePresence>
   );

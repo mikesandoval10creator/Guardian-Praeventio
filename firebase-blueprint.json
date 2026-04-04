@@ -54,7 +54,7 @@
     },
     "Node": {
       "title": "Knowledge Node",
-      "description": "An atomic unit of knowledge in the Zettelkasten system.",
+      "description": "An atomic unit of knowledge in the Risk Network system.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -212,7 +212,7 @@
     },
     "/nodes/{nodeId}": {
       "schema": "Node",
-      "description": "Zettelkasten knowledge nodes."
+      "description": "Risk Network knowledge nodes."
     },
     "/projects/{projectId}/emergency_messages/{messageId}": {
       "schema": "EmergencyMessage",

@@ -16,18 +16,21 @@ import {
   FileText,
   Target
 } from 'lucide-react';
-import { useZettelkasten } from '../hooks/useZettelkasten';
-import { NodeType } from '../types';
+import { useRiskEngine } from '../hooks/useRiskEngine';
+import { NodeType, RiskNode } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { AddAuditModal } from '../components/audits/AddAuditModal';
 import { SafetyInspection } from '../components/safety/SafetyInspection';
 import { ISOAudit } from '../components/audits/ISOAudit';
+import { AuditDetailModal } from '../components/audits/AuditDetailModal';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function Audits() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAudit, setSelectedAudit] = useState<RiskNode | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<'history' | 'inspection' | 'iso'>('history');
-  const { nodes, loading } = useZettelkasten();
+  const { nodes, loading } = useRiskEngine();
   const { selectedProject } = useProject();
 
   const audits = nodes.filter(n => 
@@ -47,6 +50,7 @@ export function Audits() {
   };
 
   return (
+    <PremiumFeatureGuard featureName="Auditorías e Inspecciones" description="Realiza inspecciones de seguridad y auditorías ISO con listas de verificación personalizables y reportes automáticos.">
     <div className="p-4 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -82,7 +86,7 @@ export function Audits() {
               view === 'iso' ? 'bg-indigo-500 text-white shadow-sm' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
-            Auditoría ISO Colaborativa
+            Dashboard ISO
           </button>
         </div>
       </div>
@@ -178,6 +182,7 @@ export function Audits() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
+                    onClick={() => setSelectedAudit(audit)}
                     className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm group hover:border-blue-500/30 transition-all cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -241,6 +246,13 @@ export function Audits() {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
       />
+
+      <AuditDetailModal
+        audit={selectedAudit}
+        isOpen={!!selectedAudit}
+        onClose={() => setSelectedAudit(null)}
+      />
     </div>
+    </PremiumFeatureGuard>
   );
 }

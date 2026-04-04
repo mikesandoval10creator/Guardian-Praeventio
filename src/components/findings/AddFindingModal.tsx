@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertTriangle, MapPin, Tag, Loader2, Shield, Activity, Zap, Sparkles, Camera } from 'lucide-react';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 import { generateActionPlan, analyzeSafetyImage } from '../../services/geminiService';
@@ -15,7 +15,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
   const [loading, setLoading] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [generateAIPlan, setGenerateAIPlan] = useState(true);
-  const { addNode, addConnection } = useZettelkasten();
+  const { addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -142,184 +142,205 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+        <motion.div
+          key="modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+        >
+          <div
             onClick={onClose}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
           />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+            className="relative bg-zinc-900 border border-amber-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-amber-500/10 flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent sticky top-0 z-10 backdrop-blur-md">
+            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                  <AlertTriangle className="w-6 h-6 text-amber-500" />
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
+                  <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white uppercase tracking-tight">Nuevo Hallazgo</h3>
-                  <p className="text-xs text-zinc-500 font-medium">Registrar observación o no conformidad</p>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight truncate">Nuevo Hallazgo</h3>
+                  <p className="text-[10px] text-amber-300 font-bold uppercase tracking-widest truncate">Registrar observación o no conformidad</p>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-                <X className="w-5 h-5 text-zinc-500" />
+              <button 
+                onClick={onClose}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white shrink-0"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 border-b border-white/5 bg-zinc-800/50">
-              <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-500/30 rounded-2xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  capture="environment" 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                />
-                {isAnalyzingImage ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-                    <p className="text-xs font-bold text-amber-500 uppercase tracking-widest text-center">Analizando imagen con IA...</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
-                      <Camera className="w-6 h-6 text-amber-500" />
+            <div className="overflow-y-auto custom-scrollbar flex-1">
+              <div className="p-6 border-b border-white/5 bg-zinc-800/50">
+                <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-500/30 rounded-2xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                  />
+                  {isAnalyzingImage ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                      <p className="text-xs font-bold text-amber-500 uppercase tracking-widest text-center">Analizando imagen con IA...</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-sm font-bold text-amber-500 uppercase tracking-widest">Inspección Visual IA</p>
-                      <p className="text-[10px] text-zinc-400 mt-1">Sube o toma una foto para autocompletar el hallazgo</p>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                        <Camera className="w-6 h-6 text-amber-500" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-amber-500 uppercase tracking-widest">Inspección Visual IA</p>
+                        <p className="text-[10px] text-zinc-400 mt-1">Sube o toma una foto para autocompletar el hallazgo</p>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título del Hallazgo</label>
-                <input
-                  required
-                  type="text"
-                  value={formData.title}
-                  onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Ej: Falta de señalética en zona de carga"
-                  className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Severidad</label>
-                  <select
-                    value={formData.severity}
-                    onChange={e => setFormData({ ...formData, severity: e.target.value })}
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
-                  >
-                    <option>Baja</option>
-                    <option>Media</option>
-                    <option>Alta</option>
-                    <option>Crítica</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría</label>
-                  <select
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
-                  >
-                    <option>Seguridad</option>
-                    <option>Salud</option>
-                    <option>Higiene</option>
-                    <option>Ergonomía</option>
-                    <option>Ambiental</option>
-                  </select>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Ubicación / Área</label>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <form id="add-finding-form" onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título del Hallazgo</label>
                   <input
                     required
                     type="text"
-                    value={formData.location}
-                    onChange={e => setFormData({ ...formData, location: e.target.value })}
-                    placeholder="Ej: Bodega Central, Sector B"
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                    value={formData.title}
+                    onChange={e => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="Ej: Falta de señalética en zona de carga"
+                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   />
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Detallada</label>
-                <textarea
-                  required
-                  value={formData.description}
-                  onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Describe lo observado y el riesgo potencial..."
-                  rows={5}
-                  className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
-                />
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Severidad</label>
+                    <select
+                      value={formData.severity}
+                      onChange={e => setFormData({ ...formData, severity: e.target.value })}
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
+                    >
+                      <option>Baja</option>
+                      <option>Media</option>
+                      <option>Alta</option>
+                      <option>Crítica</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría</label>
+                    <select
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
+                    >
+                      <option>Seguridad</option>
+                      <option>Salud</option>
+                      <option>Higiene</option>
+                      <option>Ergonomía</option>
+                      <option>Ambiental</option>
+                    </select>
+                  </div>
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Etiquetas (separadas por coma)</label>
-                <div className="relative">
-                  <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="text"
-                    value={formData.tags}
-                    onChange={e => setFormData({ ...formData, tags: e.target.value })}
-                    placeholder="epp, señaletica, riesgo-caida"
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Ubicación / Área</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      required
+                      type="text"
+                      value={formData.location}
+                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="Ej: Bodega Central, Sector B"
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Detallada</label>
+                  <textarea
+                    required
+                    value={formData.description}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Describe lo observado y el riesgo potencial..."
+                    rows={5}
+                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
                   />
                 </div>
-              </div>
 
-              <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white">Plan de Acción IA</p>
-                    <p className="text-[8px] text-zinc-500 font-medium">Generar tareas correctivas automáticamente</p>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Etiquetas (separadas por coma)</label>
+                  <div className="relative">
+                    <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="text"
+                      value={formData.tags}
+                      onChange={e => setFormData({ ...formData, tags: e.target.value })}
+                      placeholder="epp, señaletica, riesgo-caida"
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                    />
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setGenerateAIPlan(!generateAIPlan)}
-                  className={`w-12 h-6 rounded-full transition-all relative ${generateAIPlan ? 'bg-amber-500' : 'bg-zinc-700'}`}
-                >
-                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${generateAIPlan ? 'right-1' : 'left-1'}`} />
-                </button>
-              </div>
 
+                <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white">Plan de Acción IA</p>
+                      <p className="text-[8px] text-zinc-500 font-medium">Generar tareas correctivas automáticamente</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGenerateAIPlan(!generateAIPlan)}
+                    className={`w-12 h-6 rounded-full transition-all relative ${generateAIPlan ? 'bg-amber-500' : 'bg-zinc-700'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${generateAIPlan ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-6 border-t border-white/5 bg-zinc-900/50 shrink-0 flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white bg-zinc-800 hover:bg-zinc-700 transition-colors"
+              >
+                Cancelar
+              </button>
               <button
                 type="submit"
+                form="add-finding-form"
                 disabled={loading || isAnalyzingImage}
-                className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-black font-black py-4 rounded-2xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 uppercase tracking-widest text-xs mt-2"
+                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-black bg-amber-500 hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
               >
                 {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Registrando...</span>
+                  </>
                 ) : (
                   <>
-                    <Shield className="w-5 h-5" />
-                    Registrar Hallazgo
+                    <Shield className="w-4 h-4" />
+                    <span>Registrar Hallazgo</span>
                   </>
                 )}
               </button>
-            </form>
+            </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

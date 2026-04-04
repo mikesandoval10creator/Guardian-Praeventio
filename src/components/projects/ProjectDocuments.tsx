@@ -10,7 +10,9 @@ import {
   CheckCircle2, 
   AlertCircle,
   Search,
-  Filter
+  Filter,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
 import { 
   storage, 
@@ -28,6 +30,8 @@ import {
   doc
 } from '../../services/firebase';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 
 interface ProjectDocument {
   id: string;
@@ -38,6 +42,7 @@ interface ProjectDocument {
   projectId: string;
   uploadedBy: string;
   createdAt: string;
+  isPendingSync?: boolean;
 }
 
 interface ProjectDocumentsProps {
@@ -45,25 +50,15 @@ interface ProjectDocumentsProps {
 }
 
 export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
-  const [documents, setDocuments] = useState<ProjectDocument[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const { user } = useFirebase();
+  const isOnline = useOnlineStatus();
 
-  useEffect(() => {
-    const q = query(collection(db, 'project_documents'), where('projectId', '==', projectId));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as ProjectDocument[];
-      setDocuments(docs);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [projectId]);
+  const { data: documents, loading } = useFirestoreCollection<ProjectDocument>(
+    'project_documents',
+    [where('projectId', '==', projectId)]
+  );
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,19 +66,40 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
 
     setUploading(true);
     try {
-      const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
+      if (!isOnline) {
+        const { saveForSync } = await import('../../utils/pwa-offline');
+        await saveForSync({
+          type: 'upload',
+          collection: 'project_documents',
+          file: file,
+          data: {
+            storagePath: `projects/${projectId}/documents/${Date.now()}_${file.name}`,
+            documentData: {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              projectId,
+              uploadedBy: user.uid,
+              createdAt: new Date().toISOString()
+            }
+          }
+        });
+        alert('Archivo guardado para sincronización. Se subirá cuando recuperes la conexión.');
+      } else {
+        const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(snapshot.ref);
 
-      await addDoc(collection(db, 'project_documents'), {
-        name: file.name,
-        url,
-        type: file.type,
-        size: file.size,
-        projectId,
-        uploadedBy: user.uid,
-        createdAt: new Date().toISOString()
-      });
+        await addDoc(collection(db, 'project_documents'), {
+          name: file.name,
+          url,
+          type: file.type,
+          size: file.size,
+          projectId,
+          uploadedBy: user.uid,
+          createdAt: new Date().toISOString()
+        });
+      }
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Error al subir el archivo. Verifica los permisos de almacenamiento.');
@@ -134,10 +150,28 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
           </div>
         </div>
         
-        <label className="cursor-pointer bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all border border-white/5">
-          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          <span>{uploading ? 'Subiendo...' : 'Subir Documento'}</span>
-          <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+        <label 
+          className={`cursor-pointer px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all border ${
+            !isOnline || uploading
+              ? 'bg-zinc-800/50 text-zinc-500 border-white/5 cursor-not-allowed'
+              : 'bg-zinc-800 hover:bg-zinc-700 text-white border-white/5'
+          }`}
+          title={!isOnline ? 'Requiere conexión a internet' : ''}
+        >
+          {!isOnline ? (
+            <WifiOff className="w-4 h-4" />
+          ) : uploading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Upload className="w-4 h-4" />
+          )}
+          <span>{!isOnline ? 'Requiere Conexión' : uploading ? 'Subiendo...' : 'Subir Documento'}</span>
+          <input 
+            type="file" 
+            className="hidden" 
+            onChange={handleFileUpload} 
+            disabled={uploading || !isOnline} 
+          />
         </label>
       </div>
 
@@ -178,6 +212,12 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
                     <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">
                       {new Date(doc.createdAt).toLocaleDateString('es-CL')}
                     </span>
+                    {doc.isPendingSync && (
+                      <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
+                        <RefreshCw className="w-2 h-2 animate-spin" />
+                        Pendiente
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -192,7 +232,13 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
                 </a>
                 <button
                   onClick={() => handleDelete(doc.id, doc.url)}
-                  className="p-2 hover:bg-red-500/10 rounded-lg text-zinc-400 hover:text-red-500 transition-all"
+                  disabled={!isOnline}
+                  title={!isOnline ? 'Requiere conexión a internet' : ''}
+                  className={`p-2 rounded-lg transition-all ${
+                    !isOnline 
+                      ? 'text-zinc-600 cursor-not-allowed' 
+                      : 'hover:bg-red-500/10 text-zinc-400 hover:text-red-500'
+                  }`}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

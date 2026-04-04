@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Volume2, VolumeX, X, MessageSquare, Loader2, ShieldCheck, Sparkles, Send, WifiOff } from 'lucide-react';
 import { processAudioWithAI, generateActionPlan } from '../../services/geminiService';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { NodeType } from '../../types';
@@ -25,7 +25,7 @@ export function GuardianVoiceAssistant() {
   const audioChunks = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const { addNode, addConnection } = useZettelkasten();
+  const { addNode, addConnection, nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
 
@@ -64,7 +64,7 @@ export function GuardianVoiceAssistant() {
 
     if (!onlineStatus) {
       setTimeout(() => {
-        const offlineRes = getOfflineResponse(query);
+        const offlineRes = getOfflineResponse(query, nodes);
         setResponse(offlineRes);
         savePendingOfflineQuery(query);
         setIsProcessing(false);
@@ -75,13 +75,18 @@ export function GuardianVoiceAssistant() {
     try {
       if (onlineStatus) {
         // Use geminiService for online text processing
-        const { getChatResponse } = await import('../../services/geminiService');
-        // We need some context, let's pass a generic one for now or get it from Zettelkasten if available
-        const context = "Usuario consultando al Guardián AI."; 
-        const aiResponse = await getChatResponse(query, context);
+        const { getChatResponse, semanticSearch } = await import('../../services/geminiService');
+        
+        // Get top 5 most relevant nodes
+        const relevantNodes = await semanticSearch(query, nodes, 5);
+        const context = relevantNodes.length > 0 
+          ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n')
+          : "Usuario consultando al Guardián AI."; 
+        
+        const aiResponse = await getChatResponse(query, context, [], 1);
         setResponse(aiResponse);
       } else {
-        const offlineRes = getOfflineResponse(query);
+        const offlineRes = getOfflineResponse(query, nodes);
         setResponse(offlineRes);
       }
     } catch (err) {
@@ -234,14 +239,14 @@ export function GuardianVoiceAssistant() {
   }, [audioUrl]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 left-6 z-50">
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="absolute bottom-20 right-0 w-80 sm:w-96 bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            className="absolute bottom-20 left-0 w-80 sm:w-96 bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
           >
             <div className={`p-4 border-b border-white/5 flex items-center justify-between ${onlineStatus ? 'bg-gradient-to-r from-emerald-500/10 to-blue-500/10' : 'bg-gradient-to-r from-amber-500/10 to-orange-500/10'}`}>
               <div className="flex items-center gap-2">

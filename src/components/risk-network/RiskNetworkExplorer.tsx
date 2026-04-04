@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
-import { NodeType, ZettelkastenNode } from '../../types';
+import { NodeType, RiskNode } from '../../types';
 import { 
   Search, 
   Filter, 
@@ -17,10 +17,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function ZettelkastenExplorer() {
+export function RiskNetworkExplorer() {
   const { nodes, stats, loading } = useUniversalKnowledge();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedNode, setSelectedNode] = useState<ZettelkastenNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<RiskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [filterType, setFilterType] = useState<NodeType | 'All'>('All');
   const fgRef = useRef<any>(null);

@@ -15,7 +15,7 @@ import {
   BrainCircuit
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { NodeType, Worker } from '../types';
 import { AddErgonomicsModal } from '../components/ergonomics/AddErgonomicsModal';
@@ -23,7 +23,7 @@ import { AIPostureAnalysisModal } from '../components/ergonomics/AIPostureAnalys
 
 export function Ergonomics() {
   const { selectedProject } = useProject();
-  const { nodes, loading } = useZettelkasten();
+  const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);

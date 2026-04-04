@@ -1,10 +1,15 @@
 import { motion } from 'framer-motion';
 import { signInWithGoogle } from '../services/firebase';
-import { LogIn, ShieldCheck, Zap, Activity } from 'lucide-react';
+import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/shared/Card';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { Link } from 'react-router-dom';
 
 export function Login() {
+  const isOnline = useOnlineStatus();
+
   const handleLogin = async () => {
+    if (!isOnline) return;
     try {
       await signInWithGoogle();
     } catch (error) {
@@ -13,7 +18,7 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-6 font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-6 font-sans relative">
       <div className="max-w-md w-full">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -26,6 +31,14 @@ export function Login() {
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10">
+            <Link 
+              to="/" 
+              className="inline-flex items-center gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-medium text-xs uppercase tracking-wider mb-8"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Volver al inicio
+            </Link>
+
             <div className="flex flex-col items-center mb-8 sm:mb-10">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-zinc-900 dark:bg-zinc-100 rounded-2xl flex items-center justify-center mb-4 sm:mb-6 shadow-lg rotate-3">
                 <ShieldCheck className="w-7 h-7 sm:w-8 sm:h-8 text-white dark:text-zinc-900" />
@@ -62,10 +75,24 @@ export function Login() {
             <div className="space-y-3">
               <Button
                 onClick={handleLogin}
-                className="w-full py-3.5 sm:py-4 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 sm:gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                disabled={!isOnline}
+                className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 sm:gap-3 transition-all shadow-xl ${
+                  !isOnline 
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' 
+                    : 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:scale-[1.02] active:scale-[0.98]'
+                }`}
               >
-                <LogIn className="w-4 h-4" />
-                Iniciar con Google
+                {!isOnline ? (
+                  <>
+                    <WifiOff className="w-4 h-4" />
+                    Requiere Conexión
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    Iniciar con Google
+                  </>
+                )}
               </Button>
             </div>
 

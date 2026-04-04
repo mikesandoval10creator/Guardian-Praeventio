@@ -13,7 +13,7 @@ import {
   Camera,
   Loader2
 } from 'lucide-react';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { NodeType } from '../types';
 
@@ -42,7 +42,7 @@ export function SafeDriving() {
   const [reported, setReported] = useState(false);
   const [map, setMap] = useState<google.maps.Map | null>(null);
   
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
 
   const { isLoaded } = useJsApiLoader({
@@ -73,18 +73,26 @@ export function SafeDriving() {
         locationString = 'Ubicación no disponible (Permiso denegado o error)';
       }
 
-      // 1. Save to dedicated driving_incidents collection
-      const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/driving_incidents`), {
-        type: incidentType,
-        description: description,
-        location: locationString,
-        status: 'Reportado',
-        timestamp: new Date().toISOString(),
-        projectId: selectedProject.id,
-        createdAt: serverTimestamp()
-      });
+      const { handleFirestoreError, OperationType } = await import('../services/firebase');
+      
+      let docRef;
+      try {
+        // 1. Save to dedicated driving_incidents collection
+        docRef = await addDoc(collection(db, `projects/${selectedProject.id}/driving_incidents`), {
+          type: incidentType,
+          description: description,
+          location: locationString,
+          status: 'Reportado',
+          timestamp: new Date().toISOString(),
+          projectId: selectedProject.id,
+          createdAt: serverTimestamp()
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/driving_incidents`);
+        return;
+      }
 
-      // 2. Save to Zettelkasten
+      // 2. Save to Risk Network
       const node = await addNode({
         type: NodeType.INCIDENT,
         title: `Incidente en Ruta: ${incidentType}`,

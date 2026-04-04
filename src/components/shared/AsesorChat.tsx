@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi } from 'lucide-react';
-import { getChatResponse } from '../../services/geminiService';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
+import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2 } from 'lucide-react';
+import { getChatResponse, semanticSearch } from '../../services/geminiService';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import ReactMarkdown from 'react-markdown';
-import { getOfflineResponse } from '../../lib/offlineKnowledge';
+import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
+import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 interface Message {
   id: string;
@@ -17,7 +18,7 @@ interface Message {
 
 export function AsesorChat() {
   const [isOpen, setIsOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const isOnline = useOnlineStatus();
   const [pendingQueries, setPendingQueries] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -29,33 +30,56 @@ export function AsesorChat() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [detailLevel, setDetailLevel] = useState(1);
+  const [lastTopic, setLastTopic] = useState('');
+  const [savedNodeId, setSavedNodeId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { nodes } = useZettelkasten();
+  const { nodes, addNode } = useRiskEngine();
   const { selectedProject } = useProject();
 
+  const handleSaveToRiskNetwork = async (content: string, topic: string) => {
+    if (!selectedProject) return;
+    
+    try {
+      const newNode = await addNode({
+        title: `Asesoría: ${topic || 'Consulta IA'}`,
+        description: content,
+        type: 'normative' as any,
+        tags: ['ia-advice', 'chat-capture', topic].filter(Boolean),
+        projectId: selectedProject.id,
+        connections: [],
+        metadata: {
+          source: 'chat-bot',
+          capturedAt: new Date().toISOString()
+        }
+      });
+      setSavedNodeId(newNode.id);
+      setTimeout(() => setSavedNodeId(null), 3000);
+    } catch (error) {
+      console.error('Error saving to Risk Network:', error);
+    }
+  };
+
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      if (pendingQueries.length > 0) {
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: `**¡Conexión Restaurada!** 🌐\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\n¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
-          timestamp: new Date()
-        }]);
-        setPendingQueries([]); // Clear pending queries after notifying
-      }
-    };
-    const handleOffline = () => setIsOnline(false);
+    // Load pending queries from local storage on mount
+    const storedQueries = getPendingOfflineQueries();
+    if (storedQueries.length > 0) {
+      setPendingQueries(storedQueries);
+    }
+  }, []);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [pendingQueries]);
+  useEffect(() => {
+    if (isOnline && pendingQueries.length > 0) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `**¡Conexión Restaurada!** 🌐\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\n¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
+        timestamp: new Date()
+      }]);
+      setPendingQueries([]); // Clear pending queries after notifying
+      clearPendingOfflineQueries();
+    }
+  }, [isOnline, pendingQueries]);
 
   useEffect(() => {
     const handleOpenChat = (e: any) => {
@@ -95,7 +119,7 @@ export function AsesorChat() {
     if (!isOnline) {
       // Handle Offline Mode
       setTimeout(() => {
-        const offlineResponse = getOfflineResponse(currentInput);
+        const offlineResponse = getOfflineResponse(currentInput, nodes);
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -105,19 +129,40 @@ export function AsesorChat() {
         };
         setMessages(prev => [...prev, assistantMessage]);
         setPendingQueries(prev => [...prev, currentInput]);
+        savePendingOfflineQuery(currentInput);
         setLoading(false);
       }, 600);
       return;
     }
 
     try {
-      // Prepare context from Zettelkasten nodes
-      const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id || n.projectId === 'global');
-      const context = projectNodes.map(n => 
-        `- [${n.type}] ${n.title}: ${n.description} (Tags: ${n.tags.join(', ')})`
-      ).join('\n');
+      // Determine if this is a continuation to increase depth
+      const isContinuation = /m[aá]s|detalle|profundiza|ampl[ií]a|contin[uú]a|ejemplo|explica|profundidad/i.test(currentInput);
+      let newDetailLevel = detailLevel;
+      
+      if (isContinuation) {
+        newDetailLevel = Math.min(detailLevel + 1, 3);
+      } else {
+        newDetailLevel = 1;
+        setLastTopic(currentInput);
+      }
+      setDetailLevel(newDetailLevel);
 
-      const response = await getChatResponse(currentInput, context);
+      const numNodes = newDetailLevel === 1 ? 5 : newDetailLevel === 2 ? 10 : 15;
+      const searchQuery = isContinuation ? `${lastTopic} ${currentInput}` : currentInput;
+
+      // Prepare context from Risk Network nodes using Semantic Search
+      const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id || n.projectId === 'global');
+      
+      // Get relevant nodes based on depth
+      const relevantNodes = await semanticSearch(searchQuery, projectNodes, numNodes);
+      
+      const context = relevantNodes.length > 0 
+        ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description} (Tags: ${n.tags.join(', ')})`).join('\n')
+        : "No se encontraron datos específicos en la Red Neuronal para esta consulta.";
+
+      const historyForAI = messages.map(m => ({ role: m.role, content: m.content }));
+      const response = await getChatResponse(currentInput, context, historyForAI, newDetailLevel);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -143,6 +188,24 @@ export function AsesorChat() {
 
   return (
     <>
+      {/* Floating Button */}
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            onClick={() => setIsOpen(true)}
+            className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 sm:w-14 sm:h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors group"
+          >
+            <Shield className="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform" />
+            {!isOnline && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-amber-500 border-2 border-zinc-900 rounded-full" />
+            )}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
@@ -150,13 +213,13 @@ export function AsesorChat() {
             initial={{ opacity: 0, y: 100, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.9 }}
-            className="fixed bottom-6 right-6 z-50 w-[calc(100vw-3rem)] md:w-[400px] h-[600px] max-h-[80vh] bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-20 sm:bottom-6 right-2 sm:right-6 z-50 w-[calc(100vw-1rem)] sm:w-[400px] h-[500px] sm:h-[600px] max-h-[80vh] bg-zinc-900 border border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="p-4 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-emerald-500" />
+                  <Shield className="w-6 h-6 text-emerald-500" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">El Guardián</h3>
@@ -165,6 +228,17 @@ export function AsesorChat() {
                       <>
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Conciencia Activa</span>
+                        <div className="flex items-center gap-0.5 ml-1">
+                          {[1, 2, 3].map((lvl) => (
+                            <div 
+                              key={lvl}
+                              className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                                lvl <= detailLevel ? 'bg-emerald-500' : 'bg-zinc-800'
+                              }`}
+                              title={`Nivel de profundidad: ${lvl}`}
+                            />
+                          ))}
+                        </div>
                       </>
                     ) : (
                       <>
@@ -204,6 +278,31 @@ export function AsesorChat() {
                       <div className="markdown-body prose prose-invert prose-sm max-w-none">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
+                      
+                      {msg.role === 'assistant' && !msg.isOffline && (
+                        <div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
+                          <button
+                            onClick={() => handleSaveToRiskNetwork(msg.content, lastTopic)}
+                            disabled={savedNodeId !== null}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${
+                              savedNodeId ? 'bg-emerald-500/20 text-emerald-500' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            {savedNodeId ? (
+                              <>
+                                <CheckCircle2 className="w-3 h-3" />
+                                Guardado en Pizarra
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-3 h-3" />
+                                Guardar en Pizarra
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
                       {msg.isOffline && (
                         <div className="mt-2 flex items-center gap-1 text-[10px] text-amber-500 font-bold uppercase tracking-widest">
                           <WifiOff className="w-3 h-3" />

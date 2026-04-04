@@ -50,146 +50,174 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      {isOpen && (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-zinc-900 border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl"
+          key="modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
         >
-          <div className="flex items-center justify-between p-6 border-b border-white/5">
-            <h2 className="text-xl font-black text-white uppercase tracking-tight">Agendar Evento</h2>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/5 rounded-xl text-zinc-400 hover:text-white transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            <div>
-              <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                Título del Evento
-              </label>
-              <div className="relative">
-                <Type className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  type="text"
-                  required
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  placeholder="Ej: Inspección de Seguridad"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                  Fecha
-                </label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="date"
-                    required
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  />
+          <div
+            onClick={onClose}
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className="relative bg-zinc-900 border border-emerald-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col max-h-[90vh]"
+          >
+            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
+                  <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-white uppercase tracking-tight truncate">Agendar Evento</h2>
+                  <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-widest truncate">Añade un nuevo evento al calendario</p>
                 </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                  Hora
-                </label>
-                <div className="relative">
-                  <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                  <input
-                    type="time"
-                    required
-                    value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                    className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                Ubicación
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <input
-                  type="text"
-                  required
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                  placeholder="Ej: Sala de Reuniones 1"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                Tipo de Evento
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-                className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
+              <button
+                onClick={onClose}
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white shrink-0"
               >
-                <option value="Reunión">Reunión</option>
-                <option value="Capacitación">Capacitación</option>
-                <option value="Inspección">Inspección</option>
-                <option value="Auditoría">Auditoría</option>
-              </select>
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                Descripción
-              </label>
-              <div className="relative">
-                <FileText className="absolute left-4 top-4 w-4 h-4 text-zinc-500" />
-                <textarea
-                  required
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all min-h-[100px] resize-none"
-                  placeholder="Detalles del evento..."
-                />
-              </div>
+            <div className="overflow-y-auto custom-scrollbar flex-1">
+              <form id="add-event-form" onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                    Título del Evento
+                  </label>
+                  <div className="relative">
+                    <Type className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="text"
+                      required
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      placeholder="Ej: Inspección de Seguridad"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                      Fecha
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                      <input
+                        type="date"
+                        required
+                        value={formData.date}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                        className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                      Hora
+                    </label>
+                    <div className="relative">
+                      <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                      <input
+                        type="time"
+                        required
+                        value={formData.time}
+                        onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                        className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                    Ubicación
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                    <input
+                      type="text"
+                      required
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      placeholder="Ej: Sala de Reuniones 1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                    Tipo de Evento
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
+                  >
+                    <option value="Reunión">Reunión</option>
+                    <option value="Capacitación">Capacitación</option>
+                    <option value="Inspección">Inspección</option>
+                    <option value="Auditoría">Auditoría</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
+                    Descripción
+                  </label>
+                  <div className="relative">
+                    <FileText className="absolute left-4 top-4 w-4 h-4 text-zinc-500" />
+                    <textarea
+                      required
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all min-h-[100px] resize-none"
+                      placeholder="Detalles del evento..."
+                    />
+                  </div>
+                </div>
+              </form>
             </div>
 
-            <div className="flex justify-end gap-3 pt-6 border-t border-white/5">
+            <div className="p-6 border-t border-white/5 bg-zinc-900/50 shrink-0 flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-3 rounded-xl text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:bg-white/5 transition-colors"
+                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white bg-zinc-800 hover:bg-zinc-700 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
+                form="add-event-form"
                 disabled={loading}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar Evento'}
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <span>Guardar Evento</span>
+                )}
               </button>
             </div>
-          </form>
+          </motion.div>
         </motion.div>
-      </div>
+      )}
     </AnimatePresence>
   );
 }

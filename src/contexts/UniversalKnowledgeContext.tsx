@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { ZettelkastenNode, EnvironmentContext } from '../types';
+import { RiskNode, EnvironmentContext } from '../types';
 import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
 import { fetchEnvironmentContext } from '../services/orchestratorService';
 
 interface UniversalKnowledgeContextType {
-  nodes: ZettelkastenNode[];
+  nodes: RiskNode[];
   loading: boolean;
-  projectClusters: Record<string, ZettelkastenNode[]>;
+  projectClusters: Record<string, RiskNode[]>;
   environment: EnvironmentContext | null;
   stats: {
     totalNodes: number;
@@ -22,7 +22,7 @@ interface UniversalKnowledgeContextType {
 const UniversalKnowledgeContext = createContext<UniversalKnowledgeContextType | undefined>(undefined);
 
 export function UniversalKnowledgeProvider({ children }: { children: React.ReactNode }) {
-  const [nodes, setNodes] = useState<ZettelkastenNode[]>([]);
+  const [nodes, setNodes] = useState<RiskNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [environment, setEnvironment] = useState<EnvironmentContext | null>(null);
   const { isAuthReady, user } = useFirebase();
@@ -68,7 +68,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       const newNodes = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      })) as ZettelkastenNode[];
+      })) as RiskNode[];
       
       setNodes(newNodes);
       setLoading(false);
@@ -86,7 +86,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       if (!acc[projectId]) acc[projectId] = [];
       acc[projectId].push(node);
       return acc;
-    }, {} as Record<string, ZettelkastenNode[]>);
+    }, {} as Record<string, RiskNode[]>);
   }, [nodes]);
 
   const stats = useMemo(() => {

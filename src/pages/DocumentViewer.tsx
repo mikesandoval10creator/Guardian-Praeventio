@@ -51,11 +51,11 @@ export function DocumentViewer() {
       <div className="p-6 max-w-7xl mx-auto">
         <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-8 text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-2">Error</h2>
-          <p className="text-zinc-400">{error || 'Documento no encontrado'}</p>
+          <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter mb-2">Error</h2>
+          <p className="text-zinc-600 dark:text-zinc-400">{error || 'Documento no encontrado'}</p>
           <button 
             onClick={() => navigate('/documents')}
-            className="mt-6 px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-sm font-bold transition-colors"
+            className="mt-6 px-6 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl text-sm font-bold transition-colors"
           >
             Volver a Documentos
           </button>
@@ -71,12 +71,12 @@ export function DocumentViewer() {
         <div className="flex items-center gap-3 sm:gap-4">
           <button 
             onClick={() => navigate('/documents')}
-            className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg sm:rounded-xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg sm:rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 flex items-center justify-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors shadow-sm"
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tighter truncate">{document.name || document.title}</h1>
+            <h1 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter truncate">{document.name || document.title}</h1>
             <p className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1 truncate">
               {document.category || 'Documento'} • v{document.version || '1.0'} • {new Date(document.createdAt?.toDate() || document.uploadDate || new Date()).toLocaleDateString('es-CL')}
             </p>
@@ -102,12 +102,12 @@ export function DocumentViewer() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-zinc-900 shadow-2xl overflow-hidden"
+        className="bg-white dark:bg-zinc-900 rounded-2xl sm:rounded-3xl p-4 sm:p-8 text-zinc-900 dark:text-white shadow-2xl overflow-hidden border border-zinc-200 dark:border-white/10"
       >
         {document.content ? (
           typeof document.content === 'string' ? (
-            <div className="prose prose-zinc max-w-none">
-              <div className="whitespace-pre-wrap font-sans text-zinc-800 leading-relaxed text-sm sm:text-lg">
+            <div className="prose prose-zinc dark:prose-invert max-w-none">
+              <div className="whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-300 leading-relaxed text-sm sm:text-lg">
                 {document.content}
               </div>
             </div>
@@ -116,20 +116,20 @@ export function DocumentViewer() {
               {/* Render structured JSON content */}
               {Object.entries(document.content).map(([key, value]: [string, any]) => (
                 <div key={key}>
-                  <h3 className="text-sm sm:text-lg font-black uppercase tracking-widest text-zinc-900 mb-3 sm:mb-4 border-b border-zinc-200 pb-2 break-words">
+                  <h3 className="text-sm sm:text-lg font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-3 sm:mb-4 border-b border-zinc-200 dark:border-white/10 pb-2 break-words">
                     {key.replace(/([A-Z])/g, ' $1').trim()}
                   </h3>
                   {Array.isArray(value) ? (
                     <ul className="space-y-2">
                       {value.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-zinc-600">
+                        <li key={i} className="flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 sm:mt-2 flex-shrink-0" />
                           <span className="break-words" dangerouslySetInnerHTML={{ __html: typeof item === 'string' ? item : JSON.stringify(item) }} />
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: typeof value === 'string' ? value : JSON.stringify(value) }} />
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: typeof value === 'string' ? value : JSON.stringify(value) }} />
                   )}
                 </div>
               ))}
@@ -143,8 +143,8 @@ export function DocumentViewer() {
               <iframe src={document.url} className="w-full h-[500px] sm:h-[800px] rounded-xl border-none shadow-lg" title={document.name} />
             ) : (
               <div className="text-center py-10 sm:py-20">
-                <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 mx-auto mb-3 sm:mb-4" />
-                <p className="text-zinc-500 text-xs sm:text-sm font-medium px-4">Este tipo de archivo no se puede previsualizar directamente.</p>
+                <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-3 sm:mb-4" />
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium px-4">Este tipo de archivo no se puede previsualizar directamente.</p>
                 <a 
                   href={document.url}
                   target="_blank"
@@ -159,8 +159,8 @@ export function DocumentViewer() {
           </div>
         ) : (
           <div className="text-center py-10 sm:py-20">
-            <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 mx-auto mb-3 sm:mb-4" />
-            <p className="text-zinc-500 text-xs sm:text-sm font-medium px-4">Este documento no tiene contenido estructurado ni archivo para visualizar.</p>
+            <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-3 sm:mb-4" />
+            <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium px-4">Este documento no tiene contenido estructurado ni archivo para visualizar.</p>
           </div>
         )}
       </motion.div>

@@ -14,7 +14,8 @@ import {
   Activity,
   Zap,
   Power,
-  Loader2
+  Loader2,
+  WifiOff
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
@@ -23,6 +24,7 @@ import { DynamicEvacuationMap } from '../components/emergency/DynamicEvacuationM
 import { EmergencyDashboard } from '../components/emergency/EmergencyDashboard';
 import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 interface EmergencyProtocol {
   id: string;
@@ -37,6 +39,7 @@ export function Emergency() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
   const { isActive, isAlerting, countdown, startDetection, stopDetection } = useManDownDetection();
+  const isOnline = useOnlineStatus();
 
   const { data: protocolsData, loading: loadingProtocols } = useFirestoreCollection<EmergencyProtocol>(
     selectedProject ? `projects/${selectedProject.id}/emergency_protocols` : null
@@ -131,8 +134,8 @@ export function Emergency() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Plan de Emergencia</h1>
-          <p className="text-xs sm:text-sm text-zinc-400 mt-1">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Plan de Emergencia</h1>
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">
             {selectedProject 
               ? `Protocolos y planes de acción para: ${selectedProject.name}`
               : 'Gestión centralizada de protocolos de seguridad y respuesta'}
@@ -140,31 +143,50 @@ export function Emergency() {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <div className="flex gap-2 w-full sm:w-auto">
-            <Link 
-              to="/emergency-generator"
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[9px] sm:text-[10px] transition-all"
-            >
-              <Zap className="w-4 h-4" />
-              <span>Generador IA</span>
-            </Link>
+            {isOnline ? (
+              <Link 
+                to="/emergency-generator"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-500 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Generador IA</span>
+              </Link>
+            ) : (
+              <button 
+                disabled
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 text-zinc-400 dark:text-zinc-500 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] cursor-not-allowed shadow-sm"
+                title="Requiere conexión a internet"
+              >
+                <WifiOff className="w-4 h-4" />
+                <span>Requiere Conexión</span>
+              </button>
+            )}
             <button 
               onClick={toggleCrisisMode}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[9px] sm:text-[10px] transition-all ${
-                isCrisisMode 
-                  ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
-                  : 'bg-zinc-800 text-zinc-400 hover:text-white'
+              disabled={!isOnline}
+              title={!isOnline ? "Requiere conexión a internet" : ""}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm ${
+                !isOnline
+                  ? 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700/50 cursor-not-allowed'
+                  : isCrisisMode 
+                    ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white border border-zinc-200 dark:border-transparent'
               }`}
             >
-              <Zap className={`w-4 h-4 ${isCrisisMode ? 'animate-pulse' : ''}`} />
-              <span>{isCrisisMode ? 'Crisis Activa' : 'Modo Crisis'}</span>
+              {!isOnline ? (
+                <WifiOff className="w-4 h-4" />
+              ) : (
+                <Zap className={`w-4 h-4 ${isCrisisMode ? 'animate-pulse' : ''}`} />
+              )}
+              <span>{!isOnline ? 'Requiere Conexión' : isCrisisMode ? 'Crisis Activa' : 'Modo Crisis'}</span>
             </button>
           </div>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-zinc-900/50 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 px-4 py-3 sm:py-2 rounded-xl font-medium transition-all text-sm">
-            <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm">
+            <Download className="w-4 h-4" />
             <span>Descargar Plan Completo</span>
           </button>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-medium transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-sm">
-            <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+            <Phone className="w-4 h-4" />
             <span>Contactos de Emergencia</span>
           </button>
         </div>
@@ -193,18 +215,18 @@ export function Emergency() {
               <DynamicEvacuationMap />
               
               {/* Man Down Control Panel */}
-              <div className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all ${
-                isActive ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-zinc-900/50 border-white/10'
+              <div className={`p-4 sm:p-6 rounded-2xl sm:rounded-3xl border transition-all shadow-sm ${
+                isActive ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10'
               }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 sm:mb-6">
                   <div className="flex items-center gap-3 sm:gap-4">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center transition-all shrink-0 ${
-                      isActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-zinc-800 text-zinc-500'
+                      isActive ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500'
                     }`}>
                       <Activity className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold text-white leading-tight">Hombre Caído (Auto-Detección)</h3>
+                      <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white leading-tight">Hombre Caído (Auto-Detección)</h3>
                       <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">
                         {isActive ? 'Monitoreo de movimiento activo' : 'Sistema desactivado'}
                       </p>
@@ -223,31 +245,31 @@ export function Emergency() {
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="p-3 sm:p-4 bg-black/20 rounded-xl sm:rounded-2xl border border-white/5">
+                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Estado Sensores</p>
                     <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-700'}`} />
-                      <span className="text-[10px] sm:text-xs font-bold text-white uppercase">{isActive ? 'Conectado' : 'Inactivo'}</span>
+                      <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`} />
+                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? 'Conectado' : 'Inactivo'}</span>
                     </div>
                   </div>
-                  <div className="p-3 sm:p-4 bg-black/20 rounded-xl sm:rounded-2xl border border-white/5">
+                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Último Movimiento</p>
                     <div className="flex items-center gap-2">
-                      <Clock className="w-3 h-3 text-zinc-500" />
-                      <span className="text-[10px] sm:text-xs font-bold text-white uppercase">{isActive ? 'Hace 1s' : '--:--'}</span>
+                      <Clock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? 'Hace 1s' : '--:--'}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="relative">
-                <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
+                <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 dark:text-zinc-500" />
                 <input
                   type="text"
                   placeholder="Buscar protocolo de emergencia..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
                 />
               </div>
 
@@ -258,26 +280,26 @@ export function Emergency() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 transition-all group cursor-pointer flex flex-col"
+                    className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 dark:hover:border-emerald-500/30 transition-all group cursor-pointer flex flex-col shadow-sm"
                   >
                     <div className="flex items-start justify-between mb-3 sm:mb-4">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-800 flex items-center justify-center text-emerald-500 border border-white/5 shrink-0">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-emerald-600 dark:text-emerald-500 border border-zinc-200 dark:border-white/5 shrink-0">
                         <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                       </div>
                       <span className={`px-2 py-0.5 rounded text-[7px] sm:text-[8px] font-black uppercase tracking-widest ${
-                        protocol.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                        protocol.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'
                       }`}>
                         {protocol.status === 'active' ? 'Vigente' : 'En Revisión'}
                       </span>
                     </div>
-                    <h3 className="font-bold text-white text-base sm:text-lg group-hover:text-emerald-400 transition-colors leading-tight flex-1">{protocol.title}</h3>
+                    <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight flex-1">{protocol.title}</h3>
                     <p className="text-zinc-500 text-[10px] sm:text-xs font-medium mt-1 uppercase tracking-wider">{protocol.category}</p>
-                    <div className="flex items-center justify-between mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-zinc-200 dark:border-white/5">
                       <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
                         <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         <span>Revisión: {protocol.lastReview}</span>
                       </div>
-                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-600 group-hover:text-emerald-500 transition-colors" />
+                      <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-500 transition-colors" />
                     </div>
                   </motion.div>
                 ))}
@@ -286,8 +308,8 @@ export function Emergency() {
 
             {/* Sidebar Info */}
             <div className="space-y-4 sm:space-y-6">
-              <div className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
+                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
                   Alertas Recientes
                 </h3>
@@ -296,10 +318,10 @@ export function Emergency() {
                     { title: 'Simulacro Programado', date: 'Mañana, 10:00 AM', type: 'info' },
                     { title: 'Revisión de Extintores', date: 'Viernes, 14:00 PM', type: 'warning' },
                   ].map((alert, i) => (
-                    <div key={i} className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-zinc-800/50 border border-white/5">
+                    <div key={i} className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5">
                       <div className={`w-1 sm:w-1.5 rounded-full shrink-0 ${alert.type === 'info' ? 'bg-blue-500' : 'bg-amber-500'}`} />
                       <div>
-                        <h4 className="text-xs sm:text-sm font-bold text-white">{alert.title}</h4>
+                        <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">{alert.title}</h4>
                         <p className="text-[9px] sm:text-[10px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">{alert.date}</p>
                       </div>
                     </div>
@@ -307,23 +329,23 @@ export function Emergency() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-                <h3 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
+                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
                   Estado de Cumplimiento
                 </h3>
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-400">Plan de Emergencia</span>
+                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Plan de Emergencia</span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-400">Brigada de Emergencia</span>
+                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Brigada de Emergencia</span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-400">Señalética</span>
-                    <div className="w-4 h-4 rounded-full border-2 border-zinc-700" />
+                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Señalética</span>
+                    <div className="w-4 h-4 rounded-full border-2 border-zinc-300 dark:border-zinc-700" />
                   </div>
                 </div>
               </div>

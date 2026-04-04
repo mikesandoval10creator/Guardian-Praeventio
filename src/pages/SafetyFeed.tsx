@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare, 
@@ -18,25 +18,40 @@ import {
   AlertTriangle,
   Lightbulb,
   Loader2,
-  Network
+  Network,
+  WifiOff
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
-import { useZettelkasten } from '../hooks/useZettelkasten';
+import { useRiskEngine } from '../hooks/useRiskEngine';
 import { collection, addDoc, serverTimestamp, updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import { SafetyPost, SafetySolution, NodeType } from '../types';
-import { analyzeFeedPostForZettelkasten } from '../services/geminiService';
+import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function SafetyFeed() {
   const { user } = useFirebase();
   const { selectedProject } = useProject();
-  const { addNode } = useZettelkasten();
+  const { addNode } = useRiskEngine();
   const [isPosting, setIsPosting] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [newPost, setNewPost] = useState({ content: '', type: 'SafetyMoment' as any, imageBase64: null as string | null });
   const [activeFilter, setActiveFilter] = useState<'all' | 'SafetyMoment' | 'Tip' | 'SuccessStory' | 'Warning'>('all');
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const isOnline = useOnlineStatus();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (activeDropdown && !(e.target as Element).closest('.dropdown-container')) {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeDropdown]);
 
   const { data: posts, loading } = useFirestoreCollection<SafetyPost>('safety_posts', []);
   const { data: solutions } = useFirestoreCollection<SafetySolution>('safety_solutions', []);
@@ -50,13 +65,13 @@ export function SafetyFeed() {
 
     setIsAnalyzing(true);
     try {
-      // 1. Analyze post with Gemini to see if it belongs to Zettelkasten
-      const analysis = await analyzeFeedPostForZettelkasten(newPost.content, newPost.imageBase64, user.displayName || 'Usuario');
+      // 1. Analyze post with Gemini to see if it belongs to the Risk Network
+      const analysis = await analyzeFeedPostForRiskNetwork(newPost.content, newPost.imageBase64, user.displayName || 'Usuario');
       
-      let zettelkastenNodeId = null;
+      let riskNodeId = null;
 
       if (analysis.isRelevant) {
-        // 2. Create Zettelkasten Node
+        // 2. Create Risk Node
         const node = await addNode({
           type: analysis.type === 'INCIDENT' ? NodeType.INCIDENT : NodeType.RISK,
           title: analysis.title,
@@ -70,7 +85,7 @@ export function SafetyFeed() {
             author: user.displayName
           }
         });
-        zettelkastenNodeId = node?.id;
+        riskNodeId = node?.id;
       }
 
       let imageUrl = null;
@@ -92,16 +107,16 @@ export function SafetyFeed() {
         content: newPost.content,
         type: newPost.type,
         imageUrl: imageUrl, 
-        zettelkastenNodeId,
+        riskNodeId,
         likes: [],
         comments: [],
         createdAt: new Date().toISOString(),
         projectId: selectedProject?.id
       });
 
-      if (zettelkastenNodeId) {
-        // Update the Zettelkasten node to link back to the post
-        const nodeRef = doc(db, 'nodes', zettelkastenNodeId);
+      if (riskNodeId) {
+        // Update the Risk node to link back to the post
+        const nodeRef = doc(db, 'nodes', riskNodeId);
         await updateDoc(nodeRef, {
           'metadata.sourceId': postRef.id
         });
@@ -173,10 +188,13 @@ export function SafetyFeed() {
                 )}
               </div>
               <button 
-                onClick={() => setIsPosting(true)}
-                className="flex-1 bg-zinc-800/50 border border-white/5 rounded-2xl px-6 py-3 text-left text-zinc-500 hover:bg-zinc-800 transition-colors text-sm font-medium"
+                onClick={() => {
+                  if (isOnline) setIsPosting(true);
+                }}
+                disabled={!isOnline}
+                className="flex-1 bg-zinc-800/50 border border-white/5 rounded-2xl px-6 py-3 text-left text-zinc-500 hover:bg-zinc-800 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ¿Qué momento de seguridad quieres compartir hoy, {user?.displayName?.split(' ')[0]}?
+                {!isOnline ? 'Conexión requerida para publicar' : `¿Qué momento de seguridad quieres compartir hoy, ${user?.displayName?.split(' ')[0]}?`}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-white/5">
@@ -252,7 +270,7 @@ export function SafetyFeed() {
                           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                           <span className="w-1 h-1 rounded-full bg-zinc-700" />
                           <span className="text-emerald-500">{post.type}</span>
-                          {post.zettelkastenNodeId && (
+                          {post.riskNodeId && (
                             <>
                               <span className="w-1 h-1 rounded-full bg-zinc-700" />
                               <span className="flex items-center gap-1 text-blue-400" title="Analizado y registrado en la Red Neuronal">
@@ -264,9 +282,49 @@ export function SafetyFeed() {
                         </div>
                       </div>
                     </div>
-                    <button className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-500">
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
+                    <div className="relative dropdown-container">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDropdown(activeDropdown === post.id ? null : post.id);
+                        }}
+                        className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-500"
+                      >
+                        <MoreVertical className="w-5 h-5" />
+                      </button>
+                      <AnimatePresence>
+                        {activeDropdown === post.id && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute right-0 mt-1 w-32 bg-zinc-800 border border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
+                          >
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Handle edit
+                                setActiveDropdown(null);
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-xs text-zinc-300 hover:text-white hover:bg-white/5 transition-colors"
+                            >
+                              Editar
+                            </button>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Handle delete
+                                setActiveDropdown(null);
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                            >
+                              Eliminar
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
 
                   <p className="text-zinc-300 text-sm leading-relaxed font-medium">

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
-import { useZettelkasten } from '../../hooks/useZettelkasten';
-import { NodeType, ZettelkastenNode } from '../../types';
+import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { NodeType, RiskNode } from '../../types';
 import { 
   Plus, 
   Link as LinkIcon, 
@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export function ZettelkastenManager() {
+export function RiskNetworkManager() {
   const { nodes, loading } = useUniversalKnowledge();
-  const { addConnection, addNode } = useZettelkasten();
+  const { addConnection, addNode } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
