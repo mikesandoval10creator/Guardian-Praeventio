@@ -8,6 +8,7 @@ import { AsesorChat } from '../shared/AsesorChat';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
+import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
 import { MFASetupModal } from '../auth/MFASetupModal';
@@ -31,6 +32,7 @@ export function RootLayout() {
 
   // Initialize background watcher
   useAutonomousAlerts();
+  useZettelkastenIntelligence();
 
   useEffect(() => {
     const updatePendingCount = async () => {

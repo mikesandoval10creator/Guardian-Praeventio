@@ -240,13 +240,21 @@ export function Matrix() {
   // Query IPERC nodes from Risk Engine
   const ipercNodes = nodes.filter(node => 
     node.type === NodeType.RISK && 
-    node.projectId === selectedProject?.id &&
+    (node.projectId === selectedProject?.id || node.projectId === 'global') &&
     ((node.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) || 
      (node.description || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()))
   );
 
   const approvedRisks = ipercNodes.filter(node => node.metadata?.status !== 'pending_approval');
   const pendingRisks = ipercNodes.filter(node => node.metadata?.status === 'pending_approval');
+
+  const isTransversal = (node: RiskNode) => {
+    if (!selectedProject?.industry || selectedProject.industry === 'General') return true;
+    return node.tags?.includes('General') || node.tags?.includes('Transversal') || !node.tags?.includes(selectedProject.industry);
+  };
+
+  const transversalRisks = approvedRisks.filter(isTransversal);
+  const specificRisks = approvedRisks.filter(node => !isTransversal(node));
 
   const handleApproveRisk = async (nodeId: string) => {
     const node = pendingRisks.find(n => n.id === nodeId);
@@ -340,6 +348,47 @@ export function Matrix() {
       </div>
     );
   }
+
+  const renderRiskRow = (node: RiskNode) => (
+    <tr key={node.id} className="group bg-zinc-900/50 hover:bg-zinc-800/80 transition-all">
+      <td className="px-4 py-3 sm:py-4 rounded-l-2xl border-y border-l border-white/5 group-hover:border-white/10">
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full ${
+            String(node.metadata?.criticidad || '').toLowerCase() === 'crítica' || String(node.metadata?.criticidad || '').toLowerCase() === 'alta' ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' :
+            String(node.metadata?.criticidad || '').toLowerCase() === 'media' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
+            'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+          }`} />
+          <span className="text-xs sm:text-sm font-bold text-white">{node.title}</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10">
+        <p className="text-[10px] sm:text-xs text-zinc-400 line-clamp-2">{node.description}</p>
+      </td>
+      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10 text-center">
+        <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-zinc-800 text-xs font-bold text-white border border-white/5">
+          {node.metadata?.probabilidad || 3}x{node.metadata?.severidad || 3}
+        </div>
+      </td>
+      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10">
+        <p className="text-[10px] sm:text-xs text-zinc-400 line-clamp-2">{node.metadata?.controles || 'Controles estándar'}</p>
+      </td>
+      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] sm:text-xs font-medium text-zinc-300">Supervisor Turno</span>
+          <span className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Permanente</span>
+        </div>
+      </td>
+      <td className="px-4 py-3 sm:py-4 rounded-r-2xl border-y border-r border-white/5 group-hover:border-white/10 text-right">
+        <button 
+          onClick={() => deleteNode(node.id)}
+          className="p-2 hover:bg-rose-500/10 rounded-xl transition-colors text-zinc-500 hover:text-rose-500"
+          title="Eliminar Riesgo"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </td>
+    </tr>
+  );
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
@@ -501,120 +550,60 @@ export function Matrix() {
           <div className="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-emerald-500"></div>
         </div>
       ) : approvedRisks.length > 0 ? (
-        <div className="overflow-x-auto bg-zinc-900/30 border border-white/5 rounded-[2rem] p-4 sm:p-6">
-          <table className="w-full text-left border-separate border-spacing-y-3">
-            <thead>
-              <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
-                <th className="px-4 py-2">Actividad / Tarea</th>
-                <th className="px-4 py-2">Peligro / Riesgo / Consecuencia</th>
-                <th className="px-4 py-2 text-center">P x S</th>
-                <th className="px-4 py-2">Medidas de Control</th>
-                <th className="px-4 py-2">Responsable & Plazo</th>
-                <th className="px-4 py-2 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {approvedRisks.map((node) => {
-                const p = node.metadata?.probabilidad || 1;
-                const s = node.metadata?.severidad || 1;
-                const score = p * s;
-                const criticality = score >= 16 ? 'Crítica' : score >= 9 ? 'Alta' : score >= 4 ? 'Media' : 'Baja';
-                
-                return (
-                  <motion.tr
-                    key={node.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-zinc-900/50 hover:bg-zinc-800/50 transition-all group"
-                  >
-                    <td className="px-4 py-4 rounded-l-2xl border-y border-l border-white/5">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Actividad</span>
-                        <h3 className="text-xs font-bold text-white leading-tight">{node.metadata?.actividad || 'General'}</h3>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 border-y border-white/5">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border ${getCriticalityColor(criticality)}`}>
-                          <AlertTriangle className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors">{node.title}</h3>
-                          <p className="text-[10px] text-zinc-500 line-clamp-1">Peligro: {node.description}</p>
-                          {node.metadata?.consecuencia && (
-                            <p className="text-[9px] text-rose-400/70 font-medium mt-0.5 italic">Consecuencia: {node.metadata.consecuencia}</p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 border-y border-white/5 text-center">
-                      <div className="inline-flex flex-col items-center">
-                        <span className={`text-xs font-black ${getCriticalityTextColor(criticality)}`}>{p} x {s} = {score}</span>
-                        <span className="text-[8px] font-black uppercase tracking-widest text-zinc-600">{criticality}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 border-y border-white/5">
-                      <p className="text-xs text-zinc-300 leading-relaxed max-w-xs">
-                        {node.metadata?.controles || 'Sin controles definidos'}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 border-y border-white/5">
-                      {editingNode === node.id ? (
-                        <div className="space-y-2 min-w-[200px]">
-                          <select 
-                            className="w-full bg-zinc-950 border border-white/10 rounded-lg p-1.5 text-[10px] text-white"
-                            onChange={(e) => {
-                              const workerId = e.target.value;
-                              const deadline = (document.getElementById(`deadline-${node.id}`) as HTMLInputElement).value;
-                              if (workerId && deadline) handleAssignControl(node.id, workerId, deadline);
-                            }}
-                          >
-                            <option value="">Asignar Responsable...</option>
-                            {workers?.map(w => (
-                              <option key={w.id} value={w.id}>{w.name}</option>
-                            ))}
-                          </select>
-                          <input 
-                            id={`deadline-${node.id}`}
-                            type="date" 
-                            className="w-full bg-zinc-950 border border-white/10 rounded-lg p-1.5 text-[10px] text-white"
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-1">
-                          {node.metadata?.responsibleName ? (
-                            <>
-                              <div className="flex items-center gap-1.5 text-emerald-500">
-                                <User className="w-3 h-3" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">{node.metadata.responsibleName}</span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-zinc-500">
-                                <CalendarIcon className="w-3 h-3" />
-                                <span className="text-[10px] font-bold">{node.metadata.deadline ? format(new Date(node.metadata.deadline), 'dd/MM/yyyy') : 'Sin fecha'}</span>
-                              </div>
-                            </>
-                          ) : (
-                            <button 
-                              onClick={() => setEditingNode(node.id)}
-                              className="text-[10px] font-black text-zinc-500 hover:text-white uppercase tracking-widest flex items-center gap-1.5"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Asignar Control
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 rounded-r-2xl border-y border-r border-white/5 text-right">
-                      <button className="p-2 hover:bg-white/5 rounded-xl text-zinc-600 hover:text-emerald-500 transition-all">
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </motion.tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="space-y-8">
+          {/* Riesgos Específicos del Giro */}
+          {specificRisks.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Briefcase className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-bold text-white">Riesgos Específicos del Giro ({selectedProject?.industry})</h3>
+              </div>
+              <div className="overflow-x-auto bg-zinc-900/30 border border-white/5 rounded-[2rem] p-4 sm:p-6">
+                <table className="w-full text-left border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                      <th className="px-4 py-2">Actividad / Tarea</th>
+                      <th className="px-4 py-2">Peligro / Riesgo / Consecuencia</th>
+                      <th className="px-4 py-2 text-center">P x S</th>
+                      <th className="px-4 py-2">Medidas de Control</th>
+                      <th className="px-4 py-2">Responsable & Plazo</th>
+                      <th className="px-4 py-2 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {specificRisks.map((node) => renderRiskRow(node))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Riesgos Transversales */}
+          {transversalRisks.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Grid className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-lg font-bold text-white">Riesgos Transversales</h3>
+              </div>
+              <div className="overflow-x-auto bg-zinc-900/30 border border-white/5 rounded-[2rem] p-4 sm:p-6">
+                <table className="w-full text-left border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                      <th className="px-4 py-2">Actividad / Tarea</th>
+                      <th className="px-4 py-2">Peligro / Riesgo / Consecuencia</th>
+                      <th className="px-4 py-2 text-center">P x S</th>
+                      <th className="px-4 py-2">Medidas de Control</th>
+                      <th className="px-4 py-2">Responsable & Plazo</th>
+                      <th className="px-4 py-2 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transversalRisks.map((node) => renderRiskRow(node))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-2xl sm:rounded-3xl p-10 sm:p-20 text-center">

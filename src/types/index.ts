@@ -88,6 +88,8 @@ export interface EPPItem {
   required: boolean;
   stock: number;
   createdAt: string;
+  ispCertification?: string; // Certificación del Instituto de Salud Pública (ISP)
+  expirationDate?: string;   // Fecha de vencimiento del lote
 }
 
 export interface EPPAssignment {
@@ -100,6 +102,7 @@ export interface EPPAssignment {
   assignedAt: string;
   expiresAt?: string;
   status: 'active' | 'replaced' | 'expired';
+  condition?: 'Nuevo' | 'Bueno' | 'Desgastado' | 'Dañado';
 }
 
 export interface Worker {

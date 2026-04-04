@@ -560,7 +560,7 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
     El documento debe incluir:
     1. Objetivo
     2. Alcance
-    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables según la Biblioteca del Congreso Nacional de Chile - BCN, que justifiquen este documento)
+    3. Marco Legal y Normativo (Utiliza la herramienta de búsqueda de Google para consultar la Biblioteca del Congreso Nacional de Chile - BCN, y cita artículos exactos del DS 594, Ley 16.744 u otros aplicables que justifiquen este documento)
     4. Evaluación Matemática del Riesgo (Incluye la fórmula en formato LaTeX: $MR = P \\times C$, y explica los valores asignados para Probabilidad y Consecuencia basados en el nivel ${riskLevel})
     5. Responsabilidades
     6. ${isPE ? 'Equipos de Emergencia y Rescate requeridos' : 'Equipos de Protección Individual (EPI) / EPP requeridos'} (Considera el contexto ambiental)
@@ -576,6 +576,7 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
     model: 'gemini-3.1-pro-preview',
     contents: prompt,
     config: {
+      tools: [{ googleSearch: {} }],
       responseMimeType: 'application/json',
       responseSchema: {
         type: Type.OBJECT,
@@ -668,6 +669,7 @@ export const generatePTSWithManufacturerData = async (
     4. El documento debe ser formal, directo y enfocado en la prevención de accidentes fatales o graves.
     5. Utiliza terminología técnica chilena (ej. Mutualidad, ACHS, IST, ISL, Seremi de Salud, Dirección del Trabajo).
     6. Incluye una sección de "Evaluación Matemática del Riesgo" usando la fórmula de William Fine (Grado de Peligrosidad = Consecuencia x Exposición x Probabilidad). Muestra la fórmula en formato LaTeX (ej. $GP = C \\times E \\times P$) y un cálculo de ejemplo para el riesgo principal.
+    7. Utiliza la herramienta de búsqueda de Google para consultar la Biblioteca del Congreso Nacional de Chile (BCN) y verificar la exactitud de los artículos legales citados en el Marco Legal.
     
     ESTRUCTURA REQUERIDA (Responde en formato JSON estricto):
     {
@@ -1140,7 +1142,8 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
     1. Resumen del incidente.
     2. Causas Inmediatas.
     3. Causas Raíz (Basado en los 5 Porqués).
-    4. Acciones Correctivas Sugeridas.`,
+    4. Acciones Correctivas Sugeridas.
+    5. Lección Aprendida Global (Un riesgo generalizado que debería agregarse a las matrices IPER de todos los proyectos similares).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -1159,9 +1162,17 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
               },
               required: ["action", "priority"]
             }
+          },
+          globalRiskLesson: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING, description: "Título del riesgo generalizado" },
+              description: { type: Type.STRING, description: "Descripción del riesgo y la lección aprendida" }
+            },
+            required: ["title", "description"]
           }
         },
-        required: ["summary", "immediateCauses", "rootCauses", "correctiveActions"]
+        required: ["summary", "immediateCauses", "rootCauses", "correctiveActions", "globalRiskLesson"]
       }
     }
   });
@@ -1384,7 +1395,7 @@ export const analyzeBioImage = async (base64Image: string) => {
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-image-preview',
     contents: {
       parts: [
         {
@@ -1396,13 +1407,10 @@ export const analyzeBioImage = async (base64Image: string) => {
         {
           text: `Analiza esta imagen de un trabajador en un entorno industrial/laboral. 
           Evalúa los siguientes aspectos y devuelve un JSON estricto:
-          1. fatigue: Nivel de fatiga (0 a 100, donde 100 es muy fatigado). Busca ojos cerrados, bostezos, cabeza caída.
-          2. posture: Calidad postural (0 a 100, donde 100 es postura perfecta). Evalúa ergonomía (REBA/RULA aproximado).
-          3. attention: Nivel de atención (0 a 100, donde 100 es muy atento). Busca mirada al frente, concentración.
-          4. epp: Cumplimiento general de EPP (0 a 100).
-          5. detectedEPP: Array de strings con los EPP que SÍ tiene puestos (ej. "Casco", "Lentes", "Chaleco Reflectante", "Guantes").
-          6. missingEPP: Array de strings con los EPP básicos que le FALTAN (ej. "Lentes de seguridad", "Protección auditiva").
-          7. alerts: Array de strings con alertas críticas detectadas (ej. "Postura de alto riesgo", "Signos de somnolencia"). Si todo está bien, array vacío.`
+          1. epp: Cumplimiento general de EPP (0 a 100).
+          2. detectedEPP: Array de strings con los EPP que SÍ tiene puestos (ej. "Casco", "Lentes", "Chaleco Reflectante", "Guantes").
+          3. missingEPP: Array de strings con los EPP básicos que le FALTAN (ej. "Lentes de seguridad", "Protección auditiva").
+          4. alerts: Array de strings con alertas críticas detectadas (ej. "Falta casco", "Falta arnés en altura"). Si todo está bien, array vacío.`
         }
       ]
     },
@@ -1411,15 +1419,12 @@ export const analyzeBioImage = async (base64Image: string) => {
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          fatigue: { type: Type.NUMBER },
-          posture: { type: Type.NUMBER },
-          attention: { type: Type.NUMBER },
           epp: { type: Type.NUMBER },
           detectedEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
           missingEPP: { type: Type.ARRAY, items: { type: Type.STRING } },
           alerts: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
-        required: ["fatigue", "posture", "attention", "epp", "detectedEPP", "missingEPP", "alerts"]
+        required: ["epp", "detectedEPP", "missingEPP", "alerts"]
       }
     }
   });

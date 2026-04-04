@@ -12,7 +12,8 @@ import {
   Activity,
   Send,
   HardDrive,
-  Loader2
+  Loader2,
+  ArrowRight
 } from 'lucide-react';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
@@ -25,7 +26,7 @@ import { jsPDF } from 'jspdf';
 export function SusesoReports() {
   const { nodes } = useRiskEngine();
   const { selectedProject } = useProject();
-  const [activeTab, setActiveTab] = useState<'DIAT' | 'DIEP'>('DIAT');
+  const [activeTab, setActiveTab] = useState<'DIAT' | 'DIEP' | 'ROI'>('DIAT');
   const [selectedIncidentId, setSelectedIncidentId] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -148,6 +149,7 @@ export function SusesoReports() {
         {[
           { id: 'DIAT', label: 'DIAT (Accidentes)', icon: AlertTriangle },
           { id: 'DIEP', label: 'DIEP (Enfermedades)', icon: Activity },
+          { id: 'ROI', label: 'ROI Siniestralidad', icon: Activity },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -165,8 +167,53 @@ export function SusesoReports() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Selector Column */}
-        <div className="lg:col-span-1 space-y-4">
+        {activeTab === 'ROI' ? (
+          <div className="lg:col-span-3 space-y-6">
+            <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
+              <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">Cálculo Financiero del Ahorro por Siniestralidad</h3>
+              <p className="text-sm text-zinc-500 mb-6">Estimación del Retorno de Inversión (ROI) basado en la prevención de incidentes y reducción de la tasa de siniestralidad.</p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-2xl p-4">
+                  <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Costo Promedio por Incidente</h4>
+                  <p className="text-2xl font-black text-zinc-900 dark:text-white">$2.500.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
+                  <p className="text-[10px] text-zinc-500 mt-2">Basado en datos históricos de la industria (Días perdidos, multas, reemplazos).</p>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4">
+                  <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Incidentes Prevenidos (Est.)</h4>
+                  <p className="text-2xl font-black text-zinc-900 dark:text-white">12 <span className="text-xs font-medium text-zinc-500">este año</span></p>
+                  <p className="text-[10px] text-zinc-500 mt-2">Gracias a controles implementados y alertas tempranas.</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4">
+                  <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Total Estimado</h4>
+                  <p className="text-2xl font-black text-zinc-900 dark:text-white">$30.000.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
+                  <p className="text-[10px] text-zinc-500 mt-2">Retorno directo a la última línea del negocio.</p>
+                </div>
+              </div>
+
+              <div className="mt-8 p-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-4">Impacto en Cotización Adicional (SUSESO)</h4>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">
+                  Al mantener una tasa de siniestralidad baja, la empresa puede acceder a rebajas en la cotización adicional diferenciada.
+                </p>
+                <div className="flex items-center justify-between p-4 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/10">
+                  <div>
+                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Tasa Actual</p>
+                    <p className="text-lg font-black text-zinc-900 dark:text-white">1.7%</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-zinc-400" />
+                  <div className="text-right">
+                    <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest">Tasa Proyectada</p>
+                    <p className="text-lg font-black text-emerald-500">0.85%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Selector Column */}
+            <div className="lg:col-span-1 space-y-4">
           <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
             <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">Seleccionar Incidente</h3>
             
@@ -360,6 +407,8 @@ export function SusesoReports() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

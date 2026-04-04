@@ -2,7 +2,7 @@
 "El riesgo se neutraliza en el diseño, no en la reacción." - El Guardián.
 
 ## Prioridad 1: El Núcleo Predictivo y Cognitivo (Operativo)
-- [x] **Zettelkasten Neuronal:** Grafo 2D/3D operativo con persistencia de contexto por proyecto.
+- [x] **Zettelkasten Neuronal:** Grafo 2D/3D operativo con persistencia de contexto por proyecto. Detección automática de Nodos Huérfanos (Riesgos sin controles, Trabajadores sin capacitación).
 - [x] **AI Hub con Divulgación Progresiva:** Motor RAG (Gemini) con respuestas logarítmicas (5, 10 o 15 nodos) para optimizar cuota y carga cognitiva.
 - [x] **Optimización de Costos (Batching):** Funciones `generateEmbeddingsBatch` implementadas para generar vectores matemáticos en lotes.
 - [x] **Inferencia de Riesgo Dinámica:** Cálculo de $R_{total}$ cruzando la Matriz IPER con telemetría en tiempo real (clima, sismos).
@@ -11,7 +11,7 @@
 ## Prioridad 2: Resiliencia Táctica y Operación en Terreno (Operativo)
 - [x] **Offline Sync Manager (PWA):** Soporte total sin conexión en túneles con encolamiento de datos.
 - [x] **Throttling y UI Optimista:** Sincronización silenciosa en ventanas de 5 segundos (`writeBatch`) sin latencia perceptible para el usuario.
-- [x] **Bio-Análisis (Edge AI):** Detección de fatiga y posturas vía cámara (MediaPipe) procesado 100% en el dispositivo para garantizar privacidad. *(Nota: Actualmente implementado vía Gemini Vision API, pendiente migración a MediaPipe local para verdadero Edge AI).*
+- [x] **Bio-Análisis (Edge AI):** Detección de fatiga y posturas vía cámara (MediaPipe) procesado 100% en el dispositivo para garantizar privacidad. EPP validado vía Gemini Vision.
 - [x] **Torniquete Virtual:** Control de acceso mediante escáner QR, validando EPP y exámenes médicos al instante.
 - [x] **Diseño Clean Utility:** Interfaz ergonómica con Modo Oscuro (Azul Petróleo/Dorado) y semaforización de equipos críticos.
 - [x] **Geolocalización y Privacidad:** Rastreo GPS en segundo plano basado en horarios de jornada laboral por proyecto, con opción de rastreo de trayecto (1 hora antes/después) y rastreo 24/7 automático para trabajadores con Artículo 22.

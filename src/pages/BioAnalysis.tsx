@@ -244,30 +244,34 @@ export function BioAnalysis() {
       const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
       setLastAnalysisImage(canvas.toDataURL('image/jpeg'));
 
-      // 2. Call Gemini Vision
+      // 2. Call Gemini Vision for EPP and general context
       const result = await analyzeBioImage(base64Image);
       
-      const newMetrics = {
-        fatigue: result.fatigue || 0,
-        posture: result.posture || 100,
-        attention: result.attention || 100,
-        epp: result.epp || 100
-      };
+      // Preserve MediaPipe metrics for fatigue, posture, and attention
+      setMetrics(prev => {
+        const newMetrics = {
+          fatigue: prev.fatigue, // Keep MediaPipe value
+          posture: prev.posture, // Keep MediaPipe value
+          attention: prev.attention, // Keep MediaPipe value
+          epp: result.epp || 100 // Update EPP from Gemini
+        };
+        
+        setHistory(historyPrev => {
+          const newHistory = [...historyPrev, {
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            ...newMetrics
+          }];
+          return newHistory.slice(-10); // Keep last 10 readings
+        });
 
-      setMetrics(newMetrics);
+        return newMetrics;
+      });
+
       setEppDetails({
         detected: result.detectedEPP || [],
         missing: result.missingEPP || []
       });
       setAlerts(result.alerts || []);
-      
-      setHistory(prev => {
-        const newHistory = [...prev, {
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          ...newMetrics
-        }];
-        return newHistory.slice(-10); // Keep last 10 readings
-      });
 
     } catch (error) {
       console.error("Error analyzing image:", error);

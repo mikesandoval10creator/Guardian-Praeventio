@@ -76,6 +76,23 @@ export function IncidentInvestigation() {
         });
       }
 
+      // Create a GLOBAL RISK node for the lesson learned
+      if (analysis.globalRiskLesson) {
+        await addNode({
+          type: NodeType.RISK,
+          title: `[Lección Aprendida] ${analysis.globalRiskLesson.title}`,
+          description: analysis.globalRiskLesson.description,
+          tags: ['Lección Aprendida', 'Global', 'IA'],
+          projectId: 'global', // Make it visible to all projects
+          connections: [investigationNode.id],
+          metadata: {
+            source: 'Incident Investigation',
+            originalIncident: incidentTitle,
+            criticidad: 'Alta' // Default to high for lessons learned
+          }
+        });
+      }
+
       setSaved(true);
     } catch (error) {
       console.error('Error saving investigation:', error);

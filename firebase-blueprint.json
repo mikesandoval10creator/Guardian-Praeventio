@@ -115,6 +115,8 @@
         "imageUrl": { "type": "string" },
         "required": { "type": "boolean" },
         "stock": { "type": "number" },
+        "ispCertification": { "type": "string" },
+        "expirationDate": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["projectId", "name", "category", "stock"]
@@ -132,7 +134,8 @@
         "eppItemName": { "type": "string" },
         "assignedAt": { "type": "string", "format": "date-time" },
         "expiresAt": { "type": "string", "format": "date-time" },
-        "status": { "type": "string", "enum": ["active", "replaced", "expired"] }
+        "status": { "type": "string", "enum": ["active", "replaced", "expired"] },
+        "condition": { "type": "string", "enum": ["Nuevo", "Bueno", "Desgastado", "Dañado"] }
       },
       "required": ["projectId", "workerId", "eppItemId", "assignedAt", "status"]
     },
