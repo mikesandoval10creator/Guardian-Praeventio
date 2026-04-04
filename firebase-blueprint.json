@@ -48,6 +48,7 @@
             "y": { "type": "number" }
           }
         },
+        "hasArt22": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["projectId", "name", "position", "status"]
@@ -195,6 +196,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "type", "status", "projectId"]
+    },
+    "Location": {
+      "title": "Device Location",
+      "description": "GPS location of a user's device.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "accuracy": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "projectId", "latitude", "longitude", "timestamp"]
     }
   },
   "firestore": {
@@ -241,6 +257,10 @@
     "/projects/{projectId}/assets/{assetId}": {
       "schema": "Asset",
       "description": "Assets for a project."
+    },
+    "/projects/{projectId}/locations/{locationId}": {
+      "schema": "Location",
+      "description": "Device locations for users in a project."
     }
   }
 }

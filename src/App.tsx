@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RootLayout } from './components/layout/RootLayout';
 import { Dashboard } from './pages/Dashboard';
 import { Workers } from './pages/Workers';
@@ -60,6 +60,8 @@ import { useAutoLogout } from './hooks/useAutoLogout';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { OfflineSyncManager } from './components/OfflineSyncManager';
 import { EmergencyOverlay } from './components/shared/EmergencyOverlay';
+import { GeolocationTracker } from './components/GeolocationTracker';
+import { seedGlobalData } from './services/seedService';
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -67,6 +69,12 @@ function AppRoutes() {
   
   // Initialize auto-logout for enterprise security
   useAutoLogout();
+
+  useEffect(() => {
+    if (user) {
+      seedGlobalData();
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -89,6 +97,7 @@ function AppRoutes() {
         <ProjectProvider>
           <NotificationProvider>
             <EmergencyProvider>
+              <GeolocationTracker />
               <EmergencyOverlay />
               <Routes>
               <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />

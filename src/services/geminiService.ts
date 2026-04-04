@@ -469,7 +469,7 @@ export const predictGlobalIncidents = async (nodesContext: string, environmentCo
     RED DE CONOCIMIENTO:
     ${nodesContext}
     
-    Para cada predicción, no solo describas el riesgo, entrega la medida de control inmediata y el fundamento legal específico (ej. "Según DS 594 Art. 12...", "Ley 16.744").`,
+    Para cada predicción, no solo describas el riesgo, entrega la medida de control inmediata y el fundamento legal específico usando como base la Biblioteca del Congreso Nacional de Chile (BCN) (ej. "Según DS 594 Art. 12...", "Ley 16.744").`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -488,7 +488,7 @@ export const predictGlobalIncidents = async (nodesContext: string, environmentCo
                 probabilidad: { type: Type.NUMBER },
                 razon: { type: Type.STRING },
                 mitigacionSugerida: { type: Type.STRING },
-                fundamentoLegal: { type: Type.STRING, description: "Fundamento legal chileno (ej. DS 594, Ley 16.744) que justifica la mitigación." }
+                fundamentoLegal: { type: Type.STRING, description: "Fundamento legal chileno extraído de la Biblioteca del Congreso Nacional (BCN) (ej. DS 594, Ley 16.744) que justifica la mitigación." }
               },
               required: ["nodoId", "titulo", "probabilidad", "razon", "mitigacionSugerida", "fundamentoLegal"]
             }
@@ -560,7 +560,7 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
     El documento debe incluir:
     1. Objetivo
     2. Alcance
-    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables que justifiquen este documento)
+    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables según la Biblioteca del Congreso Nacional de Chile - BCN, que justifiquen este documento)
     4. Evaluación Matemática del Riesgo (Incluye la fórmula en formato LaTeX: $MR = P \\times C$, y explica los valores asignados para Probabilidad y Consecuencia basados en el nivel ${riskLevel})
     5. Responsabilidades
     6. ${isPE ? 'Equipos de Emergencia y Rescate requeridos' : 'Equipos de Protección Individual (EPI) / EPP requeridos'} (Considera el contexto ambiental)
@@ -673,7 +673,7 @@ export const generatePTSWithManufacturerData = async (
     {
       "objetivo": "Propósito claro del documento.",
       "alcance": "A quiénes y a qué áreas aplica.",
-      "marcoLegal": ["Lista de leyes y decretos aplicables (ej. Ley 16.744, DS 594)"],
+      "marcoLegal": ["Lista de leyes y decretos aplicables según la BCN (ej. Ley 16.744, DS 594)"],
       "evaluacionMatematica": "Explicación de la evaluación de riesgo con fórmula LaTeX y cálculo de ejemplo.",
       "responsabilidades": ["Lista de responsabilidades por cargo (Administrador, Supervisor, Prevencionista, Trabajador)"],
       "epp": ["Lista de Equipos de Protección Personal requeridos, incluyendo especificaciones del fabricante si aplica"],
@@ -902,7 +902,7 @@ export const getChatResponse = async (message: string, context: string, history:
       ${context}
       
       Si el usuario pregunta por un trabajador, riesgo o documento específico, consulta el contexto proporcionado.
-      Si no tienes la información en el contexto, indícalo pero ofrece consejos generales basados en la normativa chilena (Ley 16.744, DS 594, etc.).`
+      Si no tienes la información en el contexto, indícalo pero ofrece consejos generales basados en la normativa chilena de la Biblioteca del Congreso Nacional (BCN) (Ley 16.744, DS 594, etc.).`
     }
   });
 
@@ -980,7 +980,7 @@ export const generateSafetyReport = async (reportType: 'PTS' | 'PE' | 'AST', con
     ${context}
     
     INSTRUCCIONES:
-    1. El formato debe ser Markdown estructurado con secciones claras: Objetivos, Alcance, Responsabilidades, Riesgos Identificados, Medidas de Control (con fundamento legal chileno como DS 594, Ley 16.744), EPP Requerido y Procedimiento Paso a Paso.
+    1. El formato debe ser Markdown estructurado con secciones claras: Objetivos, Alcance, Responsabilidades, Riesgos Identificados, Medidas de Control (con fundamento legal chileno basado en la BCN como DS 594, Ley 16.744), EPP Requerido y Procedimiento Paso a Paso.
     2. Usa un tono técnico, preventivo, positivo y altamente profesional (Español de Chile).
     3. Aplica principios de "El Arte de la Guerra" en la prevención (atacar el riesgo antes de que se manifieste).
     4. Las fórmulas matemáticas de riesgo (si aplican) deben ir en formato LaTeX (ej. $R = P \\times C$).
@@ -1542,7 +1542,7 @@ export const generateEmergencyPlanJSON = async (scenario: string, description: s
     El Plan de Emergencia debe incluir:
     1. Objetivo del Plan
     2. Alcance
-    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables que justifiquen este documento)
+    3. Marco Legal y Normativo (Cita artículos exactos del DS 594, Ley 16.744 u otros aplicables según la Biblioteca del Congreso Nacional de Chile - BCN, que justifiquen este documento)
     4. Evaluación Matemática del Riesgo (Incluye la fórmula en formato LaTeX: $MR = P \\times C$, y explica los valores asignados para Probabilidad y Consecuencia basados en el escenario)
     5. Cadena de Mando y Comunicaciones
     6. Acciones Inmediatas (Primeros 5 minutos)
@@ -1686,7 +1686,7 @@ export const predictAccidents = async (nodesContext: string, telemetryContext: s
     TELEMETRÍA ACTUAL (Clima, IoT, Biometría):
     ${telemetryContext}
     
-    Identifica patrones y genera predicciones de riesgos inminentes. Para cada predicción, proporciona una probabilidad (0-100), una descripción detallada del riesgo cruzando variables (ej. Clima + Fatiga + Tipo de Faena), y una medida de control inmediata basada en la normativa chilena (ej. DS 594, Ley 16.744).`,
+    Identifica patrones y genera predicciones de riesgos inminentes. Para cada predicción, proporciona una probabilidad (0-100), una descripción detallada del riesgo cruzando variables (ej. Clima + Fatiga + Tipo de Faena), y una medida de control inmediata basada en la normativa chilena de la Biblioteca del Congreso Nacional (BCN) (ej. DS 594, Ley 16.744).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -2290,7 +2290,7 @@ export const evaluateMinsalCompliance = async (protocolTitle: string, context: s
     if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const prompt = `
-      Actúa como un Auditor Senior del Ministerio de Salud de Chile (MINSAL) y experto en la Ley 16.744.
+      Actúa como un Auditor Senior del Ministerio de Salud de Chile (MINSAL) y experto en la Ley 16.744, utilizando siempre como base la Biblioteca del Congreso Nacional de Chile (BCN).
       Necesito evaluar el nivel de cumplimiento del siguiente protocolo en mi proyecto:
       Protocolo: ${protocolTitle}
       Industria: ${industry || 'General'}
@@ -2321,7 +2321,7 @@ export const generateModuleRecommendations = async (moduleName: string, industry
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos y normativas chilenas (DS 594, Ley 16.744, etc.).
+  const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos y normativas chilenas de la Biblioteca del Congreso Nacional (BCN) (DS 594, Ley 16.744, etc.).
 Actúa como un asistente profesional dedicado.
 El usuario está viendo el módulo: "${moduleName}".
 La industria del proyecto actual es: "${industry}".

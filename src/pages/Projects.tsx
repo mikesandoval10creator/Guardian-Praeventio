@@ -47,7 +47,10 @@ export function Projects() {
     clientName: '',
     startDate: new Date().toISOString().split('T')[0],
     riskLevel: 'Medio' as any,
-    status: 'active' as const
+    status: 'active' as const,
+    shiftStart: '08:00',
+    shiftEnd: '18:00',
+    trackCommute: true
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,7 +90,10 @@ export function Projects() {
         clientName: '',
         startDate: new Date().toISOString().split('T')[0],
         riskLevel: 'Medio',
-        status: 'active'
+        status: 'active',
+        shiftStart: '08:00',
+        shiftEnd: '18:00',
+        trackCommute: true
       });
     } catch (error) {
       console.error('Error creating project:', error);
@@ -500,6 +506,45 @@ export function Projects() {
                         className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">Configuración de Jornada y GPS</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Inicio de Jornada</label>
+                      <input
+                        type="time"
+                        value={formData.shiftStart}
+                        onChange={e => setFormData({ ...formData, shiftStart: e.target.value })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fin de Jornada</label>
+                      <input
+                        type="time"
+                        value={formData.shiftEnd}
+                        onChange={e => setFormData({ ...formData, shiftEnd: e.target.value })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 space-y-3">
+                    <label className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formData.trackCommute}
+                        onChange={e => setFormData({ ...formData, trackCommute: e.target.checked })}
+                        className="w-4 h-4 text-emerald-500 rounded border-zinc-300 focus:ring-emerald-500"
+                      />
+                      <div>
+                        <p className="text-xs font-bold text-zinc-900 dark:text-white">Rastrear Accidentes de Trayecto</p>
+                        <p className="text-[10px] text-zinc-500">Mantiene el GPS activo 1 hora antes y después de la jornada.</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
 

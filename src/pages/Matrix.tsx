@@ -89,7 +89,24 @@ export function Matrix() {
     setIsSeeding(true);
     try {
       const industryKey = selectedProject.industry || 'General';
-      const initialNodes = INDUSTRY_IPER_BASE[industryKey] || INDUSTRY_IPER_BASE['General'];
+      
+      // Fetch from Firestore global_templates
+      const { getDoc, doc } = await import('firebase/firestore');
+      const templateDoc = await getDoc(doc(db, 'global_templates', industryKey.replace(/[^a-zA-Z0-9]/g, '_')));
+      
+      let initialNodes = [];
+      if (templateDoc.exists()) {
+        initialNodes = templateDoc.data().nodes || [];
+      } else {
+        // Fallback to General if specific industry not found
+        const generalDoc = await getDoc(doc(db, 'global_templates', 'General'));
+        if (generalDoc.exists()) {
+          initialNodes = generalDoc.data().nodes || [];
+        } else {
+          // Fallback to local if Firestore is empty (e.g. before seeding)
+          initialNodes = INDUSTRY_IPER_BASE[industryKey] || INDUSTRY_IPER_BASE['General'];
+        }
+      }
 
       for (const node of initialNodes) {
         await addNode({
@@ -97,7 +114,7 @@ export function Matrix() {
           description: node.description,
           type: NodeType.RISK,
           projectId: selectedProject.id,
-          tags: [...node.tags, 'IPER_BASE'],
+          tags: [...(node.tags || []), 'IPER_BASE'],
           connections: [],
           metadata: {
             actividad: node.actividad,

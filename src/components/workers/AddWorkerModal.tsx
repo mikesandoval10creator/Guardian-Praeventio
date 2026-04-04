@@ -25,7 +25,8 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
     role: '',
     email: '',
     phone: '',
-    status: 'active' as const
+    status: 'active' as const,
+    hasArt22: false
   });
 
   // Update EPP suggestions when role changes
@@ -101,7 +102,7 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
       }
 
       onClose();
-      setFormData({ name: '', role: '', email: '', phone: '', status: 'active' });
+      setFormData({ name: '', role: '', email: '', phone: '', status: 'active', hasArt22: false });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'workers');
     } finally {
@@ -244,6 +245,21 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="flex items-center gap-3 p-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={formData.hasArt22}
+                    onChange={e => setFormData({ ...formData, hasArt22: e.target.checked })}
+                    className="w-4 h-4 text-emerald-500 rounded border-zinc-300 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <p className="text-xs font-bold text-zinc-900 dark:text-white">Contrato Artículo 22</p>
+                    <p className="text-[10px] text-zinc-500">Activa el rastreo GPS 24/7 automáticamente por exención de jornada laboral.</p>
+                  </div>
+                </label>
               </div>
             </div>
             <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0 flex gap-3">

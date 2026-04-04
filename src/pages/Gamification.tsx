@@ -4,6 +4,7 @@ import { Award, Star, Zap, Shield, Trophy, Target, Flame, Crown, Play, CheckCirc
 import { useFirebase } from '../contexts/FirebaseContext';
 import { validateRiskImageClick } from '../services/geminiService';
 import { useGamification } from '../hooks/useGamification';
+import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import confetti from 'canvas-confetti';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -33,7 +34,7 @@ interface Medal {
 export function Gamification() {
   const { user } = useFirebase();
   const { stats, addPoints, unlockMedal, completeChallenge } = useGamification();
-  const [activeTab, setActiveTab] = useState<'medals' | 'games' | 'ranking'>('medals');
+  const [activeTab, setActiveTab] = useState<'perfil' | 'medals' | 'games' | 'ranking'>('perfil');
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [validatingClick, setValidatingClick] = useState(false);
   const [gameResult, setGameResult] = useState<any>(null);
@@ -172,7 +173,12 @@ export function Gamification() {
     }
   }, [stats.loginStreak, stats.medals, unlockMedal]);
 
-  const games = [
+  const { data: firestoreGames, loading: loadingGames } = useFirestoreCollection<any>('gamification_content');
+
+  const games = firestoreGames.length > 0 ? firestoreGames.map(g => ({
+    ...g,
+    locked: stats.points < (g.requiredPoints || 0)
+  })) : [
     {
       id: 'g1',
       title: 'Buscando al Guardián',
@@ -287,6 +293,17 @@ export function Gamification() {
       {/* Tabs */}
       <div className="flex flex-col sm:flex-row bg-zinc-900/50 p-1.5 rounded-2xl border border-white/10 self-start shadow-inner w-full sm:w-fit gap-1 sm:gap-0">
         <button
+          onClick={() => setActiveTab('perfil')}
+          className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
+            activeTab === 'perfil' 
+              ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' 
+              : 'text-zinc-500 hover:text-white'
+          }`}
+        >
+          <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          Perfil
+        </button>
+        <button
           onClick={() => setActiveTab('medals')}
           className={`flex-1 sm:flex-none px-2 sm:px-8 py-2.5 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 sm:gap-2 ${
             activeTab === 'medals' 
@@ -322,7 +339,80 @@ export function Gamification() {
       </div>
 
       <AnimatePresence mode="wait">
-        {activeTab === 'medals' ? (
+        {activeTab === 'perfil' ? (
+          <motion.div
+            key="perfil"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-8"
+          >
+            {/* Profile HUD */}
+            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Shield className="w-48 h-48 text-amber-500" />
+              </div>
+
+              <div className="relative z-10 flex flex-col md:flex-row gap-8">
+                {/* Avatar & Class */}
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative">
+                    <div className="w-32 h-32 rounded-2xl bg-zinc-800 border-2 border-amber-500 flex items-center justify-center overflow-hidden">
+                      {user?.photoURL ? (
+                        <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-5xl font-black text-zinc-600">{user?.displayName?.[0] || 'U'}</span>
+                      )}
+                    </div>
+                    <div className="absolute -bottom-3 -right-3 bg-amber-500 text-zinc-900 p-2 rounded-xl shadow-lg font-black text-xs uppercase tracking-widest">
+                      LVL {Math.floor(stats.points / 1000) + 1}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <h2 className="text-xl font-black text-white uppercase tracking-tight">{user?.displayName || 'Usuario'}</h2>
+                    <p className="text-amber-500 font-mono text-sm uppercase tracking-widest">Guardián Novato</p>
+                  </div>
+                </div>
+
+                {/* XP & Stats */}
+                <div className="flex-1 flex flex-col justify-center space-y-6">
+                  <div>
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Experiencia (XP)</span>
+                      <span className="text-sm font-black text-amber-500">{stats.points} / {(Math.floor(stats.points / 1000) + 1) * 1000}</span>
+                    </div>
+                    <div className="h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
+                      <motion.div 
+                        className="h-full bg-amber-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(stats.points % 1000) / 10}%` }}
+                        transition={{ type: 'spring', bounce: 0.4 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center">
+                      <Trophy className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                      <p className="text-2xl font-black text-white">{stats.medals.length}</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Medallas</p>
+                    </div>
+                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center">
+                      <Flame className="w-6 h-6 text-orange-500 mx-auto mb-2" />
+                      <p className="text-2xl font-black text-white">{stats.loginStreak}</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Racha Días</p>
+                    </div>
+                    <div className="bg-zinc-800/50 rounded-xl p-4 border border-zinc-700/50 text-center">
+                      <Target className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
+                      <p className="text-2xl font-black text-white">{Object.keys(stats.completedChallenges || {}).length}</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Misiones</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : activeTab === 'medals' ? (
           <motion.div
             key="medals"
             initial={{ opacity: 0, y: 20 }}

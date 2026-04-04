@@ -16,6 +16,10 @@ interface Project {
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
   isPendingSync?: boolean;
+  // Tracking & Shifts
+  shiftStart?: string; // e.g., "08:00"
+  shiftEnd?: string;   // e.g., "18:00"
+  trackCommute?: boolean; // Track 1 hour before/after
 }
 
 interface ProjectContextType {

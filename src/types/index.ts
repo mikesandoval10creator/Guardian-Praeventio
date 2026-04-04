@@ -121,6 +121,7 @@ export interface Worker {
   contractStatus?: 'Vigente' | 'Vencido' | 'Por Vencer';
   odiSigned?: boolean;
   digitalSignatureStatus?: 'Firmado' | 'Pendiente' | 'Rechazado';
+  hasArt22?: boolean; // Artículo 22 (24/7 tracking)
 }
 
 export interface TrainingSession {

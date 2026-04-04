@@ -54,7 +54,7 @@ service cloud.firestore {
 
     function isValidNode(data) {
       return hasRequiredFields(['type', 'title', 'description', 'createdAt', 'updatedAt']) &&
-             hasOnlyAllowedFields(['id', 'type', 'title', 'description', 'tags', 'connections', 'metadata', 'projectId', 'isPublic', 'createdAt', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'type', 'title', 'description', 'tags', 'connections', 'metadata', 'projectId', 'isPublic', 'createdAt', 'updatedAt', 'embedding']) &&
              data.type is string &&
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.description is string && data.description.size() > 0 && data.description.size() < 50000 &&
@@ -170,6 +170,13 @@ service cloud.firestore {
     match /workers/{workerId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    match /projects/{projectId}/locations/{locationId} {
+      allow read: if isAuthenticated() && (isAdmin() || isSupervisor() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
     match /blueprints/{blueprintId} {

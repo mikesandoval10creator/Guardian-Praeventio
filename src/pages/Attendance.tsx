@@ -16,7 +16,12 @@ import {
   Sparkles,
   ShieldAlert,
   ShieldCheck,
-  WifiOff
+  WifiOff,
+  Unlock,
+  Lock,
+  Activity,
+  HeartPulse,
+  Fingerprint
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -34,13 +39,15 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function Attendance() {
   const { selectedProject } = useProject();
-  const { addNode, addConnection } = useRiskEngine();
+  const { addNode, addConnection, getConnectedNodes } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [accessResult, setAccessResult] = useState<{ worker: Worker, passed: boolean, reasons: string[] } | null>(null);
+  const [accessState, setAccessState] = useState<'idle' | 'scanning' | 'granted' | 'missing_skill'>('idle');
+  const [activeWorker, setActiveWorker] = useState<Worker | null>(null);
   const isOnline = useOnlineStatus();
 
   // Fetch workers for the current project
@@ -83,27 +90,50 @@ export function Attendance() {
   const evaluateWorkerAccess = (worker: Worker) => {
     const reasons: string[] = [];
     
-    // 1. Check medical clearance
-    if (worker.medicalClearanceDate) {
-      const clearanceDate = new Date(worker.medicalClearanceDate);
-      if (clearanceDate < new Date()) {
-        reasons.push('Examen médico de aptitud vencido');
+    if (!worker.nodeId) {
+      reasons.push('Trabajador no está vinculado a la red neuronal (Sin Node ID)');
+      return { passed: false, reasons };
+    }
+
+    const connectedNodes = getConnectedNodes(worker.nodeId);
+    
+    // 1. Check Medical Clearance (MEDICINE nodes)
+    const medicineNodes = connectedNodes.filter(n => n.type === NodeType.MEDICINE);
+    if (medicineNodes.length === 0) {
+      reasons.push('No registra exámenes médicos ocupacionales');
+    } else {
+      const hasValidExam = medicineNodes.some(exam => {
+        const isApproved = exam.metadata?.status === 'Aprobado' || exam.metadata?.status === 'Apto';
+        const expirationDate = exam.metadata?.expirationDate ? new Date(exam.metadata.expirationDate) : null;
+        const isNotExpired = expirationDate ? expirationDate > new Date() : true;
+        return isApproved && isNotExpired;
+      });
+      
+      if (!hasValidExam) {
+        reasons.push('Examen médico de aptitud vencido o reprobado');
       }
     }
 
-    // 2. Check EPPs
+    // 2. Check EPPs (EPP nodes)
     if (worker.requiredEPP && worker.requiredEPP.length > 0) {
-      const missingEPP = worker.requiredEPP.filter(epp => !worker.eppIds?.includes(epp));
+      const assignedEPPNodes = connectedNodes.filter(n => n.type === NodeType.EPP);
+      const assignedEPPCategories = assignedEPPNodes.map(n => n.metadata?.category || '');
+      
+      const missingEPP = worker.requiredEPP.filter(epp => 
+        !assignedEPPCategories.includes(epp) && !worker.eppIds?.includes(epp)
+      );
+      
       if (missingEPP.length > 0) {
         reasons.push(`Falta EPP obligatorio: ${missingEPP.join(', ')}`);
       }
     }
 
-    // 3. Check Certifications based on role
+    // 3. Check Certifications/Training based on role
     const roleLower = String(worker.role || '').toLowerCase();
-    if (roleLower.includes('altura') || roleLower.includes('eléctrico') || roleLower.includes('soldador')) {
-      if (!worker.certifications || worker.certifications.length === 0) {
-        reasons.push('Falta certificación técnica para el cargo');
+    if (roleLower.includes('altura') || roleLower.includes('eléctrico') || roleLower.includes('soldador') || roleLower.includes('operador')) {
+      const trainingNodes = connectedNodes.filter(n => n.type === NodeType.TRAINING || n.type === NodeType.DOCUMENT);
+      if (trainingNodes.length === 0) {
+        reasons.push('Falta certificación técnica o capacitación para el cargo');
       }
     }
 
@@ -121,13 +151,19 @@ export function Attendance() {
   const handleCheckIn = async (worker: Worker) => {
     if (!selectedProject || !worker.nodeId) return;
     setLoadingAction(worker.id);
+    setActiveWorker(worker);
+    setAccessState('scanning');
     
     try {
+      // Simulate scanning delay for UX
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       // Evaluate Access (Torniquete Virtual)
       const evaluation = evaluateWorkerAccess(worker);
       setAccessResult({ worker, passed: evaluation.passed, reasons: evaluation.reasons });
 
       if (!evaluation.passed) {
+        setAccessState('missing_skill');
         // Log the denied access to the Neural Network
         await addNode({
           type: NodeType.INCIDENT,
@@ -147,6 +183,7 @@ export function Attendance() {
         return; // Stop check-in
       }
 
+      setAccessState('granted');
       const now = new Date();
       
       const { handleFirestoreError, OperationType } = await import('../services/firebase');
@@ -432,6 +469,129 @@ export function Attendance() {
           <span>Filtros Avanzados</span>
         </button>
       </div>
+
+      {/* Gamified HUD for Active Worker */}
+      <AnimatePresence>
+        {activeWorker && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-2xl relative overflow-hidden">
+              {/* Scan Line Effect */}
+              {accessState === 'scanning' && (
+                <motion.div 
+                  className="absolute inset-0 bg-gradient-to-b from-transparent via-emerald-500/20 to-transparent w-full h-20"
+                  animate={{ y: ['-100%', '500%'] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                />
+              )}
+
+              <div className="flex flex-col md:flex-row gap-8 relative z-10">
+                {/* Avatar & Basic Info */}
+                <div className="flex items-center gap-6">
+                  <div className="relative">
+                    <div className={`w-24 h-24 rounded-2xl flex items-center justify-center border-2 ${
+                      accessState === 'granted' ? 'border-emerald-500 bg-emerald-500/10' :
+                      accessState === 'missing_skill' ? 'border-rose-500 bg-rose-500/10' :
+                      'border-zinc-700 bg-zinc-800'
+                    }`}>
+                      {activeWorker.photoUrl ? (
+                        <img src={activeWorker.photoUrl} alt={activeWorker.name} className="w-full h-full object-cover rounded-xl" />
+                      ) : (
+                        <span className="text-4xl font-black text-zinc-500">{activeWorker.name[0]}</span>
+                      )}
+                    </div>
+                    {/* Status Badge */}
+                    <div className="absolute -bottom-3 -right-3">
+                      {accessState === 'granted' && (
+                        <div className="bg-emerald-500 text-zinc-900 p-2 rounded-xl shadow-lg">
+                          <Unlock className="w-5 h-5" />
+                        </div>
+                      )}
+                      {accessState === 'missing_skill' && (
+                        <div className="bg-rose-500 text-white p-2 rounded-xl shadow-lg">
+                          <Lock className="w-5 h-5" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tight">{activeWorker.name}</h2>
+                    <p className="text-emerald-400 font-mono text-sm uppercase tracking-widest">{activeWorker.role}</p>
+                    
+                    <div className="flex gap-4 mt-3">
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        <Activity className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase">Nivel 12</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        <HeartPulse className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase">HP 100/100</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Validation Status */}
+                <div className="flex-1 border-t md:border-t-0 md:border-l border-zinc-800 pt-6 md:pt-0 md:pl-8 flex flex-col justify-center">
+                  {accessState === 'scanning' && (
+                    <div className="flex items-center gap-4 text-zinc-400">
+                      <Fingerprint className="w-8 h-8 animate-pulse text-emerald-500" />
+                      <div>
+                        <p className="font-bold uppercase tracking-widest text-sm">Validando Identidad...</p>
+                        <p className="text-xs font-mono mt-1">Consultando Knowledge Graph</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {accessState === 'granted' && (
+                    <div className="space-y-2">
+                      <p className="text-emerald-400 font-black uppercase tracking-widest text-lg">Acceso Concedido</p>
+                      <p className="text-zinc-400 text-sm">Todas las conexiones (Edges) validadas correctamente.</p>
+                      <button 
+                        onClick={() => setActiveWorker(null)}
+                        className="mt-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-widest rounded-lg transition-colors"
+                      >
+                        Cerrar Panel
+                      </button>
+                    </div>
+                  )}
+
+                  {accessState === 'missing_skill' && accessResult && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-rose-500">
+                        <ShieldAlert className="w-6 h-6" />
+                        <p className="font-black uppercase tracking-widest text-lg">Acceso Denegado</p>
+                      </div>
+                      <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4">
+                        <p className="text-xs font-bold text-rose-400 uppercase tracking-widest mb-2">Misión Requerida:</p>
+                        <ul className="space-y-1">
+                          {accessResult.reasons.map((reason, idx) => (
+                            <li key={idx} className="text-sm text-zinc-300 flex items-start gap-2">
+                              <span className="text-rose-500 mt-1">•</span>
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <button 
+                        onClick={() => setActiveWorker(null)}
+                        className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold uppercase tracking-widest rounded-lg transition-colors"
+                      >
+                        Cerrar Panel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Workers List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
