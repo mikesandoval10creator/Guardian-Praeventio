@@ -46,7 +46,8 @@ export function useSeismicMonitor(projectLat: number = -33.4489, projectLng: num
         }
 
       } catch (e) {
-        console.error("Error fetching seismic data", e);
+        // Silently fail to avoid console clutter on network errors
+        // console.error("Error fetching seismic data", e);
       }
     };
 

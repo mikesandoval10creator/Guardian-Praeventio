@@ -41,7 +41,8 @@ export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = 
       sunset: data.sys.sunset * 1000 // Convert to ms
     };
   } catch (error) {
-    console.error('Failed to fetch weather data, falling back to mock:', error);
+    // Silently fail to avoid console clutter on network errors
+    // console.error('Failed to fetch weather data, falling back to mock:', error);
     return getMockWeatherData();
   }
 };
@@ -87,7 +88,8 @@ export const fetchSeismicData = async (lat: number = DEFAULT_LAT, lon: number = 
 
     return null; // No significant earthquakes
   } catch (error) {
-    console.error('Failed to fetch seismic data:', error);
+    // Silently fail to avoid console clutter on network errors
+    // console.error('Failed to fetch seismic data:', error);
     return null; // Fail gracefully
   }
 };
