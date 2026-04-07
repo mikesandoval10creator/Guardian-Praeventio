@@ -317,14 +317,14 @@ export function ReportGenerator() {
   };
 
   return (
-    <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 space-y-8">
+    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-8 space-y-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
             <FileText className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-white uppercase tracking-tight">Generador de Documentos IA</h3>
+            <h3 className="text-xl font-bold text-zinc-900 dark:text-white uppercase tracking-tight">Generador de Documentos IA</h3>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">PTS, PE y AST Automatizados</p>
           </div>
         </div>
@@ -342,7 +342,7 @@ export function ReportGenerator() {
                   className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
                     reportType === type
                       ? 'bg-blue-600 border-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]'
-                      : 'bg-white/5 border-white/5 text-zinc-400 hover:border-white/10'
+                      : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/5 text-zinc-500 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-white/10'
                   }`}
                 >
                   {type}
@@ -357,7 +357,7 @@ export function ReportGenerator() {
               value={context}
               onChange={(e) => setContext(e.target.value)}
               placeholder="Describe la actividad, ubicación y equipos involucrados..."
-              className="w-full h-48 p-4 bg-white/5 border border-white/5 rounded-2xl text-sm text-white outline-none focus:border-blue-500 transition-colors resize-none"
+              className="w-full h-48 p-4 bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/5 rounded-2xl text-sm text-zinc-900 dark:text-white outline-none focus:border-blue-500 transition-colors resize-none"
             />
           </div>
 
@@ -365,7 +365,7 @@ export function ReportGenerator() {
             onClick={handleGenerate}
             disabled={loading || !context.trim() || !isOnline}
             className={`w-full py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${
-              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20 disabled:opacity-50'
+              !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20 disabled:opacity-50'
             }`}
           >
             {!isOnline ? (
@@ -387,7 +387,7 @@ export function ReportGenerator() {
           </button>
         </div>
 
-        <div className="bg-black/40 rounded-3xl border border-white/5 p-6 min-h-[400px] relative overflow-hidden">
+        <div className="bg-white dark:bg-black/40 rounded-3xl border border-zinc-200 dark:border-white/5 p-6 min-h-[400px] relative overflow-hidden">
           <AnimatePresence mode="wait">
             {report ? (
               <motion.div

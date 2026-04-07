@@ -180,19 +180,19 @@ export function Analytics() {
           <button
             onClick={handleGenerateSummary}
             disabled={isGenerating}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
           >
             {isGenerating ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <BrainCircuit className="w-4 h-4 text-emerald-400" />
+              <BrainCircuit className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
             )}
             {isOnline ? 'Generar Resumen IA' : 'Cargar Resumen Guardado'}
           </button>
           <button
             onClick={handleExportPDF}
             disabled={!executiveSummary || isExporting}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             {isExporting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

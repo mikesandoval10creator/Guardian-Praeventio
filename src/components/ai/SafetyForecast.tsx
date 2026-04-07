@@ -64,9 +64,9 @@ export function SafetyForecast() {
   }, [nodes, isOnline]);
 
   return (
-    <Card className="p-8 bg-zinc-900 border-white/10 overflow-hidden relative">
+    <Card className="p-8 bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-white/10 overflow-hidden relative">
       <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
-        <TrendingUp className="w-64 h-64 text-white" />
+        <TrendingUp className="w-64 h-64 text-zinc-900 dark:text-white" />
       </div>
 
       <div className="relative z-10 space-y-8">
@@ -76,7 +76,7 @@ export function SafetyForecast() {
               <TrendingUp className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white uppercase tracking-tight">Pronóstico de Seguridad</h2>
+              <h2 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Pronóstico de Seguridad</h2>
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Análisis Predictivo a 7 Días</p>
             </div>
           </div>
@@ -84,7 +84,7 @@ export function SafetyForecast() {
             onClick={runForecast}
             disabled={isLoading || !isOnline}
             className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50 ${
-              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-white/5 hover:bg-white/10 border border-white/10 text-white'
+              !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white'
             }`}
           >
             {!isOnline ? (
@@ -107,9 +107,9 @@ export function SafetyForecast() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Summary & Trends */}
             <div className="lg:col-span-2 space-y-8">
-              <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
-                <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4">Resumen Ejecutivo</h3>
-                <p className="text-sm text-zinc-300 leading-relaxed font-medium">
+              <div className="p-6 bg-zinc-100 dark:bg-white/5 rounded-3xl border border-zinc-200 dark:border-white/5">
+                <h3 className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-4">Resumen Ejecutivo</h3>
+                <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed font-medium">
                   {forecast.pronosticoSemanal}
                 </p>
               </div>
@@ -122,9 +122,9 @@ export function SafetyForecast() {
                   </h3>
                   <div className="space-y-2">
                     {forecast.tendenciasDetectadas.map((trend: string, i: number) => (
-                      <div key={i} className="flex items-start gap-3 p-3 bg-zinc-950 rounded-2xl border border-white/5">
+                      <div key={i} className="flex items-start gap-3 p-3 bg-white dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-white/5">
                         <ChevronRight className="w-3 h-3 text-indigo-500 mt-0.5" />
-                        <p className="text-[10px] text-zinc-400 font-bold uppercase leading-tight">{trend}</p>
+                        <p className="text-[10px] text-zinc-600 dark:text-zinc-400 font-bold uppercase leading-tight">{trend}</p>
                       </div>
                     ))}
                   </div>
@@ -139,7 +139,7 @@ export function SafetyForecast() {
                     {forecast.recomendacionesEstrategicas.map((rec: string, i: number) => (
                       <div key={i} className="flex items-start gap-3 p-3 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
                         <CheckCircle2 className="w-3 h-3 text-emerald-500 mt-0.5" />
-                        <p className="text-[10px] text-emerald-100/70 font-bold uppercase leading-tight">{rec}</p>
+                        <p className="text-[10px] text-emerald-700 dark:text-emerald-100/70 font-bold uppercase leading-tight">{rec}</p>
                       </div>
                     ))}
                   </div>
@@ -159,15 +159,15 @@ export function SafetyForecast() {
                     transition={{ delay: i * 0.1 }}
                     className="relative pl-8 pb-4 border-l border-white/5 last:border-0"
                   >
-                    <div className={`absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full border-4 border-zinc-900 ${
+                    <div className={`absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full border-4 border-zinc-50 dark:border-zinc-900 ${
                       day.nivelRiesgo === 'Crítico' ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' :
                       day.nivelRiesgo === 'Alto' ? 'bg-orange-500' :
                       day.nivelRiesgo === 'Medio' ? 'bg-blue-500' :
                       'bg-emerald-500'
                     }`} />
-                    <div className="bg-zinc-950 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition-all">
+                    <div className="bg-white dark:bg-zinc-950 p-4 rounded-2xl border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 transition-all">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black text-white uppercase">{day.dia}</span>
+                        <span className="text-[10px] font-black text-zinc-900 dark:text-white uppercase">{day.dia}</span>
                         <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${
                           day.nivelRiesgo === 'Crítico' ? 'bg-red-500/20 text-red-500' :
                           day.nivelRiesgo === 'Alto' ? 'bg-orange-500/20 text-orange-500' :

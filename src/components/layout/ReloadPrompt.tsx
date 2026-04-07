@@ -26,13 +26,13 @@ export function ReloadPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-4 max-w-sm w-full animate-in slide-in-from-bottom-5">
+    <div className="fixed bottom-4 right-4 z-50 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-4 max-w-sm w-full animate-in slide-in-from-bottom-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <h3 className="text-white font-bold text-sm mb-1">
+          <h3 className="text-zinc-900 dark:text-white font-bold text-sm mb-1">
             {offlineReady ? 'App lista para trabajar offline' : 'Nueva actualización disponible'}
           </h3>
-          <p className="text-zinc-400 text-xs">
+          <p className="text-zinc-500 dark:text-zinc-400 text-xs">
             {offlineReady 
               ? 'La aplicación ha sido descargada y puede usarse sin conexión a internet.' 
               : 'Hay una nueva versión de Praeventio Guard. Actualiza para obtener las últimas mejoras.'}
@@ -40,7 +40,7 @@ export function ReloadPrompt() {
         </div>
         <button 
           onClick={close}
-          className="text-zinc-500 hover:text-white transition-colors p-1"
+          className="text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors p-1"
         >
           <X className="w-4 h-4" />
         </button>
@@ -58,7 +58,7 @@ export function ReloadPrompt() {
         )}
         <button 
           onClick={close}
-          className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors"
+          className="flex-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors"
         >
           Cerrar
         </button>

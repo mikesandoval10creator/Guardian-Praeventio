@@ -78,7 +78,7 @@ export function EmergencySimulator() {
   };
 
   return (
-    <div className="bg-zinc-900/50 border border-white/10 rounded-[40px] p-8 overflow-hidden relative">
+    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[40px] p-8 overflow-hidden relative">
       <div className="absolute top-0 right-0 p-8">
         <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-500">
           <Zap className="w-6 h-6" />
@@ -86,12 +86,12 @@ export function EmergencySimulator() {
       </div>
 
       <div className="max-w-2xl">
-        <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">Simulador de Emergencias IA</h2>
+        <h2 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter mb-2">Simulador de Emergencias IA</h2>
         <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest mb-8">Entrenamiento Dinámico Basado en Riesgos Reales</p>
         
         {!scenario ? (
           <div className="space-y-6">
-            <p className="text-zinc-400 leading-relaxed">
+            <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
               El Guardián utiliza los riesgos identificados en la Red Neuronal para generar escenarios de emergencia impredecibles. 
               Pon a prueba la capacidad de respuesta de tu equipo con simulacros generados por IA.
             </p>
@@ -99,7 +99,7 @@ export function EmergencySimulator() {
               onClick={generateScenario}
               disabled={isGenerating || !isOnline}
               className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center gap-3 disabled:opacity-50 ${
-                !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-500/20'
+                !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-500/20'
               }`}
             >
               {!isOnline ? (
@@ -123,12 +123,12 @@ export function EmergencySimulator() {
                 <span className="px-3 py-1 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest">
                   {scenario.type}
                 </span>
-                <span className="px-3 py-1 rounded-full bg-zinc-800 text-rose-500 text-[10px] font-black uppercase tracking-widest border border-rose-500/20">
+                <span className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-rose-600 dark:text-rose-500 text-[10px] font-black uppercase tracking-widest border border-rose-500/20">
                   Prioridad: {scenario.criticality}
                 </span>
               </div>
-              <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">{scenario.title}</h3>
-              <p className="text-zinc-300 text-sm leading-relaxed">{scenario.description}</p>
+              <h3 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight mb-2">{scenario.title}</h3>
+              <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed">{scenario.description}</p>
               
               <div className="mt-6 flex items-center gap-6">
                 <div className="flex items-center gap-2 text-zinc-400">
@@ -153,17 +153,17 @@ export function EmergencySimulator() {
                     <div 
                       key={i}
                       className={`p-4 rounded-2xl border transition-all ${
-                        activeStep === i ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-zinc-800/30 border-white/5 opacity-50'
+                        activeStep === i ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-zinc-100 dark:bg-zinc-800/30 border-zinc-200 dark:border-white/5 opacity-50'
                       }`}
                       onClick={() => setActiveStep(i)}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${
-                          activeStep === i ? 'bg-emerald-500 text-white' : 'bg-zinc-700 text-zinc-400'
+                          activeStep === i ? 'bg-emerald-500 text-white' : 'bg-zinc-300 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
                         }`}>
                           {i + 1}
                         </div>
-                        <p className="text-xs font-bold text-white">{step}</p>
+                        <p className="text-xs font-bold text-zinc-900 dark:text-white">{step}</p>
                       </div>
                     </div>
                   ))}
@@ -171,7 +171,7 @@ export function EmergencySimulator() {
               </div>
 
               <div className="space-y-6">
-                <div className="bg-zinc-800/30 border border-white/5 rounded-3xl p-6">
+                <div className="bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-white/5 rounded-3xl p-6">
                   <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Shield className="w-4 h-4" />
                     EPP Crítico
@@ -185,7 +185,7 @@ export function EmergencySimulator() {
                   </div>
                 </div>
 
-                <div className="bg-zinc-800/30 border border-white/5 rounded-3xl p-6">
+                <div className="bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-white/5 rounded-3xl p-6">
                   <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                     <Phone className="w-4 h-4" />
                     Contactos de Emergencia
@@ -210,7 +210,7 @@ export function EmergencySimulator() {
                   </button>
                   <button
                     onClick={() => setScenario(null)}
-                    className="flex-1 py-4 rounded-2xl bg-zinc-800 text-white font-black text-[10px] uppercase tracking-widest hover:bg-zinc-700 transition-all border border-white/10"
+                    className="flex-1 py-4 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-black text-[10px] uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all border border-zinc-200 dark:border-white/10"
                   >
                     Finalizar Simulacro
                   </button>

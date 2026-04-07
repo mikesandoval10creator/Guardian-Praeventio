@@ -10,7 +10,7 @@ interface PremiumFeatureGuardProps {
 }
 
 export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({ children, featureName, description }) => {
-  const { isPremium, loading, upgradeToPremium } = useSubscription();
+  const { isPremium, loading, upgradePlan } = useSubscription();
 
   if (loading) {
     return (
@@ -36,11 +36,11 @@ export const PremiumFeatureGuard: React.FC<PremiumFeatureGuardProps> = ({ childr
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={upgradeToPremium}
+          onClick={() => upgradePlan('comite')}
           className="flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-emerald-500/20 transition-all"
         >
           <Zap className="w-5 h-5" />
-          <span>Actualizar a Premium</span>
+          <span>Ver Planes</span>
         </motion.button>
         
         <p className="text-xs text-zinc-500 mt-6">

@@ -80,13 +80,13 @@ export function VisionAnalyzer() {
   };
 
   return (
-    <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 overflow-hidden">
+    <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 overflow-hidden">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
           <Camera className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Análisis de Visión AI</h2>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-white tracking-tight">Análisis de Visión AI</h2>
           <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Detección de EPP y Riesgos en tiempo real</p>
         </div>
       </div>
@@ -97,7 +97,7 @@ export function VisionAnalyzer() {
           <div 
             onClick={() => fileInputRef.current?.click()}
             className={`aspect-video rounded-2xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden relative ${
-              image ? 'border-emerald-500/50' : 'border-white/10 hover:border-blue-500/50 bg-zinc-800/30'
+              image ? 'border-emerald-500/50' : 'border-zinc-300 dark:border-white/10 hover:border-blue-500/50 bg-zinc-100 dark:bg-zinc-800/30'
             }`}
           >
             {image ? (
@@ -127,7 +127,7 @@ export function VisionAnalyzer() {
             onClick={analyzeImage}
             disabled={!image || isAnalyzing || !isOnline}
             className={`w-full py-3 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 active:scale-[0.98] ${
-              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : isAnalyzing ? 'bg-blue-600/50 text-white cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
+              !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : isAnalyzing ? 'bg-blue-600/50 text-white cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-500/20'
             }`}
           >
             {!isOnline ? (
@@ -210,8 +210,8 @@ export function VisionAnalyzer() {
                   disabled={isSaving || saved || !selectedProject}
                   className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
                     saved 
-                      ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' 
-                      : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-white/10'
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20' 
+                      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-white/10'
                   }`}
                 >
                   {isSaving ? (
@@ -225,11 +225,11 @@ export function VisionAnalyzer() {
                 </button>
               </motion.div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-white/5 rounded-3xl bg-zinc-800/20">
-                <div className="w-16 h-16 rounded-2xl bg-zinc-800 flex items-center justify-center mb-4">
-                  <Sparkles className="w-8 h-8 text-zinc-600" />
+              <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-zinc-200 dark:border-white/5 rounded-3xl bg-zinc-50 dark:bg-zinc-800/20">
+                <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+                  <Sparkles className="w-8 h-8 text-zinc-400 dark:text-zinc-600" />
                 </div>
-                <h3 className="text-white font-bold mb-2">Esperando Análisis</h3>
+                <h3 className="text-zinc-900 dark:text-white font-bold mb-2">Esperando Análisis</h3>
                 <p className="text-xs text-zinc-500 max-w-[200px]">Sube una imagen para que el Guardián AI analice el entorno y detecte elementos de seguridad.</p>
               </div>
             )}

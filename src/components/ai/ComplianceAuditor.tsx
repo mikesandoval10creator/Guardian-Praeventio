@@ -50,7 +50,7 @@ export function ComplianceAuditor() {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Auditor de Cumplimiento</h3>
+            <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Auditor de Cumplimiento</h3>
             <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Auditoría Normativa Automatizada</p>
           </div>
         </div>
@@ -106,11 +106,11 @@ export function ComplianceAuditor() {
                       className={auditResult.complianceScore > 80 ? 'text-emerald-500' : auditResult.complianceScore > 50 ? 'text-amber-500' : 'text-rose-500'}
                     />
                   </svg>
-                  <span className="absolute text-2xl font-black text-white">{auditResult.complianceScore}%</span>
+                  <span className="absolute text-2xl font-black text-zinc-900 dark:text-white">{auditResult.complianceScore}%</span>
                 </div>
               </div>
-              <div className="md:col-span-2 p-6 bg-white/5 rounded-2xl border border-white/5 space-y-4">
-                <h4 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+              <div className="md:col-span-2 p-6 bg-zinc-50 dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5 space-y-4">
+                <h4 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-indigo-500" /> Resumen Ejecutivo
                 </h4>
                 <p className="text-sm text-zinc-400 leading-relaxed">{auditResult.summary}</p>
@@ -125,7 +125,7 @@ export function ComplianceAuditor() {
                 {auditResult.criticalGaps.map((gap: any, i: number) => (
                   <div key={i} className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl space-y-2">
                     <div className="flex items-start justify-between gap-4">
-                      <h5 className="text-xs font-bold text-white">{gap.gap}</h5>
+                      <h5 className="text-xs font-bold text-zinc-900 dark:text-white">{gap.gap}</h5>
                       <span className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/20 rounded text-[8px] font-black text-rose-500 uppercase">
                         {gap.severity}
                       </span>

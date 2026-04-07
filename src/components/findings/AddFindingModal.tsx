@@ -157,28 +157,28 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-zinc-900 border border-amber-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-amber-500/10 flex flex-col max-h-[90vh]"
+            className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-amber-500/30 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl shadow-amber-500/10 flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent shrink-0">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 shrink-0">
                   <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-lg font-black text-white uppercase tracking-tight truncate">Nuevo Hallazgo</h3>
+                  <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Nuevo Hallazgo</h3>
                   <p className="text-[10px] text-amber-300 font-bold uppercase tracking-widest truncate">Registrar observación o no conformidad</p>
                 </div>
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white shrink-0"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="overflow-y-auto custom-scrollbar flex-1">
-              <div className="p-6 border-b border-white/5 bg-zinc-800/50">
+              <div className="p-6 border-b border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-800/50">
                 <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-amber-500/30 rounded-2xl bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                   <input 
                     type="file" 
@@ -216,7 +216,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                     placeholder="Ej: Falta de señalética en zona de carga"
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                    className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   />
                 </div>
 
@@ -226,7 +226,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                     <select
                       value={formData.severity}
                       onChange={e => setFormData({ ...formData, severity: e.target.value })}
-                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
+                      className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
                     >
                       <option>Baja</option>
                       <option>Media</option>
@@ -239,7 +239,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                     <select
                       value={formData.category}
                       onChange={e => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
+                      className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
                     >
                       <option>Seguridad</option>
                       <option>Salud</option>
@@ -260,7 +260,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                       value={formData.location}
                       onChange={e => setFormData({ ...formData, location: e.target.value })}
                       placeholder="Ej: Bodega Central, Sector B"
-                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                      className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                     />
                   </div>
                 </div>
@@ -273,7 +273,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Describe lo observado y el riesgo potencial..."
                     rows={5}
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
+                    className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
                   />
                 </div>
 
@@ -286,7 +286,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                       value={formData.tags}
                       onChange={e => setFormData({ ...formData, tags: e.target.value })}
                       placeholder="epp, señaletica, riesgo-caida"
-                      className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
+                      className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                     />
                   </div>
                 </div>
@@ -297,7 +297,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                       <Sparkles className="w-4 h-4 text-amber-500" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-white">Plan de Acción IA</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white">Plan de Acción IA</p>
                       <p className="text-[8px] text-zinc-500 font-medium">Generar tareas correctivas automáticamente</p>
                     </div>
                   </div>
@@ -312,11 +312,11 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
               </form>
             </div>
             
-            <div className="p-6 border-t border-white/5 bg-zinc-900/50 shrink-0 flex gap-3">
+            <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0 flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-zinc-900 dark:text-white bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
                 Cancelar
               </button>

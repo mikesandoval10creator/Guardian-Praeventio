@@ -22,7 +22,8 @@ import {
   Loader2,
   Database,
   Briefcase,
-  Grid
+  Grid,
+  MonitorPlay
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
@@ -32,6 +33,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { RiskNode, NodeType, Worker } from '../types';
 import { IPERCAnalysis } from '../components/risks/IPERCAnalysis';
 import { Modal } from '../components/shared/Modal';
+import { PresentationMode } from '../components/risks/PresentationMode';
 import { where, addDoc, collection as firestoreCollection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { suggestRisksWithAI } from '../services/geminiService';
@@ -69,6 +71,7 @@ export function Matrix() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isPresenting, setIsPresenting] = useState(false);
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [manualRisk, setManualRisk] = useState({
     title: '',
@@ -291,11 +294,11 @@ export function Matrix() {
               </div>
             </div>
             
-            <h2 className="text-3xl sm:text-4xl font-black text-white mb-6 tracking-tight">
+            <h2 className="text-3xl sm:text-4xl font-black text-zinc-900 dark:text-white mb-6 tracking-tight">
               Matriz IPER Inteligente
             </h2>
             
-            <p className="text-zinc-400 text-base sm:text-lg leading-relaxed mb-12 max-w-xl mx-auto">
+            <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg leading-relaxed mb-12 max-w-xl mx-auto">
               Diseñe su Matriz de Identificación de Peligros y Evaluación de Riesgos con precisión quirúrgica. Seleccione un proyecto para cargar los protocolos específicos de su rubro.
             </p>
             
@@ -313,32 +316,32 @@ export function Matrix() {
               
               <Link 
                 to="/projects"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all border border-white/10 active:scale-95"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-3 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all border border-zinc-200 dark:border-white/10 active:scale-95"
               >
                 <Briefcase className="w-5 h-5" />
                 Gestión de Proyectos
               </Link>
             </div>
             
-            <div className="mt-16 pt-10 border-t border-white/5 grid grid-cols-3 gap-8">
+            <div className="mt-16 pt-10 border-t border-zinc-200 dark:border-white/5 grid grid-cols-3 gap-8">
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Shield className="w-4 h-4 text-emerald-500/50" />
-                  <p className="text-2xl font-black text-white">0</p>
+                  <p className="text-2xl font-black text-zinc-900 dark:text-white">0</p>
                 </div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Peligros ID</p>
               </div>
-              <div className="text-center border-x border-white/5">
+              <div className="text-center border-x border-zinc-200 dark:border-white/5">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Zap className="w-4 h-4 text-amber-500/50" />
-                  <p className="text-2xl font-black text-white">0%</p>
+                  <p className="text-2xl font-black text-zinc-900 dark:text-white">0%</p>
                 </div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Efectividad</p>
               </div>
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <CalendarIcon className="w-4 h-4 text-blue-500/50" />
-                  <p className="text-2xl font-black text-white">0</p>
+                  <p className="text-2xl font-black text-zinc-900 dark:text-white">0</p>
                 </div>
                 <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Controles</p>
               </div>
@@ -350,35 +353,35 @@ export function Matrix() {
   }
 
   const renderRiskRow = (node: RiskNode) => (
-    <tr key={node.id} className="group bg-zinc-900/50 hover:bg-zinc-800/80 transition-all">
-      <td className="px-4 py-3 sm:py-4 rounded-l-2xl border-y border-l border-white/5 group-hover:border-white/10">
+    <tr key={node.id} className="group bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 transition-all">
+      <td className="px-4 py-3 sm:py-4 rounded-l-2xl border-y border-l border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
         <div className="flex items-center gap-3">
           <div className={`w-2 h-2 rounded-full ${
             String(node.metadata?.criticidad || '').toLowerCase() === 'crítica' || String(node.metadata?.criticidad || '').toLowerCase() === 'alta' ? 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]' :
             String(node.metadata?.criticidad || '').toLowerCase() === 'media' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
             'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
           }`} />
-          <span className="text-xs sm:text-sm font-bold text-white">{node.title}</span>
+          <span className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">{node.title}</span>
         </div>
       </td>
-      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10">
-        <p className="text-[10px] sm:text-xs text-zinc-400 line-clamp-2">{node.description}</p>
+      <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
+        <p className="text-[10px] sm:text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">{node.description}</p>
       </td>
-      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10 text-center">
-        <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-zinc-800 text-xs font-bold text-white border border-white/5">
+      <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10 text-center">
+        <div className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-xs font-bold text-zinc-900 dark:text-white border border-zinc-300 dark:border-white/5">
           {node.metadata?.probabilidad || 3}x{node.metadata?.severidad || 3}
         </div>
       </td>
-      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10">
-        <p className="text-[10px] sm:text-xs text-zinc-400 line-clamp-2">{node.metadata?.controles || 'Controles estándar'}</p>
+      <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
+        <p className="text-[10px] sm:text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">{node.metadata?.controles || 'Controles estándar'}</p>
       </td>
-      <td className="px-4 py-3 sm:py-4 border-y border-white/5 group-hover:border-white/10">
+      <td className="px-4 py-3 sm:py-4 border-y border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10">
         <div className="flex flex-col gap-1">
-          <span className="text-[10px] sm:text-xs font-medium text-zinc-300">Supervisor Turno</span>
+          <span className="text-[10px] sm:text-xs font-medium text-zinc-700 dark:text-zinc-300">Supervisor Turno</span>
           <span className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Permanente</span>
         </div>
       </td>
-      <td className="px-4 py-3 sm:py-4 rounded-r-2xl border-y border-r border-white/5 group-hover:border-white/10 text-right">
+      <td className="px-4 py-3 sm:py-4 rounded-r-2xl border-y border-r border-zinc-200 dark:border-white/5 group-hover:border-zinc-300 dark:group-hover:border-white/10 text-right">
         <button 
           onClick={() => deleteNode(node.id)}
           className="p-2 hover:bg-rose-500/10 rounded-xl transition-colors text-zinc-500 hover:text-rose-500"
@@ -394,12 +397,12 @@ export function Matrix() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight leading-tight">Matriz IPERC IA</h1>
-          <p className="text-zinc-400 mt-1 text-[10px] sm:text-sm">Identificación de Peligros, Evaluación de Riesgos y Medidas de Control</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">Matriz IPERC IA</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-[10px] sm:text-sm">Identificación de Peligros, Evaluación de Riesgos y Medidas de Control</p>
           {selectedProject?.industry && (
             <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20">
-              <Shield className="w-3 h-3 text-blue-400" />
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Protocolos: {selectedProject.industry}</span>
+              <Shield className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Protocolos: {selectedProject.industry}</span>
             </div>
           )}
         </div>
@@ -427,19 +430,26 @@ export function Matrix() {
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Manual</span>
           </button>
+          <button 
+            onClick={() => setIsPresenting(true)}
+            className="flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95 text-[10px] sm:text-sm"
+          >
+            <MonitorPlay className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline">Modo Presentación</span>
+          </button>
         </div>
       </div>
 
       {/* Dynamic Industry Protocols */}
       {selectedProject && (
-        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-3xl p-6 mb-8 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center shrink-0">
-            <Shield className="w-6 h-6 text-indigo-400" />
+        <div className="bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/20 rounded-3xl p-6 mb-8 flex items-start gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center shrink-0">
+            <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <h2 className="text-sm font-black text-indigo-400 uppercase tracking-widest mb-1">Protocolos Dinámicos Activos</h2>
-            <p className="text-zinc-300 text-sm leading-relaxed">
-              El sistema ha recalibrado automáticamente las exigencias de seguridad y parámetros de estrés para el sector <span className="font-bold text-white">{selectedProject.industry || 'General'}</span>. Las matrices de riesgo y normativas aplicables se han ajustado al entorno operativo actual.
+            <h2 className="text-sm font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">Protocolos Dinámicos Activos</h2>
+            <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed">
+              El sistema ha recalibrado automáticamente las exigencias de seguridad y parámetros de estrés para el sector <span className="font-bold text-zinc-900 dark:text-white">{selectedProject.industry || 'General'}</span>. Las matrices de riesgo y normativas aplicables se han ajustado al entorno operativo actual.
             </p>
           </div>
         </div>
@@ -448,17 +458,17 @@ export function Matrix() {
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
         {[
-          { label: 'Riesgos Críticos', value: approvedRisks.filter(n => String(n.metadata?.criticidad || '').toLowerCase() === 'crítica' || String(n.metadata?.criticidad || '').toLowerCase() === 'alta').length, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-          { label: 'Riesgos Medios', value: approvedRisks.filter(n => String(n.metadata?.criticidad || '').toLowerCase() === 'media').length, icon: Info, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-          { label: 'Controles Activos', value: approvedRisks.length * 2, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Riesgos Críticos', value: approvedRisks.filter(n => String(n.metadata?.criticidad || '').toLowerCase() === 'crítica' || String(n.metadata?.criticidad || '').toLowerCase() === 'alta').length, icon: AlertTriangle, color: 'text-rose-600 dark:text-rose-500', bg: 'bg-rose-100 dark:bg-rose-500/10' },
+          { label: 'Riesgos Medios', value: approvedRisks.filter(n => String(n.metadata?.criticidad || '').toLowerCase() === 'media').length, icon: Info, color: 'text-amber-600 dark:text-amber-500', bg: 'bg-amber-100 dark:bg-amber-500/10' },
+          { label: 'Controles Activos', value: approvedRisks.length * 2, icon: CheckCircle2, color: 'text-emerald-600 dark:text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-500/10' },
         ].map((stat, i) => (
-          <div key={i} className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 flex items-center gap-4">
+          <div key={i} className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 flex items-center gap-4">
             <div className={`w-14 h-14 ${stat.bg} rounded-2xl flex items-center justify-center`}>
               <stat.icon className={`w-7 h-7 ${stat.color}`} />
             </div>
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">{stat.label}</p>
-              <h3 className="text-3xl font-bold text-white leading-none">{stat.value}</h3>
+              <h3 className="text-3xl font-bold text-zinc-900 dark:text-white leading-none">{stat.value}</h3>
             </div>
           </div>
         ))}
@@ -468,11 +478,11 @@ export function Matrix() {
       {isAdmin && pendingRisks.length > 0 && (
         <div className="mb-6 sm:mb-8 space-y-3 sm:space-y-4">
           <div className="flex items-center gap-2 mb-3 sm:mb-4">
-            <div className="p-2 bg-amber-500/10 rounded-lg shrink-0">
-              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
+            <div className="p-2 bg-amber-100 dark:bg-amber-500/10 rounded-lg shrink-0">
+              <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-500" />
             </div>
-            <h2 className="text-sm sm:text-lg font-bold text-white leading-tight">Sugerencias de IA Pendientes</h2>
-            <span className="bg-amber-500 text-black text-[8px] sm:text-[10px] font-black px-2 py-0.5 rounded-full ml-1 sm:ml-2 shrink-0">
+            <h2 className="text-sm sm:text-lg font-bold text-zinc-900 dark:text-white leading-tight">Sugerencias de IA Pendientes</h2>
+            <span className="bg-amber-500 text-white dark:text-black text-[8px] sm:text-[10px] font-black px-2 py-0.5 rounded-full ml-1 sm:ml-2 shrink-0">
               {pendingRisks.length}
             </span>
           </div>
@@ -486,15 +496,15 @@ export function Matrix() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: index * 0.05 }}
-                  className="bg-zinc-900/80 border border-amber-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-black/20"
+                  className="bg-amber-50 dark:bg-zinc-900/80 border border-amber-200 dark:border-amber-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-black/5 dark:shadow-black/20"
                 >
                   <div className="flex items-start gap-3 sm:gap-4 flex-1">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg sm:rounded-xl flex items-center justify-center border ${getCriticalityColor(node.metadata?.criticidad)}`}>
                       <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div className="min-w-0">
-                      <h3 className="font-bold text-white text-sm sm:text-lg leading-tight truncate">{node.title}</h3>
-                      <p className="text-zinc-400 text-[10px] sm:text-sm mt-1 line-clamp-2">{node.description}</p>
+                      <h3 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-lg leading-tight truncate">{node.title}</h3>
+                      <p className="text-zinc-600 dark:text-zinc-400 text-[10px] sm:text-sm mt-1 line-clamp-2">{node.description}</p>
                       <div className="flex items-center gap-2 sm:gap-3 mt-2 sm:mt-3">
                         <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500">Criticidad:</span>
                         <span className={`text-[8px] sm:text-[10px] font-black uppercase tracking-widest ${getCriticalityTextColor(node.metadata?.criticidad)}`}>
@@ -506,7 +516,7 @@ export function Matrix() {
                   <div className="flex items-center gap-2 sm:w-auto w-full">
                     <button 
                       onClick={() => handleRejectRisk(node.id)}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-800 hover:bg-rose-500/20 text-zinc-400 hover:text-rose-500 border border-zinc-700 hover:border-rose-500/30 px-3 py-2.5 sm:py-2 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-500/20 text-zinc-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-500 border border-zinc-200 dark:border-zinc-700 hover:border-rose-200 dark:hover:border-rose-500/30 px-3 py-2.5 sm:py-2 rounded-xl font-bold text-[10px] sm:text-xs uppercase tracking-widest transition-all"
                     >
                       <X className="w-4 h-4" />
                       Descartar
@@ -535,10 +545,10 @@ export function Matrix() {
             placeholder="Buscar en la matriz..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-2 sm:py-2.5 pl-9 sm:pl-10 pr-4 text-[10px] sm:text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+            className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2 sm:py-2.5 pl-9 sm:pl-10 pr-4 text-[10px] sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           />
         </div>
-        <button className="flex items-center justify-center gap-2 bg-zinc-900/50 border border-white/10 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl px-4 py-2 sm:py-2.5 transition-all text-[10px] sm:text-sm w-full sm:w-auto">
+        <button className="flex items-center justify-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl px-4 py-2 sm:py-2.5 transition-all text-[10px] sm:text-sm w-full sm:w-auto">
           <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
           <span>Filtros</span>
         </button>
@@ -555,10 +565,10 @@ export function Matrix() {
           {specificRisks.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Briefcase className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-lg font-bold text-white">Riesgos Específicos del Giro ({selectedProject?.industry})</h3>
+                <Briefcase className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Riesgos Específicos del Giro ({selectedProject?.industry})</h3>
               </div>
-              <div className="overflow-x-auto bg-zinc-900/30 border border-white/5 rounded-[2rem] p-4 sm:p-6">
+              <div className="overflow-x-auto bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6">
                 <table className="w-full text-left border-separate border-spacing-y-3">
                   <thead>
                     <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
@@ -582,10 +592,10 @@ export function Matrix() {
           {transversalRisks.length > 0 && (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Grid className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-lg font-bold text-white">Riesgos Transversales</h3>
+                <Grid className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Riesgos Transversales</h3>
               </div>
-              <div className="overflow-x-auto bg-zinc-900/30 border border-white/5 rounded-[2rem] p-4 sm:p-6">
+              <div className="overflow-x-auto bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6">
                 <table className="w-full text-left border-separate border-spacing-y-3">
                   <thead>
                     <tr className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
@@ -606,11 +616,11 @@ export function Matrix() {
           )}
         </div>
       ) : (
-        <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-2xl sm:rounded-3xl p-10 sm:p-20 text-center">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-800 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
-            <Database className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-600" />
+        <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-10 sm:p-20 text-center">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-200 dark:bg-zinc-800 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
+            <Database className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
-          <h3 className="text-lg sm:text-xl font-bold text-white mb-2">Matriz IPER no inicializada</h3>
+          <h3 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-2">Matriz IPER no inicializada</h3>
           <p className="text-[10px] sm:text-sm text-zinc-500 max-w-md mx-auto mb-6">
             No se han encontrado riesgos definidos para este proyecto. Puedes sembrar la matriz base o usar la IA para generar riesgos específicos.
           </p>
@@ -649,7 +659,7 @@ export function Matrix() {
               value={manualRisk.title}
               onChange={e => setManualRisk({...manualRisk, title: e.target.value})}
               placeholder="Ej: Caída a distinto nivel"
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
           <div>
@@ -659,7 +669,7 @@ export function Matrix() {
               value={manualRisk.description}
               onChange={e => setManualRisk({...manualRisk, description: e.target.value})}
               placeholder="Describa cómo ocurre el riesgo..."
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm text-white h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -668,7 +678,7 @@ export function Matrix() {
               <select 
                 value={manualRisk.probabilidad}
                 onChange={e => setManualRisk({...manualRisk, probabilidad: parseInt(e.target.value)})}
-                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
               >
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -678,7 +688,7 @@ export function Matrix() {
               <select 
                 value={manualRisk.severidad}
                 onChange={e => setManualRisk({...manualRisk, severidad: parseInt(e.target.value)})}
-                className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-emerald-500/50 transition-all"
               >
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -691,7 +701,7 @@ export function Matrix() {
               value={manualRisk.controles}
               onChange={e => setManualRisk({...manualRisk, controles: e.target.value})}
               placeholder="EPP, procedimientos, barreras físicas..."
-              className="w-full bg-zinc-900 border border-white/10 rounded-xl p-3 text-sm text-white h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl p-3 text-sm text-zinc-900 dark:text-white h-24 focus:ring-2 focus:ring-emerald-500/50 transition-all"
             />
           </div>
           <button 
@@ -702,6 +712,13 @@ export function Matrix() {
           </button>
         </form>
       </Modal>
+
+      {isPresenting && (
+        <PresentationMode 
+          risks={approvedRisks} 
+          onClose={() => setIsPresenting(false)} 
+        />
+      )}
     </div>
   );
 }

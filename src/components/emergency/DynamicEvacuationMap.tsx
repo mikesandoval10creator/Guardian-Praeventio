@@ -62,7 +62,7 @@ export function DynamicEvacuationMap() {
             <Navigation className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h3 className="text-lg sm:text-xl font-black text-white uppercase tracking-tight leading-tight">Rutas Dinámicas</h3>
+            <h3 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-tight">Rutas Dinámicas</h3>
             <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">Cálculo de Evacuación en Tiempo Real</p>
           </div>
         </div>
@@ -74,7 +74,7 @@ export function DynamicEvacuationMap() {
         )}
       </header>
 
-      <div className="relative aspect-square sm:aspect-video bg-black/40 rounded-xl sm:rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center">
+      <div className="relative aspect-square sm:aspect-video bg-white dark:bg-black/40 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5 overflow-hidden flex items-center justify-center">
         <div className="absolute inset-0 opacity-20 pointer-events-none">
           <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent" />
           <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
@@ -101,24 +101,24 @@ export function DynamicEvacuationMap() {
             >
               <div className="max-w-md space-y-4 sm:space-y-6 mx-auto w-full">
                 <div className="space-y-1 sm:space-y-2">
-                  <div className="flex items-center gap-2 text-emerald-500">
+                  <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500">
                     <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
                     <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Ruta Óptima Encontrada</span>
                   </div>
-                  <h4 className="text-lg sm:text-2xl font-black text-white leading-tight uppercase tracking-tighter">
+                  <h4 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white leading-tight uppercase tracking-tighter">
                     {routeData.safeRoute}
                   </h4>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <div className="p-3 sm:p-4 bg-white/5 rounded-xl border border-white/5">
+                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-white/5 rounded-xl border border-zinc-200 dark:border-white/5">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Tiempo Est.</p>
-                    <p className="text-base sm:text-lg font-black text-white">{routeData.estimatedTime}</p>
+                    <p className="text-base sm:text-lg font-black text-zinc-900 dark:text-white">{routeData.estimatedTime}</p>
                   </div>
-                  <div className="p-3 sm:p-4 bg-white/5 rounded-xl border border-white/5">
+                  <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-white/5 rounded-xl border border-zinc-200 dark:border-white/5">
                     <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Prioridad</p>
                     <p className={`text-base sm:text-lg font-black uppercase ${
-                      routeData.priority === 'Alta' ? 'text-rose-500' : 'text-emerald-500'
+                      routeData.priority === 'Alta' ? 'text-rose-600 dark:text-rose-500' : 'text-emerald-600 dark:text-emerald-500'
                     }`}>{routeData.priority}</p>
                   </div>
                 </div>
@@ -139,8 +139,8 @@ export function DynamicEvacuationMap() {
             </motion.div>
           ) : (
             <div className="text-center space-y-3 sm:space-y-4 p-4">
-              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/5">
-                <MapIcon className="w-6 h-6 sm:w-8 sm:h-8 text-zinc-700" />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-zinc-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto border border-zinc-200 dark:border-white/5">
+                <MapIcon className="w-6 h-6 sm:w-8 sm:h-8 text-zinc-400 dark:text-zinc-700" />
               </div>
               <div>
                 <p className="text-xs sm:text-sm font-bold text-zinc-500">No hay emergencias activas.</p>
@@ -154,7 +154,7 @@ export function DynamicEvacuationMap() {
       <div className="p-3 sm:p-4 bg-blue-500/5 border border-blue-500/10 rounded-xl sm:rounded-2xl flex items-start gap-3 sm:gap-4">
         <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 mt-0.5 sm:mt-1 shrink-0" />
         <div>
-          <h4 className="text-xs sm:text-sm font-bold text-white">Inteligencia de Evacuación</h4>
+          <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">Inteligencia de Evacuación</h4>
           <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed mt-1">
             El sistema monitorea constantemente los nodos de emergencia en la Red Neuronal y recalcula las rutas de escape evitando zonas de peligro reportadas en tiempo real.
           </p>

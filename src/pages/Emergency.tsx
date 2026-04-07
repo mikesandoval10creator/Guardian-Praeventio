@@ -22,6 +22,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useManDownDetection } from '../hooks/useManDownDetection';
 import { DynamicEvacuationMap } from '../components/emergency/DynamicEvacuationMap';
 import { EmergencyDashboard } from '../components/emergency/EmergencyDashboard';
+import { Asesor } from '../components/emergency/Asesor';
 import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -349,6 +350,9 @@ export function Emergency() {
                   </div>
                 </div>
               </div>
+
+              {/* Tactical Advisor */}
+              <Asesor />
             </div>
           </motion.div>
         )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain, ShieldAlert, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
@@ -9,6 +10,7 @@ import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/fireb
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { generatePTS, generatePTSWithManufacturerData } from '../services/geminiService';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -20,23 +22,39 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
 export function PTSGenerator() {
+  const [searchParams] = useSearchParams();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { addNode } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
+  const { isPremium } = useSubscription();
   const [documentType, setDocumentType] = useState('PTS');
-  const [taskName, setTaskName] = useState('');
-  const [taskDescription, setTaskDescription] = useState('');
+  const [taskName, setTaskName] = useState(searchParams.get('title') || '');
+  const [taskDescription, setTaskDescription] = useState(searchParams.get('desc') || '');
   const [machineryDetails, setMachineryDetails] = useState('');
-  const [normative, setNormative] = useState('DS 594 (Condiciones Sanitarias y Ambientales)');
+  const [normative, setNormative] = useState(searchParams.get('normative') || 'DS 594 (Condiciones Sanitarias y Ambientales)');
   const [riskLevel, setRiskLevel] = useState('Media');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [generatedPTS, setGeneratedPTS] = useState<any>(null);
   const [selectedRiskId, setSelectedRiskId] = useState<string>('');
+  const [suspensionReason, setSuspensionReason] = useState<string>('');
+  const [isSuspending, setIsSuspending] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
+
+  // Check for dangerous weather conditions
+  const dangerousWeather = React.useMemo(() => {
+    if (!environment?.weather) return null;
+    const { windSpeed, temp } = environment.weather;
+    
+    if (windSpeed > 40) return `Vientos peligrosos (${windSpeed} km/h). Riesgo crítico para trabajos en altura o izaje.`;
+    if (temp > 35) return `Calor extremo (${temp}°C). Riesgo crítico de estrés térmico.`;
+    if (temp < -5) return `Frío extremo (${temp}°C). Riesgo crítico de hipotermia o congelamiento.`;
+    
+    return null;
+  }, [environment]);
 
   // Fetch approved risks from Risk Network
   const { data: nodes } = useFirestoreCollection<RiskNode>(
@@ -69,6 +87,36 @@ export function PTSGenerator() {
     }
   };
 
+  const handleSuspendTask = async () => {
+    if (!selectedProject || !dangerousWeather || !taskName) return;
+    
+    setIsSuspending(true);
+    try {
+      const suspensionNode: Omit<RiskNode, 'id'> = {
+        title: `Suspensión: ${taskName}`,
+        description: `Tarea suspendida preventivamente. Motivo: ${dangerousWeather}. Descripción original: ${taskDescription}`,
+        type: NodeType.FINDING,
+        projectId: selectedProject.id,
+        tags: ['Suspensión', 'Clima', 'Prevención'],
+        metadata: {
+          status: 'approved',
+          criticidad: 'Alta',
+          weatherCondition: dangerousWeather,
+          suspendedAt: new Date().toISOString(),
+          suspendedBy: user?.displayName || user?.email || 'Sistema Guardián'
+        }
+      };
+      
+      await addNode(suspensionNode);
+      setSuspensionReason(dangerousWeather);
+      setGeneratedPTS(null); // Clear any generated PTS
+    } catch (error) {
+      console.error('Error suspending task:', error);
+    } finally {
+      setIsSuspending(false);
+    }
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskName || !taskDescription || !isOnline) return;
@@ -86,9 +134,9 @@ export function PTSGenerator() {
 
       let result;
       if (machineryDetails.trim() !== '') {
-        result = await generatePTSWithManufacturerData(taskName, taskDescription, machineryDetails, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
+        result = await generatePTSWithManufacturerData(taskName, taskDescription, machineryDetails, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType, isPremium);
       } else {
-        result = await generatePTS(taskName, taskDescription, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
+        result = await generatePTS(taskName, taskDescription, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType, isPremium);
       }
       setGeneratedPTS(result);
     } catch (error) {
@@ -232,6 +280,56 @@ export function PTSGenerator() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Form */}
         <div className="lg:col-span-1 space-y-6">
+          {dangerousWeather && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-rose-500/10 border border-rose-500/30 rounded-3xl p-6"
+            >
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-rose-500 shrink-0 mt-1" />
+                <div>
+                  <h3 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-2">
+                    Alerta Meteorológica
+                  </h3>
+                  <p className="text-xs text-rose-200 mb-4 leading-relaxed">
+                    {dangerousWeather}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSuspendTask}
+                    disabled={isSuspending || !taskName}
+                    className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSuspending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
+                    Suspender y Registrar
+                  </button>
+                  {!taskName && (
+                    <p className="text-[9px] text-rose-400/70 mt-2 text-center uppercase tracking-widest">
+                      Ingrese un nombre de tarea para registrar
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {suspensionReason && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-emerald-500/10 border border-emerald-500/30 rounded-3xl p-6 text-center"
+            >
+              <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-3" />
+              <h3 className="text-sm font-black text-emerald-500 uppercase tracking-widest mb-2">
+                Suspensión Registrada
+              </h3>
+              <p className="text-xs text-emerald-200/70">
+                La tarea ha sido suspendida preventivamente y registrada en el Zettelkasten.
+              </p>
+            </motion.div>
+          )}
+
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h2 className="text-lg font-black text-white uppercase tracking-tight mb-6 flex items-center gap-2">
               <FileText className="w-5 h-5 text-emerald-500" />

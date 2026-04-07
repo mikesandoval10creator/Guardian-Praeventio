@@ -168,22 +168,22 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
           >
             {/* Header */}
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
                   <Package className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Asignar EPP</h2>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Asignar EPP</h2>
                   <p className="text-xs font-medium text-emerald-500">Generación de Acta</p>
                 </div>
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-lg transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -200,7 +200,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                     required
                     value={selectedWorker}
                     onChange={e => setSelectedWorker(e.target.value)}
-                    className="w-full bg-zinc-800/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   >
                     <option value="">Seleccionar trabajador...</option>
                     {workers.map(worker => (
@@ -218,7 +218,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                     required
                     value={selectedItem}
                     onChange={e => setSelectedItem(e.target.value)}
-                    className="w-full bg-zinc-800/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   >
                     <option value="">Seleccionar item...</option>
                     {eppItems.filter(item => item.stock > 0).map(item => (
@@ -236,18 +236,18 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                     type="date"
                     value={expiresAt}
                     onChange={e => setExpiresAt(e.target.value)}
-                    className="w-full bg-zinc-800/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                    className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   />
                 </div>
               </form>
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-white/5 bg-zinc-900 shrink-0 flex justify-end gap-3">
+            <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900 shrink-0 flex justify-end gap-3">
               <button 
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-zinc-800 text-white font-medium text-sm hover:bg-zinc-700 transition-colors"
+                className="px-4 py-2 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-medium text-sm hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
                 Cancelar
               </button>

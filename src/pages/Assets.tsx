@@ -14,7 +14,7 @@ export function Assets() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gestión de Activos</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Gestión de Activos</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             {selectedProject 
               ? `Maquinaria y Equipos para: ${selectedProject.name}`
@@ -26,11 +26,11 @@ export function Assets() {
       {selectedProject ? (
         <MaquinariaManager projectId={selectedProject.id} />
       ) : (
-        <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-[3rem] p-20 text-center">
-          <div className="w-20 h-20 bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
-            <Truck className="w-10 h-10 text-zinc-600" />
+        <div className="bg-white/50 dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-[3rem] p-20 text-center">
+          <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <Truck className="w-10 h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
-          <h3 className="text-xl font-black text-white uppercase tracking-tight">Selecciona un Proyecto</h3>
+          <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Selecciona un Proyecto</h3>
           <p className="text-zinc-500 text-sm mt-2 uppercase tracking-widest font-bold max-w-md mx-auto">
             Para gestionar la maquinaria y activos, primero debes seleccionar un proyecto activo desde el selector lateral.
           </p>

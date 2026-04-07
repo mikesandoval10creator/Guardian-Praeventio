@@ -15,6 +15,7 @@ interface Project {
   endDate?: string;
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
+  workersCount?: number; // Added for subscription and legal compliance
   isPendingSync?: boolean;
   // Tracking & Shifts
   shiftStart?: string; // e.g., "08:00"
@@ -104,8 +105,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // For now, let everyone see all projects to avoid complex member management
-    const q = query(collection(db, 'projects'));
+    let q;
+    if (isAdmin) {
+      q = query(collection(db, 'projects'));
+    } else {
+      q = query(collection(db, 'projects'), where('members', 'array-contains', user.uid));
+    }
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const newProjects = snapshot.docs.map(doc => ({

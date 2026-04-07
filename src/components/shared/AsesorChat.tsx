@@ -4,6 +4,7 @@ import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, W
 import { getChatResponse, semanticSearch } from '../../services/geminiService';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import ReactMarkdown from 'react-markdown';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
@@ -36,6 +37,7 @@ export function AsesorChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { nodes, addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+  const { isPremium } = useSubscription();
 
   const handleSaveToRiskNetwork = async (content: string, topic: string) => {
     if (!selectedProject) return;
@@ -162,7 +164,7 @@ export function AsesorChat() {
         : "No se encontraron datos específicos en la Red Neuronal para esta consulta.";
 
       const historyForAI = messages.map(m => ({ role: m.role, content: m.content }));
-      const response = await getChatResponse(currentInput, context, historyForAI, newDetailLevel);
+      const response = await getChatResponse(currentInput, context, historyForAI, newDetailLevel, isPremium);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -213,16 +215,16 @@ export function AsesorChat() {
             initial={{ opacity: 0, y: 100, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 100, scale: 0.9 }}
-            className="fixed bottom-20 sm:bottom-6 right-2 sm:right-6 z-50 w-[calc(100vw-1rem)] sm:w-[400px] h-[500px] sm:h-[600px] max-h-[80vh] bg-zinc-900 border border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-20 sm:bottom-6 right-2 sm:right-6 z-50 w-[calc(100vw-1rem)] sm:w-[400px] h-[500px] sm:h-[600px] max-h-[80vh] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="p-4 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent flex items-center justify-between">
+            <div className="p-4 border-b border-zinc-200 dark:border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
                   <Shield className="w-6 h-6 text-emerald-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">El Guardián</h3>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">El Guardián</h3>
                   <div className="flex items-center gap-1.5">
                     {isOnline ? (
                       <>
@@ -233,7 +235,7 @@ export function AsesorChat() {
                             <div 
                               key={lvl}
                               className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                                lvl <= detailLevel ? 'bg-emerald-500' : 'bg-zinc-800'
+                                lvl <= detailLevel ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-800'
                               }`}
                               title={`Nivel de profundidad: ${lvl}`}
                             />
@@ -251,41 +253,41 @@ export function AsesorChat() {
               </div>
               <button 
                 onClick={() => setIsOpen(false)}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-800 scrollbar-track-transparent">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`flex gap-3 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/5 ${
-                      msg.role === 'assistant' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-800 text-zinc-400'
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-zinc-200 dark:border-white/5 ${
+                      msg.role === 'assistant' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
                     }`}>
                       {msg.role === 'assistant' ? <Bot className="w-5 h-5" /> : <User className="w-5 h-5" />}
                     </div>
                     <div className={`p-3 rounded-2xl text-sm leading-relaxed ${
                       msg.role === 'assistant' 
-                        ? 'bg-zinc-800/50 text-zinc-200 border border-white/5' 
+                        ? 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-white/5' 
                         : 'bg-emerald-500 text-white font-medium'
                     }`}>
-                      <div className="markdown-body prose prose-invert prose-sm max-w-none">
+                      <div className="markdown-body prose dark:prose-invert prose-sm max-w-none">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
                       
                       {msg.role === 'assistant' && !msg.isOffline && (
-                        <div className="mt-3 pt-3 border-t border-white/5 flex justify-end">
+                        <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-white/5 flex justify-end">
                           <button
                             onClick={() => handleSaveToRiskNetwork(msg.content, lastTopic)}
                             disabled={savedNodeId !== null}
                             className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-all ${
-                              savedNodeId ? 'bg-emerald-500/20 text-emerald-500' : 'bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-white'
+                              savedNodeId ? 'bg-emerald-500/20 text-emerald-500' : 'bg-zinc-200 dark:bg-white/5 text-zinc-500 hover:bg-zinc-300 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white'
                             }`}
                           >
                             {savedNodeId ? (
@@ -316,10 +318,10 @@ export function AsesorChat() {
               {loading && (
                 <div className="flex justify-start">
                   <div className="flex gap-3 max-w-[85%]">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-white/5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-zinc-200 dark:border-white/5">
                       <Bot className="w-5 h-5" />
                     </div>
-                    <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
+                    <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5">
                       <Loader2 className="w-4 h-4 text-emerald-500 animate-spin" />
                     </div>
                   </div>
@@ -329,14 +331,14 @@ export function AsesorChat() {
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSend} className="p-4 border-t border-white/5 bg-zinc-900/50">
+            <form onSubmit={handleSend} className="p-4 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50">
               <div className="relative">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Pregunta a El Guardián..."
-                  className="w-full bg-zinc-800 border border-white/10 rounded-2xl py-3 pl-4 pr-12 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-2xl py-3 pl-4 pr-12 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                 />
                 <button
                   type="submit"

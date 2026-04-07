@@ -79,7 +79,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative"
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col relative"
           >
             {!isForced && step !== 'success' && (
               <button
@@ -100,7 +100,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                 <div className="w-20 h-20 rounded-3xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30 mb-6">
                   <Shield className="w-10 h-10 text-emerald-400" />
                 </div>
-                <h2 className="text-2xl font-black text-white mb-3">Protege tu Cuenta</h2>
+                <h2 className="text-2xl font-black text-zinc-900 dark:text-white mb-3">Protege tu Cuenta</h2>
                 <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
                   Praeventio Guard requiere Autenticación Multifactor (MFA) para garantizar la seguridad de los datos industriales y personales.
                 </p>
@@ -123,7 +123,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                 <div className="w-16 h-16 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30 mb-6">
                   <Smartphone className="w-8 h-8 text-blue-400" />
                 </div>
-                <h2 className="text-xl font-black text-white mb-2">Vincular Teléfono</h2>
+                <h2 className="text-xl font-black text-zinc-900 dark:text-white mb-2">Vincular Teléfono</h2>
                 <p className="text-zinc-400 text-xs mb-6">
                   Ingresa tu número de teléfono móvil para recibir códigos de verificación por SMS.
                 </p>
@@ -136,7 +136,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 9))}
                       placeholder="9 1234 5678"
-                      className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-3 pl-14 pr-4 text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
+                      className="w-full bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-3 pl-14 pr-4 text-zinc-900 dark:text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
                     />
                   </div>
                 </div>
@@ -160,7 +160,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                 <div className="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 mb-6">
                   <KeyRound className="w-8 h-8 text-indigo-400" />
                 </div>
-                <h2 className="text-xl font-black text-white mb-2">Verificar Código</h2>
+                <h2 className="text-xl font-black text-zinc-900 dark:text-white mb-2">Verificar Código</h2>
                 <p className="text-zinc-400 text-xs mb-6">
                   Ingresa el código de 6 dígitos que enviamos al +56 {phoneNumber}
                 </p>
@@ -171,7 +171,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="000000"
-                    className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-4 text-center text-2xl tracking-[0.5em] font-mono text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
+                    className="w-full bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-4 text-center text-2xl tracking-[0.5em] font-mono text-zinc-900 dark:text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all"
                   />
                 </div>
 
@@ -185,7 +185,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                 
                 <button 
                   onClick={() => setStep('phone')}
-                  className="mt-4 text-xs font-bold text-zinc-500 hover:text-white transition-colors"
+                  className="mt-4 text-xs font-bold text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors"
                 >
                   Cambiar número de teléfono
                 </button>
@@ -213,7 +213,7 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                     transition={{ repeat: Infinity, duration: 1.5 }}
                   />
                 </div>
-                <h2 className="text-2xl font-black text-white mb-2">MFA Activado</h2>
+                <h2 className="text-2xl font-black text-zinc-900 dark:text-white mb-2">MFA Activado</h2>
                 <p className="text-zinc-400 text-sm mb-8">
                   Tu cuenta ahora está protegida con Autenticación Multifactor.
                 </p>

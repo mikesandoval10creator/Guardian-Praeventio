@@ -19,7 +19,7 @@ export function ProjectSelector() {
     <div className="relative w-full">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all duration-300 group shadow-sm"
+        className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/40 dark:bg-zinc-900 border border-white/20 dark:border-white/5 hover:bg-white/60 dark:hover:bg-zinc-800 transition-all duration-300 group shadow-sm"
       >
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] group-hover:scale-105 transition-transform">
           <Briefcase className="w-5 h-5" />
@@ -34,7 +34,7 @@ export function ProjectSelector() {
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.2 }}
         >
-          <ChevronDown className="w-4 h-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
+          <ChevronDown className="w-4 h-4 text-zinc-700 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-300" />
         </motion.div>
       </button>
 

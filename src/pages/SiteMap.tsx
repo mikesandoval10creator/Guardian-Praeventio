@@ -195,7 +195,7 @@ export function SiteMap() {
             onClick={() => setIsPlacing(!isPlacing)}
             className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2 sm:py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border w-full sm:w-auto ${
               isPlacing 
-                ? 'bg-red-500 text-white border-red-600 shadow-lg shadow-red-500/20' 
+                ? 'bg-red-100 dark:bg-red-500 text-red-600 dark:text-white border-red-200 dark:border-red-600 shadow-lg shadow-red-500/20' 
                 : 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800'
             }`}
           >
@@ -412,7 +412,7 @@ export function SiteMap() {
                           )}
                         </div>
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                          <div className="bg-zinc-900 text-white px-2 py-1 rounded text-[8px] font-black uppercase whitespace-nowrap border border-white/10">
+                          <div className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-2 py-1 rounded text-[8px] font-black uppercase whitespace-nowrap border border-zinc-800 dark:border-zinc-200">
                             {worker.name}
                           </div>
                         </div>
@@ -444,9 +444,9 @@ export function SiteMap() {
                       <span className={`absolute inset-0 rounded-full animate-ping opacity-40 ${quake.magnitude >= 5.0 ? 'bg-red-600' : quake.magnitude >= 4.0 ? 'bg-orange-500' : 'bg-yellow-500'}`} />
                       
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-40">
-                        <div className="bg-zinc-900 text-white px-3 py-2 rounded-lg text-[10px] font-black uppercase whitespace-nowrap border border-white/10 flex flex-col items-center gap-1 shadow-xl">
-                          <span className="text-red-400">Mag {quake.magnitude.toFixed(1)}</span>
-                          <span className="text-zinc-400 font-medium">{quake.place}</span>
+                        <div className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-3 py-2 rounded-lg text-[10px] font-black uppercase whitespace-nowrap border border-zinc-800 dark:border-zinc-200 flex flex-col items-center gap-1 shadow-xl">
+                          <span className="text-red-400 dark:text-red-600">Mag {quake.magnitude.toFixed(1)}</span>
+                          <span className="text-zinc-400 dark:text-zinc-500 font-medium">{quake.place}</span>
                         </div>
                       </div>
                     </motion.div>
@@ -524,7 +524,7 @@ export function SiteMap() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-indigo-600 text-white px-2 sm:px-6 py-1.5 sm:py-3 rounded-lg sm:rounded-2xl shadow-2xl flex items-center gap-1 sm:gap-3 pointer-events-none w-[90%] sm:w-auto justify-center text-center"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 bg-indigo-100 dark:bg-indigo-600 text-indigo-600 dark:text-white px-2 sm:px-6 py-1.5 sm:py-3 rounded-lg sm:rounded-2xl shadow-2xl flex items-center gap-1 sm:gap-3 pointer-events-none w-[90%] sm:w-auto justify-center text-center"
               >
                 <MapIcon className="w-3 h-3 sm:w-5 sm:h-5 shrink-0" />
                 <span className="text-[8px] sm:text-xs font-black uppercase tracking-widest leading-tight">Haz clic en el mapa para ubicar: {nodeToPlace.title}</span>
@@ -567,7 +567,7 @@ export function SiteMap() {
                         await updateNode(selectedHotspot.id, { metadata: { ...selectedHotspot.metadata, lat: undefined, lng: undefined } });
                         setSelectedHotspot(null);
                       }}
-                      className="flex-1 border border-red-200 text-red-500 py-1 sm:py-2.5 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-colors"
+                      className="flex-1 border border-red-200 dark:border-red-900/50 text-red-500 py-1 sm:py-2.5 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       Quitar
                     </button>
@@ -623,9 +623,9 @@ export function SiteMap() {
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[9px] sm:text-[10px] font-black text-indigo-900 dark:text-indigo-300 uppercase truncate pr-2">{pt.sector}</span>
                           <span className={`text-[8px] sm:text-[9px] font-black px-1.5 py-0.5 rounded uppercase shrink-0 ${
-                            pt.nivelRiesgo === 'Crítico' ? 'bg-red-500 text-white' :
-                            pt.nivelRiesgo === 'Alto' ? 'bg-orange-500 text-white' :
-                            'bg-blue-500 text-white'
+                            pt.nivelRiesgo === 'Crítico' ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-500' :
+                            pt.nivelRiesgo === 'Alto' ? 'bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-500' :
+                            'bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-500'
                           }`}>{pt.nivelRiesgo}</span>
                         </div>
                         <p className="text-[9px] sm:text-[10px] text-zinc-600 dark:text-zinc-400 leading-tight">{pt.recomendacion}</p>
@@ -642,22 +642,22 @@ export function SiteMap() {
           </div>
 
           {/* Live Log from Red Neuronal */}
-          <div className="bg-zinc-900 rounded-2xl sm:rounded-[2rem] p-4 sm:p-6 shadow-xl">
+          <div className="bg-zinc-50 dark:bg-zinc-900 rounded-2xl sm:rounded-[2rem] border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 shadow-xl">
             <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <h3 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-400">Log de Eventos</h3>
+              <h3 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Log de Eventos</h3>
               <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
             <div className="space-y-2 sm:space-y-3 max-h-[150px] sm:max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
               {nodes.slice(0, 10).map((node, i) => (
                 <div key={i} className="flex gap-2 sm:gap-3 text-[9px] sm:text-[10px] leading-tight group">
-                  <span className="text-zinc-600 font-mono flex-shrink-0">
+                  <span className="text-zinc-500 dark:text-zinc-600 font-mono flex-shrink-0">
                     {new Date(node.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                   <span className={`uppercase font-bold truncate ${
-                    node.type === NodeType.RISK ? 'text-red-500' :
-                    node.type === NodeType.INCIDENT ? 'text-rose-500' :
-                    node.type === NodeType.INSPECTION ? 'text-purple-500' :
-                    'text-zinc-400'
+                    node.type === NodeType.RISK ? 'text-red-600 dark:text-red-500' :
+                    node.type === NodeType.INCIDENT ? 'text-rose-600 dark:text-rose-500' :
+                    node.type === NodeType.INSPECTION ? 'text-purple-600 dark:text-purple-500' :
+                    'text-zinc-600 dark:text-zinc-400'
                   }`}>
                     {node.type}: {node.title}
                   </span>

@@ -35,7 +35,7 @@ export function Risks() {
         <div className="bg-emerald-100 dark:bg-emerald-900/20 p-3 sm:p-4 rounded-2xl sm:rounded-3xl mb-3 sm:mb-4">
           <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tighter leading-tight">Gestión de Riesgos</h2>
+        <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Gestión de Riesgos</h2>
         <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mt-1">
           Identificación y control de peligros en el entorno laboral.
         </p>
@@ -61,10 +61,10 @@ export function Risks() {
                   <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
-                  <span className="text-[9px] sm:text-[10px] font-bold text-zinc-400 uppercase tracking-widest leading-none truncate">
+                  <span className="text-[9px] sm:text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest leading-none truncate">
                     {node.tags[0] || 'General'}
                   </span>
-                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight leading-tight sm:leading-none line-clamp-2">
+                  <h3 className="text-xs sm:text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight leading-tight sm:leading-none line-clamp-2">
                     {node.title}
                   </h3>
                 </div>
@@ -95,22 +95,22 @@ export function Risks() {
           })}
         </div>
       ) : (
-        <div className="text-center py-8 sm:py-10 bg-zinc-900/50 rounded-2xl sm:rounded-3xl border border-dashed border-white/10">
+        <div className="text-center py-8 sm:py-10 bg-white/50 dark:bg-zinc-900/50 rounded-2xl sm:rounded-3xl border border-dashed border-zinc-200 dark:border-white/10">
           <p className="text-zinc-500 text-xs sm:text-sm px-4">No se han identificado riesgos para este proyecto.</p>
         </div>
       )}
 
-      <Card className="p-5 sm:p-6 bg-zinc-900 text-white border-none shadow-xl">
+      <Card className="p-5 sm:p-6 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white border border-zinc-200 dark:border-white/5 shadow-xl">
         <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-emerald-500 p-2 rounded-xl shrink-0">
-            <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-xl shrink-0">
+            <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="flex flex-col min-w-0">
             <h3 className="text-sm sm:text-base font-black uppercase tracking-widest truncate">Matriz IPERC IA</h3>
-            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Inteligencia Artificial</span>
+            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Inteligencia Artificial</span>
           </div>
         </div>
-        <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed mb-5 sm:mb-6">
+        <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-5 sm:mb-6">
           Genera una matriz de identificación de peligros y evaluación de riesgos personalizada utilizando inteligencia artificial.
         </p>
         <Button 

@@ -490,22 +490,22 @@ export function Dashboard() {
               
               <div className="flex flex-wrap gap-1 mt-1.5 sm:mt-4">
                 {weather?.windSpeed && weather.windSpeed > 40 && (
-                  <span className="flex items-center gap-1 bg-rose-500 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
+                  <span className="flex items-center gap-1 bg-rose-100 dark:bg-rose-500 text-rose-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <Wind className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Alerta Viento
                   </span>
                 )}
                 {weather?.temp && weather.temp > 30 && (
-                  <span className="flex items-center gap-1 bg-rose-500 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
+                  <span className="flex items-center gap-1 bg-rose-100 dark:bg-rose-500 text-rose-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <AlertTriangle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Estrés Térmico
                   </span>
                 )}
                 {String(weather?.condition || '').toLowerCase().includes('lluvia') && (
-                  <span className="flex items-center gap-1 bg-blue-500 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
+                  <span className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500 text-blue-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <Droplets className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Lluvia
                   </span>
                 )}
                 {weather?.temp && weather.temp <= 30 && (!weather.windSpeed || weather.windSpeed <= 40) && (!String(weather?.condition || '').toLowerCase().includes('lluvia')) && (
-                  <span className="flex items-center gap-1 bg-emerald-500 text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
+                  <span className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500 text-emerald-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Óptimo
                   </span>
                 )}
@@ -558,7 +558,7 @@ export function Dashboard() {
         {/* Porcentaje de Cumplimiento */}
         <section 
           onClick={() => setIsComplianceModalOpen(true)}
-          className="rounded-xl sm:rounded-2xl p-1.5 sm:p-4 shadow-sm relative overflow-hidden border bg-zinc-100 dark:bg-zinc-900/50 border-zinc-500/10 cursor-pointer hover:border-emerald-500/30 transition-colors group flex flex-row sm:flex-col items-center sm:items-start justify-between sm:justify-between h-auto sm:h-full"
+          className="rounded-xl sm:rounded-2xl p-1.5 sm:p-4 shadow-sm relative overflow-hidden border bg-white/90 dark:bg-zinc-900/50 border-zinc-500/10 cursor-pointer hover:border-emerald-500/30 transition-colors group flex flex-row sm:flex-col items-center sm:items-start justify-between sm:justify-between h-auto sm:h-full"
         >
           <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform hidden sm:block">
             <Target className="w-24 h-24 text-emerald-500" />
@@ -651,36 +651,36 @@ export function Dashboard() {
 
       {/* EPP Widget - Full Width & Compact */}
       <section className="w-full mt-1 sm:mt-0">
-        <div className="bg-[#4ADE80] p-1.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm relative border border-white/20 w-full flex flex-col justify-center items-center">
-          <div className="absolute -top-2 bg-[#22C55E] text-white px-1.5 py-0.5 rounded-full text-[8px] sm:text-xs font-black uppercase tracking-widest shadow-sm flex items-center gap-1 border border-white/20 whitespace-nowrap z-10">
+        <div className="bg-[#4ADE80] dark:bg-emerald-900/40 p-1.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm relative border border-white/20 dark:border-emerald-500/20 w-full flex flex-col justify-center items-center">
+          <div className="absolute -top-2 bg-[#22C55E] dark:bg-emerald-600 text-white px-1.5 py-0.5 rounded-full text-[8px] sm:text-xs font-black uppercase tracking-widest shadow-sm flex items-center gap-1 border border-white/20 dark:border-emerald-500/30 whitespace-nowrap z-10">
             EPP Requerido
           </div>
           
           <div className="flex items-center justify-center gap-1 sm:gap-4 w-full flex-1 mt-1.5 sm:mt-3">
             <div className="flex gap-1 sm:gap-3">
-              <div className="bg-white p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent transition-all">
+              <div className="bg-white dark:bg-zinc-900/80 p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent dark:border-white/5 transition-all">
                 <div className="text-sm sm:text-2xl leading-none mb-0.5">👷</div>
-                <div className="bg-black text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Casco</div>
+                <div className="bg-black dark:bg-zinc-800 text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Casco</div>
               </div>
-              <div className="bg-white p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent transition-all">
+              <div className="bg-white dark:bg-zinc-900/80 p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent dark:border-white/5 transition-all">
                 <div className="text-sm sm:text-2xl leading-none mb-0.5">🧤</div>
-                <div className="bg-black text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Guantes</div>
+                <div className="bg-black dark:bg-zinc-800 text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Guantes</div>
               </div>
             </div>
 
-            <div className="bg-white/40 backdrop-blur-sm rounded-xl sm:rounded-2xl p-1 sm:p-3 shadow-inner w-8 h-8 sm:w-16 sm:h-16 flex flex-col items-center justify-center border border-dashed border-white/60 shrink-0">
-              <Shield className="w-3 h-3 sm:w-6 sm:h-6 text-emerald-800/40 mb-0.5" />
-              <span className="text-emerald-800/40 text-[4px] sm:text-[8px] font-black uppercase tracking-widest text-center px-0.5 leading-tight">Praeventio</span>
+            <div className="bg-white/40 dark:bg-black/20 backdrop-blur-sm rounded-xl sm:rounded-2xl p-1 sm:p-3 shadow-inner w-8 h-8 sm:w-16 sm:h-16 flex flex-col items-center justify-center border border-dashed border-white/60 dark:border-white/10 shrink-0">
+              <Shield className="w-3 h-3 sm:w-6 sm:h-6 text-emerald-800/40 dark:text-emerald-500/40 mb-0.5" />
+              <span className="text-emerald-800/40 dark:text-emerald-500/40 text-[4px] sm:text-[8px] font-black uppercase tracking-widest text-center px-0.5 leading-tight">Praeventio</span>
             </div>
 
             <div className="flex gap-1 sm:gap-3">
-              <div className="bg-white p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent transition-all">
+              <div className="bg-white dark:bg-zinc-900/80 p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent dark:border-white/5 transition-all">
                 <div className="text-sm sm:text-2xl leading-none mb-0.5">🥽</div>
-                <div className="bg-black text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Lentes</div>
+                <div className="bg-black dark:bg-zinc-800 text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Lentes</div>
               </div>
-              <div className="bg-white p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent transition-all">
+              <div className="bg-white dark:bg-zinc-900/80 p-1 sm:p-3 rounded-lg sm:rounded-xl shadow-sm text-center w-8 sm:w-16 border border-transparent dark:border-white/5 transition-all">
                 <div className="text-sm sm:text-2xl leading-none mb-0.5">🥾</div>
-                <div className="bg-black text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Zapatos</div>
+                <div className="bg-black dark:bg-zinc-800 text-white text-[6px] sm:text-[10px] font-black py-0.5 rounded-sm uppercase leading-tight">Zapatos</div>
               </div>
             </div>
           </div>

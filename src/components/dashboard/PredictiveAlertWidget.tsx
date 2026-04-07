@@ -71,21 +71,21 @@ export function PredictiveAlertWidget() {
     glow: 'bg-rose-500/10',
     iconBg: 'bg-rose-500/20 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]',
     icon: 'text-rose-500',
-    title: 'text-rose-500',
-    badge: 'bg-rose-500/20 text-rose-400',
+    title: 'text-rose-700 dark:text-rose-500',
+    badge: 'bg-rose-500/20 text-rose-800 dark:text-rose-400',
     box1: 'bg-rose-500/10 border-rose-500/20',
-    box1Title: 'text-rose-400',
-    box1Text: 'text-rose-100/80'
+    box1Title: 'text-rose-800 dark:text-rose-400',
+    box1Text: 'text-rose-900 dark:text-rose-100/80'
   } : {
     container: 'bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-transparent border-amber-500/30',
     glow: 'bg-amber-500/10',
     iconBg: 'bg-amber-500/20 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.3)]',
-    icon: 'text-amber-500',
-    title: 'text-amber-500',
-    badge: 'bg-amber-500/20 text-amber-400',
+    icon: 'text-amber-600 dark:text-amber-500',
+    title: 'text-amber-700 dark:text-amber-500',
+    badge: 'bg-amber-500/20 text-amber-800 dark:text-amber-400',
     box1: 'bg-amber-500/10 border-amber-500/20',
-    box1Title: 'text-amber-400',
-    box1Text: 'text-amber-100/80'
+    box1Title: 'text-amber-800 dark:text-amber-400',
+    box1Text: 'text-amber-900 dark:text-amber-100/80'
   };
 
   return (
@@ -117,7 +117,7 @@ export function PredictiveAlertWidget() {
                 </h3>
                 <button 
                   onClick={() => setDismissed(true)}
-                  className="text-zinc-500 hover:text-white transition-colors p-0.5 sm:p-1"
+                  className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors p-0.5 sm:p-1"
                 >
                   <X className="w-3 h-3 sm:w-4 sm:h-4" />
                 </button>
@@ -136,7 +136,7 @@ export function PredictiveAlertWidget() {
                 </div>
                 
                 <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 sm:p-3">
-                  <p className="text-[8px] sm:text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-0.5 sm:mb-1 flex items-center gap-1">
+                  <p className="text-[8px] sm:text-[10px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-widest mb-0.5 sm:mb-1 flex items-center gap-1">
                     <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Acción Automatizada
                   </p>
                   <p className="text-[9px] sm:text-xs text-emerald-800 dark:text-emerald-100/80 leading-snug">{topPrediction.mitigacionSugerida}</p>

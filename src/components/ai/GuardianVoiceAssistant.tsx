@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, MicOff, Volume2, VolumeX, X, MessageSquare, Loader2, ShieldCheck, Sparkles, Send, WifiOff } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, X, MessageSquare, Loader2, ShieldCheck, Sparkles, Send, WifiOff, Ear } from 'lucide-react';
 import { processAudioWithAI, generateActionPlan } from '../../services/geminiService';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
@@ -8,6 +8,9 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { NodeType } from '../../types';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { isOnline } from '../../utils/pwa-offline';
+
+// @ts-ignore
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 export function GuardianVoiceAssistant() {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,14 +23,75 @@ export function GuardianVoiceAssistant() {
   const [textInput, setTextInput] = useState('');
   const [onlineStatus, setOnlineStatus] = useState(isOnline());
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [isListeningWakeWord, setIsListeningWakeWord] = useState(false);
   
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   const { addNode, addConnection, nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
+
+  // Wake Word Logic
+  useEffect(() => {
+    if (!SpeechRecognition || !onlineStatus || isRecording || isProcessing || isSpeaking) {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+      setIsListeningWakeWord(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'es-CL';
+
+    recognition.onstart = () => setIsListeningWakeWord(true);
+    recognition.onend = () => {
+      setIsListeningWakeWord(false);
+      // Restart if we should still be listening
+      if (onlineStatus && !isRecording && !isProcessing && !isSpeaking) {
+        try { recognition.start(); } catch (e) {}
+      }
+    };
+
+    recognition.onresult = (event: any) => {
+      const current = event.resultIndex;
+      const transcriptText = event.results[current][0].transcript.toLowerCase();
+
+      if (transcriptText.includes('hey guardián') || transcriptText.includes('hey guardian') || transcriptText.includes('oye praeventio')) {
+        recognition.stop();
+        setIsOpen(true);
+        // Small delay to allow recognition to stop and free the mic
+        setTimeout(() => {
+          startRecording();
+        }, 500);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Wake word recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        setIsListeningWakeWord(false);
+      }
+    };
+
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (e) {
+      console.error("Could not start wake word recognition", e);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+      }
+    };
+  }, [onlineStatus, isRecording, isProcessing, isSpeaking]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -246,15 +310,15 @@ export function GuardianVoiceAssistant() {
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="absolute bottom-20 left-0 w-80 sm:w-96 bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            className="absolute bottom-20 left-0 w-80 sm:w-96 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"
           >
-            <div className={`p-4 border-b border-white/5 flex items-center justify-between ${onlineStatus ? 'bg-gradient-to-r from-emerald-500/10 to-blue-500/10' : 'bg-gradient-to-r from-amber-500/10 to-orange-500/10'}`}>
+            <div className={`p-4 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between ${onlineStatus ? 'bg-gradient-to-r from-emerald-500/10 to-blue-500/10' : 'bg-gradient-to-r from-amber-500/10 to-orange-500/10'}`}>
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${onlineStatus ? 'bg-emerald-500' : 'bg-amber-500'}`}>
                   {onlineStatus ? <ShieldCheck className="w-5 h-5 text-white" /> : <WifiOff className="w-5 h-5 text-white" />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">Guardián AI</h3>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Guardián AI</h3>
                   <div className="flex items-center gap-1">
                     <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${onlineStatus ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">
@@ -265,7 +329,7 @@ export function GuardianVoiceAssistant() {
               </div>
               <button 
                 onClick={() => setIsOpen(false)}
-                className="p-1 hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-white"
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-lg transition-colors text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -288,7 +352,7 @@ export function GuardianVoiceAssistant() {
                     </button>
                     <button 
                       onClick={handleClearPending}
-                      className="flex-1 bg-white/5 text-white text-xs font-bold py-2 rounded-xl"
+                      className="flex-1 bg-zinc-100 dark:bg-white/5 text-zinc-900 dark:text-white text-xs font-bold py-2 rounded-xl hover:bg-zinc-200 dark:hover:bg-white/10"
                     >
                       Descartar
                     </button>
@@ -303,8 +367,8 @@ export function GuardianVoiceAssistant() {
                 </div>
               ) : response ? (
                 <div className="space-y-4 w-full text-left">
-                  <div className="bg-zinc-800/50 rounded-2xl p-4 border border-white/5">
-                    <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{response}</p>
+                  <div className="bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
+                    <p className="text-sm text-zinc-900 dark:text-white leading-relaxed whitespace-pre-wrap">{response}</p>
                   </div>
                   <button 
                     onClick={() => setResponse('')}
@@ -330,7 +394,7 @@ export function GuardianVoiceAssistant() {
                       {isRecording ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
                     </button>
                   </div>
-                  <p className="text-sm text-white font-bold mb-1">
+                  <p className="text-sm text-zinc-900 dark:text-white font-bold mb-1">
                     {isRecording ? 'Te escucho...' : 'Mantén presionado para hablar'}
                   </p>
                   <p className="text-xs text-zinc-500 mb-6">
@@ -344,13 +408,13 @@ export function GuardianVoiceAssistant() {
                       onChange={(e) => setTextInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleProcessText()}
                       placeholder="O escribe tu consulta aquí..."
-                      className="flex-1 bg-zinc-800/50 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50"
+                      className="flex-1 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500/50"
                     />
                     <button
                       onClick={handleProcessText}
                       disabled={!textInput.trim()}
                       className={`p-2 rounded-xl flex items-center justify-center transition-colors ${
-                        textInput.trim() ? (onlineStatus ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white') : 'bg-white/5 text-zinc-500'
+                        textInput.trim() ? (onlineStatus ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white') : 'bg-zinc-100 dark:bg-white/5 text-zinc-500'
                       }`}
                     >
                       <Send className="w-5 h-5" />
@@ -379,11 +443,19 @@ export function GuardianVoiceAssistant() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all ${
-          isOpen ? 'bg-zinc-900 text-white' : onlineStatus ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
+        className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl transition-all relative ${
+          isOpen ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-white' : onlineStatus ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
         }`}
       >
         {isOpen ? <MessageSquare className="w-6 h-6" /> : <Sparkles className="w-6 h-6" />}
+        
+        {/* Wake Word Indicator */}
+        {!isOpen && isListeningWakeWord && (
+          <div className="absolute -top-2 -right-2 bg-zinc-900 dark:bg-white border-2 border-white dark:border-zinc-900 text-white dark:text-zinc-900 text-[8px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg animate-pulse">
+            <Ear className="w-3 h-3" />
+            <span>Hey Guardián</span>
+          </div>
+        )}
       </motion.button>
 
       <audio 

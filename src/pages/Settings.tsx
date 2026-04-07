@@ -32,6 +32,18 @@ export function Settings() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
+  React.useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDark(document.documentElement.classList.contains('dark'));
+        }
+      });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
   // Settings States
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [sessionTimeout, setSessionTimeout] = useState('30');
@@ -71,75 +83,75 @@ export function Settings() {
     switch (title) {
       case 'Perfil y Cuenta':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nombre de Usuario</label>
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nombre de Usuario</label>
               <input 
                 type="text" 
                 disabled 
                 value={user?.displayName || 'Usuario Praeventio'} 
-                className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white opacity-50 cursor-not-allowed" 
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed" 
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Correo Electrónico</label>
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Correo Electrónico</label>
               <input 
                 type="email" 
                 disabled 
                 value={user?.email || ''} 
-                className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white opacity-50 cursor-not-allowed" 
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed" 
               />
             </div>
-            <p className="text-xs text-zinc-500">Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.</p>
+            <p className="text-xs text-zinc-600 dark:text-zinc-500">Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.</p>
           </div>
         );
       case 'Seguridad y Privacidad':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-white">Autenticación de Dos Factores (2FA)</h4>
-                <p className="text-xs text-zinc-500">Añade una capa extra de seguridad a tu cuenta.</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Autenticación de Dos Factores (2FA)</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">Añade una capa extra de seguridad a tu cuenta.</p>
               </div>
-              <button onClick={() => setMfaEnabled(!mfaEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+              <button onClick={() => setMfaEnabled(!mfaEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${mfaEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Tiempo de Expiración de Sesión</label>
-              <select value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Tiempo de Expiración de Sesión</label>
+              <select value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="15">15 minutos de inactividad</option>
                 <option value="30">30 minutos de inactividad</option>
                 <option value="60">1 hora de inactividad</option>
                 <option value="never">Nunca (No recomendado)</option>
               </select>
             </div>
-            <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-colors border border-white/10">
+            <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
               Cambiar Contraseña
             </button>
           </div>
         );
       case 'Notificaciones':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-white">Alertas por Correo Electrónico</h4>
-                <p className="text-xs text-zinc-500">Resúmenes diarios y alertas críticas.</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Alertas por Correo Electrónico</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">Resúmenes diarios y alertas críticas.</p>
               </div>
-              <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+              <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${emailNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
-            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-white">Notificaciones Push (Navegador)</h4>
-                <p className="text-xs text-zinc-500">Alertas en tiempo real en tu dispositivo.</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Notificaciones Push (Navegador)</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">Alertas en tiempo real en tu dispositivo.</p>
               </div>
               <button onClick={() => {
                 setPushNotifs(!pushNotifs);
                 if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
-              }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+              }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${pushNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -147,21 +159,21 @@ export function Settings() {
         );
       case 'Configuración de IA':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Nivel de Detalle del Asistente</label>
-              <select value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nivel de Detalle del Asistente</label>
+              <select value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="conciso">Conciso (Respuestas directas y cortas)</option>
                 <option value="equilibrado">Equilibrado (Recomendado)</option>
                 <option value="detallado">Detallado (Explicaciones exhaustivas y normativas)</option>
               </select>
             </div>
-            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-white">Análisis Predictivo Autónomo</h4>
-                <p className="text-xs text-zinc-500">Permite a la IA analizar datos en segundo plano.</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Análisis Predictivo Autónomo</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">Permite a la IA analizar datos en segundo plano.</p>
               </div>
-              <button onClick={() => setAiProactive(!aiProactive)} className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-emerald-500' : 'bg-zinc-700'}`}>
+              <button onClick={() => setAiProactive(!aiProactive)} className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${aiProactive ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -169,24 +181,24 @@ export function Settings() {
         );
       case 'Base de Datos y Red Neuronal':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 text-center">
+              <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Database className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
-                <span className="text-2xl font-black text-white">1.2GB</span>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Almacenamiento</p>
+                <span className="text-2xl font-black text-zinc-900 dark:text-white">1.2GB</span>
+                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">Almacenamiento</p>
               </div>
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5 text-center">
+              <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Network className="w-6 h-6 text-indigo-500 mx-auto mb-2" />
-                <span className="text-2xl font-black text-white">842</span>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Nodos Activos</p>
+                <span className="text-2xl font-black text-zinc-900 dark:text-white">842</span>
+                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">Nodos Activos</p>
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => addNotification({title: 'Exportación Iniciada', message: 'Tus datos se están preparando para descarga.', type: 'success'})} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold rounded-xl transition-colors border border-emerald-500/20">
+              <button onClick={() => addNotification({title: 'Exportación Iniciada', message: 'Tus datos se están preparando para descarga.', type: 'success'})} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-500 text-xs font-bold rounded-xl transition-colors border border-emerald-500/20">
                 Exportar Datos (JSON)
               </button>
-              <button onClick={() => addNotification({title: 'Caché Limpiada', message: 'Se ha liberado espacio local correctamente.', type: 'success'})} className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-colors border border-white/10">
+              <button onClick={() => addNotification({title: 'Caché Limpiada', message: 'Se ha liberado espacio local correctamente.', type: 'success'})} className="flex-1 py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
                 Limpiar Caché
               </button>
             </div>
@@ -194,15 +206,38 @@ export function Settings() {
         );
       case 'Interfaz y Tema':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-900 border border-white/5">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
+            <div>
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Preferencia de Tema</label>
+              <select 
+                value={localStorage.getItem('theme_preference') || 'system'} 
+                onChange={(e) => {
+                  localStorage.setItem('theme_preference', e.target.value);
+                  window.dispatchEvent(new Event('theme_preference_changed'));
+                }} 
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
+              >
+                <option value="light">Claro (Fondo #4EB5AC)</option>
+                <option value="dark">Oscuro</option>
+                <option value="auto">Automático (Día/Noche)</option>
+                <option value="system">Sistema Operativo</option>
+              </select>
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-white">Modo Oscuro</h4>
-                <p className="text-xs text-zinc-500">Cambia entre tema claro y oscuro</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Modo Oscuro Manual</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">Alternar rápidamente (sobrescribe la preferencia)</p>
               </div>
               <button 
-                onClick={handleThemeToggle} 
-                className={`w-12 h-6 rounded-full transition-colors relative ${isDark ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                onClick={() => {
+                  const root = window.document.documentElement;
+                  const isCurrentlyDark = root.classList.contains('dark');
+                  const newMode = isCurrentlyDark ? 'light' : 'dark';
+                  localStorage.setItem('theme_preference', newMode);
+                  window.dispatchEvent(new Event('theme_preference_changed'));
+                  setIsDark(!isCurrentlyDark);
+                }} 
+                className={`w-12 h-6 rounded-full transition-colors relative ${isDark ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isDark ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
@@ -211,18 +246,18 @@ export function Settings() {
         );
       case 'Idioma y Región':
         return (
-          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
-              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
+              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="es">Español (Latinoamérica)</option>
                 <option value="en">English (US)</option>
                 <option value="pt">Português (Brasil)</option>
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
-              <select className="mt-1 w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none">
+              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
+              <select className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="America/Santiago">America/Santiago (GMT-4)</option>
                 <option value="America/Lima">America/Lima (GMT-5)</option>
                 <option value="America/Bogota">America/Bogota (GMT-5)</option>
@@ -257,20 +292,20 @@ export function Settings() {
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Configuración</h1>
-        <p className="text-zinc-400 mt-1 text-xs sm:text-sm">Personaliza tu experiencia en Praeventio Guard</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Configuración</h1>
+        <p className="text-zinc-600 dark:text-zinc-400 mt-1 text-xs sm:text-sm">Personaliza tu experiencia en Praeventio Guard</p>
       </div>
 
       <div className="space-y-4 mb-6 sm:mb-8">
-        <div className="bg-zinc-900/50 border border-emerald-500/30 rounded-2xl p-4 sm:p-6">
+        <div className="bg-white/50 dark:bg-zinc-900/50 border border-emerald-500/30 rounded-2xl p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-start sm:items-center gap-3 sm:gap-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
                 <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-white text-sm sm:text-base">Notificaciones Push (FCM)</h3>
-                <p className="text-zinc-400 text-[10px] sm:text-sm">Recibe alertas críticas y de emergencia en tiempo real.</p>
+                <h3 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Notificaciones Push (FCM)</h3>
+                <p className="text-zinc-600 dark:text-zinc-400 text-[10px] sm:text-sm">Recibe alertas críticas y de emergencia en tiempo real.</p>
               </div>
             </div>
             <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto mt-2 sm:mt-0">
@@ -305,7 +340,7 @@ export function Settings() {
               )}
             </div>
           </div>
-          <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed">
+          <p className="text-[10px] sm:text-xs text-zinc-700 dark:text-zinc-500 leading-relaxed">
             Para recibir notificaciones push, debes permitir el acceso en tu navegador. Esto habilitará Firebase Cloud Messaging (FCM) para enviarte alertas críticas incluso cuando la aplicación esté en segundo plano.
           </p>
         </div>
@@ -320,23 +355,23 @@ export function Settings() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`bg-zinc-900/50 border rounded-xl sm:rounded-2xl transition-all ${isActive ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10 hover:border-emerald-500/30'}`}
+              className={`bg-white/50 dark:bg-zinc-900/50 border rounded-xl sm:rounded-2xl transition-all ${isActive ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-zinc-200 dark:border-white/10 hover:border-emerald-500/30'}`}
             >
               <div 
                 onClick={() => handleSectionClick(section.title)}
                 className="p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group"
               >
                 <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg sm:rounded-xl flex items-center justify-center transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-emerald-500 border border-white/5 group-hover:bg-zinc-800/80'}`}>
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg sm:rounded-xl flex items-center justify-center transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-white/40 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-500 border border-zinc-200 dark:border-white/5 group-hover:bg-white/60 dark:group-hover:bg-zinc-800/80'}`}>
                     <section.icon className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-400' : 'text-white group-hover:text-emerald-400'}`}>{section.title}</h3>
-                    <p className="text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{section.description}</p>
+                    <h3 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{section.title}</h3>
+                    <p className="text-zinc-600 dark:text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{section.description}</p>
                   </div>
                 </div>
                 <motion.div animate={{ rotate: isActive ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                  <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${isActive ? 'text-emerald-500' : 'text-zinc-600 group-hover:text-emerald-500'}`} />
+                  <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-500' : 'text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-500'}`} />
                 </motion.div>
               </div>
               
@@ -363,9 +398,9 @@ export function Settings() {
       <div className="mt-8 sm:mt-12 p-4 sm:p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl sm:rounded-3xl">
         <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
           <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500" />
-          <h3 className="text-base sm:text-lg font-bold text-white uppercase tracking-widest">Zona de Peligro</h3>
+          <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-widest">Zona de Peligro</h3>
         </div>
-        <p className="text-[10px] sm:text-sm text-zinc-500 mb-4 sm:mb-6 leading-relaxed">
+        <p className="text-[10px] sm:text-sm text-zinc-700 dark:text-zinc-500 mb-4 sm:mb-6 leading-relaxed">
           Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">

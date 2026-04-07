@@ -308,14 +308,14 @@ export function ModuleHub() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 min-h-[calc(100vh-4rem)]">
       {/* Header / Hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-zinc-900 border border-white/10 p-6 sm:p-10 shadow-2xl">
+      <div className="relative overflow-hidden rounded-3xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 p-6 sm:p-10 shadow-2xl">
         <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${hub.color} opacity-10 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2`} />
         
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-start gap-5">
             <button 
               onClick={() => navigate('/')}
-              className="mt-1 w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors shrink-0"
+              className="mt-1 w-10 h-10 rounded-xl bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -324,19 +324,19 @@ export function ModuleHub() {
                 <div className={`p-2 rounded-xl ${hub.bgColor} text-white shadow-lg`}>
                   <hub.icon className="w-6 h-6" />
                 </div>
-                <h1 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter leading-none">
+                <h1 className="text-2xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-none">
                   {hub.title}
                 </h1>
               </div>
-              <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed mt-4">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 max-w-2xl leading-relaxed mt-4">
                 {hub.description}
               </p>
             </div>
           </div>
           
           <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Proyecto Activo</span>
-            <span className={`text-sm font-black ${hub.textColor} uppercase tracking-wider bg-white/5 px-3 py-1.5 rounded-lg border border-white/5`}>
+            <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Proyecto Activo</span>
+            <span className={`text-sm font-black ${hub.textColor} uppercase tracking-wider bg-zinc-100 dark:bg-white/5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-white/5`}>
               {selectedProject?.name || 'Global'}
             </span>
           </div>
@@ -345,7 +345,7 @@ export function ModuleHub() {
 
       {/* Modules Grid - Moved up for better mobile visibility */}
       <div>
-        <h2 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <h2 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
           <Grid className="w-4 h-4" />
           Módulos Disponibles
         </h2>
@@ -354,14 +354,14 @@ export function ModuleHub() {
             <Link
               key={i}
               to={item.path}
-              className="flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-zinc-900/30 border border-white/5 hover:bg-zinc-900 hover:border-white/10 transition-all hover:-translate-y-1 group relative overflow-hidden"
+              className="flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-white/40 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 hover:bg-white/60 dark:hover:bg-zinc-900 hover:border-zinc-300 dark:hover:border-white/10 transition-all hover:-translate-y-1 group relative overflow-hidden"
             >
               <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 ${hub.bgColor}`} />
               
               <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${item.bg} flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform duration-300 shadow-inner relative z-10`}>
                 <item.icon className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
-              <span className="text-[10px] sm:text-xs font-bold text-zinc-300 group-hover:text-white uppercase tracking-widest text-center relative z-10">
+              <span className="text-[10px] sm:text-xs font-bold text-zinc-600 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white uppercase tracking-widest text-center relative z-10">
                 {item.title}
               </span>
             </Link>
@@ -372,43 +372,43 @@ export function ModuleHub() {
       {/* Panel de Control de Condiciones y Responsabilidades */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Riesgos Frecuentes */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
-          <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <div className="bg-white/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
+          <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4" />
             Condiciones Subestándar Frecuentes
           </h3>
           <div className="space-y-3 flex-1">
             {hub.frequentRisks?.map((risk: string, idx: number) => (
-              <div key={idx} className="flex items-start gap-3 bg-zinc-900 p-3 rounded-xl border border-white/5">
+              <div key={idx} className="flex items-start gap-3 bg-white/50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-white/5">
                 <div className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${hub.bgColor}`} />
-                <span className="text-sm text-zinc-300 leading-relaxed">{risk}</span>
+                <span className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{risk}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Mantenciones y Equipos */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
-          <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <div className="bg-white/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
+          <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
             <Wrench className="w-4 h-4" />
             Estado de Equipos Críticos
           </h3>
           <div className="space-y-3 flex-1">
             {hub.criticalMaintenance?.map((maint: any, idx: number) => (
-              <div key={idx} className="bg-zinc-900 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
+              <div key={idx} className="bg-white/50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-white/5 flex flex-col gap-2">
                 <div className="flex justify-between items-start">
-                  <span className="text-sm font-bold text-white">{maint.equipment}</span>
+                  <span className="text-sm font-bold text-zinc-900 dark:text-white">{maint.equipment}</span>
                   <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md font-bold ${
                     maint.status === 'Óptimo' || maint.status === 'Al día' || maint.status === 'Vigente' || maint.status === 'Automático'
-                      ? 'bg-emerald-500/10 text-emerald-500' 
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' 
                       : maint.status === 'Pendiente' || maint.status === 'Vencidas' || maint.status === 'Falla' || maint.status === 'Falla de presión'
-                      ? 'bg-red-500/10 text-red-500'
-                      : 'bg-amber-500/10 text-amber-500'
+                      ? 'bg-red-500/10 text-red-600 dark:text-red-500'
+                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-500'
                   }`}>
                     {maint.status}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-zinc-500">
+                <div className="flex items-center gap-1 text-xs text-zinc-600 dark:text-zinc-500">
                   <CalendarClock className="w-3 h-3" />
                   {maint.date}
                 </div>
@@ -418,17 +418,17 @@ export function ModuleHub() {
         </div>
 
         {/* Responsabilidades y Plazos */}
-        <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
-          <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+        <div className="bg-white/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
+          <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-4 flex items-center gap-2">
             <UserCheck className="w-4 h-4" />
             Responsabilidades y Plazos
           </h3>
           <div className="space-y-3 flex-1">
             {hub.responsibilities?.map((resp: any, idx: number) => (
-              <div key={idx} className="bg-zinc-900 p-3 rounded-xl border border-white/5 flex flex-col gap-2">
-                <span className="text-sm text-zinc-300 font-medium">{resp.task}</span>
+              <div key={idx} className="bg-white/50 dark:bg-zinc-900 p-3 rounded-xl border border-zinc-200 dark:border-white/5 flex flex-col gap-2">
+                <span className="text-sm text-zinc-700 dark:text-zinc-300 font-medium">{resp.task}</span>
                 <div className="flex justify-between items-center mt-1">
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-500">
                     <Briefcase className="w-3 h-3" />
                     {resp.responsible}
                   </div>
@@ -443,19 +443,19 @@ export function ModuleHub() {
       </div>
 
       {/* Asistente Profesional (IA) */}
-      <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
+      <div className="bg-white/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-2">
               <Brain className="w-4 h-4" />
               Asistente Profesional (IA)
             </h3>
-            <p className="text-sm text-zinc-400 mt-1">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
               Recomendaciones basadas en estándares ISO y análisis predictivo.
             </p>
           </div>
           {loadingAi && (
-            <div className="flex items-center gap-2 text-xs text-zinc-500 bg-zinc-900 px-3 py-1.5 rounded-full border border-white/5">
+            <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-500 bg-white/50 dark:bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-200 dark:border-white/5">
               <Loader2 className="w-3 h-3 animate-spin" />
               Analizando contexto...
             </div>
@@ -466,19 +466,19 @@ export function ModuleHub() {
           <div className="space-y-6">
             {/* Contexto Industrial & ISO */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-zinc-900 p-4 rounded-xl border border-white/5">
+              <div className="bg-white/50 dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-white/5">
                 <div className="flex items-center gap-2 mb-2">
                   <Briefcase className={`w-4 h-4 ${hub.textColor}`} />
-                  <h4 className="text-xs font-black text-white uppercase tracking-widest">Contexto Industrial</h4>
+                  <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest">Contexto Industrial</h4>
                 </div>
-                <p className="text-sm text-zinc-400 leading-relaxed">{aiRecommendations.industryRelation}</p>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{aiRecommendations.industryRelation}</p>
               </div>
-              <div className="bg-zinc-900 p-4 rounded-xl border border-white/5">
+              <div className="bg-white/50 dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-white/5">
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck className={`w-4 h-4 ${hub.textColor}`} />
-                  <h4 className="text-xs font-black text-white uppercase tracking-widest">Referencia Normativa</h4>
+                  <h4 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest">Referencia Normativa</h4>
                 </div>
-                <p className="text-sm text-zinc-400 leading-relaxed">{aiRecommendations.isoReference}</p>
+                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{aiRecommendations.isoReference}</p>
               </div>
             </div>
 
@@ -495,38 +495,38 @@ export function ModuleHub() {
 
             {/* Recomendaciones Accionables */}
             <div>
-              <h4 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <h4 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
                 Recomendaciones Accionables
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {aiRecommendations.recommendations?.map((rec: any, idx: number) => (
-                  <div key={idx} className="bg-zinc-900 p-4 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                    <h5 className="text-sm font-bold text-white mb-2">{rec.title}</h5>
-                    <p className="text-xs text-zinc-400 leading-relaxed">{rec.description}</p>
+                  <div key={idx} className="bg-white/50 dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 transition-colors">
+                    <h5 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">{rec.title}</h5>
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">{rec.description}</p>
                   </div>
                 ))}
               </div>
             </div>
           </div>
         ) : !loadingAi ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-zinc-900 rounded-xl border border-white/5 border-dashed">
-            <Brain className="w-8 h-8 text-zinc-600 mb-3" />
-            <p className="text-sm text-zinc-400">El asistente está listo para analizar.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-white/50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/5 border-dashed">
+            <Brain className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-3" />
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">El asistente está listo para analizar.</p>
             <p className="text-xs text-zinc-500 mt-1">Selecciona un proyecto para obtener recomendaciones personalizadas.</p>
           </div>
         ) : null}
       </div>
 
       {/* Inteligencia Preventiva (Red Neuronal) */}
-      <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
+      <div className="bg-white/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5 sm:p-6 flex flex-col">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+            <h3 className="text-xs font-black text-zinc-700 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-2">
               <Lightbulb className="w-4 h-4" />
               Inteligencia Preventiva (Red Neuronal)
             </h3>
-            <p className="text-sm text-zinc-400 mt-1">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
               {hub.getIndustryContext(selectedProject?.industry || '')}
             </p>
           </div>
@@ -535,12 +535,12 @@ export function ModuleHub() {
         {relatedNodes.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {relatedNodes.map(node => (
-              <div key={node.id} className="bg-zinc-900 p-4 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                <h4 className="text-sm font-bold text-white mb-1">{node.title}</h4>
-                <p className="text-xs text-zinc-400 line-clamp-2">{node.description}</p>
+              <div key={node.id} className="bg-white/50 dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 transition-colors">
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-1">{node.title}</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2">{node.description}</p>
                 <div className="flex flex-wrap gap-1 mt-3">
                   {node.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-zinc-400">
+                    <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-200 dark:bg-white/5 text-zinc-600 dark:text-zinc-400">
                       {tag}
                     </span>
                   ))}
@@ -549,9 +549,9 @@ export function ModuleHub() {
             ))}
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-zinc-900 rounded-xl border border-white/5 border-dashed">
-            <Network className="w-8 h-8 text-zinc-600 mb-3" />
-            <p className="text-sm text-zinc-400">El Guardián está analizando las condiciones del entorno.</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-white/50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/5 border-dashed">
+            <Network className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-3" />
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">El Guardián está analizando las condiciones del entorno.</p>
             <p className="text-xs text-zinc-500 mt-1">No hay nodos en la Red Neuronal relacionados aún.</p>
           </div>
         )}
@@ -560,17 +560,17 @@ export function ModuleHub() {
       {/* Quick Stats Widgets */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         {hub.stats.map((stat: any, idx: number) => (
-          <div key={idx} className="bg-zinc-900/50 border border-white/5 rounded-2xl p-5 flex items-center justify-between group hover:bg-zinc-900 transition-colors">
+          <div key={idx} className="bg-white/50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5 flex items-center justify-between group hover:bg-white/80 dark:hover:bg-zinc-900 transition-colors">
             <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center ${hub.textColor} group-hover:scale-110 transition-transform`}>
+              <div className={`w-12 h-12 rounded-xl bg-zinc-100 dark:bg-white/5 flex items-center justify-center ${hub.textColor} group-hover:scale-110 transition-transform`}>
                 <stat.icon className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">{stat.label}</p>
-                <p className="text-2xl font-black text-white leading-none">{stat.value}</p>
+                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-1">{stat.label}</p>
+                <p className="text-2xl font-black text-zinc-900 dark:text-white leading-none">{stat.value}</p>
               </div>
             </div>
-            <div className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md bg-white/5 ${hub.textColor}`}>
+            <div className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-white/5 ${hub.textColor}`}>
               {stat.trend}
             </div>
           </div>

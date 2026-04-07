@@ -70,46 +70,87 @@ export function RootLayout() {
     };
   }, []);
 
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check local storage or system preference on initial load
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system' | 'auto'>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('theme') === 'dark' || 
-        (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      return (localStorage.getItem('theme_preference') as any) || 'system';
     }
-    return false;
+    return 'system';
   });
 
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   useEffect(() => {
-    // Apply theme class to html element
-    const root = window.document.documentElement;
-    if (isDarkMode) {
-      root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+    const applyTheme = () => {
+      let shouldBeDark = false;
+      if (themeMode === 'dark') {
+        shouldBeDark = true;
+      } else if (themeMode === 'light') {
+        shouldBeDark = false;
+      } else if (themeMode === 'auto') {
+        const hour = new Date().getHours();
+        shouldBeDark = hour < 6 || hour >= 18; // Night is 6 PM to 6 AM
+      } else {
+        // system
+        shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      }
+
+      setIsDarkMode(shouldBeDark);
+      const root = window.document.documentElement;
+      if (shouldBeDark) {
+        root.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        root.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      }
+    };
+
+    applyTheme();
+
+    const handleThemePrefChange = () => {
+      setThemeMode((localStorage.getItem('theme_preference') as any) || 'system');
+    };
+    window.addEventListener('theme_preference_changed', handleThemePrefChange);
+
+    let mediaQuery: MediaQueryList | null = null;
+    let interval: NodeJS.Timeout | null = null;
+
+    if (themeMode === 'system') {
+      mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      mediaQuery.addEventListener('change', applyTheme);
+    } else if (themeMode === 'auto') {
+      interval = setInterval(applyTheme, 60000);
     }
-  }, [isDarkMode]);
+
+    return () => {
+      window.removeEventListener('theme_preference_changed', handleThemePrefChange);
+      if (mediaQuery) mediaQuery.removeEventListener('change', applyTheme);
+      if (interval) clearInterval(interval);
+    };
+  }, [themeMode]);
 
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+    const newMode = isDarkMode ? 'light' : 'dark';
+    setThemeMode(newMode);
+    localStorage.setItem('theme_preference', newMode);
+    window.dispatchEvent(new Event('theme_preference_changed'));
   };
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-emerald-500/30 flex flex-col transition-colors duration-300">
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#4eb5ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-emerald-500/30 flex flex-col transition-colors duration-300">
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
       </div>
       <ReloadPrompt />
 
-      <header className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm">
+      <header className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-[#4eb5ac]/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200/50 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm">
         {/* Left: Menu & Logo */}
         <div className="flex items-center gap-3 shrink-0">
           <button 
             onClick={() => setIsSidebarOpen(true)}
             aria-label="Abrir Menú"
-            className="w-10 h-10 bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group lg:hidden shadow-sm"
+            className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group lg:hidden shadow-sm"
           >
             <Menu className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
@@ -128,11 +169,11 @@ export function RootLayout() {
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => navigate(-1)}
-                className="w-10 h-10 bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm"
+                className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm"
               >
                 <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
-              <Link to="/" className="w-10 h-10 bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm">
+              <Link to="/" className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group shadow-sm">
                 <Home className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </Link>
             </div>
@@ -142,7 +183,7 @@ export function RootLayout() {
         {/* Middle: Global Search & AI Help */}
         <div className="flex flex-1 max-w-xl mx-4 relative justify-end sm:justify-center">
           <div className="relative w-full max-w-[300px] sm:max-w-full flex items-center group hidden sm:flex">
-            <Search className="absolute left-4 w-4 h-4 text-zinc-400 dark:text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+            <Search className="absolute left-4 w-4 h-4 text-zinc-700 dark:text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
             <input 
               type="text" 
               value={searchQuery}
@@ -154,7 +195,7 @@ export function RootLayout() {
                 }
               }}
               placeholder="Buscar o preguntar a la IA..." 
-              className="w-full bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-emerald-500/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-500 shadow-inner"
+              className="w-full bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-emerald-500/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-700 dark:placeholder:text-zinc-500 shadow-inner"
             />
             <button 
               onClick={() => {
@@ -164,7 +205,7 @@ export function RootLayout() {
               }}
               disabled={!isOnline}
               className={`absolute right-2 p-1.5 rounded-xl transition-all duration-300 ${
-                !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:scale-105'
+                !isOnline ? 'bg-white/40 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:scale-105'
               }`}
               title={!isOnline ? 'Requiere conexión a internet' : 'Preguntar a Gemini AI'}
             >
@@ -180,7 +221,7 @@ export function RootLayout() {
             }}
             disabled={!isOnline}
             className={`sm:hidden w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-              !isOnline ? 'bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-400 cursor-not-allowed' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+              !isOnline ? 'bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
             }`}
           >
             <Sparkles className="w-5 h-5" />
@@ -202,7 +243,7 @@ export function RootLayout() {
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative shadow-sm border ${
               !isOnline 
                 ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20' 
-                : 'bg-zinc-100 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+                : 'bg-white/30 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
             }`}
             title="Centro de Sincronización"
           >
@@ -223,7 +264,7 @@ export function RootLayout() {
 
           <button 
             onClick={toggleTheme}
-            className="flex w-10 h-10 bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+            className="flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
             aria-label="Toggle Dark Mode"
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
@@ -231,7 +272,7 @@ export function RootLayout() {
 
           <Link 
             to="/notifications"
-            className="w-10 h-10 bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+            className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
@@ -243,7 +284,7 @@ export function RootLayout() {
           
           <div 
             onClick={() => navigate('/profile')}
-            className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm"
+            className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm"
           >
             {localStorage.getItem('mfa_setup_completed') !== 'true' && (
               <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />

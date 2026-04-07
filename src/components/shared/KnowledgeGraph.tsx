@@ -22,6 +22,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import * as THREE from 'three';
+import { analyzeRootCauses } from '../../services/geminiService';
 
 export function KnowledgeGraph() {
   const { getGraphData, loading } = useRiskEngine();
@@ -35,6 +36,8 @@ export function KnowledgeGraph() {
   const [propagatingNode, setPropagatingNode] = useState<string | null>(null);
   const [isSimulatingPropagation, setIsSimulatingPropagation] = useState(false);
   const [propagationResult, setPropagationResult] = useState<any>(null);
+  const [isAnalyzingCauses, setIsAnalyzingCauses] = useState(false);
+  const [causeAnalysisResult, setCauseAnalysisResult] = useState<any>(null);
   const isOnline = useOnlineStatus();
 
   const graphData = useMemo(() => {
@@ -119,6 +122,37 @@ export function KnowledgeGraph() {
     return affected;
   }, [propagatingNode, getGraphData, propagationResult]);
 
+  const handleAnalyzeCauses = async (node: RiskNode) => {
+    if (!isOnline) return;
+    
+    setIsAnalyzingCauses(true);
+    setCauseAnalysisResult(null);
+    
+    try {
+      const data = getGraphData();
+      // Gather context from connected nodes
+      const connectedLinks = data.links.filter(l => 
+        (typeof l.source === 'object' ? (l.source as any).id : l.source) === node.id || 
+        (typeof l.target === 'object' ? (l.target as any).id : l.target) === node.id
+      );
+      
+      const connectedNodeIds = new Set(connectedLinks.flatMap(l => [
+        typeof l.source === 'object' ? (l.source as any).id : l.source,
+        typeof l.target === 'object' ? (l.target as any).id : l.target
+      ]));
+      
+      const contextNodes = data.nodes.filter(n => connectedNodeIds.has(n.id) && n.id !== node.id);
+      const contextString = contextNodes.map(n => `${n.type}: ${n.title}`).join('\n');
+      
+      const result = await analyzeRootCauses(node.title, node.description, contextString);
+      setCauseAnalysisResult(result);
+    } catch (error) {
+      console.error("Error analyzing causes:", error);
+    } finally {
+      setIsAnalyzingCauses(false);
+    }
+  };
+
   const getNodeColor = (type: NodeType) => {
     switch (type) {
       case NodeType.WORKER: return '#10b981'; // emerald-500
@@ -166,7 +200,7 @@ export function KnowledgeGraph() {
 
   if (loading) {
     return (
-      <div className="w-full h-[600px] flex items-center justify-center bg-zinc-950 rounded-3xl border border-white/5">
+      <div className="w-full h-[600px] flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-white/5">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Sincronizando Red Neuronal...</span>
@@ -176,17 +210,17 @@ export function KnowledgeGraph() {
   }
 
   return (
-    <div className={`relative bg-zinc-950 rounded-3xl border border-white/5 overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'}`}>
+    <div className={`relative bg-zinc-50 dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-white/5 overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'}`}>
       {/* Header / Controls */}
       <div className="absolute top-0 left-0 right-0 p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between z-10 pointer-events-none gap-2 sm:gap-0">
         <div className="flex items-center gap-2 sm:gap-4 pointer-events-auto w-full sm:w-auto overflow-x-auto no-scrollbar">
-          <div className="bg-zinc-900/80 backdrop-blur-md border border-white/10 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl flex flex-nowrap sm:flex-wrap gap-1.5 sm:gap-2 min-w-max">
+          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl flex flex-nowrap sm:flex-wrap gap-1.5 sm:gap-2 min-w-max">
             {(['all', NodeType.PROJECT, NodeType.WORKER, NodeType.RISK, NodeType.FINDING, NodeType.AUDIT, NodeType.NORMATIVE] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setFilter(t)}
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${
-                  filter === t ? 'bg-emerald-500 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'
+                  filter === t ? 'bg-emerald-500 text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
                 }`}
               >
                 {t === 'all' ? 'Todos' : t}
@@ -203,19 +237,19 @@ export function KnowledgeGraph() {
               placeholder="Buscar nodos..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 sm:pl-11 pr-3 sm:pr-4 py-2 sm:py-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all w-full sm:w-48 sm:focus:w-64"
+              className="pl-9 sm:pl-11 pr-3 sm:pr-4 py-2 sm:py-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all w-full sm:w-48 sm:focus:w-64"
             />
           </div>
           <button
             onClick={() => setIs3D(!is3D)}
-            className={`p-2 sm:p-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-xl sm:rounded-2xl transition-all shrink-0 ${is3D ? 'text-emerald-500 border-emerald-500/50' : 'text-zinc-400 hover:text-white'}`}
+            className={`p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl transition-all shrink-0 ${is3D ? 'text-emerald-500 border-emerald-500/50' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}
             title={is3D ? "Cambiar a vista 2D" : "Cambiar a vista 3D"}
           >
             <Box className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 sm:p-3 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-xl sm:rounded-2xl text-zinc-400 hover:text-white transition-all shrink-0"
+            className="p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shrink-0"
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <Maximize2 className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
@@ -350,11 +384,11 @@ export function KnowledgeGraph() {
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            className="absolute top-0 right-0 bottom-0 w-full sm:w-80 bg-zinc-900/95 backdrop-blur-xl border-l border-white/10 p-6 sm:p-8 z-20 overflow-y-auto"
+            className="absolute top-0 right-0 bottom-0 w-full sm:w-80 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-l border-zinc-200 dark:border-white/10 p-6 sm:p-8 z-20 overflow-y-auto"
           >
             <button
               onClick={() => setSelectedNode(null)}
-              className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 text-zinc-500 hover:text-white transition-colors bg-zinc-800/50 rounded-full"
+              className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors bg-zinc-100 dark:bg-zinc-800/50 rounded-full"
             >
               <X className="w-5 h-5" />
             </button>
@@ -373,7 +407,7 @@ export function KnowledgeGraph() {
                   <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1 block">
                     {selectedNode.type}
                   </span>
-                  <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-white leading-tight">
+                  <h3 className="text-lg sm:text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white leading-tight">
                     {selectedNode.title}
                   </h3>
                 </div>
@@ -381,7 +415,7 @@ export function KnowledgeGraph() {
 
               <div className="space-y-3 sm:space-y-4">
                 <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500">Descripción</h4>
-                <p className="text-[11px] sm:text-xs text-zinc-400 leading-relaxed">
+                <p className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
                   {selectedNode.description}
                 </p>
               </div>
@@ -402,7 +436,7 @@ export function KnowledgeGraph() {
                   <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500">Etiquetas</h4>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {selectedNode.tags.map(tag => (
-                      <span key={tag} className="px-2 sm:px-3 py-1 bg-white/5 rounded-md sm:rounded-lg text-[8px] sm:text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                      <span key={tag} className="px-2 sm:px-3 py-1 bg-zinc-100 dark:bg-white/5 rounded-md sm:rounded-lg text-[8px] sm:text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">
                         {tag}
                       </span>
                     ))}
@@ -410,16 +444,58 @@ export function KnowledgeGraph() {
                 </div>
               )}
 
-              <div className="pt-6 sm:pt-8 border-t border-white/5 flex flex-col gap-2 sm:gap-3">
+              <div className="pt-6 sm:pt-8 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2 sm:gap-3">
+                {/* Contextual Actions based on Node Type */}
+                {selectedNode.type === NodeType.RISK && (
+                  <>
+                    <button 
+                      onClick={() => window.location.href = `/pts?title=${encodeURIComponent(selectedNode.title)}&desc=${encodeURIComponent(selectedNode.description)}&normative=${encodeURIComponent(selectedNode.metadata?.normativa || '')}`}
+                      className="w-full py-3 sm:py-4 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" /> Generar PTS Automático
+                    </button>
+                    <button 
+                      onClick={() => handleAnalyzeCauses(selectedNode)}
+                      disabled={isAnalyzingCauses || !isOnline}
+                      className={`w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                        !isOnline 
+                          ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                          : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400'
+                      } disabled:opacity-50`}
+                    >
+                      {isAnalyzingCauses ? <AlertTriangle className="w-4 h-4 animate-pulse" /> : <SearchIcon className="w-4 h-4" />}
+                      {isAnalyzingCauses ? 'Analizando Causas...' : 'Analizar Causas Raíz'}
+                    </button>
+                  </>
+                )}
+                
+                {selectedNode.type === NodeType.WORKER && (
+                  <button 
+                    onClick={() => window.location.href = `/curriculum`}
+                    className="w-full py-3 sm:py-4 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <User className="w-4 h-4" /> Ver Currículum Preventivo
+                  </button>
+                )}
+
+                {selectedNode.type === NodeType.NORMATIVE && (
+                  <button 
+                    onClick={() => window.open(`https://www.bcn.cl/leychile/consulta/busqueda?texto=${encodeURIComponent(selectedNode.title)}`, '_blank')}
+                    className="w-full py-3 sm:py-4 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <FileText className="w-4 h-4" /> Leer Ley Completa (BCN)
+                  </button>
+                )}
+
                 <button 
                   onClick={() => handleSimulatePropagation(selectedNode)}
                   disabled={isSimulatingPropagation || !isOnline}
                   className={`w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
                     !isOnline 
-                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed'
                       : propagatingNode === selectedNode.id 
                         ? 'bg-rose-500 text-white' 
-                        : 'bg-amber-500/20 text-amber-500 hover:bg-amber-500/30'
+                        : 'bg-amber-500/20 text-amber-600 dark:text-amber-500 hover:bg-amber-500/30'
                   } disabled:opacity-50`}
                 >
                   {!isOnline ? (
@@ -429,7 +505,7 @@ export function KnowledgeGraph() {
                   )}
                   {!isOnline ? 'Requiere Conexión' : isSimulatingPropagation ? 'Analizando...' : propagatingNode === selectedNode.id ? 'Detener Análisis' : 'Analizar Propagación'}
                 </button>
-                <button className="w-full py-3 sm:py-4 bg-white/5 hover:bg-white/10 text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95">
+                <button className="w-full py-3 sm:py-4 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95">
                   Ver Nodo Completo
                 </button>
               </div>
@@ -438,15 +514,15 @@ export function KnowledgeGraph() {
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-4 sm:mt-6 p-3 sm:p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl sm:rounded-2xl space-y-3 sm:space-y-4"
+                  className="mt-4 sm:mt-6 p-3 sm:p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl sm:rounded-2xl space-y-3 sm:space-y-4"
                 >
-                  <div className="flex items-center gap-2 text-rose-500">
+                  <div className="flex items-center gap-2 text-rose-600 dark:text-rose-500">
                     <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Análisis de Propagación</h4>
                   </div>
                   
                   <div>
-                    <p className="text-[11px] sm:text-xs text-zinc-300 leading-relaxed">
+                    <p className="text-[11px] sm:text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
                       {propagationResult.explanation}
                     </p>
                   </div>
@@ -456,8 +532,54 @@ export function KnowledgeGraph() {
                       <h5 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Acciones Recomendadas</h5>
                       <ul className="space-y-1.5 sm:space-y-2">
                         {propagationResult.recommendedActions.map((action: string, i: number) => (
-                          <li key={i} className="text-[11px] sm:text-xs text-zinc-400 flex items-start gap-2">
+                          <li key={i} className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
                             <span className="text-rose-500 mt-0.5">•</span>
+                            <span>{action}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+              {causeAnalysisResult && selectedNode.type === NodeType.RISK && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 sm:mt-6 p-3 sm:p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl sm:rounded-2xl space-y-3 sm:space-y-4"
+                >
+                  <div className="flex items-center gap-2 text-rose-600 dark:text-rose-500">
+                    <SearchIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Ruta de Prevención (Causas Raíz)</h4>
+                  </div>
+                  
+                  <div>
+                    <p className="text-[11px] sm:text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                      {causeAnalysisResult.explanation}
+                    </p>
+                  </div>
+
+                  {causeAnalysisResult.rootCauses && causeAnalysisResult.rootCauses.length > 0 && (
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <h5 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Causas Principales a Investigar</h5>
+                      <ul className="space-y-1.5 sm:space-y-2">
+                        {causeAnalysisResult.rootCauses.map((cause: string, i: number) => (
+                          <li key={i} className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                            <span className="text-rose-500 mt-0.5">•</span>
+                            <span>{cause}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {causeAnalysisResult.recommendedActions && causeAnalysisResult.recommendedActions.length > 0 && (
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <h5 className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-zinc-500">Acciones en Terreno</h5>
+                      <ul className="space-y-1.5 sm:space-y-2">
+                        {causeAnalysisResult.recommendedActions.map((action: string, i: number) => (
+                          <li key={i} className="text-[11px] sm:text-xs text-zinc-600 dark:text-zinc-400 flex items-start gap-2">
+                            <span className="text-emerald-500 mt-0.5">✓</span>
                             <span>{action}</span>
                           </li>
                         ))}
@@ -472,13 +594,13 @@ export function KnowledgeGraph() {
       </AnimatePresence>
 
       {/* Legend */}
-      <div className="hidden sm:block absolute bottom-6 left-6 p-4 bg-zinc-900/80 backdrop-blur-md border border-white/10 rounded-2xl space-y-2 pointer-events-none">
+      <div className="hidden sm:block absolute bottom-6 left-6 p-4 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-2xl space-y-2 pointer-events-none">
         <h4 className="text-[8px] font-black uppercase tracking-widest text-zinc-500 mb-2">Leyenda</h4>
         <div className="flex flex-col gap-2">
           {([NodeType.PROJECT, NodeType.WORKER, NodeType.RISK, NodeType.FINDING, NodeType.AUDIT, NodeType.NORMATIVE] as const).map(t => (
             <div key={t} className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getNodeColor(t) }} />
-              <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">{t}</span>
+              <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">{t}</span>
             </div>
           ))}
         </div>

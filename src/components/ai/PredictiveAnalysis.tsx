@@ -103,7 +103,7 @@ Contexto Ambiental: ${envContext}
 
   return (
     <div className="space-y-8">
-      <section className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 relative overflow-hidden group">
+      <section className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-8 relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
           <Brain className="w-32 h-32 text-blue-500" />
         </div>
@@ -115,15 +115,15 @@ Contexto Ambiental: ${envContext}
                 <Brain className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">Análisis Predictivo de Incidentes</h2>
-                <p className="text-zinc-400 text-sm">IA analizando el Grafo de Conocimiento Universal</p>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">Análisis Predictivo de Incidentes</h2>
+                <p className="text-zinc-500 dark:text-zinc-400 text-sm">IA analizando el Grafo de Conocimiento Universal</p>
               </div>
             </div>
             <button
               onClick={runAnalysis}
               disabled={analyzing || nodes.length === 0 || !isOnline}
               className={`px-6 py-3 rounded-xl font-bold transition-all shadow-lg disabled:opacity-50 flex items-center gap-2 active:scale-95 ${
-                !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-500/20'
+                !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-500/20'
               }`}
             >
               {!isOnline ? (
@@ -146,7 +146,7 @@ Contexto Ambiental: ${envContext}
           </div>
 
           {!results ? (
-            <div className="bg-zinc-800/30 border border-dashed border-white/10 rounded-2xl p-12 text-center">
+            <div className="bg-white dark:bg-zinc-800/30 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl p-12 text-center">
               <p className="text-zinc-500 text-sm leading-relaxed max-w-md mx-auto">
                 Haz clic en "Iniciar Predicción" para que El Guardián analice los {nodes.length} nodos activos y detecte patrones de riesgo invisibles.
               </p>
@@ -154,19 +154,19 @@ Contexto Ambiental: ${envContext}
           ) : (
             <div className="space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6">
+                <div className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Probabilidad Hoy</p>
                   <p className={`text-3xl font-black ${results.probabilidadGlobal > 50 ? 'text-rose-500' : 'text-emerald-500'}`}>
                     {results.probabilidadGlobal}%
                   </p>
                 </div>
-                <div className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6">
+                <div className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Nivel de Riesgo</p>
                   <p className={`text-3xl font-black ${results.nivelRiesgo === 'Crítico' || results.nivelRiesgo === 'Alto' ? 'text-rose-500' : 'text-emerald-500'}`}>
                     {results.nivelRiesgo}
                   </p>
                 </div>
-                <div className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6">
+                <div className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Confianza IA</p>
                   <p className="text-3xl font-black text-blue-500">{results.confianza}%</p>
                 </div>
@@ -181,7 +181,7 @@ Contexto Ambiental: ${envContext}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.1 }}
-                      className="bg-zinc-800/50 border border-white/5 rounded-2xl p-6 space-y-4 hover:border-blue-500/30 transition-colors group"
+                      className="bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6 space-y-4 hover:border-blue-500/30 transition-colors group shadow-sm dark:shadow-none"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
@@ -189,13 +189,13 @@ Contexto Ambiental: ${envContext}
                             <AlertTriangle className="w-5 h-5" />
                           </div>
                           <div>
-                            <h4 className="text-white font-bold text-sm uppercase tracking-tight">{pred.titulo}</h4>
+                            <h4 className="text-zinc-900 dark:text-white font-bold text-sm uppercase tracking-tight">{pred.titulo}</h4>
                             <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{pred.probabilidad}% Probabilidad</p>
                           </div>
                         </div>
                       </div>
                       
-                      <p className="text-zinc-400 text-xs leading-relaxed">
+                      <p className="text-zinc-600 dark:text-zinc-400 text-xs leading-relaxed">
                         {pred.razon}
                       </p>
 
@@ -218,7 +218,7 @@ Contexto Ambiental: ${envContext}
                         onClick={() => handleGenerateReport(pred.nodoId, pred.titulo, pred.razon, pred.mitigacionSugerida, pred.fundamentoLegal)}
                         disabled={generatingReport === pred.nodoId || !isOnline}
                         className={`w-full py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-                          !isOnline ? 'bg-zinc-800 border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                          !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 cursor-not-allowed' : 'bg-zinc-100 dark:bg-white/5 border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-white/10'
                         }`}
                       >
                         {!isOnline ? (
@@ -253,28 +253,28 @@ Contexto Ambiental: ${envContext}
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl"
+              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-[40px] w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-8 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-500/10 to-transparent">
+              <div className="p-8 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-blue-500/10 to-transparent">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-400">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                     <FileText className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">Procedimiento de Trabajo Seguro (PTS)</h2>
-                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Generado por El Guardián AI</p>
+                    <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Procedimiento de Trabajo Seguro (PTS)</h2>
+                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-500 uppercase tracking-widest">Generado por El Guardián AI</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setReport(null)}
-                  className="p-3 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                  className="p-3 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
                 >
                   <CheckCircle2 className="w-6 h-6" />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar" ref={reportRef}>
-                <div className="markdown-body prose prose-invert max-w-none">
+                <div className="markdown-body prose dark:prose-invert max-w-none">
                   <ReactMarkdown
                     remarkPlugins={[remarkMath]}
                     rehypePlugins={[rehypeKatex]}
@@ -284,14 +284,14 @@ Contexto Ambiental: ${envContext}
                 </div>
               </div>
 
-              <div className="p-8 border-t border-white/5 bg-zinc-900/50 flex justify-between items-center">
-                <p className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
+              <div className="p-8 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 flex justify-between items-center">
+                <p className="text-[9px] font-bold text-zinc-500 dark:text-zinc-600 uppercase tracking-widest">
                   Este documento es una sugerencia basada en IA. Debe ser validado por un experto.
                 </p>
                 <button 
                   onClick={handleDownloadPDF}
                   disabled={downloading}
-                  className="px-6 py-3 rounded-xl bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-zinc-200 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black font-black text-[10px] uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {downloading ? (
                     <>

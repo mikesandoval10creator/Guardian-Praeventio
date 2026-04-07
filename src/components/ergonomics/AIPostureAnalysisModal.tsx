@@ -119,21 +119,21 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-500/10 to-transparent shrink-0">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center">
                   <BrainCircuit className="w-5 h-5 text-indigo-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Bio-Análisis IA</h2>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Bio-Análisis IA</h2>
                   <p className="text-sm text-zinc-400">Evaluación postural mediante Computer Vision</p>
                 </div>
               </div>
               <button 
                 onClick={handleClose}
-                className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-400 hover:text-white"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -149,7 +149,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                     <Camera className="w-8 h-8 text-zinc-400 group-hover:text-indigo-400" />
                   </div>
                   <div className="text-center">
-                    <p className="text-white font-medium">Sube una foto del trabajador</p>
+                    <p className="text-zinc-900 dark:text-white font-medium">Sube una foto del trabajador</p>
                     <p className="text-sm text-zinc-500 mt-1">Formatos soportados: JPG, PNG</p>
                   </div>
                 </div>
@@ -164,7 +164,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                     {!analysisResult && !loading && (
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="absolute top-4 right-4 bg-black/50 backdrop-blur-md text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-black/70 transition-colors border border-white/10"
+                        className="absolute top-4 right-4 bg-white/80 dark:bg-black/50 backdrop-blur-md text-zinc-900 dark:text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-white dark:hover:bg-black/70 transition-colors border border-zinc-200 dark:border-white/10"
                       >
                         Cambiar Imagen
                       </button>
@@ -177,7 +177,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                       disabled={loading || !isOnline}
                       className={`w-full py-3 rounded-xl font-medium text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
                         !isOnline 
-                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
+                          ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
                           : 'bg-indigo-500 text-white hover:bg-indigo-600 shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
                       }`}
                     >
@@ -225,14 +225,14 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                             value={workstation}
                             onChange={(e) => setWorkstation(e.target.value)}
                             placeholder="Ej: Operador de Grúa"
-                            className="w-full bg-zinc-900 border border-white/10 rounded-lg py-2.5 px-3 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm"
+                            className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-lg py-2.5 px-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-3">
-                          <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                          <h3 className="text-sm font-medium text-zinc-900 dark:text-white flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-amber-500" />
                             Hallazgos
                           </h3>
@@ -245,7 +245,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                           </ul>
                         </div>
                         <div className="space-y-3">
-                          <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                          <h3 className="text-sm font-medium text-zinc-900 dark:text-white flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             Recomendaciones
                           </h3>
@@ -260,7 +260,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                       </div>
 
                       <div className="bg-zinc-800/30 rounded-xl p-4 border border-white/5 space-y-3">
-                        <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                        <h3 className="text-sm font-medium text-zinc-900 dark:text-white flex items-center gap-2">
                           <Activity className="w-4 h-4 text-indigo-400" />
                           Análisis Segmentado
                         </h3>
@@ -290,10 +290,10 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
             </div>
             
             {analysisResult && (
-              <div className="p-6 border-t border-white/5 bg-zinc-900/50 shrink-0 flex justify-end gap-3">
+              <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0 flex justify-end gap-3">
                 <button
                   onClick={handleClose}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-900 dark:text-white bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Cancelar
                 </button>

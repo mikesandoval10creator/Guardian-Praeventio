@@ -88,21 +88,21 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-orange-500/10 to-transparent shrink-0">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-orange-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center">
                   <Layout className="w-5 h-5 text-orange-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Nueva Evaluación</h2>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Nueva Evaluación</h2>
                   <p className="text-sm text-zinc-400">Análisis ergonómico de puesto</p>
                 </div>
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-white/5 rounded-xl transition-colors text-zinc-400 hover:text-white"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -120,7 +120,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
                       value={formData.workstation}
                       onChange={(e) => setFormData({ ...formData, workstation: e.target.value })}
                       placeholder="Ej: Puesto de Trabajo 01"
-                      className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
+                      className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
                     />
                   </div>
                 </div>
@@ -131,7 +131,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
                     <select
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
+                      className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
                     >
                       {assessmentTypes.map(t => (
                         <option key={t} value={t}>{t}</option>
@@ -143,7 +143,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
                     <select
                       value={formData.risk}
                       onChange={(e) => setFormData({ ...formData, risk: e.target.value })}
-                      className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
+                      className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
                     >
                       {riskLevels.map(r => (
                         <option key={r.value} value={r.value}>{r.label}</option>
@@ -159,17 +159,17 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
                     onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
                     placeholder="Detalles de la evaluación..."
                     rows={4}
-                    className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm resize-none"
+                    className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm resize-none"
                   />
                 </div>
               </form>
             </div>
             
-            <div className="p-6 border-t border-white/5 bg-zinc-900/50 shrink-0 flex justify-end gap-3">
+            <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0 flex justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-zinc-900 dark:text-white bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
                 Cancelar
               </button>

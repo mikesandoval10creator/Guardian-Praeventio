@@ -79,21 +79,21 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-zinc-900 border border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
+            className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
           >
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-emerald-500/10 to-transparent">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-emerald-500/5 dark:from-emerald-500/10 to-transparent">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-emerald-500" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Nuevo Registro</h2>
-                  <p className="text-xs text-zinc-400">Monitoreo de agentes ambientales</p>
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Nuevo Registro</h2>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Monitoreo de agentes ambientales</p>
                 </div>
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-full transition-colors text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -105,7 +105,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                 <select
                   value={formData.parameter}
                   onChange={(e) => setFormData({ ...formData, parameter: e.target.value })}
-                  className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                 >
                   {parameters.map(p => (
                     <option key={p.name} value={p.name}>{p.name}</option>
@@ -122,7 +122,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                   value={formData.value}
                   onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                   placeholder="0.00"
-                  className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                 />
               </div>
 
@@ -134,7 +134,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                   placeholder="Ej: Zona de Carga"
-                  className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-2.5 px-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                 />
               </div>
 
@@ -142,7 +142,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 text-white font-bold hover:bg-zinc-700 transition-colors"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Cancelar
                 </button>

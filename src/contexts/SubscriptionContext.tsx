@@ -2,23 +2,55 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useFirebase } from './FirebaseContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { useProject } from './ProjectContext';
 
-export type SubscriptionPlan = 'free' | 'premium' | 'enterprise';
+export type SubscriptionPlan = 'free' | 'comite' | 'departamento' | 'plata' | 'oro' | 'platino' | 'empresarial' | 'corporativo' | 'ilimitado';
 
 interface SubscriptionContextType {
   plan: SubscriptionPlan;
   isPremium: boolean;
   isEnterprise: boolean;
-  upgradeToPremium: () => Promise<void>;
+  upgradePlan: (newPlan: SubscriptionPlan) => Promise<void>;
   loading: boolean;
+  totalWorkers: number;
+  recommendedPlan: SubscriptionPlan;
+  requiresUpgrade: boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
+const PLAN_LIMITS: Record<SubscriptionPlan, number> = {
+  free: 10,
+  comite: 25,
+  departamento: 100,
+  plata: 250,
+  oro: 500,
+  platino: 1000,
+  empresarial: 2500,
+  corporativo: 5000,
+  ilimitado: Infinity
+};
+
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useFirebase();
+  const { projects } = useProject();
   const [plan, setPlan] = useState<SubscriptionPlan>('free');
   const [loading, setLoading] = useState(true);
+
+  // Calculate total workers across all projects
+  const totalWorkers = projects.reduce((sum, project) => sum + (project.workersCount || 0), 0);
+
+  // Determine recommended plan based on workers
+  let recommendedPlan: SubscriptionPlan = 'free';
+  for (const [p, limit] of Object.entries(PLAN_LIMITS)) {
+    if (totalWorkers <= limit) {
+      recommendedPlan = p as SubscriptionPlan;
+      break;
+    }
+  }
+
+  // Check if current plan limit is exceeded
+  const requiresUpgrade = totalWorkers > PLAN_LIMITS[plan];
 
   useEffect(() => {
     const fetchSubscription = async () => {
@@ -36,7 +68,6 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           const userData = docSnap.data();
           setPlan(userData.subscriptionPlan || 'free');
         } else {
-          // Initialize user with free plan
           await setDoc(docRef, { subscriptionPlan: 'free' }, { merge: true });
           setPlan('free');
         }
@@ -51,22 +82,31 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     fetchSubscription();
   }, [user]);
 
-  const upgradeToPremium = async () => {
+  const upgradePlan = async (newPlan: SubscriptionPlan) => {
     if (!user) return;
     try {
       const docRef = doc(db, 'users', user.uid);
-      await setDoc(docRef, { subscriptionPlan: 'premium' }, { merge: true });
-      setPlan('premium');
+      await setDoc(docRef, { subscriptionPlan: newPlan }, { merge: true });
+      setPlan(newPlan);
     } catch (error) {
       console.error('Error upgrading subscription:', error);
     }
   };
 
-  const isPremium = plan === 'premium' || plan === 'enterprise';
-  const isEnterprise = plan === 'enterprise';
+  const isPremium = plan !== 'free';
+  const isEnterprise = ['empresarial', 'corporativo', 'ilimitado'].includes(plan);
 
   return (
-    <SubscriptionContext.Provider value={{ plan, isPremium, isEnterprise, upgradeToPremium, loading }}>
+    <SubscriptionContext.Provider value={{ 
+      plan, 
+      isPremium, 
+      isEnterprise, 
+      upgradePlan, 
+      loading,
+      totalWorkers,
+      recommendedPlan,
+      requiresUpgrade
+    }}>
       {children}
     </SubscriptionContext.Provider>
   );

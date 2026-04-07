@@ -52,7 +52,7 @@ export function EthicsGuardian() {
             <Scale className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Guardián de la Ética</h3>
+            <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Guardián de la Ética</h3>
             <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Auditoría de IA contra Normativa y Valores</p>
           </div>
         </div>
@@ -68,13 +68,13 @@ export function EthicsGuardian() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Pega aquí una sugerencia de IA, un procedimiento o una idea para auditar éticamente..."
-            className="w-full h-32 bg-black/30 border border-white/10 rounded-2xl p-4 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all resize-none"
+            className="w-full h-32 bg-zinc-50 dark:bg-black/30 border border-zinc-200 dark:border-white/10 rounded-2xl p-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all resize-none"
           />
           <button
             onClick={handleAudit}
             disabled={loading || !input.trim() || !isOnline}
             className={`absolute bottom-4 right-4 px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 shadow-lg active:scale-95 ${
-              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/20 disabled:opacity-50'
+              !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-purple-500 hover:bg-purple-600 text-white shadow-purple-500/20 disabled:opacity-50'
             }`}
           >
             {!isOnline ? (
@@ -131,17 +131,17 @@ export function EthicsGuardian() {
                   <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
                     <Info className="w-3 h-3" /> Notas de Auditoría
                   </p>
-                  <p className="text-sm text-zinc-300 leading-relaxed italic">
+                  <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed italic">
                     "{result.auditNotes}"
                   </p>
                 </div>
 
                 {result.suggestedAdjustments && (
-                  <div className="p-4 bg-black/20 rounded-xl border border-white/5">
-                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <div className="p-4 bg-zinc-50 dark:bg-black/20 rounded-xl border border-zinc-200 dark:border-white/5">
+                    <p className="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                       <ArrowRight className="w-3 h-3" /> Ajustes Sugeridos
                     </p>
-                    <p className="text-sm text-zinc-400 leading-relaxed">
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
                       {result.suggestedAdjustments}
                     </p>
                   </div>

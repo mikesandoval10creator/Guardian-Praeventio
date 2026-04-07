@@ -127,22 +127,22 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-zinc-900 border border-white/10 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
           >
             {/* Header */}
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex justify-between items-center bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500">
                   <Shield className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">Verificación de EPP con IA</h2>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Verificación de EPP con IA</h2>
                   <p className="text-xs font-medium text-emerald-500">Visión Artificial El Guardián</p>
                 </div>
               </div>
               <button 
                 onClick={onClose}
-                className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-400 hover:text-white"
+                className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-lg transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -159,7 +159,7 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                       <select
                         value={selectedWorkerId}
                         onChange={(e) => setSelectedWorkerId(e.target.value)}
-                        className="w-full bg-zinc-800/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none transition-all"
+                        className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none transition-all"
                       >
                         <option value="">Seleccione un trabajador...</option>
                         {workers.map(w => (
@@ -172,7 +172,7 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                   <div 
                     onClick={() => fileInputRef.current?.click()}
                     className={`aspect-video rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center overflow-hidden relative ${
-                      image ? 'border-emerald-500/50' : 'border-white/10 hover:border-emerald-500/50 bg-zinc-800/30'
+                      image ? 'border-emerald-500/50' : 'border-zinc-300 dark:border-white/10 hover:border-emerald-500/50 bg-zinc-50 dark:bg-zinc-800/30'
                     }`}
                   >
                     {image ? (
@@ -187,8 +187,8 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                       </>
                     ) : (
                       <div className="text-center p-6">
-                        <Upload className="w-10 h-10 text-zinc-500 mx-auto mb-3" />
-                        <p className="text-sm text-zinc-300 font-medium">Sube una foto del trabajador</p>
+                        <Upload className="w-10 h-10 text-zinc-400 dark:text-zinc-500 mx-auto mb-3" />
+                        <p className="text-sm text-zinc-600 dark:text-zinc-300 font-medium">Sube una foto del trabajador</p>
                         <p className="text-xs text-zinc-500 mt-1">Captura en tiempo real</p>
                       </div>
                     )}
@@ -204,7 +204,7 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                   <button
                     onClick={verifyEPP}
                     disabled={!image || !selectedWorkerId || isAnalyzing}
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white py-3 rounded-xl font-medium text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:shadow-none"
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-white py-3 rounded-xl font-medium text-sm transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 disabled:shadow-none"
                   >
                     {isAnalyzing ? (
                       <>
@@ -249,14 +249,14 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                       </div>
 
                       <div className="grid grid-cols-1 gap-4">
-                        <div className="bg-zinc-800/50 border border-white/5 rounded-xl p-4">
-                          <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl p-4">
+                          <h4 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             EPP Detectado
                           </h4>
                           <div className="flex flex-wrap gap-2">
                             {result.detectedEPP.map((item, i) => (
-                              <span key={i} className="bg-emerald-500/10 text-emerald-400 text-xs font-medium px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                              <span key={i} className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-medium px-2.5 py-1 rounded-lg border border-emerald-500/20">
                                 {item}
                               </span>
                             ))}
@@ -264,14 +264,14 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                         </div>
 
                         {result.missingEPP.length > 0 && (
-                          <div className="bg-rose-500/5 border border-rose-500/10 rounded-xl p-4">
-                            <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <div className="bg-rose-50 dark:bg-rose-500/5 border border-rose-200 dark:border-rose-500/10 rounded-xl p-4">
+                            <h4 className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                               <AlertTriangle className="w-4 h-4" />
                               EPP Faltante
                             </h4>
                             <div className="flex flex-wrap gap-2">
                               {result.missingEPP.map((item, i) => (
-                                <span key={i} className="bg-rose-500/10 text-rose-400 text-xs font-medium px-2.5 py-1 rounded-lg border border-rose-500/20">
+                                <span key={i} className="bg-rose-100 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 text-xs font-medium px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-500/20">
                                   {item}
                                 </span>
                               ))}
@@ -279,14 +279,14 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                           </div>
                         )}
 
-                        <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4">
-                          <h4 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/10 rounded-xl p-4">
+                          <h4 className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                             <Shield className="w-4 h-4" />
                             Recomendaciones
                           </h4>
                           <ul className="space-y-2">
                             {result.recommendations.map((rec, i) => (
-                              <li key={i} className="flex items-start gap-2 text-sm text-zinc-300">
+                              <li key={i} className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
                                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0" />
                                 <span className="leading-relaxed">{rec}</span>
                               </li>
@@ -296,12 +296,12 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                       </div>
                     </motion.div>
                   ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-white/10 rounded-xl bg-zinc-800/20 min-h-[300px]">
-                      <div className="w-16 h-16 rounded-2xl bg-zinc-800/50 flex items-center justify-center mb-4 border border-white/5">
-                        <Sparkles className="w-8 h-8 text-zinc-500" />
+                    <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-zinc-200 dark:border-white/10 rounded-xl bg-zinc-50 dark:bg-zinc-800/20 min-h-[300px]">
+                      <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800/50 flex items-center justify-center mb-4 border border-zinc-200 dark:border-white/5">
+                        <Sparkles className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
                       </div>
-                      <h3 className="text-white font-bold text-lg mb-2">Esperando Verificación</h3>
-                      <p className="text-sm text-zinc-400 max-w-[250px] leading-relaxed">
+                      <h3 className="text-zinc-900 dark:text-white font-bold text-lg mb-2">Esperando Verificación</h3>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-[250px] leading-relaxed">
                         Selecciona un trabajador y sube su fotografía para realizar la validación automática de EPP.
                       </p>
                     </div>
@@ -311,10 +311,10 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-white/5 bg-zinc-900 shrink-0 flex justify-end gap-3">
+            <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900 shrink-0 flex justify-end gap-3">
               <button 
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-zinc-800 text-white font-medium text-sm hover:bg-zinc-700 transition-colors"
+                className="px-4 py-2 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-medium text-sm hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
                 Cerrar
               </button>

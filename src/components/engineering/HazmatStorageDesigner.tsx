@@ -28,14 +28,14 @@ export const HazmatStorageDesigner: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-6">
+    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-          <Building2 className="w-6 h-6 text-orange-400" />
+          <Building2 className="w-6 h-6 text-orange-500 dark:text-orange-400" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-white">Diseñador de Instalaciones (OGUC / DS 43)</h3>
-          <p className="text-slate-400 text-sm">Diseño normativo para bodegas de sustancias peligrosas.</p>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Diseñador de Instalaciones (OGUC / DS 43)</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Diseño normativo para bodegas de sustancias peligrosas.</p>
         </div>
       </div>
 
@@ -44,11 +44,11 @@ export const HazmatStorageDesigner: React.FC = () => {
         <div className="space-y-4">
           <form onSubmit={handleDesign} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Tipo de Instalación</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Instalación</label>
               <select
                 value={storageType}
                 onChange={(e) => setStorageType(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
               >
                 <option value="Bodega Exclusiva">Bodega Exclusiva Adyacente</option>
                 <option value="Bodega Separada">Bodega Separada (Aislada)</option>
@@ -58,23 +58,23 @@ export const HazmatStorageDesigner: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Volumen Estimado (Toneladas o Litros)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Volumen Estimado (Toneladas o Litros)</label>
               <input
                 type="number"
                 value={volume}
                 onChange={(e) => setVolume(e.target.value ? Number(e.target.value) : '')}
                 placeholder="Ej: 5000"
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Clase de Sustancia (NCh382)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Clase de Sustancia (NCh382)</label>
               <select
                 value={materialClass}
                 onChange={(e) => setMaterialClass(e.target.value)}
-                className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
               >
                 <option value="Clase 2 (Gases)">Clase 2 (Gases Comprimidos)</option>
                 <option value="Clase 3 (Líquidos Inflamables)">Clase 3 (Líquidos Inflamables)</option>
@@ -101,7 +101,7 @@ export const HazmatStorageDesigner: React.FC = () => {
         </div>
 
         {/* Results */}
-        <div className="bg-slate-900/50 rounded-xl border border-slate-700/50 p-6 overflow-y-auto max-h-[500px] custom-scrollbar">
+        <div className="bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6 overflow-y-auto max-h-[500px] custom-scrollbar">
           <AnimatePresence mode="wait">
             {isLoading ? (
               <motion.div
@@ -109,7 +109,7 @@ export const HazmatStorageDesigner: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 py-12"
+                className="h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 py-12"
               >
                 <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
                 <p>Analizando OGUC y DS 43...</p>
@@ -119,9 +119,9 @@ export const HazmatStorageDesigner: React.FC = () => {
                 key="result"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="prose prose-invert prose-orange max-w-none"
+                className="prose dark:prose-invert prose-orange max-w-none"
               >
-                <div className="flex items-center gap-2 mb-4 text-emerald-400 bg-emerald-400/10 px-3 py-2 rounded-lg border border-emerald-400/20 w-fit">
+                <div className="flex items-center gap-2 mb-4 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-400/10 px-3 py-2 rounded-lg border border-emerald-500/20 dark:border-emerald-400/20 w-fit">
                   <CheckCircle2 className="w-5 h-5" />
                   <span className="text-sm font-medium">Diseño Normativo Generado</span>
                 </div>

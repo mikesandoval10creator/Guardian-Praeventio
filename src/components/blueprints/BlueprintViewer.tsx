@@ -139,14 +139,14 @@ export const BlueprintViewer: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-800/50 rounded-2xl border border-slate-700/50 p-6">
+    <div className="bg-white dark:bg-zinc-900/50 rounded-2xl border border-zinc-200 dark:border-white/10 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <MapPin className="w-6 h-6 text-blue-400" />
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+            <MapPin className="w-6 h-6 text-blue-500 dark:text-blue-400" />
             Visor de Planos y Mapas
           </h3>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
             Carga planos (exportados desde AutoCAD en formato imagen) para ubicar riesgos y recursos.
           </p>
         </div>
@@ -168,14 +168,14 @@ export const BlueprintViewer: React.FC = () => {
       {imageSrc ? (
         <div className="space-y-4">
           {/* Toolbar */}
-          <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+          <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50 p-3 rounded-xl border border-zinc-200 dark:border-white/10">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
                   setActiveMarkerType('risk');
                   setIsAddingMarker(true);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'risk' && isAddingMarker ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'risk' && isAddingMarker ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-transparent'}`}
               >
                 <AlertTriangle className="w-4 h-4" /> Riesgo
               </button>
@@ -184,7 +184,7 @@ export const BlueprintViewer: React.FC = () => {
                   setActiveMarkerType('extinguisher');
                   setIsAddingMarker(true);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'extinguisher' && isAddingMarker ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'extinguisher' && isAddingMarker ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-transparent'}`}
               >
                 <Flame className="w-4 h-4" /> Extintor
               </button>
@@ -193,12 +193,12 @@ export const BlueprintViewer: React.FC = () => {
                   setActiveMarkerType('exit');
                   setIsAddingMarker(true);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'exit' && isAddingMarker ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'exit' && isAddingMarker ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-transparent'}`}
               >
                 <DoorOpen className="w-4 h-4" /> Salida
               </button>
               {isAddingMarker && (
-                <span className="text-xs text-blue-400 ml-2 animate-pulse">
+                <span className="text-xs text-blue-500 dark:text-blue-400 ml-2 animate-pulse">
                   Haz clic en el plano para ubicar...
                 </span>
               )}
@@ -210,7 +210,7 @@ export const BlueprintViewer: React.FC = () => {
                 setMarkers([]);
                 setBlueprintName('');
               }}
-              className="text-slate-400 hover:text-white text-sm"
+              className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white text-sm"
             >
               Cambiar Plano
             </button>
@@ -222,7 +222,7 @@ export const BlueprintViewer: React.FC = () => {
               placeholder="Nombre del plano (ej. Piso 1 - Bodega)"
               value={blueprintName}
               onChange={(e) => setBlueprintName(e.target.value)}
-              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             />
             <button
               onClick={handleSave}
@@ -235,7 +235,7 @@ export const BlueprintViewer: React.FC = () => {
           </div>
 
           {/* Viewer */}
-          <div className="relative w-full h-[600px] bg-slate-900 rounded-xl overflow-hidden border border-slate-700/50">
+          <div className="relative w-full h-[600px] bg-zinc-100 dark:bg-zinc-900 rounded-xl overflow-hidden border border-zinc-200 dark:border-white/10">
             <TransformWrapper
               initialScale={1}
               minScale={0.5}
@@ -246,13 +246,13 @@ export const BlueprintViewer: React.FC = () => {
               {({ zoomIn, zoomOut, resetTransform }) => (
                 <>
                   <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-                    <button onClick={() => zoomIn()} className="p-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg backdrop-blur-sm border border-slate-600/50">
+                    <button onClick={() => zoomIn()} className="p-2 bg-white/80 dark:bg-zinc-800/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg backdrop-blur-sm border border-zinc-200 dark:border-white/10">
                       <ZoomIn className="w-5 h-5" />
                     </button>
-                    <button onClick={() => zoomOut()} className="p-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg backdrop-blur-sm border border-slate-600/50">
+                    <button onClick={() => zoomOut()} className="p-2 bg-white/80 dark:bg-zinc-800/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg backdrop-blur-sm border border-zinc-200 dark:border-white/10">
                       <ZoomOut className="w-5 h-5" />
                     </button>
-                    <button onClick={() => resetTransform()} className="p-2 bg-slate-800/80 hover:bg-slate-700 text-white rounded-lg backdrop-blur-sm border border-slate-600/50">
+                    <button onClick={() => resetTransform()} className="p-2 bg-white/80 dark:bg-zinc-800/80 hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-lg backdrop-blur-sm border border-zinc-200 dark:border-white/10">
                       <Maximize className="w-5 h-5" />
                     </button>
                   </div>
@@ -279,12 +279,12 @@ export const BlueprintViewer: React.FC = () => {
                           }}
                         >
                           <div className="relative group">
-                            <div className="p-1.5 bg-slate-900/80 rounded-full border border-slate-700 backdrop-blur-sm shadow-lg">
+                            <div className="p-1.5 bg-white/80 dark:bg-zinc-900/80 rounded-full border border-zinc-200 dark:border-white/10 backdrop-blur-sm shadow-lg">
                               {getMarkerIcon(marker.type)}
                             </div>
                             
                             {/* Tooltip */}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 dark:bg-zinc-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                               {marker.label}
                             </div>
                           </div>
@@ -299,7 +299,7 @@ export const BlueprintViewer: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="h-64 border-2 border-dashed border-slate-700 rounded-xl flex flex-col items-center justify-center text-slate-500">
+          <div className="h-64 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-500">
             <MapPin className="w-12 h-12 mb-4 opacity-50" />
             <p>Sube un plano en formato imagen para comenzar</p>
             <p className="text-xs mt-2 opacity-70">Soporta PNG, JPG, SVG exportados desde AutoCAD o Revit</p>
@@ -307,21 +307,21 @@ export const BlueprintViewer: React.FC = () => {
           
           {savedBlueprints.length > 0 && (
             <div className="mt-8">
-              <h4 className="text-white font-medium mb-4">Planos Guardados</h4>
+              <h4 className="text-zinc-900 dark:text-white font-medium mb-4">Planos Guardados</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {savedBlueprints.map(bp => (
                   <div 
                     key={bp.id} 
                     onClick={() => handleLoadBlueprint(bp)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl p-4 cursor-pointer hover:border-blue-500 transition-colors"
+                    className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl p-4 cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-500/20 rounded-lg">
-                        <MapPin className="w-5 h-5 text-blue-400" />
+                      <div className="p-2 bg-blue-50 dark:bg-blue-500/20 rounded-lg">
+                        <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div>
-                        <h5 className="text-white font-medium">{bp.name}</h5>
-                        <p className="text-xs text-slate-400">{bp.markers?.length || 0} marcadores</p>
+                        <h5 className="text-zinc-900 dark:text-white font-medium">{bp.name}</h5>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{bp.markers?.length || 0} marcadores</p>
                       </div>
                     </div>
                   </div>

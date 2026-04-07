@@ -339,14 +339,14 @@ export function EmergencyPlanGenerator() {
   };
 
   return (
-    <section className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 space-y-6">
+    <section className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center text-rose-500 border border-rose-500/20">
             <Shield className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Generador de Planes de Emergencia</h3>
+            <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Generador de Planes de Emergencia</h3>
             <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Generación automática basada en la Red Neuronal</p>
           </div>
         </div>
@@ -355,7 +355,7 @@ export function EmergencyPlanGenerator() {
             onClick={handleGenerate}
             disabled={loading || !selectedProject || !isOnline}
             className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50 ${
-              !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700 text-white'
+              !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-600 hover:bg-rose-700 text-white'
             }`}
           >
             {!isOnline ? <WifiOff className="w-4 h-4" /> : loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
@@ -368,7 +368,7 @@ export function EmergencyPlanGenerator() {
               disabled={loading || !isOnline}
               title={!isOnline ? 'Requiere conexión a internet' : ''}
               className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${
-                !isOnline ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+                !isOnline ? 'bg-zinc-200 dark:bg-zinc-800/50 text-zinc-500 cursor-not-allowed' : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white'
               }`}
             >
               <Download className="w-4 h-4" />
@@ -379,7 +379,7 @@ export function EmergencyPlanGenerator() {
               disabled={loading || saved || !isOnline}
               title={!isOnline ? 'Requiere conexión a internet' : ''}
               className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${
-                !isOnline ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' : saved ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                !isOnline ? 'bg-zinc-200 dark:bg-zinc-800/50 text-zinc-500 cursor-not-allowed' : saved ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border border-emerald-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700'
               }`}
             >
               {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
@@ -390,7 +390,7 @@ export function EmergencyPlanGenerator() {
               disabled={isSavingToCloud || savedToCloud || !isOnline}
               title={!isOnline ? 'Requiere conexión a internet' : ''}
               className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all ${
-                !isOnline ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' : savedToCloud ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                !isOnline ? 'bg-zinc-200 dark:bg-zinc-800/50 text-zinc-500 cursor-not-allowed' : savedToCloud ? 'bg-blue-500/10 text-blue-600 dark:text-blue-500 border border-blue-500/20' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700'
               }`}
             >
               {isSavingToCloud ? <Loader2 className="w-4 h-4 animate-spin" /> : savedToCloud ? <CheckCircle2 className="w-4 h-4" /> : <Cloud className="w-4 h-4" />}
@@ -399,7 +399,7 @@ export function EmergencyPlanGenerator() {
             <Button
               onClick={() => setPlan(null)}
               variant="outline"
-              className="p-2 rounded-xl border-white/10 text-zinc-500 hover:text-white"
+              className="p-2 rounded-xl border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -415,7 +415,7 @@ export function EmergencyPlanGenerator() {
       )}
 
       {plan && (
-        <div className="mt-6 p-8 bg-black/40 rounded-[32px] border border-white/5 max-h-[500px] overflow-y-auto custom-scrollbar">
+        <div className="mt-6 p-8 bg-white dark:bg-black/40 rounded-[32px] border border-zinc-200 dark:border-white/5 max-h-[500px] overflow-y-auto custom-scrollbar">
           <div className="markdown-body prose prose-invert max-w-none">
             <ReactMarkdown>
               {plan}

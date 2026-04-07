@@ -118,19 +118,19 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative bg-zinc-900 border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-500/10 to-transparent shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 shrink-0">
                   <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-white uppercase tracking-tight truncate">Fast Check</h2>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Fast Check</h2>
                   <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest truncate">Reporte Rápido de Terreno</p>
                 </div>
               </div>
-              <button onClick={resetAndClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white shrink-0">
+              <button onClick={resetAndClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white shrink-0">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -146,13 +146,13 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
                     value={observation}
                     onChange={(e) => setObservation(e.target.value)}
                     placeholder="Ej: Hay un cable pelado cerca del generador principal, hay agua en el piso..."
-                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-full min-h-[120px]"
+                    className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-full min-h-[120px]"
                     required
                   />
                 </div>
                 
                 <div className="flex gap-3 shrink-0">
-                  <button type="button" className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-colors flex items-center justify-center gap-2">
+                  <button type="button" className="flex-1 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-colors flex items-center justify-center gap-2">
                     <Camera className="w-4 h-4" />
                     Foto
                   </button>
@@ -181,11 +181,11 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
                   <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </div>
-                  <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">¡Reporte Exitoso!</h3>
+                  <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight mb-2">¡Reporte Exitoso!</h3>
                   <p className="text-emerald-500 text-sm font-bold">+50 Puntos de Guardián</p>
                 </div>
 
-                <div className="space-y-4 bg-zinc-950 rounded-2xl p-4 border border-white/5">
+                <div className="space-y-4 bg-zinc-50 dark:bg-zinc-950 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Clasificación IA</span>
                     <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${
@@ -195,12 +195,12 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
                     </span>
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-white">{result.titulo}</h4>
-                    <p className="text-xs text-zinc-400 mt-1">{result.accionInmediata}</p>
+                    <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{result.titulo}</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{result.accionInmediata}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {result.tags.map((tag: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-zinc-900 border border-white/5 rounded-lg text-[9px] font-bold text-zinc-500 uppercase">
+                      <span key={i} className="px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 rounded-lg text-[9px] font-bold text-zinc-500 uppercase">
                         {tag}
                       </span>
                     ))}
@@ -209,7 +209,7 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
 
                 <button 
                   onClick={resetAndClose}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-colors"
+                  className="w-full bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-colors"
                 >
                   Cerrar
                 </button>

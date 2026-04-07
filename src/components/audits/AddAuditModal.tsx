@@ -98,19 +98,19 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-lg bg-zinc-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+            className="relative w-full max-w-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl shadow-2xl overflow-hidden"
           >
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-blue-500/10 to-transparent">
+            <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-blue-500/10 to-transparent">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                  <ClipboardCheck className="w-6 h-6 text-blue-500" />
+                  <ClipboardCheck className="w-6 h-6 text-blue-600 dark:text-blue-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white uppercase tracking-tight">Nueva Auditoría</h3>
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-tight">Nueva Auditoría</h3>
                   <p className="text-xs text-zinc-500 font-medium">Planificar verificación de cumplimiento</p>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+              <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-full transition-colors">
                 <X className="w-5 h-5 text-zinc-500" />
               </button>
             </div>
@@ -124,7 +124,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                   value={formData.title}
                   onChange={e => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Ej: Auditoría Trimestral de Seguridad e Higiene"
-                  className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
               </div>
 
@@ -134,7 +134,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
             <select
               value={formData.type}
               onChange={e => setFormData({ ...formData, type: e.target.value })}
-              className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
             >
               <option>Interna</option>
               <option>Externa</option>
@@ -151,7 +151,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                 type="date"
                 value={formData.date}
                 onChange={e => setFormData({ ...formData, date: e.target.value })}
-                className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
               />
             </div>
           </div>
@@ -163,7 +163,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
             <select
               value={formData.isoStandard}
               onChange={e => setFormData({ ...formData, isoStandard: e.target.value })}
-              className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+              className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
             >
               <option value="ISO 45001:2018">ISO 45001:2018 (SST)</option>
               <option value="ISO 9001:2015">ISO 9001:2015 (Calidad)</option>
@@ -182,7 +182,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                     value={formData.auditor}
                     onChange={e => setFormData({ ...formData, auditor: e.target.value })}
                     placeholder="Nombre del auditor..."
-                    className="w-full bg-zinc-800 border border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                   />
                 </div>
               </div>
@@ -195,7 +195,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                   onChange={e => setFormData({ ...formData, scope: e.target.value })}
                   placeholder="Define el alcance de la auditoría..."
                   rows={2}
-                  className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
                 />
               </div>
 
@@ -207,7 +207,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Detalles adicionales..."
                   rows={2}
-                  className="w-full bg-zinc-800 border border-white/5 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
+                  className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
                 />
               </div>
 

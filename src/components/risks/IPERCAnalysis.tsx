@@ -7,6 +7,7 @@ import { NodeType, RiskNode } from '../../types';
 import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCircuit, ListChecks, WifiOff } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { withGlossary } from '../shared/withGlossary';
 
 interface AnalysisResult {
   criticidad: string;
@@ -28,6 +29,8 @@ const getCriticalityColor = (criticidad?: string) => {
     default: return 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20';
   }
 };
+
+const GlossaryText = withGlossary(({ text }: { text: string }) => <span>{text}</span>);
 
 export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
   const [description, setDescription] = useState('');
@@ -196,7 +199,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ej: Trabajos en altura sobre 1.8m en andamios móviles..."
-          className="w-full h-32 p-4 bg-zinc-800/50 border border-white/10 rounded-xl text-sm text-white placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none"
+          className="w-full h-32 p-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none"
         />
 
         {similarRisks.length > 0 && (
@@ -256,21 +259,21 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
 
       {result && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-xl border border-white/5">
+          <div className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-white/5">
             <div className="flex items-center gap-3">
               <div className={`p-2.5 rounded-xl border ${getCriticalityColor(result.criticidad)}`}>
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Criticidad</span>
-                <span className="text-sm font-bold text-white uppercase">{result.criticidad}</span>
+                <span className="text-sm font-bold text-zinc-900 dark:text-white uppercase">{result.criticidad}</span>
               </div>
             </div>
             <button
               onClick={handleSaveToMatrix}
               disabled={saved}
               className={`px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 transition-all ${
-                saved ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-white/10'
+                saved ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-white/10'
               }`}
             >
               {saved ? (
@@ -296,7 +299,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
               <div className="space-y-2">
                 {result.controles.map((control, i) => (
                   <div key={i} className="p-3 bg-zinc-800/30 rounded-xl text-sm text-zinc-300 leading-relaxed border-l-2 border-emerald-500">
-                    {control}
+                    <GlossaryText text={control} />
                   </div>
                 ))}
               </div>
@@ -310,7 +313,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
               <div className="space-y-2">
                 {result.recomendaciones.map((rec, i) => (
                   <div key={i} className="p-3 bg-zinc-800/30 rounded-xl text-sm text-zinc-300 leading-relaxed border-l-2 border-blue-500">
-                    {rec}
+                    <GlossaryText text={rec} />
                   </div>
                 ))}
               </div>
@@ -322,7 +325,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
               Normativa Aplicable (Chile)
             </h4>
             <p className="text-sm text-blue-200 leading-relaxed">
-              {result.normativa}
+              <GlossaryText text={result.normativa} />
             </p>
           </div>
 
@@ -336,7 +339,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
                 <button
                   onClick={handleGenerateActionPlan}
                   disabled={generatingPlan || !isOnline}
-                  className={`bg-zinc-800 text-white hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors border border-white/10 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors border border-zinc-200 dark:border-white/10 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {!isOnline ? <WifiOff className="w-4 h-4" /> : generatingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                   {!isOnline ? 'Offline' : 'Generar Tareas'}
@@ -349,7 +352,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
                 {actionPlan.map((task, i) => (
                   <div key={i} className="p-4 bg-zinc-800/50 border border-white/5 rounded-xl flex items-start justify-between gap-4">
                     <div className="space-y-2">
-                      <h5 className="text-sm font-bold text-white">{task.title}</h5>
+                      <h5 className="text-sm font-bold text-zinc-900 dark:text-white">{task.title}</h5>
                       <p className="text-xs text-zinc-400 leading-relaxed">{task.description}</p>
                       <div className="flex items-center gap-3 pt-1">
                         <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${

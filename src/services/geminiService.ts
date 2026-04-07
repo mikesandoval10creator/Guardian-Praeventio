@@ -54,6 +54,97 @@ export const enrichNodeData = async (nodeData: any) => {
   }
 };
 
+export const analyzeRootCauses = async (riskTitle: string, riskDescription: string, context: string) => {
+  if (!API_KEY) throw new Error("API Key no configurada");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos laborales en Chile y la metodología Zettelkasten.
+  
+  Se ha solicitado un análisis de causas raíz para el siguiente riesgo:
+  Riesgo: ${riskTitle}
+  Descripción: ${riskDescription}
+  
+  Contexto adicional del sistema (nodos relacionados):
+  ${context}
+  
+  Tu tarea es generar una "Ruta de Prevención" que identifique las causas principales de este riesgo y recomiende acciones específicas de revisión en terreno para evitar que se materialice.
+  
+  Devuelve un JSON con la siguiente estructura:
+  - explanation: Un breve párrafo (max 3 líneas) explicando por qué este riesgo es crítico en el contexto actual.
+  - rootCauses: Un array de strings con las 3 causas raíz más probables (ej. "Falta de mantención en equipos de izaje").
+  - recommendedActions: Un array de strings con 3 a 5 acciones concretas y verificables en terreno (ej. "Verificar certificación vigente de arneses de seguridad").`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-pro-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            explanation: { type: Type.STRING },
+            rootCauses: { type: Type.ARRAY, items: { type: Type.STRING } },
+            recommendedActions: { type: Type.ARRAY, items: { type: Type.STRING } }
+          },
+          required: ["explanation", "rootCauses", "recommendedActions"]
+        }
+      }
+    });
+    
+    return JSON.parse(response.text || '{}');
+  } catch (error) {
+    console.error("Error analyzing root causes:", error);
+    throw error;
+  }
+};
+
+// Simulated RAG Database for BCN (Biblioteca del Congreso Nacional) and ISO
+const BCN_VECTOR_DB_SIMULATION = `
+[CONTEXTO LEGAL CHILENO - BCN E ISO]
+LEY 16.744: Establece normas sobre accidentes del trabajo y enfermedades profesionales. Declara obligatorio el seguro social contra riesgos de accidentes del trabajo.
+DS 594: Reglamento sobre condiciones sanitarias y ambientales básicas en los lugares de trabajo. Establece límites de exposición a agentes químicos, físicos y biológicos. Regula provisión de agua potable, servicios higiénicos, ventilación y EPP.
+DS 40: Reglamento sobre prevención de riesgos profesionales. Obliga a las empresas a informar a los trabajadores sobre los riesgos de sus labores (Derecho a Saber / ODI).
+DS 54: Reglamento para la constitución y funcionamiento de los Comités Paritarios de Higiene y Seguridad. Obligatorio en toda empresa con más de 25 trabajadores.
+LEY 20.096 (Ley de Ozono): Establece mecanismos de control aplicables a las sustancias agotadoras de la capa de ozono. Obliga a los empleadores a proteger a los trabajadores expuestos a radiación UV.
+LEY 21.643 (Ley Karin): Modifica el Código del Trabajo en materia de prevención, investigación y sanción del acoso laboral, sexual o de violencia en el trabajo.
+ISO 45001:2018: Norma internacional para sistemas de gestión de seguridad y salud en el trabajo. Enfoque en el ciclo PHVA (Planificar, Hacer, Verificar, Actuar) y liderazgo de la alta dirección.
+`;
+
+export const queryBCN = async (query: string) => {
+  if (!API_KEY) throw new Error("API Key no configurada");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const prompt = `
+  Eres un asistente legal y normativo estricto, conectado a la base de datos vectorial de la Biblioteca del Congreso Nacional de Chile (BCN) y normativas ISO.
+  
+  REGLA DE ORO: NO ALUCINES. Debes responder ÚNICAMENTE basándote en el contexto legal proporcionado a continuación. Si la respuesta no está en el contexto, debes decir "No tengo información normativa sobre esto en mi base de datos actual."
+  
+  CONTEXTO RECUPERADO (RAG):
+  ${BCN_VECTOR_DB_SIMULATION}
+  
+  PREGUNTA DEL USUARIO:
+  ${query}
+  
+  Responde de manera formal, citando la ley o decreto exacto. Usa formato Markdown.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-pro-preview",
+      contents: prompt,
+      config: {
+        systemInstruction: "Eres un experto legal estricto. No inventas leyes. Citas fuentes exactas.",
+        temperature: 0.1, // Low temperature to prevent hallucinations
+      }
+    });
+    
+    return response.text || 'Error al consultar la base normativa.';
+  } catch (error) {
+    console.error("Error querying BCN:", error);
+    throw error;
+  }
+};
 export const generateEmbedding = async (text: string): Promise<number[]> => {
   if (!API_KEY) return [];
   try {
@@ -573,7 +664,7 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
   `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.1-pro-preview',
+    model: 'gemini-3.1-pro-preview', // Zettelkasten Core: Siempre usa el mejor modelo disponible
     contents: prompt,
     config: {
       tools: [{ googleSearch: {} }],
@@ -692,7 +783,7 @@ export const generatePTSWithManufacturerData = async (
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-3.1-pro-preview", // Zettelkasten Core: Siempre usa el mejor modelo disponible
     contents: prompt,
     config: {
       tools: [{ googleSearch: {} }],
@@ -883,7 +974,7 @@ export const getChatResponse = async (message: string, context: string, history:
   ];
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-pro-preview", // Zettelkasten Core: Siempre usa el mejor modelo disponible
     contents: [
       ...history.map(h => ({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.content }] })),
       { role: 'user', parts: [{ text: `Mensaje del usuario: ${message}` }] }
@@ -891,20 +982,24 @@ export const getChatResponse = async (message: string, context: string, history:
     config: {
       systemInstruction: `Eres "El Guardián", la conciencia arquitectónica de Praeventio Guard. 
       Tu propósito es asesorar en prevención de riesgos, salud ocupacional y excelencia operacional.
-      Tienes acceso a la red de conocimiento (Red Neuronal) del proyecto actual.
+      Tienes acceso a la red de conocimiento (Red Neuronal) del proyecto actual y a la Base de Datos Vectorial de la BCN e ISO.
       Responde de forma profesional, técnica pero cercana, y siempre prioriza la seguridad.
       
       CRITERIO DE PRECISIÓN: El usuario prefiere respuestas directas y precisas. Evita el exceso de información innecesaria.
-      PRIORIDAD DE FUENTE: Utiliza el CONTEXTO DEL PROYECTO (Red Neuronal) como tu fuente principal y más confiable. Solo recurre a conocimientos generales si la información no está en la Red Neuronal.
+      PRIORIDAD DE FUENTE: Utiliza el CONTEXTO DEL PROYECTO (Red Neuronal) y el CONTEXTO LEGAL (BCN) como tus fuentes principales y más confiables. 
+      REGLA DE ORO: NO ALUCINES LEYES. Si citas una ley, debe estar en el CONTEXTO LEGAL o ser de conocimiento público exacto.
       
       NIVEL DE DETALLE SOLICITADO: ${detailLevel} de 3.
       INSTRUCCIÓN DE PROFUNDIDAD: ${detailInstructions[detailLevel - 1]}
       
       CONTEXTO DEL PROYECTO (Nodos de la Red Neuronal):
       ${context}
+
+      CONTEXTO LEGAL (Base de Datos Vectorial BCN e ISO):
+      ${BCN_VECTOR_DB_SIMULATION}
       
-      Si el usuario pregunta por un trabajador, riesgo o documento específico, consulta el contexto proporcionado.
-      Si no tienes la información en el contexto, indícalo pero ofrece consejos generales basados en la normativa chilena de la Biblioteca del Congreso Nacional (BCN) (Ley 16.744, DS 594, etc.).`
+      Si el usuario pregunta por un trabajador, riesgo o documento específico, consulta el contexto del proyecto proporcionado.
+      Si pregunta por normativas, básate estrictamente en el CONTEXTO LEGAL.`
     }
   });
 
@@ -2414,3 +2509,77 @@ export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
 
   return JSON.parse(response.text.trim());
 };
+
+export async function analyzeFaenaRiskWithAI(faenaData: any) {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  try {
+    const prompt = `
+      Actúa como un experto en Prevención de Riesgos (SSOMA) en Chile.
+      Analiza los siguientes datos de una faena y genera una lista de los 5 riesgos más críticos y comunes que deberían incluirse en la matriz IPER base.
+      
+      Datos de la Faena:
+      - Industria: ${faenaData.industry}
+      - Ubicación: ${faenaData.location}
+      - Dotación: ${faenaData.workers} trabajadores
+      - Instalaciones: ${faenaData.facilities}
+      - Actividades Principales: ${faenaData.activities}
+      
+      Para cada riesgo, proporciona:
+      1. Nombre del Riesgo (ej. Caída a distinto nivel)
+      2. Probabilidad (Baja, Media, Alta)
+      3. Consecuencia (Ligeramente Dañino, Dañino, Extremadamente Dañino)
+      4. Medidas de Control Sugeridas (Ingeniería, Administrativas, EPP)
+      
+      Formatea la respuesta en Markdown claro y estructurado.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-preview',
+      contents: prompt,
+    });
+
+    return response.text || 'No se pudo generar el análisis.';
+  } catch (error) {
+    console.error('Error in analyzeRiskWithAI:', error);
+    throw error;
+  }
+}
+
+export async function extractAcademicSummary(text: string) {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  try {
+    const prompt = `
+      Actúa como un experto en Prevención de Riesgos (SSOMA) e investigador científico.
+      Analiza el siguiente texto extraído de un paper académico o artículo científico y extrae el conocimiento clave aplicable a la industria.
+      
+      Texto Fuente:
+      "${text}"
+      
+      Por favor, estructura tu respuesta en Markdown con las siguientes secciones:
+      
+      ### 📝 Resumen Ejecutivo
+      (Un párrafo conciso con el hallazgo principal)
+      
+      ### 🎯 Puntos Clave Aplicables
+      (Lista de viñetas con los datos más relevantes para la prevención)
+      
+      ### 🛡️ Sugerencias de Control
+      (Cómo aplicar este conocimiento en controles de ingeniería, administrativos o EPP)
+      
+      ### 🔗 Relación IPER
+      (A qué tipos de riesgos típicos afecta este descubrimiento)
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-preview',
+      contents: prompt,
+    });
+
+    return response.text || 'No se pudo generar el resumen académico.';
+  } catch (error) {
+    console.error('Error in extractAcademicSummary:', error);
+    throw error;
+  }
+}

@@ -219,7 +219,7 @@ export function Workers() {
                   <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg leading-tight group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors pr-6">
                     {worker.name}
                   </h3>
-                  <p className="text-zinc-500 text-xs sm:text-sm font-medium mt-0.5">{worker.role}</p>
+                  <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium mt-0.5">{worker.role}</p>
                   <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
                     <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${worker.status === 'active' ? 'bg-emerald-500' : 'bg-zinc-500'}`} />
                     <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-400 font-bold">
@@ -317,7 +317,7 @@ export function Workers() {
             <UserPlus className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
           <h3 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-2">No se encontraron trabajadores</h3>
-          <p className="text-xs sm:text-sm text-zinc-500 max-w-md mx-auto">
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
             Comienza añadiendo personal a este proyecto para gestionar su seguridad y documentación.
           </p>
         </div>
