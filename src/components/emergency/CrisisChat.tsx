@@ -8,17 +8,21 @@ import {
   MoreVertical, 
   Phone,
   MessageSquare,
-  ShieldAlert
+  ShieldAlert,
+  Mic,
+  Square
 } from 'lucide-react';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
-import { db, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
+import { db, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, handleFirestoreError, OperationType, storage } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface Message {
   id: string;
   sender: string;
   role: string;
   text: string;
+  audioUrl?: string;
   timestamp: string;
   type: 'info' | 'alert' | 'emergency';
 }
@@ -30,6 +34,9 @@ export function CrisisChat() {
   const [newMessage, setNewMessage] = useState('');
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -62,6 +69,7 @@ export function CrisisChat() {
           sender: data.sender || 'Usuario',
           role: data.role || 'Operador',
           text: data.text || '',
+          audioUrl: data.audioUrl,
           timestamp: timeString,
           type: data.type || 'info',
           isMe: data.senderId === user?.uid
@@ -101,6 +109,68 @@ export function CrisisChat() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/emergency_messages`);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Use opus codec for ultra-light compression suitable for 2G/Edge
+      const options = { mimeType: 'audio/webm;codecs=opus' };
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm;codecs=opus' });
+        await uploadAudio(audioBlob);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      alert("No se pudo acceder al micrófono.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+  };
+
+  const uploadAudio = async (audioBlob: Blob) => {
+    if (!selectedProject?.id || !user) return;
+    
+    try {
+      const fileName = `emergency_audio_${Date.now()}.webm`;
+      const audioRef = ref(storage, `projects/${selectedProject.id}/audio/${fileName}`);
+      await uploadBytes(audioRef, audioBlob);
+      const downloadUrl = await getDownloadURL(audioRef);
+
+      const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
+      await addDoc(messagesRef, {
+        projectId: selectedProject.id,
+        senderId: user.uid,
+        sender: user.displayName || 'Usuario',
+        role: isAdmin ? 'Admin' : 'Operador',
+        text: 'Mensaje de voz',
+        audioUrl: downloadUrl,
+        type: 'info',
+        timestamp: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Error uploading audio:", error);
+      alert("Error al enviar el mensaje de voz.");
     }
   };
 
@@ -221,6 +291,9 @@ export function CrisisChat() {
                   </span>
                 </div>
                 <p className="text-sm font-medium leading-relaxed">{msg.text}</p>
+                {msg.audioUrl && (
+                  <audio controls src={msg.audioUrl} className="w-full mt-2 h-8" />
+                )}
               </div>
             </motion.div>
           ))}
@@ -232,16 +305,28 @@ export function CrisisChat() {
         onSubmit={handleSendMessage}
         className="p-4 bg-white dark:bg-black/20 border-t border-zinc-200 dark:border-white/5 flex items-center gap-3"
       >
+        <button
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+            isRecording 
+              ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20 animate-pulse' 
+              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+          }`}
+        >
+          {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+        </button>
         <input
           type="text"
           placeholder="Escribe un mensaje crítico..."
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          className="flex-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all"
+          disabled={isRecording}
+          className="flex-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all disabled:opacity-50"
         />
         <button 
           type="submit"
-          disabled={!newMessage.trim()}
+          disabled={!newMessage.trim() || isRecording}
           className="w-12 h-12 bg-rose-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
         >
           <Send className="w-5 h-5" />

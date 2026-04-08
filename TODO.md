@@ -199,38 +199,38 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 ### Fase 5: Arquitectura de Búnker y Optimizaciones Extremas (Factibilidad Extrema)
 
 #### I. Arquitectura de Búnker (Core & Service Workers)
-- [ ] **Pre-caché Masivo en Workbox:** Configurar vite-plugin-pwa para almacenar los 70 módulos dinámicos (.js, .css) en la caché del navegador durante el primer login.
-- [ ] **Elevación de Límites de Caché:** Modificar maximumFileSizeToCacheInBytes en Vite a 20MB para asegurar que los modelos 3D y librerías de IA se descarguen por completo.
-- [ ] **Almacenamiento Local Encriptado (IDB):** Usar idb para guardar la base de datos completa de trabajadores y matrices, aplicando encriptación AES-256 en el cliente.
-- [ ] **Cola de Sincronización Background Sync:** Implementar una cola en IndexedDB para formularios llenados sin conexión, que se disparen automáticamente al detectar red.
-- [ ] **Interceptor de Fetch Offline:** Si falla una petición fetch a Firebase, el Service Worker redirige la consulta a la base de datos local de manera invisible.
-- [ ] **Desactivación de Telemetría Externa:** Bloquear cualquier tracker o analítica innecesaria para asegurar un consumo de batería y datos cercano a cero.
-- [ ] **Motor de Compresión Brotli:** Configurar Vite para comprimir los archivos de la app en formato Brotli, haciendo que la "descarga única" sea ultra rápida.
-- [ ] **Validación de JWT Offline:** Permitir acceso a la app con un token validado criptográficamente contra una llave pública almacenada en el teléfono.
-- [ ] **Limpieza Automática de RAM (Garbage Collection):** Al desmontar vistas pesadas (como el mapa 3D), forzar la limpieza de variables de memoria de three.js.
-- [ ] **Fallback de Fuentes y UI:** Asegurar que los íconos de lucide-react estén incrustados localmente para que la interfaz no pierda legibilidad sin internet.
-- [ ] **Estado de Red Reactivo:** Un hook useOnlineStatus que informe visualmente si estamos operando en el "Búnker" (offline) o conectados.
-- [ ] **Caché Diferencial de Zettelkasten:** Sincronizar solo los "nodos nuevos" creados por la tripulación desde la última conexión, ahorrando procesamiento.
-- [ ] **Manejo de Conflictos de Fusión:** Si dos supervisores editan la misma matriz offline, usar lógica basada en marcas de tiempo para resolver en Firebase.
-- [ ] **Protección de Datos Biométricos (ISO 27001):** Asegurar que las validaciones biométricas ocurran a nivel de hardware del dispositivo móvil, sin enviar huellas al servidor.
-- [ ] **Ping de Supervivencia Liviano:** Un servicio que, al tener señal, envíe un paquete de bytes mínimo (coordenadas básicas) sin bloquear el hilo principal.
+- [x] **Pre-caché Masivo en Workbox:** Configurar vite-plugin-pwa para almacenar los 70 módulos dinámicos (.js, .css) en la caché del navegador durante el primer login.
+- [x] **Elevación de Límites de Caché:** Modificar maximumFileSizeToCacheInBytes en Vite a 20MB para asegurar que los modelos 3D y librerías de IA se descarguen por completo.
+- [x] **Almacenamiento Local Encriptado (IDB):** Usar idb para guardar la base de datos completa de trabajadores y matrices, aplicando encriptación AES-256 en el cliente.
+- [x] **Cola de Sincronización Background Sync:** Implementar una cola en IndexedDB para formularios llenados sin conexión, que se disparen automáticamente al detectar red.
+- [x] **Interceptor de Fetch Offline:** Si falla una petición fetch a Firebase, el Service Worker redirige la consulta a la base de datos local de manera invisible.
+- [x] **Desactivación de Telemetría Externa:** Bloquear cualquier tracker o analítica innecesaria para asegurar un consumo de batería y datos cercano a cero.
+- [x] **Motor de Compresión Brotli:** Configurar Vite para comprimir los archivos de la app en formato Brotli, haciendo que la "descarga única" sea ultra rápida.
+- [x] **Validación de JWT Offline:** Permitir acceso a la app con un token validado criptográficamente contra una llave pública almacenada en el teléfono.
+- [x] **Limpieza Automática de RAM (Garbage Collection):** Al desmontar vistas pesadas (como el mapa 3D), forzar la limpieza de variables de memoria de three.js.
+- [x] **Fallback de Fuentes y UI:** Asegurar que los íconos de lucide-react estén incrustados localmente para que la interfaz no pierda legibilidad sin internet.
+- [x] **Estado de Red Reactivo:** Un hook useOnlineStatus que informe visualmente si estamos operando en el "Búnker" (offline) o conectados.
+- [x] **Caché Diferencial de Zettelkasten:** Sincronizar solo los "nodos nuevos" creados por la tripulación desde la última conexión, ahorrando procesamiento.
+- [x] **Manejo de Conflictos de Fusión:** Si dos supervisores editan la misma matriz offline, usar lógica basada en marcas de tiempo para resolver en Firebase.
+- [x] **Protección de Datos Biométricos (ISO 27001):** Asegurar que las validaciones biométricas ocurran a nivel de hardware del dispositivo móvil, sin enviar huellas al servidor.
+- [x] **Ping de Supervivencia Liviano:** Un servicio que, al tener señal, envíe un paquete de bytes mínimo (coordenadas básicas) sin bloquear el hilo principal.
 
 #### II. Módulo de Emergencias y Evacuación (/emergency)
 - [x] **Kill-Switch de Animaciones (Modo Táctico):** Al presionar "Emergencia", un estado en Zustand desactiva todo framer-motion para destinar el 100% de la CPU a la respuesta crítica.
 - [x] **Interfaz de Alto Contraste:** Cambio automático de la paleta de colores a "Darkhorse" (negro puro y colores neón) para máxima visibilidad en condiciones de humo o luz solar directa.
-- [ ] **Rutas de Evacuación Vectoriales (Offline):** Reemplazar mapas pesados por SVGs pre-descargados y cacheados que se renderizan instantáneamente.
-- [ ] **Geocercas de Exclusión Locales:** Cálculos matemáticos simples (Turf.js) en el cliente que hacen sonar el celular si el usuario cruza una zona HAZMAT delineada en el mapa offline.
+- [x] **Rutas de Evacuación Vectoriales (Offline):** Reemplazar mapas pesados por SVGs pre-descargados y cacheados que se renderizan instantáneamente.
+- [x] **Geocercas de Exclusión Locales:** Cálculos matemáticos simples (Turf.js) en el cliente que hacen sonar el celular si el usuario cruza una zona HAZMAT delineada en el mapa offline.
 - [x] **Botón "Estoy a Salvo" Unificado:** Un botón masivo en pantalla de bloqueo que actualiza el estado del operario en el "Muro Dinámico" del comité paritario.
-- [ ] **Síntesis de Voz Nativa:** Uso de la Web Speech API para leer instrucciones de evacuación en voz alta ("Gire a la derecha"), liberando la vista del operario.
-- [ ] **Compresión de Audio de Rescate:** Si se usa CrisisChat, comprimir los audios a formatos ultra ligeros para que salgan incluso con redes Edge (2G).
-- [ ] **Protocolo Triage Rápido:** Formulario visual de 3 botones (Verde, Amarillo, Rojo) para reportar heridos en 2 segundos.
-- [ ] **Sincronización Mesh (Bluetooth):** Explorar la Web Bluetooth API para emitir balizas de proximidad entre dispositivos móviles si caen las antenas principales.
-- [ ] **Fijación de Coordenadas UTM:** Mostrar latitud/longitud en gran formato para dictar fácilmente a equipos de rescate (Medevac).
-- [ ] **Desconexión Automática LOTO:** Integración encriptada para apagar máquinas a distancia mediante un token local de un supervisor en el área de emergencia.
-- [ ] **Bloqueo de Interfaz por Tensión:** Si se reporta sismo mayor a grado 6 (leído del caché local si hay alerta temprana), la app bloquea funciones no críticas.
-- [ ] **Ruteo Dinámico de Escape:** El mapa redirige flechas si un usuario marca un pasillo como "Bloqueado por fuego".
-- [ ] **Tarjetas de Primeros Auxilios Interactivas:** Guías paso a paso descargadas (RCP, torniquetes) con metrónomo a 100 BPM en pantalla.
-- [ ] **Modo Silencio de Radio:** Desactiva todas las notificaciones push entrantes para no interrumpir la concentración de quien atiende una emergencia.
+- [x] **Síntesis de Voz Nativa:** Uso de la Web Speech API para leer instrucciones de evacuación en voz alta ("Gire a la derecha"), liberando la vista del operario.
+- [x] **Compresión de Audio de Rescate:** Si se usa CrisisChat, comprimir los audios a formatos ultra ligeros para que salgan incluso con redes Edge (2G).
+- [x] **Protocolo Triage Rápido:** Formulario visual de 3 botones (Verde, Amarillo, Rojo) para reportar heridos en 2 segundos.
+- [x] **Sincronización Mesh (Bluetooth):** Explorar la Web Bluetooth API para emitir balizas de proximidad entre dispositivos móviles si caen las antenas principales.
+- [x] **Fijación de Coordenadas UTM:** Mostrar latitud/longitud en gran formato para dictar fácilmente a equipos de rescate (Medevac).
+- [x] **Desconexión Automática LOTO:** Integración encriptada para apagar máquinas a distancia mediante un token local de un supervisor en el área de emergencia.
+- [x] **Bloqueo de Interfaz por Tensión:** Si se reporta sismo mayor a grado 6 (leído del caché local si hay alerta temprana), la app bloquea funciones no críticas.
+- [x] **Ruteo Dinámico de Escape:** El mapa redirige flechas si un usuario marca un pasillo como "Bloqueado por fuego".
+- [x] **Tarjetas de Primeros Auxilios Interactivas:** Guías paso a paso descargadas (RCP, torniquetes) con metrónomo a 100 BPM en pantalla.
+- [x] **Modo Silencio de Radio:** Desactiva todas las notificaciones push entrantes para no interrumpir la concentración de quien atiende una emergencia.
 
 #### III. IA, Visión Computacional y Wearables (/ai-hub)
 - [ ] **IA Edge para EPP (MediaPipe):** Usar @mediapipe/tasks-vision precargado para verificar casco y lentes procesando el video solo en el celular, cumpliendo con normas de privacidad.

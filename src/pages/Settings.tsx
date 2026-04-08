@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings as SettingsIcon, 
@@ -14,7 +14,8 @@ import {
   Zap,
   Smartphone,
   WifiOff,
-  Network
+  Network,
+  Fingerprint
 } from 'lucide-react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -22,6 +23,7 @@ import { logOut } from '../services/firebase';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { useBiometricAuth } from '../hooks/useBiometricAuth';
 
 export function Settings() {
   const { notificationPermissionStatus, requestPermission } = usePushNotifications();
@@ -29,8 +31,26 @@ export function Settings() {
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
   const { user } = useFirebase();
+  const { authenticate, isSupported } = useBiometricAuth();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (isSupported) {
+        const success = await authenticate('Confirme su identidad para acceder a la configuración');
+        setIsAuthenticated(success);
+        if (!success) {
+          addNotification('Autenticación fallida', 'warning');
+          navigate('/');
+        }
+      } else {
+        setIsAuthenticated(true);
+      }
+    };
+    checkAuth();
+  }, [isSupported, authenticate, navigate, addNotification]);
 
   React.useEffect(() => {
     const observer = new MutationObserver((mutations) => {

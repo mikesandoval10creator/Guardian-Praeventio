@@ -91,6 +91,8 @@ import { OfflineIndicator } from "./components/OfflineIndicator";
 import { OfflineSyncManager } from "./components/OfflineSyncManager";
 import { EmergencyOverlay } from "./components/shared/EmergencyOverlay";
 import { GeolocationTracker } from "./components/GeolocationTracker";
+import { SurvivalPing } from "./components/SurvivalPing";
+import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { seedGlobalData } from "./services/seedService";
 
 import { PortableCurriculum } from "./pages/PortableCurriculum";
@@ -297,6 +299,8 @@ export default function App() {
         <BrowserRouter>
           <OfflineIndicator />
           <OfflineSyncManager />
+          <SurvivalPing />
+          <GeofenceAlert />
           <AppRoutes />
         </BrowserRouter>
       </FirebaseProvider>

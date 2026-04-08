@@ -17,6 +17,8 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@tailwindcss/vite": "^4.1.14",
+    "@turf/boolean-point-in-polygon": "^7.3.4",
+    "@turf/helpers": "^7.3.4",
     "@types/cookie-parser": "^1.4.10",
     "@types/d3": "^7.4.3",
     "@types/express-session": "^1.18.2",
@@ -67,6 +69,7 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
+    "vite-plugin-compression": "^0.5.1",
     "vite-plugin-pwa": "^1.2.0",
     "workbox-window": "^7.4.0"
   }

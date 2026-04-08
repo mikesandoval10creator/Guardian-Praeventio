@@ -11,7 +11,8 @@ import {
   Clock,
   ChevronRight,
   Zap,
-  Loader2
+  Loader2,
+  Power
 } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -19,6 +20,9 @@ import { db, collection, onSnapshot, doc, handleFirestoreError, OperationType, q
 import { EmergencyCheckIn } from './EmergencyCheckIn';
 import { CrisisChat } from './CrisisChat';
 import { DynamicEvacuationMap } from './DynamicEvacuationMap';
+import { FirstAidCards } from './FirstAidCards';
+import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
+import { Bluetooth } from 'lucide-react';
 
 export function EmergencyDashboard() {
   const { selectedProject } = useProject();
@@ -27,6 +31,7 @@ export function EmergencyDashboard() {
   const [stats, setStats] = useState({ total: 0, safe: 0, danger: 0, unknown: 0 });
   const [activeProtocol, setActiveProtocol] = useState<string>('Emergencia General');
   const [elapsedTime, setElapsedTime] = useState<number>(0);
+  const { isSupported: isBluetoothSupported, isScanning, nearbyDevices, startScanning } = useBluetoothMesh();
 
   const isWorker = userRole === 'worker' && !isAdmin;
 
@@ -122,6 +127,19 @@ export function EmergencyDashboard() {
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+            {isAdmin && (
+              <button 
+                onClick={() => {
+                  if (window.confirm('¿ESTÁ SEGURO DE ACTIVAR EL PROTOCOLO LOTO? Esto apagará remotamente toda la maquinaria crítica en la zona de emergencia.')) {
+                    alert('Protocolo LOTO activado. Maquinaria desconectada.');
+                  }
+                }}
+                className="px-6 sm:px-8 py-3 sm:py-4 bg-black text-rose-500 border-2 border-rose-500 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-950 transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Power className="w-4 h-4" />
+                Desconexión LOTO
+              </button>
+            )}
             <button className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-rose-600 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-50 transition-all active:scale-95">
               Solicitar Apoyo Externo
             </button>
@@ -196,6 +214,43 @@ export function EmergencyDashboard() {
                 <DynamicEvacuationMap />
               </div>
               <div className="space-y-8">
+                <FirstAidCards />
+                
+                {isBluetoothSupported && (
+                  <div className="p-6 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[32px] shadow-sm space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-500">
+                          <Bluetooth className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-zinc-900 dark:text-white uppercase tracking-tight">Mesh Bluetooth</h4>
+                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Balizas de proximidad</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={startScanning}
+                        disabled={isScanning}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                      >
+                        {isScanning ? 'Escaneando...' : 'Escanear'}
+                      </button>
+                    </div>
+                    {nearbyDevices.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Dispositivos Cercanos ({nearbyDevices.length})</p>
+                        <div className="flex flex-wrap gap-2">
+                          {nearbyDevices.map(device => (
+                            <span key={device.id} className="px-2 py-1 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-lg border border-blue-100 dark:border-blue-500/30">
+                              {device.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <CrisisChat />
               </div>
             </div>

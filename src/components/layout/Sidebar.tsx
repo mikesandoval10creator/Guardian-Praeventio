@@ -57,11 +57,13 @@ import {
   Layers,
   Waves,
   Sun,
-  Droplet
+  Droplet,
+  WifiOff
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
 import { logOut } from "../../services/firebase";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -501,6 +503,7 @@ const secondaryItems = [
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const isOnline = useOnlineStatus();
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     const activeGroup = menuGroups.find((group) =>
       group.items.some((item) => location.pathname === item.path),
@@ -554,18 +557,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Header */}
         <div className="p-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center justify-between bg-[#4eb5ac]/50 dark:bg-zinc-950/50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.3)] relative">
               <span className="text-white font-black text-lg leading-none">
                 P
               </span>
+              {!isOnline && (
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-[#4eb5ac] dark:border-zinc-950 flex items-center justify-center" title="Modo Búnker (Offline)">
+                  <WifiOff className="w-2 h-2 text-white" />
+                </div>
+              )}
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-black tracking-tight text-zinc-900 dark:text-white leading-none">
                 Praeventio
               </span>
-              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5">
-                Guard v1.0
-              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                  Guard v1.0
+                </span>
+                {!isOnline && (
+                  <span className="text-[8px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                    Búnker
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button

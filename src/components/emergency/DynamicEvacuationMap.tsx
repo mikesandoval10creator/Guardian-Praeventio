@@ -9,16 +9,21 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  ArrowRight
+  ArrowRight,
+  Plus
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../../types';
 import { calculateDynamicEvacuationRoute } from '../../services/geminiService';
 
+import { VectorialEvacuationMap } from './VectorialEvacuationMap';
+
 export function DynamicEvacuationMap() {
   const { nodes } = useUniversalKnowledge();
   const [isCalculating, setIsCalculating] = useState(false);
   const [routeData, setRouteData] = useState<any>(null);
+  const [userBlockedAreas, setUserBlockedAreas] = useState<string[]>([]);
+  const [newBlockedArea, setNewBlockedArea] = useState('');
 
   const activeEmergencies = useMemo(() => {
     return nodes.filter(n => {
@@ -37,7 +42,7 @@ export function DynamicEvacuationMap() {
       const workers = twinState.workers ? Object.values(twinState.workers) : [];
       const machinery = twinState.machinery ? Object.values(twinState.machinery) : [];
       
-      const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery);
+      const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery, userBlockedAreas);
       setRouteData(data);
     } catch (error) {
       console.error('Error calculating route:', error);
@@ -52,7 +57,19 @@ export function DynamicEvacuationMap() {
     } else {
       setRouteData(null);
     }
-  }, [activeEmergencies.length]);
+  }, [activeEmergencies.length, userBlockedAreas]);
+
+  const handleAddBlockedArea = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newBlockedArea.trim() && !userBlockedAreas.includes(newBlockedArea.trim())) {
+      setUserBlockedAreas(prev => [...prev, newBlockedArea.trim()]);
+      setNewBlockedArea('');
+    }
+  };
+
+  const handleRemoveBlockedArea = (area: string) => {
+    setUserBlockedAreas(prev => prev.filter(a => a !== area));
+  };
 
   return (
     <section className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-5 sm:p-8 space-y-4 sm:space-y-6">
@@ -75,10 +92,7 @@ export function DynamicEvacuationMap() {
       </header>
 
       <div className="relative aspect-square sm:aspect-video bg-white dark:bg-black/40 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5 overflow-hidden flex items-center justify-center">
-        <div className="absolute inset-0 opacity-20 pointer-events-none">
-          <div className="w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/20 via-transparent to-transparent" />
-          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.05) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
-        </div>
+        <VectorialEvacuationMap />
 
         <AnimatePresence mode="wait">
           {isCalculating ? (
@@ -87,17 +101,17 @@ export function DynamicEvacuationMap() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex flex-col items-center gap-3 sm:gap-4 p-4 text-center"
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 text-center bg-black/60 backdrop-blur-sm z-10"
             >
               <Loader2 className="w-10 h-10 sm:w-12 sm:h-12 text-blue-500 animate-spin" />
-              <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest animate-pulse">Recalculando Rutas Seguras...</p>
+              <p className="text-[10px] sm:text-xs font-black text-white uppercase tracking-widest animate-pulse">Recalculando Rutas Seguras...</p>
             </motion.div>
           ) : routeData ? (
             <motion.div
               key="route"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-full h-full p-4 sm:p-8 flex flex-col justify-center overflow-y-auto custom-scrollbar"
+              className="absolute inset-0 w-full h-full p-4 sm:p-8 flex flex-col justify-center overflow-y-auto custom-scrollbar bg-black/80 backdrop-blur-md z-10"
             >
               <div className="max-w-md space-y-4 sm:space-y-6 mx-auto w-full">
                 <div className="space-y-1 sm:space-y-2">
@@ -123,17 +137,41 @@ export function DynamicEvacuationMap() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
-                    <XCircle className="w-3 h-3 shrink-0" /> Áreas Bloqueadas / Peligrosas
-                  </p>
-                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                    {routeData.blockedAreas.map((area: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] sm:text-[10px] font-bold text-rose-400 uppercase">
-                        {area}
-                      </span>
-                    ))}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-2">
+                      <XCircle className="w-3 h-3 shrink-0" /> Áreas Bloqueadas / Peligrosas
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                      {routeData.blockedAreas.map((area: string, i: number) => (
+                        <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] sm:text-[10px] font-bold text-rose-400 uppercase flex items-center gap-1">
+                          {area}
+                          {userBlockedAreas.includes(area) && (
+                            <button onClick={() => handleRemoveBlockedArea(area)} className="hover:text-rose-300 ml-1">
+                              <XCircle className="w-3 h-3" />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                    </div>
                   </div>
+
+                  <form onSubmit={handleAddBlockedArea} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newBlockedArea}
+                      onChange={(e) => setNewBlockedArea(e.target.value)}
+                      placeholder="Reportar área bloqueada (ej. Pasillo 3)"
+                      className="flex-1 bg-zinc-900/50 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-rose-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!newBlockedArea.trim() || isCalculating}
+                      className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </form>
                 </div>
               </div>
             </motion.div>

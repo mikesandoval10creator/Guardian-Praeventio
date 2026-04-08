@@ -1948,7 +1948,7 @@ export const validateRiskImageClick = async (imageBase64: string, x: number, y: 
   return JSON.parse(response.text);
 };
 
-export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[]) => {
+export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = []) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -1966,7 +1966,10 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
     ESTADO DE MAQUINARIA (Digital Twin):
     ${machinery.map(m => `- Máquina ${m.id} (${m.type}): Estado ${m.status}, Posición [${m.position.join(', ')}]`).join('\n')}
     
-    Considera que las rutas tradicionales podrían estar bloqueadas por las emergencias o por maquinaria en estado crítico.
+    ÁREAS BLOQUEADAS MANUALMENTE POR USUARIOS:
+    ${userBlockedAreas.length > 0 ? userBlockedAreas.join(', ') : 'Ninguna'}
+    
+    Considera que las rutas tradicionales podrían estar bloqueadas por las emergencias, por maquinaria en estado crítico, o por los bloqueos manuales de los usuarios.
     Prioriza la asistencia a trabajadores caídos (isFallen: true).
     
     Proporciona:

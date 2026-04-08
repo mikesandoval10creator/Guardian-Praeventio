@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
+import { useProject } from './ProjectContext';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
@@ -26,6 +29,20 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { selectedProject } = useProject();
+  const [isCrisisMode, setIsCrisisMode] = useState(false);
+
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const projectRef = doc(db, 'projects', selectedProject.id);
+    const unsubscribe = onSnapshot(projectRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setIsCrisisMode(docSnap.data().isEmergencyActive || false);
+      }
+    });
+    return () => unsubscribe();
+  }, [selectedProject?.id]);
+
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     const saved = localStorage.getItem('praeventio_notifications');
     return saved ? JSON.parse(saved) : [
@@ -55,11 +72,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           // Handle incoming messages when app is in foreground
           onMessage(messaging, (payload) => {
             console.log('Message received. ', payload);
-            addNotification({
-              title: payload.notification?.title || 'Nueva Notificación',
-              message: payload.notification?.body || '',
-              type: 'info'
-            });
+            if (!isCrisisMode) {
+              addNotification({
+                title: payload.notification?.title || 'Nueva Notificación',
+                message: payload.notification?.body || '',
+                type: 'info'
+              });
+            }
           });
         }
       } catch (error) {
@@ -68,11 +87,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
 
     setupMessaging();
-  }, []);
+  }, [isCrisisMode]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const addNotification = (n: Omit<Notification, 'id' | 'time' | 'read' | 'createdAt'>) => {
+    if (isCrisisMode) return; // Radio silence mode
+
     const newNotification: Notification = {
       ...n,
       id: crypto.randomUUID(),

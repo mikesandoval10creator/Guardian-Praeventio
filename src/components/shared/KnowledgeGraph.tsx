@@ -64,6 +64,37 @@ export function KnowledgeGraph() {
     return () => clearTimeout(timer);
   }, [graphData]);
 
+  // Cache for Three.js objects to prevent memory leaks
+  const threeCache = useRef<{
+    geometries: Record<string, THREE.SphereGeometry>;
+    materials: Record<string, THREE.Material>;
+  }>({
+    geometries: {},
+    materials: {}
+  });
+
+  // Cleanup Three.js resources on unmount
+  useEffect(() => {
+    return () => {
+      const { geometries, materials } = threeCache.current;
+      Object.values(geometries).forEach(g => g.dispose());
+      Object.values(materials).forEach(m => m.dispose());
+      
+      // Force WebGL context loss if possible
+      if (graph3DRef.current) {
+        try {
+          const renderer = graph3DRef.current.renderer();
+          if (renderer) {
+            renderer.dispose();
+            renderer.forceContextLoss();
+          }
+        } catch (e) {
+          console.warn("Could not dispose WebGL context", e);
+        }
+      }
+    };
+  }, []);
+
   const graphData = useMemo(() => {
     const data = getGraphData();
     let filteredNodes = data.nodes;
@@ -297,28 +328,47 @@ export function KnowledgeGraph() {
             const color = getNodeColor(node.type);
             const isAffected = affectedNodes.has(node.id);
             
-            // Create a custom material
-            const material = new THREE.MeshLambertMaterial({
-              color: color,
-              transparent: true,
-              opacity: isAffected ? 1 : 0.8,
-              emissive: color,
-              emissiveIntensity: isAffected ? 0.8 : 0.2
-            });
+            // Get or create geometry
+            const geoKey = isAffected ? 'affected' : 'normal';
+            if (!threeCache.current.geometries[geoKey]) {
+              threeCache.current.geometries[geoKey] = new THREE.SphereGeometry(isAffected ? 8 : 5);
+            }
+            const geometry = threeCache.current.geometries[geoKey];
 
-            // Create geometry
-            const geometry = new THREE.SphereGeometry(isAffected ? 8 : 5);
+            // Get or create material
+            const matKey = `${color}-${isAffected}`;
+            if (!threeCache.current.materials[matKey]) {
+              threeCache.current.materials[matKey] = new THREE.MeshLambertMaterial({
+                color: color,
+                transparent: true,
+                opacity: isAffected ? 1 : 0.8,
+                emissive: color,
+                emissiveIntensity: isAffected ? 0.8 : 0.2
+              });
+            }
+            const material = threeCache.current.materials[matKey];
+
             const mesh = new THREE.Mesh(geometry, material);
 
             // Add a glow effect if affected
             if (isAffected) {
-              const glowMaterial = new THREE.MeshBasicMaterial({
-                color: color,
-                transparent: true,
-                opacity: 0.3,
-                blending: THREE.AdditiveBlending
-              });
-              const glowGeometry = new THREE.SphereGeometry(12);
+              const glowMatKey = `glow-${color}`;
+              if (!threeCache.current.materials[glowMatKey]) {
+                threeCache.current.materials[glowMatKey] = new THREE.MeshBasicMaterial({
+                  color: color,
+                  transparent: true,
+                  opacity: 0.3,
+                  blending: THREE.AdditiveBlending
+                });
+              }
+              const glowMaterial = threeCache.current.materials[glowMatKey];
+              
+              const glowGeoKey = 'glow';
+              if (!threeCache.current.geometries[glowGeoKey]) {
+                threeCache.current.geometries[glowGeoKey] = new THREE.SphereGeometry(12);
+              }
+              const glowGeometry = threeCache.current.geometries[glowGeoKey];
+              
               const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
               
               // Simple animation for the glow
