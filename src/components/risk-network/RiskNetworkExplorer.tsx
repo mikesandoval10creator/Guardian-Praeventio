@@ -20,15 +20,35 @@ import { motion, AnimatePresence } from 'framer-motion';
 export function RiskNetworkExplorer() {
   const { nodes, stats, loading } = useUniversalKnowledge();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedNode, setSelectedNode] = useState<RiskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [filterType, setFilterType] = useState<NodeType | 'All'>('All');
   const fgRef = useRef<any>(null);
 
+  // Debounce search term to prevent excessive graph re-renders
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Stop simulation after 3 seconds to save battery
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (fgRef.current) {
+        fgRef.current.d3Force('charge').strength(0);
+        fgRef.current.d3Force('link').strength(0);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [graphData]);
+
   const graphData = useMemo(() => {
     const filteredNodes = nodes.filter(n => {
-      const matchesSearch = n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (n.description || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = n.title.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                          (n.description || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase());
       const matchesType = filterType === 'All' || n.type === filterType;
       return matchesSearch && matchesType;
     });

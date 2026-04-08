@@ -12,6 +12,8 @@ import { analyzeRiskNetwork, predictAccidents } from '../services/geminiService'
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
+import { ErrorBoundary } from '../components/shared/ErrorBoundary';
+
 export function RiskNetwork() {
   const { nodes, loading } = useRiskEngine();
   const [activeTab, setActiveTab] = useState<'graph' | 'explorer' | 'health' | 'manager'>('graph');
@@ -142,48 +144,50 @@ export function RiskNetwork() {
 
       {/* Main Content Area */}
       <div className="space-y-8">
-        {activeTab === 'graph' && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="space-y-4"
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Visualización del Grafo</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Interactúa con los nodos para ver detalles</span>
+        <ErrorBoundary silent>
+          {activeTab === 'graph' && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Visualización del Grafo</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Interactúa con los nodos para ver detalles</span>
+                </div>
               </div>
-            </div>
-            <KnowledgeGraph />
-          </motion.div>
-        )}
+              <KnowledgeGraph />
+            </motion.div>
+          )}
 
-        {activeTab === 'explorer' && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <RiskNetworkExplorer />
-          </motion.div>
-        )}
+          {activeTab === 'explorer' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <RiskNetworkExplorer />
+            </motion.div>
+          )}
 
-        {activeTab === 'health' && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <RiskNetworkHealth />
-          </motion.div>
-        )}
+          {activeTab === 'health' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <RiskNetworkHealth />
+            </motion.div>
+          )}
 
-        {activeTab === 'manager' && (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <RiskNetworkManager />
-          </motion.div>
-        )}
+          {activeTab === 'manager' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <RiskNetworkManager />
+            </motion.div>
+          )}
+        </ErrorBoundary>
       </div>
 
       {/* Insights Section */}

@@ -161,6 +161,8 @@ export function GuardianVoiceAssistant() {
     }
   };
 
+  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+
   const startRecording = async () => {
     if (!onlineStatus) {
       setResponse("La grabación de voz requiere conexión a internet. Por favor, escribe tu consulta abajo.");
@@ -169,6 +171,7 @@ export function GuardianVoiceAssistant() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setCameraPermissionDenied(false);
       mediaRecorder.current = new MediaRecorder(stream);
       audioChunks.current = [];
 
@@ -188,6 +191,8 @@ export function GuardianVoiceAssistant() {
       setPendingPrompt(null);
     } catch (err) {
       console.error('Error accessing microphone:', err);
+      setCameraPermissionDenied(true);
+      setResponse("No se pudo acceder al micrófono. Por favor, verifica los permisos en tu navegador o escribe tu consulta abajo.");
     }
   };
 
@@ -397,8 +402,8 @@ export function GuardianVoiceAssistant() {
                   <p className="text-sm text-zinc-900 dark:text-white font-bold mb-1">
                     {isRecording ? 'Te escucho...' : 'Mantén presionado para hablar'}
                   </p>
-                  <p className="text-xs text-zinc-500 mb-6">
-                    {onlineStatus ? 'Pregúntame sobre EPP, normativas o riesgos.' : 'El dictado por voz no está disponible offline.'}
+                  <p className="text-xs text-zinc-500 mb-6 text-center max-w-[200px]">
+                    {cameraPermissionDenied ? 'Acceso al micrófono denegado. Escribe tu consulta.' : onlineStatus ? 'Pregúntame sobre EPP, normativas o riesgos.' : 'El dictado por voz no está disponible offline.'}
                   </p>
 
                   <div className="w-full flex gap-2">

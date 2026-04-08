@@ -87,7 +87,12 @@ export const useGeolocationTracking = () => {
       watchId = navigator.geolocation.watchPosition(
         async (position) => {
           const { latitude, longitude, accuracy } = position.coords;
-          setLastLocation({ lat: latitude, lng: longitude });
+          
+          // Redondear a 4 decimales (aprox 11 metros de precisión) para optimizar cálculos
+          const roundedLat = Math.round(latitude * 10000) / 10000;
+          const roundedLng = Math.round(longitude * 10000) / 10000;
+          
+          setLastLocation({ lat: roundedLat, lng: roundedLng });
 
           // Solo guardar si la precisión es razonable (< 50 metros)
           if (accuracy < 50) {
@@ -95,8 +100,8 @@ export const useGeolocationTracking = () => {
               await addDoc(collection(db, `projects/${selectedProject.id}/locations`), {
                 userId: user.uid,
                 projectId: selectedProject.id,
-                latitude,
-                longitude,
+                latitude: roundedLat,
+                longitude: roundedLng,
                 accuracy,
                 timestamp: serverTimestamp(),
               });

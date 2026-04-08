@@ -202,6 +202,8 @@ export function BioAnalysis() {
     };
   }, [cameraActive, isAnalyzing]);
 
+  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
+
   const toggleCamera = async () => {
     if (cameraActive) {
       const stream = videoRef.current?.srcObject as MediaStream;
@@ -210,6 +212,7 @@ export function BioAnalysis() {
       setCameraActive(false);
       setIsAnalyzing(false);
       setLastAnalysisImage(null);
+      setCameraPermissionDenied(false);
     } else {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -217,11 +220,12 @@ export function BioAnalysis() {
           videoRef.current.srcObject = stream;
           videoRef.current.addEventListener('loadeddata', () => {
             setCameraActive(true);
+            setCameraPermissionDenied(false);
           });
         }
       } catch (err) {
         console.error("Error accessing camera:", err);
-        alert("No se pudo acceder a la cámara. Por favor, verifica los permisos.");
+        setCameraPermissionDenied(true);
       }
     }
   };
@@ -367,7 +371,15 @@ export function BioAnalysis() {
         {/* Camera Feed */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-zinc-900 border border-white/10 rounded-3xl overflow-hidden relative aspect-video shadow-2xl">
-            {!cameraActive ? (
+            {cameraPermissionDenied ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-6 text-center">
+                <AlertTriangle className="w-16 h-16 mb-4 text-amber-500 opacity-80" />
+                <p className="text-sm font-bold uppercase tracking-widest text-white mb-2">Acceso a Cámara Denegado</p>
+                <p className="text-xs text-zinc-400 max-w-md">
+                  El sistema no puede acceder a la cámara. Para utilizar el Bio-Análisis, por favor permite el acceso a la cámara en la configuración de tu navegador y recarga la página.
+                </p>
+              </div>
+            ) : !cameraActive ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
                 <Camera className="w-16 h-16 mb-4 opacity-50" />
                 <p className="text-sm font-bold uppercase tracking-widest">Cámara Desactivada</p>

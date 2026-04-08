@@ -33,12 +33,36 @@ export function KnowledgeGraph() {
   const [is3D, setIs3D] = useState(false);
   const [filter, setFilter] = useState<NodeType | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [propagatingNode, setPropagatingNode] = useState<string | null>(null);
   const [isSimulatingPropagation, setIsSimulatingPropagation] = useState(false);
   const [propagationResult, setPropagationResult] = useState<any>(null);
   const [isAnalyzingCauses, setIsAnalyzingCauses] = useState(false);
   const [causeAnalysisResult, setCauseAnalysisResult] = useState<any>(null);
   const isOnline = useOnlineStatus();
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Stop simulation after 3 seconds to save battery
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (graphRef.current) {
+        graphRef.current.d3Force('charge')?.strength(0);
+        graphRef.current.d3Force('link')?.strength(0);
+      }
+      if (graph3DRef.current) {
+        graph3DRef.current.d3Force('charge')?.strength(0);
+        graph3DRef.current.d3Force('link')?.strength(0);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [graphData]);
 
   const graphData = useMemo(() => {
     const data = getGraphData();
@@ -48,8 +72,8 @@ export function KnowledgeGraph() {
       filteredNodes = filteredNodes.filter(n => n.type === filter);
     }
 
-    if (searchQuery) {
-      const lowQuery = String(searchQuery || '').toLowerCase();
+    if (debouncedSearchQuery) {
+      const lowQuery = String(debouncedSearchQuery || '').toLowerCase();
       filteredNodes = filteredNodes.filter(n => 
         n.title.toLowerCase().includes(lowQuery) || 
         (n.description || '').toLowerCase().includes(lowQuery) ||

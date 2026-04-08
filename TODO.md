@@ -195,3 +195,121 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [ ] **Fatiga Humana ↔ Asignación de Tareas:** Integración del motor de Computer Vision (MediaPipe) con el backend para reasignar tareas automáticamente en el ERP/Planificador.
 - [ ] **Telemetría IoT ↔ Probabilidad de Falla:** Conexión de sensores físicos de maquinaria al MQTT Broker para alterar el Zettelkasten en tiempo real.
 - [ ] **Dashboards Analíticos Predictivos:** Entrenamiento y despliegue de modelos de Machine Learning (TensorFlow/Vertex AI) personalizados con la data histórica de la multinacional.
+
+### Fase 5: Arquitectura de Búnker y Optimizaciones Extremas (Factibilidad Extrema)
+
+#### I. Arquitectura de Búnker (Core & Service Workers)
+- [ ] **Pre-caché Masivo en Workbox:** Configurar vite-plugin-pwa para almacenar los 70 módulos dinámicos (.js, .css) en la caché del navegador durante el primer login.
+- [ ] **Elevación de Límites de Caché:** Modificar maximumFileSizeToCacheInBytes en Vite a 20MB para asegurar que los modelos 3D y librerías de IA se descarguen por completo.
+- [ ] **Almacenamiento Local Encriptado (IDB):** Usar idb para guardar la base de datos completa de trabajadores y matrices, aplicando encriptación AES-256 en el cliente.
+- [ ] **Cola de Sincronización Background Sync:** Implementar una cola en IndexedDB para formularios llenados sin conexión, que se disparen automáticamente al detectar red.
+- [ ] **Interceptor de Fetch Offline:** Si falla una petición fetch a Firebase, el Service Worker redirige la consulta a la base de datos local de manera invisible.
+- [ ] **Desactivación de Telemetría Externa:** Bloquear cualquier tracker o analítica innecesaria para asegurar un consumo de batería y datos cercano a cero.
+- [ ] **Motor de Compresión Brotli:** Configurar Vite para comprimir los archivos de la app en formato Brotli, haciendo que la "descarga única" sea ultra rápida.
+- [ ] **Validación de JWT Offline:** Permitir acceso a la app con un token validado criptográficamente contra una llave pública almacenada en el teléfono.
+- [ ] **Limpieza Automática de RAM (Garbage Collection):** Al desmontar vistas pesadas (como el mapa 3D), forzar la limpieza de variables de memoria de three.js.
+- [ ] **Fallback de Fuentes y UI:** Asegurar que los íconos de lucide-react estén incrustados localmente para que la interfaz no pierda legibilidad sin internet.
+- [ ] **Estado de Red Reactivo:** Un hook useOnlineStatus que informe visualmente si estamos operando en el "Búnker" (offline) o conectados.
+- [ ] **Caché Diferencial de Zettelkasten:** Sincronizar solo los "nodos nuevos" creados por la tripulación desde la última conexión, ahorrando procesamiento.
+- [ ] **Manejo de Conflictos de Fusión:** Si dos supervisores editan la misma matriz offline, usar lógica basada en marcas de tiempo para resolver en Firebase.
+- [ ] **Protección de Datos Biométricos (ISO 27001):** Asegurar que las validaciones biométricas ocurran a nivel de hardware del dispositivo móvil, sin enviar huellas al servidor.
+- [ ] **Ping de Supervivencia Liviano:** Un servicio que, al tener señal, envíe un paquete de bytes mínimo (coordenadas básicas) sin bloquear el hilo principal.
+
+#### II. Módulo de Emergencias y Evacuación (/emergency)
+- [x] **Kill-Switch de Animaciones (Modo Táctico):** Al presionar "Emergencia", un estado en Zustand desactiva todo framer-motion para destinar el 100% de la CPU a la respuesta crítica.
+- [x] **Interfaz de Alto Contraste:** Cambio automático de la paleta de colores a "Darkhorse" (negro puro y colores neón) para máxima visibilidad en condiciones de humo o luz solar directa.
+- [ ] **Rutas de Evacuación Vectoriales (Offline):** Reemplazar mapas pesados por SVGs pre-descargados y cacheados que se renderizan instantáneamente.
+- [ ] **Geocercas de Exclusión Locales:** Cálculos matemáticos simples (Turf.js) en el cliente que hacen sonar el celular si el usuario cruza una zona HAZMAT delineada en el mapa offline.
+- [x] **Botón "Estoy a Salvo" Unificado:** Un botón masivo en pantalla de bloqueo que actualiza el estado del operario en el "Muro Dinámico" del comité paritario.
+- [ ] **Síntesis de Voz Nativa:** Uso de la Web Speech API para leer instrucciones de evacuación en voz alta ("Gire a la derecha"), liberando la vista del operario.
+- [ ] **Compresión de Audio de Rescate:** Si se usa CrisisChat, comprimir los audios a formatos ultra ligeros para que salgan incluso con redes Edge (2G).
+- [ ] **Protocolo Triage Rápido:** Formulario visual de 3 botones (Verde, Amarillo, Rojo) para reportar heridos en 2 segundos.
+- [ ] **Sincronización Mesh (Bluetooth):** Explorar la Web Bluetooth API para emitir balizas de proximidad entre dispositivos móviles si caen las antenas principales.
+- [ ] **Fijación de Coordenadas UTM:** Mostrar latitud/longitud en gran formato para dictar fácilmente a equipos de rescate (Medevac).
+- [ ] **Desconexión Automática LOTO:** Integración encriptada para apagar máquinas a distancia mediante un token local de un supervisor en el área de emergencia.
+- [ ] **Bloqueo de Interfaz por Tensión:** Si se reporta sismo mayor a grado 6 (leído del caché local si hay alerta temprana), la app bloquea funciones no críticas.
+- [ ] **Ruteo Dinámico de Escape:** El mapa redirige flechas si un usuario marca un pasillo como "Bloqueado por fuego".
+- [ ] **Tarjetas de Primeros Auxilios Interactivas:** Guías paso a paso descargadas (RCP, torniquetes) con metrónomo a 100 BPM en pantalla.
+- [ ] **Modo Silencio de Radio:** Desactiva todas las notificaciones push entrantes para no interrumpir la concentración de quien atiende una emergencia.
+
+#### III. IA, Visión Computacional y Wearables (/ai-hub)
+- [ ] **IA Edge para EPP (MediaPipe):** Usar @mediapipe/tasks-vision precargado para verificar casco y lentes procesando el video solo en el celular, cumpliendo con normas de privacidad.
+- [ ] **Desenfoque Facial Automático:** Si la cámara registra un hallazgo, aplicar filtros de difuminado sobre los rostros antes de guardar el registro (ISO 27001).
+- [ ] **Análisis Biomecánico Local:** Usar la cámara para mapear la postura de carga (Ergonomía), calculando ángulos sin enviar el video a la nube.
+- [ ] **El Asesor NLP Autónomo:** Un pequeño modelo LLM comprimido (si el hardware lo permite) o un árbol de decisiones semántico para buscar en el glosario sin usar tokens de GenAI.
+- [ ] **Sensor de Temperatura Infrarroja (si aplica):** Leer datos de wearables integrados por Bluetooth para detectar alertas térmicas corporales.
+- [ ] **Filtro Edge IoT:** Procesar la telemetría de la maquinaria en el módulo /iot-edge directamente en el dispositivo, subiendo a Firebase solo los "eventos anómalos" para no saturar la base.
+- [ ] **OCR de Tarjetas de Seguridad:** Lector local que escanee permisos de trabajo físicos sin necesidad de escribirlos a mano.
+- [ ] **Motor de Búsqueda Difusa:** Búsqueda ultra rápida en el Glosario (Fuse.js) que perdone errores ortográficos al buscar protocolos.
+- [ ] **Integración con Acelerómetro:** Monitoreo sutil en segundo plano para alertar si se detecta una aceleración que indique caída inminente.
+- [ ] **Modo de Susurro del Guardian:** La asistencia por voz ajusta su volumen si detecta ruido ambiental alto (usando el micrófono localmente).
+
+#### IV. Zettelkasten y Red Risk Network (/risk-network)
+- [x] **Motor de Renderizado 2D Optimizado:** Configurar react-force-graph-2d para detener la simulación física (las partículas dejan de moverse) después de 3 segundos para no drenar batería.
+- [ ] **Paginación de Nodos:** Cargar solo el "vecindario" de ideas conectadas al protocolo que se está leyendo (profundidad de nivel 2).
+- [ ] **Conexiones Semánticas Automáticas:** Si un PTS menciona "Trabajo en Altura", la app lo enlaza automáticamente al nodo EPP correspondiente (Arnés).
+- [ ] **Bóveda Privada de Proyectos:** Separar criptográficamente el Zettelkasten de un proyecto minero del de uno forestal para evitar cruce de información confidencial.
+- [ ] **Tags de Gravedad MINSAL:** Etiquetado visual automático de leyes que al fallar implican cierre de faena (Color Rojo absoluto).
+- [ ] **Historial de Decisiones Inmutable:** Guardar cada cambio en la matriz IPERC como un bloque encadenado (Audit Trail) para trazabilidad ISO 45001.
+- [ ] **Vista de Grafo en "Modo Zen":** Fondo oscuro y nodos brillantes para facilitar la lectura y el enfoque al estudiar el comportamiento de los accidentes.
+- [ ] **Modo Exportación Rápida:** Convertir una rama de ideas del Zettelkasten en un PDF formateado como Charla Integral de 5 minutos.
+- [ ] **Filtro de "Conocimiento Huérfano":** Resaltar protocolos creados que no están vinculados a ningún riesgo activo, para mantener la red limpia.
+- [ ] **Sincronización P2P por Código QR:** Permitir transferir un nodo de conocimiento de un teléfono a otro mostrando un código QR (Air-gapped transfer).
+
+#### V. Bio-Análisis y Medio Ambiente (/bio-analysis / /hygiene)
+- [ ] **Rutinas "Despertar Matutino":** Un submódulo de preparación antes del inicio de turno con elongaciones basadas en la matriz biomecánica personal.
+- [ ] **Monitor de Vitalidad (Energía):** Gráfico que cruza los datos de temperatura externa, altitud y peso de herramientas para sugerir recesos de hidratación.
+- [ ] **Catálogo Flora/Fauna Offline:** Base de datos botánica local (Bugainvillea y especies nativas) para evitar impactos medioambientales durante la instalación del campamento.
+- [ ] **Calculadora de Índice UV Local:** Fórmulas matemáticas en la app que, cruzadas con la hora y latitud, exigen protector solar sin depender de APIs externas.
+- [ ] **Pausas Fisiológicas Integradas:** Animaciones de respiración guiadas (flujo) de un minuto recomendadas antes de tareas de alto rigor mental.
+- [ ] **Control de Ruidos (Dosimetría Aproximada):** Medir decibeles con el micrófono y generar alertas visuales para usar tapones auditivos (con aviso de privacidad de que no se graba el audio).
+- [ ] **Bitácora Nutricional de Campamento:** Recomendaciones de hidratación integradas en el flujo diario, recordando la ingesta de jugos naturales y antioxidantes.
+- [ ] **Mapa de Contaminación Lumínica:** Vista táctica de los focos del campamento para asegurar que no interfieran con la fauna local nocturna.
+- [ ] **Gestión de Acopio HAZMAT:** Mapeo de compatibilidad química (Matriz de segregación) validada de forma instantánea sin conexión.
+- [ ] **Estimador de Tasa Metabólica:** Cálculo en tiempo real de la exigencia física de una faena para rotar roles y mantener la mente afilada.
+
+#### VI. Gestión de Proyectos, Trabajadores y PTS (/pts, /workers)
+- [ ] **Firma Geométrica Vectorial:** Guardar las firmas de los operarios en los PTS como vectores .svg para que no pesen nada en la base de datos.
+- [ ] **Perfil del Nakama:** Vista de trabajador con diseño "Cartas RPG" mostrando sus certificaciones activas de manera elegante.
+- [ ] **Calculadora de Probabilidad/Consecuencia Nativa:** En el submódulo de Matriz, las fórmulas de riesgo puro corren en memoria local sin latencia.
+- [ ] **Autocompletado Predictivo en PTS:** Basado en la ubicación GPS, pre-llenar la obra, el clima y los riesgos típicos de ese cuadrante.
+- [ ] **Control de Acceso Seguro (SSO Local):** Integración con el sistema del casino o campamento para validar identidades mediante credenciales encriptadas.
+- [ ] **Generador Inmutable (Immutable Render):** Al cerrar un documento, sellarlo criptográficamente (Hash) para garantizar ante SUSESO que no fue modificado post-accidente.
+- [ ] **Modo Asistencia Rápida:** Módulo que lee rápidamente códigos QR o NFC de los cascos en la entrada de la faena.
+- [ ] **Auditorías ISO Interactivas:** Checklist dinámico que oculta o muestra preguntas dependiendo de las respuestas previas.
+- [ ] **Trazabilidad de EPI/EPP:** Registro de vida útil de un arnés desde que sale de bodega hasta su descarte, notificado localmente.
+- [ ] **Carga Diferida Inteligente (Lazy Modals):** Los modales pesados (como la edición de AutoCAD Viewer) solo se instancian cuando el usuario hace clic.
+
+#### VII. Currículum Portable y Gamificación (/gamification)
+- [ ] **Árbol de Habilidades (Skill Tree):** Un visualizador donde el operario desbloquea insignias "Scout" al completar capacitaciones.
+- [ ] **Buzzer de Reflejos:** Mini-simuladores (estilo arcade rápido) en los tiempos muertos para evaluar la capacidad de respuesta y fluidez antes del turno.
+- [ ] **Sistema de Logros Locales:** Reconocimientos (ej. "Semana Invicta") que se calculan en el celular del usuario y luego se respaldan.
+- [ ] **Render de Medallas 3D:** Pequeños modelos three.js ligeros de las certificaciones, que pueden girarse con el dedo en el perfil de usuario.
+- [ ] **Cápsulas de Sabiduría (El Arte de la Guerra):** Integrar citas tácticas o reglas de oro en las pantallas de confirmación de formularios.
+- [ ] **Portable Curriculum PDF:** Un botón que compile toda la historia de seguridad del operario en un PDF estético generado por jspdf.
+- [ ] **Progreso de Aclimatación:** Barra que muestra cuántos días le quedan a un trabajador nuevo para aclimatarse por completo a la altura o el terreno.
+- [ ] **Simulacro de Extintores VR (Básico):** Uso de la cámara y giroscopio para enfocar a un fuego virtual en la sala y aprender el movimiento "PASS".
+- [ ] **Recompensas Dopaminérgicas Elegantes:** Animaciones de confeti suaves (canvas-confetti) reservadas exclusivamente para auditorías con cero hallazgos.
+- [ ] **Ranking de Cuadrillas "Flow":** Tabla de posiciones basada en el cumplimiento proactivo y la prevención, fomentando el orgullo de equipo.
+
+#### VIII. Seguridad Técnica, Estabilidad y Optimizaciones
+- [ ] **Ofuscación de Código en Producción:** Asegurar que las reglas de negocio críticas no sean legibles si alguien inspecciona el código del navegador.
+- [ ] **Rotación Automática de Keys (JWT):** Política de expiración corta de sesiones para mitigar el riesgo si se pierde un dispositivo físico en obra.
+- [ ] **Zonas Estrictas en React (StrictMode):** Mantener habilitado en desarrollo para prevenir ciclos infinitos y re-renders que calienten el celular.
+- [ ] **Compresión de Imágenes al Vuelo:** Si un supervisor toma una foto de 10MB a un andamio, usar la API de Canvas para reducirla a 500KB antes de cualquier proceso.
+- [ ] **Variables de Entorno Blindadas:** Mover cualquier token de API externa (como OpenWeather) a Cloud Functions, para que el celular solo consulte tu propio servidor seguro.
+- [ ] **Arquitectura CQRS Local:** Separar las lecturas (ej. ver el PTS) de las escrituras (ej. crear un PTS) en IndexedDB para máxima velocidad.
+- [ ] **Purgado de Caché Obsoleto:** Script automático que elimina versiones viejas de la app (v1.0.1) cuando detecta la instalación de la nueva (v1.0.2).
+- [x] **Error Boundary Silencioso:** Si un gráfico de la Matriz falla, que caiga solo ese componente mostrando un ícono amigable, manteniendo el resto de la app operativa.
+- [x] **Debounce en Red Neuronal:** Prevenir que la app intente calcular conexiones del Zettelkasten cada vez que se teclea una letra; hacerlo cuando el usuario pause su escritura.
+- [x] **Manejo de Permisos Degradado:** Si el usuario niega acceso a la cámara, la app debe seguir funcionando con opciones manuales de ingreso.
+- [x] **Validación Zod para Formularios:** Asegurar que los datos ingresados en el módulo Diagnóstico sean del tipo correcto antes de guardarlos.
+- [x] **Evitar Cálculos Flotantes Complejos:** Redondear geolocalizaciones al cuarto decimal (aprox. 11 metros de precisión) para acelerar cálculos matemáticos de zonas de riesgo.
+- [ ] **Precarga de DNS (dns-prefetch):** Acelerar el micro-segundo de resolución al conectarse a los servidores de Firebase.
+- [ ] **Skeleton Loaders:** En los submódulos, usar estructuras grises animadas suavemente mientras se carga la data local, dando percepción visual de velocidad extrema.
+- [ ] **Modo Pantalla Siempre Activa (Wake Lock API):** En el submódulo de /emergency, evitar que la pantalla del celular se apague mientras se dictan coordenadas.
+- [ ] **Prevención de Doble Envío:** Bloquear botones críticas (como "Declarar Emergencia") instantáneamente tras el primer toque para evitar colapsos por pánico.
+- [ ] **Modo "Safe Driving" Nativo:** Interfaz que usa fuentes enormes y solo botones gestuales de gran barrido para supervisores en movimiento en camionetas.
+- [ ] **Virtualización de Listas Larga:** En el submódulo /history, usar bibliotecas como react-window para renderizar solo los 10 reportes visibles, ahorrando memoria al hacer scroll entre cientos.
+- [ ] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
+- [ ] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.

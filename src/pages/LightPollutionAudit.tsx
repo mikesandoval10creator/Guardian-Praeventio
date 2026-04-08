@@ -6,6 +6,7 @@ import { Card, Button } from '../components/shared/Card';
 export function LightPollutionAudit() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
+  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -16,9 +17,15 @@ export function LightPollutionAudit() {
         .then(stream => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
+            setCameraPermissionDenied(false);
           }
         })
-        .catch(err => console.error("Error accessing camera:", err));
+        .catch(err => {
+          console.error("Error accessing camera:", err);
+          setCameraPermissionDenied(true);
+        });
+    } else {
+      setCameraPermissionDenied(true);
     }
     
     return () => {
@@ -63,46 +70,58 @@ export function LightPollutionAudit() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Camera View */}
         <Card className="p-0 border-white/5 overflow-hidden relative min-h-[400px] bg-black flex items-center justify-center">
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            className="absolute inset-0 w-full h-full object-cover opacity-60"
-          />
-          
-          {/* Simulated AR Overlay */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className={`w-64 h-64 border-2 border-dashed rounded-3xl transition-colors duration-500 ${isScanning ? 'border-amber-500' : scanComplete ? 'border-rose-500' : 'border-white/30'}`}>
-              {isScanning && (
-                <motion.div 
-                  className="w-full h-1 bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.8)]"
-                  animate={{ y: [0, 256, 0] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                />
-              )}
+          {cameraPermissionDenied ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-6 text-center z-20 bg-zinc-900">
+              <AlertTriangle className="w-16 h-16 mb-4 text-amber-500 opacity-80" />
+              <p className="text-sm font-bold uppercase tracking-widest text-white mb-2">Acceso a Cámara Denegado</p>
+              <p className="text-xs text-zinc-400 max-w-md">
+                El sistema no puede acceder a la cámara. Para utilizar la Auditoría Lumínica, por favor permite el acceso a la cámara en la configuración de tu navegador y recarga la página.
+              </p>
             </div>
-          </div>
+          ) : (
+            <>
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted 
+                className="absolute inset-0 w-full h-full object-cover opacity-60"
+              />
+              
+              {/* Simulated AR Overlay */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className={`w-64 h-64 border-2 border-dashed rounded-3xl transition-colors duration-500 ${isScanning ? 'border-amber-500' : scanComplete ? 'border-rose-500' : 'border-white/30'}`}>
+                  {isScanning && (
+                    <motion.div 
+                      className="w-full h-1 bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.8)]"
+                      animate={{ y: [0, 256, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    />
+                  )}
+                </div>
+              </div>
 
-          <div className="absolute bottom-6 left-0 right-0 flex justify-center z-10">
-            <Button 
-              onClick={handleScan} 
-              disabled={isScanning}
-              className="px-8 py-4 rounded-full shadow-2xl"
-            >
-              {isScanning ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Analizando Espectro...
-                </>
-              ) : (
-                <>
-                  <Camera className="w-5 h-5 mr-2" />
-                  Escanear Torre de Iluminación
-                </>
-              )}
-            </Button>
-          </div>
+              <div className="absolute bottom-6 left-0 right-0 flex justify-center z-10">
+                <Button 
+                  onClick={handleScan} 
+                  disabled={isScanning}
+                  className="px-8 py-4 rounded-full shadow-2xl"
+                >
+                  {isScanning ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      Analizando Espectro...
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 mr-2" />
+                      Escanear Torre de Iluminación
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </Card>
 
         {/* Results Panel */}

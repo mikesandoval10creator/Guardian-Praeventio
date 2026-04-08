@@ -6,6 +6,18 @@ import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { analyzeRiskWithAI } from '../services/geminiService';
+import { z } from 'zod';
+
+const diagnosticSchema = z.object({
+  industry: z.string().min(2, "La industria es requerida"),
+  location: z.string().min(2, "La ubicación es requerida"),
+  workersCount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+    message: "Debe ser un número válido mayor a 0"
+  }),
+  facilities: z.array(z.string()).min(1, "Selecciona al menos una instalación"),
+  mainActivities: z.string().min(10, "Describe las actividades principales (mínimo 10 caracteres)"),
+  knownHazards: z.string().optional()
+});
 
 export function Diagnostico() {
   const { selectedProject } = useProject();
@@ -14,6 +26,7 @@ export function Diagnostico() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [saved, setSaved] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     industry: selectedProject?.industry || '',
@@ -33,7 +46,43 @@ export function Diagnostico() {
     }));
   };
 
+  const validateForm = () => {
+    try {
+      diagnosticSchema.parse(formData);
+      setErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const newErrors: Record<string, string> = {};
+        error.errors.forEach(err => {
+          if (err.path[0]) {
+            newErrors[err.path[0].toString()] = err.message;
+          }
+        });
+        setErrors(newErrors);
+      }
+      return false;
+    }
+  };
+
+  const handleNextStep = () => {
+    if (step === 1) {
+      if (!formData.industry || !formData.location || !formData.workersCount) {
+        setErrors({
+          industry: !formData.industry ? 'Requerido' : '',
+          location: !formData.location ? 'Requerido' : '',
+          workersCount: !formData.workersCount ? 'Requerido' : ''
+        });
+        return;
+      }
+    }
+    setErrors({});
+    setStep(2);
+  };
+
   const handleGenerateBaseMatrix = async () => {
+    if (!validateForm()) return;
+    
     setLoading(true);
     try {
       const prompt = `Actúa como un experto en prevención de riesgos laborales (Prevencionista de Riesgos en Chile).
@@ -150,9 +199,10 @@ export function Diagnostico() {
                   type="text"
                   value={formData.industry}
                   onChange={(e) => setFormData({...formData, industry: e.target.value})}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                  className={`w-full bg-zinc-900/50 border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none ${errors.industry ? 'border-red-500/50' : 'border-white/10'}`}
                   placeholder="Ej: Minería Subterránea, Construcción..."
                 />
+                {errors.industry && <p className="text-[10px] text-red-400">{errors.industry}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ubicación / Geografía</label>
@@ -160,9 +210,10 @@ export function Diagnostico() {
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                  className={`w-full bg-zinc-900/50 border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none ${errors.location ? 'border-red-500/50' : 'border-white/10'}`}
                   placeholder="Ej: Cordillera, Altitud 3000m, Zona Costera..."
                 />
+                {errors.location && <p className="text-[10px] text-red-400">{errors.location}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Dotación Aproximada</label>
@@ -170,9 +221,10 @@ export function Diagnostico() {
                   type="number"
                   value={formData.workersCount}
                   onChange={(e) => setFormData({...formData, workersCount: e.target.value})}
-                  className="w-full bg-zinc-900/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none"
+                  className={`w-full bg-zinc-900/50 border rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none ${errors.workersCount ? 'border-red-500/50' : 'border-white/10'}`}
                   placeholder="Ej: 150"
                 />
+                {errors.workersCount && <p className="text-[10px] text-red-400">{errors.workersCount}</p>}
               </div>
             </div>
 
@@ -193,10 +245,11 @@ export function Diagnostico() {
                   </button>
                 ))}
               </div>
+              {errors.facilities && <p className="text-[10px] text-red-400">{errors.facilities}</p>}
             </div>
 
             <div className="flex justify-end pt-4">
-              <Button onClick={() => setStep(2)} disabled={!formData.industry || !formData.location}>
+              <Button onClick={handleNextStep}>
                 Siguiente Paso <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -216,9 +269,10 @@ export function Diagnostico() {
                 <textarea
                   value={formData.mainActivities}
                   onChange={(e) => setFormData({...formData, mainActivities: e.target.value})}
-                  className="w-full h-24 bg-zinc-900/50 border border-white/10 rounded-xl p-4 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none resize-none"
+                  className={`w-full h-24 bg-zinc-900/50 border rounded-xl p-4 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none resize-none ${errors.mainActivities ? 'border-red-500/50' : 'border-white/10'}`}
                   placeholder="Describe los procesos principales. Ej: Perforación, tronadura, carguío y transporte..."
                 />
+                {errors.mainActivities && <p className="text-[10px] text-red-400">{errors.mainActivities}</p>}
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Peligros Críticos Conocidos (Opcional)</label>
@@ -233,7 +287,7 @@ export function Diagnostico() {
 
             <div className="flex justify-between pt-4">
               <Button variant="secondary" onClick={() => setStep(1)}>Atrás</Button>
-              <Button onClick={handleGenerateBaseMatrix} disabled={loading || !formData.mainActivities}>
+              <Button onClick={handleGenerateBaseMatrix} disabled={loading}>
                 {loading ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analizando...</>
                 ) : (

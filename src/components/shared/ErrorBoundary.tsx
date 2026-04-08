@@ -1,7 +1,9 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
+  silent?: boolean;
 }
 
 interface State {
@@ -25,6 +27,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      if (this.props.silent) {
+        return (
+          <div className="flex items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200 dark:border-white/5">
+            <div className="flex items-center gap-2 text-zinc-500">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Módulo temporalmente inactivo</span>
+            </div>
+          </div>
+        );
+      }
+
       let errorDetails = '';
       try {
         if (this.state.error?.message) {
