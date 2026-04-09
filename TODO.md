@@ -33,7 +33,7 @@
 - [x] **Safety Rewards y Gamificación:** Simulador de extintores (P.A.S.S.) y sistema de recompensas para dopamina positiva.
 - [x] **Dashboard de Crisis:** Módulo "Man Down" y check-in de emergencias.
 - [x] **Rutas de Evacuación IA:** Reemplazar mapas estáticos por el Algoritmo A\* (A-Star) para cálculo dinámico de rutas si hay túneles bloqueados.
-- [x] **Audit Trail (Caja Negra):** Crear Triggers en Firestore para guardar un registro inmutable de acciones corporativas.
+- [x] **Audit Trail (Caja Negra):** Crear Triggers en Firestore para guardar un registro inmutable de acciones corporativas. (Reglas de seguridad y lógica de seeding implementadas).
 - [x] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción.
 
 ## Prioridad 5: Escala Corporativa (Fase 10x - Vectores de Desarrollo)
@@ -239,7 +239,7 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **El Asesor NLP Autónomo:** Un pequeño modelo LLM comprimido (si el hardware lo permite) o un árbol de decisiones semántico para buscar en el glosario sin usar tokens de GenAI.
 - [x] **Sensor de Temperatura Infrarroja (si aplica):** Leer datos de wearables integrados por Bluetooth para detectar alertas térmicas corporales.
 - [x] **Filtro Edge IoT:** Procesar la telemetría de la maquinaria en el módulo /iot-edge directamente en el dispositivo, subiendo a Firebase solo los "eventos anómalos" para no saturar la base.
-- [ ] **OCR de Tarjetas de Seguridad:** Lector local que escanee permisos de trabajo físicos sin necesidad de escribirlos a mano.
+- [x] **OCR de Tarjetas de Seguridad:** Lector local que escanee permisos de trabajo físicos sin necesidad de escribirlos a mano.
 - [x] **Motor de Búsqueda Difusa:** Búsqueda ultra rápida en el Glosario (Fuse.js) que perdone errores ortográficos al buscar protocolos.
 - [x] **Integración con Acelerómetro:** Monitoreo sutil en segundo plano para alertar si se detecta una aceleración que indique caída inminente.
 - [x] **Modo de Susurro del Guardian:** La asistencia por voz ajusta su volumen si detecta ruido ambiental alto (usando el micrófono localmente).
@@ -258,11 +258,11 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 
 #### V. Bio-Análisis y Medio Ambiente (/bio-analysis / /hygiene)
 - [ ] **Rutinas "Despertar Matutino":** Un submódulo de preparación antes del inicio de turno con elongaciones basadas en la matriz biomecánica personal.
-- [ ] **Monitor de Vitalidad (Energía):** Gráfico que cruza los datos de temperatura externa, altitud y peso de herramientas para sugerir recesos de hidratación.
-- [ ] **Catálogo Flora/Fauna Offline:** Base de datos botánica local (Bugainvillea y especies nativas) para evitar impactos medioambientales durante la instalación del campamento.
-- [ ] **Calculadora de Índice UV Local:** Fórmulas matemáticas en la app que, cruzadas con la hora y latitud, exigen protector solar sin depender de APIs externas.
-- [ ] **Pausas Fisiológicas Integradas:** Animaciones de respiración guiadas (flujo) de un minuto recomendadas antes de tareas de alto rigor mental.
-- [ ] **Control de Ruidos (Dosimetría Aproximada):** Medir decibeles con el micrófono y generar alertas visuales para usar tapones auditivos (con aviso de privacidad de que no se graba el audio).
+- [x] **Monitor de Vitalidad (Energía):** Gráfico que cruza los datos de temperatura externa, altitud y peso de herramientas para sugerir recesos de hidratación.
+- [x] **Catálogo Flora/Fauna Offline:** Base de datos botánica local (Bugainvillea y especies nativas) para evitar impactos medioambientales durante la instalación del campamento.
+- [x] **Calculadora de Índice UV Local:** Fórmulas matemáticas en la app que, cruzadas con la hora y latitud, exigen protector solar sin depender de APIs externas.
+- [x] **Pausas Fisiológicas Integradas:** Animaciones de respiración guiadas (flujo) de un minuto recomendadas antes de tareas de alto rigor mental.
+- [x] **Control de Ruidos (Dosimetría Aproximada):** Medir decibeles con el micrófono y generar alertas visuales para usar tapones auditivos (con aviso de privacidad de que no se graba el audio).
 - [ ] **Bitácora Nutricional de Campamento:** Recomendaciones de hidratación integradas en el flujo diario, recordando la ingesta de jugos naturales y antioxidantes.
 - [ ] **Mapa de Contaminación Lumínica:** Vista táctica de los focos del campamento para asegurar que no interfieran con la fauna local nocturna.
 - [ ] **Gestión de Acopio HAZMAT:** Mapeo de compatibilidad química (Matriz de segregación) validada de forma instantánea sin conexión.

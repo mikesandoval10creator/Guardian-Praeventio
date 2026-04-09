@@ -5,6 +5,7 @@ import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, 
 import { useProject } from '../contexts/ProjectContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { RiskNode, NodeType } from '../types';
+import { saveForSync } from '../utils/pwa-offline';
 import { where, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import { useRiskEngine } from '../hooks/useRiskEngine';

@@ -1,25 +1,53 @@
-import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
+import { NodeType } from '../types';
 
-export const seedGlobalData = async () => {
+export const seedGlobalData = async (projectId?: string, industry?: string) => {
   try {
-    // 1. Seed Industry IPER Templates
+    // 1. Seed Industry IPER Templates (Global)
     const templatesRef = collection(db, 'global_templates');
     const templatesSnapshot = await getDocs(templatesRef);
     
     if (templatesSnapshot.empty) {
       console.log('Seeding global templates...');
-      for (const [industry, nodes] of Object.entries(INDUSTRY_IPER_BASE)) {
-        await setDoc(doc(templatesRef, industry.replace(/[^a-zA-Z0-9]/g, '_')), {
-          industryName: industry,
+      for (const [industryName, nodes] of Object.entries(INDUSTRY_IPER_BASE)) {
+        await setDoc(doc(templatesRef, industryName.replace(/[^a-zA-Z0-9]/g, '_')), {
+          industryName: industryName,
           nodes: nodes
         });
       }
       console.log('Global templates seeded successfully.');
     }
 
-    // 2. Seed Gamification Games
+    // 2. Seed Project-Specific IPER Nodes if projectId is provided
+    if (projectId && industry) {
+      console.log(`Seeding IPER nodes for project ${projectId} (${industry})...`);
+      const nodesToSeed = INDUSTRY_IPER_BASE[industry] || INDUSTRY_IPER_BASE['General'];
+      const nodesRef = collection(db, 'nodes');
+
+      for (const baseNode of nodesToSeed) {
+        await addDoc(nodesRef, {
+          type: NodeType.RISK,
+          title: baseNode.title,
+          description: `Peligro: ${baseNode.description}\nRiesgo: ${baseNode.riesgo}\nConsecuencia: ${baseNode.consecuencia}`,
+          tags: baseNode.tags,
+          projectId: projectId,
+          metadata: {
+            actividad: baseNode.actividad,
+            probabilidad: baseNode.probabilidad,
+            severidad: baseNode.severidad,
+            riesgoPuro: baseNode.probabilidad * baseNode.severidad,
+            controles: baseNode.controles
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+      console.log('Project IPER nodes seeded successfully.');
+    }
+
+    // 3. Seed Gamification Games
     const gamesRef = collection(db, 'gamification_content');
     const gamesSnapshot = await getDocs(gamesRef);
     

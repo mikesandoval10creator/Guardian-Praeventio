@@ -84,12 +84,18 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       }
 
       const { addDoc } = await import('firebase/firestore');
+      const { seedGlobalData } = await import('../services/seedService');
+      
       const docRef = await addDoc(collection(db, 'projects'), {
         ...projectData,
         createdAt: new Date().toISOString(),
         createdBy: user?.uid,
         members: [user?.uid]
       });
+
+      // Seed initial data for the new project
+      await seedGlobalData(docRef.id, projectData.industry);
+
       return docRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'projects');

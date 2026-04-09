@@ -107,12 +107,6 @@ function AppRoutes() {
   // Initialize auto-logout for enterprise security
   useAutoLogout();
 
-  useEffect(() => {
-    if (user) {
-      seedGlobalData();
-    }
-  }, [user]);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">

@@ -16,6 +16,10 @@ import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddHygieneModal } from '../components/hygiene/AddHygieneModal';
+import { NoiseMonitor } from '../components/hygiene/NoiseMonitor';
+import { BreathingExercise } from '../components/hygiene/BreathingExercise';
+import { VitalityMonitor } from '../components/hygiene/VitalityMonitor';
+import { FloraFaunaCatalog } from '../components/hygiene/FloraFaunaCatalog';
 
 const iconMap: Record<string, any> = {
   'Ruido Ambiental': Volume2,
@@ -146,8 +150,12 @@ export function Hygiene() {
           </div>
         </div>
 
-        {/* Health Stats */}
+        {/* Health Stats & Tools */}
         <div className="space-y-6">
+          <VitalityMonitor />
+          <NoiseMonitor />
+          <BreathingExercise />
+
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5 text-rose-500" />

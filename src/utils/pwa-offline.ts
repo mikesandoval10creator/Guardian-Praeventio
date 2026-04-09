@@ -6,6 +6,7 @@ const CACHE_STORE_NAME = 'ai-cache';
 
 export interface SyncAction {
   id?: number;
+  docId?: string;
   type: 'create' | 'update' | 'delete' | 'upload';
   collection: string;
   data: any;

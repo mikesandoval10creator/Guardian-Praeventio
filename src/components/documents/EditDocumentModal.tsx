@@ -58,7 +58,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
         await saveForSync({
           type: 'update',
           collection: `projects/${projectId}/documents`,
-          id: document.id,
+          docId: document.id,
           data: {
             ...formData,
             updatedAt: new Date().toISOString()

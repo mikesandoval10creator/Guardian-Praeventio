@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Sun, CloudLightning, AlertTriangle, ThermometerSun, ShieldAlert, Info, Clock, Users, CheckCircle2, Loader2 } from 'lucide-react';
+import { Sun, CloudLightning, AlertTriangle, ThermometerSun, ShieldAlert, Info, Clock, Users, CheckCircle2, Loader2, MapPin } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -8,10 +8,18 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 
 export function SunTracker() {
-  const [uvIndex, setUvIndex] = useState(8);
+  const [uvIndex, setUvIndex] = useState(0);
   const [temperature, setTemperature] = useState(28);
   const [timeOfDay, setTimeOfDay] = useState(12); // 0-24
   const [cloudCover, setCloudCover] = useState(20); // 0-100%
+  const [latitude, setLatitude] = useState(-33.4489); // Default to Santiago, Chile
+  const [dayOfYear, setDayOfYear] = useState(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now.getTime() - start.getTime();
+    const oneDay = 1000 * 60 * 60 * 24;
+    return Math.floor(diff / oneDay);
+  });
   
   const { selectedProject } = useProject();
   const { user } = useFirebase();
@@ -19,19 +27,42 @@ export function SunTracker() {
   const [isAlerting, setIsAlerting] = useState(false);
   const [alertSuccess, setAlertSuccess] = useState(false);
 
-  // Simulate UV index based on time and clouds
+  // Calculate UV index based on latitude, day of year, time, and clouds
   useEffect(() => {
-    // Base UV curve (bell shape peaking at noon)
-    let baseUv = 0;
-    if (timeOfDay > 6 && timeOfDay < 18) {
-      baseUv = Math.sin(((timeOfDay - 6) / 12) * Math.PI) * 11;
+    // 1. Calculate Solar Declination (delta)
+    // delta = 23.45 * sin(360/365 * (d - 81)) in degrees
+    const declination = 23.45 * Math.sin((2 * Math.PI / 365) * (dayOfYear - 81));
+    
+    // 2. Calculate Hour Angle (H)
+    // H = 15 * (time - 12) in degrees
+    const hourAngle = 15 * (timeOfDay - 12);
+    
+    // Convert to radians for Math functions
+    const latRad = latitude * (Math.PI / 180);
+    const decRad = declination * (Math.PI / 180);
+    const hRad = hourAngle * (Math.PI / 180);
+    
+    // 3. Calculate Solar Zenith Angle (SZA)
+    // cos(SZA) = sin(lat)*sin(dec) + cos(lat)*cos(dec)*cos(H)
+    const cosSZA = Math.sin(latRad) * Math.sin(decRad) + Math.cos(latRad) * Math.cos(decRad) * Math.cos(hRad);
+    
+    // If sun is below horizon, UV is 0
+    if (cosSZA <= 0) {
+      setUvIndex(0);
+      return;
     }
     
-    // Cloud cover reduces UV (but not completely)
+    // 4. Calculate Clear Sky UV Index (Empirical approximation)
+    // UVI ~ 12.5 * cos(SZA)^2.4 (varies by altitude, ozone, etc., but good for local offline estimation)
+    let clearSkyUv = 12.5 * Math.pow(cosSZA, 2.4);
+    
+    // 5. Apply Cloud Cover Factor
+    // Cloud cover reduces UV. 100% clouds ~ 50% UV reduction
     const cloudFactor = 1 - (cloudCover / 100) * 0.5;
     
-    setUvIndex(Math.max(0, Math.round(baseUv * cloudFactor)));
-  }, [timeOfDay, cloudCover]);
+    const finalUv = Math.max(0, Math.round(clearSkyUv * cloudFactor));
+    setUvIndex(finalUv);
+  }, [timeOfDay, cloudCover, latitude, dayOfYear]);
 
   const getUvRiskLevel = (uv: number) => {
     if (uv <= 2) return { level: 'Bajo', color: 'text-emerald-500', bg: 'bg-emerald-500/20', border: 'border-emerald-500/50' };
@@ -73,6 +104,20 @@ export function SunTracker() {
     }
   };
 
+  const handleGetLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLatitude(position.coords.latitude);
+        },
+        (error) => {
+          console.error("Error getting location:", error);
+          alert("No se pudo obtener la ubicación. Ingrese la latitud manualmente.");
+        }
+      );
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
@@ -82,7 +127,7 @@ export function SunTracker() {
             Radiación UV
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Monitoreo Ley de Ozono (Ley 20.096)
+            Calculadora Local Offline (Ley 20.096)
           </p>
         </div>
         <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${risk.color} ${risk.bg} ${risk.border}`}>
@@ -102,6 +147,39 @@ export function SunTracker() {
           </h2>
 
           <div className="space-y-4">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-zinc-400">Latitud</label>
+                <button onClick={handleGetLocation} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" /> Usar GPS
+                </button>
+              </div>
+              <input
+                type="number"
+                value={latitude}
+                onChange={(e) => setLatitude(Number(e.target.value))}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
+                placeholder="Ej: -33.4489"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">Día del Año (1-365)</label>
+              <input
+                type="range"
+                min="1"
+                max="365"
+                value={dayOfYear}
+                onChange={(e) => setDayOfYear(Number(e.target.value))}
+                className="w-full accent-emerald-500"
+              />
+              <div className="flex justify-between text-xs text-zinc-500 mt-1">
+                <span>Ene 1</span>
+                <span className="font-bold text-emerald-400">Día {dayOfYear}</span>
+                <span>Dic 31</span>
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-2">Hora del Día</label>
               <input
@@ -136,23 +214,6 @@ export function SunTracker() {
                 <span>Despejado</span>
                 <span className="font-bold text-zinc-400">{cloudCover}%</span>
                 <span>Nublado</span>
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Temperatura (°C)</label>
-              <input
-                type="range"
-                min="-10"
-                max="45"
-                value={temperature}
-                onChange={(e) => setTemperature(Number(e.target.value))}
-                className="w-full accent-orange-500"
-              />
-              <div className="flex justify-between text-xs text-zinc-500 mt-1">
-                <span>-10°C</span>
-                <span className="font-bold text-orange-400">{temperature}°C</span>
-                <span>45°C</span>
               </div>
             </div>
           </div>
@@ -227,7 +288,7 @@ export function SunTracker() {
                   } disabled:opacity-50`}
                 >
                   {isAlerting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : alertSuccess ? (
                     <CheckCircle2 className="w-4 h-4" />
                   ) : (
@@ -281,7 +342,7 @@ export function SunTracker() {
 
           {/* UV Index Display */}
           <div className="relative z-10 bg-black/50 backdrop-blur-md p-6 rounded-2xl border border-white/10 text-center mt-auto mb-10">
-            <p className="text-sm font-bold text-zinc-300 uppercase tracking-widest mb-2">Índice UV Actual</p>
+            <p className="text-sm font-bold text-zinc-300 uppercase tracking-widest mb-2">Índice UV Calculado</p>
             <div className={`text-6xl font-black ${risk.color}`}>
               {uvIndex}
             </div>

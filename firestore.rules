@@ -10,8 +10,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "contacto@praeventio.net" && request.auth.token.email_verified == true));
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     function isSupervisor() {
@@ -68,54 +67,54 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if request.auth.uid == userId && isValidUser(request.resource.data) && (request.resource.data.role != 'admin' || isAdmin());
+      allow create: if request.auth.uid == userId && isValidUser(request.resource.data) && (request.resource.data.role == 'worker' || isAdmin());
       allow update: if request.auth.uid == userId && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /projects/{projectId} {
-      allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow read, update: if isAuthenticated() && (request.auth.uid in resource.data.members || isAdmin());
+      allow create: if isAuthenticated();
+      allow delete: if isAdmin();
 
       match /workers/{workerId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }
 
       match /documents/{docId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }
 
       match /events/{eventId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }
 
       match /emergency_protocols/{protocolId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }
 
       match /emergency_messages/{messageId} {
-        allow read: if isAuthenticated();
-        allow create: if isAuthenticated();
+        allow read, create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow update, delete: if isAdmin() || isSupervisor();
       }
 
       match /emergency_checkins/{checkinId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update: if isAuthenticated() && (request.resource.data.workerId == request.auth.uid || isAdmin() || isSupervisor());
         allow delete: if isAdmin() || isSupervisor();
       }
 
       match /epp_items/{itemId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }
 
       match /epp_assignments/{assignmentId} {
-        allow read: if isAuthenticated();
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }
     }
@@ -139,7 +138,7 @@ service cloud.firestore {
 
     match /telemetry_events/{eventId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() || (request.resource.data.keys().hasAll(['secretKey']) && request.resource.data.secretKey == 'praeventio-iot-secret-2026');
+      allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
     }
 

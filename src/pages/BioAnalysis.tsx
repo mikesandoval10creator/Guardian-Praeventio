@@ -45,7 +45,7 @@ export function BioAnalysis() {
 
   const connectWearable = async () => {
     try {
-      const device = await navigator.bluetooth.requestDevice({
+      const device = await (navigator as any).bluetooth.requestDevice({
         acceptAllDevices: true,
         optionalServices: ['health_thermometer']
       });
