@@ -100,7 +100,14 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
           normativa: result.normativa,
           originalDescription: description,
           actionPlan: actionPlan,
-          status: 'pending_approval'
+          status: 'pending_approval',
+          auditTrail: [{
+            timestamp: new Date().toISOString(),
+            action: 'CREATE',
+            user: 'Sistema Guardián',
+            details: 'Análisis IPERC inicial generado por IA',
+            hash: crypto.randomUUID() // Simulated block hash
+          }]
         },
         connections: [],
         projectId: projectId

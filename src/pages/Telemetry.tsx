@@ -214,14 +214,20 @@ export function Telemetry() {
       const context = `Proyecto: ${selectedProject?.name || 'Global'}. Clima: ${weather?.temp || 20}°C, Viento: ${weather?.windSpeed || 10}km/h.`;
       const eventData = await generateRealisticIoTEvent(context);
       
-      try {
-        await addDoc(collection(db, 'telemetry_events'), {
-          ...eventData,
-          timestamp: serverTimestamp(),
-          projectId: selectedProject?.id || 'global'
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.CREATE, 'telemetry_events');
+      // Edge IoT Filter: Only upload anomalous events to Firebase to save bandwidth/storage
+      if (eventData.status === 'warning' || eventData.status === 'critical') {
+        try {
+          await addDoc(collection(db, 'telemetry_events'), {
+            ...eventData,
+            timestamp: serverTimestamp(),
+            projectId: selectedProject?.id || 'global'
+          });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'telemetry_events');
+        }
+      } else {
+        console.log('[Edge IoT Filter] Normal event filtered out locally:', eventData);
+        // Optionally update local state for the UI without hitting Firebase
       }
     } catch (error) {
       console.error('Error simulating IoT event:', error);

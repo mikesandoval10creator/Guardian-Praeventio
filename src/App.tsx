@@ -93,6 +93,7 @@ import { EmergencyOverlay } from "./components/shared/EmergencyOverlay";
 import { GeolocationTracker } from "./components/GeolocationTracker";
 import { SurvivalPing } from "./components/SurvivalPing";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
+import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonitor";
 import { seedGlobalData } from "./services/seedService";
 
 import { PortableCurriculum } from "./pages/PortableCurriculum";
@@ -137,6 +138,7 @@ function AppRoutes() {
             <EmergencyProvider>
               <GeolocationTracker />
               <EmergencyOverlay />
+              <FallDetectionMonitor />
               <Routes>
                 <Route
                   path="/login"

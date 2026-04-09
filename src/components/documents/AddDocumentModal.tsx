@@ -262,7 +262,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
               <button
                 type="submit"
                 onClick={handleSubmit}
-                disabled={loading || !file || !isOnline}
+                disabled={loading || !file}
                 className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
               >
                 {loading ? (
@@ -271,7 +271,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
                     <span>Subiendo...</span>
                   </>
                 ) : !isOnline ? (
-                  <span>Requiere Conexión</span>
+                  <span>Guardar Offline</span>
                 ) : (
                   <span>Subir Documento</span>
                 )}

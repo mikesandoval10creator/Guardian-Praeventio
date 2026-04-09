@@ -76,6 +76,7 @@ export function EvacuationRoutes() {
                 type: NodeType.FINDING,
                 projectId: selectedProject.id,
                 tags: ['Sismo', 'Evacuación', 'Emergencia', 'CSN'],
+                connections: [],
                 metadata: {
                   status: 'approved',
                   criticidad: 'Alta',
@@ -228,7 +229,7 @@ export function EvacuationRoutes() {
 
           <div className="flex justify-center">
             <Button 
-              onClick={calculateRoute} 
+              onClick={() => calculateRoute(false)} 
               disabled={isCalculating}
               className="w-full max-w-md"
             >

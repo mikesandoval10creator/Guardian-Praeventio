@@ -4,6 +4,8 @@ import { X, FileText, Loader2 } from 'lucide-react';
 import { db, doc, updateDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
+import { saveForSync } from '../../utils/pwa-offline';
+
 interface Document {
   id: string;
   name: string;
@@ -53,16 +55,23 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
 
     try {
       if (!isOnline) {
-        alert('No hay conexión. La edición requiere conexión a internet.');
-        setLoading(false);
-        return;
+        await saveForSync({
+          type: 'update',
+          collection: `projects/${projectId}/documents`,
+          id: document.id,
+          data: {
+            ...formData,
+            updatedAt: new Date().toISOString()
+          }
+        });
+        alert('Edición guardada para sincronización cuando haya conexión.');
+      } else {
+        const docRef = doc(db, `projects/${projectId}/documents`, document.id);
+        await updateDoc(docRef, {
+          ...formData,
+          updatedAt: new Date().toISOString()
+        });
       }
-
-      const docRef = doc(db, `projects/${projectId}/documents`, document.id);
-      await updateDoc(docRef, {
-        ...formData,
-        updatedAt: new Date().toISOString()
-      });
 
       onClose();
     } catch (error) {
@@ -205,11 +214,13 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                 <button
                   type="submit"
                   form="edit-doc-form"
-                  disabled={loading || !isOnline}
+                  disabled={loading}
                   className="flex-1 px-4 py-3 rounded-xl text-xs font-black text-white uppercase tracking-widest bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : !isOnline ? (
+                    'Guardar Offline'
                   ) : (
                     'Guardar Cambios'
                   )}

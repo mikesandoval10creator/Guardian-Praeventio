@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Book, Search, Filter, BookOpen } from 'lucide-react';
+import Fuse from 'fuse.js';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
 
 interface GlossaryItem {
@@ -59,12 +60,29 @@ export function Glossary() {
   // Extract unique categories from the glossary
   const categories = Array.from(new Set(Object.values(parsedGlossary).map(item => item.category))).sort();
 
-  const filteredGlossary = Object.values(parsedGlossary).filter((details) => {
-    const matchesSearch = (details.term || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) || 
-                          (details.definition || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
-    const matchesCategory = selectedCategory ? details.category === selectedCategory : true;
-    return matchesSearch && matchesCategory;
-  });
+  const fuse = useMemo(() => {
+    return new Fuse(Object.values(parsedGlossary), {
+      keys: ['term', 'definition'],
+      threshold: 0.4, // 0.0 is exact match, 1.0 is match anything
+      ignoreLocation: true,
+      includeScore: true
+    });
+  }, [parsedGlossary]);
+
+  const filteredGlossary = useMemo(() => {
+    let results = Object.values(parsedGlossary);
+    
+    if (searchTerm) {
+      const fuseResults = fuse.search(searchTerm);
+      results = fuseResults.map(result => result.item);
+    }
+    
+    if (selectedCategory) {
+      results = results.filter(item => item.category === selectedCategory);
+    }
+    
+    return results;
+  }, [searchTerm, selectedCategory, parsedGlossary, fuse]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">

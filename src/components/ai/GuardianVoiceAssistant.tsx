@@ -8,6 +8,7 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { NodeType } from '../../types';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { isOnline } from '../../utils/pwa-offline';
+import { useAmbientNoise } from '../../hooks/useAmbientNoise';
 
 // @ts-ignore
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -24,6 +25,7 @@ export function GuardianVoiceAssistant() {
   const [onlineStatus, setOnlineStatus] = useState(isOnline());
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [isListeningWakeWord, setIsListeningWakeWord] = useState(false);
+  const [whisperMode, setWhisperMode] = useState(false);
   
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
@@ -33,6 +35,35 @@ export function GuardianVoiceAssistant() {
   const { addNode, addConnection, nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
+  const { noiseLevel, startListening: startNoiseListening, stopListening: stopNoiseListening } = useAmbientNoise();
+
+  // Start ambient noise listening when assistant is open
+  useEffect(() => {
+    if (isOpen) {
+      startNoiseListening();
+    } else {
+      stopNoiseListening();
+    }
+  }, [isOpen, startNoiseListening, stopNoiseListening]);
+
+  // Adjust volume based on ambient noise
+  useEffect(() => {
+    if (audioRef.current) {
+      if (noiseLevel > 60) {
+        // High ambient noise -> Max volume
+        audioRef.current.volume = 1.0;
+        setWhisperMode(false);
+      } else if (noiseLevel < 20) {
+        // Low ambient noise -> Whisper mode
+        audioRef.current.volume = 0.3;
+        setWhisperMode(true);
+      } else {
+        // Normal volume
+        audioRef.current.volume = 0.7;
+        setWhisperMode(false);
+      }
+    }
+  }, [noiseLevel, isSpeaking]);
 
   // Wake Word Logic
   useEffect(() => {
@@ -323,7 +354,15 @@ export function GuardianVoiceAssistant() {
                   {onlineStatus ? <ShieldCheck className="w-5 h-5 text-white" /> : <WifiOff className="w-5 h-5 text-white" />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Guardián AI</h3>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                    Guardián AI
+                    {whisperMode && (
+                      <span className="flex items-center gap-1 text-[9px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full">
+                        <VolumeX className="w-3 h-3" />
+                        Susurro
+                      </span>
+                    )}
+                  </h3>
                   <div className="flex items-center gap-1">
                     <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${onlineStatus ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                     <span className="text-[10px] text-zinc-400 font-medium uppercase tracking-wider">

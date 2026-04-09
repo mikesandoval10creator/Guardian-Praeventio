@@ -1,3 +1,6 @@
+import Fuse from 'fuse.js';
+import { SAFETY_GLOSSARY } from '../constants/glossary';
+
 export interface OfflineTopic {
   id: string;
   keywords: string[];
@@ -38,6 +41,20 @@ export const OFFLINE_KNOWLEDGE_BASE: OfflineTopic[] = [
   }
 ];
 
+// Parse glossary into searchable items
+const glossaryItems = SAFETY_GLOSSARY.split('\n')
+  .filter(line => line.includes(':'))
+  .map(line => {
+    const [term, definition] = line.split(':');
+    return { term: term.trim(), definition: definition.trim() };
+  });
+
+const fuse = new Fuse(glossaryItems, {
+  keys: ['term', 'definition'],
+  threshold: 0.4,
+  includeScore: true
+});
+
 export const getOfflineResponse = (query: string, nodes?: any[]): string => {
   const lowerQuery = String(query || '').toLowerCase();
   
@@ -67,6 +84,13 @@ export const getOfflineResponse = (query: string, nodes?: any[]): string => {
     if (topic.keywords.some(kw => lowerQuery.includes(kw))) {
       return topic.content;
     }
+  }
+
+  // Fallback to Glossary Search
+  const searchResults = fuse.search(query);
+  if (searchResults.length > 0 && searchResults[0].score! < 0.5) {
+    const bestMatch = searchResults[0].item;
+    return `(Respuesta desde Glosario Offline)\n\n**${bestMatch.term}**\n${bestMatch.definition}\n\n*Nota: Esta es una definición del glosario local.*`;
   }
   
   return 'Actualmente te encuentras sin conexión a internet. He guardado tu consulta y te avisaré apenas recuperemos la señal para darte una respuesta detallada con todo el poder de la IA.';

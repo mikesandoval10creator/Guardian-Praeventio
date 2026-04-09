@@ -164,7 +164,7 @@ export function AsesorChat() {
         : "No se encontraron datos específicos en la Red Neuronal para esta consulta.";
 
       const historyForAI = messages.map(m => ({ role: m.role, content: m.content }));
-      const response = await getChatResponse(currentInput, context, historyForAI, newDetailLevel, isPremium);
+      const response = await getChatResponse(currentInput, context, historyForAI, newDetailLevel);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),

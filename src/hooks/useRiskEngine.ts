@@ -1,16 +1,18 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { RiskNode, NodeType } from '../types';
-import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, deleteDoc, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, deleteDoc, handleFirestoreError, OperationType, where } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { autoConnectNodes, generateEmbedding, enrichNodeData } from '../services/geminiService';
 import { useOnlineStatus } from './useOnlineStatus';
 import { usePendingActions } from './usePendingActions';
 import { matrixSyncManager } from '../services/syncManager';
+import { useProject } from '../contexts/ProjectContext';
 
 export const useRiskEngine = () => {
   const [fetchedNodes, setFetchedNodes] = useState<RiskNode[]>([]);
   const [loading, setLoading] = useState(true);
   const { isAuthReady, user } = useFirebase();
+  const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const pendingActions = usePendingActions();
   const [syncOperations, setSyncOperations] = useState<any[]>([]);
@@ -23,13 +25,17 @@ export const useRiskEngine = () => {
   }, []);
 
   useEffect(() => {
-    if (!isAuthReady || !user) {
+    if (!isAuthReady || !user || !selectedProject) {
       setFetchedNodes([]);
       setLoading(false);
       return;
     }
 
-    const q = query(collection(db, 'nodes'), orderBy('updatedAt', 'desc'));
+    const q = query(
+      collection(db, 'nodes'), 
+      where('projectId', '==', selectedProject.id),
+      orderBy('updatedAt', 'desc')
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const newNodes = snapshot.docs.map(doc => {

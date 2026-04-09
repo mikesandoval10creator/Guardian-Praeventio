@@ -25,7 +25,7 @@ export function PTSGenerator() {
   const [searchParams] = useSearchParams();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
-  const { addNode } = useRiskEngine();
+  const { addNode, addConnection, nodes } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
   const { isPremium } = useSubscription();
   const [documentType, setDocumentType] = useState('PTS');
@@ -57,11 +57,6 @@ export function PTSGenerator() {
   }, [environment]);
 
   // Fetch approved risks from Risk Network
-  const { data: nodes } = useFirestoreCollection<RiskNode>(
-    'nodes',
-    selectedProject ? [where('projectId', '==', selectedProject.id)] : []
-  );
-
   const approvedRisks = nodes.filter(node => 
     node.type === NodeType.RISK && 
     node.metadata?.status !== 'pending_approval'
@@ -92,12 +87,13 @@ export function PTSGenerator() {
     
     setIsSuspending(true);
     try {
-      const suspensionNode: Omit<RiskNode, 'id'> = {
+      const suspensionNode: Omit<RiskNode, 'id' | 'createdAt' | 'updatedAt'> = {
         title: `Suspensión: ${taskName}`,
         description: `Tarea suspendida preventivamente. Motivo: ${dangerousWeather}. Descripción original: ${taskDescription}`,
         type: NodeType.FINDING,
         projectId: selectedProject.id,
         tags: ['Suspensión', 'Clima', 'Prevención'],
+        connections: [],
         metadata: {
           status: 'approved',
           criticidad: 'Alta',
@@ -134,9 +130,9 @@ export function PTSGenerator() {
 
       let result;
       if (machineryDetails.trim() !== '') {
-        result = await generatePTSWithManufacturerData(taskName, taskDescription, machineryDetails, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType, isPremium);
+        result = await generatePTSWithManufacturerData(taskName, taskDescription, machineryDetails, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
       } else {
-        result = await generatePTS(taskName, taskDescription, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType, isPremium);
+        result = await generatePTS(taskName, taskDescription, riskLevel, normative, SAFETY_GLOSSARY, envContext, zkContext, documentType);
       }
       setGeneratedPTS(result);
     } catch (error) {
@@ -178,16 +174,13 @@ export function PTSGenerator() {
       }
 
       const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], `${documentType === 'PTS' ? 'PTS' : 'PE'}_${taskName.replace(/\s+/g, '_')}.pdf`, { type: 'application/pdf' });
 
-      // 2. Upload to Storage
       const timestamp = new Date().getTime();
       const fileName = `${documentType === 'PTS' ? 'PTS' : 'PE'}_${taskName.replace(/\s+/g, '_')}_${timestamp}.pdf`;
-      const storageRef = ref(storage, `projects/${selectedProject.id}/documents/${fileName}`);
-      await uploadBytes(storageRef, pdfBlob);
-      const downloadUrl = await getDownloadURL(storageRef);
+      const storagePath = `projects/${selectedProject.id}/documents/${fileName}`;
 
-      // 3. Save document to Firestore
-      const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
+      const documentData = {
         name: taskName,
         category: documentType === 'PTS' ? 'Procedimiento' : 'Plan de Emergencia',
         status: 'Vigente',
@@ -195,13 +188,11 @@ export function PTSGenerator() {
         uploadedBy: user.displayName || user.email || 'Usuario',
         projectId: selectedProject.id,
         content: generatedPTS, // Storing the structured JSON
-        url: downloadUrl, // Storing the PDF URL
         isGenerated: true,
-        createdAt: serverTimestamp()
-      });
+        createdAt: new Date().toISOString() // Fallback for serverTimestamp
+      };
 
-      // 4. Add to Risk Network
-      await addNode({
+      const nodeData = {
         type: NodeType.DOCUMENT,
         title: taskName,
         description: generatedPTS.objetivo,
@@ -209,13 +200,81 @@ export function PTSGenerator() {
         projectId: selectedProject.id,
         connections: selectedRiskId ? [selectedRiskId] : [], // Link to the risk if selected
         metadata: {
-          documentId: docRef.id,
           category: documentType === 'PTS' ? 'Procedimiento' : 'Plan de Emergencia',
           status: 'Vigente',
-          isGenerated: true,
-          pdfUrl: downloadUrl
+          isGenerated: true
         }
-      });
+      };
+
+      if (!isOnline) {
+        await saveForSync({
+          type: 'upload',
+          collection: `projects/${selectedProject.id}/documents`,
+          data: {
+            storagePath,
+            documentData,
+            createNode: true,
+            nodeData
+          },
+          file: pdfFile
+        });
+        alert('Documento guardado para sincronización cuando haya conexión.');
+      } else {
+        // 2. Upload to Storage
+        const storageRef = ref(storage, storagePath);
+        await uploadBytes(storageRef, pdfBlob);
+        const downloadUrl = await getDownloadURL(storageRef);
+
+        // 3. Save document to Firestore
+        const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/documents`), {
+          ...documentData,
+          url: downloadUrl,
+          createdAt: serverTimestamp()
+        });
+
+        // 4. Add to Risk Network
+        const newNode = await addNode({
+          ...nodeData,
+          metadata: {
+            ...nodeData.metadata,
+            documentId: docRef.id,
+            pdfUrl: downloadUrl
+          }
+        });
+
+        // Conexiones Semánticas Automáticas
+        if (newNode) {
+          const textToAnalyze = JSON.stringify(generatedPTS).toLowerCase();
+          const keywords = {
+            'altura': ['arnés', 'linea de vida', 'caída', 'andamio'],
+            'eléctrico': ['dieléctrico', 'bloqueo', 'loto', 'energía'],
+            'caliente': ['soldadura', 'chispa', 'ignición', 'extintor'],
+            'confinado': ['gases', 'ventilación', 'oxígeno', 'rescate']
+          };
+
+          const matchedKeywords = new Set<string>();
+          Object.entries(keywords).forEach(([category, words]) => {
+            if (textToAnalyze.includes(category)) {
+              words.forEach(w => matchedKeywords.add(w));
+            }
+          });
+
+          // Find existing nodes that match these keywords
+          const nodesToConnect = nodes.filter(n => 
+            n.id !== newNode.id && 
+            (n.type === NodeType.EPP || n.type === NodeType.RISK || n.type === NodeType.MACHINE) &&
+            Array.from(matchedKeywords).some(kw => 
+              n.title.toLowerCase().includes(kw) || 
+              (n.description && n.description.toLowerCase().includes(kw)) ||
+              (n.tags && n.tags.some(t => t.toLowerCase().includes(kw)))
+            )
+          );
+
+          for (const n of nodesToConnect) {
+            await addConnection(newNode.id, n.id);
+          }
+        }
+      }
 
       alert(`${documentType} guardado exitosamente en Documentos y Red Neuronal`);
     } catch (error) {
@@ -463,7 +522,7 @@ export function PTSGenerator() {
 
               <button
                 type="submit"
-                disabled={isGenerating || !taskName || !taskDescription || !isOnline}
+                disabled={isGenerating || !taskName || !taskDescription}
                 className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-colors flex items-center justify-center gap-2 ${
                   !isOnline 
                     ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
@@ -524,14 +583,14 @@ export function PTSGenerator() {
                 <div className="flex gap-2">
                   <button 
                     onClick={handleSave}
-                    disabled={isSaving || !isOnline}
+                    disabled={isSaving}
                     className="w-10 h-10 rounded-xl bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 hover:text-black transition-colors disabled:opacity-50"
                   >
                     {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                   </button>
                   <button 
                     onClick={handleDownloadPDF}
-                    disabled={isDownloading || !isOnline}
+                    disabled={isDownloading}
                     className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
                   >
                     {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}

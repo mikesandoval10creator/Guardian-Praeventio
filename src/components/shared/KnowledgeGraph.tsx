@@ -17,12 +17,15 @@ import {
   Search,
   Zap,
   WifiOff,
-  Box
+  Box,
+  Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import * as THREE from 'three';
 import { analyzeRootCauses } from '../../services/geminiService';
+import jsPDF from 'jspdf';
+import { QRCodeSVG } from 'qrcode.react';
 
 export function KnowledgeGraph() {
   const { getGraphData, loading } = useRiskEngine();
@@ -31,7 +34,10 @@ export function KnowledgeGraph() {
   const [selectedNode, setSelectedNode] = useState<RiskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [is3D, setIs3D] = useState(false);
-  const [filter, setFilter] = useState<NodeType | 'all'>('all');
+  const [isZenMode, setIsZenMode] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [filter, setFilter] = useState<NodeType | 'all' | 'orphan'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [propagatingNode, setPropagatingNode] = useState<string | null>(null);
@@ -48,21 +54,6 @@ export function KnowledgeGraph() {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  // Stop simulation after 3 seconds to save battery
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (graphRef.current) {
-        graphRef.current.d3Force('charge')?.strength(0);
-        graphRef.current.d3Force('link')?.strength(0);
-      }
-      if (graph3DRef.current) {
-        graph3DRef.current.d3Force('charge')?.strength(0);
-        graph3DRef.current.d3Force('link')?.strength(0);
-      }
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [graphData]);
 
   // Cache for Three.js objects to prevent memory leaks
   const threeCache = useRef<{
@@ -99,7 +90,38 @@ export function KnowledgeGraph() {
     const data = getGraphData();
     let filteredNodes = data.nodes;
 
-    if (filter !== 'all') {
+    if (focusMode && selectedNode) {
+      // Find neighbors up to depth 2
+      const neighbors = new Set<string>([selectedNode.id]);
+      const depth1 = new Set<string>();
+      
+      data.links.forEach(l => {
+        const sourceId = typeof l.source === 'string' ? l.source : (l.source as any).id;
+        const targetId = typeof l.target === 'string' ? l.target : (l.target as any).id;
+        
+        if (sourceId === selectedNode.id) depth1.add(targetId);
+        if (targetId === selectedNode.id) depth1.add(sourceId);
+      });
+
+      depth1.forEach(id => neighbors.add(id));
+
+      data.links.forEach(l => {
+        const sourceId = typeof l.source === 'string' ? l.source : (l.source as any).id;
+        const targetId = typeof l.target === 'string' ? l.target : (l.target as any).id;
+        
+        if (depth1.has(sourceId)) neighbors.add(targetId);
+        if (depth1.has(targetId)) neighbors.add(sourceId);
+      });
+
+      filteredNodes = filteredNodes.filter(n => neighbors.has(n.id));
+    } else if (filter === 'orphan') {
+      const connectedNodeIds = new Set<string>();
+      data.links.forEach(l => {
+        connectedNodeIds.add(typeof l.source === 'string' ? l.source : (l.source as any).id);
+        connectedNodeIds.add(typeof l.target === 'string' ? l.target : (l.target as any).id);
+      });
+      filteredNodes = filteredNodes.filter(n => !connectedNodeIds.has(n.id));
+    } else if (filter !== 'all') {
       filteredNodes = filteredNodes.filter(n => n.type === filter);
     }
 
@@ -119,7 +141,22 @@ export function KnowledgeGraph() {
     );
 
     return { nodes: filteredNodes, links: filteredLinks };
-  }, [getGraphData, filter, searchQuery]);
+  }, [getGraphData, filter, debouncedSearchQuery, focusMode, selectedNode]);
+
+  // Stop simulation after 3 seconds to save battery
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (graphRef.current) {
+        graphRef.current.d3Force('charge')?.strength(0);
+        graphRef.current.d3Force('link')?.strength(0);
+      }
+      if (graph3DRef.current) {
+        graph3DRef.current.d3Force('charge')?.strength(0);
+        graph3DRef.current.d3Force('link')?.strength(0);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [graphData]);
 
   const handleSimulatePropagation = async (node: RiskNode) => {
     if (!isOnline) return;
@@ -208,7 +245,40 @@ export function KnowledgeGraph() {
     }
   };
 
-  const getNodeColor = (type: NodeType) => {
+  const handleExportPDF = () => {
+    if (!selectedNode) return;
+    
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    
+    pdf.setFontSize(20);
+    pdf.setTextColor(15, 23, 42); // slate-900
+    pdf.text('Charla Integral de 5 Minutos', pageWidth / 2, 20, { align: 'center' });
+    
+    pdf.setFontSize(14);
+    pdf.setTextColor(51, 65, 85); // slate-700
+    pdf.text(`Tema: ${selectedNode.title}`, 20, 40);
+    
+    pdf.setFontSize(12);
+    pdf.setTextColor(100, 116, 139); // slate-500
+    pdf.text(`Tipo: ${selectedNode.type}`, 20, 50);
+    
+    pdf.setFontSize(11);
+    pdf.setTextColor(15, 23, 42); // slate-900
+    const splitDescription = pdf.splitTextToSize(selectedNode.description || 'Sin descripción', pageWidth - 40);
+    pdf.text(splitDescription, 20, 70);
+    
+    if (selectedNode.tags && selectedNode.tags.length > 0) {
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 116, 139); // slate-500
+      pdf.text(`Etiquetas: ${selectedNode.tags.join(', ')}`, 20, 70 + (splitDescription.length * 6) + 10);
+    }
+    
+    pdf.save(`Charla_5_Min_${selectedNode.title.replace(/\s+/g, '_')}.pdf`);
+  };
+
+  const getNodeColor = (type: NodeType, node?: RiskNode) => {
+    if (node && isCriticalNormative(node)) return '#ef4444'; // red-500
     switch (type) {
       case NodeType.WORKER: return '#10b981'; // emerald-500
       case NodeType.RISK: return '#f43f5e'; // rose-500
@@ -264,13 +334,19 @@ export function KnowledgeGraph() {
     );
   }
 
+  const isCriticalNormative = (node: RiskNode) => {
+    if (node.type !== NodeType.NORMATIVE) return false;
+    const text = `${node.title} ${node.description}`.toLowerCase();
+    return text.includes('cierre') || text.includes('clausura') || text.includes('fatal') || text.includes('muerte') || text.includes('grave') || text.includes('clausura de faena');
+  };
+
   return (
-    <div className={`relative bg-zinc-50 dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-white/5 overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'}`}>
+    <div className={`relative rounded-3xl border overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} ${isZenMode ? 'bg-black border-transparent' : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-white/5'}`}>
       {/* Header / Controls */}
-      <div className="absolute top-0 left-0 right-0 p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between z-10 pointer-events-none gap-2 sm:gap-0">
+      <div className={`absolute top-0 left-0 right-0 p-3 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between z-10 pointer-events-none gap-2 sm:gap-0 transition-opacity duration-500 ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
         <div className="flex items-center gap-2 sm:gap-4 pointer-events-auto w-full sm:w-auto overflow-x-auto no-scrollbar">
           <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl flex flex-nowrap sm:flex-wrap gap-1.5 sm:gap-2 min-w-max">
-            {(['all', NodeType.PROJECT, NodeType.WORKER, NodeType.RISK, NodeType.FINDING, NodeType.AUDIT, NodeType.NORMATIVE] as const).map((t) => (
+            {(['all', NodeType.PROJECT, NodeType.WORKER, NodeType.RISK, NodeType.FINDING, NodeType.AUDIT, NodeType.NORMATIVE, 'orphan'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setFilter(t)}
@@ -278,7 +354,7 @@ export function KnowledgeGraph() {
                   filter === t ? 'bg-emerald-500 text-white' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
                 }`}
               >
-                {t === 'all' ? 'Todos' : t}
+                {t === 'all' ? 'Todos' : t === 'orphan' ? 'Huérfanos' : t}
               </button>
             ))}
           </div>
@@ -295,6 +371,13 @@ export function KnowledgeGraph() {
               className="pl-9 sm:pl-11 pr-3 sm:pr-4 py-2 sm:py-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all w-full sm:w-48 sm:focus:w-64"
             />
           </div>
+          <button
+            onClick={() => setIsZenMode(!isZenMode)}
+            className={`p-2 sm:p-3 backdrop-blur-md border rounded-xl sm:rounded-2xl transition-all ${isZenMode ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white/80 dark:bg-zinc-900/80 border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
+            title="Modo Zen"
+          >
+            <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          </button>
           <button
             onClick={() => setIs3D(!is3D)}
             className={`p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl transition-all shrink-0 ${is3D ? 'text-emerald-500 border-emerald-500/50' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}
@@ -317,15 +400,15 @@ export function KnowledgeGraph() {
           ref={graph3DRef}
           graphData={graphData}
           nodeLabel="title"
-          nodeColor={node => getNodeColor((node as any).type)}
+          nodeColor={node => getNodeColor((node as any).type, node as RiskNode)}
           nodeRelSize={6}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           linkColor={() => 'rgba(255, 255, 255, 0.1)'}
           onNodeClick={handleNodeClick}
-          backgroundColor="#09090b"
+          backgroundColor={isZenMode ? '#000000' : '#09090b'}
           nodeThreeObject={(node: any) => {
-            const color = getNodeColor(node.type);
+            const color = getNodeColor(node.type, node);
             const isAffected = affectedNodes.has(node.id);
             
             // Get or create geometry
@@ -390,17 +473,17 @@ export function KnowledgeGraph() {
           ref={graphRef}
           graphData={graphData}
           nodeLabel="title"
-          nodeColor={node => getNodeColor((node as any).type)}
+          nodeColor={node => getNodeColor((node as any).type, node as RiskNode)}
           nodeRelSize={6}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           linkColor={() => 'rgba(255, 255, 255, 0.1)'}
           onNodeClick={handleNodeClick}
-          backgroundColor="#09090b"
+          backgroundColor={isZenMode ? '#000000' : '#09090b'}
           nodeCanvasObject={(node: any, ctx, globalScale) => {
             const label = node.title;
             const fontSize = 12 / globalScale;
-            const color = getNodeColor(node.type);
+            const color = getNodeColor(node.type, node);
             
             // Draw node glow
             const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, 10);
@@ -509,6 +592,12 @@ export function KnowledgeGraph() {
                 <div className="space-y-3 sm:space-y-4">
                   <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500">Etiquetas</h4>
                   <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                    {isCriticalNormative(selectedNode) && (
+                      <span className="px-2 sm:px-3 py-1 bg-red-500 rounded-md sm:rounded-lg text-[8px] sm:text-[9px] font-bold text-white uppercase tracking-widest flex items-center gap-1 shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                        <AlertTriangle className="w-3 h-3" />
+                        Riesgo de Cierre de Faena
+                      </span>
+                    )}
                     {selectedNode.tags.map(tag => (
                       <span key={tag} className="px-2 sm:px-3 py-1 bg-zinc-100 dark:bg-white/5 rounded-md sm:rounded-lg text-[8px] sm:text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-widest">
                         {tag}
@@ -537,7 +626,7 @@ export function KnowledgeGraph() {
                           : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400'
                       } disabled:opacity-50`}
                     >
-                      {isAnalyzingCauses ? <AlertTriangle className="w-4 h-4 animate-pulse" /> : <SearchIcon className="w-4 h-4" />}
+                      {isAnalyzingCauses ? <AlertTriangle className="w-4 h-4 animate-pulse" /> : <Search className="w-4 h-4" />}
                       {isAnalyzingCauses ? 'Analizando Causas...' : 'Analizar Causas Raíz'}
                     </button>
                   </>
@@ -579,10 +668,58 @@ export function KnowledgeGraph() {
                   )}
                   {!isOnline ? 'Requiere Conexión' : isSimulatingPropagation ? 'Analizando...' : propagatingNode === selectedNode.id ? 'Detener Análisis' : 'Analizar Propagación'}
                 </button>
+                <button 
+                  onClick={() => setFocusMode(!focusMode)}
+                  className={`w-full py-3 sm:py-4 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                    focusMode
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  }`}
+                >
+                  <Filter className="w-4 h-4" /> {focusMode ? 'Mostrar Toda la Red' : 'Enfocar Vecindario'}
+                </button>
+                <button 
+                  onClick={handleExportPDF}
+                  className="w-full py-3 sm:py-4 bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <FileText className="w-4 h-4" /> Exportar Charla 5 Min
+                </button>
+                <button 
+                  onClick={() => setShowQR(!showQR)}
+                  className="w-full py-3 sm:py-4 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Box className="w-4 h-4" /> {showQR ? 'Ocultar QR' : 'Sincronización P2P (QR)'}
+                </button>
                 <button className="w-full py-3 sm:py-4 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95">
                   Ver Nodo Completo
                 </button>
               </div>
+
+              {showQR && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4 sm:mt-6 p-4 bg-white dark:bg-zinc-800 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center gap-4"
+                >
+                  <p className="text-xs text-zinc-500 text-center">
+                    Escanea este código con otro dispositivo para transferir este nodo de conocimiento (Air-gapped).
+                  </p>
+                  <div className="p-4 bg-white rounded-xl">
+                    <QRCodeSVG 
+                      value={JSON.stringify({
+                        id: selectedNode.id,
+                        title: selectedNode.title,
+                        type: selectedNode.type,
+                        description: selectedNode.description,
+                        tags: selectedNode.tags
+                      })} 
+                      size={200}
+                      level="H"
+                      includeMargin={true}
+                    />
+                  </div>
+                </motion.div>
+              )}
 
               {propagationResult && propagatingNode === selectedNode.id && (
                 <motion.div
@@ -623,7 +760,7 @@ export function KnowledgeGraph() {
                   className="mt-4 sm:mt-6 p-3 sm:p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-xl sm:rounded-2xl space-y-3 sm:space-y-4"
                 >
                   <div className="flex items-center gap-2 text-rose-600 dark:text-rose-500">
-                    <SearchIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Ruta de Prevención (Causas Raíz)</h4>
                   </div>
                   

@@ -78,11 +78,10 @@ export function Calendar() {
         id: 'legal-comite',
         title: 'Reunión Comité Paritario (DS 54)',
         date: meetingDate.toISOString(),
-        type: 'meeting',
+        time: '09:00',
+        type: 'Reunión',
         description: 'Reunión mensual obligatoria del Comité Paritario de Higiene y Seguridad.',
         location: 'Sala de Reuniones',
-        status: 'scheduled',
-        participants: ['Representantes Empresa', 'Representantes Trabajadores'],
         projectId: selectedProject?.id || '',
         endDate: new Date(meetingDate.getTime() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours
         progress: 0
@@ -95,11 +94,10 @@ export function Calendar() {
         id: 'legal-depto',
         title: 'Informe Depto. Prevención (DS 40)',
         date: reportDate.toISOString(),
-        type: 'audit',
+        time: '15:00',
+        type: 'Auditoría',
         description: 'Entrega de informe mensual de accidentabilidad y gestión preventiva.',
         location: 'Gerencia',
-        status: 'scheduled',
-        participants: ['Prevencionista', 'Gerencia'],
         projectId: selectedProject?.id || '',
         endDate: new Date(reportDate.getTime() + 4 * 60 * 60 * 1000).toISOString(),
         progress: 0

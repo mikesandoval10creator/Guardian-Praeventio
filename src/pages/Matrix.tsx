@@ -229,7 +229,14 @@ export function Matrix() {
           criticidad: criticality,
           controles: manualRisk.controles,
           status: 'approved',
-          source: 'Manual'
+          source: 'Manual',
+          auditTrail: [{
+            timestamp: new Date().toISOString(),
+            action: 'CREATE',
+            user: 'Admin',
+            details: 'Creación manual de riesgo',
+            hash: crypto.randomUUID()
+          }]
         }
       });
       
@@ -263,10 +270,20 @@ export function Matrix() {
     const node = pendingRisks.find(n => n.id === nodeId);
     if (!node) return;
     
+    const currentAuditTrail = node.metadata?.auditTrail || [];
+    const newAuditBlock = {
+      timestamp: new Date().toISOString(),
+      action: 'APPROVE',
+      user: 'Admin', // In a real app, use the logged-in user's name
+      details: 'Riesgo aprobado e integrado a la matriz',
+      hash: crypto.randomUUID()
+    };
+
     await updateNode(nodeId, {
       metadata: {
         ...node.metadata,
-        status: 'approved'
+        status: 'approved',
+        auditTrail: [...currentAuditTrail, newAuditBlock]
       }
     });
   };

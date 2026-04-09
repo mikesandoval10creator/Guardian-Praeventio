@@ -54,6 +54,7 @@ export function SunTracker() {
         type: NodeType.FINDING,
         projectId: selectedProject.id,
         tags: ['Radiación UV', 'Clima', 'Turnos', 'Salud Ocupacional'],
+        connections: [],
         metadata: {
           status: 'approved',
           criticidad: uvIndex >= 8 ? 'Alta' : 'Media',

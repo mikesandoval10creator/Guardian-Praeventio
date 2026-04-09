@@ -233,28 +233,28 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Modo Silencio de Radio:** Desactiva todas las notificaciones push entrantes para no interrumpir la concentración de quien atiende una emergencia.
 
 #### III. IA, Visión Computacional y Wearables (/ai-hub)
-- [ ] **IA Edge para EPP (MediaPipe):** Usar @mediapipe/tasks-vision precargado para verificar casco y lentes procesando el video solo en el celular, cumpliendo con normas de privacidad.
-- [ ] **Desenfoque Facial Automático:** Si la cámara registra un hallazgo, aplicar filtros de difuminado sobre los rostros antes de guardar el registro (ISO 27001).
-- [ ] **Análisis Biomecánico Local:** Usar la cámara para mapear la postura de carga (Ergonomía), calculando ángulos sin enviar el video a la nube.
-- [ ] **El Asesor NLP Autónomo:** Un pequeño modelo LLM comprimido (si el hardware lo permite) o un árbol de decisiones semántico para buscar en el glosario sin usar tokens de GenAI.
-- [ ] **Sensor de Temperatura Infrarroja (si aplica):** Leer datos de wearables integrados por Bluetooth para detectar alertas térmicas corporales.
-- [ ] **Filtro Edge IoT:** Procesar la telemetría de la maquinaria en el módulo /iot-edge directamente en el dispositivo, subiendo a Firebase solo los "eventos anómalos" para no saturar la base.
+- [x] **IA Edge para EPP (MediaPipe):** Usar @mediapipe/tasks-vision precargado para verificar casco y lentes procesando el video solo en el celular, cumpliendo con normas de privacidad.
+- [x] **Desenfoque Facial Automático:** Si la cámara registra un hallazgo, aplicar filtros de difuminado sobre los rostros antes de guardar el registro (ISO 27001).
+- [x] **Análisis Biomecánico Local:** Usar la cámara para mapear la postura de carga (Ergonomía), calculando ángulos sin enviar el video a la nube.
+- [x] **El Asesor NLP Autónomo:** Un pequeño modelo LLM comprimido (si el hardware lo permite) o un árbol de decisiones semántico para buscar en el glosario sin usar tokens de GenAI.
+- [x] **Sensor de Temperatura Infrarroja (si aplica):** Leer datos de wearables integrados por Bluetooth para detectar alertas térmicas corporales.
+- [x] **Filtro Edge IoT:** Procesar la telemetría de la maquinaria en el módulo /iot-edge directamente en el dispositivo, subiendo a Firebase solo los "eventos anómalos" para no saturar la base.
 - [ ] **OCR de Tarjetas de Seguridad:** Lector local que escanee permisos de trabajo físicos sin necesidad de escribirlos a mano.
-- [ ] **Motor de Búsqueda Difusa:** Búsqueda ultra rápida en el Glosario (Fuse.js) que perdone errores ortográficos al buscar protocolos.
-- [ ] **Integración con Acelerómetro:** Monitoreo sutil en segundo plano para alertar si se detecta una aceleración que indique caída inminente.
-- [ ] **Modo de Susurro del Guardian:** La asistencia por voz ajusta su volumen si detecta ruido ambiental alto (usando el micrófono localmente).
+- [x] **Motor de Búsqueda Difusa:** Búsqueda ultra rápida en el Glosario (Fuse.js) que perdone errores ortográficos al buscar protocolos.
+- [x] **Integración con Acelerómetro:** Monitoreo sutil en segundo plano para alertar si se detecta una aceleración que indique caída inminente.
+- [x] **Modo de Susurro del Guardian:** La asistencia por voz ajusta su volumen si detecta ruido ambiental alto (usando el micrófono localmente).
 
 #### IV. Zettelkasten y Red Risk Network (/risk-network)
 - [x] **Motor de Renderizado 2D Optimizado:** Configurar react-force-graph-2d para detener la simulación física (las partículas dejan de moverse) después de 3 segundos para no drenar batería.
-- [ ] **Paginación de Nodos:** Cargar solo el "vecindario" de ideas conectadas al protocolo que se está leyendo (profundidad de nivel 2).
-- [ ] **Conexiones Semánticas Automáticas:** Si un PTS menciona "Trabajo en Altura", la app lo enlaza automáticamente al nodo EPP correspondiente (Arnés).
-- [ ] **Bóveda Privada de Proyectos:** Separar criptográficamente el Zettelkasten de un proyecto minero del de uno forestal para evitar cruce de información confidencial.
-- [ ] **Tags de Gravedad MINSAL:** Etiquetado visual automático de leyes que al fallar implican cierre de faena (Color Rojo absoluto).
-- [ ] **Historial de Decisiones Inmutable:** Guardar cada cambio en la matriz IPERC como un bloque encadenado (Audit Trail) para trazabilidad ISO 45001.
-- [ ] **Vista de Grafo en "Modo Zen":** Fondo oscuro y nodos brillantes para facilitar la lectura y el enfoque al estudiar el comportamiento de los accidentes.
-- [ ] **Modo Exportación Rápida:** Convertir una rama de ideas del Zettelkasten en un PDF formateado como Charla Integral de 5 minutos.
-- [ ] **Filtro de "Conocimiento Huérfano":** Resaltar protocolos creados que no están vinculados a ningún riesgo activo, para mantener la red limpia.
-- [ ] **Sincronización P2P por Código QR:** Permitir transferir un nodo de conocimiento de un teléfono a otro mostrando un código QR (Air-gapped transfer).
+- [x] **Paginación de Nodos:** Cargar solo el "vecindario" de ideas conectadas al protocolo que se está leyendo (profundidad de nivel 2).
+- [x] **Conexiones Semánticas Automáticas:** Si un PTS menciona "Trabajo en Altura", la app lo enlaza automáticamente al nodo EPP correspondiente (Arnés).
+- [x] **Bóveda Privada de Proyectos:** Separar criptográficamente el Zettelkasten de un proyecto minero del de uno forestal para evitar cruce de información confidencial.
+- [x] **Tags de Gravedad MINSAL:** Etiquetado visual automático de leyes que al fallar implican cierre de faena (Color Rojo absoluto).
+- [x] **Historial de Decisiones Inmutable:** Guardar cada cambio en la matriz IPERC como un bloque encadenado (Audit Trail) para trazabilidad ISO 45001.
+- [x] **Vista de Grafo en "Modo Zen":** Fondo oscuro y nodos brillantes para facilitar la lectura y el enfoque al estudiar el comportamiento de los accidentes.
+- [x] **Modo Exportación Rápida:** Convertir una rama de ideas del Zettelkasten en un PDF formateado como Charla Integral de 5 minutos.
+- [x] **Filtro de "Conocimiento Huérfano":** Resaltar protocolos creados que no están vinculados a ningún riesgo activo, para mantener la red limpia.
+- [x] **Sincronización P2P por Código QR:** Permitir transferir un nodo de conocimiento de un teléfono a otro mostrando un código QR (Air-gapped transfer).
 
 #### V. Bio-Análisis y Medio Ambiente (/bio-analysis / /hygiene)
 - [ ] **Rutinas "Despertar Matutino":** Un submódulo de preparación antes del inicio de turno con elongaciones basadas en la matriz biomecánica personal.

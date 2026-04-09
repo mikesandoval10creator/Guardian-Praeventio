@@ -42,7 +42,7 @@ export function Settings() {
         const success = await authenticate('Confirme su identidad para acceder a la configuración');
         setIsAuthenticated(success);
         if (!success) {
-          addNotification('Autenticación fallida', 'warning');
+          addNotification({ title: 'Autenticación fallida', message: 'No se pudo verificar la identidad', type: 'warning' });
           navigate('/');
         }
       } else {

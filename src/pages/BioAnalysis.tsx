@@ -11,7 +11,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
-import { FaceLandmarker, PoseLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, PoseLandmarker, ObjectDetector, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
@@ -39,10 +39,44 @@ export function BioAnalysis() {
   const [lastAnalysisImage, setLastAnalysisImage] = useState<string | null>(null);
   const [isExercisesModalOpen, setIsExercisesModalOpen] = useState(false);
   const [isModelsLoaded, setIsModelsLoaded] = useState(false);
+  const [wearableConnected, setWearableConnected] = useState(false);
+  const [bodyTemp, setBodyTemp] = useState<number | null>(null);
   const isOnline = useOnlineStatus();
+
+  const connectWearable = async () => {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: ['health_thermometer']
+      });
+      
+      setWearableConnected(true);
+      
+      const server = await device.gatt?.connect();
+      const service = await server?.getPrimaryService('health_thermometer');
+      const characteristic = await service?.getCharacteristic('temperature_measurement');
+      
+      characteristic?.startNotifications();
+      characteristic?.addEventListener('characteristicvaluechanged', (e: any) => {
+        const value = e.target.value;
+        // Parse temperature (simplified)
+        const temp = value.getUint32(1, true) / 100;
+        setBodyTemp(temp);
+        
+        if (temp > 38) {
+          setAlerts(prev => [...prev, `Alerta Térmica: Temperatura corporal elevada (${temp}°C)`]);
+        }
+      });
+      
+    } catch (error) {
+      console.error("Bluetooth error:", error);
+      alert("No se pudo conectar al wearable. Asegúrate de tener Bluetooth activado y permisos concedidos.");
+    }
+  };
 
   const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const objectDetectorRef = useRef<ObjectDetector | null>(null);
   const requestRef = useRef<number>(0);
 
   useEffect(() => {
@@ -72,9 +106,19 @@ export function BioAnalysis() {
           numPoses: 1
         });
 
+        const objectDetector = await ObjectDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.task`,
+            delegate: "GPU"
+          },
+          scoreThreshold: 0.5,
+          runningMode: "VIDEO"
+        });
+
         if (isMounted) {
           faceLandmarkerRef.current = faceLandmarker;
           poseLandmarkerRef.current = poseLandmarker;
+          objectDetectorRef.current = objectDetector;
           setIsModelsLoaded(true);
         }
       } catch (error) {
@@ -86,6 +130,7 @@ export function BioAnalysis() {
       isMounted = false;
       if (faceLandmarkerRef.current) faceLandmarkerRef.current.close();
       if (poseLandmarkerRef.current) poseLandmarkerRef.current.close();
+      if (objectDetectorRef.current) objectDetectorRef.current.close();
     };
   }, []);
 
@@ -169,6 +214,44 @@ export function BioAnalysis() {
         }
       }
 
+      // Object detection (EPP simulation)
+      let currentEpp = 100;
+      if (objectDetectorRef.current) {
+        const objectResults = objectDetectorRef.current.detectForVideo(video, startTimeMs);
+        if (objectResults.detections) {
+          let personDetected = false;
+          objectResults.detections.forEach(detection => {
+            const category = detection.categories[0].categoryName;
+            if (category === 'person') personDetected = true;
+            
+            // Draw bounding box
+            if (detection.boundingBox) {
+              ctx.strokeStyle = '#3B82F6';
+              ctx.lineWidth = 2;
+              ctx.strokeRect(
+                detection.boundingBox.originX,
+                detection.boundingBox.originY,
+                detection.boundingBox.width,
+                detection.boundingBox.height
+              );
+              ctx.fillStyle = '#3B82F6';
+              ctx.font = '12px Arial';
+              ctx.fillText(
+                `${category} ${Math.round(detection.categories[0].score * 100)}%`,
+                detection.boundingBox.originX,
+                detection.boundingBox.originY - 5
+              );
+            }
+          });
+          
+          // If person is detected but no specific EPP (simulated by checking if we only see 'person')
+          // In a real scenario, we'd use a custom model trained on 'helmet', 'glasses', etc.
+          if (personDetected && objectResults.detections.length === 1) {
+             currentEpp -= 20; // Penalty for missing EPP
+          }
+        }
+      }
+
       if (isAnalyzing) {
         // Draw scanning effect
         const scanY = (Date.now() / 10) % canvas.height;
@@ -183,7 +266,7 @@ export function BioAnalysis() {
         fatigue: Math.min(100, Math.max(0, prev.fatigue * 0.9 + currentFatigue * 0.1)),
         posture: Math.min(100, Math.max(0, prev.posture * 0.9 + currentPosture * 0.1)),
         attention: Math.min(100, Math.max(0, prev.attention * 0.9 + currentAttention * 0.1)),
-        epp: prev.epp // EPP still needs Gemini for object detection
+        epp: Math.min(100, Math.max(0, prev.epp * 0.9 + currentEpp * 0.1))
       }));
 
       requestRef.current = requestAnimationFrame(predictWebcam);
@@ -245,6 +328,38 @@ export function BioAnalysis() {
       if (!ctx) throw new Error("Could not get canvas context");
       
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+      // Apply face blurring (ISO 27001 Privacy)
+      if (faceLandmarkerRef.current) {
+        const faceResults = faceLandmarkerRef.current.detectForVideo(videoRef.current, performance.now());
+        if (faceResults.faceLandmarks) {
+          faceResults.faceLandmarks.forEach(landmarks => {
+            // Calculate bounding box for face
+            let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+            landmarks.forEach(point => {
+              const x = point.x * canvas.width;
+              const y = point.y * canvas.height;
+              minX = Math.min(minX, x);
+              minY = Math.min(minY, y);
+              maxX = Math.max(maxX, x);
+              maxY = Math.max(maxY, y);
+            });
+
+            // Add padding
+            const padding = 20;
+            minX = Math.max(0, minX - padding);
+            minY = Math.max(0, minY - padding);
+            const width = Math.min(canvas.width - minX, (maxX - minX) + padding * 2);
+            const height = Math.min(canvas.height - minY, (maxY - minY) + padding * 2);
+
+            // Apply blur
+            ctx.filter = 'blur(15px)';
+            ctx.drawImage(canvas, minX, minY, width, height, minX, minY, width, height);
+            ctx.filter = 'none';
+          });
+        }
+      }
+
       const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
       setLastAnalysisImage(canvas.toDataURL('image/jpeg'));
 
@@ -342,6 +457,16 @@ export function BioAnalysis() {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
+            onClick={connectWearable}
+            disabled={wearableConnected}
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
+              wearableConnected ? 'bg-emerald-500/20 text-emerald-500 cursor-not-allowed' : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            <HeartPulse className="w-4 h-4" />
+            <span>{wearableConnected ? 'Wearable Conectado' : 'Conectar Wearable'}</span>
+          </button>
+          <button 
             onClick={toggleCamera}
             disabled={!isModelsLoaded}
             className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-2 w-full sm:w-auto ${
@@ -434,6 +559,11 @@ export function BioAnalysis() {
                 Resultados del Análisis
               </h3>
               <div className="flex items-center gap-2">
+                {bodyTemp && (
+                  <span className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest ${bodyTemp > 38 ? 'bg-rose-500/20 text-rose-500' : 'bg-emerald-500/20 text-emerald-500'}`}>
+                    Temp: {bodyTemp.toFixed(1)}°C
+                  </span>
+                )}
                 <button 
                   onClick={() => setIsExercisesModalOpen(true)}
                   className="flex items-center gap-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all"

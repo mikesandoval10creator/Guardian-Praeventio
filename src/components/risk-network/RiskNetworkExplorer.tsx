@@ -34,17 +34,6 @@ export function RiskNetworkExplorer() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Stop simulation after 3 seconds to save battery
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (fgRef.current) {
-        fgRef.current.d3Force('charge').strength(0);
-        fgRef.current.d3Force('link').strength(0);
-      }
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [graphData]);
-
   const graphData = useMemo(() => {
     const filteredNodes = nodes.filter(n => {
       const matchesSearch = n.title.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
@@ -75,6 +64,17 @@ export function RiskNetworkExplorer() {
       links
     };
   }, [nodes, searchTerm, filterType]);
+
+  // Stop simulation after 3 seconds to save battery
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (fgRef.current) {
+        fgRef.current.d3Force('charge').strength(0);
+        fgRef.current.d3Force('link').strength(0);
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [graphData]);
 
   function getNodeColor(type: NodeType) {
     switch (type) {
