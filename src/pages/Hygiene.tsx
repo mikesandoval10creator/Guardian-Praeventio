@@ -20,6 +20,7 @@ import { NoiseMonitor } from '../components/hygiene/NoiseMonitor';
 import { BreathingExercise } from '../components/hygiene/BreathingExercise';
 import { VitalityMonitor } from '../components/hygiene/VitalityMonitor';
 import { FloraFaunaCatalog } from '../components/hygiene/FloraFaunaCatalog';
+import { MorningRoutine } from '../components/hygiene/MorningRoutine';
 
 const iconMap: Record<string, any> = {
   'Ruido Ambiental': Volume2,
@@ -152,6 +153,7 @@ export function Hygiene() {
 
         {/* Health Stats & Tools */}
         <div className="space-y-6">
+          <MorningRoutine />
           <VitalityMonitor />
           <NoiseMonitor />
           <BreathingExercise />

@@ -7,6 +7,7 @@ import { useIndustryIntegration } from '../../hooks/useIndustryIntegration';
 import { NodeType } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { saveForSync } from '../../utils/pwa-offline';
+import { TacticalOnboardingModal } from './TacticalOnboardingModal';
 
 interface AddWorkerModalProps {
   isOpen: boolean;
@@ -20,6 +21,9 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
   const [loading, setLoading] = useState(false);
   const [suggestedEPP, setSuggestedEPP] = useState<string[]>([]);
   const isOnline = useOnlineStatus();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [newWorkerData, setNewWorkerData] = useState<{name: string, role: string} | null>(null);
+  
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -76,7 +80,6 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
             }
           }
         });
-        alert('Trabajador guardado para sincronización cuando haya conexión.');
       } else {
         // 1. Create Risk Node first to get the ID
         const node = await addNode({
@@ -101,8 +104,10 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
         await addDoc(collection(db, path), { ...workerData, nodeId: node.id });
       }
 
-      onClose();
-      setFormData({ name: '', role: '', email: '', phone: '', status: 'active', hasArt22: false });
+      // Trigger Onboarding
+      setNewWorkerData({ name: formData.name, role: formData.role });
+      setShowOnboarding(true);
+
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'workers');
     } finally {
@@ -110,9 +115,17 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
     }
   };
 
+  const handleOnboardingClose = () => {
+    setShowOnboarding(false);
+    setNewWorkerData(null);
+    setFormData({ name: '', role: '', email: '', phone: '', status: 'active', hasArt22: false });
+    onClose();
+  };
+
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <>
+      <AnimatePresence>
+        {isOpen && !showOnboarding && (
         <motion.div
           key="modal-backdrop"
           initial={{ opacity: 0 }}
@@ -289,6 +302,12 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+      <TacticalOnboardingModal 
+        isOpen={showOnboarding} 
+        onClose={handleOnboardingClose} 
+        workerData={newWorkerData} 
+      />
+    </>
   );
 }

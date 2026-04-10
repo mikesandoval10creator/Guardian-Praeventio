@@ -125,9 +125,9 @@ function AppRoutes() {
   }
 
   return (
-    <SubscriptionProvider>
-      <UniversalKnowledgeProvider>
-        <ProjectProvider>
+    <UniversalKnowledgeProvider>
+      <ProjectProvider>
+        <SubscriptionProvider>
           <NotificationProvider>
             <EmergencyProvider>
               <GeolocationTracker />
@@ -282,9 +282,9 @@ function AppRoutes() {
               {user && <GuardianVoiceAssistant />}
             </EmergencyProvider>
           </NotificationProvider>
-        </ProjectProvider>
-      </UniversalKnowledgeProvider>
-    </SubscriptionProvider>
+        </SubscriptionProvider>
+      </ProjectProvider>
+    </UniversalKnowledgeProvider>
   );
 }
 

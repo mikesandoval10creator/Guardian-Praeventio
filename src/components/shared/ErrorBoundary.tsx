@@ -47,16 +47,20 @@ export class ErrorBoundary extends Component<Props, State> {
       } catch {
         errorDetails = this.state.error?.message || 'An unexpected error occurred';
       }
+      
+      if (this.state.error?.stack) {
+        errorDetails += '\n\nStack Trace:\n' + this.state.error.stack;
+      }
 
       return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950">
-          <div className="max-w-md w-full bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
+          <div className="max-w-2xl w-full bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
             <h2 className="text-2xl font-black uppercase tracking-tighter text-red-600 mb-4">Sistema Interrumpido</h2>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 font-mono">
               Se ha detectado una anomalía en el flujo de datos. La conciencia del sistema requiere calibración.
             </p>
-            <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-4 mb-6 overflow-auto max-h-48">
-              <pre className="text-[10px] font-mono text-zinc-800 dark:text-zinc-200">
+            <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-4 mb-6 overflow-auto max-h-96">
+              <pre className="text-[10px] font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
                 {errorDetails}
               </pre>
             </div>

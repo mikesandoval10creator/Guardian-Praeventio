@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, Smartphone, ArrowRight, CheckCircle2, X, Loader2, KeyRound } from 'lucide-react';
+import { Shield, Smartphone, ArrowRight, CheckCircle2, X, Loader2, KeyRound, Fingerprint } from 'lucide-react';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useBiometricAuth } from '../../hooks/useBiometricAuth';
 
 interface MFASetupModalProps {
   isOpen: boolean;
@@ -12,12 +13,13 @@ interface MFASetupModalProps {
 }
 
 export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }: MFASetupModalProps) {
-  const [step, setStep] = useState<'intro' | 'phone' | 'verify' | 'success'>('intro');
+  const [step, setStep] = useState<'intro' | 'method' | 'phone' | 'verify' | 'biometric' | 'success'>('intro');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useFirebase();
   const { addNotification } = useNotifications();
+  const { register, isSupported } = useBiometricAuth();
 
   const handleSendCode = async () => {
     if (!phoneNumber || phoneNumber.length < 9) {
@@ -58,6 +60,27 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
       setIsLoading(false);
       setStep('success');
     }, 1500);
+  };
+
+  const handleBiometricSetup = async () => {
+    setIsLoading(true);
+    const success = await register(user?.email || 'user@praeventio.net');
+    setIsLoading(false);
+    
+    if (success) {
+      setStep('success');
+      addNotification({
+        title: 'Biometría Configurada',
+        message: 'Tu dispositivo ahora es tu llave de acceso.',
+        type: 'success'
+      });
+    } else {
+      addNotification({
+        title: 'Error',
+        message: 'No se pudo configurar la biometría. Intenta con SMS.',
+        type: 'error'
+      });
+    }
   };
 
   const handleComplete = () => {
@@ -105,11 +128,48 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                   Praeventio Guard requiere Autenticación Multifactor (MFA) para garantizar la seguridad de los datos industriales y personales.
                 </p>
                 <button
-                  onClick={() => setStep('phone')}
+                  onClick={() => setStep('method')}
                   className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest bg-emerald-500 hover:bg-emerald-600 text-white transition-colors flex items-center justify-center gap-2"
                 >
                   Configurar MFA
                   <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+
+            {step === 'method' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center w-full space-y-4"
+              >
+                <h2 className="text-xl font-black text-zinc-900 dark:text-white mb-2">Elige un Método</h2>
+                
+                <button
+                  onClick={handleBiometricSetup}
+                  disabled={!isSupported || isLoading}
+                  className="w-full p-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 flex items-center gap-4 hover:border-emerald-500/50 transition-all group disabled:opacity-50"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                    <Fingerprint className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-zinc-900 dark:text-white">Biometría / Passkey</p>
+                    <p className="text-xs text-zinc-500">Usa tu huella o rostro (Recomendado)</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setStep('phone')}
+                  className="w-full p-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 flex items-center gap-4 hover:border-blue-500/50 transition-all group"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                    <Smartphone className="w-6 h-6" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-bold text-zinc-900 dark:text-white">Mensaje SMS</p>
+                    <p className="text-xs text-zinc-500">Código de 6 dígitos al celular</p>
+                  </div>
                 </button>
               </motion.div>
             )}

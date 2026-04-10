@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Award, Star, Clock, FileText, CheckCircle2, TrendingUp, Briefcase, AlertTriangle, FolderOpen } from 'lucide-react';
+import { ShieldCheck, Award, Star, Clock, FileText, CheckCircle2, TrendingUp, Briefcase, AlertTriangle, FolderOpen, Zap, Target, Heart } from 'lucide-react';
 import { Card } from '../components/shared/Card';
 import { useFirebase } from '../contexts/FirebaseContext';
 
@@ -29,6 +29,14 @@ export function PortableCurriculum() {
     { id: 2, project: 'Construcción Torre Central', role: 'Soldador Especialista', duration: '8 meses', incidentFree: true, date: '2022 - 2023' },
     { id: 3, project: 'Planta Química Sur', role: 'Técnico de Mantenimiento', duration: '24 meses', incidentFree: false, date: '2020 - 2022' },
     { id: 4, project: 'Parque Eólico Norte', role: 'Supervisor de Montaje', duration: '12 meses', incidentFree: true, date: '2019 - 2020' },
+  ];
+
+  const skills = [
+    { id: '1', name: 'Primeros Auxilios', level: 3, max: 5, icon: Heart, color: 'text-rose-500' },
+    { id: '2', name: 'Combate Incendios', level: 4, max: 5, icon: Zap, color: 'text-orange-500' },
+    { id: '3', name: 'Trabajo en Altura', level: 2, max: 5, icon: TrendingUp, color: 'text-blue-500' },
+    { id: '4', name: 'Riesgo Químico', level: 5, max: 5, icon: ShieldCheck, color: 'text-emerald-500' },
+    { id: '5', name: 'Liderazgo', level: 3, max: 5, icon: Target, color: 'text-indigo-500' },
   ];
 
   return (
@@ -87,6 +95,36 @@ export function PortableCurriculum() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Badges & Courses */}
         <div className="space-y-6">
+          <Card className="p-6 space-y-4">
+            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+              <Target className="w-5 h-5 text-indigo-500" />
+              Árbol de Habilidades
+            </h2>
+            <div className="space-y-4">
+              {skills.map(skill => (
+                <div key={skill.id} className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <skill.icon className={`w-3.5 h-3.5 ${skill.color}`} />
+                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{skill.name}</span>
+                    </div>
+                    <span className="text-[10px] font-black text-zinc-900 dark:text-white">Lvl {skill.level}</span>
+                  </div>
+                  <div className="flex gap-1">
+                    {Array.from({ length: skill.max }).map((_, i) => (
+                      <div 
+                        key={i} 
+                        className={`h-1.5 flex-1 rounded-full ${
+                          i < skill.level ? 'bg-indigo-500' : 'bg-zinc-100 dark:bg-zinc-800'
+                        }`} 
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
           <Card className="p-6 space-y-4">
             <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
               <Award className="w-5 h-5 text-amber-500" />

@@ -1,12 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Cloud, HardDrive, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, FileText, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { getPendingActions, SyncAction } from '../utils/pwa-offline';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 export function GoogleDriveIntegrationManager() {
   const [isLinked, setIsLinked] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [pendingDocs, setPendingDocs] = useState<SyncAction[]>([]);
+  const isOnline = useOnlineStatus();
+
+  useEffect(() => {
+    const loadPendingDocs = async () => {
+      const actions = await getPendingActions();
+      const docActions = actions.filter(a => a.type === 'upload' && a.collection === 'documents');
+      setPendingDocs(docActions);
+    };
+
+    loadPendingDocs();
+    window.addEventListener('sync-actions-updated', loadPendingDocs);
+    return () => window.removeEventListener('sync-actions-updated', loadPendingDocs);
+  }, []);
 
   const handleLinkAccount = () => {
     // Simulate OAuth 2.0 flow
@@ -19,12 +35,13 @@ export function GoogleDriveIntegrationManager() {
   };
 
   const handleSync = () => {
-    if (!isLinked) return;
+    if (!isLinked || !isOnline) return;
     setIsSyncing(true);
+    window.dispatchEvent(new CustomEvent('force-sync'));
     setTimeout(() => {
       setIsSyncing(false);
       setLastSync(new Date());
-    }, 1500);
+    }, 2000);
   };
 
   return (
@@ -96,7 +113,7 @@ export function GoogleDriveIntegrationManager() {
                     {lastSync ? lastSync.toLocaleTimeString() : 'Nunca'}
                   </p>
                 </div>
-                <Button variant="secondary" onClick={handleSync} disabled={isSyncing}>
+                <Button variant="secondary" onClick={handleSync} disabled={isSyncing || !isOnline}>
                   <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
                   Sincronizar Ahora
                 </Button>
@@ -122,38 +139,25 @@ export function GoogleDriveIntegrationManager() {
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-emerald-500" />
-                  <div>
-                    <p className="text-sm font-bold text-white">Reporte_SUSESO_Abril.pdf</p>
-                    <p className="text-xs text-zinc-500">Carpeta: /Auditorias/2026</p>
-                  </div>
+              {pendingDocs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-3 opacity-50" />
+                  <p className="text-sm text-zinc-500">Todos los documentos están sincronizados.</p>
                 </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              </div>
-
-              <div className="p-3 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-emerald-500" />
-                  <div>
-                    <p className="text-sm font-bold text-white">Matriz_Riesgos_V2.xlsx</p>
-                    <p className="text-xs text-zinc-500">Carpeta: /Prevencion</p>
+              ) : (
+                pendingDocs.map((doc, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-between opacity-70">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-zinc-500" />
+                      <div>
+                        <p className="text-sm font-bold text-zinc-400">{doc.file?.name || doc.data?.documentData?.title || 'Documento'}</p>
+                        <p className="text-xs text-zinc-600">Pendiente de subida a la nube</p>
+                      </div>
+                    </div>
+                    <RefreshCw className="w-4 h-4 text-zinc-500" />
                   </div>
-                </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              </div>
-
-              <div className="p-3 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-between opacity-50">
-                <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-zinc-500" />
-                  <div>
-                    <p className="text-sm font-bold text-zinc-400">Protocolo_Evacuacion.docx</p>
-                    <p className="text-xs text-zinc-600">Pendiente de cambios locales</p>
-                  </div>
-                </div>
-                <RefreshCw className="w-4 h-4 text-zinc-500" />
-              </div>
+                ))
+              )}
             </div>
           )}
         </Card>

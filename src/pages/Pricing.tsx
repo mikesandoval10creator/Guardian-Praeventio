@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Building2, Users, ShieldAlert, Zap, ArrowRight, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Building2, Users, ShieldAlert, Zap, ArrowRight, AlertTriangle, Loader2, CreditCard } from 'lucide-react';
 import { useSubscription, SubscriptionPlan } from '../contexts/SubscriptionContext';
+import { useNotifications } from '../contexts/NotificationContext';
 
 const PLANS = [
   {
@@ -70,6 +71,36 @@ const ENTERPRISE_PLANS = [
 
 export function Pricing() {
   const { plan, totalWorkers, recommendedPlan, requiresUpgrade, upgradePlan } = useSubscription();
+  const { addNotification } = useNotifications();
+  const [isProcessing, setIsProcessing] = React.useState<string | null>(null);
+
+  const handlePayment = async (planId: SubscriptionPlan) => {
+    setIsProcessing(planId);
+    
+    // Simulate Stripe/Fintoc Checkout Session creation
+    // In production, this would call a Cloud Function to create a session
+    // and redirect the user to the payment gateway.
+    try {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate successful webhook response
+      upgradePlan(planId);
+      
+      addNotification({
+        title: 'Suscripción Exitosa',
+        message: `Tu plan ha sido actualizado a ${planId.toUpperCase()}.`,
+        type: 'success'
+      });
+    } catch (error) {
+      addNotification({
+        title: 'Error en el Pago',
+        message: 'No se pudo procesar la transacción. Intenta nuevamente.',
+        type: 'error'
+      });
+    } finally {
+      setIsProcessing(null);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
@@ -100,10 +131,11 @@ export function Pricing() {
             </p>
           </div>
           <button 
-            onClick={() => upgradePlan(recommendedPlan)}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap"
+            onClick={() => handlePayment(recommendedPlan)}
+            disabled={!!isProcessing}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap disabled:opacity-50"
           >
-            Actualizar Ahora
+            {isProcessing === recommendedPlan ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Actualizar Ahora'}
           </button>
         </motion.div>
       )}
@@ -150,11 +182,20 @@ export function Pricing() {
             </ul>
 
             <button
-              onClick={() => upgradePlan(p.id as SubscriptionPlan)}
-              disabled={plan === p.id}
-              className={`w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all ${p.buttonColor} ${plan === p.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => handlePayment(p.id as SubscriptionPlan)}
+              disabled={plan === p.id || !!isProcessing}
+              className={`w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all ${p.buttonColor} ${plan === p.id || !!isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              {plan === p.id ? 'Plan Actual' : 'Seleccionar Plan'}
+              {isProcessing === p.id ? (
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : plan === p.id ? (
+                'Plan Actual'
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Seleccionar Plan
+                </span>
+              )}
             </button>
           </div>
         ))}
@@ -193,10 +234,17 @@ export function Pricing() {
                   <td className="p-4 sm:p-6 font-bold">{p.annual}</td>
                   <td className="p-4 sm:p-6 text-right">
                     <button 
-                      onClick={() => upgradePlan(p.id as SubscriptionPlan)}
-                      className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold uppercase tracking-wider text-xs flex items-center gap-1 justify-end w-full"
+                      onClick={() => handlePayment(p.id as SubscriptionPlan)}
+                      disabled={plan === p.id || !!isProcessing}
+                      className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold uppercase tracking-wider text-xs flex items-center gap-1 justify-end w-full disabled:opacity-50"
                     >
-                      {plan === p.id ? 'Actual' : 'Seleccionar'} <ArrowRight className="w-4 h-4" />
+                      {isProcessing === p.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : plan === p.id ? (
+                        'Actual'
+                      ) : (
+                        <>Seleccionar <ArrowRight className="w-4 h-4" /></>
+                      )}
                     </button>
                   </td>
                 </tr>

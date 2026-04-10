@@ -11,6 +11,11 @@ interface PraeventioDB extends DBSchema {
     value: any;
     indexes: { 'by-project': string };
   };
+  zettelkasten: {
+    key: string;
+    value: any;
+    indexes: { 'by-project': string };
+  };
   offlineQueue: {
     key: number;
     value: {
@@ -36,6 +41,10 @@ export const initDB = () => {
         if (!db.objectStoreNames.contains('matrices')) {
           const matrixStore = db.createObjectStore('matrices', { keyPath: 'id' });
           matrixStore.createIndex('by-project', 'projectId');
+        }
+        if (!db.objectStoreNames.contains('zettelkasten')) {
+          const zettelStore = db.createObjectStore('zettelkasten', { keyPath: 'id' });
+          zettelStore.createIndex('by-project', 'projectId');
         }
         if (!db.objectStoreNames.contains('offlineQueue')) {
           db.createObjectStore('offlineQueue', { keyPath: 'id', autoIncrement: true });
@@ -91,6 +100,34 @@ export const getMatricesOffline = async (projectId: string) => {
   const db = await initDB();
   const matrices = await db.getAllFromIndex('matrices', 'by-project', projectId);
   return matrices.map(m => m._encryptedData ? decryptData(m._encryptedData) : m);
+};
+
+export const saveZettelNodeOffline = async (node: any) => {
+  const db = await initDB();
+  const encryptedNode = { ...node, _encryptedData: encryptData(node) };
+  await db.put('zettelkasten', encryptedNode);
+};
+
+export const getZettelNodesOffline = async (projectId: string, limit = 50, offset = 0) => {
+  const db = await initDB();
+  const tx = db.transaction('zettelkasten', 'readonly');
+  const index = tx.store.index('by-project');
+  
+  let cursor = await index.openCursor(IDBKeyRange.only(projectId));
+  const results: any[] = [];
+  let count = 0;
+
+  if (offset > 0 && cursor) {
+    await cursor.advance(offset);
+  }
+
+  while (cursor && count < limit) {
+    results.push(cursor.value._encryptedData ? decryptData(cursor.value._encryptedData) : cursor.value);
+    count++;
+    cursor = await cursor.continue();
+  }
+
+  return results;
 };
 
 export const addToOfflineQueue = async (action: 'create' | 'update' | 'delete', collection: string, data: any) => {

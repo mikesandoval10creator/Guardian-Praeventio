@@ -3,6 +3,7 @@ import { openDB, IDBPDatabase } from 'idb';
 const DB_NAME = 'praeventio-offline';
 const STORE_NAME = 'pending-sync';
 const CACHE_STORE_NAME = 'ai-cache';
+const BUNKER_STORE_NAME = 'bunker-knowledge';
 
 export interface SyncAction {
   id?: number;
@@ -18,7 +19,7 @@ let dbPromise: Promise<IDBPDatabase> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB(DB_NAME, 2, {
+    dbPromise = openDB(DB_NAME, 3, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -28,6 +29,11 @@ function getDB() {
         if (oldVersion < 2) {
           if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
             db.createObjectStore(CACHE_STORE_NAME, { keyPath: 'key' });
+          }
+        }
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains(BUNKER_STORE_NAME)) {
+            db.createObjectStore(BUNKER_STORE_NAME, { keyPath: 'id' });
           }
         }
       },
@@ -44,6 +50,17 @@ export const cacheAIResponse = async (key: string, data: any) => {
 export const getCachedAIResponse = async (key: string) => {
   const db = await getDB();
   const result = await db.get(CACHE_STORE_NAME, key);
+  return result ? result.data : null;
+};
+
+export const saveBunkerKnowledge = async (id: string, data: any) => {
+  const db = await getDB();
+  return db.put(BUNKER_STORE_NAME, { id, data, timestamp: Date.now() });
+};
+
+export const getBunkerKnowledge = async (id: string) => {
+  const db = await getDB();
+  const result = await db.get(BUNKER_STORE_NAME, id);
   return result ? result.data : null;
 };
 

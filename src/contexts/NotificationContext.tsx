@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
@@ -91,7 +91,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const addNotification = (n: Omit<Notification, 'id' | 'time' | 'read' | 'createdAt'>) => {
+  const addNotification = useCallback((n: Omit<Notification, 'id' | 'time' | 'read' | 'createdAt'>) => {
     if (isCrisisMode) return; // Radio silence mode
 
     const newNotification: Notification = {
@@ -107,19 +107,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(n.title, { body: n.message });
     }
-  };
+  }, [isCrisisMode]);
 
-  const markAsRead = (id: string) => {
+  const markAsRead = useCallback((id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
+  }, []);
 
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
+  }, []);
 
-  const clearAll = () => {
+  const clearAll = useCallback(() => {
     setNotifications([]);
-  };
+  }, []);
 
   return (
     <NotificationContext.Provider value={{ notifications, unreadCount, addNotification, markAsRead, markAllAsRead, clearAll }}>

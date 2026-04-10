@@ -24,6 +24,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { BunkerManager } from '../components/BunkerManager';
 
 export function Settings() {
   const { notificationPermissionStatus, requestPermission } = usePushNotifications();
@@ -201,7 +202,9 @@ export function Settings() {
         );
       case 'Base de Datos y Red Neuronal':
         return (
-          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-6">
+            <BunkerManager />
+            
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Database className="w-6 h-6 text-emerald-500 mx-auto mb-2" />

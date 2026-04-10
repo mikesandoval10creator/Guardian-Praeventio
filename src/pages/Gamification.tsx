@@ -10,6 +10,7 @@ import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { ExtinguisherSimulator } from '../components/gamification/ExtinguisherSimulator';
+import { NormativeQuiz } from '../components/gamification/NormativeQuiz';
 
 interface LeaderboardUser {
   id: string;
@@ -210,6 +211,17 @@ export function Gamification() {
       points: 150,
       locked: stats.points < 200,
       requiredPoints: 200
+    },
+    {
+      id: 'g4',
+      title: 'Desafío Normativo',
+      description: 'Pon a prueba tus conocimientos sobre la Ley 16.744 y DS 594 con este quiz generado por IA.',
+      thumbnail: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=800',
+      fallbackThumbnail: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=800',
+      points: 200,
+      locked: stats.points < 300,
+      requiredPoints: 300,
+      type: 'quiz'
     }
   ];
 
@@ -620,6 +632,14 @@ export function Gamification() {
           <ExtinguisherSimulator 
             onComplete={(points) => {
               addPoints(points, 'Simulador de Extintores completado');
+              setActiveGame(null);
+            }} 
+            onClose={() => setActiveGame(null)} 
+          />
+        ) : activeGame === 'g4' ? (
+          <NormativeQuiz 
+            onComplete={(points) => {
+              addPoints(points, 'Desafío Normativo completado');
               setActiveGame(null);
             }} 
             onClose={() => setActiveGame(null)} 

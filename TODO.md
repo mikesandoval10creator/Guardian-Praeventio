@@ -257,7 +257,7 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Sincronización P2P por Código QR:** Permitir transferir un nodo de conocimiento de un teléfono a otro mostrando un código QR (Air-gapped transfer).
 
 #### V. Bio-Análisis y Medio Ambiente (/bio-analysis / /hygiene)
-- [ ] **Rutinas "Despertar Matutino":** Un submódulo de preparación antes del inicio de turno con elongaciones basadas en la matriz biomecánica personal.
+- [x] **Rutinas "Despertar Matutino":** Un submódulo de preparación antes del inicio de turno con elongaciones basadas en la matriz biomecánica personal.
 - [x] **Monitor de Vitalidad (Energía):** Gráfico que cruza los datos de temperatura externa, altitud y peso de herramientas para sugerir recesos de hidratación.
 - [x] **Catálogo Flora/Fauna Offline:** Base de datos botánica local (Bugainvillea y especies nativas) para evitar impactos medioambientales durante la instalación del campamento.
 - [x] **Calculadora de Índice UV Local:** Fórmulas matemáticas en la app que, cruzadas con la hora y latitud, exigen protector solar sin depender de APIs externas.
@@ -269,19 +269,19 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [ ] **Estimador de Tasa Metabólica:** Cálculo en tiempo real de la exigencia física de una faena para rotar roles y mantener la mente afilada.
 
 #### VI. Gestión de Proyectos, Trabajadores y PTS (/pts, /workers)
-- [ ] **Firma Geométrica Vectorial:** Guardar las firmas de los operarios en los PTS como vectores .svg para que no pesen nada en la base de datos.
+- [x] **Firma Geométrica Vectorial:** Guardar las firmas de los operarios en los PTS como vectores .svg para que no pesen nada en la base de datos.
 - [ ] **Perfil del Nakama:** Vista de trabajador con diseño "Cartas RPG" mostrando sus certificaciones activas de manera elegante.
 - [ ] **Calculadora de Probabilidad/Consecuencia Nativa:** En el submódulo de Matriz, las fórmulas de riesgo puro corren en memoria local sin latencia.
 - [ ] **Autocompletado Predictivo en PTS:** Basado en la ubicación GPS, pre-llenar la obra, el clima y los riesgos típicos de ese cuadrante.
 - [ ] **Control de Acceso Seguro (SSO Local):** Integración con el sistema del casino o campamento para validar identidades mediante credenciales encriptadas.
-- [ ] **Generador Inmutable (Immutable Render):** Al cerrar un documento, sellarlo criptográficamente (Hash) para garantizar ante SUSESO que no fue modificado post-accidente.
+- [x] **Generador Inmutable (Immutable Render):** Al cerrar un documento, sellarlo criptográficamente (Hash) para garantizar ante SUSESO que no fue modificado post-accidente.
 - [ ] **Modo Asistencia Rápida:** Módulo que lee rápidamente códigos QR o NFC de los cascos en la entrada de la faena.
 - [ ] **Auditorías ISO Interactivas:** Checklist dinámico que oculta o muestra preguntas dependiendo de las respuestas previas.
 - [ ] **Trazabilidad de EPI/EPP:** Registro de vida útil de un arnés desde que sale de bodega hasta su descarte, notificado localmente.
 - [ ] **Carga Diferida Inteligente (Lazy Modals):** Los modales pesados (como la edición de AutoCAD Viewer) solo se instancian cuando el usuario hace clic.
 
 #### VII. Currículum Portable y Gamificación (/gamification)
-- [ ] **Árbol de Habilidades (Skill Tree):** Un visualizador donde el operario desbloquea insignias "Scout" al completar capacitaciones.
+- [x] **Árbol de Habilidades (Skill Tree):** Un visualizador donde el operario desbloquea insignias "Scout" al completar capacitaciones.
 - [ ] **Buzzer de Reflejos:** Mini-simuladores (estilo arcade rápido) en los tiempos muertos para evaluar la capacidad de respuesta y fluidez antes del turno.
 - [ ] **Sistema de Logros Locales:** Reconocimientos (ej. "Semana Invicta") que se calculan en el celular del usuario y luego se respaldan.
 - [ ] **Render de Medallas 3D:** Pequeños modelos three.js ligeros de las certificaciones, que pueden girarse con el dedo en el perfil de usuario.
