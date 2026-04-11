@@ -54,6 +54,7 @@ const ControlsAndMaterials = lazy(() => import('./pages/ControlsAndMaterials').t
 const AcademicProcessor = lazy(() => import('./pages/AcademicProcessor').then(module => ({ default: module.AcademicProcessor })));
 const VolcanicEruptionMap = lazy(() => import('./pages/VolcanicEruptionMap').then(module => ({ default: module.VolcanicEruptionMap })));
 const HazmatMap = lazy(() => import('./pages/HazmatMap').then(module => ({ default: module.HazmatMap })));
+const HazmatStorage = lazy(() => import('./pages/HazmatStorage').then(module => ({ default: module.HazmatStorage })));
 const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ default: module.SunTracker })));
 const MountainRefuges = lazy(() => import('./pages/MountainRefuges').then(module => ({ default: module.MountainRefuges })));
 const NationalParksEmergency = lazy(() => import('./pages/NationalParksEmergency').then(module => ({ default: module.NationalParksEmergency })));
@@ -190,6 +191,7 @@ function AppRoutes() {
                     element={<VolcanicEruptionMap />}
                   />
                   <Route path="hazmat-map" element={<HazmatMap />} />
+                  <Route path="hazmat-storage" element={<HazmatStorage />} />
                   <Route
                     path="mountain-refuges"
                     element={<MountainRefuges />}

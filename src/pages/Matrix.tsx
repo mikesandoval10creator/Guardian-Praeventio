@@ -711,6 +711,30 @@ export function Matrix() {
               </select>
             </div>
           </div>
+          
+          {/* Calculadora Nativa de Riesgo Puro */}
+          <div className={`p-4 rounded-xl border flex flex-col items-center justify-center transition-all ${
+            (manualRisk.probabilidad * manualRisk.severidad) >= 16 ? 'bg-rose-500/10 border-rose-500/30' :
+            (manualRisk.probabilidad * manualRisk.severidad) >= 9 ? 'bg-orange-500/10 border-orange-500/30' :
+            (manualRisk.probabilidad * manualRisk.severidad) >= 4 ? 'bg-amber-500/10 border-amber-500/30' :
+            'bg-emerald-500/10 border-emerald-500/30'
+          }`}>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Riesgo Puro (P x S)</span>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl font-black text-zinc-900 dark:text-white">{manualRisk.probabilidad * manualRisk.severidad}</span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                (manualRisk.probabilidad * manualRisk.severidad) >= 16 ? 'bg-rose-500 text-white' :
+                (manualRisk.probabilidad * manualRisk.severidad) >= 9 ? 'bg-orange-500 text-white' :
+                (manualRisk.probabilidad * manualRisk.severidad) >= 4 ? 'bg-amber-500 text-white' :
+                'bg-emerald-500 text-white'
+              }`}>
+                {(manualRisk.probabilidad * manualRisk.severidad) >= 16 ? 'Crítico' :
+                 (manualRisk.probabilidad * manualRisk.severidad) >= 9 ? 'Alto' :
+                 (manualRisk.probabilidad * manualRisk.severidad) >= 4 ? 'Medio' : 'Bajo'}
+              </span>
+            </div>
+          </div>
+
           <div>
             <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Medidas de Control</label>
             <textarea 

@@ -3,6 +3,8 @@
  * API Documentation: https://www.leychile.cl/Consulta/api
  */
 
+import { XMLParser } from 'fast-xml-parser';
+
 export interface BCNLaw {
   idNorma: string;
   titulo: string;
@@ -17,8 +19,6 @@ export interface BCNLaw {
  */
 export const fetchLawFromBCN = async (idNorma: string): Promise<BCNLaw | null> => {
   try {
-    // Note: In a real production app, you might need a proxy to bypass CORS issues
-    // if calling directly from the browser, or call this from a backend Cloud Function.
     const response = await fetch(`https://www.leychile.cl/Consulta/obtxml?opt=7&idNorma=${idNorma}`);
     
     if (!response.ok) {
@@ -27,22 +27,36 @@ export const fetchLawFromBCN = async (idNorma: string): Promise<BCNLaw | null> =
 
     const xmlText = await response.text();
     
-    // Basic XML parsing (in a real app, use a robust XML parser like fast-xml-parser)
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: "@_"
+    });
+    const xmlDoc = parser.parse(xmlText);
     
-    const titulo = xmlDoc.getElementsByTagName("TituloNorma")[0]?.textContent || "Título Desconocido";
-    const fechaPublicacion = xmlDoc.getElementsByTagName("FechaPublicacion")[0]?.textContent || "";
-    const organismo = xmlDoc.getElementsByTagName("Organismo")[0]?.textContent || "";
+    const norma = xmlDoc?.Norma || {};
+    const titulo = norma.TituloNorma || "Título Desconocido";
+    const fechaPublicacion = norma.FechaPublicacion || "";
+    const organismo = norma.Organismo || "";
     
-    // Extracting the main text (this is a simplified extraction)
-    const estructuras = xmlDoc.getElementsByTagName("Estructura");
     let textoCompleto = "";
-    for (let i = 0; i < estructuras.length; i++) {
-      const textoNode = estructuras[i].getElementsByTagName("Texto")[0];
-      if (textoNode && textoNode.textContent) {
-        textoCompleto += textoNode.textContent + "\\n\\n";
+    
+    // Recursive function to extract text from Estructura nodes
+    const extractText = (node: any) => {
+      if (!node) return;
+      if (Array.isArray(node)) {
+        node.forEach(extractText);
+      } else if (typeof node === 'object') {
+        if (node.Texto) {
+          textoCompleto += node.Texto + "\n\n";
+        }
+        if (node.Estructura) {
+          extractText(node.Estructura);
+        }
       }
+    };
+
+    if (norma.Estructuras && norma.Estructuras.Estructura) {
+      extractText(norma.Estructuras.Estructura);
     }
 
     return {

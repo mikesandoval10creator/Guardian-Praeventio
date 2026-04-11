@@ -4,6 +4,29 @@ import { searchRelevantContext } from './ragService';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const withExponentialBackoff = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 5,
+  baseDelay: number = 1000
+): Promise<T> => {
+  let retries = 0;
+  while (true) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (retries >= maxRetries || (error.status !== 429 && error.status !== 503)) {
+        throw error;
+      }
+      const delay = baseDelay * Math.pow(2, retries);
+      console.warn(`Rate limited. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
+      await sleep(delay);
+      retries++;
+    }
+  }
+};
+
 export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   if (texts.length === 0) return [];
@@ -13,10 +36,12 @@ export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[]
 
   for (const text of texts) {
     try {
-      const response = await ai.models.embedContent({
-        model: "text-embedding-004",
-        contents: text,
-      });
+      const response = await withExponentialBackoff(() => 
+        ai.models.embedContent({
+          model: "text-embedding-004",
+          contents: text,
+        })
+      );
       embeddings.push(response.embeddings?.[0]?.values || []);
     } catch (e) {
       console.error("Error generating embedding for text:", text, e);

@@ -4,8 +4,21 @@ import path from "path";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import dotenv from "dotenv";
+import { initializeRAG } from "./src/services/ragService.js";
+import admin from "firebase-admin";
 
 dotenv.config();
+
+// Initialize Firebase Admin
+try {
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+    });
+  }
+} catch (error) {
+  console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
+}
 
 const app = express();
 const PORT = 3000;
@@ -13,15 +26,33 @@ const PORT = 3000;
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-  secret: "praeventio-guard-secret",
+  secret: process.env.SESSION_SECRET || "praeventio-guard-secret-fallback",
   resave: false,
   saveUninitialized: true,
   cookie: { 
-    secure: true, 
+    secure: process.env.NODE_ENV === "production", 
     sameSite: 'none',
     httpOnly: true 
   }
 }));
+
+// Firebase Auth Middleware
+const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: "Unauthorized: No token provided" });
+  }
+
+  const token = authHeader.split('Bearer ')[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    (req as any).user = decodedToken;
+    next();
+  } catch (error) {
+    console.error("Error verifying auth token:", error);
+    return res.status(401).json({ error: "Unauthorized: Invalid token" });
+  }
+};
 
 // OAuth Configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -242,7 +273,7 @@ app.post("/api/telemetry/ingest", async (req, res) => {
 });
 
 // Gemini API Proxy
-app.post("/api/gemini", async (req, res) => {
+app.post("/api/gemini", verifyAuth, async (req, res) => {
   const { action, args } = req.body;
   try {
     const geminiBackend = await import('./src/services/geminiBackend.js');
@@ -272,6 +303,9 @@ if (process.env.NODE_ENV !== "production") {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Initialize RAG system asynchronously
+initializeRAG().catch(console.error);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);

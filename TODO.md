@@ -4,10 +4,10 @@
 
 ## Prioridad 0: Vulnerabilidades Críticas y Arquitectura Base (URGENTE)
 
-- [ ] **Migración Full-Stack (Express + Vite):** Mover la lógica de IA (`geminiService.ts`) a un backend Node.js para proteger la `GEMINI_API_KEY` de exposición en el cliente.
-- [ ] **RAG Real (Base de Datos Vectorial):** Reemplazar el texto estático simulado de la BCN por un sistema RAG real con embeddings y base de datos vectorial.
-- [ ] **Algoritmo de Evacuación Determinista:** Reemplazar la generación de rutas por IA (LLM) con un algoritmo matemático estricto (A* o Dijkstra) para garantizar la seguridad vital.
-- [ ] **Code Splitting (Lazy Loading):** Implementar `React.lazy` y `<Suspense>` en `App.tsx` para optimizar el rendimiento y la carga inicial en zonas de baja conectividad.
+- [x] **Migración Full-Stack (Express + Vite):** Mover la lógica de IA (`geminiService.ts`) a un backend Node.js para proteger la `GEMINI_API_KEY` de exposición en el cliente.
+- [x] **RAG Real (Base de Datos Vectorial):** Reemplazar el texto estático simulado de la BCN por un sistema RAG real con embeddings y base de datos vectorial.
+- [x] **Algoritmo de Evacuación Determinista:** Reemplazar la generación de rutas por IA (LLM) con un algoritmo matemático estricto (A* o Dijkstra) para garantizar la seguridad vital.
+- [x] **Code Splitting (Lazy Loading):** Implementar `React.lazy` y `<Suspense>` en `App.tsx` para optimizar el rendimiento y la carga inicial en zonas de baja conectividad.
 
 ## Prioridad 1: El Núcleo Predictivo y Cognitivo (Operativo)
 
@@ -272,13 +272,13 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Control de Ruidos (Dosimetría Aproximada):** Medir decibeles con el micrófono y generar alertas visuales para usar tapones auditivos (con aviso de privacidad de que no se graba el audio).
 - [ ] **Bitácora Nutricional de Campamento:** Recomendaciones de hidratación integradas en el flujo diario, recordando la ingesta de jugos naturales y antioxidantes.
 - [ ] **Mapa de Contaminación Lumínica:** Vista táctica de los focos del campamento para asegurar que no interfieran con la fauna local nocturna.
-- [ ] **Gestión de Acopio HAZMAT:** Mapeo de compatibilidad química (Matriz de segregación) validada de forma instantánea sin conexión.
+- [x] **Gestión de Acopio HAZMAT:** Mapeo de compatibilidad química (Matriz de segregación) validada de forma instantánea sin conexión.
 - [ ] **Estimador de Tasa Metabólica:** Cálculo en tiempo real de la exigencia física de una faena para rotar roles y mantener la mente afilada.
 
 #### VI. Gestión de Proyectos, Trabajadores y PTS (/pts, /workers)
 - [x] **Firma Geométrica Vectorial:** Guardar las firmas de los operarios en los PTS como vectores .svg para que no pesen nada en la base de datos.
 - [ ] **Perfil del Nakama:** Vista de trabajador con diseño "Cartas RPG" mostrando sus certificaciones activas de manera elegante.
-- [ ] **Calculadora de Probabilidad/Consecuencia Nativa:** En el submódulo de Matriz, las fórmulas de riesgo puro corren en memoria local sin latencia.
+- [x] **Calculadora de Probabilidad/Consecuencia Nativa:** En el submódulo de Matriz, las fórmulas de riesgo puro corren en memoria local sin latencia.
 - [ ] **Autocompletado Predictivo en PTS:** Basado en la ubicación GPS, pre-llenar la obra, el clima y los riesgos típicos de ese cuadrante.
 - [ ] **Control de Acceso Seguro (SSO Local):** Integración con el sistema del casino o campamento para validar identidades mediante credenciales encriptadas.
 - [x] **Generador Inmutable (Immutable Render):** Al cerrar un documento, sellarlo criptográficamente (Hash) para garantizar ante SUSESO que no fue modificado post-accidente.

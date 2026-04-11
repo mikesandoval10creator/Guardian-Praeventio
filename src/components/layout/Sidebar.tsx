@@ -377,6 +377,12 @@ const menuGroups: MenuGroup[] = [
         color: "text-violet-500",
       },
       {
+        title: "Acopio Hazmat",
+        icon: Droplet,
+        path: "/hazmat-storage",
+        color: "text-emerald-500",
+      },
+      {
         title: "Refugios Montaña",
         icon: Mountain,
         path: "/mountain-refuges",
