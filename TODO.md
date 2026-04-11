@@ -2,6 +2,13 @@
 
 "El riesgo se neutraliza en el diseño, no en la reacción." - El Guardián.
 
+## Prioridad 0: Vulnerabilidades Críticas y Arquitectura Base (URGENTE)
+
+- [ ] **Migración Full-Stack (Express + Vite):** Mover la lógica de IA (`geminiService.ts`) a un backend Node.js para proteger la `GEMINI_API_KEY` de exposición en el cliente.
+- [ ] **RAG Real (Base de Datos Vectorial):** Reemplazar el texto estático simulado de la BCN por un sistema RAG real con embeddings y base de datos vectorial.
+- [ ] **Algoritmo de Evacuación Determinista:** Reemplazar la generación de rutas por IA (LLM) con un algoritmo matemático estricto (A* o Dijkstra) para garantizar la seguridad vital.
+- [ ] **Code Splitting (Lazy Loading):** Implementar `React.lazy` y `<Suspense>` en `App.tsx` para optimizar el rendimiento y la carga inicial en zonas de baja conectividad.
+
 ## Prioridad 1: El Núcleo Predictivo y Cognitivo (Operativo)
 
 - [x] **Zettelkasten Neuronal:** Grafo 2D/3D operativo con persistencia de contexto por proyecto. Detección automática de Nodos Huérfanos (Riesgos sin controles, Trabajadores sin capacitación).

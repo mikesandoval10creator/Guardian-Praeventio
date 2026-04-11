@@ -13,7 +13,7 @@ interface VectorDocument {
 let localVectorStore: VectorDocument[] = [];
 let isInitialized = false;
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_KEY = process.env.GEMINI_API_KEY;
 
 /**
  * Generates an embedding vector for a given text using Gemini's embedding model.

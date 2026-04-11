@@ -241,6 +241,23 @@ app.post("/api/telemetry/ingest", async (req, res) => {
   }
 });
 
+// Gemini API Proxy
+app.post("/api/gemini", async (req, res) => {
+  const { action, args } = req.body;
+  try {
+    const geminiBackend = await import('./src/services/geminiBackend.js');
+    if (typeof geminiBackend[action as keyof typeof geminiBackend] === 'function') {
+      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args);
+      res.json({ result });
+    } else {
+      res.status(400).json({ error: `Action ${action} not found` });
+    }
+  } catch (error: any) {
+    console.error(`Error in Gemini API Proxy for ${action}:`, error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
   const vite = await createViteServer({
