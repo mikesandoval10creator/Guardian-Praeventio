@@ -1,83 +1,88 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from 'react';
+const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const Workers = lazy(() => import('./pages/Workers').then(module => ({ default: module.Workers })));
+const History = lazy(() => import('./pages/History').then(module => ({ default: module.History })));
+const Risks = lazy(() => import('./pages/Risks').then(module => ({ default: module.Risks })));
+const Emergency = lazy(() => import('./pages/Emergency').then(module => ({ default: module.Emergency })));
+const EmergencyGenerator = lazy(() => import('./pages/EmergencyGenerator').then(module => ({ default: module.EmergencyGenerator })));
+const Matrix = lazy(() => import('./pages/Matrix').then(module => ({ default: module.Matrix })));
+const Training = lazy(() => import('./pages/Training').then(module => ({ default: module.Training })));
+const Normatives = lazy(() => import('./pages/Normatives').then(module => ({ default: module.Normatives })));
+const Hygiene = lazy(() => import('./pages/Hygiene').then(module => ({ default: module.Hygiene })));
+const Medicine = lazy(() => import('./pages/Medicine').then(module => ({ default: module.Medicine })));
+const Ergonomics = lazy(() => import('./pages/Ergonomics').then(module => ({ default: module.Ergonomics })));
+const Psychosocial = lazy(() => import('./pages/Psychosocial').then(module => ({ default: module.Psychosocial })));
+const Notifications = lazy(() => import('./pages/Notifications').then(module => ({ default: module.Notifications })));
+const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
+const Help = lazy(() => import('./pages/Help').then(module => ({ default: module.Help })));
+const Evacuation = lazy(() => import('./pages/Evacuation').then(module => ({ default: module.Evacuation })));
+const RiskNetwork = lazy(() => import('./pages/RiskNetwork').then(module => ({ default: module.RiskNetwork })));
+const Findings = lazy(() => import('./pages/Findings').then(module => ({ default: module.Findings })));
+const Audits = lazy(() => import('./pages/Audits').then(module => ({ default: module.Audits })));
+const Projects = lazy(() => import('./pages/Projects').then(module => ({ default: module.Projects })));
+const Documents = lazy(() => import('./pages/Documents').then(module => ({ default: module.Documents })));
+const DocumentViewer = lazy(() => import('./pages/DocumentViewer').then(module => ({ default: module.DocumentViewer })));
+const Calendar = lazy(() => import('./pages/Calendar').then(module => ({ default: module.Calendar })));
+const EPP = lazy(() => import('./pages/EPP').then(module => ({ default: module.EPP })));
+const PTSGenerator = lazy(() => import('./pages/PTSGenerator').then(module => ({ default: module.PTSGenerator })));
+const BioAnalysis = lazy(() => import('./pages/BioAnalysis').then(module => ({ default: module.BioAnalysis })));
+const NormativeDetail = lazy(() => import('./pages/NormativeDetail').then(module => ({ default: module.NormativeDetail })));
+const Assets = lazy(() => import('./pages/Assets').then(module => ({ default: module.Assets })));
+const PublicNodeView = lazy(() => import('./pages/PublicNodeView').then(module => ({ default: module.PublicNodeView })));
+const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
+const Login = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
+const Splash = lazy(() => import('./pages/Splash').then(module => ({ default: module.Splash })));
+const AIHub = lazy(() => import('./pages/AIHub').then(module => ({ default: module.AIHub })));
+const ModuleHub = lazy(() => import('./pages/ModuleHub').then(module => ({ default: module.ModuleHub })));
+const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ default: module.SafetyFeed })));
+const PredictiveGuard = lazy(() => import('./pages/PredictiveGuard').then(module => ({ default: module.PredictiveGuard })));
+const Attendance = lazy(() => import('./pages/Attendance').then(module => ({ default: module.Attendance })));
+const SafeDriving = lazy(() => import('./pages/SafeDriving').then(module => ({ default: module.SafeDriving })));
+const Telemetry = lazy(() => import('./pages/Telemetry').then(module => ({ default: module.Telemetry })));
+const SiteMap = lazy(() => import('./pages/SiteMap').then(module => ({ default: module.SiteMap })));
+const Gamification = lazy(() => import('./pages/Gamification').then(module => ({ default: module.Gamification })));
+const KnowledgeIngestion = lazy(() => import('./pages/KnowledgeIngestion').then(module => ({ default: module.KnowledgeIngestion })));
+const Analytics = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
+const SusesoReports = lazy(() => import('./pages/SusesoReports').then(module => ({ default: module.SusesoReports })));
+const Glossary = lazy(() => import('./pages/Glossary').then(module => ({ default: module.Glossary })));
+const Diagnostico = lazy(() => import('./pages/Diagnostico').then(module => ({ default: module.Diagnostico })));
+const MuralDinamico = lazy(() => import('./pages/MuralDinamico').then(module => ({ default: module.MuralDinamico })));
+const DEAZones = lazy(() => import('./pages/DEAZones').then(module => ({ default: module.DEAZones })));
+const InhospitableGuide = lazy(() => import('./pages/InhospitableGuide').then(module => ({ default: module.InhospitableGuide })));
+const ControlsAndMaterials = lazy(() => import('./pages/ControlsAndMaterials').then(module => ({ default: module.ControlsAndMaterials })));
+const AcademicProcessor = lazy(() => import('./pages/AcademicProcessor').then(module => ({ default: module.AcademicProcessor })));
+const VolcanicEruptionMap = lazy(() => import('./pages/VolcanicEruptionMap').then(module => ({ default: module.VolcanicEruptionMap })));
+const HazmatMap = lazy(() => import('./pages/HazmatMap').then(module => ({ default: module.HazmatMap })));
+const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ default: module.SunTracker })));
+const MountainRefuges = lazy(() => import('./pages/MountainRefuges').then(module => ({ default: module.MountainRefuges })));
+const NationalParksEmergency = lazy(() => import('./pages/NationalParksEmergency').then(module => ({ default: module.NationalParksEmergency })));
+const ClimateRoutes = lazy(() => import('./pages/ClimateRoutes').then(module => ({ default: module.ClimateRoutes })));
+const ArcadeGames = lazy(() => import('./pages/ArcadeGames').then(module => ({ default: module.ArcadeGames })));
+const DocumentOCRManager = lazy(() => import('./pages/DocumentOCRManager').then(module => ({ default: module.DocumentOCRManager })));
+const HumanBodyViewer = lazy(() => import('./pages/HumanBodyViewer').then(module => ({ default: module.HumanBodyViewer })));
+const EvacuationRoutes = lazy(() => import('./pages/EvacuationRoutes').then(module => ({ default: module.EvacuationRoutes })));
+const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
+const SecurityShield = lazy(() => import('./pages/SecurityShield').then(module => ({ default: module.SecurityShield })));
+const AuditTrail = lazy(() => import('./pages/AuditTrail').then(module => ({ default: module.AuditTrail })));
+const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
+const AutoCADViewer = lazy(() => import('./pages/AutoCADViewer').then(module => ({ default: module.AutoCADViewer })));
+const LightPollutionAudit = lazy(() => import('./pages/LightPollutionAudit').then(module => ({ default: module.LightPollutionAudit })));
+const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
+const IoTEdgeFiltering = lazy(() => import('./pages/IoTEdgeFiltering').then(module => ({ default: module.IoTEdgeFiltering })));
+const ERPIntegration = lazy(() => import('./pages/ERPIntegration').then(module => ({ default: module.ERPIntegration })));
+const SSOConfig = lazy(() => import('./pages/SSOConfig').then(module => ({ default: module.SSOConfig })));
+const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(module => ({ default: module.CQRSArchitecture })));
+const BlueprintViewer = lazy(() => import('./pages/BlueprintViewer').then(module => ({ default: module.BlueprintViewer })));
+const EmergenciaAvanzada = lazy(() => import('./pages/EmergenciaAvanzada').then(module => ({ default: module.EmergenciaAvanzada })));
+const CoastalEmergencyMap = lazy(() => import('./pages/CoastalEmergencyMap').then(module => ({ default: module.CoastalEmergencyMap })));
+const MinsalProtocols = lazy(() => import('./pages/MinsalProtocols').then(module => ({ default: module.MinsalProtocols })));
+const PortableCurriculum = lazy(() => import('./pages/PortableCurriculum').then(module => ({ default: module.PortableCurriculum })));
+const ComiteParitario = lazy(() => import('./pages/ComiteParitario').then(module => ({ default: module.ComiteParitario })));
+const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
+
 import { useState, useEffect } from "react";
 import { RootLayout } from "./components/layout/RootLayout";
-import { Dashboard } from "./pages/Dashboard";
-import { Workers } from "./pages/Workers";
-import { History } from "./pages/History";
-import { Risks } from "./pages/Risks";
-import { Emergency } from "./pages/Emergency";
-import { EmergencyGenerator } from "./pages/EmergencyGenerator";
-import { Matrix } from "./pages/Matrix";
-import { Training } from "./pages/Training";
-import { Normatives } from "./pages/Normatives";
-import { Hygiene } from "./pages/Hygiene";
-import { Medicine } from "./pages/Medicine";
-import { Ergonomics } from "./pages/Ergonomics";
-import { Psychosocial } from "./pages/Psychosocial";
-import { Notifications } from "./pages/Notifications";
-import { Settings } from "./pages/Settings";
-import { Help } from "./pages/Help";
-import { Evacuation } from "./pages/Evacuation";
-import { RiskNetwork } from "./pages/RiskNetwork";
-import { Findings } from "./pages/Findings";
-import { Audits } from "./pages/Audits";
-import { Projects } from "./pages/Projects";
-import { Documents } from "./pages/Documents";
-import { DocumentViewer } from "./pages/DocumentViewer";
-import { Calendar } from "./pages/Calendar";
-import { EPP } from "./pages/EPP";
-import { PTSGenerator } from "./pages/PTSGenerator";
-import { BioAnalysis } from "./pages/BioAnalysis";
-import { NormativeDetail } from "./pages/NormativeDetail";
-import { Assets } from "./pages/Assets";
-import { PublicNodeView } from "./pages/PublicNodeView";
-import { Profile } from "./pages/Profile";
-import { Login } from "./pages/Login";
-import { Splash } from "./pages/Splash";
-import { AIHub } from "./pages/AIHub";
-import { ModuleHub } from "./pages/ModuleHub";
-import { SafetyFeed } from "./pages/SafetyFeed";
-import { PredictiveGuard } from "./pages/PredictiveGuard";
-import { Attendance } from "./pages/Attendance";
-import { SafeDriving } from "./pages/SafeDriving";
-import { Telemetry } from "./pages/Telemetry";
-import { SiteMap } from "./pages/SiteMap";
-import { Gamification } from "./pages/Gamification";
-import { KnowledgeIngestion } from "./pages/KnowledgeIngestion";
-import { Analytics } from "./pages/Analytics";
-import { SusesoReports } from "./pages/SusesoReports";
-import { Glossary } from "./pages/Glossary";
-import { Diagnostico } from "./pages/Diagnostico";
-import { MuralDinamico } from "./pages/MuralDinamico";
-import { DEAZones } from "./pages/DEAZones";
-import { InhospitableGuide } from "./pages/InhospitableGuide";
-import { ControlsAndMaterials } from "./pages/ControlsAndMaterials";
-import { AcademicProcessor } from "./pages/AcademicProcessor";
-import { VolcanicEruptionMap } from "./pages/VolcanicEruptionMap";
-import { HazmatMap } from "./pages/HazmatMap";
-import { SunTracker } from "./pages/SunTracker";
-import { MountainRefuges } from "./pages/MountainRefuges";
-import { NationalParksEmergency } from "./pages/NationalParksEmergency";
-import { ClimateRoutes } from "./pages/ClimateRoutes";
-import { ArcadeGames } from "./pages/ArcadeGames";
-import { DocumentOCRManager } from "./pages/DocumentOCRManager";
-import { HumanBodyViewer } from "./pages/HumanBodyViewer";
-import { EvacuationRoutes } from "./pages/EvacuationRoutes";
-import { GoogleDriveIntegrationManager } from "./pages/GoogleDriveIntegrationManager";
-import { SecurityShield } from "./pages/SecurityShield";
-import { AuditTrail } from "./pages/AuditTrail";
-import { ImmutableRender } from "./pages/ImmutableRender";
-import { AutoCADViewer } from "./pages/AutoCADViewer";
-import { LightPollutionAudit } from "./pages/LightPollutionAudit";
-import { WearablesIntegration } from "./pages/WearablesIntegration";
-import { IoTEdgeFiltering } from "./pages/IoTEdgeFiltering";
-import { ERPIntegration } from "./pages/ERPIntegration";
-import { SSOConfig } from "./pages/SSOConfig";
-import { CQRSArchitecture } from "./pages/CQRSArchitecture";
-import { BlueprintViewer } from "./pages/BlueprintViewer";
-import { EmergenciaAvanzada } from "./pages/EmergenciaAvanzada";
-import { CoastalEmergencyMap } from "./pages/CoastalEmergencyMap";
-import { MinsalProtocols } from "./pages/MinsalProtocols";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
 import { ProjectProvider } from "./contexts/ProjectContext";
@@ -96,9 +101,6 @@ import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonitor";
 import { seedGlobalData } from "./services/seedService";
 
-import { PortableCurriculum } from "./pages/PortableCurriculum";
-import { ComiteParitario } from "./pages/ComiteParitario";
-import { Pricing } from "./pages/Pricing";
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -133,6 +135,14 @@ function AppRoutes() {
               <GeolocationTracker />
               <EmergencyOverlay />
               <FallDetectionMonitor />
+              <Suspense fallback={
+                <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+                  <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Cargando Módulo...</span>
+                  </div>
+                </div>
+              }>
               <Routes>
                 <Route
                   path="/login"
@@ -279,6 +289,7 @@ function AppRoutes() {
                   />
                 </Route>
               </Routes>
+              </Suspense>
               {user && <GuardianVoiceAssistant />}
             </EmergencyProvider>
           </NotificationProvider>
