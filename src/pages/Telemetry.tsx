@@ -376,7 +376,7 @@ export function Telemetry() {
   const curlCommand = `curl -X POST ${webhookUrl} \\
   -H "Content-Type: application/json" \\
   -d '{
-    "secretKey": "praeventio-iot-secret-2026",
+    "secretKey": "TU_SECRETO_AQUI",
     "type": "wearable",
     "source": "Smartwatch W-01",
     "metric": "Ritmo Cardíaco",

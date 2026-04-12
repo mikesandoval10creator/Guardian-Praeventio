@@ -6,6 +6,7 @@ import { NodeType, RiskNode } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 import { generateISOAuditChecklist, generateActionPlan } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import confetti from 'canvas-confetti';
 
 interface AuditDetailModalProps {
   audit: RiskNode | null;
@@ -149,6 +150,15 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
             }
           }
         }
+      } else if (score === 100) {
+        // Zero findings! Recompensas Dopaminérgicas Elegantes
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.5 },
+          colors: ['#4f46e5', '#818cf8', '#c7d2fe'], // Indigo colors for ISO
+          disableForReducedMotion: true
+        });
       }
 
       setSaved(true);

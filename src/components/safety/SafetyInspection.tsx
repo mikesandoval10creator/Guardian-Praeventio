@@ -5,6 +5,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { generateActionPlan } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
+import confetti from 'canvas-confetti';
 
 interface InspectionItem {
   id: string;
@@ -84,6 +85,15 @@ export function SafetyInspection() {
             }
           }
         }
+      } else {
+        // Zero findings! Recompensas Dopaminérgicas Elegantes
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#059669'], // Emerald colors
+          disableForReducedMotion: true
+        });
       }
 
       setSaved(true);

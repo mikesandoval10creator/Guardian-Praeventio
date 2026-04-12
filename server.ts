@@ -26,7 +26,7 @@ const PORT = 3000;
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-  secret: process.env.SESSION_SECRET || "praeventio-guard-secret-fallback",
+  secret: process.env.SESSION_SECRET || "fallback-secret-do-not-use-in-production",
   resave: false,
   saveUninitialized: true,
   cookie: { 
@@ -219,7 +219,13 @@ app.post("/api/fitness/sync", async (req, res) => {
 app.post("/api/telemetry/ingest", async (req, res) => {
   const { secretKey, type, source, metric, value, unit, status, projectId } = req.body;
 
-  if (secretKey !== 'praeventio-iot-secret-2026') {
+  const expectedSecret = process.env.IOT_WEBHOOK_SECRET;
+  if (!expectedSecret) {
+    console.error("IOT_WEBHOOK_SECRET is not configured on the server.");
+    return res.status(500).json({ error: "Server configuration error" });
+  }
+
+  if (secretKey !== expectedSecret) {
     return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
   }
 

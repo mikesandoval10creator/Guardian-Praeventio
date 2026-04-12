@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Shield, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X } from 'lucide-react';
+import { Flame, Shield, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Smartphone } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface ExtinguisherSimulatorProps {
@@ -10,7 +10,7 @@ interface ExtinguisherSimulatorProps {
 
 const PASS_STEPS = [
   { id: 'pull', title: 'Tirar (Pull)', description: 'Tira del pasador de seguridad para romper el precinto.', icon: '📌' },
-  { id: 'aim', title: 'Apuntar (Aim)', description: 'Apunta la boquilla hacia la base del fuego.', icon: '🎯' },
+  { id: 'aim', title: 'Apuntar (Aim)', description: 'Apunta la boquilla hacia la base del fuego usando tu dispositivo.', icon: '🎯' },
   { id: 'squeeze', title: 'Presionar (Squeeze)', description: 'Presiona la palanca de forma controlada.', icon: '✊' },
   { id: 'sweep', title: 'Barrer (Sweep)', description: 'Mueve la boquilla de lado a lado cubriendo el área.', icon: '↔️' }
 ];
@@ -22,6 +22,56 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
   const [gameWon, setGameWon] = useState(false);
   const [gameLost, setGameLost] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30);
+  
+  // Gyroscope state
+  const [orientation, setOrientation] = useState({ alpha: 0, beta: 0, gamma: 0 });
+  const [hasGyro, setHasGyro] = useState<boolean | null>(null);
+  const [aimOffset, setAimOffset] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
+        setHasGyro(true);
+        setOrientation({
+          alpha: event.alpha,
+          beta: event.beta,
+          gamma: event.gamma
+        });
+
+        // Map gamma (-90 to 90) to X offset
+        // Map beta (-180 to 180) to Y offset
+        // Adjust sensitivity as needed
+        const x = Math.max(-150, Math.min(150, event.gamma * 3));
+        const y = Math.max(-100, Math.min(100, (event.beta - 45) * 3)); // Assume holding phone at 45 deg angle
+        
+        setAimOffset({ x, y });
+      }
+    };
+
+    if (window.DeviceOrientationEvent) {
+      // Request permission for iOS 13+ devices
+      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+        (DeviceOrientationEvent as any).requestPermission()
+          .then((permissionState: string) => {
+            if (permissionState === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation);
+            } else {
+              setHasGyro(false);
+            }
+          })
+          .catch(console.error);
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    } else {
+      setHasGyro(false);
+    }
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+    };
+  }, []);
 
   useEffect(() => {
     if (gameWon || gameLost) return;
@@ -43,19 +93,25 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
     if (isExtinguishing && currentStep === 3) {
       const interval = setInterval(() => {
         setFireSize((prev) => {
-          if (prev <= 5) {
-            setGameWon(true);
-            setIsExtinguishing(false);
-            triggerConfetti();
-            setTimeout(() => onComplete(150), 3000);
-            return 0;
+          // Check if aim is close to the fire (center is 0,0)
+          const isAimingCorrectly = !hasGyro || (Math.abs(aimOffset.x) < 50 && Math.abs(aimOffset.y) < 50);
+          
+          if (isAimingCorrectly) {
+            if (prev <= 5) {
+              setGameWon(true);
+              setIsExtinguishing(false);
+              triggerConfetti();
+              setTimeout(() => onComplete(150), 3000);
+              return 0;
+            }
+            return prev - 5;
           }
-          return prev - 5;
+          return prev; // Don't reduce fire if not aiming correctly
         });
       }, 100);
       return () => clearInterval(interval);
     }
-  }, [isExtinguishing, currentStep, onComplete]);
+  }, [isExtinguishing, currentStep, onComplete, aimOffset, hasGyro]);
 
   const triggerConfetti = () => {
     confetti({
@@ -105,7 +161,7 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
           </div>
         </div>
 
-        <div className="p-8 flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden">
+        <div className="p-8 flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden" ref={containerRef}>
           {/* Fire Animation */}
           <AnimatePresence>
             {!gameWon && (
@@ -121,6 +177,28 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Crosshair (only visible on step 3) */}
+          {currentStep === 3 && !gameWon && !gameLost && (
+            <div 
+              className="absolute z-10 w-16 h-16 pointer-events-none transition-transform duration-75"
+              style={{
+                transform: `translate(${aimOffset.x}px, ${aimOffset.y}px)`,
+                left: 'calc(50% - 32px)',
+                bottom: '120px' // Approximate center of fire
+              }}
+            >
+              <div className="w-full h-full border-2 border-white/50 rounded-full relative">
+                <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/50 -translate-y-1/2" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/50 -translate-x-1/2" />
+                <div className={`absolute inset-0 rounded-full transition-colors ${
+                  (!hasGyro || (Math.abs(aimOffset.x) < 50 && Math.abs(aimOffset.y) < 50))
+                    ? 'bg-emerald-500/20 border-emerald-500'
+                    : 'bg-rose-500/20 border-rose-500'
+                }`} />
+              </div>
+            </div>
+          )}
 
           {/* Game Over / Win States */}
           <AnimatePresence>

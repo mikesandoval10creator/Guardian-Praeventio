@@ -10,12 +10,17 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "contacto@praeventio.net" && request.auth.token.email_verified == true));
     }
 
     function isSupervisor() {
       return isAuthenticated() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supervisor';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
     function hasRequiredFields(fields) {
@@ -48,7 +53,7 @@ service cloud.firestore {
              data.email == request.auth.token.email &&
              isValidEmail(data.email) &&
              data.role in ['admin', 'supervisor', 'worker'] &&
-             (data.photoURL == null || isValidUrl(data.photoURL));
+             (!('photoURL' in data) || data.photoURL == null || isValidUrl(data.photoURL));
     }
 
     function isValidNode(data) {
@@ -57,8 +62,8 @@ service cloud.firestore {
              data.type is string &&
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.description is string && data.description.size() > 0 && data.description.size() < 50000 &&
-             (data.tags == null || isValidList(data.tags, 50)) &&
-             (data.connections == null || isValidList(data.connections, 200));
+             (!('tags' in data) || data.tags == null || isValidList(data.tags, 50)) &&
+             (!('connections' in data) || data.connections == null || isValidList(data.connections, 200));
     }
 
     // ===============================================================
@@ -66,15 +71,16 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if request.auth.uid == userId && isValidUser(request.resource.data) && (request.resource.data.role == 'worker' || isAdmin());
-      allow update: if request.auth.uid == userId && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow read: if isOwner(userId) || isAdmin() || isSupervisor();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'worker' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /projects/{projectId} {
-      allow read, update: if isAuthenticated() && (request.auth.uid in resource.data.members || isAdmin());
-      allow create: if isAuthenticated();
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.members || isAdmin());
+      allow create: if isAdmin() || isSupervisor();
+      allow update: if isAdmin() || isSupervisor();
       allow delete: if isAdmin();
 
       match /workers/{workerId} {
@@ -98,13 +104,15 @@ service cloud.firestore {
       }
 
       match /emergency_messages/{messageId} {
-        allow read, create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow update, delete: if isAdmin() || isSupervisor();
       }
 
       match /emergency_checkins/{checkinId} {
         allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
-        allow create, update: if isAuthenticated() && (request.resource.data.workerId == request.auth.uid || isAdmin() || isSupervisor());
+        allow create: if isAuthenticated() && request.resource.data.workerId == request.auth.uid;
+        allow update: if isAuthenticated() && request.resource.data.workerId == request.auth.uid && resource.data.workerId == request.auth.uid;
         allow delete: if isAdmin() || isSupervisor();
       }
 
@@ -121,13 +129,16 @@ service cloud.firestore {
 
     match /nodes/{nodeId} {
       allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && isValidNode(request.resource.data);
+      allow create: if isAuthenticated() && isValidNode(request.resource.data);
+      allow update: if isAuthenticated() && isValidNode(request.resource.data) && (isAdmin() || isSupervisor() || resource.data.metadata.authorId == request.auth.uid);
       allow delete: if isAdmin() || isSupervisor();
     }
 
     match /user_stats/{userId} {
       allow read: if isAuthenticated();
-      allow create, update: if request.auth.uid == userId;
+      allow create: if isOwner(userId) && request.resource.data.points == 0;
+      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'completedTrainings', 'safetyPosts', 'medals', 'loginStreak', 'lastLogin']) &&
+                    (request.resource.data.points >= resource.data.points);
       allow delete: if isAdmin();
     }
 
@@ -137,7 +148,7 @@ service cloud.firestore {
     }
 
     match /telemetry_events/{eventId} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin() || isSupervisor();
       allow create: if isAuthenticated();
       allow update, delete: if isAdmin();
     }
@@ -154,27 +165,27 @@ service cloud.firestore {
 
     match /safety_posts/{postId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid && request.resource.data.authorId == request.auth.uid;
       allow delete: if isAdmin() || isSupervisor() || resource.data.authorId == request.auth.uid;
     }
 
     match /safety_solutions/{solutionId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid && request.resource.data.authorId == request.auth.uid;
       allow delete: if isAdmin() || isSupervisor() || resource.data.authorId == request.auth.uid;
     }
     
     match /workers/{workerId} {
-      allow read: if isAuthenticated();
+      allow read: if isAdmin() || isSupervisor();
       allow create, update, delete: if isAdmin() || isSupervisor();
     }
 
     match /projects/{projectId}/locations/{locationId} {
       allow read: if isAuthenticated() && (isAdmin() || isSupervisor() || resource.data.userId == request.auth.uid);
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
       allow delete: if isAdmin();
     }
 

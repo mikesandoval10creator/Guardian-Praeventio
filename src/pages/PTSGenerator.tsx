@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
-import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain, ShieldAlert, WifiOff } from 'lucide-react';
+import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain, ShieldAlert, WifiOff, MapPin } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { RiskNode, NodeType } from '../types';
@@ -42,6 +42,8 @@ export function PTSGenerator() {
   const [selectedRiskId, setSelectedRiskId] = useState<string>('');
   const [suspensionReason, setSuspensionReason] = useState<string>('');
   const [isSuspending, setIsSuspending] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [showSuccessQuote, setShowSuccessQuote] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
 
@@ -112,6 +114,47 @@ export function PTSGenerator() {
     } finally {
       setIsSuspending(false);
     }
+  };
+
+  const handleGPSAutocomplete = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocalización no soportada por el navegador.');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const { latitude, longitude } = position.coords;
+          
+          // Reverse geocoding using OpenStreetMap Nominatim (free, no API key needed for basic usage)
+          const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await response.json();
+          
+          const locationName = data.address?.city || data.address?.town || data.address?.village || data.address?.county || 'Ubicación Desconocida';
+          const weatherInfo = environment?.weather ? `Clima: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h` : '';
+          
+          setTaskDescription(prev => {
+            const prefix = `[Ubicación GPS: ${locationName} (Lat: ${latitude.toFixed(4)}, Lon: ${longitude.toFixed(4)})] ${weatherInfo}\n\n`;
+            return prefix + prev;
+          });
+          
+        } catch (error) {
+          console.error('Error in reverse geocoding:', error);
+          alert('No se pudo obtener el nombre de la ubicación, pero se registraron las coordenadas.');
+          setTaskDescription(prev => `[Coordenadas GPS: Lat: ${position.coords.latitude.toFixed(4)}, Lon: ${position.coords.longitude.toFixed(4)}]\n\n` + prev);
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (error) => {
+        console.error('Error getting location:', error);
+        alert('Error al obtener la ubicación GPS.');
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -277,7 +320,9 @@ export function PTSGenerator() {
         }
       }
 
-      alert(`${documentType} guardado exitosamente en Documentos y Red Neuronal`);
+      setShowSuccessQuote(true);
+      setTimeout(() => setShowSuccessQuote(false), 8000);
+      
     } catch (error) {
       console.error(`Error saving ${documentType}:`, error);
       alert(`Error al guardar el ${documentType}`);
@@ -390,6 +435,35 @@ export function PTSGenerator() {
             </motion.div>
           )}
 
+          {showSuccessQuote && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              className="bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 rounded-3xl p-6 relative overflow-hidden"
+            >
+              <div className="absolute -right-4 -top-4 opacity-10">
+                <Brain className="w-32 h-32 text-emerald-500" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-emerald-400 uppercase tracking-widest">Documento Forjado</h3>
+                    <p className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-widest">Guardado en Red Neuronal</p>
+                  </div>
+                </div>
+                <div className="border-l-2 border-emerald-500/50 pl-4 py-1 mt-2">
+                  <p className="text-sm text-emerald-100 leading-relaxed">
+                    El documento ha sido validado, encriptado y almacenado de forma inmutable. La trazabilidad está garantizada.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h2 className="text-lg font-black text-white uppercase tracking-tight mb-6 flex items-center gap-2">
               <FileText className="w-5 h-5 text-emerald-500" />
@@ -466,13 +540,25 @@ export function PTSGenerator() {
                 <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
                   Descripción Detallada
                 </label>
-                <textarea
-                  required
-                  value={taskDescription}
-                  onChange={(e) => setTaskDescription(e.target.value)}
-                  className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-32"
-                  placeholder="Describe los pasos generales, herramientas a usar y el entorno de trabajo..."
-                />
+                <div className="relative">
+                  <textarea
+                    required
+                    value={taskDescription}
+                    onChange={(e) => setTaskDescription(e.target.value)}
+                    className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none h-32"
+                    placeholder="Describe los pasos generales, herramientas a usar y el entorno de trabajo..."
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGPSAutocomplete}
+                    disabled={isLocating}
+                    className="absolute bottom-3 right-3 bg-zinc-800 hover:bg-zinc-700 text-emerald-400 p-2 rounded-lg transition-colors flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                    title="Autocompletar con ubicación GPS actual"
+                  >
+                    {isLocating ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
+                    GPS
+                  </button>
+                </div>
               </div>
 
               <div>

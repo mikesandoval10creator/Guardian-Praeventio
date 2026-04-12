@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
 import admin from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 interface VectorDocument {
   id: string;
@@ -9,7 +10,6 @@ interface VectorDocument {
   embedding: number[];
 }
 
-let localVectorStore: VectorDocument[] = [];
 let isInitialized = false;
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -55,24 +55,8 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
 };
 
 /**
- * Calculates the cosine similarity between two vectors.
- */
-const cosineSimilarity = (vecA: number[], vecB: number[]): number => {
-  let dotProduct = 0;
-  let normA = 0;
-  let normB = 0;
-  for (let i = 0; i < vecA.length; i++) {
-    dotProduct += vecA[i] * vecB[i];
-    normA += vecA[i] * vecA[i];
-    normB += vecB[i] * vecB[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-};
-
-/**
  * Initializes the RAG system by fetching critical laws from BCN and generating embeddings.
- * Stores them in Firestore for persistence.
+ * Stores them in Firestore for persistence using native Vector Search.
  */
 export const initializeRAG = async () => {
   if (isInitialized) return;
@@ -90,19 +74,8 @@ export const initializeRAG = async () => {
     // Check if we already have vectors in Firestore
     const snapshot = await vectorCollection.limit(1).get();
     if (!snapshot.empty) {
-      console.log("Loading vectors from Firestore...");
-      const allDocs = await vectorCollection.get();
-      localVectorStore = allDocs.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title,
-          content: data.content,
-          embedding: data.embedding
-        };
-      });
+      console.log("RAG System already initialized in Firestore.");
       isInitialized = true;
-      console.log(`RAG System Initialized from Firestore with ${localVectorStore.length} chunks.`);
       return;
     }
 
@@ -124,14 +97,13 @@ export const initializeRAG = async () => {
             const docId = `${law.idNorma}-chunk-${actualIndex}`;
             
             try {
-              const embedding = await generateEmbedding(chunk);
+              const embeddingArray = await generateEmbedding(chunk);
               const docData = {
                 id: docId,
                 title: law.titulo,
                 content: chunk.trim(),
-                embedding
+                embedding: FieldValue.vector(embeddingArray)
               };
-              localVectorStore.push(docData);
               
               // Save to Firestore
               await vectorCollection.doc(docId).set(docData);
@@ -146,7 +118,7 @@ export const initializeRAG = async () => {
     }
     
     isInitialized = true;
-    console.log(`RAG System Initialized and saved to Firestore with ${localVectorStore.length} chunks.`);
+    console.log(`RAG System Initialized and saved to Firestore.`);
   } catch (error) {
     console.error("Error initializing RAG system:", error);
   }
@@ -154,29 +126,35 @@ export const initializeRAG = async () => {
 
 /**
  * Searches the vector database for the most relevant context given a query.
+ * Uses Firestore native Vector Search.
  */
 export const searchRelevantContext = async (query: string, topK: number = 3): Promise<string> => {
-  if (!isInitialized) {
+  if (!isInitialized || !admin.apps.length) {
     // Fallback if not initialized
     return "Contexto legal: Ley 16.744 sobre accidentes del trabajo y enfermedades profesionales.";
   }
 
   try {
     const queryEmbedding = await generateEmbedding(query);
+    const db = admin.firestore();
+    const vectorCollection = db.collection('vector_store');
     
-    // Calculate similarities
-    const results = localVectorStore.map(doc => ({
-      ...doc,
-      score: cosineSimilarity(queryEmbedding, doc.embedding)
-    }));
+    // Perform native vector search in Firestore
+    const results = await vectorCollection
+      .findNearest('embedding', FieldValue.vector(queryEmbedding), {
+        limit: topK,
+        distanceMeasure: 'COSINE'
+      })
+      .get();
     
-    // Sort by score descending
-    results.sort((a, b) => b.score - a.score);
-    
-    // Take top K
-    const topResults = results.slice(0, topK);
-    
-    return topResults.map(r => `[Fuente: ${r.title}]\n${r.content}`).join("\n\n");
+    if (results.empty) {
+      return "No se encontró contexto legal relevante.";
+    }
+
+    return results.docs.map(doc => {
+      const data = doc.data();
+      return `[Fuente: ${data.title}]\n${data.content}`;
+    }).join("\n\n");
   } catch (error) {
     console.error("Error searching context:", error);
     return "Error al recuperar contexto legal.";

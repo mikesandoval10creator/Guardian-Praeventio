@@ -270,34 +270,34 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Calculadora de Índice UV Local:** Fórmulas matemáticas en la app que, cruzadas con la hora y latitud, exigen protector solar sin depender de APIs externas.
 - [x] **Pausas Fisiológicas Integradas:** Animaciones de respiración guiadas (flujo) de un minuto recomendadas antes de tareas de alto rigor mental.
 - [x] **Control de Ruidos (Dosimetría Aproximada):** Medir decibeles con el micrófono y generar alertas visuales para usar tapones auditivos (con aviso de privacidad de que no se graba el audio).
-- [ ] **Bitácora Nutricional de Campamento:** Recomendaciones de hidratación integradas en el flujo diario, recordando la ingesta de jugos naturales y antioxidantes.
+- [x] **Bitácora Nutricional de Campamento:** Recomendaciones de hidratación integradas en el flujo diario, recordando la ingesta de jugos naturales y antioxidantes.
 - [ ] **Mapa de Contaminación Lumínica:** Vista táctica de los focos del campamento para asegurar que no interfieran con la fauna local nocturna.
 - [x] **Gestión de Acopio HAZMAT:** Mapeo de compatibilidad química (Matriz de segregación) validada de forma instantánea sin conexión.
-- [ ] **Estimador de Tasa Metabólica:** Cálculo en tiempo real de la exigencia física de una faena para rotar roles y mantener la mente afilada.
+- [x] **Estimador de Tasa Metabólica:** Cálculo en tiempo real de la exigencia física de una faena para rotar roles y mantener la mente afilada.
 
 #### VI. Gestión de Proyectos, Trabajadores y PTS (/pts, /workers)
 - [x] **Firma Geométrica Vectorial:** Guardar las firmas de los operarios en los PTS como vectores .svg para que no pesen nada en la base de datos.
-- [ ] **Perfil del Nakama:** Vista de trabajador con diseño "Cartas RPG" mostrando sus certificaciones activas de manera elegante.
+- [x] **Perfil de Usuario (Cartas RPG):** Vista de trabajador con diseño "Cartas RPG" mostrando sus certificaciones activas de manera elegante.
 - [x] **Calculadora de Probabilidad/Consecuencia Nativa:** En el submódulo de Matriz, las fórmulas de riesgo puro corren en memoria local sin latencia.
-- [ ] **Autocompletado Predictivo en PTS:** Basado en la ubicación GPS, pre-llenar la obra, el clima y los riesgos típicos de ese cuadrante.
+- [x] **Autocompletado Predictivo en PTS:** Basado en la ubicación GPS, pre-llenar la obra, el clima y los riesgos típicos de ese cuadrante.
 - [ ] **Control de Acceso Seguro (SSO Local):** Integración con el sistema del casino o campamento para validar identidades mediante credenciales encriptadas.
 - [x] **Generador Inmutable (Immutable Render):** Al cerrar un documento, sellarlo criptográficamente (Hash) para garantizar ante SUSESO que no fue modificado post-accidente.
-- [ ] **Modo Asistencia Rápida:** Módulo que lee rápidamente códigos QR o NFC de los cascos en la entrada de la faena.
+- [x] **Modo Asistencia Rápida:** Módulo que lee rápidamente códigos QR o NFC de los cascos en la entrada de la faena.
 - [ ] **Auditorías ISO Interactivas:** Checklist dinámico que oculta o muestra preguntas dependiendo de las respuestas previas.
-- [ ] **Trazabilidad de EPI/EPP:** Registro de vida útil de un arnés desde que sale de bodega hasta su descarte, notificado localmente.
+- [x] **Trazabilidad de EPI/EPP:** Registro de vida útil de un arnés desde que sale de bodega hasta su descarte, notificado localmente.
 - [ ] **Carga Diferida Inteligente (Lazy Modals):** Los modales pesados (como la edición de AutoCAD Viewer) solo se instancian cuando el usuario hace clic.
 
 #### VII. Currículum Portable y Gamificación (/gamification)
 - [x] **Árbol de Habilidades (Skill Tree):** Un visualizador donde el operario desbloquea insignias "Scout" al completar capacitaciones.
-- [ ] **Buzzer de Reflejos:** Mini-simuladores (estilo arcade rápido) en los tiempos muertos para evaluar la capacidad de respuesta y fluidez antes del turno.
+- [x] **Buzzer de Reflejos:** Mini-simuladores (estilo arcade rápido) en los tiempos muertos para evaluar la capacidad de respuesta y fluidez antes del turno.
 - [ ] **Sistema de Logros Locales:** Reconocimientos (ej. "Semana Invicta") que se calculan en el celular del usuario y luego se respaldan.
 - [ ] **Render de Medallas 3D:** Pequeños modelos three.js ligeros de las certificaciones, que pueden girarse con el dedo en el perfil de usuario.
 - [ ] **Cápsulas de Sabiduría (El Arte de la Guerra):** Integrar citas tácticas o reglas de oro en las pantallas de confirmación de formularios.
-- [ ] **Portable Curriculum PDF:** Un botón que compile toda la historia de seguridad del operario en un PDF estético generado por jspdf.
-- [ ] **Progreso de Aclimatación:** Barra que muestra cuántos días le quedan a un trabajador nuevo para aclimatarse por completo a la altura o el terreno.
-- [ ] **Simulacro de Extintores VR (Básico):** Uso de la cámara y giroscopio para enfocar a un fuego virtual en la sala y aprender el movimiento "PASS".
-- [ ] **Recompensas Dopaminérgicas Elegantes:** Animaciones de confeti suaves (canvas-confetti) reservadas exclusivamente para auditorías con cero hallazgos.
-- [ ] **Ranking de Cuadrillas "Flow":** Tabla de posiciones basada en el cumplimiento proactivo y la prevención, fomentando el orgullo de equipo.
+- [x] **Portable Curriculum PDF:** Un botón que compile toda la historia de seguridad del operario en un PDF estético generado por jspdf.
+- [x] **Progreso de Aclimatación:** Barra que muestra cuántos días le quedan a un trabajador nuevo para aclimatarse por completo a la altura o el terreno.
+- [x] **Simulacro de Extintores VR (Básico):** Uso de la cámara y giroscopio para enfocar a un fuego virtual en la sala y aprender el movimiento "PASS".
+- [x] **Recompensas Dopaminérgicas Elegantes:** Animaciones de confeti suaves (canvas-confetti) reservadas exclusivamente para auditorías con cero hallazgos.
+- [x] **Ranking de Cuadrillas "Flow":** Tabla de posiciones basada en el cumplimiento proactivo y la prevención, fomentando el orgullo de equipo.
 
 #### VIII. Seguridad Técnica, Estabilidad y Optimizaciones
 - [ ] **Ofuscación de Código en Producción:** Asegurar que las reglas de negocio críticas no sean legibles si alguien inspecciona el código del navegador.

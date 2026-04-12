@@ -11,6 +11,7 @@ import { db } from '../services/firebase';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { ExtinguisherSimulator } from '../components/gamification/ExtinguisherSimulator';
 import { NormativeQuiz } from '../components/gamification/NormativeQuiz';
+import { ReflexBuzzer } from '../components/gamification/ReflexBuzzer';
 
 interface LeaderboardUser {
   id: string;
@@ -222,6 +223,17 @@ export function Gamification() {
       locked: stats.points < 300,
       requiredPoints: 300,
       type: 'quiz'
+    },
+    {
+      id: 'g5',
+      title: 'Buzzer de Reflejos',
+      description: 'Evalúa tu capacidad de respuesta y fluidez antes de iniciar el turno.',
+      thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&q=80&w=800',
+      fallbackThumbnail: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=800',
+      points: 100,
+      locked: false,
+      requiredPoints: 0,
+      type: 'reflex_buzzer'
     }
   ];
 
@@ -640,6 +652,14 @@ export function Gamification() {
           <NormativeQuiz 
             onComplete={(points) => {
               addPoints(points, 'Desafío Normativo completado');
+              setActiveGame(null);
+            }} 
+            onClose={() => setActiveGame(null)} 
+          />
+        ) : activeGame === 'g5' ? (
+          <ReflexBuzzer 
+            onComplete={(points) => {
+              addPoints(points, 'Buzzer de Reflejos completado');
               setActiveGame(null);
             }} 
             onClose={() => setActiveGame(null)} 
