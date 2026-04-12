@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { RiskNode } from '../types';
-import { searchRelevantContext } from './ragService';
+import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -51,12 +51,11 @@ export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[]
   return embeddings;
 };
 
-export const autoConnectNodes = async (newNode: Partial<RiskNode>, existingNodes: Partial<RiskNode>[], userApiKey?: string): Promise<string[]> => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) return [];
+export const autoConnectNodes = async (newNode: Partial<RiskNode>, existingNodes: Partial<RiskNode>[]): Promise<string[]> => {
+  if (!API_KEY) return [];
   if (existingNodes.length === 0) return [];
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   
   const nodesContext = existingNodes.map(n => `ID: ${n.id}, Title: ${n.title}, Type: ${n.type}`).join('\n');
   
@@ -97,13 +96,12 @@ export const autoConnectNodes = async (newNode: Partial<RiskNode>, existingNodes
   }
 };
 
-export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], topK: number = 3, userApiKey?: string): Promise<Partial<RiskNode>[]> => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) return nodes.slice(0, topK);
+export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], topK: number = 3): Promise<Partial<RiskNode>[]> => {
+  if (!API_KEY) return nodes.slice(0, topK);
   if (nodes.length === 0) return [];
 
   try {
-    const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     const queryResponse = await ai.models.embedContent({
       model: "text-embedding-004",
       contents: query,
@@ -138,11 +136,10 @@ export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], 
   }
 };
 
-export const analyzeFastCheck = async (observation: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const analyzeFastCheck = async (observation: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Analiza la siguiente observación de seguridad en terreno (Fast Check):
@@ -173,11 +170,10 @@ export const analyzeFastCheck = async (observation: string, userApiKey?: string)
   return JSON.parse(response.text);
 };
 
-export const predictGlobalIncidents = async (context: string, envContext: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const predictGlobalIncidents = async (context: string, envContext: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Actúa como un sistema de predicción de riesgos industriales.
@@ -224,14 +220,10 @@ export const predictGlobalIncidents = async (context: string, envContext: string
   return JSON.parse(response.text);
 };
 
-export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Analiza el siguiente riesgo reportado en el contexto de la industria ${industry || 'general'}.
+  const prompt = `Analiza el siguiente riesgo reportado en el contexto de la industria ${industry || 'general'}.
     
     Riesgo Reportado:
     "${description}"
@@ -244,30 +236,38 @@ export const analyzeRiskWithAI = async (description: string, nodesContext: strin
     1. Nivel de criticidad (Alta, Media, Baja).
     2. Lista de recomendaciones inmediatas.
     3. Lista de controles a implementar (Jerarquía de Controles).
-    4. Normativa aplicable (ej. DS 594, Ley 16.744).`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
-          recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
-          controles: { type: Type.ARRAY, items: { type: Type.STRING } },
-          normativa: { type: Type.STRING }
-        },
-        required: ["criticidad", "recomendaciones", "controles", "normativa"]
-      }
-    }
-  });
+    4. Normativa aplicable (ej. DS 594, Ley 16.744).`;
 
-  return JSON.parse(response.text);
+  const fallback = async () => {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
+            recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
+            controles: { type: Type.ARRAY, items: { type: Type.STRING } },
+            normativa: { type: Type.STRING }
+          },
+          required: ["criticidad", "recomendaciones", "controles", "normativa"]
+        }
+      }
+    });
+    return response.text;
+  };
+
+  const resultString = await queryCommunityKnowledge(prompt, industry || 'general', fallback);
+  return JSON.parse(resultString);
 };
 
-export const analyzePostureWithAI = async (base64Image: string, mimeType: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const analyzePostureWithAI = async (base64Image: string, mimeType: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: [
@@ -304,11 +304,10 @@ export const analyzePostureWithAI = async (base64Image: string, mimeType: string
   return JSON.parse(response.text);
 };
 
-export const generateEmergencyPlan = async (projectName: string, context: string, industry?: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generateEmergencyPlan = async (projectName: string, context: string, industry?: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: `Actúa como un experto en gestión de emergencias industriales.
@@ -332,11 +331,10 @@ export const generateEmergencyPlan = async (projectName: string, context: string
   return response.text;
 };
 
-export const analyzeSafetyImage = async (base64Image: string, mimeType: string, context: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const analyzeSafetyImage = async (base64Image: string, mimeType: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: [
@@ -384,11 +382,10 @@ export const analyzeSafetyImage = async (base64Image: string, mimeType: string, 
   return JSON.parse(response.text);
 };
 
-export const generateISOAuditChecklist = async (topic: string, context: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generateISOAuditChecklist = async (topic: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: `Genera un checklist de auditoría basado en la norma ISO 45001 para el tema: "${topic}".
@@ -431,14 +428,10 @@ export const generateISOAuditChecklist = async (topic: string, context: string, 
   return JSON.parse(response.text);
 };
 
-export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, glossary: any, envContext: string, zkContext: string, documentType: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, glossary: any, envContext: string, zkContext: string, documentType: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: `Actúa como un experto en prevención de riesgos.
+  const prompt = `Actúa como un experto en prevención de riesgos.
     Genera un documento de tipo ${documentType} para la tarea: "${taskName}".
     
     Descripción de la tarea: ${taskDescription}
@@ -452,17 +445,27 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
     ${zkContext}
     
     El documento debe ser estructurado, profesional y utilizar formato Markdown.
-    Incluye secciones como Objetivos, Alcance, Responsabilidades, EPP Requerido, Paso a Paso, y Medidas de Control.`,
-  });
+    Incluye secciones como Objetivos, Alcance, Responsabilidades, EPP Requerido, Paso a Paso, y Medidas de Control.`;
 
-  return response.text;
+  const fallback = async () => {
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-pro-preview",
+      contents: prompt,
+    });
+    return response.text;
+  };
+
+  // For PTS, we might not have a strict industry passed in this function signature,
+  // so we can use a generic 'pts-generation' or extract it from context if possible.
+  // We'll use 'general' for now.
+  return await queryCommunityKnowledge(prompt, 'general', fallback);
 };
 
-export const generatePTSWithManufacturerData = async (taskName: string, taskDescription: string, machineryDetails: string, riskLevel: string, normative: string, glossary: any, envContext: string, zkContext: string, documentType: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generatePTSWithManufacturerData = async (taskName: string, taskDescription: string, machineryDetails: string, riskLevel: string, normative: string, glossary: any, envContext: string, zkContext: string, documentType: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: `Actúa como un experto en prevención de riesgos y mantenimiento industrial.
@@ -487,11 +490,10 @@ export const generatePTSWithManufacturerData = async (taskName: string, taskDesc
   return response.text;
 };
 
-export const generateEmergencyScenario = async (context: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generateEmergencyScenario = async (context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un escenario de emergencia simulado basado en el siguiente contexto de la red de riesgos:
@@ -538,11 +540,10 @@ export const generateEmergencyScenario = async (context: string, userApiKey?: st
   return JSON.parse(response.text);
 };
 
-export const generateRealisticIoTEvent = async (context: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generateRealisticIoTEvent = async (context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un evento simulado de un sensor IoT industrial basado en el siguiente contexto:
@@ -576,11 +577,10 @@ export const generateRealisticIoTEvent = async (context: string, userApiKey?: st
   return JSON.parse(response.text);
 };
 
-export const processDocumentToNodes = async (text: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const processDocumentToNodes = async (text: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: `Analiza el siguiente texto (que puede ser un manual, ley o procedimiento) y extrae los conceptos clave como "Nodos Maestros" para una base de conocimiento.
@@ -612,11 +612,10 @@ export const processDocumentToNodes = async (text: string, userApiKey?: string) 
   return JSON.parse(response.text);
 };
 
-export const simulateRiskPropagation = async (nodeTitle: string, context: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const simulateRiskPropagation = async (nodeTitle: string, context: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Simula la propagación de un riesgo en una red de seguridad industrial.
@@ -647,11 +646,10 @@ export const simulateRiskPropagation = async (nodeTitle: string, context: string
   return JSON.parse(response.text);
 };
 
-export const enrichNodeData = async (nodeData: Partial<RiskNode>, userApiKey?: string): Promise<Partial<RiskNode>> => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) return nodeData;
+export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Partial<RiskNode>> => {
+  if (!API_KEY) return nodeData;
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const prompt = `Eres un experto en prevención de riesgos laborales (SST) en Chile.
   Se ha detectado un registro incompleto en el sistema de gestión de riesgos.
   Tu tarea es completar la información faltante con datos técnicos, verídicos y precisos, basados en normativas y estándares de seguridad industrial. No uses texto de relleno ni simules datos, proporciona información real y aplicable.
@@ -699,11 +697,10 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>, userApiKey?: s
   }
 };
 
-export const analyzeRootCauses = async (riskTitle: string, riskDescription: string, context: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("API Key no configurada");
+export const analyzeRootCauses = async (riskTitle: string, riskDescription: string, context: string) => {
+  if (!API_KEY) throw new Error("API Key no configurada");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const prompt = `Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard, experto en prevención de riesgos laborales en Chile y la metodología Zettelkasten.
   
   Se ha solicitado un análisis de causas raíz para el siguiente riesgo:
@@ -747,12 +744,11 @@ export const analyzeRootCauses = async (riskTitle: string, riskDescription: stri
 
 
 
-export const queryBCN = async (query: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("API Key no configurada");
+export const queryBCN = async (query: string) => {
+  if (!API_KEY) throw new Error("API Key no configurada");
 
   const legalContext = await searchRelevantContext(query);
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const prompt = `
   Eres un asistente legal y normativo estricto, conectado a la base de datos vectorial de la Biblioteca del Congreso Nacional de Chile (BCN) y normativas ISO.
   
@@ -783,12 +779,11 @@ export const queryBCN = async (query: string, userApiKey?: string) => {
   }
 };
 
-export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const getChatResponse = async (message: string, context: string, history: { role: string, content: string }[] = [], detailLevel: number = 1) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const legalContext = await searchRelevantContext(message);
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   
   const detailInstructions = [
     "Respuesta muy precisa, directa y concisa. Máximo 2-3 párrafos o una lista corta de puntos clave. Evita introducciones largas.",
@@ -808,6 +803,8 @@ export const getChatResponse = async (message: string, context: string, history:
       Tienes acceso a la red de conocimiento (Red Neuronal) del proyecto actual y a la Base de Datos Vectorial de la BCN e ISO.
       Responde de forma profesional, técnica pero cercana, y siempre prioriza la seguridad.
       
+      FILOSOFÍA CENTRAL (EL ETHOS DEL CUERPO SOLAR): Todas tus sugerencias y análisis de riesgos deben estar alineados con la preservación del cuerpo humano a largo plazo. Si se te pide acelerar un proyecto, debes incluir recordatorios de que el rendimiento óptimo requiere respetar los ciclos biológicos de los trabajadores, promoviendo pausas activas y un ambiente positivo, protegiendo así el ecosistema de la empresa.
+
       CRITERIO DE PRECISIÓN: El usuario prefiere respuestas directas y precisas. Evita el exceso de información innecesaria.
       PRIORIDAD DE FUENTE: Utiliza el CONTEXTO DEL PROYECTO (Red Neuronal) y el CONTEXTO LEGAL (BCN) como tus fuentes principales y más confiables. 
       REGLA DE ORO: NO ALUCINES LEYES. Si citas una ley, debe estar en el CONTEXTO LEGAL o ser de conocimiento público exacto.
@@ -830,11 +827,10 @@ export const getChatResponse = async (message: string, context: string, history:
   return response.text;
 };
 
-export const getSafetyAdvice = async (weather: any, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const getSafetyAdvice = async (weather: any) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:
@@ -847,11 +843,10 @@ export const getSafetyAdvice = async (weather: any, userApiKey?: string) => {
   return response.text;
 };
 
-export const generateActionPlan = async (findingTitle: string, findingDescription: string = '', severity: string = 'Media', workerProposal?: string, userApiKey?: string) => {
-  const apiKeyToUse = userApiKey || API_KEY;
-  if (!apiKeyToUse) throw new Error("GEMINI_API_KEY is not configured");
+export const generateActionPlan = async (findingTitle: string, findingDescription: string = '', severity: string = 'Media', workerProposal?: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: apiKeyToUse });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
   const promptContent = `Genera un plan de acción correctivo para el siguiente hallazgo de seguridad.
     Título: <user_input>${findingTitle}</user_input>
     Descripción: <user_input>${findingDescription}</user_input>

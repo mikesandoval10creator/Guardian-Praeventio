@@ -160,3 +160,57 @@ export const searchRelevantContext = async (query: string, topK: number = 3): Pr
     return "Error al recuperar contexto legal.";
   }
 };
+
+/**
+ * Interceptor for AI generation requests.
+ * Checks community_glossary first. If not found, calls Gemini and saves the result.
+ */
+export const queryCommunityKnowledge = async (
+  prompt: string, 
+  industry: string, 
+  geminiFallback: () => Promise<string>
+): Promise<string> => {
+  if (!admin.apps.length) {
+    return await geminiFallback();
+  }
+
+  const db = admin.firestore();
+  const glossaryCollection = db.collection('community_glossary');
+
+  try {
+    const queryEmbedding = await generateEmbedding(prompt);
+    
+    // Search for highly matching response in the same industry
+    const results = await glossaryCollection
+      .where('industry', '==', industry)
+      .findNearest('embedding', FieldValue.vector(queryEmbedding), {
+        limit: 1,
+        distanceMeasure: 'COSINE'
+      })
+      .get();
+
+    if (!results.empty) {
+      console.log(`[RAG Interceptor] Cache hit for industry: ${industry}`);
+      return results.docs[0].data().response;
+    }
+
+    console.log(`[RAG Interceptor] Cache miss for industry: ${industry}. Calling Gemini...`);
+    // Fallback to Gemini
+    const aiResponse = await geminiFallback();
+
+    // Save to community_glossary
+    await glossaryCollection.add({
+      prompt,
+      response: aiResponse,
+      industry,
+      embedding: FieldValue.vector(queryEmbedding),
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    return aiResponse;
+  } catch (error) {
+    console.error("[RAG Interceptor] Error:", error);
+    // If anything fails (e.g. vector search not indexed), fallback to Gemini
+    return await geminiFallback();
+  }
+};

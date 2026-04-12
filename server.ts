@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import cookieParser from "cookie-parser";
 import session from "express-session";
-import { FirebaseStore } from "connect-session-firebase";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { initializeRAG } from "./src/services/ragService.js";
@@ -45,9 +44,6 @@ if (process.env.NODE_ENV === 'production' && !sessionSecret) {
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-  store: admin.apps.length ? new FirebaseStore({
-    database: admin.database() // connect-session-firebase uses RTDB by default
-  }) : undefined,
   secret: sessionSecret || "fallback-secret-do-not-use-in-production",
   resave: false,
   saveUninitialized: true,
@@ -308,6 +304,18 @@ app.post("/api/telemetry/ingest", async (req, res) => {
   }
 });
 
+// Seed Glossary Endpoint
+app.post("/api/seed-glossary", async (req, res) => {
+  try {
+    const { runSeed } = await import('./src/services/seedBackend.js');
+    await runSeed();
+    res.json({ success: true, message: "Community glossary seeded successfully" });
+  } catch (error: any) {
+    console.error('Error seeding glossary:', error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
 // Gemini API Proxy
 const ALLOWED_GEMINI_ACTIONS = [
   'generateEmbeddingsBatch',
@@ -334,7 +342,6 @@ const ALLOWED_GEMINI_ACTIONS = [
 
 app.post("/api/gemini", verifyAuth, async (req, res) => {
   const { action, args } = req.body;
-  const userApiKey = req.headers['x-gemini-api-key'] as string | undefined;
   
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
@@ -343,8 +350,7 @@ app.post("/api/gemini", verifyAuth, async (req, res) => {
   try {
     const geminiBackend = await import('./src/services/geminiBackend.js');
     if (typeof geminiBackend[action as keyof typeof geminiBackend] === 'function') {
-      // Append userApiKey as the last argument
-      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args, userApiKey);
+      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args);
       res.json({ result });
     } else {
       res.status(400).json({ error: `Action ${action} not found` });

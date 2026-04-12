@@ -73,6 +73,7 @@ export function SiteMap() {
   });
   const [aiInsight, setAiInsight] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [crossInterferences, setCrossInterferences] = useState<any[]>([]);
   
   const { environment } = useUniversalKnowledge();
   const weather = environment?.weather;
@@ -99,6 +100,44 @@ export function SiteMap() {
       (!selectedProject || n.projectId === selectedProject.id)
     );
   }, [nodes, selectedProject]);
+
+  // Cross-Interference Radar (System 2)
+  useEffect(() => {
+    const interferences = [];
+    for (let i = 0; i < hotspots.length; i++) {
+      for (let j = i + 1; j < hotspots.length; j++) {
+        const nodeA = hotspots[i];
+        const nodeB = hotspots[j];
+        
+        // Simple distance check (approximate)
+        const latDiff = Math.abs(nodeA.metadata.lat - nodeB.metadata.lat);
+        const lngDiff = Math.abs(nodeA.metadata.lng - nodeB.metadata.lng);
+        const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+        
+        // If within ~50 meters (very rough approx)
+        if (distance < 0.0005) {
+          const titleA = (nodeA.title || '').toLowerCase();
+          const titleB = (nodeB.title || '').toLowerCase();
+          
+          // Check for incompatible tasks (e.g., hot work + flammable)
+          const isHotWorkA = titleA.includes('caliente') || titleA.includes('soldadura');
+          const isFlammableB = titleB.includes('inflamable') || titleB.includes('combustible');
+          
+          const isHotWorkB = titleB.includes('caliente') || titleB.includes('soldadura');
+          const isFlammableA = titleA.includes('inflamable') || titleA.includes('combustible');
+
+          if ((isHotWorkA && isFlammableB) || (isHotWorkB && isFlammableA)) {
+            interferences.push({
+              nodeA,
+              nodeB,
+              reason: 'Trabajo en caliente cerca de materiales inflamables.'
+            });
+          }
+        }
+      }
+    }
+    setCrossInterferences(interferences);
+  }, [hotspots]);
 
   const unplacedNodes = useMemo(() => {
     return nodes.filter(n => 
@@ -478,6 +517,41 @@ export function SiteMap() {
               </div>
             )}
           </div>
+
+          {/* Cross-Interference Radar Overlay */}
+          <AnimatePresence>
+            {crossInterferences.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="absolute top-2 sm:top-6 left-2 sm:left-6 z-30 w-64 sm:w-80"
+              >
+                <div className="bg-rose-500/10 backdrop-blur-xl border border-rose-500/30 rounded-2xl p-4 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <ShieldAlert className="w-5 h-5 text-rose-500 animate-pulse" />
+                    <h3 className="text-xs font-black uppercase tracking-widest text-rose-500">Radar de Interferencias</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {crossInterferences.map((ci, idx) => (
+                      <div key={idx} className="bg-black/40 rounded-xl p-3 border border-rose-500/20">
+                        <p className="text-[10px] text-rose-400 font-bold mb-2">{ci.reason}</p>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[9px] text-zinc-300 truncate">• {ci.nodeA.title}</span>
+                          <span className="text-[9px] text-zinc-300 truncate">• {ci.nodeB.title}</span>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-rose-500/20">
+                          <p className="text-[9px] text-rose-300 italic">
+                            Acción: Encuentro físico requerido entre líderes de cuadrilla para coordinar superposición.
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Node Placement Overlay */}
           <AnimatePresence>

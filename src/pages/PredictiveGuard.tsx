@@ -21,7 +21,8 @@ import {
   RefreshCw,
   MapPin,
   Clock,
-  HeartPulse
+  HeartPulse,
+  Users
 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useProject } from '../contexts/ProjectContext';
@@ -352,6 +353,95 @@ export function PredictiveGuard() {
                 <div className="text-zinc-500 text-sm">Esperando datos...</div>
               )}
             </Card>
+
+            {/* Radar de Contacto Humano (System 3) */}
+            <Card className="p-6 sm:p-8 bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-[2rem] relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-6 opacity-10">
+                <Users className="w-32 h-32 text-amber-500" />
+              </div>
+              <div className="flex items-center gap-3 mb-6 relative z-10">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-500">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-amber-500 uppercase tracking-tighter">Radar de Contacto Humano</h3>
+                  <p className="text-[10px] font-bold text-amber-600/80 uppercase tracking-widest">Prevención Basada en Vínculos</p>
+                </div>
+              </div>
+              
+              <div className="relative z-10 space-y-4">
+                <div className="p-4 rounded-2xl bg-black/40 border border-amber-500/20">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-full bg-amber-500/20 shrink-0">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white mb-1">El Equipo 4 ha tenido desviaciones hoy</h4>
+                      <p className="text-xs text-zinc-400 leading-relaxed">
+                        La métrica de bienestar general indica un nivel de alerta leve y se reportó un casi-accidente reciente en su zona.
+                      </p>
+                      <div className="mt-3 pt-3 border-t border-amber-500/20 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-amber-500" />
+                        <span className="text-xs font-medium text-amber-400">Acción: Es un buen momento para una charla de seguridad en persona.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Haki de Observación Consultivo (System 4) */}
+            <AnimatePresence>
+              {environment?.weather && environment.weather.windSpeed > 50 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                >
+                  <Card className="p-6 sm:p-8 bg-gradient-to-br from-indigo-500/10 to-blue-500/10 border border-indigo-500/30 rounded-[2rem] relative overflow-hidden shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+                    <div className="absolute top-0 right-0 p-6 opacity-20">
+                      <Wind className="w-32 h-32 text-indigo-400 animate-pulse" />
+                    </div>
+                    <div className="flex items-center gap-3 mb-6 relative z-10">
+                      <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400">
+                        <Brain className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black text-indigo-400 uppercase tracking-tighter">Haki de Observación Consultivo</h3>
+                        <p className="text-[10px] font-bold text-indigo-500/80 uppercase tracking-widest">Asistente de Decisión</p>
+                      </div>
+                    </div>
+                    
+                    <div className="relative z-10 space-y-4">
+                      <div className="p-5 rounded-2xl bg-black/60 border border-indigo-500/30 backdrop-blur-md">
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 rounded-full bg-indigo-500/20 shrink-0">
+                            <CloudLightning className="w-6 h-6 text-indigo-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-base font-bold text-white mb-2">Condiciones adversas detectadas</h4>
+                            <p className="text-sm text-zinc-300 leading-relaxed mb-4">
+                              El Guardián detecta vientos de {environment.weather.windSpeed} km/h en la zona. ¿Deseas enviar una alerta para suspender trabajos en altura?
+                            </p>
+                            <div className="flex gap-3">
+                              <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold uppercase tracking-widest rounded-xl transition-colors">
+                                Sí, Enviar Alerta
+                              </button>
+                              <button className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold uppercase tracking-widest rounded-xl transition-colors border border-zinc-700">
+                                Ignorar
+                              </button>
+                            </div>
+                            <p className="text-[9px] text-zinc-500 mt-3 italic">
+                              * La IA nunca ejecuta acciones por sí sola. La responsabilidad permanece en la tripulación.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Top Threats Grid */}
             <div className="space-y-4">

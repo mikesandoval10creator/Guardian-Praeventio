@@ -34,7 +34,7 @@ import { MassImportModal } from '../components/workers/MassImportModal';
 import { AccessControlModal } from '../components/workers/AccessControlModal';
 import { TraceabilityModal } from '../components/workers/TraceabilityModal';
 import { LaborManagementModal } from '../components/workers/LaborManagementModal';
-import { NakamaProfileModal } from '../components/workers/NakamaProfileModal';
+import { UserProfileModal } from '../components/workers/UserProfileModal';
 import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
@@ -59,7 +59,7 @@ export function Workers() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdown]);
-  const [activeModal, setActiveModal] = useState<'epp' | 'docs' | 'qr' | 'safety-plan' | 'training' | 'access' | 'traceability' | 'labor' | 'nakama' | null>(null);
+  const [activeModal, setActiveModal] = useState<'epp' | 'docs' | 'qr' | 'safety-plan' | 'training' | 'access' | 'traceability' | 'labor' | 'user-profile' | null>(null);
   const isOnline = useOnlineStatus();
   
   const collectionPath = selectedProject ? `projects/${selectedProject.id}/workers` : 'workers';
@@ -253,7 +253,7 @@ export function Workers() {
 
               <div className="grid grid-cols-4 gap-2 pt-4 border-t border-zinc-200 dark:border-white/5">
                 <button 
-                  onClick={() => { setSelectedWorker(worker); setActiveModal('nakama'); }}
+                  onClick={() => { setSelectedWorker(worker); setActiveModal('user-profile'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn col-span-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-2"
                 >
                   <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 dark:text-amber-400 group-hover/btn:scale-110 transition-transform" />
@@ -499,8 +499,8 @@ export function Workers() {
         projectId={selectedProject?.id || null}
       />
 
-      {selectedWorker && activeModal === 'nakama' && (
-        <NakamaProfileModal
+      {selectedWorker && activeModal === 'user-profile' && (
+        <UserProfileModal
           worker={selectedWorker}
           onClose={() => setActiveModal(null)}
         />

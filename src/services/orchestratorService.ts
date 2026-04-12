@@ -124,7 +124,7 @@ const getMockWeatherData = (): WeatherData => {
     airQuality: 'Moderada',
     altitude: 1200,
     location: 'Faena Minera',
-    windSpeed: 15,
+    windSpeed: 55, // Set to 55 to trigger Haki de Observacion Consultivo
     recommendations: [
       'Uso obligatorio de bloqueador solar FPS 50+',
       'Hidratación cada 45 minutos',

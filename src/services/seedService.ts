@@ -3,6 +3,29 @@ import { db } from './firebase';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
 import { NodeType } from '../types';
 
+export const seedCommunityGlossary = async () => {
+  try {
+    console.log('Iniciando poblamiento del Grand Line (Community Glossary)...');
+    const response = await fetch('/api/seed-glossary', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Error: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Poblamiento completado:', data);
+    return data;
+  } catch (error) {
+    console.error('Error seeding community glossary:', error);
+    throw error;
+  }
+};
+
 export const seedGlobalData = async (projectId?: string, industry?: string) => {
   try {
     // 1. Seed Industry IPER Templates (Global)

@@ -5,12 +5,12 @@ import { Shield, Sword, Heart, Zap, Download, X, Star, Award, BookOpen, Loader2 
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
-interface NakamaProfileModalProps {
+interface UserProfileModalProps {
   worker: Worker;
   onClose: () => void;
 }
 
-export function NakamaProfileModal({ worker, onClose }: NakamaProfileModalProps) {
+export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
 

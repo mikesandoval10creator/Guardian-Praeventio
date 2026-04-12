@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense } from 'react';
-const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+import { Dashboard } from './pages/Dashboard';
 const Workers = lazy(() => import('./pages/Workers').then(module => ({ default: module.Workers })));
 const History = lazy(() => import('./pages/History').then(module => ({ default: module.History })));
 const Risks = lazy(() => import('./pages/Risks').then(module => ({ default: module.Risks })));
@@ -81,6 +81,7 @@ const MinsalProtocols = lazy(() => import('./pages/MinsalProtocols').then(module
 const PortableCurriculum = lazy(() => import('./pages/PortableCurriculum').then(module => ({ default: module.PortableCurriculum })));
 const ComiteParitario = lazy(() => import('./pages/ComiteParitario').then(module => ({ default: module.ComiteParitario })));
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
+const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 
 import { useState, useEffect } from "react";
 import { RootLayout } from "./components/layout/RootLayout";
@@ -167,6 +168,7 @@ function AppRoutes() {
                   <Route path="workers" element={<Workers />} />
                   <Route path="epp" element={<EPP />} />
                   <Route path="pts" element={<PTSGenerator />} />
+                  <Route path="webxr" element={<WebXR />} />
                   <Route path="bio-analysis" element={<BioAnalysis />} />
                   <Route path="assets" element={<Assets />} />
                   <Route path="history" element={<History />} />

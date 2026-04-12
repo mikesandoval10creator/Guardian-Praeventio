@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { analyzeRiskWithAI, generateActionPlan } from '../../services/geminiService';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType, RiskNode } from '../../types';
-import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCircuit, ListChecks, WifiOff } from 'lucide-react';
+import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCircuit, ListChecks, WifiOff, Camera } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { withGlossary } from '../shared/withGlossary';
@@ -39,10 +39,32 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
   const [saved, setSaved] = useState(false);
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [actionPlan, setActionPlan] = useState<any[] | null>(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
   const { addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
   const { nodes: allNodes } = useUniversalKnowledge();
   const isOnline = useOnlineStatus();
+
+  // Pre-fill logic based on industry (El Navegante Asistente)
+  useEffect(() => {
+    if (selectedProject?.industry && !description) {
+      let prefill = '';
+      switch (selectedProject.industry.toLowerCase()) {
+        case 'minería':
+          prefill = 'Trabajo en altura física sobre 1.8m en andamios móviles, exposición a polvo en suspensión y ruido continuo >85dB.';
+          break;
+        case 'construcción':
+          prefill = 'Excavación de zanjas profundas (>1.5m) con maquinaria pesada en operación cercana. Riesgo de derrumbe.';
+          break;
+        case 'agricultura':
+          prefill = 'Aplicación de plaguicidas organofosforados con bomba de espalda. Exposición dérmica e inhalatoria.';
+          break;
+        default:
+          prefill = 'Manejo manual de cargas pesadas (>25kg) con posturas forzadas y movimientos repetitivos.';
+      }
+      setDescription(prefill);
+    }
+  }, [selectedProject?.industry]);
 
   const nodesContext = useMemo(() => {
     return allNodes
@@ -236,32 +258,57 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
           </div>
         )}
 
-        <button
-          onClick={handleAnalyze}
-          disabled={loading || !description.trim() || !isOnline}
-          className={`w-full py-3 rounded-xl font-medium text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
-            !isOnline 
-              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
-              : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
-          }`}
-        >
-          {!isOnline ? (
-            <>
-              <WifiOff className="w-5 h-5" />
-              <span>Requiere Conexión</span>
-            </>
-          ) : loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Analizando con IA...</span>
-            </>
-          ) : (
-            <>
-              <Zap className="w-5 h-5" />
-              <span>Generar Matriz IPERC</span>
-            </>
-          )}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setIsCameraActive(!isCameraActive)}
+            className={`p-3 rounded-xl border transition-colors flex items-center justify-center ${
+              isCameraActive 
+                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500' 
+                : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-700'
+            }`}
+            title="Capturar Entorno"
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+          <button
+            onClick={handleAnalyze}
+            disabled={loading || !description.trim() || !isOnline}
+            className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
+              !isOnline 
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
+                : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
+          >
+            {!isOnline ? (
+              <>
+                <WifiOff className="w-5 h-5" />
+                <span>Requiere Conexión</span>
+              </>
+            ) : loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Analizando con IA...</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-5 h-5" />
+                <span>Generar Matriz IPERC</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {isCameraActive && (
+          <div className="relative w-full h-48 bg-black rounded-xl overflow-hidden border border-zinc-800">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-zinc-500 text-sm">Cámara Activa (Simulación)</p>
+            </div>
+            <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-xl pointer-events-none"></div>
+            <div className="absolute top-2 right-2 bg-black/50 px-2 py-1 rounded text-[10px] text-emerald-500 font-mono">
+              REC
+            </div>
+          </div>
+        )}
       </div>
 
       {result && (

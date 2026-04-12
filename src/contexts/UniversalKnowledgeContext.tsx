@@ -9,6 +9,7 @@ interface UniversalKnowledgeContextType {
   loading: boolean;
   projectClusters: Record<string, RiskNode[]>;
   environment: EnvironmentContext | null;
+  communityGlossary: any[];
   stats: {
     totalNodes: number;
     totalConnections: number;
@@ -23,9 +24,10 @@ const UniversalKnowledgeContext = createContext<UniversalKnowledgeContextType | 
 
 export function UniversalKnowledgeProvider({ children }: { children: React.ReactNode }) {
   const [nodes, setNodes] = useState<RiskNode[]>([]);
+  const [communityGlossary, setCommunityGlossary] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [environment, setEnvironment] = useState<EnvironmentContext | null>(null);
-  const { isAuthReady, user } = useFirebase();
+  const { isAuthReady, user, userIndustry } = useFirebase();
 
   // Fetch Environment Data (Orchestrator)
   useEffect(() => {
@@ -56,6 +58,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   useEffect(() => {
     if (!isAuthReady || !user) {
       setNodes([]);
+      setCommunityGlossary([]);
       setLoading(false);
       return;
     }
@@ -64,7 +67,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     // The security rules will handle the filtering based on RBAC
     const q = query(collection(db, 'nodes'), orderBy('updatedAt', 'desc'));
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeNodes = onSnapshot(q, (snapshot) => {
       const newNodes = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
@@ -81,8 +84,30 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       setLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [isAuthReady, user]);
+    // Fetch Community Glossary for the user's industry
+    // We don't need real-time updates for glossary, just fetch once per session
+    import('../services/firebase').then(({ getDocs, where }) => {
+      const glossaryQuery = query(
+        collection(db, 'community_glossary'),
+        where('industry', 'in', [userIndustry, 'General'])
+      );
+      getDocs(glossaryQuery).then(snapshot => {
+        const glossary = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCommunityGlossary(glossary);
+        // Save to localStorage for offline access
+        localStorage.setItem(`community_glossary_${userIndustry}`, JSON.stringify(glossary));
+      }).catch(error => {
+        console.error("Error fetching community glossary:", error);
+        // Try to load from localStorage if offline
+        const cached = localStorage.getItem(`community_glossary_${userIndustry}`);
+        if (cached) {
+          setCommunityGlossary(JSON.parse(cached));
+        }
+      });
+    });
+
+    return () => unsubscribeNodes();
+  }, [isAuthReady, user, userIndustry]);
 
   const projectClusters = useMemo(() => {
     return nodes.reduce((acc, node) => {
@@ -121,7 +146,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   }, [nodes]);
 
   return (
-    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, environment, stats }}>
+    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, environment, communityGlossary, stats }}>
       {children}
     </UniversalKnowledgeContext.Provider>
   );

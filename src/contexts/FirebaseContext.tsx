@@ -9,6 +9,7 @@ interface FirebaseContextType {
   isAdmin: boolean;
   isAuthReady: boolean;
   userRole: string;
+  userIndustry: string;
 }
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
@@ -18,6 +19,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string>('client');
+  const [userIndustry, setUserIndustry] = useState<string>('General');
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               displayName: currentUser.displayName || 'Anonymous',
               email: currentUser.email || '',
               role: 'worker', // Default role matching firestore rules
+              industry: 'General',
               createdAt: new Date().toISOString(),
             };
             if (currentUser.photoURL) {
@@ -43,10 +46,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             }
             await setDoc(userDocRef, newUserData);
             setUserRole('worker');
+            setUserIndustry('General');
           } else {
             const userData = userDoc.data();
             setIsAdmin(userData.role === 'admin');
             setUserRole(userData.role || 'worker');
+            setUserIndustry(userData.industry || 'General');
           }
 
           // Seed initial nodes if collection is empty
@@ -87,7 +92,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady, userRole }}>
+    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady, userRole, userIndustry }}>
       {children}
     </FirebaseContext.Provider>
   );

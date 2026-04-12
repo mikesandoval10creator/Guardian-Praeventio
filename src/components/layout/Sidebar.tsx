@@ -86,14 +86,64 @@ type MenuGroup = {
 
 const menuGroups: MenuGroup[] = [
   {
-    title: "Inteligencia",
+    title: "Principal",
+    icon: Home,
+    items: [
+      { title: "Inicio", icon: Home, path: "/", color: "text-emerald-500" },
+      {
+        title: "Muro",
+        icon: Users,
+        path: "/safety-feed",
+        color: "text-emerald-500",
+      },
+      {
+        title: "Mural Dinámico",
+        icon: MessageSquare,
+        path: "/mural",
+        color: "text-blue-500",
+      },
+      {
+        title: "Proyectos",
+        icon: Briefcase,
+        path: "/projects",
+        color: "text-blue-500",
+      },
+      {
+        title: "Mapa de Sitio",
+        icon: Map,
+        path: "/site-map",
+        color: "text-zinc-400",
+      },
+    ],
+  },
+  {
+    title: "Inteligencia & IA",
     icon: Brain,
     items: [
+      { title: "AI Hub", icon: Zap, path: "/ai-hub", color: "text-violet-500" },
       {
         title: "El Asesor",
         icon: MessageSquare,
         path: "/asesor",
         color: "text-violet-500",
+      },
+      {
+        title: "Guardia Predictivo",
+        icon: Zap,
+        path: "/predictive-guard",
+        color: "text-zinc-400",
+      },
+      {
+        title: "Red Neuronal",
+        icon: Network,
+        path: "/risk-network",
+        color: "text-emerald-400",
+      },
+      {
+        title: "Zettelkasten",
+        icon: Network,
+        path: "/zettelkasten",
+        color: "text-blue-500",
       },
       {
         title: "Procesador Académico",
@@ -108,42 +158,10 @@ const menuGroups: MenuGroup[] = [
         color: "text-violet-400",
       },
       {
-        title: "Zettelkasten",
-        icon: Network,
-        path: "/zettelkasten",
-        color: "text-blue-500",
-      },
-      {
-        title: "Arcade Seguridad",
-        icon: Gamepad2,
-        path: "/arcade-games",
-        color: "text-fuchsia-500",
-      },
-    ],
-  },
-  {
-    title: "Principal",
-    icon: Home,
-    items: [
-      { title: "Inicio", icon: Home, path: "/", color: "text-emerald-500" },
-      {
-        title: "Red Neuronal",
-        icon: Network,
-        path: "/risk-network",
-        color: "text-emerald-400",
-      },
-      {
-        title: "Proyectos",
-        icon: Briefcase,
-        path: "/projects",
-        color: "text-blue-500",
-      },
-      { title: "AI Hub", icon: Zap, path: "/ai-hub", color: "text-violet-500" },
-      {
-        title: "Muro",
-        icon: Users,
-        path: "/safety-feed",
-        color: "text-emerald-500",
+        title: "Entrenamiento IA",
+        icon: Zap,
+        path: "/knowledge-ingestion",
+        color: "text-zinc-400",
       },
     ],
   },
@@ -152,21 +170,9 @@ const menuGroups: MenuGroup[] = [
     icon: Briefcase,
     items: [
       {
-        title: "Mural Dinámico",
-        icon: MessageSquare,
-        path: "/mural",
-        color: "text-blue-500",
-      },
-      {
         title: "Trabajadores",
         icon: Users,
         path: "/workers",
-        color: "text-violet-500",
-      },
-      {
-        title: "Documentos",
-        icon: Folder,
-        path: "/documents",
         color: "text-violet-500",
       },
       {
@@ -180,12 +186,6 @@ const menuGroups: MenuGroup[] = [
         icon: Calendar,
         path: "/calendar",
         color: "text-zinc-400",
-      },
-      {
-        title: "Comité Paritario",
-        icon: Users,
-        path: "/comite-paritario",
-        color: "text-emerald-500",
       },
       {
         title: "Telemetría",
@@ -206,10 +206,10 @@ const menuGroups: MenuGroup[] = [
         color: "text-zinc-400",
       },
       {
-        title: "Mapa de Sitio",
-        icon: Map,
-        path: "/site-map",
-        color: "text-zinc-400",
+        title: "Documentos",
+        icon: Folder,
+        path: "/documents",
+        color: "text-violet-500",
       },
     ],
   },
@@ -224,17 +224,12 @@ const menuGroups: MenuGroup[] = [
         color: "text-zinc-400",
       },
       {
-        title: "Controles y Materiales",
-        icon: Wrench,
-        path: "/controls-materials",
-        color: "text-zinc-400",
-      },
-      {
         title: "Riesgos",
         icon: AlertOctagon,
         path: "/risks",
         color: "text-violet-500",
       },
+      { title: "Matriz", icon: Grid, path: "/matrix", color: "text-zinc-400" },
       {
         title: "Hallazgos",
         icon: AlertTriangle,
@@ -242,14 +237,14 @@ const menuGroups: MenuGroup[] = [
         color: "text-amber-500",
       },
       { title: "EPP", icon: Shield, path: "/epp", color: "text-violet-500" },
-      { title: "Matriz", icon: Grid, path: "/matrix", color: "text-zinc-400" },
       { title: "PTS", icon: FileText, path: "/pts", color: "text-zinc-400" },
       {
-        title: "Guardia Predictivo",
-        icon: Zap,
-        path: "/predictive-guard",
+        title: "Controles y Materiales",
+        icon: Wrench,
+        path: "/controls-materials",
         color: "text-zinc-400",
       },
+      { title: "Visión AR (WebXR)", icon: Scan, path: "/webxr", color: "text-indigo-500" },
     ],
   },
   {
@@ -257,39 +252,15 @@ const menuGroups: MenuGroup[] = [
     icon: HeartPulse,
     items: [
       {
-        title: "Zonas DEA",
+        title: "Medicina",
         icon: HeartPulse,
-        path: "/dea-zones",
-        color: "text-rose-500",
-      },
-      {
-        title: "Visor Anatómico",
-        icon: Activity,
-        path: "/human-body",
-        color: "text-rose-500",
-      },
-      {
-        title: "Wearables",
-        icon: Watch,
-        path: "/wearables",
-        color: "text-rose-400",
-      },
-      {
-        title: "Radiación UV",
-        icon: Sun,
-        path: "/sun-tracker",
-        color: "text-yellow-500",
+        path: "/medicine",
+        color: "text-zinc-400",
       },
       {
         title: "Higiene",
         icon: Droplets,
         path: "/hygiene",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Medicina",
-        icon: HeartPulse,
-        path: "/medicine",
         color: "text-zinc-400",
       },
       {
@@ -310,6 +281,36 @@ const menuGroups: MenuGroup[] = [
         path: "/bio-analysis",
         color: "text-zinc-400",
       },
+      {
+        title: "Wearables",
+        icon: Watch,
+        path: "/wearables",
+        color: "text-rose-400",
+      },
+      {
+        title: "Visor Anatómico",
+        icon: Activity,
+        path: "/human-body",
+        color: "text-rose-500",
+      },
+      {
+        title: "Zonas DEA",
+        icon: HeartPulse,
+        path: "/dea-zones",
+        color: "text-rose-500",
+      },
+      {
+        title: "Radiación UV",
+        icon: Sun,
+        path: "/sun-tracker",
+        color: "text-yellow-500",
+      },
+      {
+        title: "Contaminación Lumínica",
+        icon: Sun,
+        path: "/light-pollution",
+        color: "text-amber-500",
+      },
     ],
   },
   {
@@ -327,6 +328,12 @@ const menuGroups: MenuGroup[] = [
         icon: ShieldCheck,
         path: "/minsal-protocols",
         color: "text-zinc-400",
+      },
+      {
+        title: "Comité Paritario",
+        icon: Users,
+        path: "/comite-paritario",
+        color: "text-emerald-500",
       },
       {
         title: "Auditorías",
@@ -359,10 +366,22 @@ const menuGroups: MenuGroup[] = [
         color: "text-rose-500",
       },
       {
+        title: "Evacuación",
+        icon: Map,
+        path: "/evacuation",
+        color: "text-zinc-400",
+      },
+      {
         title: "Rutas Evacuación",
         icon: Route,
         path: "/evacuation-routes",
         color: "text-emerald-500",
+      },
+      {
+        title: "Simulador",
+        icon: Zap,
+        path: "/emergency-generator",
+        color: "text-zinc-400",
       },
       {
         title: "Erupción Volcánica",
@@ -406,30 +425,6 @@ const menuGroups: MenuGroup[] = [
         path: "/inhospitable-guide",
         color: "text-zinc-400",
       },
-      {
-        title: "Evacuación",
-        icon: Map,
-        path: "/evacuation",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Simulador",
-        icon: Zap,
-        path: "/emergency-generator",
-        color: "text-zinc-400",
-      },
-    ],
-  },
-  {
-    title: "Medio Ambiente",
-    icon: Sun,
-    items: [
-      {
-        title: "Contaminación Lumínica",
-        icon: Sun,
-        path: "/light-pollution",
-        color: "text-amber-500",
-      },
     ],
   },
   {
@@ -443,22 +438,22 @@ const menuGroups: MenuGroup[] = [
         color: "text-zinc-400",
       },
       {
-        title: "Gamificación",
-        icon: Award,
-        path: "/gamification",
-        color: "text-zinc-400",
-      },
-      {
         title: "Currículum Preventivo",
         icon: ShieldCheck,
         path: "/curriculum",
         color: "text-emerald-500",
       },
       {
-        title: "Entrenamiento IA",
-        icon: Zap,
-        path: "/knowledge-ingestion",
+        title: "Gamificación",
+        icon: Award,
+        path: "/gamification",
         color: "text-zinc-400",
+      },
+      {
+        title: "Arcade Seguridad",
+        icon: Gamepad2,
+        path: "/arcade-games",
+        color: "text-fuchsia-500",
       },
     ],
   },
