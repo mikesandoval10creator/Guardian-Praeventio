@@ -3,9 +3,12 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import { FirebaseStore } from "connect-session-firebase";
+import crypto from "crypto";
 import dotenv from "dotenv";
 import { initializeRAG } from "./src/services/ragService.js";
 import admin from "firebase-admin";
+import fs from 'fs';
 
 dotenv.config();
 
@@ -20,13 +23,32 @@ try {
   console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
 }
 
+// Read Firebase Config once at startup
+let firebaseConfig: any = null;
+try {
+  const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(configPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  }
+} catch (error) {
+  console.error("Failed to read firebase-applet-config.json at startup:", error);
+}
+
 const app = express();
 const PORT = 3000;
+
+const sessionSecret = process.env.SESSION_SECRET;
+if (process.env.NODE_ENV === 'production' && !sessionSecret) {
+  throw new Error("FATAL ERROR: SESSION_SECRET is not defined in production environment.");
+}
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-  secret: process.env.SESSION_SECRET || "fallback-secret-do-not-use-in-production",
+  store: admin.apps.length ? new FirebaseStore({
+    database: admin.database() // connect-session-firebase uses RTDB by default
+  }) : undefined,
+  secret: sessionSecret || "fallback-secret-do-not-use-in-production",
   resave: false,
   saveUninitialized: true,
   cookie: { 
@@ -69,13 +91,17 @@ app.get("/api/auth/google/url", (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
   
+  const state = crypto.randomBytes(16).toString('hex');
+  (req.session as any).oauthState = state;
+  
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || "",
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: SCOPES,
     access_type: 'offline',
-    prompt: 'consent'
+    prompt: 'consent',
+    state: state
   });
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
@@ -83,9 +109,13 @@ app.get("/api/auth/google/url", (req, res) => {
 });
 
 app.get("/auth/google/callback", async (req, res) => {
-  const { code } = req.query;
+  const { code, state } = req.query;
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
+
+  if (!state || state !== (req.session as any).oauthState) {
+    return res.status(403).send("Invalid state parameter (CSRF protection)");
+  }
 
   try {
     const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -112,7 +142,7 @@ app.get("/auth/google/callback", async (req, res) => {
               window.opener.postMessage({ 
                 type: 'GOOGLE_AUTH_SUCCESS', 
                 tokens: ${JSON.stringify(tokens)} 
-              }, '*');
+              }, '${appUrl}');
               window.close();
             } else {
               window.location.href = '/';
@@ -234,10 +264,10 @@ app.post("/api/telemetry/ingest", async (req, res) => {
   }
 
   try {
-    const fs = await import('fs');
-    const path = await import('path');
-    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    if (!firebaseConfig) {
+      console.error("Firebase config not loaded at startup.");
+      return res.status(500).json({ error: "Server configuration error" });
+    }
     
     // Construct Firestore REST API URL
     const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents/telemetry_events`;
@@ -279,12 +309,42 @@ app.post("/api/telemetry/ingest", async (req, res) => {
 });
 
 // Gemini API Proxy
+const ALLOWED_GEMINI_ACTIONS = [
+  'generateEmbeddingsBatch',
+  'autoConnectNodes',
+  'semanticSearch',
+  'analyzeFastCheck',
+  'predictGlobalIncidents',
+  'analyzeRiskWithAI',
+  'analyzePostureWithAI',
+  'generateEmergencyPlan',
+  'analyzeSafetyImage',
+  'generateISOAuditChecklist',
+  'generatePTS',
+  'generatePTSWithManufacturerData',
+  'generateEmergencyScenario',
+  'generateRealisticIoTEvent',
+  'processDocumentToNodes',
+  'simulateRiskPropagation',
+  'enrichNodeData',
+  'analyzeRootCauses',
+  'queryBCN',
+  'getChatResponse'
+];
+
 app.post("/api/gemini", verifyAuth, async (req, res) => {
   const { action, args } = req.body;
+  const userApiKey = req.headers['x-gemini-api-key'] as string | undefined;
+  
+  if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
+    return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
+  }
+
   try {
     const geminiBackend = await import('./src/services/geminiBackend.js');
     if (typeof geminiBackend[action as keyof typeof geminiBackend] === 'function') {
-      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args);
+      // Append userApiKey as the last argument
+      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args, userApiKey);
       res.json({ result });
     } else {
       res.status(400).json({ error: `Action ${action} not found` });

@@ -10,6 +10,12 @@ const callGeminiAPI = async (action: string, args: any[]) => {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
+    // Add user's personal Gemini API key if available
+    const userApiKey = localStorage.getItem('user_gemini_api_key');
+    if (userApiKey) {
+      headers['x-gemini-api-key'] = userApiKey;
+    }
+    
     const response = await fetch('/api/gemini', {
       method: 'POST',
       headers,
