@@ -7,6 +7,7 @@ import {
   Map,
   FileText,
   Layout,
+  LayoutGrid,
   Home,
   Book,
   User,
@@ -86,419 +87,48 @@ type MenuGroup = {
 
 const menuGroups: MenuGroup[] = [
   {
-    title: "Principal",
+    title: "Centro de Mando",
     icon: Home,
     items: [
       { title: "Inicio", icon: Home, path: "/", color: "text-emerald-500" },
-      {
-        title: "Muro",
-        icon: Users,
-        path: "/safety-feed",
-        color: "text-emerald-500",
-      },
-      {
-        title: "Mural Dinámico",
-        icon: MessageSquare,
-        path: "/mural",
-        color: "text-blue-500",
-      },
-      {
-        title: "Proyectos",
-        icon: Briefcase,
-        path: "/projects",
-        color: "text-blue-500",
-      },
-      {
-        title: "Mapa de Sitio",
-        icon: Map,
-        path: "/site-map",
-        color: "text-zinc-400",
-      },
+      { title: "Muro Social", icon: Users, path: "/safety-feed", color: "text-emerald-500" },
+      { title: "Proyectos", icon: Briefcase, path: "/projects", color: "text-blue-500" },
+      { title: "Reportabilidad", icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
     ],
   },
   {
-    title: "Inteligencia & IA",
+    title: "Inteligencia Artificial",
     icon: Brain,
     items: [
       { title: "AI Hub", icon: Zap, path: "/ai-hub", color: "text-violet-500" },
-      {
-        title: "El Asesor",
-        icon: MessageSquare,
-        path: "/asesor",
-        color: "text-violet-500",
-      },
-      {
-        title: "Guardia Predictivo",
-        icon: Zap,
-        path: "/predictive-guard",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Red Neuronal",
-        icon: Network,
-        path: "/risk-network",
-        color: "text-emerald-400",
-      },
-      {
-        title: "Zettelkasten",
-        icon: Network,
-        path: "/zettelkasten",
-        color: "text-blue-500",
-      },
-      {
-        title: "Procesador Académico",
-        icon: BookOpen,
-        path: "/academic-processor",
-        color: "text-violet-500",
-      },
-      {
-        title: "Motor OCR",
-        icon: Scan,
-        path: "/document-ocr",
-        color: "text-violet-400",
-      },
-      {
-        title: "Entrenamiento IA",
-        icon: Zap,
-        path: "/knowledge-ingestion",
-        color: "text-zinc-400",
-      },
+      { title: "El Asesor", icon: MessageSquare, path: "/asesor", color: "text-violet-500" },
+      { title: "Zettelkasten", icon: Database, path: "/zettelkasten", color: "text-blue-500" },
+      { title: "Procesador Académico", icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
+      { title: "Motor OCR", icon: Scan, path: "/document-ocr", color: "text-violet-400" },
     ],
   },
   {
-    title: "Gestión Operativa",
-    icon: Briefcase,
+    title: "Módulos Operativos",
+    icon: LayoutGrid,
     items: [
-      {
-        title: "Trabajadores",
-        icon: Users,
-        path: "/workers",
-        color: "text-violet-500",
-      },
-      {
-        title: "Asistencia",
-        icon: UserCheck,
-        path: "/attendance",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Calendario",
-        icon: Calendar,
-        path: "/calendar",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Telemetría",
-        icon: Activity,
-        path: "/telemetry",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Activos",
-        icon: Wrench,
-        path: "/assets",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Conducción",
-        icon: Car,
-        path: "/safe-driving",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Documentos",
-        icon: Folder,
-        path: "/documents",
-        color: "text-violet-500",
-      },
+      { title: "Gestión Operativa", icon: Briefcase, path: "/hub/operations", color: "text-blue-500" },
+      { title: "Prevención y Riesgos", icon: ShieldAlert, path: "/hub/risks", color: "text-violet-500" },
+      { title: "Salud y Bienestar", icon: HeartPulse, path: "/hub/health", color: "text-rose-500" },
+      { title: "Entorno y Emergencias", icon: AlertTriangle, path: "/hub/emergencies", color: "text-amber-500" },
+      { title: "Cumplimiento Legal", icon: ClipboardCheck, path: "/hub/compliance", color: "text-emerald-500" },
+      { title: "Talento y Cultura", icon: Users, path: "/hub/training", color: "text-indigo-500" },
     ],
   },
   {
-    title: "Prevención y Riesgos",
-    icon: ShieldAlert,
+    title: "Configuración",
+    icon: Settings,
     items: [
-      {
-        title: "Diagnóstico",
-        icon: ClipboardList,
-        path: "/diagnostico",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Riesgos",
-        icon: AlertOctagon,
-        path: "/risks",
-        color: "text-violet-500",
-      },
-      { title: "Matriz", icon: Grid, path: "/matrix", color: "text-zinc-400" },
-      {
-        title: "Hallazgos",
-        icon: AlertTriangle,
-        path: "/findings",
-        color: "text-amber-500",
-      },
-      { title: "EPP", icon: Shield, path: "/epp", color: "text-violet-500" },
-      { title: "PTS", icon: FileText, path: "/pts", color: "text-zinc-400" },
-      {
-        title: "Controles y Materiales",
-        icon: Wrench,
-        path: "/controls-materials",
-        color: "text-zinc-400",
-      },
-      { title: "Visión AR (WebXR)", icon: Scan, path: "/webxr", color: "text-indigo-500" },
+      { title: "Mi Perfil", icon: User, path: "/profile", color: "text-zinc-400" },
+      { title: "Ajustes", icon: Settings, path: "/settings", color: "text-zinc-400" },
+      { title: "Planes y Facturación", icon: Key, path: "/pricing", color: "text-zinc-400" },
+      { title: "Ayuda y Soporte", icon: HelpCircle, path: "/help", color: "text-zinc-400" },
     ],
-  },
-  {
-    title: "Salud Ocupacional",
-    icon: HeartPulse,
-    items: [
-      {
-        title: "Medicina",
-        icon: HeartPulse,
-        path: "/medicine",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Higiene",
-        icon: Droplets,
-        path: "/hygiene",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Ergonomía",
-        icon: UserCheck,
-        path: "/ergonomics",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Psicosocial",
-        icon: Brain,
-        path: "/psychosocial",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Bio-Análisis",
-        icon: Activity,
-        path: "/bio-analysis",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Wearables",
-        icon: Watch,
-        path: "/wearables",
-        color: "text-rose-400",
-      },
-      {
-        title: "Visor Anatómico",
-        icon: Activity,
-        path: "/human-body",
-        color: "text-rose-500",
-      },
-      {
-        title: "Zonas DEA",
-        icon: HeartPulse,
-        path: "/dea-zones",
-        color: "text-rose-500",
-      },
-      {
-        title: "Radiación UV",
-        icon: Sun,
-        path: "/sun-tracker",
-        color: "text-yellow-500",
-      },
-      {
-        title: "Contaminación Lumínica",
-        icon: Sun,
-        path: "/light-pollution",
-        color: "text-amber-500",
-      },
-    ],
-  },
-  {
-    title: "Cumplimiento",
-    icon: ClipboardCheck,
-    items: [
-      {
-        title: "Normativas",
-        icon: Book,
-        path: "/normatives",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Protocolos MINSAL",
-        icon: ShieldCheck,
-        path: "/minsal-protocols",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Comité Paritario",
-        icon: Users,
-        path: "/comite-paritario",
-        color: "text-emerald-500",
-      },
-      {
-        title: "Auditorías",
-        icon: ClipboardList,
-        path: "/audits",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Reportes SUSESO",
-        icon: FileText,
-        path: "/suseso",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Glosario",
-        icon: BookOpen,
-        path: "/glossary",
-        color: "text-zinc-400",
-      },
-    ],
-  },
-  {
-    title: "Emergencias",
-    icon: AlertTriangle,
-    items: [
-      {
-        title: "Emergencia",
-        icon: AlertTriangle,
-        path: "/emergency",
-        color: "text-rose-500",
-      },
-      {
-        title: "Evacuación",
-        icon: Map,
-        path: "/evacuation",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Rutas Evacuación",
-        icon: Route,
-        path: "/evacuation-routes",
-        color: "text-emerald-500",
-      },
-      {
-        title: "Simulador",
-        icon: Zap,
-        path: "/emergency-generator",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Erupción Volcánica",
-        icon: Mountain,
-        path: "/volcanic-eruption",
-        color: "text-orange-500",
-      },
-      {
-        title: "Mapeo Hazmat",
-        icon: Droplet,
-        path: "/hazmat-map",
-        color: "text-violet-500",
-      },
-      {
-        title: "Acopio Hazmat",
-        icon: Droplet,
-        path: "/hazmat-storage",
-        color: "text-emerald-500",
-      },
-      {
-        title: "Refugios Montaña",
-        icon: Mountain,
-        path: "/mountain-refuges",
-        color: "text-blue-500",
-      },
-      {
-        title: "Parques Nacionales",
-        icon: TreePine,
-        path: "/national-parks",
-        color: "text-emerald-500",
-      },
-      {
-        title: "Rutas Climáticas",
-        icon: Route,
-        path: "/climate-routes",
-        color: "text-cyan-500",
-      },
-      {
-        title: "Guía Inhóspita",
-        icon: Mountain,
-        path: "/inhospitable-guide",
-        color: "text-zinc-400",
-      },
-    ],
-  },
-  {
-    title: "Capacitación",
-    icon: BookOpen,
-    items: [
-      {
-        title: "Capacitaciones",
-        icon: BookOpen,
-        path: "/training",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Currículum Preventivo",
-        icon: ShieldCheck,
-        path: "/curriculum",
-        color: "text-emerald-500",
-      },
-      {
-        title: "Gamificación",
-        icon: Award,
-        path: "/gamification",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Arcade Seguridad",
-        icon: Gamepad2,
-        path: "/arcade-games",
-        color: "text-fuchsia-500",
-      },
-    ],
-  },
-  {
-    title: "Reportes",
-    icon: BarChart3,
-    items: [
-      {
-        title: "Reportabilidad",
-        icon: BarChart3,
-        path: "/analytics",
-        color: "text-zinc-400",
-      },
-      {
-        title: "Historia",
-        icon: Clock,
-        path: "/history",
-        color: "text-zinc-400",
-      },
-    ],
-  },
-];
-
-const secondaryItems = [
-  { title: "Notificaciones", icon: Bell, path: "/notifications" },
-  { title: "Workspace Sync", icon: Cloud, path: "/google-drive" },
-  { title: "Visor de Planos", icon: Map, path: "/blueprint-viewer" },
-  {
-    title: "Emergencia Avanzada",
-    icon: Activity,
-    path: "/emergencia-avanzada",
-  },
-  { title: "Emergencia Costera", icon: Waves, path: "/coastal-emergency" },
-  { title: "Arquitectura CQRS", icon: Layers, path: "/cqrs-architecture" },
-  { title: "SSO Config", icon: Key, path: "/sso-config" },
-  { title: "Integración ERP", icon: Server, path: "/erp-integration" },
-  { title: "IoT Edge", icon: Cpu, path: "/iot-edge" },
-  { title: "Visor AutoCAD", icon: Box, path: "/autocad" },
-  { title: "Seguridad MFA", icon: Shield, path: "/security-shield" },
-  { title: "Audit Trail", icon: Database, path: "/audit-trail" },
-  { title: "Render Inmutable", icon: Printer, path: "/immutable-render" },
-  { title: "Mi Perfil", icon: User, path: "/profile" },
-  { title: "Configuración", icon: Settings, path: "/settings" },
-  { title: "Planes y Facturación", icon: Key, path: "/pricing" },
-  { title: "Ayuda y Soporte", icon: HelpCircle, path: "/help" },
+  }
 ];
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
@@ -695,27 +325,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </div>
               );
             })}
-          </div>
-
-          <div className="mt-8 space-y-1 pb-12">
-            <p className="px-4 text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mb-3">
-              Sistema y Cuenta
-            </p>
-            {secondaryItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={onClose}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-zinc-800 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-white/20 dark:hover:bg-zinc-800/30 transition-all duration-200 group"
-              >
-                <div className="p-1.5 rounded-lg bg-white/20 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-400 group-hover:bg-white/40 dark:group-hover:bg-zinc-700 transition-colors">
-                  <item.icon className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-bold tracking-wide">
-                  {item.title}
-                </span>
-              </Link>
-            ))}
           </div>
         </div>
 

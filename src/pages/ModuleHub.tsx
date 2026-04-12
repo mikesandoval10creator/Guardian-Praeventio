@@ -36,7 +36,11 @@ const hubsData: Record<string, any> = {
       { title: 'Red Neuronal', icon: Network, path: '/risk-network', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
       { title: 'Proyectos', icon: Briefcase, path: '/projects', color: 'text-blue-500', bg: 'bg-blue-500/10' },
       { title: 'AI Hub', icon: Zap, path: '/ai-hub', color: 'text-violet-500', bg: 'bg-violet-500/10' },
-      { title: 'Muro', icon: Users, path: '/safety-feed', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+      { title: 'Muro Social', icon: Users, path: '/safety-feed', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+      { title: 'Workspace Sync', icon: Folder, path: '/google-drive', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+      { title: 'Arquitectura CQRS', icon: Activity, path: '/cqrs-architecture', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Render Inmutable', icon: Activity, path: '/immutable-render', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'IoT Edge', icon: Activity, path: '/iot-edge', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
     ],
     stats: [
       { label: 'Condiciones Subestándar Abiertas', value: '12', icon: AlertTriangle, trend: '-3 esta semana' },
@@ -63,13 +67,14 @@ const hubsData: Record<string, any> = {
     ],
     items: [
       { title: 'Trabajadores', icon: Users, path: '/workers', color: 'text-violet-500', bg: 'bg-violet-500/10' },
-      { title: 'Documentos', icon: Folder, path: '/documents', color: 'text-violet-500', bg: 'bg-violet-500/10' },
       { title: 'Asistencia', icon: UserCheck, path: '/attendance', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Calendario', icon: Calendar, path: '/calendar', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Telemetría', icon: Activity, path: '/telemetry', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Activos', icon: Wrench, path: '/assets', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Conducción', icon: Car, path: '/safe-driving', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Documentos', icon: Folder, path: '/documents', color: 'text-violet-500', bg: 'bg-violet-500/10' },
       { title: 'Mapa de Sitio', icon: Map, path: '/site-map', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Integración ERP', icon: Activity, path: '/erp-integration', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
     ],
     stats: [
       { label: 'Áreas Inspeccionadas', value: '8/10', icon: Map, trend: 'Faltan 2' },
@@ -95,12 +100,16 @@ const hubsData: Record<string, any> = {
       { task: 'Actualización PTS Izaje', responsible: 'Prevencionista', deadline: 'Viernes' }
     ],
     items: [
+      { title: 'Diagnóstico', icon: ClipboardList, path: '/diagnostico', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Riesgos', icon: AlertOctagon, path: '/risks', color: 'text-violet-500', bg: 'bg-violet-500/10' },
+      { title: 'Matriz', icon: Grid, path: '/matrix', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Hallazgos', icon: AlertTriangle, path: '/findings', color: 'text-amber-500', bg: 'bg-amber-500/10' },
       { title: 'EPP', icon: Shield, path: '/epp', color: 'text-violet-500', bg: 'bg-violet-500/10' },
-      { title: 'Matriz', icon: Grid, path: '/matrix', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'PTS', icon: FileText, path: '/pts', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
-      { title: 'Guardia Predictivo', icon: Zap, path: '/predictive-guard', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Controles y Materiales', icon: Wrench, path: '/controls-materials', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Visión AR (WebXR)', icon: Activity, path: '/webxr', color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+      { title: 'Visor AutoCAD', icon: Map, path: '/autocad', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+      { title: 'Visor de Planos', icon: Map, path: '/blueprint-viewer', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
     ],
     stats: [
       { label: 'Hallazgos Críticos Abiertos', value: '3', icon: AlertTriangle, trend: 'Acción Inmediata' },
@@ -126,11 +135,16 @@ const hubsData: Record<string, any> = {
       { task: 'Medición de Sílice', responsible: 'Higienista', deadline: 'Programado' }
     ],
     items: [
-      { title: 'Higiene', icon: Droplets, path: '/hygiene', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Medicina', icon: HeartPulse, path: '/medicine', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Higiene', icon: Droplets, path: '/hygiene', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Ergonomía', icon: UserCheck, path: '/ergonomics', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Psicosocial', icon: Brain, path: '/psychosocial', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Bio-Análisis', icon: Activity, path: '/bio-analysis', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Wearables', icon: Activity, path: '/wearables', color: 'text-rose-400', bg: 'bg-rose-500/10' },
+      { title: 'Visor Anatómico', icon: Activity, path: '/human-body', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+      { title: 'Zonas DEA', icon: HeartPulse, path: '/dea-zones', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+      { title: 'Radiación UV', icon: Activity, path: '/sun-tracker', color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+      { title: 'Contaminación Lumínica', icon: Activity, path: '/light-pollution', color: 'text-amber-500', bg: 'bg-amber-500/10' },
     ],
     stats: [
       { label: 'Puestos Evaluados (Ergonomía)', value: '45/50', icon: UserCheck, trend: '90% Cobertura' },
@@ -158,9 +172,13 @@ const hubsData: Record<string, any> = {
     items: [
       { title: 'Normativas', icon: Book, path: '/normatives', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Protocolos MINSAL', icon: ShieldCheck, path: '/minsal-protocols', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Comité Paritario', icon: Users, path: '/comite-paritario', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
       { title: 'Auditorías', icon: ClipboardList, path: '/audits', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Reportes SUSESO', icon: FileText, path: '/suseso', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
       { title: 'Glosario', icon: BookOpen, path: '/glossary', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Audit Trail', icon: ClipboardCheck, path: '/audit-trail', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Seguridad MFA', icon: Shield, path: '/security-shield', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'SSO Config', icon: Shield, path: '/sso-config', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
     ],
     stats: [
       { label: 'Plazos Legales Críticos', value: '2', icon: CalendarClock, trend: 'Vencen este mes' },
@@ -188,7 +206,17 @@ const hubsData: Record<string, any> = {
     items: [
       { title: 'Emergencia', icon: AlertTriangle, path: '/emergency', color: 'text-rose-500', bg: 'bg-rose-500/10' },
       { title: 'Evacuación', icon: Map, path: '/evacuation', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Rutas Evacuación', icon: Map, path: '/evacuation-routes', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
       { title: 'Simulador', icon: Zap, path: '/emergency-generator', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Erupción Volcánica', icon: AlertTriangle, path: '/volcanic-eruption', color: 'text-orange-500', bg: 'bg-orange-500/10' },
+      { title: 'Mapeo Hazmat', icon: AlertTriangle, path: '/hazmat-map', color: 'text-violet-500', bg: 'bg-violet-500/10' },
+      { title: 'Acopio Hazmat', icon: AlertTriangle, path: '/hazmat-storage', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+      { title: 'Refugios Montaña', icon: Map, path: '/mountain-refuges', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+      { title: 'Parques Nacionales', icon: Map, path: '/national-parks', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+      { title: 'Rutas Climáticas', icon: Map, path: '/climate-routes', color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+      { title: 'Guía Inhóspita', icon: Map, path: '/inhospitable-guide', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Emergencia Avanzada', icon: AlertTriangle, path: '/emergencia-avanzada', color: 'text-rose-500', bg: 'bg-rose-500/10' },
+      { title: 'Emergencia Costera', icon: AlertTriangle, path: '/coastal-emergency', color: 'text-blue-500', bg: 'bg-blue-500/10' },
     ],
     stats: [
       { label: 'Sistemas Contra Incendio', value: '95%', icon: ShieldCheck, trend: 'Operativos' },
@@ -215,7 +243,9 @@ const hubsData: Record<string, any> = {
     ],
     items: [
       { title: 'Capacitaciones', icon: BookOpen, path: '/training', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Currículum Preventivo', icon: BookOpen, path: '/curriculum', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
       { title: 'Gamificación', icon: Award, path: '/gamification', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
+      { title: 'Arcade Seguridad', icon: Award, path: '/arcade-games', color: 'text-fuchsia-500', bg: 'bg-fuchsia-500/10' },
       { title: 'Entrenamiento IA', icon: Zap, path: '/knowledge-ingestion', color: 'text-zinc-400', bg: 'bg-zinc-500/10' },
     ],
     stats: [
