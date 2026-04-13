@@ -8,6 +8,7 @@ import { RiskNode, NodeType } from '../types';
 import { saveForSync } from '../utils/pwa-offline';
 import { where, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
+import { logAuditAction } from '../services/auditService';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
@@ -107,6 +108,18 @@ export function PTSGenerator() {
       };
       
       await addNode(suspensionNode);
+      
+      await logAuditAction(
+        'SUSPEND_TASK',
+        'PTSGenerator',
+        {
+          taskName,
+          reason: dangerousWeather,
+          originalDescription: taskDescription
+        },
+        selectedProject.id
+      );
+
       setSuspensionReason(dangerousWeather);
       setGeneratedPTS(null); // Clear any generated PTS
     } catch (error) {
@@ -288,6 +301,20 @@ export function PTSGenerator() {
 
         // Conexiones Semánticas Automáticas
         if (newNode) {
+          await logAuditAction(
+            'GENERATE_DOCUMENT',
+            'PTSGenerator',
+            {
+              documentType,
+              taskName,
+              riskLevel,
+              normative,
+              documentId: docRef.id,
+              nodeId: newNode.id
+            },
+            selectedProject.id
+          );
+
           const textToAnalyze = JSON.stringify(generatedPTS).toLowerCase();
           const keywords = {
             'altura': ['arnés', 'linea de vida', 'caída', 'andamio'],

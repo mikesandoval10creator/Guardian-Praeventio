@@ -108,6 +108,64 @@ export function Telemetry() {
     [orderBy('timestamp', 'desc'), limit(10)]
   );
 
+  const handleConnectBluetooth = async () => {
+    try {
+      if (!navigator.bluetooth) {
+        alert('Web Bluetooth API no está soportada en este navegador. Usa Chrome o Edge.');
+        return;
+      }
+
+      setIsConnectingFit(true);
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ['heart_rate'] }],
+        optionalServices: ['battery_service']
+      });
+
+      const server = await device.gatt?.connect();
+      if (!server) throw new Error('No se pudo conectar al GATT server');
+
+      const service = await server.getPrimaryService('heart_rate');
+      const characteristic = await service.getCharacteristic('heart_rate_measurement');
+
+      await characteristic.startNotifications();
+      
+      characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
+        const value = event.target.value;
+        // Heart Rate Measurement format:
+        // Flags (8 bits) + Heart Rate Measurement Value (8 or 16 bits)
+        const flags = value.getUint8(0);
+        const format = flags & 0x01;
+        let heartRate;
+        if (format === 0) {
+          heartRate = value.getUint8(1);
+        } else {
+          heartRate = value.getUint16(1, true); // true for little-endian
+        }
+
+        setFitnessData(prev => ({
+          ...prev,
+          heartRate,
+          lastSync: new Date()
+        }));
+
+        if (heartRate > 120) {
+          setAlerts(prev => {
+            const msg = `Alerta BLE: Ritmo cardíaco elevado (${heartRate} bpm).`;
+            return prev.includes(msg) ? prev : [...prev, msg];
+          });
+        }
+      });
+
+      setFitTokens({ connected: true, deviceName: device.name });
+      setIsConnectingFit(false);
+      alert(`Conectado a ${device.name}`);
+    } catch (error) {
+      console.error('Error connecting to Bluetooth device:', error);
+      setIsConnectingFit(false);
+      // alert('Error al conectar con el dispositivo Bluetooth.');
+    }
+  };
+
   const handleConnectGoogleFit = async () => {
     setIsConnectingFit(true);
     try {
@@ -735,60 +793,61 @@ export function Telemetry() {
           </div>
         </div>
 
-        {/* Google Fit Panel */}
+        {/* Wearables Panel */}
         <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
-              <Smartphone className="w-4 h-4 text-blue-500" />
-              Wearables (Google Fit)
+              <Watch className="w-4 h-4 text-emerald-500" />
+              Wearables (BLE / Fit)
             </h3>
-            {!fitTokens && (
-              <button
-                onClick={handleConnectGoogleFit}
-                disabled={isConnectingFit}
-                className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {isConnectingFit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3" />}
-                Conectar
-              </button>
-            )}
             {fitTokens && (
-              <span className="px-2 py-1 rounded-md bg-blue-500/10 text-blue-500 text-[9px] font-black uppercase tracking-widest border border-blue-500/20">
+              <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">
                 Conectado
               </span>
             )}
           </div>
 
-          {fitTokens ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
-                  <HeartPulse className={`w-8 h-8 ${fitnessData.heartRate && fitnessData.heartRate > 100 ? 'text-rose-500' : 'text-rose-400'}`} />
-                  <div>
-                    <p className="text-2xl font-black text-white">{fitnessData.heartRate || '--'} <span className="text-sm">bpm</span></p>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ritmo Cardíaco</p>
-                  </div>
-                </div>
-                <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
-                  <Activity className="w-8 h-8 text-emerald-400" />
-                  <div>
-                    <p className="text-2xl font-black text-white">{fitnessData.steps ? fitnessData.steps.toLocaleString() : '--'}</p>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Pasos (7 días)</p>
-                  </div>
-                </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
+              <HeartPulse className={`w-8 h-8 ${fitnessData.heartRate && fitnessData.heartRate > 100 ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`} />
+              <div>
+                <p className="text-2xl font-black text-white">{fitnessData.heartRate || '--'} <span className="text-sm">bpm</span></p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ritmo Cardíaco</p>
               </div>
-              {fitnessData.lastSync && (
-                <p className="text-[10px] text-center text-zinc-500 font-medium">
-                  Última sincronización: {fitnessData.lastSync.toLocaleTimeString()}
-                </p>
-              )}
             </div>
-          ) : (
-            <div className="text-center py-12 bg-zinc-950/50 rounded-2xl border border-white/5">
-              <Smartphone className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-              <p className="text-sm font-medium text-zinc-400">Google Fit no conectado</p>
-              <p className="text-xs text-zinc-600 mt-1">Conecta tu cuenta para acceder a datos reales de wearables y análisis biométrico.</p>
+            <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
+              <Activity className="w-8 h-8 text-blue-400" />
+              <div>
+                <p className="text-2xl font-black text-white">{fitnessData.steps ? fitnessData.steps.toLocaleString() : '--'}</p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Pasos</p>
+              </div>
             </div>
+          </div>
+
+          {!fitTokens && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={handleConnectBluetooth}
+                disabled={isConnectingFit}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isConnectingFit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+                Bluetooth
+              </button>
+              <button
+                onClick={handleConnectGoogleFit}
+                disabled={isConnectingFit}
+                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isConnectingFit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Watch className="w-4 h-4" />}
+                Google Fit
+              </button>
+            </div>
+          )}
+          {fitnessData.lastSync && (
+            <p className="text-[10px] text-zinc-500 text-center">
+              Última sincronización: {fitnessData.lastSync.toLocaleTimeString()}
+            </p>
           )}
         </div>
       </div>

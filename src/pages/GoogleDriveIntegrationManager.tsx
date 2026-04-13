@@ -24,14 +24,42 @@ export function GoogleDriveIntegrationManager() {
     return () => window.removeEventListener('sync-actions-updated', loadPendingDocs);
   }, []);
 
-  const handleLinkAccount = () => {
-    // Simulate OAuth 2.0 flow
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'DRIVE_AUTH_SUCCESS' && event.data.tokens) {
+        setIsLinked(true);
+        setIsSyncing(false);
+        setLastSync(new Date());
+        // In a real app, you would save these tokens securely or the backend would have already saved them
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const handleLinkAccount = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
-      setIsLinked(true);
+    try {
+      const response = await fetch('/api/drive/auth/url');
+      if (!response.ok) throw new Error('Failed to get auth URL');
+      const { url } = await response.json();
+
+      const authWindow = window.open(
+        url,
+        'google_drive_auth',
+        'width=600,height=700'
+      );
+
+      if (!authWindow) {
+        alert('Por favor, permite las ventanas emergentes (popups) para conectar Google Drive.');
+        setIsSyncing(false);
+      }
+    } catch (error) {
+      console.error('Error connecting to Google Drive:', error);
       setIsSyncing(false);
-      setLastSync(new Date());
-    }, 2000);
+      alert('Error al iniciar la conexión con Google Drive.');
+    }
   };
 
   const handleSync = () => {

@@ -101,7 +101,6 @@ const menuGroups: MenuGroup[] = [
     icon: Brain,
     items: [
       { title: "AI Hub", icon: Zap, path: "/ai-hub", color: "text-violet-500" },
-      { title: "El Asesor", icon: MessageSquare, path: "/asesor", color: "text-violet-500" },
       { title: "Zettelkasten", icon: Database, path: "/zettelkasten", color: "text-blue-500" },
       { title: "Procesador Académico", icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
       { title: "Motor OCR", icon: Scan, path: "/document-ocr", color: "text-violet-400" },

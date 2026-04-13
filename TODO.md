@@ -320,3 +320,73 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [ ] **Virtualización de Listas Larga:** En el submódulo /history, usar bibliotecas como react-window para renderizar solo los 10 reportes visibles, ahorrando memoria al hacer scroll entre cientos.
 - [ ] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
 - [ ] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.
+
+## Prioridad 7: La "Resina Nativa" (Estrategia Capacitor)
+
+_Transformación de la PWA en una aplicación móvil nativa real con acceso a hardware de bajo nivel._
+
+### Fase 1: El Blindaje del Navío (Configuración Inicial)
+- [ ] **Integración Capacitor:** Instalar `@capacitor/core` y `@capacitor/cli`.
+- [ ] **Inicialización:** Crear `capacitor.config.ts` apuntando a la carpeta `dist`.
+- [ ] **Añadir Plataformas:** Integrar proyectos nativos de Android e iOS.
+
+### Fase 2: Sustitución Táctica de Sensores (Plugins Nativos)
+- [ ] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
+- [ ] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
+- [ ] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
+- [ ] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
+
+### Fase 3: El Sistema de Alertas (Push Notifications)
+- [ ] **Notificaciones Infallables:** Integrar `@capacitor/push-notifications` con Firebase Cloud Messaging (FCM) para alertas críticas (gas, sismos) que suenen incluso con la app cerrada.
+
+### Fase 4: Pruebas de Terreno
+- [ ] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.
+
+## Prioridad 8: El Haki del Rey (Seguridad y Jerarquía)
+
+- [ ] **Matriz de Permisos:** Diseñar tabla de roles (Gerente, Supervisor, Prevencionista, Trabajador).
+- [ ] **Custom Claims (Cloud Function):** Script seguro para inyectar roles en el token de usuario.
+- [ ] **Bloqueo en firestore.rules:** Exigir roles específicos para operaciones de escritura/lectura.
+- [ ] **Protección de Auditoría (Append-Only):** Reglas para que `Audit Trail` solo acepte `create`, bloqueando `update` y `delete`.
+- [ ] **Decodificación Front-end:** Ocultar UI no autorizada basada en el token decodificado.
+- [ ] **Desconexión Forzada:** Lógica para revocar acceso y forzar cierre de sesión desde el backend.
+
+## Prioridad 9: El Cerebro Externo (Motor RAG y Vector DB)
+
+- [ ] **Elección de Vector DB:** Integrar Pinecone para almacenar embeddings.
+- [ ] **Pipeline de Ingesta Continua:** Cloud Function que procesa nuevos PTS/IPERC con Gemini y guarda vectores en Pinecone.
+- [ ] **Búsqueda Híbrida:** Filtrar por metadatos (ej. proyecto) + similitud semántica.
+- [ ] **Endpoint Protegido:** Backend `/api/ask-guardian` para ocultar la API Key de Gemini.
+- [ ] **Inyección de Contexto Limitado:** Enviar solo los Top 5 fragmentos a Gemini para optimizar costos.
+- [ ] **Streaming de Respuestas:** Server-Sent Events (SSE) para respuestas rápidas letra a letra.
+- [ ] **Bucle de Mejora (RLHF):** Botones "Útil/No útil" para ajustar prompts futuros.
+
+## Prioridad 10: El Cuarto de Máquinas (Serverless y Cloud Functions)
+
+- [ ] **Generador de Reportes (SUSESO/PDFs):** Función con Puppeteer/pdfkit que guarda en Storage y devuelve link.
+- [ ] **Sistema de Alertas Push (FCM):** Trigger `onCreate` en incidentes críticos para notificar a gerencia.
+- [ ] **Webhook de Facturación:** Endpoint para Stripe/Fintoc que activa módulos Premium.
+- [ ] **Sincronización Nocturna con ERP:** Cron Job (Cloud Scheduler) a las 3:00 AM para traer trabajadores de SAP/Defontana.
+- [ ] **Compresión de Evidencia:** Función para optimizar fotos pesadas subidas desde terreno.
+- [ ] **Manejo de Correos:** Integrar SendGrid/Resend para reportes diarios y alertas de Comité Paritario.
+- [ ] **Monitoreo de Errores (Logs):** Conectar Cloud Functions a Google Cloud Logging.
+
+## Prioridad 11: El Flujo de Pichilemu (Resolución de Conflictos Offline)
+
+- [ ] **Marcas de Tiempo Dobles:** Guardar `localUpdatedAt` y `serverTimestamp`.
+- [ ] **Generador de IDs en Origen:** Usar UUIDv4 generados en el cliente para evitar duplicados.
+- [ ] **Cola de Acciones (Action Queue):** Usar SQLite (Capacitor) para guardar acciones ordenadas offline.
+- [ ] **Fusión de Listas Inteligente:** Lógica backend para unir listas de asistencia marcadas offline por distintos supervisores.
+- [ ] **Estrategia "El Último Gana" (LWW):** Prevalencia del timestamp más reciente para campos simples.
+- [ ] **Sistema de Notificación de Conflictos:** Marcar en rojo conflictos complejos (ej. aprobar un PTS eliminado) para revisión manual.
+- [ ] **Indicador Visual de Salud (Sync):** Ícono de estado de respaldo de datos en el Dashboard.
+
+## Prioridad 12: La Red Nerviosa (Broker MQTT para IoT Real)
+
+- [ ] **Selección del Broker Industrial:** Integrar AWS IoT Core o EMQX.
+- [ ] **Jerarquía de Tópicos (Topics):** Diseñar rutas limpias (ej. `empresaA/mina1/camion_4/telemetria`).
+- [ ] **Reglas de Ingesta Inteligentes:** Guardar en Firestore solo datos anómalos (ej. Gas > umbral); el resto solo se muestra en vivo.
+- [ ] **Autenticación X.509:** Certificados únicos para sensores y Wearables.
+- [ ] **Latido de Supervivencia (Heartbeat):** Ping cada 5 min de Wearables; alertar si se pierde conexión.
+- [ ] **Conexión en Vivo Front-end:** Websockets (WSS) para telemetría en tiempo real sin recargar.
+- [ ] **Buffers Binarios (Payload):** Transmisión comprimida en formato binario para zonas de baja señal.

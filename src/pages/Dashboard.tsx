@@ -188,7 +188,10 @@ export function Dashboard() {
     const findings = projectNodes.filter(n => n.type === NodeType.FINDING);
     let findingsScore = 100;
     if (findings.length > 0) {
-      const closedFindings = findings.filter(n => n.metadata?.status === 'Cerrado' || n.metadata?.estado === 'Cerrado').length;
+      const closedFindings = findings.filter(n => {
+        const status = (n.metadata?.status || n.metadata?.estado || '').toLowerCase();
+        return status === 'cerrado' || status === 'cerrada' || status === 'completed' || status === 'completado' || status === 'completada';
+      }).length;
       findingsScore = (closedFindings / findings.length) * 100;
     }
 
@@ -196,7 +199,10 @@ export function Dashboard() {
     const tasks = projectNodes.filter(n => n.type === NodeType.TASK);
     let tasksScore = 100;
     if (tasks.length > 0) {
-      const completedTasks = tasks.filter(n => n.metadata?.status === 'Completada' || n.metadata?.estado === 'Completada').length;
+      const completedTasks = tasks.filter(n => {
+        const status = (n.metadata?.status || n.metadata?.estado || '').toLowerCase();
+        return status === 'completada' || status === 'completado' || status === 'completed' || status === 'cerrado' || status === 'cerrada';
+      }).length;
       tasksScore = (completedTasks / tasks.length) * 100;
     }
 
@@ -305,12 +311,19 @@ export function Dashboard() {
     
     currentChallenges.daily.forEach((challenge, index) => {
       const now = new Date();
-      const start = now.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-      const end = new Date(now.getTime() + 30 * 60000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'; // 30 mins later
+      // Schedule for tomorrow, starting at 9:00 AM, distributed by index
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9 + index * 2, 0, 0, 0); // 9:00, 11:00, 13:00, etc.
+      
+      const start = tomorrow.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      
+      const endDt = new Date(tomorrow.getTime() + 60 * 60000); // 1 hour duration
+      const end = endDt.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       
       icsContent += "BEGIN:VEVENT\n";
       icsContent += `UID:praeventio-daily-${index}-${now.getTime()}@praeventioguard.com\n`;
-      icsContent += `DTSTAMP:${start}\n`;
+      icsContent += `DTSTAMP:${now.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'}\n`;
       icsContent += `DTSTART:${start}\n`;
       icsContent += `DTEND:${end}\n`;
       icsContent += `SUMMARY:${challenge}\n`;

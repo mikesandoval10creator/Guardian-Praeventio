@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Motion } from '@capacitor/motion';
+import { Capacitor } from '@capacitor/core';
 
 interface AccelerometerData {
   x: number;
@@ -19,13 +21,16 @@ export function useAccelerometer(options: FallDetectionOptions = {}) {
   const [isSupported, setIsSupported] = useState<boolean>(true);
   const [isActive, setIsActive] = useState<boolean>(false);
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
+  const [listenerId, setListenerId] = useState<any>(null);
 
-  const handleMotion = useCallback((event: DeviceMotionEvent) => {
-    if (!event.accelerationIncludingGravity) return;
+  const handleMotion = useCallback((event: any) => {
+    // Handle both Web API and Capacitor plugin event formats
+    const accel = event.accelerationIncludingGravity || event.acceleration;
+    if (!accel) return;
     
-    const { x, y, z } = event.accelerationIncludingGravity;
+    const { x, y, z } = accel;
     
-    if (x !== null && y !== null && z !== null) {
+    if (x !== null && y !== null && z !== null && x !== undefined) {
       // Calculate total acceleration vector magnitude
       const acceleration = Math.sqrt(x * x + y * y + z * z);
       
@@ -56,29 +61,48 @@ export function useAccelerometer(options: FallDetectionOptions = {}) {
         return false;
       }
     } else {
-      // Non-iOS 13+ devices
+      // Non-iOS 13+ devices or native platforms
       setPermissionGranted(true);
       return true;
     }
   };
 
   const start = useCallback(async () => {
-    if (!window.DeviceMotionEvent) {
-      setIsSupported(false);
-      return;
-    }
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const listener = await Motion.addListener('accel', handleMotion);
+        setListenerId(listener);
+        setIsActive(true);
+        setPermissionGranted(true);
+      } catch (error) {
+        console.error("Error starting native motion listener:", error);
+        setIsSupported(false);
+      }
+    } else {
+      if (!window.DeviceMotionEvent) {
+        setIsSupported(false);
+        return;
+      }
 
-    const granted = await requestPermission();
-    if (granted) {
-      window.addEventListener('devicemotion', handleMotion);
-      setIsActive(true);
+      const granted = await requestPermission();
+      if (granted) {
+        window.addEventListener('devicemotion', handleMotion);
+        setIsActive(true);
+      }
     }
   }, [handleMotion]);
 
   const stop = useCallback(() => {
-    window.removeEventListener('devicemotion', handleMotion);
+    if (Capacitor.isNativePlatform()) {
+      if (listenerId) {
+        Motion.removeAllListeners();
+        setListenerId(null);
+      }
+    } else {
+      window.removeEventListener('devicemotion', handleMotion);
+    }
     setIsActive(false);
-  }, [handleMotion]);
+  }, [handleMotion, listenerId]);
 
   useEffect(() => {
     return () => {

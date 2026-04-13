@@ -58,8 +58,15 @@ export function Analytics() {
   const mediumRisks = risks.filter(r => r.metadata?.level === 'Medio').length;
   const lowRisks = risks.filter(r => r.metadata?.level === 'Bajo').length;
 
-  const openFindings = findings.filter(f => f.metadata?.status === 'Abierto').length;
-  const closedFindings = findings.filter(f => f.metadata?.status === 'Cerrado').length;
+  const openFindings = findings.filter(f => {
+    const status = (f.metadata?.status || f.metadata?.estado || '').toLowerCase();
+    return status === 'abierto' || status === 'abierta' || status === 'open';
+  }).length;
+  
+  const closedFindings = findings.filter(f => {
+    const status = (f.metadata?.status || f.metadata?.estado || '').toLowerCase();
+    return status === 'cerrado' || status === 'cerrada' || status === 'completed' || status === 'completado' || status === 'completada';
+  }).length;
 
   const stats = {
     totalRisks: risks.length,

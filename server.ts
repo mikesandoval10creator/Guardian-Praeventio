@@ -8,6 +8,8 @@ import dotenv from "dotenv";
 import { initializeRAG } from "./src/services/ragService.js";
 import admin from "firebase-admin";
 import fs from 'fs';
+import { Pinecone } from '@pinecone-database/pinecone';
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -20,6 +22,21 @@ try {
   }
 } catch (error) {
   console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
+}
+
+// Initialize Pinecone
+let pinecone: Pinecone | null = null;
+try {
+  if (process.env.PINECONE_API_KEY) {
+    pinecone = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY,
+    });
+    console.log("Pinecone initialized successfully.");
+  } else {
+    console.warn("PINECONE_API_KEY not found. Vector database features will be disabled.");
+  }
+} catch (error) {
+  console.error("Failed to initialize Pinecone:", error);
 }
 
 // Read Firebase Config once at startup
@@ -71,6 +88,140 @@ const verifyAuth = async (req: express.Request, res: express.Response, next: exp
     return res.status(401).json({ error: "Unauthorized: Invalid token" });
   }
 };
+
+// Custom Claims Endpoint (El Haki del Rey)
+app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
+  const { uid, role } = req.body;
+  const callerUid = (req as any).user.uid;
+
+  try {
+    // Verify caller is a master admin
+    const callerRecord = await admin.auth().getUser(callerUid);
+    if (callerRecord.customClaims?.role !== 'master_admin') {
+      return res.status(403).json({ error: "Forbidden: Requires master_admin role" });
+    }
+
+    // Set custom claim
+    await admin.auth().setCustomUserClaims(uid, { role });
+    res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
+  } catch (error) {
+    console.error("Error setting custom claims:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Ask Guardian Endpoint (El Cerebro Externo)
+app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
+  const { query, projectId } = req.body;
+  
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    let context = "";
+
+    // If Pinecone is available, fetch relevant context
+    if (pinecone && process.env.PINECONE_INDEX_NAME) {
+      try {
+        // 1. Generate embedding for the query
+        const embedResponse = await ai.models.embedContent({
+          model: "text-embedding-004",
+          contents: query,
+        });
+        const queryEmbedding = embedResponse.embeddings?.[0]?.values;
+
+        if (queryEmbedding) {
+          // 2. Query Pinecone
+          const index = pinecone.index(process.env.PINECONE_INDEX_NAME);
+          const queryResponse = await index.query({
+            vector: queryEmbedding,
+            topK: 5,
+            includeMetadata: true,
+            filter: projectId ? { projectId: { $eq: projectId } } : undefined
+          });
+
+          // 3. Build context string
+          context = queryResponse.matches
+            .map(match => match.metadata?.text || '')
+            .join('\n\n');
+        }
+      } catch (pcError) {
+        console.error("Pinecone query error:", pcError);
+        // Continue without context if Pinecone fails
+      }
+    }
+
+    // Generate response using Gemini
+    const prompt = `
+      Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
+      Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
+      Responde de forma profesional, vigilante y altamente técnica pero accionable.
+      
+      Contexto recuperado de la base de datos de conocimiento (si aplica):
+      ${context}
+
+      Consulta del usuario:
+      ${query}
+    `;
+
+    // Use SSE for streaming response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const responseStream = await ai.models.generateContentStream({
+      model: "gemini-3.1-pro", // Using Pro for the RAG engine
+      contents: prompt,
+    });
+
+    for await (const chunk of responseStream) {
+      if (chunk.text) {
+        res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
+      }
+    }
+    res.write('data: [DONE]\n\n');
+    res.end();
+
+  } catch (error) {
+    console.error("Error in /api/ask-guardian:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PDF Generation Endpoint (El Cuarto de Máquinas)
+app.post("/api/reports/generate-pdf", verifyAuth, async (req, res) => {
+  const { incidentId, title, content } = req.body;
+  
+  try {
+    const PDFDocument = (await import('pdfkit')).default;
+    
+    // Create a document
+    const doc = new PDFDocument();
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=reporte-${incidentId || 'general'}.pdf`);
+    
+    // Pipe the PDF into the response
+    doc.pipe(res);
+    
+    // Add content to the PDF
+    doc.fontSize(25).text(title || 'Reporte Praeventio Guard', 100, 100);
+    doc.moveDown();
+    doc.fontSize(12).text(`Generado el: ${new Date().toLocaleString()}`);
+    doc.moveDown();
+    doc.fontSize(14).text(content || 'Contenido del reporte...');
+    
+    // Finalize the PDF and end the stream
+    doc.end();
+    
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    res.status(500).json({ error: "Internal server error during PDF generation" });
+  }
+});
 
 // OAuth Configuration
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -238,6 +389,104 @@ app.post("/api/fitness/sync", async (req, res) => {
   } catch (error) {
     console.error('Error syncing with Google Fit:', error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Google Drive Integration
+app.get("/api/drive/auth/url", (req, res) => {
+  const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+  const redirectUri = `${appUrl}/api/drive/auth/callback`;
+  
+  const state = crypto.randomBytes(16).toString('hex');
+  (req.session as any).driveOauthState = state;
+  
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID || "",
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    access_type: 'offline',
+    prompt: 'consent',
+    state: state
+  });
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  res.json({ url: authUrl });
+});
+
+app.get("/api/drive/auth/callback", async (req, res) => {
+  const { code, state } = req.query;
+  const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+  const redirectUri = `${appUrl}/api/drive/auth/callback`;
+
+  if (!state || state !== (req.session as any).driveOauthState) {
+    return res.status(403).send("Invalid state parameter (CSRF protection)");
+  }
+
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code: code as string,
+        client_id: GOOGLE_CLIENT_ID || "",
+        client_secret: GOOGLE_CLIENT_SECRET || "",
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    const tokens = await response.json();
+    
+    res.send(`
+      <html>
+        <body>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ 
+                type: 'DRIVE_AUTH_SUCCESS', 
+                tokens: ${JSON.stringify(tokens)} 
+              }, '${appUrl}');
+              window.close();
+            } else {
+              window.location.href = '/';
+            }
+          </script>
+          <p>Autenticación de Google Drive exitosa. Puedes cerrar esta ventana.</p>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('Error in Google Drive Auth Callback:', error);
+    res.status(500).send("Error during authentication");
+  }
+});
+
+// ERP Integration (SAP/Defontana Mock)
+app.post("/api/erp/sync", verifyAuth, async (req, res) => {
+  const { erpType, action, payload } = req.body;
+  
+  // En un entorno real, aquí se harían peticiones REST seguras a SAP o Defontana
+  // usando credenciales almacenadas en variables de entorno (process.env.SAP_API_KEY)
+  
+  try {
+    console.log(`[ERP Sync] Type: ${erpType}, Action: ${action}`);
+    
+    // Simular latencia de red
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    res.json({ 
+      success: true, 
+      message: `Sincronización con ${erpType} exitosa`,
+      data: {
+        syncId: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        status: 'completed'
+      }
+    });
+  } catch (error) {
+    console.error(`Error syncing with ERP (${erpType}):`, error);
+    res.status(500).json({ error: "Error de sincronización con ERP" });
   }
 });
 

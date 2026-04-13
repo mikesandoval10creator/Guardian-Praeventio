@@ -3,6 +3,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
 
 export const useGeolocationTracking = () => {
   const { selectedProject } = useProject();
@@ -75,56 +77,89 @@ export const useGeolocationTracking = () => {
       return currentTime >= start && currentTime <= end;
     };
 
-    let watchId: number;
+    let watchId: string | number;
 
-    const startTracking = () => {
-      if (!navigator.geolocation) {
-        console.warn('Geolocation is not supported by this browser.');
-        return;
-      }
-
+    const startTracking = async () => {
       setIsTracking(true);
-      watchId = navigator.geolocation.watchPosition(
-        async (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          
-          // Redondear a 4 decimales (aprox 11 metros de precisión) para optimizar cálculos
-          const roundedLat = Math.round(latitude * 10000) / 10000;
-          const roundedLng = Math.round(longitude * 10000) / 10000;
-          
-          setLastLocation({ lat: roundedLat, lng: roundedLng });
 
-          // Solo guardar si la precisión es razonable (< 50 metros)
-          if (accuracy < 50) {
-            try {
-              await addDoc(collection(db, `projects/${selectedProject.id}/locations`), {
-                userId: user.uid,
-                projectId: selectedProject.id,
-                latitude: roundedLat,
-                longitude: roundedLng,
-                accuracy,
-                timestamp: serverTimestamp(),
-              });
-            } catch (error) {
-              console.error('Error saving location:', error);
+      const handlePosition = async (position: any) => {
+        if (!position || !position.coords) return;
+        const { latitude, longitude, accuracy } = position.coords;
+        
+        // Redondear a 4 decimales (aprox 11 metros de precisión) para optimizar cálculos
+        const roundedLat = Math.round(latitude * 10000) / 10000;
+        const roundedLng = Math.round(longitude * 10000) / 10000;
+        
+        setLastLocation({ lat: roundedLat, lng: roundedLng });
+
+        // Solo guardar si la precisión es razonable (< 50 metros)
+        if (accuracy < 50) {
+          try {
+            await addDoc(collection(db, `projects/${selectedProject.id}/locations`), {
+              userId: user.uid,
+              projectId: selectedProject.id,
+              latitude: roundedLat,
+              longitude: roundedLng,
+              accuracy,
+              timestamp: serverTimestamp(),
+            });
+          } catch (error) {
+            console.error('Error saving location:', error);
+          }
+        }
+      };
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const permissions = await Geolocation.checkPermissions();
+          if (permissions.location !== 'granted') {
+            const request = await Geolocation.requestPermissions();
+            if (request.location !== 'granted') {
+              console.warn('Geolocation permissions denied.');
+              setIsTracking(false);
+              return;
             }
           }
-        },
-        (error) => {
-          console.error('Geolocation error:', error);
+
+          watchId = await Geolocation.watchPosition(
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+            (position, err) => {
+              if (err) {
+                console.error('Native Geolocation error:', err);
+                return;
+              }
+              handlePosition(position);
+            }
+          );
+        } catch (error) {
+          console.error("Error starting native geolocation:", error);
           setIsTracking(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
         }
-      );
+      } else {
+        if (!navigator.geolocation) {
+          console.warn('Geolocation is not supported by this browser.');
+          setIsTracking(false);
+          return;
+        }
+
+        watchId = navigator.geolocation.watchPosition(
+          handlePosition,
+          (error) => {
+            console.error('Web Geolocation error:', error);
+            setIsTracking(false);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
     };
 
-    const stopTracking = () => {
+    const stopTracking = async () => {
       if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
+        if (Capacitor.isNativePlatform() && typeof watchId === 'string') {
+          await Geolocation.clearWatch({ id: watchId });
+        } else if (typeof watchId === 'number') {
+          navigator.geolocation.clearWatch(watchId);
+        }
       }
       setIsTracking(false);
     };

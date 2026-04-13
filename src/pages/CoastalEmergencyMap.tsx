@@ -8,12 +8,28 @@ import {
   ShieldAlert,
   Users,
   ArrowUpRight,
+  Loader2
 } from "lucide-react";
 import { Card, Button } from "../components/shared/Card";
+import { GoogleMap, useJsApiLoader, Marker, Polyline, Polygon } from '@react-google-maps/api';
+
+const containerStyle = {
+  width: '100%',
+  height: '100%'
+};
+
+// Valparaíso coordinates
+const facilityLocation = { lat: -33.045, lng: -71.620 }; // Near the coast
+const safeZoneLocation = { lat: -33.050, lng: -71.610 }; // Higher ground
 
 export function CoastalEmergencyMap() {
   const [isTsunamiWarning, setIsTsunamiWarning] = useState(false);
   const [evacuationProgress, setEvacuationProgress] = useState(0);
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
+  });
 
   const handleTriggerWarning = () => {
     setIsTsunamiWarning(true);
@@ -29,6 +45,15 @@ export function CoastalEmergencyMap() {
     setIsTsunamiWarning(false);
     setEvacuationProgress(0);
   };
+
+  // Simple polygon to represent the ocean/inundation zone
+  const inundationZone = [
+    { lat: -33.030, lng: -71.630 },
+    { lat: -33.060, lng: -71.630 },
+    { lat: -33.060, lng: -71.618 },
+    { lat: -33.045, lng: -71.615 },
+    { lat: -33.030, lng: -71.620 },
+  ];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -173,78 +198,156 @@ export function CoastalEmergencyMap() {
             Mapa de Evacuación y Cotas
           </h3>
           <div className="flex-1 bg-zinc-900 rounded-xl border border-white/5 relative overflow-hidden flex items-center justify-center">
-            {/* Simulated Topographic Map */}
-            <div
-              className="absolute inset-0 opacity-30"
-              style={{
-                backgroundImage:
-                  "radial-gradient(circle at 2px 2px, rgba(59,130,246,0.15) 1px, transparent 0)",
-                backgroundSize: "24px 24px",
-              }}
-            />
-
-            <div className="relative w-full h-full p-8">
-              {/* Coastline */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                <path
-                  d="M 0 100 Q 150 150 200 300 T 300 500"
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="4"
-                  className="opacity-50"
-                />
-                <path
-                  d="M 0 100 Q 150 150 200 300 T 300 500 L 0 500 Z"
-                  fill="rgba(59,130,246,0.1)"
-                />
-
-                {/* Cota 30 Line */}
-                <path
-                  d="M 150 0 Q 300 200 400 350 T 600 500"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2"
-                  strokeDasharray="4 4"
-                />
-              </svg>
-
-              <span className="absolute top-10 left-10 text-xs font-bold text-blue-500 uppercase">
-                Océano
-              </span>
-              <span className="absolute top-10 right-10 text-xs font-bold text-emerald-500 uppercase">
-                Cota 30 (Zona Segura)
-              </span>
-
-              {/* Facility Location */}
-              <div className="absolute top-[200px] left-[150px] w-6 h-6 bg-red-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.5)]">
-                <span className="w-2 h-2 bg-white rounded-full" />
+            {!isLoaded ? (
+              <div className="flex flex-col items-center justify-center text-zinc-500">
+                <Loader2 className="w-8 h-8 animate-spin mb-2" />
+                <p className="text-sm font-bold uppercase tracking-widest">Cargando Mapa...</p>
               </div>
-              <span className="absolute top-[225px] left-[130px] text-[10px] font-bold text-red-400 uppercase">
-                Instalación
-              </span>
+            ) : (
+              <GoogleMap
+                mapContainerStyle={containerStyle}
+                center={facilityLocation}
+                zoom={14}
+                options={{
+                  styles: [
+                    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+                    {
+                      featureType: "administrative.locality",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#d59563" }],
+                    },
+                    {
+                      featureType: "poi",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#d59563" }],
+                    },
+                    {
+                      featureType: "poi.park",
+                      elementType: "geometry",
+                      stylers: [{ color: "#263c3f" }],
+                    },
+                    {
+                      featureType: "poi.park",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#6b9a76" }],
+                    },
+                    {
+                      featureType: "road",
+                      elementType: "geometry",
+                      stylers: [{ color: "#38414e" }],
+                    },
+                    {
+                      featureType: "road",
+                      elementType: "geometry.stroke",
+                      stylers: [{ color: "#212a37" }],
+                    },
+                    {
+                      featureType: "road",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#9ca5b3" }],
+                    },
+                    {
+                      featureType: "road.highway",
+                      elementType: "geometry",
+                      stylers: [{ color: "#746855" }],
+                    },
+                    {
+                      featureType: "road.highway",
+                      elementType: "geometry.stroke",
+                      stylers: [{ color: "#1f2835" }],
+                    },
+                    {
+                      featureType: "road.highway",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#f3d19c" }],
+                    },
+                    {
+                      featureType: "transit",
+                      elementType: "geometry",
+                      stylers: [{ color: "#2f3948" }],
+                    },
+                    {
+                      featureType: "transit.station",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#d59563" }],
+                    },
+                    {
+                      featureType: "water",
+                      elementType: "geometry",
+                      stylers: [{ color: "#17263c" }],
+                    },
+                    {
+                      featureType: "water",
+                      elementType: "labels.text.fill",
+                      stylers: [{ color: "#515c6d" }],
+                    },
+                    {
+                      featureType: "water",
+                      elementType: "labels.text.stroke",
+                      stylers: [{ color: "#17263c" }],
+                    },
+                  ],
+                  disableDefaultUI: true,
+                  zoomControl: true,
+                }}
+              >
+                {/* Inundation Zone (Polygon) */}
+                <Polygon
+                  paths={inundationZone}
+                  options={{
+                    fillColor: "#3b82f6",
+                    fillOpacity: 0.2,
+                    strokeColor: "#3b82f6",
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                  }}
+                />
 
-              {/* Safe Zone Location */}
-              <div className="absolute top-[100px] left-[450px] w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.5)]">
-                <ShieldAlert className="w-4 h-4 text-white" />
-              </div>
-              <span className="absolute top-[135px] left-[435px] text-[10px] font-bold text-emerald-400 uppercase">
-                PEE-01
-              </span>
+                {/* Facility Marker */}
+                <Marker 
+                  position={facilityLocation} 
+                  icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 8,
+                    fillColor: "#ef4444",
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: "#ffffff"
+                  }}
+                />
 
-              {/* Evacuation Route */}
-              {isTsunamiWarning && (
-                <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                  <path
-                    d="M 160 200 L 250 180 L 350 150 L 440 110"
-                    fill="none"
-                    stroke="#eab308"
-                    strokeWidth="3"
-                    strokeDasharray="6 6"
-                    className="animate-[dash_1s_linear_infinite]"
+                {/* Safe Zone Marker */}
+                <Marker 
+                  position={safeZoneLocation} 
+                  icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: "#10b981",
+                    fillOpacity: 1,
+                    strokeWeight: 2,
+                    strokeColor: "#ffffff"
+                  }}
+                />
+
+                {/* Evacuation Route */}
+                {isTsunamiWarning && (
+                  <Polyline
+                    path={[facilityLocation, safeZoneLocation]}
+                    options={{
+                      strokeColor: "#10b981",
+                      strokeOpacity: 0.8,
+                      strokeWeight: 4,
+                      icons: [{
+                        icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+                        offset: '100%'
+                      }]
+                    }}
                   />
-                </svg>
-              )}
-            </div>
+                )}
+              </GoogleMap>
+            )}
           </div>
         </Card>
       </div>

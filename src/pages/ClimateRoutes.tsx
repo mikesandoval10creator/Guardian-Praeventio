@@ -1,18 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Map, Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind } from 'lucide-react';
+import { Map, Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { GoogleMap, useJsApiLoader, DirectionsRenderer } from '@react-google-maps/api';
+
+const containerStyle = {
+  width: '100%',
+  height: '100%'
+};
+
+// Default center (Santiago, Chile)
+const defaultCenter = { lat: -33.4489, lng: -70.6693 };
 
 export function ClimateRoutes() {
-  const [origin, setOrigin] = useState('Faena Principal');
-  const [destination, setDestination] = useState('Puerto de Embarque');
+  const [origin, setOrigin] = useState('Santiago, Chile');
+  const [destination, setDestination] = useState('Valparaíso, Chile');
   const [routeStatus, setRouteStatus] = useState<'safe' | 'warning' | 'danger'>('warning');
+  const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
+  });
 
   const waypoints = [
     { id: 1, name: 'Paso Los Libertadores', status: 'danger', condition: 'Nevazón', temp: -5, wind: 80 },
     { id: 2, name: 'Ruta 68 - Curacaví', status: 'safe', condition: 'Despejado', temp: 15, wind: 15 },
     { id: 3, name: 'Cuesta La Dormida', status: 'warning', condition: 'Niebla', temp: 8, wind: 30 },
   ];
+
+  const calculateRoute = useCallback(async () => {
+    if (!origin || !destination || !window.google) return;
+    
+    setIsCalculating(true);
+    const directionsService = new window.google.maps.DirectionsService();
+
+    try {
+      const results = await directionsService.route({
+        origin: origin,
+        destination: destination,
+        travelMode: window.google.maps.TravelMode.DRIVING,
+      });
+      setDirectionsResponse(results);
+      
+      // Randomize route status for demo purposes based on route calculation
+      const statuses: ('safe' | 'warning' | 'danger')[] = ['safe', 'warning', 'danger'];
+      setRouteStatus(statuses[Math.floor(Math.random() * statuses.length)]);
+    } catch (error) {
+      console.error("Error calculating route:", error);
+      alert("No se pudo calcular la ruta. Verifica los lugares ingresados.");
+    } finally {
+      setIsCalculating(false);
+    }
+  }, [origin, destination]);
+
+  // Calculate initial route when map loads
+  useEffect(() => {
+    if (isLoaded) {
+      calculateRoute();
+    }
+  }, [isLoaded, calculateRoute]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">

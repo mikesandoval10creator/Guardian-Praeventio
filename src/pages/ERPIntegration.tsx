@@ -2,18 +2,38 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Database, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, Server, ArrowRightLeft, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { auth } from '../services/firebase';
 
 export function ERPIntegration() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
-  const handleSync = () => {
+  const handleSync = async () => {
     setIsSyncing(true);
-    // Simulate API REST synchronization
-    setTimeout(() => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const response = await fetch('/api/erp/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          erpType: 'SAP/Buk',
+          action: 'manual_sync'
+        })
+      });
+
+      if (!response.ok) throw new Error('Error en la sincronización');
+      
+      const data = await response.json();
+      setLastSync(new Date(data.data.timestamp).toLocaleString());
+    } catch (error) {
+      console.error('Error syncing ERP:', error);
+      alert('Error al sincronizar con el ERP. Verifica la conexión con el servidor.');
+    } finally {
       setIsSyncing(false);
-      setLastSync(new Date().toLocaleString());
-    }, 3500);
+    }
   };
 
   return (

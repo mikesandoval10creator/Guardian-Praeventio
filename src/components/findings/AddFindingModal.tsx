@@ -5,6 +5,7 @@ import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 import { generateActionPlan, analyzeSafetyImage } from '../../services/geminiService';
+import { logAuditAction } from '../../services/auditService';
 
 interface AddFindingModalProps {
   isOpen: boolean;
@@ -94,6 +95,21 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
           createdAt: new Date().toISOString()
         }
       });
+
+      if (findingNode) {
+        await logAuditAction(
+          'CREATE_FINDING',
+          'Findings',
+          {
+            findingId: findingNode.id,
+            title: formData.title,
+            severity: formData.severity,
+            category: formData.category,
+            location: formData.location
+          },
+          selectedProject.id
+        );
+      }
 
       if (findingNode && generateAIPlan) {
         // 2. Generate Action Plan with AI

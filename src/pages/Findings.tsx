@@ -21,6 +21,7 @@ import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { AddFindingModal } from '../components/findings/AddFindingModal';
 import { generateActionPlan } from '../services/geminiService';
+import { logAuditAction } from '../services/auditService';
 
 export function Findings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,6 +56,17 @@ export function Findings() {
         }
       }
       
+      await logAuditAction(
+        'GENERATE_ACTION_PLAN',
+        'Findings',
+        {
+          findingId: finding.id,
+          findingTitle: finding.title,
+          tasksGenerated: plan.tareas.length
+        },
+        finding.projectId
+      );
+
       alert(`Se han generado ${plan.tareas.length} tareas de acción correctiva vinculadas a este hallazgo.`);
     } catch (error) {
       console.error('Error generating action plan:', error);
@@ -73,9 +85,15 @@ export function Findings() {
 
   const stats = {
     total: findings.length,
-    open: findings.filter(f => f.metadata.status === 'Abierto').length,
-    critical: findings.filter(f => f.metadata.severity === 'Crítica').length,
-    resolved: findings.filter(f => f.metadata.status === 'Cerrado').length
+    open: findings.filter(f => {
+      const status = (f.metadata?.status || f.metadata?.estado || '').toLowerCase();
+      return status === 'abierto' || status === 'abierta' || status === 'open';
+    }).length,
+    critical: findings.filter(f => f.metadata?.severity === 'Crítica').length,
+    resolved: findings.filter(f => {
+      const status = (f.metadata?.status || f.metadata?.estado || '').toLowerCase();
+      return status === 'cerrado' || status === 'cerrada' || status === 'completed' || status === 'completado' || status === 'completada';
+    }).length
   };
 
   return (

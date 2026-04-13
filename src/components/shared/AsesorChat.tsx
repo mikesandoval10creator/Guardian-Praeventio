@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2 } from 'lucide-react';
-import { getChatResponse, semanticSearch } from '../../services/geminiService';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { useSubscription } from '../../contexts/SubscriptionContext';
 import ReactMarkdown from 'react-markdown';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { auth } from '../../services/firebase';
 
 interface Message {
   id: string;
@@ -150,30 +150,66 @@ export function AsesorChat() {
       }
       setDetailLevel(newDetailLevel);
 
-      const numNodes = newDetailLevel === 1 ? 5 : newDetailLevel === 2 ? 10 : 15;
       const searchQuery = isContinuation ? `${lastTopic} ${currentInput}` : currentInput;
 
-      // Prepare context from Risk Network nodes using Semantic Search
-      const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id || n.projectId === 'global');
-      
-      // Get relevant nodes based on depth
-      const relevantNodes = await semanticSearch(searchQuery, projectNodes, numNodes);
-      
-      const context = relevantNodes.length > 0 
-        ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description} (Tags: ${n.tags.join(', ')})`).join('\n')
-        : "No se encontraron datos específicos en la Red Neuronal para esta consulta.";
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      const response = await fetch('/api/ask-guardian', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          projectId: selectedProject?.id
+        })
+      });
 
-      const historyForAI = messages.map(m => ({ role: m.role, content: m.content }));
-      const response = await getChatResponse(currentInput, context, historyForAI, newDetailLevel);
-      
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let assistantMessageContent = '';
+
+      const assistantMessageId = (Date.now() + 1).toString();
+      setMessages(prev => [...prev, {
+        id: assistantMessageId,
         role: 'assistant',
-        content: response,
+        content: '',
         timestamp: new Date()
-      };
+      }]);
 
-      setMessages(prev => [...prev, assistantMessage]);
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+              if (dataStr === '[DONE]') break;
+              
+              try {
+                const data = JSON.parse(dataStr);
+                assistantMessageContent += data.text;
+                
+                setMessages(prev => prev.map(m => 
+                  m.id === assistantMessageId 
+                    ? { ...m, content: assistantMessageContent }
+                    : m
+                ));
+              } catch (e) {
+                console.error("Error parsing SSE data", e);
+              }
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Error in chat:', error);
       const errorMessage: Message = {
@@ -198,11 +234,11 @@ export function AsesorChat() {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-12 h-12 sm:w-14 sm:h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors group"
+            className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white rounded-full shadow-2xl shadow-emerald-500/30 flex items-center justify-center transition-all group border border-white/10"
           >
-            <Shield className="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform" />
+            <Shield className="w-6 h-6 sm:w-7 sm:h-7 group-hover:scale-110 transition-transform drop-shadow-md" />
             {!isOnline && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-amber-500 border-2 border-zinc-900 rounded-full" />
+              <span className="absolute top-0 right-0 w-4 h-4 bg-amber-500 border-2 border-zinc-900 rounded-full animate-pulse" />
             )}
           </motion.button>
         )}
