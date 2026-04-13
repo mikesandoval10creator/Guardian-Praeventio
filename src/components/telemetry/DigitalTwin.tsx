@@ -1,71 +1,107 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere, Cylinder, Text, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { MapPin, Activity, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-// A simple worker representation
-function Worker({ position, status, id, isFallen }: { position: [number, number, number], status: 'normal' | 'warning' | 'critical', id: string, isFallen?: boolean }) {
-  const group = useRef<THREE.Group>(null);
-  const color = status === 'critical' ? '#f43f5e' : status === 'warning' ? '#f59e0b' : '#10b981';
+// Instanced Workers for high performance
+function InstancedWorkers({ workers }: { workers: WorkerData[] }) {
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const hatRef = useRef<THREE.InstancedMesh>(null);
   
-  // Simple bobbing animation, stop if fallen
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const color = new THREE.Color();
+
   useFrame((state) => {
-    if (group.current) {
+    if (!meshRef.current || !hatRef.current) return;
+
+    workers.forEach((w, i) => {
+      const isFallen = w.isFallen;
+      const basePos = w.position;
+      
+      dummy.position.set(basePos[0], basePos[1], basePos[2]);
+      dummy.rotation.set(0, 0, 0);
+
       if (isFallen) {
-        // Lay flat on the ground
-        group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, Math.PI / 2, 0.1);
-        group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, 0.3, 0.1); // Lower to ground
+        dummy.rotation.x = Math.PI / 2;
+        dummy.position.y = 0.3;
       } else {
-        // Stand upright and bob
-        group.current.rotation.x = THREE.MathUtils.lerp(group.current.rotation.x, 0, 0.1);
-        group.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 2 + parseInt(id.replace(/\D/g, '') || '0')) * 0.1;
+        dummy.position.y = basePos[1] + 0.6 + Math.sin(state.clock.elapsedTime * 2 + i) * 0.1;
       }
-    }
+
+      dummy.updateMatrix();
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+
+      // Hat position relative to body
+      if (isFallen) {
+        dummy.position.z += 0.8;
+      } else {
+        dummy.position.y += 0.8;
+      }
+      dummy.updateMatrix();
+      hatRef.current!.setMatrixAt(i, dummy.matrix);
+
+      // Set colors
+      const statusColor = w.status === 'critical' ? '#f43f5e' : w.status === 'warning' ? '#f59e0b' : '#10b981';
+      meshRef.current!.setColorAt(i, color.set(statusColor));
+      hatRef.current!.setColorAt(i, color.set('#fbbf24'));
+    });
+
+    meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+    hatRef.current.instanceMatrix.needsUpdate = true;
+    if (hatRef.current.instanceColor) hatRef.current.instanceColor.needsUpdate = true;
   });
 
   return (
-    <group position={position}>
-      <group ref={group}>
-        <Cylinder args={[0.3, 0.3, 1.2, 16]} position={[0, 0.6, 0]}>
-          <meshStandardMaterial color={color} />
-        </Cylinder>
-        <Sphere args={[0.25, 16, 16]} position={[0, 1.4, 0]}>
-          <meshStandardMaterial color="#fbbf24" /> {/* Yellow hard hat */}
-        </Sphere>
-        <Text
-          position={[0, 2, 0]}
-          fontSize={0.2}
-          color="white"
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.02}
-          outlineColor="black"
-        >
-          {id}
-        </Text>
-      </group>
-      {/* Status indicator ring - kept outside the animated group so it stays on the ground */}
-      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.5, 0.6, 32]} />
-        <meshBasicMaterial color={color} transparent opacity={isFallen ? 0.8 : 0.5} side={THREE.DoubleSide} />
-      </mesh>
-      {/* Alert indicator if fallen */}
-      {isFallen && (
-        <mesh position={[0, 2.5, 0]}>
-           <planeGeometry args={[0.8, 0.8]} />
-           <meshBasicMaterial color="#f43f5e" transparent opacity={0.8} side={THREE.DoubleSide} />
-           <Text
-            position={[0, 0, 0.01]}
-            fontSize={0.4}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-          >
-            !
-          </Text>
-        </mesh>
-      )}
+    <group>
+      <instancedMesh ref={meshRef} args={[undefined, undefined, workers.length]}>
+        <cylinderGeometry args={[0.3, 0.3, 1.2, 16]} />
+        <meshStandardMaterial />
+      </instancedMesh>
+      <instancedMesh ref={hatRef} args={[undefined, undefined, workers.length]}>
+        <sphereGeometry args={[0.25, 16, 16]} />
+        <meshStandardMaterial />
+      </instancedMesh>
+      
+      {/* Labels and Indicators (Not instanced for simplicity, but could be optimized further if needed) */}
+      {workers.map((w, i) => {
+        const statusColor = w.status === 'critical' ? '#f43f5e' : w.status === 'warning' ? '#f59e0b' : '#10b981';
+        return (
+          <group key={`w-label-${i}`} position={w.position}>
+            <Text
+              position={[0, 2, 0]}
+              fontSize={0.2}
+              color="white"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.02}
+              outlineColor="black"
+            >
+              {w.id}
+            </Text>
+            <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.5, 0.6, 32]} />
+              <meshBasicMaterial color={statusColor} transparent opacity={w.isFallen ? 0.8 : 0.5} side={THREE.DoubleSide} />
+            </mesh>
+            {w.isFallen && (
+              <mesh position={[0, 2.5, 0]}>
+                 <planeGeometry args={[0.8, 0.8]} />
+                 <meshBasicMaterial color="#f43f5e" transparent opacity={0.8} side={THREE.DoubleSide} />
+                 <Text
+                  position={[0, 0, 0.01]}
+                  fontSize={0.4}
+                  color="white"
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  !
+                </Text>
+              </mesh>
+            )}
+          </group>
+        );
+      })}
     </group>
   );
 }
@@ -117,10 +153,8 @@ function Scene({ workers, machinery }: { workers: any[], machinery: any[] }) {
         <gridHelper args={[50, 50, '#3f3f46', '#3f3f46']} rotation={[Math.PI / 2, 0, 0]} />
       </mesh>
 
-      {/* Workers */}
-      {workers.map((w, i) => (
-        <Worker key={`w-${i}`} position={w.position} status={w.status} id={w.id} isFallen={w.isFallen} />
-      ))}
+      {/* Workers using InstancedMesh */}
+      <InstancedWorkers workers={workers} />
 
       {/* Machinery */}
       {machinery.map((m, i) => (

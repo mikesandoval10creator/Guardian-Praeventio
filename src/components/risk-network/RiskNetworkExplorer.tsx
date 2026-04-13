@@ -199,10 +199,10 @@ export function RiskNetworkExplorer() {
         <AnimatePresence>
           {selectedNode && (
             <motion.div
-              initial={{ x: 400 }}
+              initial={{ x: '100%' }}
               animate={{ x: 0 }}
-              exit={{ x: 400 }}
-              className="absolute top-0 right-0 h-full w-80 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-l border-zinc-200 dark:border-white/10 p-6 overflow-y-auto shadow-2xl"
+              exit={{ x: '100%' }}
+              className="absolute top-0 right-0 h-full w-full sm:w-80 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl border-l border-zinc-200 dark:border-white/10 p-6 overflow-y-auto shadow-2xl z-50"
             >
               <div className="flex items-center justify-between mb-6">
                 <div className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest`} style={{ backgroundColor: `${getNodeColor(selectedNode.type)}20`, color: getNodeColor(selectedNode.type) }}>

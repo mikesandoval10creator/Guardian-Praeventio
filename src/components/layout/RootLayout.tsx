@@ -138,7 +138,7 @@ export function RootLayout() {
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#4eb5ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-emerald-500/30 flex flex-col transition-colors duration-300">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
       </div>
@@ -264,7 +264,7 @@ export function RootLayout() {
 
           <button 
             onClick={toggleTheme}
-            className="flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+            className="hidden sm:flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
             aria-label="Toggle Dark Mode"
           >
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}

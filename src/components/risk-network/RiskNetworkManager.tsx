@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../../types';
+import { List } from 'react-window';
 import { 
   Plus, 
   Link as LinkIcon, 
@@ -19,16 +20,25 @@ export function RiskNetworkManager() {
   const { nodes, loading } = useUniversalKnowledge();
   const { addConnection, addNode } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
   const [isLinking, setIsLinking] = useState(false);
 
+  // Debounce search term to avoid excessive filtering
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const filteredNodes = useMemo(() => {
     return nodes.filter(n => 
-      n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      n.type.toLowerCase().includes(searchTerm.toLowerCase())
+      n.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      n.type.toLowerCase().includes(debouncedSearch.toLowerCase())
     );
-  }, [nodes, searchTerm]);
+  }, [nodes, debouncedSearch]);
 
   const selectedNode = nodes.find(n => n.id === selectedNodeId);
   const targetNode = nodes.find(n => n.id === targetNodeId);
@@ -41,27 +51,56 @@ export function RiskNetworkManager() {
     }
   };
 
+  const Row = ({ index, style }: any) => {
+    const node = filteredNodes[index];
+    return (
+      <div style={style} className="pr-2 pb-2">
+        <button
+          onClick={() => setSelectedNodeId(node.id)}
+          className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all h-full ${
+            selectedNodeId === node.id 
+              ? 'bg-indigo-500/10 border-indigo-500/50' 
+              : 'bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/5 hover:bg-zinc-100 dark:hover:bg-white/10'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div className={`w-2 h-2 rounded-full ${
+              node.type === NodeType.RISK ? 'bg-red-500' :
+              node.type === NodeType.INCIDENT ? 'bg-rose-500' :
+              'bg-blue-500'
+            }`} />
+            <div className="text-left">
+              <p className="text-[10px] font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate max-w-[180px]">{node.title}</p>
+              <p className="text-[8px] font-bold text-zinc-500 uppercase">{node.type}</p>
+            </div>
+          </div>
+          {selectedNodeId === node.id && <Check className="w-4 h-4 text-indigo-500" />}
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[2.5rem] p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 border border-indigo-500/20">
-            <Network className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 border border-indigo-500/20 shrink-0">
+            <Network className="w-5 h-5 sm:w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Gestor de Sinapsis</h2>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Conecta el Conocimiento de Seguridad</p>
+            <h2 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Gestor de Sinapsis</h2>
+            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Conecta el Conocimiento de Seguridad</p>
           </div>
         </div>
         
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar nodos..."
-            className="bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-64"
+            className="bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full sm:w-64"
           />
         </div>
       </div>
@@ -72,31 +111,15 @@ export function RiskNetworkManager() {
           <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
             <Database className="w-3 h-3" /> Nodos Disponibles
           </h3>
-          <div className="h-[400px] overflow-y-auto pr-2 space-y-2 custom-scrollbar">
-            {filteredNodes.map(node => (
-              <button
-                key={node.id}
-                onClick={() => setSelectedNodeId(node.id)}
-                className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                  selectedNodeId === node.id 
-                    ? 'bg-indigo-500/10 border-indigo-500/50' 
-                    : 'bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/5 hover:bg-zinc-100 dark:hover:bg-white/10'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${
-                    node.type === NodeType.RISK ? 'bg-red-500' :
-                    node.type === NodeType.INCIDENT ? 'bg-rose-500' :
-                    'bg-blue-500'
-                  }`} />
-                  <div className="text-left">
-                    <p className="text-[10px] font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate max-w-[180px]">{node.title}</p>
-                    <p className="text-[8px] font-bold text-zinc-500 uppercase">{node.type}</p>
-                  </div>
-                </div>
-                {selectedNodeId === node.id && <Check className="w-4 h-4 text-indigo-500" />}
-              </button>
-            ))}
+          <div className="h-[400px]">
+            <List
+              style={{ height: 400, width: '100%' }}
+              rowCount={filteredNodes.length}
+              rowHeight={80}
+              className="custom-scrollbar"
+              rowComponent={Row}
+              rowProps={{}}
+            />
           </div>
         </div>
 

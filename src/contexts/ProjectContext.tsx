@@ -21,6 +21,11 @@ interface Project {
   shiftStart?: string; // e.g., "08:00"
   shiftEnd?: string;   // e.g., "18:00"
   trackCommute?: boolean; // Track 1 hour before/after
+  settings?: {
+    geofences?: any[];
+    manDownInactivityThreshold?: number;
+    manDownMovementThreshold?: number;
+  };
 }
 
 interface ProjectContextType {

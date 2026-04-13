@@ -48,20 +48,20 @@ export function RiskNetworkHealth() {
 
   return (
     <section className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[32px] p-8 space-y-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
-            <Brain className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
+            <Brain className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Salud de la Red Neuronal</h2>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Optimización de Sinapsis y Cobertura de Conocimiento</p>
+            <h2 className="text-lg sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Salud de la Red Neuronal</h2>
+            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Optimización de Sinapsis y Cobertura de Conocimiento</p>
           </div>
         </div>
         <button
           onClick={analyzeHealth}
           disabled={analyzing || nodes.length === 0 || !isOnline}
-          className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
+          className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
             !isOnline ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
           }`}
         >

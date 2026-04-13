@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs } from '../services/firebase';
+import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, testConnection } from '../services/firebase';
 import { risks } from '../data/risks';
 import { NodeType } from '../types';
 
@@ -23,6 +23,9 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    // Test connection on mount
+    testConnection();
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       

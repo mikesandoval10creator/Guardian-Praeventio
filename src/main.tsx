@@ -6,9 +6,12 @@ import { registerSW } from 'virtual:pwa-register';
 
 const updateSW = registerSW({
   onNeedRefresh() {
-    if (confirm('Nueva actualización disponible. ¿Deseas recargar?')) {
-      updateSW(true);
-    }
+    // Dispatch a custom event instead of blocking the main thread with confirm()
+    window.dispatchEvent(new CustomEvent('pwa-update-available', {
+      detail: {
+        update: () => updateSW(true)
+      }
+    }));
   },
   onOfflineReady() {
     console.log('Praeventio Guard está listo para operar sin conexión.');

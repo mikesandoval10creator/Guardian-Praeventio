@@ -2,11 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useRiskEngine } from './useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { useSensors } from '../contexts/SensorContext';
 import { NodeType } from '../types';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
-
-const INACTIVITY_THRESHOLD = 30000; // 30 seconds for demo, should be higher in production
-const MOVEMENT_THRESHOLD = 0.5; // Sensitivity for accelerometer
 
 export function useManDownDetection() {
   const [isActive, setIsActive] = useState(false);
@@ -16,21 +14,24 @@ export function useManDownDetection() {
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
+  const { sensorData, startListening, stopListening } = useSensors();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Dynamic thresholds from project settings or defaults
+  const INACTIVITY_THRESHOLD = selectedProject?.settings?.manDownInactivityThreshold || 30000;
+  const MOVEMENT_THRESHOLD = selectedProject?.settings?.manDownMovementThreshold || 0.5;
+
   const startDetection = () => {
-    if (!('DeviceMotionEvent' in window)) {
-      console.warn('Device motion not supported');
-      return;
-    }
     setIsActive(true);
+    startListening();
     lastMovementTime.current = Date.now();
   };
 
   const stopDetection = () => {
     setIsActive(false);
     setIsAlerting(false);
+    stopListening();
     if (timerRef.current) clearInterval(timerRef.current);
     if (countdownRef.current) clearInterval(countdownRef.current);
   };
@@ -96,14 +97,12 @@ export function useManDownDetection() {
   useEffect(() => {
     if (!isActive) return;
 
-    const handleMotion = (event: DeviceMotionEvent) => {
-      const acc = event.accelerationIncludingGravity;
-      if (!acc) return;
-
+    const { x, y, z } = sensorData.acceleration;
+    if (x !== null && y !== null && z !== null) {
       const totalAcc = Math.sqrt(
-        (acc.x || 0) ** 2 + 
-        (acc.y || 0) ** 2 + 
-        (acc.z || 0) ** 2
+        (x || 0) ** 2 + 
+        (y || 0) ** 2 + 
+        (z || 0) ** 2
       );
 
       // If movement is detected, reset the timer
@@ -115,9 +114,11 @@ export function useManDownDetection() {
           if (countdownRef.current) clearInterval(countdownRef.current);
         }
       }
-    };
+    }
+  }, [isActive, sensorData.acceleration, isAlerting, MOVEMENT_THRESHOLD]);
 
-    window.addEventListener('devicemotion', handleMotion);
+  useEffect(() => {
+    if (!isActive) return;
 
     timerRef.current = setInterval(() => {
       const now = Date.now();
@@ -138,11 +139,10 @@ export function useManDownDetection() {
     }, 1000);
 
     return () => {
-      window.removeEventListener('devicemotion', handleMotion);
       if (timerRef.current) clearInterval(timerRef.current);
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
-  }, [isActive, isAlerting, selectedProject, user]);
+  }, [isActive, isAlerting, selectedProject, user, INACTIVITY_THRESHOLD]);
 
   return {
     isActive,

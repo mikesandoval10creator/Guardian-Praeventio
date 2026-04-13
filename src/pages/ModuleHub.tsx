@@ -388,8 +388,8 @@ export function ModuleHub() {
             >
               <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 ${hub.bgColor}`} />
               
-              <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${item.bg} flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform duration-300 shadow-inner relative z-10`}>
-                <item.icon className="w-6 h-6 sm:w-7 sm:h-7" />
+              <div className={`w-12 h-12 sm:w-16 sm:h-16 rounded-2xl ${item.bg} flex items-center justify-center ${item.color} group-hover:scale-110 transition-transform duration-300 shadow-inner relative z-10`}>
+                <item.icon className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
               <span className="text-[10px] sm:text-xs font-bold text-zinc-600 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-white uppercase tracking-widest text-center relative z-10">
                 {item.title}

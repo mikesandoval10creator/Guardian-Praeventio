@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, MapPin } from 'lucide-react';
 import { useGeofence, GeofenceZone } from '../../hooks/useGeofence';
+import { useProject } from '../../contexts/ProjectContext';
 
-// Example hardcoded zones for demonstration
-const HAZMAT_ZONES: GeofenceZone[] = [
+// Fallback zones if none provided by project
+const FALLBACK_ZONES: GeofenceZone[] = [
   {
     id: 'zone-1',
     name: 'Área de Químicos Peligrosos',
@@ -20,7 +21,16 @@ const HAZMAT_ZONES: GeofenceZone[] = [
 ];
 
 export function GeofenceAlert() {
-  const { activeZones } = useGeofence(HAZMAT_ZONES);
+  const { selectedProject } = useProject();
+  
+  const activeProjectZones = useMemo(() => {
+    if (selectedProject?.settings?.geofences && Array.isArray(selectedProject.settings.geofences)) {
+      return selectedProject.settings.geofences as GeofenceZone[];
+    }
+    return FALLBACK_ZONES;
+  }, [selectedProject]);
+
+  const { activeZones } = useGeofence(activeProjectZones);
 
   return (
     <AnimatePresence>

@@ -69,6 +69,8 @@ import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  isDarkMode?: boolean;
+  toggleTheme?: () => void;
 }
 
 type MenuItem = {
@@ -130,7 +132,7 @@ const menuGroups: MenuGroup[] = [
   }
 ];
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
@@ -328,7 +330,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4eb5ac] dark:bg-zinc-950 shrink-0">
+        <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4eb5ac] dark:bg-zinc-950 shrink-0 space-y-2">
+          {toggleTheme && (
+            <button
+              onClick={toggleTheme}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-zinc-800 dark:text-zinc-400 hover:bg-white/20 dark:hover:bg-zinc-800/30 hover:text-zinc-900 dark:hover:text-zinc-200 transition-all duration-200 border border-transparent"
+            >
+              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              <span className="text-xs font-bold tracking-wide">
+                {isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
+              </span>
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all duration-200 group border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20"

@@ -56,7 +56,7 @@ export function VolcanicEruptionMap() {
   const plumePaths = useMemo(() => {
     const spreadAngle = 60; // Degrees wide
     const plumeLength = windSpeed * 1000; // 1km per km/h as an arbitrary scale for visualization
-    const points = [volcanoLocation];
+    const points: { lat: number; lng: number }[] = [{ lat: volcanoLocation.lat, lng: volcanoLocation.lng }];
     
     // Create an arc for the end of the plume
     for (let angle = windDirection - spreadAngle / 2; angle <= windDirection + spreadAngle / 2; angle += 5) {
@@ -293,8 +293,7 @@ export function VolcanicEruptionMap() {
                   fillOpacity: 0.05,
                   strokeColor: "#f97316",
                   strokeOpacity: 0.5,
-                  strokeWeight: 2,
-                  strokeDasharray: "5 5"
+                  strokeWeight: 2
                 }}
               />
 

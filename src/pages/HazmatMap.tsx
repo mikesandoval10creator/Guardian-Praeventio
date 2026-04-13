@@ -49,7 +49,7 @@ export function HazmatMap() {
   // Calculate plume polygon (cone shape)
   const plumePaths = useMemo(() => {
     const spreadAngle = 45; // Degrees wide
-    const points = [incidentLocation];
+    const points: { lat: number; lng: number }[] = [{ lat: incidentLocation.lat, lng: incidentLocation.lng }];
     
     // Create an arc for the end of the plume
     for (let angle = windDirection - spreadAngle / 2; angle <= windDirection + spreadAngle / 2; angle += 5) {

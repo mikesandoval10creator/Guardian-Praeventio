@@ -110,13 +110,14 @@ export function Telemetry() {
 
   const handleConnectBluetooth = async () => {
     try {
-      if (!navigator.bluetooth) {
+      const nav = navigator as any;
+      if (!nav.bluetooth) {
         alert('Web Bluetooth API no está soportada en este navegador. Usa Chrome o Edge.');
         return;
       }
 
       setIsConnectingFit(true);
-      const device = await navigator.bluetooth.requestDevice({
+      const device = await nav.bluetooth.requestDevice({
         filters: [{ services: ['heart_rate'] }],
         optionalServices: ['battery_service']
       });

@@ -6,6 +6,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { analyzeVisionImage } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface AnalysisResult {
   eppDetected: string[];
@@ -13,6 +14,37 @@ interface AnalysisResult {
   recommendations: string[];
   summary: string;
 }
+
+const compressImage = (base64Str: string, maxWidth = 1080): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = maxWidth;
+      const MAX_HEIGHT = maxWidth;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.8));
+    };
+  });
+};
 
 export function VisionAnalyzer() {
   const [image, setImage] = useState<string | null>(null);
@@ -24,6 +56,7 @@ export function VisionAnalyzer() {
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
+  const { addNotification } = useNotifications();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -43,12 +76,24 @@ export function VisionAnalyzer() {
     setIsAnalyzing(true);
     setSaved(false);
     try {
-      const base64Image = image.split(',')[1];
+      // Compress image before sending to save bandwidth and memory
+      const compressedBase64 = await compressImage(image);
+      const base64Data = compressedBase64.split(',')[1];
       
-      const analysis = await analyzeVisionImage(base64Image);
+      const analysis = await analyzeVisionImage(base64Data);
       setResult(analysis);
+      addNotification({
+        title: 'Análisis Completado',
+        message: 'La imagen ha sido procesada exitosamente.',
+        type: 'success'
+      });
     } catch (err) {
       console.error('Error analyzing image:', err);
+      addNotification({
+        title: 'Error de Conexión',
+        message: 'Hubo una interferencia al analizar la imagen. Por favor, intenta de nuevo.',
+        type: 'error'
+      });
     } finally {
       setIsAnalyzing(false);
     }
