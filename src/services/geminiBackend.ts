@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
 import { RiskNode } from '../types';
 import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
+import { calculateDeterministicSafeRoute } from './routingBackend.js';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -2562,3 +2563,5 @@ export * from './psychosocialBackend.js';
 export * from './shiftBackend.js';
 export * from './trainingBackend.js';
 export * from './inventoryBackend.js';
+export * from './networkBackend.js';
+export * from './routingBackend.js';

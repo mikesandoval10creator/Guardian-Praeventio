@@ -62,6 +62,14 @@ export const analyzeAttendancePatterns = async (projectName: string, attendanceD
 export const generateSafetyCapsule = async (workerName: string, role: string, context: string) => callGeminiAPI('generateSafetyCapsule', [workerName, role, context]);
 export const suggestRisksWithAI = async (industry: string, context: string) => callGeminiAPI('suggestRisksWithAI', [industry, context]);
 export const suggestNormativesWithAI = async (industry: string) => callGeminiAPI('suggestNormativesWithAI', [industry]);
+export const syncNodeToNetwork = async (nodeData: any) => {
+  const authorUid = auth.currentUser?.uid || 'anonymous';
+  return callGeminiAPI('syncNodeToNetwork', [nodeData, authorUid]);
+};
+export const syncBatchToNetwork = async (operations: any[]) => {
+  const authorUid = auth.currentUser?.uid || 'anonymous';
+  return callGeminiAPI('syncBatchToNetwork', [operations, authorUid]);
+};
 export const generateCompensatoryExercises = async (fatigue: number, posture: number, attention: number) => callGeminiAPI('generateCompensatoryExercises', [fatigue, posture, attention]);
 export const analyzeBioImage = async (base64Image: string) => callGeminiAPI('analyzeBioImage', [base64Image]);
 export const generatePredictiveForecast = async (projectName: string, context: string, weatherContext?: string) => callGeminiAPI('generatePredictiveForecast', [projectName, context, weatherContext]);

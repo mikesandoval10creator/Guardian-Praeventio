@@ -1,5 +1,5 @@
 import admin from "firebase-admin";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { processGlobalSafetyAudit, calculateComplianceSummary } from "./geminiBackend.js";
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -67,4 +67,41 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
         console.error("Error auto-validating telemetry:", e);
         return null;
     }
+};
+
+export const predictGlobalIncidents = async (context: string, envContext: string) => {
+    if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+    const prompt = `
+        Analiza el panorama GLOBAL de riesgos para la organización Praeventio.
+        
+        Contexto operacional (Riesgos Activos):
+        ${context}
+        
+        Contexto Ambiental (Telemetría/Clima/Sismos):
+        ${envContext}
+        
+        Como el "Guardián Supremo", identifica tendencias sistémicas que podrían llevar a incidentes múltiples o fallas en cadena.
+    `;
+
+    const response = await ai.models.generateContent({
+        model: "gemini-1.5-pro",
+        contents: prompt,
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    globalRiskScore: { type: Type.NUMBER },
+                    systemicAlerts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    forecast48h: { type: Type.STRING },
+                    strategicRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ["globalRiskScore", "systemicAlerts", "forecast48h"]
+            }
+        }
+    });
+
+    return JSON.parse(response.text);
 };

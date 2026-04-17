@@ -1,6 +1,6 @@
 import { writeBatch, doc } from 'firebase/firestore';
 import { db } from './firebase';
-import { generateEmbeddingsBatch, autoConnectNodes } from './geminiService';
+import { generateEmbeddingsBatch, autoConnectNodes, syncBatchToNetwork } from './geminiService';
 import { RiskNode } from '../types';
 
 type SyncOperation = 
@@ -124,98 +124,28 @@ class MatrixSyncManager {
     let operationsToFlush: SyncOperation[] = [];
     try {
       operationsToFlush = Array.from(this.queue.values());
-      this.queue.clear(); // Clear early to accept new operations
+      this.queue.clear();
       this.saveQueue();
-      this.notifyListeners(); // Notify that queue is cleared
+      this.notifyListeners();
       
-      // 1. Process Embeddings in Batch
-      const nodesNeedingEmbeddings: { id: string, text: string, opIndex: number }[] = [];
+      // Call the backend batch sync which handles:
+      // 1. Embedding generation if needed
+      // 2. Firestore saves
+      // 3. Pinecone (RAG) updates
+      // 4. Admin-level bidirectional connections
+      const result = await syncBatchToNetwork(operationsToFlush);
       
-      operationsToFlush.forEach((op, index) => {
-        if (op.type === 'set') {
-          const text = `${op.data.title} ${op.data.description} ${op.data.tags.join(' ')}`;
-          nodesNeedingEmbeddings.push({ id: op.id, text, opIndex: index });
-        } else if (op.type === 'update' && (op.data.title || op.data.description || op.data.tags)) {
-          const existingNodes = this.getNodes();
-          const node = existingNodes.find(n => n.id === op.id);
-          if (node) {
-            const title = op.data.title || node.title;
-            const desc = op.data.description || node.description;
-            const tags = op.data.tags || node.tags;
-            const text = `${title} ${desc} ${tags.join(' ')}`;
-            nodesNeedingEmbeddings.push({ id: op.id, text, opIndex: index });
-          }
-        }
-      });
-
-      if (nodesNeedingEmbeddings.length > 0) {
-        const texts = nodesNeedingEmbeddings.map(n => n.text);
-        const embeddings = await generateEmbeddingsBatch(texts);
-        
-        embeddings.forEach((emb, i) => {
-          if (emb && emb.length > 0) {
-            const opIndex = nodesNeedingEmbeddings[i].opIndex;
-            const op = operationsToFlush[opIndex];
-            if (op.type === 'set') {
-              op.data.embedding = emb;
-            } else if (op.type === 'update') {
-              op.data.embedding = emb;
-            }
-          }
-        });
-      }
-
-      // 2. Execute Firestore Batch Write
-      const batch = writeBatch(db);
-      
-      for (const op of operationsToFlush) {
-        const docRef = doc(db, 'nodes', op.id);
-        if (op.type === 'set') {
-          batch.set(docRef, op.data);
-        } else if (op.type === 'update') {
-          batch.update(docRef, op.data);
-        } else if (op.type === 'delete') {
-          batch.delete(docRef);
-        }
-      }
-      
-      await batch.commit();
-      console.log(`[SyncManager] Flushed ${operationsToFlush.length} operations to Firestore in a single batch.`);
-
-      // 3. Post-flush Auto-connect for new nodes
-      const newNodes = operationsToFlush.filter(op => op.type === 'set').map(op => (op as any).data as RiskNode);
-      if (newNodes.length > 0) {
-        const existingNodes = this.getNodes();
-        for (const newNode of newNodes) {
-           autoConnectNodes(newNode, existingNodes).then(async (connections) => {
-             if (!connections || connections.length === 0) return;
-             
-             const timeNow = new Date().toISOString();
-             const newConnections1 = [...(newNode.connections || []), ...connections];
-             
-             // Enqueue connection updates to be batched in the next flush
-             this.enqueueUpdate(newNode.id, { connections: Array.from(new Set(newConnections1)), updatedAt: timeNow });
-             
-             for (const targetId of connections) {
-               if (targetId !== newNode.id) {
-                 const targetNode = existingNodes.find(n => n.id === targetId);
-                 if (targetNode && !targetNode.connections.includes(newNode.id)) {
-                   const newConnections2 = [...(targetNode.connections || []), newNode.id];
-                   this.enqueueUpdate(targetId, { connections: newConnections2, updatedAt: timeNow });
-                 }
-               }
-             }
-           }).catch(console.error);
-        }
+      if (result.success) {
+        console.log(`[SyncManager] Backend batch flush complete for ${operationsToFlush.length} operations.`);
+      } else {
+        throw new Error(result.error || 'Backend sync failed');
       }
 
     } catch (error) {
-      console.error("[SyncManager] Error flushing sync queue:", error);
-      // Restore operations to queue
-      const newOperations = Array.from(this.queue.values()); // Get any new operations added during flush
+      console.error("[SyncManager] Error flushing sync queue via backend:", error);
+      // Restore failed operations
+      const newOperations = Array.from(this.queue.values());
       this.queue.clear();
-      
-      // Re-add failed operations first, then new ones
       for (const op of operationsToFlush) {
         this.queue.set(op.id, op);
       }

@@ -67,6 +67,46 @@ export const analyzeChemicalRisk = async (sdsText: string, storageConditions: st
   return JSON.parse(response.text);
 };
 
+export const designHazmatStorage = async (storageType: string, volume: number, materialClass: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const prompt = `
+    Diseña un plan de almacenamiento seguro para sustancias peligrosas (HAZMAT).
+    
+    Tipo de Almacenamiento: ${storageType}
+    Volumen: ${volume} Litros/Kilos
+    Clase de Material: ${materialClass}
+    
+    Define:
+    1. Especificaciones estructurales necesarias.
+    2. Sistema de contención de derrames.
+    3. Ventilación y control de temperatura.
+    4. Distancias de segregación recomendadas.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-1.5-pro",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          structuralRequirements: { type: Type.ARRAY, items: { type: Type.STRING } },
+          containmentDesign: { type: Type.STRING },
+          safetyFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
+          segregationAdvice: { type: Type.STRING },
+          complianceNotes: { type: Type.STRING }
+        },
+        required: ["structuralRequirements", "containmentDesign", "safetyFeatures"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
 export const suggestChemicalSubstitution = async (currentChemical: string, purpose: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });

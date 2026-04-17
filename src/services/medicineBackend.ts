@@ -82,3 +82,51 @@ export const analyzeHealthPatterns = async (medicalRecords: any[]) => {
 
   return JSON.parse(response.text);
 };
+
+export const generateCompensatoryExercises = async (fatigue: number, posture: number, attention: number) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const prompt = `
+    Genera una rutina de "Pausa Activa" o "Ejercicios Compensatorios" personalizada.
+    
+    Niveles detectados (0-100):
+    - Fatiga: ${fatigue}
+    - Mala Postura: ${posture}
+    - Falta de Atención: ${attention}
+    
+    Crea 3-5 ejercicios cortos que se puedan realizar en el puesto de trabajo.
+    Incluye una breve explicación de por qué estos ejercicios ayudan según los niveles detectados.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-1.5-flash",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          routineTitle: { type: Type.STRING },
+          exercises: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                description: { type: Type.STRING },
+                durationSeconds: { type: Type.NUMBER },
+                benefit: { type: Type.STRING }
+              },
+              required: ["name", "description", "durationSeconds"]
+            }
+          },
+          aiMedicalAdvice: { type: Type.STRING }
+        },
+        required: ["routineTitle", "exercises", "aiMedicalAdvice"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};

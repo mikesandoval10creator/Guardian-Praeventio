@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import { initializeRAG } from "./src/services/ragService.js";
 import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
+import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { Pinecone } from '@pinecone-database/pinecone';
@@ -688,6 +689,8 @@ const ALLOWED_GEMINI_ACTIONS = [
   'generateSafetyCapsule',
   'suggestRisksWithAI',
   'suggestNormativesWithAI',
+  'syncNodeToNetwork',
+  'syncBatchToNetwork',
   'generateCompensatoryExercises',
   'analyzeBioImage',
   'generatePredictiveForecast',
@@ -900,6 +903,31 @@ app.post("/api/billing/webhook", async (req, res) => {
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
 
+// Start background environmental polling (every 10 minutes)
+setInterval(() => {
+  updateGlobalEnvironmentalContext().catch(console.error);
+}, 10 * 60 * 1000);
+
+// Run immediately at startup
+updateGlobalEnvironmentalContext().catch(console.error);
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
+
+  // Proactive Project Health Checks (Every 6 hours to balance quota)
+  setInterval(async () => {
+    try {
+      const db = admin.firestore();
+      const projects = await db.collection('projects').get();
+      const { performProjectSafetyHealthCheck } = await import('./src/services/safetyEngineBackend.js');
+      
+      for (const project of projects.docs) {
+        await performProjectSafetyHealthCheck(project.id).catch(e => 
+          console.error(`Error in health check for ${project.id}:`, e)
+        );
+      }
+    } catch (error) {
+      console.error("Error in background health checks:", error);
+    }
+  }, 6 * 60 * 60 * 1000);
 });

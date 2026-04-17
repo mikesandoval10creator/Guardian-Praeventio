@@ -57,3 +57,39 @@ export const generateCustomSafetyTraining = async (gapDescription: string, audie
 
   return JSON.parse(response.text);
 };
+
+export const generateTrainingQuiz = async (topic: string, description: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const prompt = `
+    Genera un Quiz de evaluación de seguridad para el tema: "${topic}".
+    Descripción del contexto: "${description}"
+    
+    El quiz debe tener 5 preguntas de opción múltiple con una sola respuesta correcta.
+    Enfócate en la aplicación práctica de la seguridad.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-1.5-flash",
+    contents: prompt,
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            question: { type: Type.STRING },
+            options: { type: Type.ARRAY, items: { type: Type.STRING } },
+            correctIndex: { type: Type.NUMBER },
+            explanation: { type: Type.STRING }
+          },
+          required: ["question", "options", "correctIndex", "explanation"]
+        }
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
