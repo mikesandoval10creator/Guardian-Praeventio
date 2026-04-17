@@ -31,6 +31,7 @@ import { TrainingSession, SafetyPost } from '../types';
 import { motion } from 'framer-motion';
 
 import { MFASetupModal } from '../components/auth/MFASetupModal';
+import { Medal3DViewer } from '../components/gamification/Medal3DViewer';
 
 export function Profile() {
   const { user, isAdmin } = useFirebase();
@@ -97,6 +98,17 @@ export function Profile() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 3D Medal Showcase */}
+      <div className="px-2">
+        <Card className="p-4 border-2 border-zinc-200 dark:border-zinc-800 rounded-[32px] overflow-hidden bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900 dark:to-black">
+          <div className="text-center mb-2">
+            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Medalla Actual</h2>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Gira para interactuar</p>
+          </div>
+          <Medal3DViewer title="SEMANA INVICTA" color="#fbbf24" />
+        </Card>
       </div>
 
       {/* Stats Bar - The "Duolingo" Icons */}

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Motion } from '@capacitor/motion';
+import { Capacitor } from '@capacitor/core';
 
 interface SensorData {
   acceleration: { x: number | null; y: number | null; z: number | null };
@@ -26,39 +28,82 @@ export function SensorProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isListening) return;
 
-    const handleMotion = (event: DeviceMotionEvent) => {
-      setSensorData(prev => ({
-        ...prev,
-        acceleration: {
-          x: event.acceleration?.x ?? null,
-          y: event.acceleration?.y ?? null,
-          z: event.acceleration?.z ?? null
-        },
-        rotationRate: {
-          alpha: event.rotationRate?.alpha ?? null,
-          beta: event.rotationRate?.beta ?? null,
-          gamma: event.rotationRate?.gamma ?? null
+    let accelListener: any;
+    let orientListener: any;
+
+    const startSensors = async () => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          accelListener = await Motion.addListener('accel', (event) => {
+            setSensorData(prev => ({
+              ...prev,
+              acceleration: {
+                x: event.acceleration.x,
+                y: event.acceleration.y,
+                z: event.acceleration.z
+              },
+              rotationRate: {
+                alpha: event.rotationRate.alpha,
+                beta: event.rotationRate.beta,
+                gamma: event.rotationRate.gamma
+              }
+            }));
+          });
+
+          orientListener = await Motion.addListener('orientation', (event) => {
+            setSensorData(prev => ({
+              ...prev,
+              orientation: {
+                alpha: event.alpha,
+                beta: event.beta,
+                gamma: event.gamma
+              }
+            }));
+          });
+        } catch (e) {
+          console.error("Error starting native motion sensors", e);
         }
-      }));
+      } else {
+        const handleMotion = (event: DeviceMotionEvent) => {
+          setSensorData(prev => ({
+            ...prev,
+            acceleration: {
+              x: event.acceleration?.x ?? null,
+              y: event.acceleration?.y ?? null,
+              z: event.acceleration?.z ?? null
+            },
+            rotationRate: {
+              alpha: event.rotationRate?.alpha ?? null,
+              beta: event.rotationRate?.beta ?? null,
+              gamma: event.rotationRate?.gamma ?? null
+            }
+          }));
+        };
+
+        const handleOrientation = (event: DeviceOrientationEvent) => {
+          setSensorData(prev => ({
+            ...prev,
+            orientation: {
+              alpha: event.alpha,
+              beta: event.beta,
+              gamma: event.gamma
+            }
+          }));
+        };
+
+        window.addEventListener('devicemotion', handleMotion);
+        window.addEventListener('deviceorientation', handleOrientation);
+
+        accelListener = { remove: () => window.removeEventListener('devicemotion', handleMotion) };
+        orientListener = { remove: () => window.removeEventListener('deviceorientation', handleOrientation) };
+      }
     };
 
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      setSensorData(prev => ({
-        ...prev,
-        orientation: {
-          alpha: event.alpha,
-          beta: event.beta,
-          gamma: event.gamma
-        }
-      }));
-    };
-
-    window.addEventListener('devicemotion', handleMotion);
-    window.addEventListener('deviceorientation', handleOrientation);
+    startSensors();
 
     return () => {
-      window.removeEventListener('devicemotion', handleMotion);
-      window.removeEventListener('deviceorientation', handleOrientation);
+      if (accelListener) accelListener.remove();
+      if (orientListener) orientListener.remove();
     };
   }, [isListening]);
 

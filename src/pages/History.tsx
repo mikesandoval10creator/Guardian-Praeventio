@@ -1,12 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { milestones } from '../data/milestones';
 import { Card } from '../components/shared/Card';
-import { History as HistoryIcon, Globe, MapPin, Filter, Pause, Play } from 'lucide-react';
+import { History as HistoryIcon, Globe, MapPin, Filter, Pause, Play, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
+import * as ReactWindow from 'react-window';
+import { db, collection, onSnapshot, query, orderBy, limit, handleFirestoreError, OperationType } from '../services/firebase';
+import { useProject } from '../contexts/ProjectContext';
+
+const { FixedSizeList: List } = ReactWindow;
+
+interface Report {
+  id: string;
+  title: string;
+  date: string;
+  type: string;
+  status: string;
+}
 
 export function History() {
-  const [activeTab, setActiveTab] = useState<'Todos' | 'Global' | 'Chile'>('Todos');
+  const [activeTab, setActiveTab] = useState<'Todos' | 'Global' | 'Chile' | 'Reportes'>('Todos');
   const [isPaused, setIsPaused] = useState(false);
+  const [reports, setReports] = useState<Report[]>([]);
+  const { selectedProject } = useProject();
+
+  useEffect(() => {
+    if (activeTab !== 'Reportes' || !selectedProject) return;
+
+    const path = `projects/${selectedProject.id}/reports`;
+    const q = query(
+      collection(db, path),
+      orderBy('date', 'desc'),
+      limit(50)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const reportsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Report[];
+      setReports(reportsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, path);
+    });
+
+    return () => unsubscribe();
+  }, [activeTab, selectedProject]);
 
   const filteredMilestones = milestones.filter(
     (m) => activeTab === 'Todos' || m.region === activeTab
@@ -48,12 +86,12 @@ export function History() {
 
       {/* Controls */}
       <div className="flex-none flex justify-center items-center gap-3 mb-4 z-10">
-        <div className="inline-flex items-center p-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-xl border border-zinc-200 dark:border-white/10 shadow-xl">
-          {(['Todos', 'Global', 'Chile'] as const).map((tab) => (
+        <div className="inline-flex items-center p-1 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-xl border border-zinc-200 dark:border-white/10 shadow-xl overflow-x-auto max-w-full no-scrollbar">
+          {(['Todos', 'Global', 'Chile', 'Reportes'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`relative px-3 py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg transition-colors ${
+              className={`relative px-3 py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap ${
                 activeTab === tab
                   ? 'text-emerald-700 dark:text-white'
                   : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
@@ -70,33 +108,83 @@ export function History() {
                 {tab === 'Global' && <Globe className="w-3 h-3" />}
                 {tab === 'Chile' && <MapPin className="w-3 h-3" />}
                 {tab === 'Todos' && <Filter className="w-3 h-3" />}
+                {tab === 'Reportes' && <FileText className="w-3 h-3" />}
                 {tab}
               </span>
             </button>
           ))}
         </div>
         
-        <button 
-          onClick={() => setIsPaused(!isPaused)} 
-          className="p-2 rounded-xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all shadow-xl"
-          title={isPaused ? "Reanudar línea de tiempo" : "Pausar línea de tiempo"}
-        >
-          {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
-        </button>
+        {activeTab !== 'Reportes' && (
+          <button 
+            onClick={() => setIsPaused(!isPaused)} 
+            className="p-2 rounded-xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all shadow-xl shrink-0"
+            title={isPaused ? "Reanudar línea de tiempo" : "Pausar línea de tiempo"}
+          >
+            {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
-      {/* Timeline Area */}
-      <div className="flex-1 relative w-full flex items-center overflow-hidden mask-edges min-h-[300px]">
-        {/* Central Axis Line */}
-        <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/0 via-emerald-500/30 to-emerald-500/0 top-1/2 -translate-y-1/2 z-0" />
-        
-        {/* Scrolling Track */}
-        <div 
-          className={`flex items-center w-max animate-scroll-timeline ${isPaused ? 'paused' : ''}`}
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
-        >
-          {loopedMilestones.map((milestone, index) => {
+      {/* Content Area */}
+      {activeTab === 'Reportes' ? (
+        <div className="flex-1 w-full max-w-3xl mx-auto bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
+          {reports.length > 0 ? (
+            <List
+              height={600}
+              itemCount={reports.length}
+              itemSize={80}
+              width="100%"
+              className="no-scrollbar"
+            >
+              {({ index, style }) => {
+                const report = reports[index];
+                return (
+                  <div style={style} className="p-2">
+                    <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between h-full hover:border-emerald-500/50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                          report.type === 'Incidente' ? 'bg-rose-500/10 text-rose-500' :
+                          report.type === 'Auditoría' ? 'bg-blue-500/10 text-blue-500' :
+                          'bg-emerald-500/10 text-emerald-500'
+                        }`}>
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-zinc-900 dark:text-white">{report.title}</h3>
+                          <p className="text-xs text-zinc-500">{new Date(report.date).toLocaleDateString()} • {report.type}</p>
+                        </div>
+                      </div>
+                      <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${
+                        report.status === 'Cerrado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {report.status}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }}
+            </List>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-8 text-center">
+              <FileText className="w-12 h-12 mb-4 opacity-20" />
+              <p className="font-bold">No hay reportes disponibles</p>
+              <p className="text-xs">Sincroniza con el servidor para obtener los últimos registros.</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex-1 relative w-full flex items-center overflow-hidden mask-edges min-h-[300px]">
+          {/* Central Axis Line */}
+          <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-emerald-500/0 via-emerald-500/30 to-emerald-500/0 top-1/2 -translate-y-1/2 z-0" />
+          
+          {/* Scrolling Track */}
+          <div 
+            className={`flex items-center w-max animate-scroll-timeline ${isPaused ? 'paused' : ''}`}
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+          >
+            {loopedMilestones.map((milestone, index) => {
             const isTop = index % 2 === 0;
             const isGlobal = milestone.region === 'Global';
             
@@ -142,6 +230,7 @@ export function History() {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

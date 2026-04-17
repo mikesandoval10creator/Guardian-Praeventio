@@ -63,6 +63,8 @@ import { AIInsightsModal } from '../components/dashboard/AIInsightsModal';
 import { ComplianceModal } from '../components/dashboard/ComplianceModal';
 import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidget';
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
+import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
+import { Skeleton } from '../components/shared/Skeleton';
 import { useGamification } from '../hooks/useGamification';
 import { NodeType } from '../types';
 
@@ -98,6 +100,21 @@ export function Dashboard() {
   const seismic = environment?.seismic;
   const loadingWeather = !environment;
   const [isFastCheckOpen, setIsFastCheckOpen] = useState(false);
+  const [showMorningCheckIn, setShowMorningCheckIn] = useState(false);
+
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const lastCheckIn = localStorage.getItem('lastMorningCheckIn');
+    if (lastCheckIn !== today) {
+      setShowMorningCheckIn(true);
+    }
+  }, []);
+
+  const handleMorningCheckInComplete = () => {
+    const today = new Date().toISOString().split('T')[0];
+    localStorage.setItem('lastMorningCheckIn', today);
+    setShowMorningCheckIn(false);
+  };
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
   const [isAIInsightsOpen, setIsAIInsightsOpen] = useState(false);
   const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
@@ -383,6 +400,7 @@ export function Dashboard() {
         { title: 'Matriz', icon: Grid, path: '/matrix', color: 'text-zinc-400' },
         { title: 'PTS', icon: FileText, path: '/pts', color: 'text-zinc-400' },
         { title: 'Guardia Predictivo', icon: Zap, path: '/predictive-guard', color: 'text-zinc-400' },
+        { title: 'WebXR', icon: Eye, path: '/webxr', color: 'text-zinc-400' },
       ]
     },
     {
@@ -453,6 +471,9 @@ export function Dashboard() {
 
   return (
     <div className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
+      {showMorningCheckIn && (
+        <MorningCheckIn onComplete={handleMorningCheckInComplete} />
+      )}
       <PredictiveAlertWidget />
       
       {/* 1. Boletín Climático - Denser */}
@@ -477,7 +498,14 @@ export function Dashboard() {
                   {weather && weather.sunrise && weather.sunset && (new Date().getTime() > weather.sunrise && new Date().getTime() < weather.sunset) ? <Sun className="w-7 h-7 sm:w-8 sm:h-8" /> : <Moon className="w-7 h-7 sm:w-8 sm:h-8" />}
                 </div>
                 
-                {weather ? (
+                {loadingWeather ? (
+                  <div className="grid grid-cols-4 gap-1 sm:gap-3 flex-1 w-full">
+                    <Skeleton className="h-8 sm:h-16 w-full rounded-lg sm:rounded-xl" />
+                    <Skeleton className="h-8 sm:h-16 w-full rounded-lg sm:rounded-xl" />
+                    <Skeleton className="h-8 sm:h-16 w-full rounded-lg sm:rounded-xl" />
+                    <Skeleton className="h-8 sm:h-16 w-full rounded-lg sm:rounded-xl" />
+                  </div>
+                ) : weather ? (
                   <div className="grid grid-cols-4 gap-1 sm:gap-3 flex-1 w-full">
                     <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
                       <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Temp</span>

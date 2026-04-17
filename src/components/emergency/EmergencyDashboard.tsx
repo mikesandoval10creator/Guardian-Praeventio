@@ -21,6 +21,8 @@ import { EmergencyCheckIn } from './EmergencyCheckIn';
 import { CrisisChat } from './CrisisChat';
 import { DynamicEvacuationMap } from './DynamicEvacuationMap';
 import { FirstAidCards } from './FirstAidCards';
+import { EmergencySquadManager } from './EmergencySquadManager';
+import { TacticalSimulation3D } from './TacticalSimulation3D';
 import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
 import { Bluetooth } from 'lucide-react';
 
@@ -215,6 +217,8 @@ export function EmergencyDashboard() {
               </div>
               <div className="space-y-8">
                 <FirstAidCards />
+                <EmergencySquadManager />
+                <TacticalSimulation3D />
                 
                 {isBluetoothSupported && (
                   <div className="p-6 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-[32px] shadow-sm space-y-4">

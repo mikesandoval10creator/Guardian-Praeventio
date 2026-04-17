@@ -12,6 +12,17 @@
         "role": { "type": "string", "enum": ["admin", "supervisor", "worker"] },
         "company": { "type": "string" },
         "location": { "type": "string" },
+        "subscription": {
+          "type": "object",
+          "properties": {
+            "planId": { "type": "string", "enum": ["free", "basic", "premium", "enterprise"] },
+            "expiryDate": { "type": "string", "format": "date-time" },
+            "status": { "type": "string", "enum": ["active", "expired", "canceled", "pending"] },
+            "purchaseToken": { "type": "string" },
+            "orderId": { "type": "string" },
+            "updatedAt": { "type": "string", "format": "date-time" }
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email", "role"]
@@ -176,6 +187,70 @@
       },
       "required": ["userId", "content", "type", "createdAt"]
     },
+    "Report": {
+      "title": "Inspection Report",
+      "description": "An inspection report, audit, or safety observation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "type": { "type": "string", "enum": ["Incidente", "Auditoría", "Observación"] },
+        "status": { "type": "string", "enum": ["Pendiente", "Cerrado", "En Proceso"] },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "date", "type", "status", "projectId"]
+    },
+    "SafetyControl": {
+      "title": "Safety Control",
+      "description": "A preventive or protective safety control measure.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["Predictivo", "Preventivo", "Reactivo"] },
+        "status": { "type": "string", "enum": ["Operativo", "En Revisión", "Crítico"] },
+        "efficiency": { "type": "number" },
+        "projectId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "type", "status", "projectId"]
+    },
+    "Material": {
+      "title": "Safety Material",
+      "description": "Safety materials, tools, or resources.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Herramienta", "Insumo", "Equipo"] },
+        "stock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "projectId": { "type": "string" }
+      },
+      "required": ["name", "type", "stock", "projectId"]
+    },
+    "TelemetryEvent": {
+      "title": "Telemetry Event",
+      "description": "An event captured by IoT sensors.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "source": { "type": "string" },
+        "metric": { "type": "string" },
+        "value": { "type": "number" },
+        "unit": { "type": "string" },
+        "status": { "type": "string", "enum": ["normal", "warning", "critical"] },
+        "projectId": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "source", "metric", "value", "timestamp"]
+    },
     "Asset": {
       "title": "Asset",
       "description": "A physical asset like machinery or tools.",
@@ -214,12 +289,36 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "projectId", "latitude", "longitude", "timestamp"]
+    },
+    "Transaction": {
+      "title": "Billing Transaction",
+      "description": "Record of a Google Play Billing transaction.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "packageName": { "type": "string" },
+        "productId": { "type": "string" },
+        "purchaseTime": { "type": "string", "format": "date-time" },
+        "purchaseState": { "type": "number", "description": "0: Purchased, 1: Canceled, 2: Pending" },
+        "purchaseToken": { "type": "string" },
+        "type": { "type": "string", "enum": ["subscription", "one_time"] },
+        "status": { "type": "string", "enum": ["verified", "pending", "failed", "refunded"] },
+        "rawResponse": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "orderId", "purchaseToken", "status"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile documents."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Google Play Billing transactions."
     },
     "/projects/{projectId}": {
       "schema": "Project",
@@ -260,6 +359,22 @@
     "/projects/{projectId}/assets/{assetId}": {
       "schema": "Asset",
       "description": "Assets for a project."
+    },
+    "/projects/{projectId}/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Inspection reports for a project."
+    },
+    "/projects/{projectId}/controls/{controlId}": {
+      "schema": "SafetyControl",
+      "description": "Safety controls for a project."
+    },
+    "/projects/{projectId}/materials/{materialId}": {
+      "schema": "Material",
+      "description": "Safety materials for a project."
+    },
+    "/telemetry_events/{eventId}": {
+      "schema": "TelemetryEvent",
+      "description": "Global telemetry events stream."
     },
     "/projects/{projectId}/locations/{locationId}": {
       "schema": "Location",

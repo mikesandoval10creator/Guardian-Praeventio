@@ -6,18 +6,34 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
+import { db, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
 
 interface Post {
   id: string;
-  author: string;
-  authorRole: string;
+  userId: string;
+  userName: string;
+  userPhoto?: string;
   content: string;
-  type: 'info' | 'alert' | 'success' | 'event';
-  timestamp: Date;
-  likes: number;
-  comments: number;
+  type: 'SafetyMoment' | 'Tip' | 'SuccessStory' | 'Warning';
+  likes: string[];
   imageUrl?: string;
+  createdAt: any;
+  projectId: string;
 }
+
+const typeMapping: Record<string, Post['type']> = {
+  'info': 'Tip',
+  'alert': 'Warning',
+  'success': 'SuccessStory',
+  'event': 'SafetyMoment'
+};
+
+const reverseTypeMapping: Record<Post['type'], string> = {
+  'Tip': 'info',
+  'Warning': 'alert',
+  'SuccessStory': 'success',
+  'SafetyMoment': 'event'
+};
 
 export function MuralDinamico() {
   const { selectedProject } = useProject();
@@ -25,99 +41,86 @@ export function MuralDinamico() {
   const { nodes } = useRiskEngine();
   const [posts, setPosts] = useState<Post[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
-  const [postType, setPostType] = useState<Post['type']>('info');
+  const [postType, setPostType] = useState<string>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Simulate loading posts from Zettelkasten/Firebase
   useEffect(() => {
-    // In a real app, this would be a Firestore listener
-    const mockPosts: Post[] = [
-      {
-        id: '1',
-        author: 'Sistema Guardián',
-        authorRole: 'IA Táctica',
-        content: '¡Felicidades equipo! Hemos alcanzado 30 días sin accidentes con tiempo perdido. Mantengamos el enfoque en la seguridad.',
-        type: 'success',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        likes: 12,
-        comments: 3
-      },
-      {
-        id: '2',
-        author: 'Juan Pérez',
-        authorRole: 'Supervisor de Turno',
-        content: 'Recordatorio: Mañana a las 08:00 hrs realizaremos simulacro de evacuación por sismo. Revisar rutas de escape en la sección Evacuación.',
-        type: 'info',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-        likes: 5,
-        comments: 1
-      }
-    ];
+    if (!selectedProject) return;
 
-    // Add recent lessons learned from Zettelkasten
-    const lessons = nodes
-      .filter(n => n.type === NodeType.DOCUMENT && n.tags?.includes('Lección Aprendida'))
-      .slice(0, 3)
-      .map((n, i) => ({
-        id: `lesson-${i}`,
-        author: 'Zettelkasten',
-        authorRole: 'Base de Conocimiento',
-        content: `Lección Aprendida Global: ${n.title}\n\n${n.description.substring(0, 150)}...`,
-        type: 'alert' as const,
-        timestamp: new Date(Date.now() - 1000 * 60 * 30 * (i + 1)),
-        likes: 0,
-        comments: 0
-      }));
+    const path = `projects/${selectedProject.id}/safety_posts`;
+    const q = query(
+      collection(db, path),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
 
-    setPosts([...lessons, ...mockPosts].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
-  }, [nodes]);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPosts(snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      })) as Post[]);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, path));
+
+    return () => unsubscribe();
+  }, [selectedProject]);
 
   const handlePostSubmit = async () => {
-    if (!newPostContent.trim()) return;
+    if (!newPostContent.trim() || !selectedProject || !user) return;
     setIsSubmitting(true);
 
+    const path = `projects/${selectedProject.id}/safety_posts`;
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      const newPost: Post = {
-        id: Date.now().toString(),
-        author: user?.displayName || user?.email || 'Usuario Anónimo',
-        authorRole: 'Prevencionista', // Or fetch from user profile
+      await addDoc(collection(db, path), {
+        userId: user.uid,
+        userName: user.displayName || user.email || 'Usuario',
+        userPhoto: user.photoURL || '',
         content: newPostContent,
-        type: postType,
-        timestamp: new Date(),
-        likes: 0,
-        comments: 0
-      };
+        type: typeMapping[postType] || 'Tip',
+        likes: [],
+        createdAt: serverTimestamp(),
+        projectId: selectedProject.id
+      });
 
-      setPosts([newPost, ...posts]);
       setNewPostContent('');
       setPostType('info');
     } catch (error) {
-      console.error('Error posting:', error);
+      handleFirestoreError(error, OperationType.CREATE, path);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getPostIcon = (type: Post['type']) => {
+  const getPostIcon = (type: string) => {
     switch (type) {
+      case 'Warning':
       case 'alert': return <AlertTriangle className="w-5 h-5 text-amber-500" />;
+      case 'SuccessStory':
       case 'success': return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+      case 'SafetyMoment':
       case 'event': return <MessageSquare className="w-5 h-5 text-blue-500" />;
       default: return <MessageSquare className="w-5 h-5 text-zinc-400" />;
     }
   };
 
-  const getPostColor = (type: Post['type']) => {
+  const getPostColor = (type: string) => {
     switch (type) {
+      case 'Warning':
       case 'alert': return 'border-amber-500/20 bg-amber-500/5';
+      case 'SuccessStory':
       case 'success': return 'border-emerald-500/20 bg-emerald-500/5';
+      case 'SafetyMoment':
       case 'event': return 'border-blue-500/20 bg-blue-500/5';
       default: return 'border-white/5 bg-zinc-900/50';
     }
   };
+
+  // Convert Firestore post to UI-friendly format if needed, 
+  // but we can use them directly with a bit of defensive check
+  const displayPosts = [...posts].sort((a, b) => {
+    const timeA = a.createdAt?.toMillis?.() || 0;
+    const timeB = b.createdAt?.toMillis?.() || 0;
+    return timeB - timeA;
+  });
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 sm:space-y-8">
@@ -174,7 +177,7 @@ export function MuralDinamico() {
 
       {/* Feed */}
       <div className="space-y-4">
-        {posts.map((post, index) => (
+        {displayPosts.map((post, index) => (
           <motion.div
             key={post.id}
             initial={{ opacity: 0, y: 20 }}
@@ -184,12 +187,18 @@ export function MuralDinamico() {
             <Card className={`p-4 sm:p-6 border ${getPostColor(post.type)}`}>
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-white/10">
-                    {getPostIcon(post.type)}
+                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center border border-white/10 overflow-hidden">
+                    {post.userPhoto ? (
+                      <img src={post.userPhoto} alt={post.userName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      getPostIcon(post.type)
+                    )}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">{post.author}</h3>
-                    <p className="text-xs text-zinc-500">{post.authorRole} • {post.timestamp.toLocaleDateString()} {post.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                    <h3 className="text-sm font-bold text-white">{post.userName}</h3>
+                    <p className="text-xs text-zinc-500">
+                      {post.userId === 'system' ? 'Sistema Guardián' : 'Usuario'} • {post.createdAt?.toDate ? post.createdAt.toDate().toLocaleString() : 'Recién publicado'}
+                    </p>
                   </div>
                 </div>
                 <button className="text-zinc-500 hover:text-white transition-colors">
@@ -203,7 +212,7 @@ export function MuralDinamico() {
 
               {post.imageUrl && (
                 <div className="mb-4 rounded-xl overflow-hidden border border-white/10">
-                  <img src={post.imageUrl} alt="Post attachment" className="w-full h-auto object-cover" />
+                  <img src={post.imageUrl} alt="Post attachment" className="w-full h-auto object-cover" referrerPolicy="no-referrer" />
                 </div>
               )}
 
@@ -212,7 +221,7 @@ export function MuralDinamico() {
                   <div className="p-1.5 rounded-md bg-zinc-800 group-hover:bg-amber-500/20 transition-colors">
                     <Award className="w-4 h-4 group-hover:text-amber-400" />
                   </div>
-                  <span>Kudos ({post.likes})</span>
+                  <span>Kudos ({post.likes?.length || 0})</span>
                 </button>
                 <button className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-emerald-400 transition-colors group">
                   <div className="p-1.5 rounded-md bg-zinc-800 group-hover:bg-emerald-500/20 transition-colors">
@@ -224,7 +233,7 @@ export function MuralDinamico() {
                   <div className="p-1.5 rounded-md bg-zinc-800 group-hover:bg-blue-500/20 transition-colors">
                     <MessageSquare className="w-4 h-4 group-hover:text-blue-400" />
                   </div>
-                  <span>Comentar ({post.comments})</span>
+                  <span>Comentar</span>
                 </button>
               </div>
             </Card>

@@ -581,35 +581,57 @@ export const processDocumentToNodes = async (text: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: `Analiza el siguiente texto (que puede ser un manual, ley o procedimiento) y extrae los conceptos clave como "Nodos Maestros" para una base de conocimiento.
-    
-    Texto:
-    ${text}
-    
-    Para cada nodo extraído, proporciona:
-    1. title: Un título corto y representativo.
-    2. content: Una descripción clara y concisa del concepto, regla o procedimiento.
-    3. tags: Una lista de etiquetas relevantes para categorizar el nodo.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            content: { type: Type.STRING },
-            tags: { type: Type.ARRAY, items: { type: Type.STRING } }
-          },
-          required: ["title", "content", "tags"]
-        }
-      }
-    }
-  });
+  
+  // Chunking strategy to avoid token limits
+  const CHUNK_SIZE = 8000; // Aiming for roughly 2k tokens per chunk
+  const chunks = [];
+  for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+    chunks.push(text.slice(i, i + CHUNK_SIZE));
+  }
 
-  return JSON.parse(response.text);
+  const allNodes: any[] = [];
+  
+  for (const chunk of chunks) {
+    try {
+      const response = await withExponentialBackoff(() => 
+        ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: `Analiza el siguiente fragmento de texto (un manual, ley o procedimiento) y extrae conceptos clave como "Nodos Maestros" para una base de conocimiento de seguridad industrial.
+          
+          Fragmento:
+          ${chunk}
+          
+          Para cada nodo extraído, proporciona:
+          1. title: Un título corto y representativo.
+          2. content: Una descripción clara y concisa del concepto, regla o procedimiento.
+          3. tags: Una lista de etiquetas relevantes para categorizar el nodo.`,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  content: { type: Type.STRING },
+                  tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ["title", "content", "tags"]
+              }
+            }
+          }
+        })
+      );
+      
+      const nodes = JSON.parse(response.text);
+      allNodes.push(...nodes);
+    } catch (e) {
+      console.error("Error processing chunk for document nodes:", e);
+    }
+  }
+
+  // Optional: De-duplicate nodes based on title similarity if needed
+  return allNodes;
 };
 
 export const simulateRiskPropagation = async (nodeTitle: string, context: string) => {
@@ -947,18 +969,26 @@ export const generatePersonalizedSafetyPlan = async (workerName: string, role: s
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  // Search for role-specific safety standards and common risks in Chile
+  const searchTerms = `Normativa seguridad Chile rol ${role} riesgos comunes`;
+  const safetyStandardContext = await searchRelevantContext(searchTerms, "legal_docs");
+
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.1-pro-preview",
     contents: `Genera un plan de seguridad personalizado para el trabajador ${workerName}.
     Rol: ${role}
     Historial de incidentes/capacitaciones: ${history}
     Riesgos actuales del proyecto: ${projectRisks}
     
+    Contexto Normativo y Técnico (RAG):
+    ${safetyStandardContext}
+    
     El plan debe incluir:
-    1. Recomendaciones específicas para su rol.
-    2. Refuerzo de capacitación basado en su historial.
+    1. Recomendaciones específicas para su rol basadas en normativa chilena vigente.
+    2. Refuerzo de capacitación basado en su historial y brechas detectadas.
     3. Medidas preventivas críticas para los riesgos del proyecto actual.
-    4. Un mensaje motivador personalizado.`,
+    4. Un mensaje motivador que enfatice el valor de la vida y el regreso seguro al hogar.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -1045,22 +1075,30 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
+  
+  // Search for relevant investigation techniques and legal requirements (e.g., DIAT/DIEP)
+  const searchTerms = `Metodología investigación incidentes Chile ley 16.744 ${incidentTitle}`;
+  const investigationProtocolContent = await searchRelevantContext(searchTerms, "legal_docs");
+
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Actúa como un experto en investigación de incidentes (Metodología ICAM, 5 Porqués).
-    Analiza el siguiente incidente y sugiere causas raíz y acciones correctivas.
+    model: "gemini-3.1-pro-preview",
+    contents: `Actúa como un experto en investigación de accidentes laborales utilizando metodologías como el Diagrama de Ishikawa y los 5 Porqués (ICAM).
+    Investiga el siguiente incidente:
+    
     Título: ${incidentTitle}
     Descripción: ${incidentDescription}
+    Contexto General/Ambiental: ${context}
     
-    Contexto adicional del proyecto:
-    ${context}
+    Marco Normativo de Investigación (RAG):
+    ${investigationProtocolContent}
     
     Proporciona un análisis detallado que incluya:
     1. Resumen del incidente.
     2. Causas Inmediatas.
     3. Causas Raíz (Basado en los 5 Porqués).
-    4. Acciones Correctivas Sugeridas.
-    5. Lección Aprendida Global (Un riesgo generalizado que debería agregarse a las matrices IPER de todos los proyectos similares).`,
+    4. Acciones Correctivas Sugeridas con prioridad.
+    5. Lección Aprendida Global para la red neuronal de riesgos.
+    6. Referencia a formularios legales chilenos (DIAT/DIEP) si aplica.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -1083,11 +1121,12 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
           globalRiskLesson: {
             type: Type.OBJECT,
             properties: {
-              title: { type: Type.STRING, description: "Título del riesgo generalizado" },
-              description: { type: Type.STRING, description: "Descripción del riesgo y la lección aprendida" }
+              title: { type: Type.STRING },
+              description: { type: Type.STRING }
             },
             required: ["title", "description"]
-          }
+          },
+          legalRequirementNote: { type: Type.STRING }
         },
         required: ["summary", "immediateCauses", "rootCauses", "correctiveActions", "globalRiskLesson"]
       }
@@ -1773,57 +1812,56 @@ export const validateRiskImageClick = async (imageBase64: string, x: number, y: 
 export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = []) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  // 1. Deterministic Calculation
-  // Mocking start point from the first worker or a default location
+  // 1. Deterministic Calculation using our routing utility
+  // Getting start point from the first worker or a default location
   const startPoint = workers.length > 0 && workers[0].position 
     ? { lat: workers[0].position[0], lng: workers[0].position[1] } 
     : { lat: -33.4489, lng: -70.6693 }; // Default Santiago
   
-  // Mocking a safe destination (e.g., a known safe zone)
+  // A known safe zone (Optimal meeting point)
   const destination = { lat: -33.4500, lng: -70.6700 };
 
-  // Convert emergencies to hazard zones
+  // Convert emergencies to hazard zones for the deterministic algorithm
   const hazards = activeEmergencies.map(e => ({
     center: e.location ? { lat: e.location.lat, lng: e.location.lng } : { lat: -33.4490, lng: -70.6690 },
-    radius: 50 // Assume 50 meters radius for emergencies
+    radius: e.severity === 'Crítica' ? 100 : 50 // Dynamic radius based on severity
   }));
 
-  // Calculate safe route deterministically (mocked logic for now)
-  const safeRoutePoints = [startPoint, { lat: -33.4495, lng: -70.6695 }, destination];
+  // Calculate safe route using a deterministic algorithm that avoids hazards
+  const safeRoutePoints = calculateDeterministicSafeRoute(startPoint, destination, hazards);
 
   // 2. Use Gemini to translate the deterministic route into human instructions
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
-    contents: `Actúa como un experto en logística de emergencias y evacuación industrial. 
-    Se ha calculado matemáticamente una ruta de evacuación segura. Tu tarea es traducir esta ruta en instrucciones claras, calmadas y precisas para el personal.
+    model: "gemini-1.5-flash",
+    contents: `Actúa como un experto en logística de emergencias y evacuación industrial de Praeventio Guard. 
+    Se ha calculado matemáticamente una ruta de evacuación segura que evita zonas de peligro. Tu tarea es traducir esta ruta en instrucciones claras, calmadas y precisas para el personal.
     
     DATOS DE LA RUTA CALCULADA:
     - Punto de Inicio: [${startPoint.lat}, ${startPoint.lng}]
-    - Punto de Encuentro: [${destination.lat}, ${destination.lng}]
-    - Puntos intermedios seguros: ${safeRoutePoints.length} puntos calculados.
+    - Punto de Encuentro Óptimo: [${destination.lat}, ${destination.lng}]
+    - Puntos intermedios seguros: ${safeRoutePoints.length} puntos calculados que evitan obstáculos.
     
     CONTEXTO DE LA EMERGENCIA:
-    ${activeEmergencies.map(e => `- ${e.title}: ${e.description}`).join('\n')}
+    ${activeEmergencies.map(e => `- ${e.title}: ${e.description} (Severidad: ${e.severity})`).join('\n')}
     
-    ESTADO DEL PERSONAL:
-    ${workers.map(w => `- Trabajador ${w.id}: Estado ${w.status}, Caído: ${w.isFallen ? 'Sí' : 'No'}`).join('\n')}
+    ESTADO DEL PERSONAL Y ACTIVOS:
+    - Cantidad de Trabajadores: ${workers.length}
+    - Maquinaria en Movimiento: ${machinery.length}
+    ${workers.filter(w => w.isFallen).length > 0 ? `- ALERTA: Hay trabajadores caídos que requieren asistencia.` : ''}
     
-    ÁREAS BLOQUEADAS:
+    ÁREAS BLOQUEADAS POR SISTEMA O USUARIO:
     ${userBlockedAreas.length > 0 ? userBlockedAreas.join(', ') : 'Ninguna'}
     
-    Proporciona:
-    1. El nombre de la ruta más segura (basado en el destino).
-    2. Un array de áreas o rutas bloqueadas.
-    3. Tiempo estimado de evacuación (asume velocidad de caminata de 1.5 m/s).
-    4. Nivel de prioridad/alerta (Rojo, Amarillo, Verde).
-    5. Instrucciones paso a paso claras, precisas y calmadas para los trabajadores.
-    6. Nombre del punto de encuentro óptimo.
-    7. Coordenadas (lat, lng) del punto de inicio.
-    8. Coordenadas (lat, lng) del punto de encuentro óptimo.`,
+    Instrucciones específicas:
+    1. Proporciona un nombre descriptivo para la ruta.
+    2. Identifica rutas alternativas si las principales están bloqueadas.
+    3. Calcula el tiempo estimado (velocidad real: 1.2 m/s).
+    4. Define el nivel de alerta (Verde, Amarillo, Rojo).
+    5. Brinda los pasos de evacuación en orden cronológico.`,
     config: {
       responseMimeType: "application/json",
-      temperature: 0.1, // Low temperature for deterministic output
+      temperature: 0.1,
       responseSchema: {
         type: Type.OBJECT,
         properties: {
@@ -2145,41 +2183,7 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
   return JSON.parse(response.text.trim());
 };
 
-export const analyzePsychosocialRisks = async (nodesContext: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-
-  try {
-    const prompt = `
-      Actúa como un psicólogo ocupacional experto en la normativa chilena (SUSESO/ISTAS21).
-      Analiza los siguientes datos de la Red Neuronal de la empresa para identificar patrones de riesgo psicosocial.
-      Busca correlaciones entre:
-      - Incidentes reportados.
-      - Evaluaciones ISTAS21 previas.
-      - Horarios de trabajo o asistencia (si hay datos).
-      - Hallazgos de seguridad.
-      
-      Datos de la Red Neuronal:
-      ${nodesContext}
-      
-      Proporciona un informe estructurado en Markdown con:
-      1. **Resumen Ejecutivo**: Estado general del clima laboral y salud mental.
-      2. **Dimensiones Críticas**: Identifica qué dimensiones del ISTAS21 (Exigencias psicológicas, Trabajo activo, Apoyo social, Compensaciones, Doble presencia) podrían estar en riesgo según los datos.
-      3. **Correlaciones Encontradas**: Relaciones entre incidentes y posibles factores psicosociales (ej. fatiga, estrés).
-      4. **Plan de Acción Recomendado**: Medidas preventivas y correctivas basadas en la normativa chilena.
-    `;
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: prompt,
-    });
-    
-    return response.text || "No se pudo generar el análisis.";
-  } catch (error) {
-    console.error("Error in analyzePsychosocialRisks:", error);
-    throw error;
-  }
-};
+// Removed analyzePsychosocialRisks to move it to specialized psychosocialBackend.ts
 
 export const calculateStructuralLoad = async (element: string, specs: string) => {
   try {
@@ -2250,6 +2254,10 @@ export const designHazmatStorage = async (storageType: string, volume: number, m
 export const evaluateMinsalCompliance = async (protocolTitle: string, context: string, industry?: string) => {
   try {
     if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+    // Get relevant legal context using RAG
+    const legalContext = await searchRelevantContext(`Exigencias y sanciones del protocolo MINSAL: ${protocolTitle} en la industria ${industry || 'general'}`);
+
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const prompt = `
       Actúa como un Auditor Senior del Ministerio de Salud de Chile (MINSAL) y experto en la Ley 16.744, utilizando siempre como base la Biblioteca del Congreso Nacional de Chile (BCN).
@@ -2259,11 +2267,14 @@ export const evaluateMinsalCompliance = async (protocolTitle: string, context: s
       Contexto Actual del Proyecto (Hallazgos, Riesgos, Incidentes):
       ${context || 'Sin datos específicos registrados aún.'}
 
+      CONTEXTO LEGAL Y REQUISITOS (RAG):
+      ${legalContext}
+
       Por favor, genera un informe de auditoría estructurado que incluya:
       1. **Estado de Cumplimiento Estimado**: (Cumple, En Riesgo, No Cumple) basado en el contexto.
       2. **Brechas Identificadas**: Qué falta según las exigencias del protocolo (ej. evaluaciones ambientales, vigilancia médica, capacitación).
       3. **Plan de Acción Inmediato**: Pasos operativos claros para cerrar las brechas.
-      4. **Multas o Sanciones Potenciales**: Qué riesgos legales enfrenta la empresa si no regulariza la situación (referencia a la ley).
+      4. **Multas o Sanciones Potenciales**: Qué riesgos legales enfrenta la empresa si no regulariza la situación (referencia a la ley y multas del Código Sanitario).
 
       Responde en formato Markdown, estructurado, claro y profesional.
     `;
@@ -2372,28 +2383,34 @@ export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
   return JSON.parse(response.text.trim());
 };
 
-export async function analyzeFaenaRiskWithAI(faenaData: any) {
+export async function analyzeFaenaRiskWithAI(industry: string, context: string, envContext: string) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  
+  // Get relevant legal context using RAG
+  const legalContext = await searchRelevantContext(`Riesgos críticos en la industria ${industry} y su normativa aplicable en Chile`);
+  
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   try {
     const prompt = `
-      Actúa como un experto en Prevención de Riesgos (SSOMA) en Chile.
+      Actúa como un experto senior en Prevención de Riesgos (SSOMA) en Chile.
       Analiza los siguientes datos de una faena y genera una lista de los 5 riesgos más críticos y comunes que deberían incluirse en la matriz IPER base.
       
-      Datos de la Faena:
-      - Industria: ${faenaData.industry}
-      - Ubicación: ${faenaData.location}
-      - Dotación: ${faenaData.workers} trabajadores
-      - Instalaciones: ${faenaData.facilities}
-      - Actividades Principales: ${faenaData.activities}
+      DATOS DE LA FAENA:
+      - Industria: ${industry}
+      - Contexto Operacional: ${context}
+      - Condiciones Ambientales/Entorno: ${envContext}
+      
+      CONTEXTO LEGAL RELEVANTE (RAG):
+      ${legalContext}
       
       Para cada riesgo, proporciona:
       1. Nombre del Riesgo (ej. Caída a distinto nivel)
       2. Probabilidad (Baja, Media, Alta)
       3. Consecuencia (Ligeramente Dañino, Dañino, Extremadamente Dañino)
       4. Medidas de Control Sugeridas (Ingeniería, Administrativas, EPP)
+      5. Fundamento Legal (Cita artículos específicos del DS 594, Ley 16.744, etc., basados en el contexto legal proporcionado)
       
-      Formatea la respuesta en Markdown claro y estructurado.
+      Formatea la respuesta en Markdown claro, estructurado y profesional.
     `;
 
     const response = await ai.models.generateContent({
@@ -2401,9 +2418,9 @@ export async function analyzeFaenaRiskWithAI(faenaData: any) {
       contents: prompt,
     });
 
-    return response.text || 'No se pudo generar el análisis.';
+    return response.text || 'No se pudo generar el análisis de riesgos de faena.';
   } catch (error) {
-    console.error('Error in analyzeRiskWithAI:', error);
+    console.error('Error in analyzeFaenaRiskWithAI:', error);
     throw error;
   }
 }
@@ -2445,3 +2462,103 @@ export async function extractAcademicSummary(text: string) {
     throw error;
   }
 }
+
+export const calculateComplianceSummary = async (projectId: string, nodes: any[]) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  // Filter nodes for the project
+  const projectNodes = nodes.filter(n => n.projectId === projectId);
+  
+  const summaryContext = projectNodes.map(n => ({
+    type: n.type,
+    title: n.title,
+    status: n.metadata?.status || n.metadata?.estado || "pending"
+  }));
+
+  const prompt = `
+    Analiza el estado de cumplimiento de seguridad para el proyecto ${projectId}.
+    Desglose:
+    ${JSON.stringify(summaryContext)}
+
+    Proporciona un puntaje global (0-100), desglose por categorías y 3 acciones críticas.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          globalScore: { type: Type.NUMBER },
+          categories: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                score: { type: Type.NUMBER }
+              },
+              required: ["name", "score"]
+            }
+          },
+          criticalActions: { type: Type.ARRAY, items: { type: Type.STRING } }
+        },
+        required: ["globalScore", "categories", "criticalActions"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export const processGlobalSafetyAudit = async (projectId: string, projectData: any) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const prompt = `
+    Auditoría Master de Seguridad - Proyecto: ${projectData.name}.
+    Reportes: ${JSON.stringify(projectData.reports || [])}
+    Controles: ${JSON.stringify(projectData.controls || [])}
+    Nodos: ${JSON.stringify(projectData.nodesSummary || [])}
+
+    Identifica brechas críticas y correlaciones de riesgo.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-pro-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          auditTitle: { type: Type.STRING },
+          keyFindings: { type: Type.ARRAY, items: { type: Type.STRING } },
+          riskCorrelations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          criticalGaps: { type: Type.ARRAY, items: { type: Type.STRING } },
+          recommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+          healthIndex: { type: Type.NUMBER }
+        },
+        required: ["auditTitle", "keyFindings", "riskCorrelations", "criticalGaps", "recommendations", "healthIndex"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
+export * from './susesoBackend.js';
+export * from './eppBackend.js';
+export * from './comiteBackend.js';
+export * from './medicineBackend.js';
+export * from './predictionBackend.js';
+export * from './legalBackend.js';
+export * from './chemicalBackend.js';
+export * from './psychosocialBackend.js';
+export * from './shiftBackend.js';
+export * from './trainingBackend.js';
+export * from './inventoryBackend.js';

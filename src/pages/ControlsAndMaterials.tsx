@@ -1,41 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Wrench, AlertTriangle, CheckCircle2, Plus, Search, Filter, Box } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { db, collection, onSnapshot, query, where, handleFirestoreError, OperationType } from '../services/firebase';
+import { useProject } from '../contexts/ProjectContext';
 
 interface Control {
   id: string;
-  name: string;
-  type: 'ingenieria' | 'administrativo' | 'epp';
-  status: 'active' | 'maintenance' | 'failed';
-  lastAudit: string;
+  title: string;
+  type: string;
+  status: string;
   description: string;
+  efficiency?: number;
+  createdAt: any;
 }
 
 interface Material {
   id: string;
   name: string;
-  casNumber: string;
-  unNumber: string;
-  riskLevel: 'high' | 'medium' | 'low';
+  type: string;
   stock: number;
+  minStock: number;
 }
 
 export function ControlsAndMaterials() {
   const [activeTab, setActiveTab] = useState<'controls' | 'materials'>('controls');
   const [searchTerm, setSearchTerm] = useState('');
+  const [controls, setControls] = useState<Control[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const { selectedProject } = useProject();
 
-  const mockControls: Control[] = [
-    { id: '1', name: 'Sistema de Extracción Localizada', type: 'ingenieria', status: 'active', lastAudit: '2026-03-15', description: 'Extracción de gases en taller de soldadura.' },
-    { id: '2', name: 'Barreras Fotoeléctricas', type: 'ingenieria', status: 'maintenance', lastAudit: '2026-04-01', description: 'Protección en prensa hidráulica #3.' },
-    { id: '3', name: 'Rotación de Turnos', type: 'administrativo', status: 'active', lastAudit: '2026-01-10', description: 'Prevención de fatiga en operadores de maquinaria pesada.' },
-  ];
+  useEffect(() => {
+    if (!selectedProject) return;
 
-  const mockMaterials: Material[] = [
-    { id: '1', name: 'Ácido Sulfúrico (98%)', casNumber: '7664-93-9', unNumber: '1830', riskLevel: 'high', stock: 500 },
-    { id: '2', name: 'Cianuro de Sodio', casNumber: '143-33-9', unNumber: '1689', riskLevel: 'high', stock: 200 },
-    { id: '3', name: 'Aceite Hidráulico', casNumber: 'N/A', unNumber: 'N/A', riskLevel: 'low', stock: 1500 },
-  ];
+    const controlsPath = `projects/${selectedProject.id}/controls`;
+    const materialsPath = `projects/${selectedProject.id}/materials`;
+
+    const qControls = query(collection(db, controlsPath));
+    const qMaterials = query(collection(db, materialsPath));
+
+    const unsubscribeControls = onSnapshot(qControls, (snapshot) => {
+      setControls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Control[]);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, controlsPath));
+
+    const unsubscribeMaterials = onSnapshot(qMaterials, (snapshot) => {
+      setMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Material[]);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, materialsPath));
+
+    return () => {
+      unsubscribeControls();
+      unsubscribeMaterials();
+    };
+  }, [selectedProject]);
+
+  const filteredControls = controls.filter(c => 
+    c.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredMaterials = materials.filter(m => 
+    m.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -81,35 +105,40 @@ export function ControlsAndMaterials() {
 
       {activeTab === 'controls' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockControls.map((control, idx) => (
+          {filteredControls.map((control, idx) => (
             <motion.div key={control.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.1 }}>
               <Card className="p-6 border-white/5 hover:border-emerald-500/30 transition-all">
                 <div className="flex justify-between items-start mb-4">
-                  <div className={`p-2 rounded-lg ${control.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : control.status === 'maintenance' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                    {control.status === 'active' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                  <div className={`p-2 rounded-lg ${control.status === 'Operativo' ? 'bg-emerald-500/10 text-emerald-500' : control.status === 'En Revisión' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                    {control.status === 'Operativo' ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
                   </div>
                   <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500 bg-zinc-800 px-2 py-1 rounded-md">
                     {control.type}
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">{control.name}</h3>
+                <h3 className="text-lg font-bold text-white mb-2">{control.title}</h3>
                 <p className="text-sm text-zinc-400 mb-4">{control.description}</p>
-                <div className="text-xs text-zinc-500 border-t border-white/5 pt-4">
-                  Última auditoría: <span className="text-white">{control.lastAudit}</span>
+                <div className="text-xs text-zinc-500 border-t border-white/5 pt-4 flex justify-between items-center">
+                  <span>Eficiencia: <span className="text-white">{control.efficiency}%</span></span>
                 </div>
               </Card>
             </motion.div>
           ))}
+          {filteredControls.length === 0 && (
+            <div className="col-span-full py-12 text-center text-zinc-500">
+              No se encontraron controles.
+            </div>
+          )}
         </div>
       )}
 
       {activeTab === 'materials' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockMaterials.map((material, idx) => (
+          {filteredMaterials.map((material, idx) => (
             <motion.div key={material.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.1 }}>
               <Card className="p-6 border-white/5 hover:border-blue-500/30 transition-all">
                 <div className="flex justify-between items-start mb-4">
-                  <div className={`p-2 rounded-lg ${material.riskLevel === 'high' ? 'bg-rose-500/10 text-rose-500' : material.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                  <div className={`p-2 rounded-lg ${material.stock < material.minStock ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                     <Box className="w-5 h-5" />
                   </div>
                   <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500 bg-zinc-800 px-2 py-1 rounded-md">
@@ -119,23 +148,28 @@ export function ControlsAndMaterials() {
                 <h3 className="text-lg font-bold text-white mb-2">{material.name}</h3>
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">CAS:</span>
-                    <span className="text-zinc-300 font-mono">{material.casNumber}</span>
+                    <span className="text-zinc-500">Tipo:</span>
+                    <span className="text-zinc-300 font-mono">{material.type}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">UN:</span>
-                    <span className="text-zinc-300 font-mono">{material.unNumber}</span>
+                    <span className="text-zinc-500">Stock Mínimo:</span>
+                    <span className="text-zinc-300 font-mono">{material.minStock}</span>
                   </div>
                 </div>
                 <div className="text-xs text-zinc-500 border-t border-white/5 pt-4 flex justify-between items-center">
-                  <span>Nivel de Riesgo:</span>
-                  <span className={`font-bold uppercase ${material.riskLevel === 'high' ? 'text-rose-500' : material.riskLevel === 'medium' ? 'text-amber-500' : 'text-emerald-500'}`}>
-                    {material.riskLevel}
+                  <span>Estado:</span>
+                  <span className={`font-bold uppercase ${material.stock < material.minStock ? 'text-rose-500' : 'text-emerald-500'}`}>
+                    {material.stock < material.minStock ? 'Bajo Stock' : 'Suficiente'}
                   </span>
                 </div>
               </Card>
             </motion.div>
           ))}
+          {filteredMaterials.length === 0 && (
+            <div className="col-span-full py-12 text-center text-zinc-500">
+              No se encontraron materiales.
+            </div>
+          )}
         </div>
       )}
     </div>

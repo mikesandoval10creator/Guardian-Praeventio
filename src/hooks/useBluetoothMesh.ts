@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { BleClient, BleDevice } from '@capacitor-community/bluetooth-le';
+import { Capacitor } from '@capacitor/core';
 
 interface BluetoothDevice {
   id: string;
@@ -13,14 +15,21 @@ export function useBluetoothMesh() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if ('bluetooth' in navigator) {
-      setIsSupported(true);
-    }
+    const initBle = async () => {
+      try {
+        await BleClient.initialize();
+        setIsSupported(true);
+      } catch (e) {
+        console.error("BLE Initialization failed", e);
+        setIsSupported(false);
+      }
+    };
+    initBle();
   }, []);
 
   const startScanning = useCallback(async () => {
     if (!isSupported) {
-      setError('Web Bluetooth API no soportada en este navegador.');
+      setError('Bluetooth LE no soportado o inicializado.');
       return;
     }
 
@@ -28,23 +37,37 @@ export function useBluetoothMesh() {
       setIsScanning(true);
       setError(null);
 
-      // Note: Web Bluetooth API currently requires user gesture to request device.
-      // It doesn't support background scanning for arbitrary devices easily without specific service UUIDs.
-      // This is a simulated mesh for proximity beacons as a proof of concept.
-      
-      const device = await (navigator as any).bluetooth.requestDevice({
-        acceptAllDevices: true,
-        optionalServices: ['battery_service'] // Example service
-      });
-
-      if (device) {
-        setNearbyDevices(prev => {
-          const existing = prev.find(d => d.id === device.id);
-          if (existing) {
-            return prev.map(d => d.id === device.id ? { ...d, lastSeen: Date.now() } : d);
-          }
-          return [...prev, { id: device.id, name: device.name || 'Dispositivo Desconocido', lastSeen: Date.now() }];
+      if (Capacitor.isNativePlatform()) {
+        await BleClient.requestLEScan({}, (result) => {
+          setNearbyDevices(prev => {
+            const existing = prev.find(d => d.id === result.device.deviceId);
+            if (existing) {
+              return prev.map(d => d.id === result.device.deviceId ? { ...d, lastSeen: Date.now() } : d);
+            }
+            return [...prev, { id: result.device.deviceId, name: result.device.name || 'Dispositivo Desconocido', lastSeen: Date.now() }];
+          });
         });
+        
+        setTimeout(async () => {
+          await BleClient.stopLEScan();
+          setIsScanning(false);
+        }, 10000);
+      } else {
+        const device = await (navigator as any).bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: ['battery_service']
+        });
+
+        if (device) {
+          setNearbyDevices(prev => {
+            const existing = prev.find(d => d.id === device.id);
+            if (existing) {
+              return prev.map(d => d.id === device.id ? { ...d, lastSeen: Date.now() } : d);
+            }
+            return [...prev, { id: device.id, name: device.name || 'Dispositivo Desconocido', lastSeen: Date.now() }];
+          });
+        }
+        setIsScanning(false);
       }
 
     } catch (err: any) {
@@ -53,7 +76,6 @@ export function useBluetoothMesh() {
       } else {
         setError(err.message || 'Error al escanear dispositivos Bluetooth.');
       }
-    } finally {
       setIsScanning(false);
     }
   }, [isSupported]);

@@ -9,13 +9,17 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
     }
 
     function isSupervisor() {
-      return isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supervisor';
+      return isAuthenticated() && (
+        request.auth.token.role == 'supervisor' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supervisor'
+      );
     }
 
     function isOwner(userId) {
@@ -121,6 +125,22 @@ service cloud.firestore {
       }
 
       match /epp_assignments/{assignmentId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /reports/{reportId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /controls/{controlId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /materials/{materialId} {
         allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
         allow create, update, delete: if isAdmin() || isSupervisor();
       }

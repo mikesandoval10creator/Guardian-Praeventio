@@ -58,6 +58,7 @@ import {
   Layers,
   Waves,
   Sun,
+  Moon,
   Droplet,
   WifiOff
 } from "lucide-react";
@@ -65,6 +66,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
 import { logOut } from "../../services/firebase";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+
+import { SurvivalMode } from "../emergency/SurvivalMode";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -93,6 +96,7 @@ const menuGroups: MenuGroup[] = [
     icon: Home,
     items: [
       { title: "Inicio", icon: Home, path: "/", color: "text-emerald-500" },
+      { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
       { title: "Muro Social", icon: Users, path: "/safety-feed", color: "text-emerald-500" },
       { title: "Proyectos", icon: Briefcase, path: "/projects", color: "text-blue-500" },
       { title: "Reportabilidad", icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
@@ -136,6 +140,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
   const location = useLocation();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
+  const [showSurvivalMode, setShowSurvivalMode] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     const activeGroup = menuGroups.find((group) =>
       group.items.some((item) => location.pathname === item.path),
@@ -331,6 +336,16 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
 
         {/* Footer */}
         <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4eb5ac] dark:bg-zinc-950 shrink-0 space-y-2">
+          <button
+            onClick={() => setShowSurvivalMode(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 transition-all duration-200 border border-rose-500/20"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span className="text-xs font-bold tracking-wide uppercase">
+              Modo Supervivencia
+            </span>
+          </button>
+          
           {toggleTheme && (
             <button
               onClick={toggleTheme}
@@ -361,6 +376,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
           </div>
         </div>
       </div>
+
+      {showSurvivalMode && (
+        <SurvivalMode onClose={() => setShowSurvivalMode(false)} />
+      )}
     </>
   );
 }

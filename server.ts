@@ -6,10 +6,13 @@ import session from "express-session";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { initializeRAG } from "./src/services/ragService.js";
+import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
+import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenAI } from "@google/genai";
+import { google } from 'googleapis';
 
 dotenv.config();
 
@@ -48,6 +51,22 @@ try {
   }
 } catch (error) {
   console.error("Failed to read firebase-applet-config.json at startup:", error);
+}
+
+// Initialize Google Play Developer API
+let playAuth: any = null;
+const playDeveloperApi = google.androidpublisher('v3');
+
+if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
+  try {
+    const credentials = JSON.parse(process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON);
+    playAuth = google.auth.fromJSON(credentials);
+    // @ts-ignore
+    playAuth.scopes = ['https://www.googleapis.com/auth/androidpublisher'];
+    console.log("Google Play Developer API client initialized.");
+  } catch (error) {
+    console.error("Failed to initialize Google Play API client:", error);
+  }
 }
 
 const app = express();
@@ -465,14 +484,23 @@ app.get("/api/drive/auth/callback", async (req, res) => {
 // ERP Integration (SAP/Defontana Mock)
 app.post("/api/erp/sync", verifyAuth, async (req, res) => {
   const { erpType, action, payload } = req.body;
-  
-  // En un entorno real, aquí se harían peticiones REST seguras a SAP o Defontana
-  // usando credenciales almacenadas en variables de entorno (process.env.SAP_API_KEY)
+  const uid = (req as any).user.uid;
   
   try {
     console.log(`[ERP Sync] Type: ${erpType}, Action: ${action}`);
     
-    // Simular latencia de red
+    // Simulate real backend activity by logging the sync attempt
+    const db = admin.firestore();
+    await db.collection('erp_sync_logs').add({
+      uid,
+      erpType,
+      action,
+      payload,
+      status: 'success',
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Simulate network latency
     await new Promise(resolve => setTimeout(resolve, 1500));
     
     res.json({ 
@@ -509,44 +537,31 @@ app.post("/api/telemetry/ingest", async (req, res) => {
   }
 
   try {
-    if (!firebaseConfig) {
-      console.error("Firebase config not loaded at startup.");
-      return res.status(500).json({ error: "Server configuration error" });
-    }
+    const db = admin.firestore();
     
-    // Construct Firestore REST API URL
-    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/${firebaseConfig.firestoreDatabaseId}/documents/telemetry_events`;
+    // Auto-validate with AI backend
+    const validation = await autoValidateTelemetry({ type, source, metric, value, unit, status });
+    const finalStatus = validation?.isAnomalous ? "alert" : (status || "normal");
+    const threatLevel = validation?.threatLevel || "None";
 
-    // Format payload for Firestore REST API
-    const firestorePayload = {
-      fields: {
-        secretKey: { stringValue: secretKey },
-        type: { stringValue: type },
-        source: { stringValue: source },
-        metric: { stringValue: metric },
-        value: { doubleValue: Number(value) },
-        unit: { stringValue: unit || "" },
-        status: { stringValue: status || "normal" },
-        projectId: { stringValue: projectId || "global" },
-        timestamp: { timestampValue: new Date().toISOString() }
-      }
-    };
-
-    const response = await fetch(firestoreUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(firestorePayload)
+    await db.collection('telemetry_events').add({
+      type,
+      source,
+      metric,
+      value: Number(value),
+      unit: unit || "",
+      status: finalStatus,
+      threatLevel,
+      aiValidation: validation,
+      projectId: projectId || "global",
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Firestore REST API error:', errorData);
-      throw new Error(`Firestore error: ${response.status}`);
-    }
-
-    res.json({ success: true, message: "Telemetry event ingested successfully" });
+    res.json({ 
+      success: true, 
+      message: "Telemetry event ingested successfully",
+      aiValidation: validation 
+    });
   } catch (error) {
     console.error('Error ingesting telemetry:', error);
     res.status(500).json({ error: "Internal server error" });
@@ -562,6 +577,79 @@ app.post("/api/seed-glossary", async (req, res) => {
   } catch (error: any) {
     console.error('Error seeding glossary:', error);
     res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Seed Data Endpoint
+app.post("/api/seed-data", async (req, res) => {
+  try {
+    const { seedInitialData } = await import('./src/services/dataSeedService.js');
+    await seedInitialData();
+    res.json({ success: true, message: "Initial project data seeded successfully" });
+  } catch (error: any) {
+    console.error('Error seeding data:', error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Project Health Check Endpoint
+app.post("/api/projects/:projectId/health-check", verifyAuth, async (req, res) => {
+  const { projectId } = req.params;
+  try {
+    const result = await performProjectSafetyHealthCheck(projectId);
+    if (!result) return res.status(404).json({ error: "Project not found" });
+    res.json({ success: true, result });
+  } catch (error: any) {
+    console.error(`Error performing health check for project ${projectId}:`, error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Gamification Endpoints
+app.post("/api/gamification/points", verifyAuth, async (req, res) => {
+  const { amount, reason } = req.body;
+  const uid = (req as any).user.uid;
+  try {
+    await awardPoints(uid, amount, reason);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/gamification/leaderboard", verifyAuth, async (req, res) => {
+  try {
+    const leaderboard = await getLeaderboard();
+    res.json({ success: true, leaderboard });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/gamification/check-medals", verifyAuth, async (req, res) => {
+  const uid = (req as any).user.uid;
+  try {
+    const newMedals = await checkMedalEligibility(uid);
+    res.json({ success: true, newMedals });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// AI Safety Coach Endpoint
+app.post("/api/coach/chat", verifyAuth, async (req, res) => {
+  const { message, projectContext } = req.body;
+  const uid = (req as any).user.uid;
+  try {
+    const { getSafetyCoachResponse } = await import('./src/services/coachBackend.js');
+    const db = admin.firestore();
+    const userStats = (await db.collection('user_stats').doc(uid).get()).data() || { points: 0, medals: [], loginStreak: 0 };
+    const recentIncidents = (await db.collection('incidents').where('projectId', '==', projectContext?.id || 'global').limit(5).get()).docs.map(d => d.data());
+    
+    const response = await getSafetyCoachResponse(uid, userStats, recentIncidents, message);
+    res.json({ success: true, response });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -586,7 +674,66 @@ const ALLOWED_GEMINI_ACTIONS = [
   'enrichNodeData',
   'analyzeRootCauses',
   'queryBCN',
-  'getChatResponse'
+  'getChatResponse',
+  'getSafetyAdvice',
+  'generateActionPlan',
+  'generateSafetyReport',
+  'auditAISuggestion',
+  'generatePersonalizedSafetyPlan',
+  'analyzeDocumentCompliance',
+  'generateTrainingRecommendations',
+  'investigateIncidentWithAI',
+  'auditProjectComplianceWithAI',
+  'analyzeAttendancePatterns',
+  'generateSafetyCapsule',
+  'suggestRisksWithAI',
+  'suggestNormativesWithAI',
+  'generateCompensatoryExercises',
+  'analyzeBioImage',
+  'generatePredictiveForecast',
+  'generateOperationalTasks',
+  'generateEmergencyPlanJSON',
+  'forecastSafetyEvents',
+  'analyzeRiskNetwork',
+  'predictAccidents',
+  'analyzeSiteMapDensity',
+  'generateTrainingQuiz',
+  'validateRiskImageClick',
+  'calculateDynamicEvacuationRoute',
+  'processAudioWithAI',
+  'analyzeVisionImage',
+  'verifyEPPWithAI',
+  'analyzeRiskNetworkHealth',
+  'analyzeFeedPostForRiskNetwork',
+  'analyzePsychosocialRisks',
+  'auditLegalGap',
+  'evaluateNormativeImpact',
+  'analyzeChemicalRisk',
+  'suggestChemicalSubstitution',
+  'generateStressPreventionTips',
+  'generateShiftHandoverInsights',
+  'analyzeShiftFatiguePatterns',
+  'generateCustomSafetyTraining',
+  'optimizePPEInventory',
+  'calculateStructuralLoad',
+  'designHazmatStorage',
+  'evaluateMinsalCompliance',
+  'generateModuleRecommendations',
+  'generateExecutiveSummary',
+  'analyzeFaenaRiskWithAI',
+  'extractAcademicSummary',
+  'calculateComplianceSummary',
+  'processGlobalSafetyAudit',
+  'calculatePreventionROI',
+  'generateSusesoFormMetadata',
+  'predictEPPReplacement',
+  'auditEPPCompliance',
+  'suggestMeetingAgenda',
+  'summarizeAgreements',
+  'mapRisksToSurveillance',
+  'analyzeHealthPatterns',
+  'generatePredictiveForecast',
+  'analyzeRiskCorrelations'
 ];
 
 app.post("/api/gemini", verifyAuth, async (req, res) => {
@@ -624,6 +771,131 @@ if (process.env.NODE_ENV !== "production") {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
+
+// Billing Endpoints
+app.post("/api/billing/verify", verifyAuth, async (req, res) => {
+  const { purchaseToken, productId, type } = req.body;
+  const uid = (req as any).user.uid;
+  const packageName = process.env.GOOGLE_PLAY_PACKAGE_NAME;
+
+  if (!playAuth || !packageName) {
+    return res.status(500).json({ error: "Google Play API not configured on server" });
+  }
+
+  try {
+    let verificationResult;
+    if (type === 'subscription') {
+      verificationResult = await playDeveloperApi.subscriptions.get({
+        auth: playAuth,
+        packageName,
+        subscriptionId: productId,
+        token: purchaseToken
+      });
+    } else {
+      verificationResult = await playDeveloperApi.purchases.products.get({
+        auth: playAuth,
+        packageName,
+        productId,
+        token: purchaseToken
+      });
+    }
+
+    const data = verificationResult.data;
+    const db = admin.firestore();
+
+    // Log transaction
+    await db.collection('transactions').add({
+      userId: uid,
+      orderId: data.orderId || 'unknown',
+      packageName,
+      productId,
+      purchaseToken,
+      type: type || 'subscription',
+      status: 'verified',
+      rawResponse: data,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // Update user subscription status
+    if (type === 'subscription') {
+      const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
+      // Detailed check for subscription status codes (e.g., paymentState)
+      const isActive = data.paymentState === 1 || data.paymentState === 2; // 1: Recibido, 2: Free trial
+
+      await db.collection('users').doc(uid).update({
+        'subscription.planId': productId.includes('premium') ? 'premium' : 'basic',
+        'subscription.status': isActive ? 'active' : 'expired',
+        'subscription.expiryDate': expiryDate,
+        'subscription.purchaseToken': purchaseToken,
+        'subscription.orderId': data.orderId,
+        'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      // One-time purchase logic
+      await db.collection('users').doc(uid).update({
+        [`purchased_products.${productId}`]: true,
+        'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    console.error("Purchase verification error:", error);
+    res.status(500).json({ error: "Failed to verify purchase", details: error.message });
+  }
+});
+
+app.post("/api/billing/webhook", async (req, res) => {
+  // RTDN Verification (Google Cloud Pub/Sub push)
+  const { message } = req.body;
+  if (!message || !message.data) {
+    return res.status(400).send("No message data");
+  }
+
+  try {
+    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
+    console.log("[RTDN Webhook] Received:", decodedData);
+
+    const { subscriptionNotification, developerNotification } = decodedData;
+    const packageName = decodedData.packageName;
+
+    if (subscriptionNotification) {
+      const { notificationType, purchaseToken, subscriptionId } = subscriptionNotification;
+      
+      // Update the user whose token matches
+      const db = admin.firestore();
+      const userQuery = await db.collection('users').where('subscription.purchaseToken', '==', purchaseToken).get();
+      
+      if (!userQuery.empty) {
+        const userDoc = userQuery.docs[0];
+        console.log(`[RTDN] Updating subscription for user ${userDoc.id}`);
+        
+        // Fetch fresh state from Google
+        const verificationResult = await playDeveloperApi.subscriptions.get({
+          auth: playAuth,
+          packageName,
+          subscriptionId,
+          token: purchaseToken
+        });
+
+        const data = verificationResult.data;
+        const isActive = data.paymentState === 1 || data.paymentState === 2;
+        const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
+
+        await userDoc.ref.update({
+          'subscription.status': isActive ? 'active' : 'expired',
+          'subscription.expiryDate': expiryDate,
+          'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+
+    res.status(200).send("OK");
+  } catch (error) {
+    console.error("RTDN Webhook Error:", error);
+    res.status(500).send("Webhook processing failed");
+  }
+});
 
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);

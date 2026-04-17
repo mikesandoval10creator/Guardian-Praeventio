@@ -30,6 +30,7 @@ import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/fireb
 import { SafetyPost, SafetySolution, NodeType } from '../types';
 import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { SkeletonCard } from '../components/shared/Skeleton';
 
 export function SafetyFeed() {
   const { user } = useFirebase();
@@ -53,15 +54,22 @@ export function SafetyFeed() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdown]);
 
-  const { data: posts, loading } = useFirestoreCollection<SafetyPost>('safety_posts', []);
+  const { data: posts, loading } = useFirestoreCollection<SafetyPost>(
+    selectedProject ? `projects/${selectedProject.id}/safety_posts` : null, 
+    []
+  );
   const { data: solutions } = useFirestoreCollection<SafetySolution>('safety_solutions', []);
 
   const filteredPosts = posts.filter(p => activeFilter === 'all' || p.type === activeFilter)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => {
+      const timeA = typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : (a.createdAt?.toMillis?.() || 0);
+      const timeB = typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : (b.createdAt?.toMillis?.() || 0);
+      return timeB - timeA;
+    });
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !newPost.content.trim()) return;
+    if (!user || !newPost.content.trim() || !selectedProject) return;
 
     setIsAnalyzing(true);
     try {
@@ -77,7 +85,7 @@ export function SafetyFeed() {
           title: analysis.title,
           description: analysis.description,
           tags: analysis.tags || ['Feed'],
-          projectId: selectedProject?.id,
+          projectId: selectedProject.id,
           connections: [],
           metadata: {
             criticidad: analysis.criticidad,
@@ -94,13 +102,14 @@ export function SafetyFeed() {
         const response = await fetch(newPost.imageBase64);
         const blob = await response.blob();
         const fileName = `feed_${Date.now()}_${crypto.randomUUID()}.jpg`;
-        const storageRef = ref(storage, `projects/${selectedProject?.id || 'global'}/feed/${fileName}`);
+        const storageRef = ref(storage, `projects/${selectedProject.id}/feed/${fileName}`);
         await uploadBytes(storageRef, blob);
         imageUrl = await getDownloadURL(storageRef);
       }
 
       // 3. Save Post to Firestore
-      const postRef = await addDoc(collection(db, 'safety_posts'), {
+      const postsPath = `projects/${selectedProject.id}/safety_posts`;
+      const postRef = await addDoc(collection(db, postsPath), {
         userId: user.uid,
         userName: user.displayName || 'Usuario',
         userPhoto: user.photoURL,
@@ -110,8 +119,8 @@ export function SafetyFeed() {
         riskNodeId,
         likes: [],
         comments: [],
-        createdAt: new Date().toISOString(),
-        projectId: selectedProject?.id
+        createdAt: serverTimestamp(),
+        projectId: selectedProject.id
       });
 
       if (riskNodeId) {
@@ -132,8 +141,8 @@ export function SafetyFeed() {
   };
 
   const handleLike = async (postId: string, isLiked: boolean) => {
-    if (!user) return;
-    const postRef = doc(db, 'safety_posts', postId);
+    if (!user || !selectedProject) return;
+    const postRef = doc(db, `projects/${selectedProject.id}/safety_posts`, postId);
     await updateDoc(postRef, {
       likes: isLiked ? arrayRemove(user.uid) : arrayUnion(user.uid)
     });
@@ -240,9 +249,10 @@ export function SafetyFeed() {
           {/* Posts List */}
           <div className="space-y-6">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sincronizando Muro...</p>
+              <div className="space-y-6">
+                <SkeletonCard className="bg-zinc-900/50 border-white/10 rounded-[32px] p-6" />
+                <SkeletonCard className="bg-zinc-900/50 border-white/10 rounded-[32px] p-6" />
+                <SkeletonCard className="bg-zinc-900/50 border-white/10 rounded-[32px] p-6" />
               </div>
             ) : filteredPosts.map((post, i) => (
               <motion.article
@@ -384,9 +394,9 @@ export function SafetyFeed() {
                       onSubmit={async (e) => {
                         e.preventDefault();
                         const input = e.currentTarget.elements.namedItem('comment') as HTMLInputElement;
-                        if (!input.value.trim() || !user) return;
+                        if (!input.value.trim() || !user || !selectedProject) return;
                         
-                        const postRef = doc(db, 'safety_posts', post.id);
+                        const postRef = doc(db, `projects/${selectedProject.id}/safety_posts`, post.id);
                         await updateDoc(postRef, {
                           comments: arrayUnion({
                             userId: user.uid,

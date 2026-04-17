@@ -1,38 +1,25 @@
+import { Capacitor } from '@capacitor/core';
+import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
+// Keep IDB as fallback for web
 interface PraeventioDB extends DBSchema {
-  workers: {
-    key: string;
-    value: any;
-    indexes: { 'by-project': string };
-  };
-  matrices: {
-    key: string;
-    value: any;
-    indexes: { 'by-project': string };
-  };
-  zettelkasten: {
-    key: string;
-    value: any;
-    indexes: { 'by-project': string };
-  };
+  workers: { key: string; value: any; indexes: { 'by-project': string } };
+  matrices: { key: string; value: any; indexes: { 'by-project': string } };
+  zettelkasten: { key: string; value: any; indexes: { 'by-project': string } };
   offlineQueue: {
     key: number;
-    value: {
-      id?: number;
-      action: 'create' | 'update' | 'delete';
-      collection: string;
-      data: any;
-      timestamp: number;
-    };
+    value: { id?: number; action: 'create' | 'update' | 'delete'; collection: string; data: any; timestamp: number; };
   };
 }
 
-let dbPromise: Promise<IDBPDatabase<PraeventioDB>> | null = null;
+let idbPromise: Promise<IDBPDatabase<PraeventioDB>> | null = null;
+let sqliteConnection: SQLiteConnection | null = null;
+let sqliteDB: SQLiteDBConnection | null = null;
 
-export const initDB = () => {
-  if (!dbPromise) {
-    dbPromise = openDB<PraeventioDB>('praeventio-bunker', 1, {
+const initIDB = () => {
+  if (!idbPromise) {
+    idbPromise = openDB<PraeventioDB>('praeventio-bunker', 1, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('workers')) {
           const workerStore = db.createObjectStore('workers', { keyPath: 'id' });
@@ -52,16 +39,50 @@ export const initDB = () => {
       },
     });
   }
-  return dbPromise;
+  return idbPromise;
 };
 
-// Basic encryption/obfuscation wrapper for local storage (MVP level)
-// In a real production environment, use Web Crypto API with secure key management
+const initSQLite = async () => {
+  if (!sqliteConnection) {
+    sqliteConnection = new SQLiteConnection(CapacitorSQLite);
+  }
+  if (!sqliteDB) {
+    try {
+      const ret = await sqliteConnection.checkConnectionsConsistency();
+      const isConn = (await sqliteConnection.isConnection("praeventio_bunker", false)).result;
+      if (ret.result && isConn) {
+        sqliteDB = await sqliteConnection.retrieveConnection("praeventio_bunker", false);
+      } else {
+        sqliteDB = await sqliteConnection.createConnection("praeventio_bunker", false, "no-encryption", 1, false);
+      }
+      await sqliteDB.open();
+      
+      // Create tables
+      const schema = `
+        CREATE TABLE IF NOT EXISTS workers (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
+        CREATE TABLE IF NOT EXISTS matrices (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
+        CREATE TABLE IF NOT EXISTS zettelkasten (id TEXT PRIMARY KEY, projectId TEXT, data TEXT);
+        CREATE TABLE IF NOT EXISTS offlineQueue (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT, collection TEXT, data TEXT, timestamp INTEGER);
+      `;
+      await sqliteDB.execute(schema);
+    } catch (err) {
+      console.error("SQLite Init Error", err);
+    }
+  }
+  return sqliteDB;
+};
+
+export const initDB = async () => {
+  if (Capacitor.isNativePlatform()) {
+    return await initSQLite();
+  } else {
+    return initIDB();
+  }
+};
+
 const encryptData = (data: any): string => {
   try {
-    const jsonStr = JSON.stringify(data);
-    // Simple base64 encoding for MVP obfuscation
-    return btoa(encodeURIComponent(jsonStr));
+    return btoa(encodeURIComponent(JSON.stringify(data)));
   } catch (e) {
     console.error('Encryption error', e);
     return '';
@@ -70,8 +91,7 @@ const encryptData = (data: any): string => {
 
 const decryptData = (encryptedStr: string): any => {
   try {
-    const jsonStr = decodeURIComponent(atob(encryptedStr));
-    return JSON.parse(jsonStr);
+    return JSON.parse(decodeURIComponent(atob(encryptedStr)));
   } catch (e) {
     console.error('Decryption error', e);
     return null;
@@ -79,73 +99,130 @@ const decryptData = (encryptedStr: string): any => {
 };
 
 export const saveWorkerOffline = async (worker: any) => {
-  const db = await initDB();
   const encryptedWorker = { ...worker, _encryptedData: encryptData(worker) };
-  await db.put('workers', encryptedWorker);
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(db) await db.run('INSERT OR REPLACE INTO workers (id, projectId, data) VALUES (?, ?, ?)', [worker.id, worker.projectId, JSON.stringify(encryptedWorker)]);
+  } else {
+    const db = await initIDB();
+    await db.put('workers', encryptedWorker);
+  }
 };
 
 export const getWorkersOffline = async (projectId: string) => {
-  const db = await initDB();
-  const workers = await db.getAllFromIndex('workers', 'by-project', projectId);
-  return workers.map(w => w._encryptedData ? decryptData(w._encryptedData) : w);
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(!db) return [];
+    const res = await db.query('SELECT data FROM workers WHERE projectId = ?', [projectId]);
+    return res.values?.map(row => {
+      const w = JSON.parse(row.data);
+      return w._encryptedData ? decryptData(w._encryptedData) : w;
+    }) || [];
+  } else {
+    const db = await initIDB();
+    const workers = await db.getAllFromIndex('workers', 'by-project', projectId);
+    return workers.map(w => w._encryptedData ? decryptData(w._encryptedData) : w);
+  }
 };
 
 export const saveMatrixOffline = async (matrix: any) => {
-  const db = await initDB();
   const encryptedMatrix = { ...matrix, _encryptedData: encryptData(matrix) };
-  await db.put('matrices', encryptedMatrix);
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(db) await db.run('INSERT OR REPLACE INTO matrices (id, projectId, data) VALUES (?, ?, ?)', [matrix.id, matrix.projectId, JSON.stringify(encryptedMatrix)]);
+  } else {
+    const db = await initIDB();
+    await db.put('matrices', encryptedMatrix);
+  }
 };
 
 export const getMatricesOffline = async (projectId: string) => {
-  const db = await initDB();
-  const matrices = await db.getAllFromIndex('matrices', 'by-project', projectId);
-  return matrices.map(m => m._encryptedData ? decryptData(m._encryptedData) : m);
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(!db) return [];
+    const res = await db.query('SELECT data FROM matrices WHERE projectId = ?', [projectId]);
+    return res.values?.map(row => {
+      const m = JSON.parse(row.data);
+      return m._encryptedData ? decryptData(m._encryptedData) : m;
+    }) || [];
+  } else {
+    const db = await initIDB();
+    const matrices = await db.getAllFromIndex('matrices', 'by-project', projectId);
+    return matrices.map(m => m._encryptedData ? decryptData(m._encryptedData) : m);
+  }
 };
 
 export const saveZettelNodeOffline = async (node: any) => {
-  const db = await initDB();
   const encryptedNode = { ...node, _encryptedData: encryptData(node) };
-  await db.put('zettelkasten', encryptedNode);
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(db) await db.run('INSERT OR REPLACE INTO zettelkasten (id, projectId, data) VALUES (?, ?, ?)', [node.id, node.projectId, JSON.stringify(encryptedNode)]);
+  } else {
+    const db = await initIDB();
+    await db.put('zettelkasten', encryptedNode);
+  }
 };
 
 export const getZettelNodesOffline = async (projectId: string, limit = 50, offset = 0) => {
-  const db = await initDB();
-  const tx = db.transaction('zettelkasten', 'readonly');
-  const index = tx.store.index('by-project');
-  
-  let cursor = await index.openCursor(IDBKeyRange.only(projectId));
-  const results: any[] = [];
-  let count = 0;
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(!db) return [];
+    const res = await db.query('SELECT data FROM zettelkasten WHERE projectId = ? LIMIT ? OFFSET ?', [projectId, limit, offset]);
+    return res.values?.map(row => {
+      const n = JSON.parse(row.data);
+      return n._encryptedData ? decryptData(n._encryptedData) : n;
+    }) || [];
+  } else {
+    const db = await initIDB();
+    const tx = db.transaction('zettelkasten', 'readonly');
+    const index = tx.store.index('by-project');
+    
+    let cursor = await index.openCursor(IDBKeyRange.only(projectId));
+    const results: any[] = [];
+    let count = 0;
 
-  if (offset > 0 && cursor) {
-    await cursor.advance(offset);
+    if (offset > 0 && cursor) {
+      await cursor.advance(offset);
+    }
+
+    while (cursor && count < limit) {
+      results.push(cursor.value._encryptedData ? decryptData(cursor.value._encryptedData) : cursor.value);
+      count++;
+      cursor = await cursor.continue();
+    }
+
+    return results;
   }
-
-  while (cursor && count < limit) {
-    results.push(cursor.value._encryptedData ? decryptData(cursor.value._encryptedData) : cursor.value);
-    count++;
-    cursor = await cursor.continue();
-  }
-
-  return results;
 };
 
 export const addToOfflineQueue = async (action: 'create' | 'update' | 'delete', collection: string, data: any) => {
-  const db = await initDB();
-  await db.add('offlineQueue', {
-    action,
-    collection,
-    data,
-    timestamp: Date.now()
-  });
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(db) await db.run('INSERT INTO offlineQueue (action, collection, data, timestamp) VALUES (?, ?, ?, ?)', [action, collection, JSON.stringify(data), Date.now()]);
+  } else {
+    const db = await initIDB();
+    await db.add('offlineQueue', { action, collection, data, timestamp: Date.now() });
+  }
 };
 
 export const getOfflineQueue = async () => {
-  const db = await initDB();
-  return await db.getAll('offlineQueue');
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(!db) return [];
+    const res = await db.query('SELECT * FROM offlineQueue');
+    return res.values?.map(row => ({ ...row, data: JSON.parse(row.data) })) || [];
+  } else {
+    const db = await initIDB();
+    return await db.getAll('offlineQueue');
+  }
 };
 
 export const clearOfflineQueueItem = async (id: number) => {
-  const db = await initDB();
-  await db.delete('offlineQueue', id);
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if(db) await db.run('DELETE FROM offlineQueue WHERE id = ?', [id]);
+  } else {
+    const db = await initIDB();
+    await db.delete('offlineQueue', id);
+  }
 };

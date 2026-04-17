@@ -30,6 +30,7 @@ export enum NodeType {
   ASSET = 'Activo',
   TRAINING = 'Capacitación',
   ATTENDANCE = 'Asistencia',
+  SAFE_ZONE = 'Zona de Seguridad',
 }
 
 export interface RiskNode {

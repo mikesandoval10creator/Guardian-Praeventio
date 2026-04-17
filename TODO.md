@@ -291,8 +291,8 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Árbol de Habilidades (Skill Tree):** Un visualizador donde el operario desbloquea insignias "Scout" al completar capacitaciones.
 - [x] **Buzzer de Reflejos:** Mini-simuladores (estilo arcade rápido) en los tiempos muertos para evaluar la capacidad de respuesta y fluidez antes del turno.
 - [ ] **Sistema de Logros Locales:** Reconocimientos (ej. "Semana Invicta") que se calculan en el celular del usuario y luego se respaldan.
-- [ ] **Render de Medallas 3D:** Pequeños modelos three.js ligeros de las certificaciones, que pueden girarse con el dedo en el perfil de usuario.
-- [ ] **Cápsulas de Sabiduría (El Arte de la Guerra):** Integrar citas tácticas o reglas de oro en las pantallas de confirmación de formularios.
+- [x] **Render de Medallas 3D:** Pequeños modelos three.js ligeros de las certificaciones, que pueden girarse con el dedo en el perfil de usuario.
+- [x] **Cápsulas de Sabiduría (El Arte de la Guerra):** Integrar citas tácticas o reglas de oro en las pantallas de confirmación de formularios.
 - [x] **Portable Curriculum PDF:** Un botón que compile toda la historia de seguridad del operario en un PDF estético generado por jspdf.
 - [x] **Progreso de Aclimatación:** Barra que muestra cuántos días le quedan a un trabajador nuevo para aclimatarse por completo a la altura o el terreno.
 - [x] **Simulacro de Extintores VR (Básico):** Uso de la cámara y giroscopio para enfocar a un fuego virtual en la sala y aprender el movimiento "PASS".
@@ -313,34 +313,34 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Validación Zod para Formularios:** Asegurar que los datos ingresados en el módulo Diagnóstico sean del tipo correcto antes de guardarlos.
 - [x] **Evitar Cálculos Flotantes Complejos:** Redondear geolocalizaciones al cuarto decimal (aprox. 11 metros de precisión) para acelerar cálculos matemáticos de zonas de riesgo.
 - [ ] **Precarga de DNS (dns-prefetch):** Acelerar el micro-segundo de resolución al conectarse a los servidores de Firebase.
-- [ ] **Skeleton Loaders:** En los submódulos, usar estructuras grises animadas suavemente mientras se carga la data local, dando percepción visual de velocidad extrema.
-- [ ] **Modo Pantalla Siempre Activa (Wake Lock API):** En el submódulo de /emergency, evitar que la pantalla del celular se apague mientras se dictan coordenadas.
-- [ ] **Prevención de Doble Envío:** Bloquear botones críticas (como "Declarar Emergencia") instantáneamente tras el primer toque para evitar colapsos por pánico.
-- [ ] **Modo "Safe Driving" Nativo:** Interfaz que usa fuentes enormes y solo botones gestuales de gran barrido para supervisores en movimiento en camionetas.
-- [ ] **Virtualización de Listas Larga:** En el submódulo /history, usar bibliotecas como react-window para renderizar solo los 10 reportes visibles, ahorrando memoria al hacer scroll entre cientos.
-- [ ] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
-- [ ] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.
+- [x] **Skeleton Loaders:** En los submódulos, usar estructuras grises animadas suavemente mientras se carga la data local, dando percepción visual de velocidad extrema.
+- [x] **Modo Pantalla Siempre Activa (Wake Lock API):** En el submódulo de /emergency, evitar que la pantalla del celular se apague mientras se dictan coordenadas.
+- [x] **Prevención de Doble Envío:** Bloquear botones críticas (como "Declarar Emergencia") instantáneamente tras el primer toque para evitar colapsos por pánico.
+- [x] **Modo "Safe Driving" Nativo:** Interfaz que usa fuentes enormes y solo botones gestuales de gran barrido para supervisores en movimiento en camionetas.
+- [x] **Virtualización de Listas Larga:** En el submódulo /history, usar bibliotecas como react-window para renderizar solo los 10 reportes visibles, ahorrando memoria al hacer scroll entre cientos.
+- [x] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
+- [x] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.
 
 ## Prioridad 7: La "Resina Nativa" (Estrategia Capacitor)
 
 _Transformación de la PWA en una aplicación móvil nativa real con acceso a hardware de bajo nivel._
 
 ### Fase 1: El Blindaje del Navío (Configuración Inicial)
-- [ ] **Integración Capacitor:** Instalar `@capacitor/core` y `@capacitor/cli`.
-- [ ] **Inicialización:** Crear `capacitor.config.ts` apuntando a la carpeta `dist`.
-- [ ] **Añadir Plataformas:** Integrar proyectos nativos de Android e iOS.
+- [x] **Integración Capacitor:** Instalar `@capacitor/core` y `@capacitor/cli`.
+- [x] **Inicialización:** Crear `capacitor.config.ts` apuntando a la carpeta `dist`.
+- [x] **Añadir Plataformas:** Integrar proyectos nativos de Android e iOS.
 
 ### Fase 2: Sustitución Táctica de Sensores (Plugins Nativos)
-- [ ] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
-- [ ] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
-- [ ] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
-- [ ] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
+- [x] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
+- [x] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
+- [x] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
+- [x] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
 
 ### Fase 3: El Sistema de Alertas (Push Notifications)
-- [ ] **Notificaciones Infallables:** Integrar `@capacitor/push-notifications` con Firebase Cloud Messaging (FCM) para alertas críticas (gas, sismos) que suenen incluso con la app cerrada.
+- [x] **Notificaciones Infallables:** Integrar `@capacitor/push-notifications` con Firebase Cloud Messaging (FCM) para alertas críticas (gas, sismos) que suenen incluso con la app cerrada.
 
 ### Fase 4: Pruebas de Terreno
-- [ ] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.
+- [x] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.
 
 ## Prioridad 8: El Haki del Rey (Seguridad y Jerarquía)
 
@@ -375,7 +375,7 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 - [ ] **Marcas de Tiempo Dobles:** Guardar `localUpdatedAt` y `serverTimestamp`.
 - [ ] **Generador de IDs en Origen:** Usar UUIDv4 generados en el cliente para evitar duplicados.
-- [ ] **Cola de Acciones (Action Queue):** Usar SQLite (Capacitor) para guardar acciones ordenadas offline.
+- [x] **Cola de Acciones (Action Queue):** Usar SQLite (Capacitor) para guardar acciones ordenadas offline.
 - [ ] **Fusión de Listas Inteligente:** Lógica backend para unir listas de asistencia marcadas offline por distintos supervisores.
 - [ ] **Estrategia "El Último Gana" (LWW):** Prevalencia del timestamp más reciente para campos simples.
 - [ ] **Sistema de Notificación de Conflictos:** Marcar en rojo conflictos complejos (ej. aprobar un PTS eliminado) para revisión manual.
@@ -390,3 +390,26 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 - [ ] **Latido de Supervivencia (Heartbeat):** Ping cada 5 min de Wearables; alertar si se pierde conexión.
 - [ ] **Conexión en Vivo Front-end:** Websockets (WSS) para telemetría en tiempo real sin recargar.
 - [ ] **Buffers Binarios (Payload):** Transmisión comprimida en formato binario para zonas de baja señal.
+
+## Prioridad 13: Mejoras Estratégicas y Arquitectura (Fase 10x)
+
+*Propuestas tácticas para elevar el ecosistema a un nivel predictivo y optimizar la arquitectura del código.*
+
+### Fase 1: Cimientos (Alta Factibilidad - Inmediata)
+- [x] **Refactorización del Árbol de Proveedores (AppProviders):** Agrupar todos los Context Providers en un único componente para limpiar `App.tsx` y facilitar la escalabilidad.
+- [x] **Unificación de la Interfaz de Carga (`<ConsciousnessLoader />`):** Extraer el estado de carga ("Calibrando Conciencia...") a un componente global reutilizable para estandarizar la UX.
+
+### Fase 2: Quick Wins Estratégicos (Factibilidad Alta)
+- [x] **Sincronización del Despertar Matutino (Gamificación):** Módulo interactivo de check-in al inicio del turno para verificar EPP y estado psicosocial, otorgando XP y fomentando un enfoque mental positivo.
+- [x] **Módulo de Supervivencia Aislada (Siempre Listos):** Expandir la base de datos local (IndexedDB/SQLite) con un "Modo de Emergencia Extrema" que incluya manuales interactivos de primeros auxilios y supervivencia 100% offline.
+
+### Fase 3: Innovación Táctica (Factibilidad Alta)
+- [x] **Oráculo Normativo en Terreno (Asistente de Voz):** Integrar la Web Speech API con Gemini para crear un asistente de voz que responda dudas técnicas sobre normativas (DS 594, Ley 16.744) en terreno, a manos libres.
+- [x] **Gestión Cinética de Escuadrones de Emergencia:** Sistema de asignación de roles dinámicos (líder, comunicador, rescatista) durante un incidente, optimizando el esfuerzo colectivo basado en la ubicación y competencias del personal.
+
+### Fase 4: Deep Tech y Hardware (Factibilidad Media-Alta)
+- [x] **Auditorías de Protección Visuales (MediaPipe Vision):** Emplear la cámara del dispositivo como escáner automático para verificar el uso de EPP (casco, chaleco) y habilitar el acceso a zonas de riesgo, reduciendo el error humano.
+- [x] **Simulaciones Tácticas en 3D (Reconocimiento del Terreno):** Aprovechar `@react-three/fiber` para renderizar mapas interactivos y simulaciones de evacuación inmersivas, entrenando la memoria muscular del personal.
+- [x] **Uso Predictivo para la Optimización de Energía:** Conectar la telemetría de wearables (Web Bluetooth API / DeviceMotion) para medir biometría y ritmo de trabajo en tiempo real, anticipando fatiga antes de que se convierta en accidente.
+- [x] **Blindaje de Credenciales:** Asegurar que todas las claves sensibles (como la API Key de Gemini) se procesen exclusivamente del lado del servidor (Cloud Functions o Node.js) para proteger la integridad del ecosistema.
+

@@ -66,9 +66,18 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         if (docSnap.exists()) {
           const userData = docSnap.data();
-          setPlan(userData.subscriptionPlan || 'free');
+          // Use the new subscription object OR fallback to old field for compatibility
+          const activePlan = userData.subscription?.planId || userData.subscriptionPlan || 'free';
+          setPlan(activePlan);
         } else {
-          await setDoc(docRef, { subscriptionPlan: 'free' }, { merge: true });
+          await setDoc(docRef, { 
+            subscriptionPlan: 'free',
+            subscription: {
+              planId: 'free',
+              status: 'active',
+              updatedAt: new Date().toISOString()
+            }
+          }, { merge: true });
           setPlan('free');
         }
       } catch (error) {
@@ -82,11 +91,23 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     fetchSubscription();
   }, [user]);
 
-  const upgradePlan = async (newPlan: SubscriptionPlan) => {
+  const upgradePlan = async (newPlan: SubscriptionPlan, purchaseToken?: string) => {
     if (!user) return;
     try {
       const docRef = doc(db, 'users', user.uid);
-      await setDoc(docRef, { subscriptionPlan: newPlan }, { merge: true });
+      
+      const updateData: any = { 
+        subscriptionPlan: newPlan,
+        'subscription.planId': newPlan,
+        'subscription.status': 'active',
+        'subscription.updatedAt': new Date().toISOString()
+      };
+
+      if (purchaseToken) {
+        updateData['subscription.purchaseToken'] = purchaseToken;
+      }
+
+      await setDoc(docRef, updateData, { merge: true });
       setPlan(newPlan);
     } catch (error) {
       console.error('Error upgrading subscription:', error);

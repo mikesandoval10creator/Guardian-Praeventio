@@ -77,24 +77,52 @@ export function Pricing() {
   const handlePayment = async (planId: SubscriptionPlan) => {
     setIsProcessing(planId);
     
-    // Simulate Stripe/Fintoc Checkout Session creation
-    // In production, this would call a Cloud Function to create a session
-    // and redirect the user to the payment gateway.
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 1. Consultation (Consultar a Google qué productos hay)
+      // En un entorno Capacitor real sería: const products = await Billing.getProducts(['com.praeventio.premium'])
+      console.log(`[Billing] Consultando producto para el plan: ${planId}`);
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // 2. Launch (Iniciar flujo de compra en Google Play)
+      // En Capacitor: const purchase = await Billing.purchase(planId)
+      console.log(`[Billing] Iniciando flujo de compra para: ${planId}`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // Simulate successful webhook response
-      upgradePlan(planId);
+      // Simulación de un token de compra retornado por Google Play
+      const mockPurchaseToken = `google_play_token_${Math.random().toString(36).substring(7)}`;
+
+      // 3. Processing & Handshake (Backend Verification)
+      // IMPORTANTE: Este es el punto ciego #4 que mencionaste. Enviamos el token al servidor.
+      const { verifyGooglePlayPurchase } = await import('../services/billingService');
       
       addNotification({
-        title: 'Suscripción Exitosa',
-        message: `Tu plan ha sido actualizado a ${planId.toUpperCase()}.`,
-        type: 'success'
+        title: 'Verificando con Google Play',
+        message: 'Validando transacción en los servidores de Google...',
+        type: 'info'
       });
-    } catch (error) {
+
+      const verification = await verifyGooglePlayPurchase(mockPurchaseToken, planId as string, 'subscription');
+
+      if (verification.success) {
+        // 4. Acknowledge (Reconocimiento)
+        // El backend ya lo reconoció y actualizó Firestore.
+        // En el frontend, cerramos el ciclo.
+        
+        await upgradePlan(planId, mockPurchaseToken);
+        
+        addNotification({
+          title: 'Suscripción Activada',
+          message: `¡Bienvenido al plan ${planId.toUpperCase()}! Se ha verificado tu pago correctamente.`,
+          type: 'success'
+        });
+      } else {
+        throw new Error(verification.error || 'No se pudo verificar la compra');
+      }
+
+    } catch (error: any) {
       addNotification({
-        title: 'Error en el Pago',
-        message: 'No se pudo procesar la transacción. Intenta nuevamente.',
+        title: 'Falla en la Asociación',
+        message: error.message || 'Error al conectar con Google Play Billing.',
         type: 'error'
       });
     } finally {

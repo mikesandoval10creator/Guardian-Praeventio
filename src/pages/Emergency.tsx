@@ -26,6 +26,7 @@ import { Asesor } from '../components/emergency/Asesor';
 import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useWakeLock } from '../hooks/useWakeLock';
 
 interface EmergencyProtocol {
   id: string;
@@ -41,6 +42,7 @@ export function Emergency() {
   const [isCrisisMode, setIsCrisisMode] = useState(false);
   const { isActive, isAlerting, countdown, startDetection, stopDetection } = useManDownDetection();
   const isOnline = useOnlineStatus();
+  const { isSupported: isWakeLockSupported, isLocked: isWakeLocked, requestWakeLock, releaseWakeLock } = useWakeLock();
 
   const { data: protocolsData, loading: loadingProtocols } = useFirestoreCollection<EmergencyProtocol>(
     selectedProject ? `projects/${selectedProject.id}/emergency_protocols` : null
@@ -51,11 +53,20 @@ export function Emergency() {
     const projectRef = doc(db, 'projects', selectedProject.id);
     const unsubscribe = onSnapshot(projectRef, (docSnap) => {
       if (docSnap.exists()) {
-        setIsCrisisMode(docSnap.data().isEmergencyActive || false);
+        const active = docSnap.data().isEmergencyActive || false;
+        setIsCrisisMode(active);
+        if (active) {
+          requestWakeLock();
+        } else {
+          releaseWakeLock();
+        }
       }
     });
-    return () => unsubscribe();
-  }, [selectedProject?.id]);
+    return () => {
+      unsubscribe();
+      releaseWakeLock();
+    };
+  }, [selectedProject?.id, requestWakeLock, releaseWakeLock]);
 
   const toggleCrisisMode = async () => {
     if (!selectedProject?.id) return;

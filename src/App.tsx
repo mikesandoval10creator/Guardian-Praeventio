@@ -4,12 +4,8 @@ import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
-import { ProjectProvider } from "./contexts/ProjectContext";
-import { UniversalKnowledgeProvider } from "./contexts/UniversalKnowledgeContext";
-import { NotificationProvider } from "./contexts/NotificationContext";
-import { EmergencyProvider } from "./contexts/EmergencyContext";
-import { SubscriptionProvider } from "./contexts/SubscriptionContext";
-import { SensorProvider } from "./contexts/SensorContext";
+import { AppProviders } from "./providers/AppProviders";
+import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
 import { useAutoLogout } from "./hooks/useAutoLogout";
 import { OfflineIndicator } from "./components/OfflineIndicator";
@@ -49,6 +45,7 @@ const SSOConfig = lazy(() => import('./pages/SSOConfig').then(module => ({ defau
 const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(module => ({ default: module.CQRSArchitecture })));
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
+const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -58,16 +55,7 @@ function AppRoutes() {
   useAutoLogout();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-            Calibrando Conciencia...
-          </span>
-        </div>
-      </div>
-    );
+    return <ConsciousnessLoader />;
   }
 
   if (!hasEntered) {
@@ -75,29 +63,17 @@ function AppRoutes() {
   }
 
   return (
-    <UniversalKnowledgeProvider>
-      <ProjectProvider>
-        <SubscriptionProvider>
-          <NotificationProvider>
-            <EmergencyProvider>
-              <SensorProvider>
-                <GeolocationTracker />
-                <EmergencyOverlay />
-                <FallDetectionMonitor />
-                <GeofenceAlert />
-                <Suspense fallback={
-                  <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
-                    <div className="flex flex-col items-center">
-                      <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Cargando Módulo...</span>
-                    </div>
-                  </div>
-                }>
-                <Routes>
-                  <Route
-                    path="/login"
-                    element={!user ? <Login /> : <Navigate to="/" />}
-                  />
+    <AppProviders>
+      <GeolocationTracker />
+      <EmergencyOverlay />
+      <FallDetectionMonitor />
+      <GeofenceAlert />
+      <Suspense fallback={<ConsciousnessLoader />}>
+      <Routes>
+        <Route
+          path="/login"
+          element={!user ? <Login /> : <Navigate to="/" />}
+        />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
@@ -115,6 +91,7 @@ function AppRoutes() {
                     {AIRoutes}
 
                     {/* Other Routes */}
+                    <Route path="safe-driving" element={<SafeDrivingMode />} />
                     <Route path="webxr" element={<WebXR />} />
                     <Route path="history" element={<History />} />
                     <Route path="pricing" element={<Pricing />} />
@@ -135,14 +112,9 @@ function AppRoutes() {
                     />
                   </Route>
                 </Routes>
-                </Suspense>
-                {user && <GuardianVoiceAssistant />}
-              </SensorProvider>
-            </EmergencyProvider>
-          </NotificationProvider>
-        </SubscriptionProvider>
-      </ProjectProvider>
-    </UniversalKnowledgeProvider>
+              </Suspense>
+              {user && <GuardianVoiceAssistant />}
+    </AppProviders>
   );
 }
 
