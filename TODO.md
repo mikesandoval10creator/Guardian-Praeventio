@@ -41,11 +41,11 @@
 - [x] **Dashboard de Crisis:** Módulo "Man Down" y check-in de emergencias.
 - [x] **Rutas de Evacuación IA:** Reemplazar mapas estáticos por el Algoritmo A\* (A-Star) para cálculo dinámico de rutas si hay túneles bloqueados.
 - [x] **Audit Trail (Caja Negra):** Crear Triggers en Firestore para guardar un registro inmutable de acciones corporativas. (Reglas de seguridad y lógica de seeding implementadas).
-- [x] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción.
+- [ ] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción.
 
 ## Prioridad 5: Escala Corporativa (Fase 10x - Vectores de Desarrollo)
 
-- [x] **API-First (Integración ERP/RRHH):** Desarrollar endpoints RESTful para sincronización automática de trabajadores desde SAP, Buk o Talana.
+- [ ] **API-First (Integración ERP/HRM B2B):** Desarrollar APIs bidireccionales con SAP, Workday, o Buk para sincronizar la lista de trabajadores de manera fluida, no solo mediante subidas pasivas, sino a nivel de servicios corporativos.
 - [x] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase.
 - [x] **Reportabilidad Gerencial (ROI y SUSESO):** Automatización de formularios DIAT/DIEP en XML/PDF y cálculo financiero del ahorro por siniestralidad.
 - [x] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes.
@@ -214,7 +214,7 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Desactivación de Telemetría Externa:** Bloquear cualquier tracker o analítica innecesaria para asegurar un consumo de batería y datos cercano a cero.
 - [x] **Motor de Compresión Brotli:** Configurar Vite para comprimir los archivos de la app en formato Brotli, haciendo que la "descarga única" sea ultra rápida.
 - [x] **Validación de JWT Offline:** Permitir acceso a la app con un token validado criptográficamente contra una llave pública almacenada en el teléfono.
-- [x] **Limpieza Automática de RAM (Garbage Collection):** Al desmontar vistas pesadas (como el mapa 3D), forzar la limpieza de variables de memoria de three.js.
+- [ ] **Gestión de Memoria en 3D (Garbage Collection):** Las vistas WebGL (Risk Network 3D, Renderizado de Medallas 3D) requieren un Garbage Collection (GC) más agresivo al cerrarse para no drenar la memoria RAM de celulares de gama baja. Actualmente los contextos WebGL persisten y calientan el dispositivo.
 - [x] **Fallback de Fuentes y UI:** Asegurar que los íconos de lucide-react estén incrustados localmente para que la interfaz no pierda legibilidad sin internet.
 - [x] **Estado de Red Reactivo:** Un hook useOnlineStatus que informe visualmente si estamos operando en el "Búnker" (offline) o conectados.
 - [x] **Caché Diferencial de Zettelkasten:** Sincronizar solo los "nodos nuevos" creados por la tripulación desde la última conexión, ahorrando procesamiento.
@@ -300,11 +300,11 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Ranking de Cuadrillas "Flow":** Tabla de posiciones basada en el cumplimiento proactivo y la prevención, fomentando el orgullo de equipo.
 
 #### VIII. Seguridad Técnica, Estabilidad y Optimizaciones
-- [ ] **Ofuscación de Código en Producción:** Asegurar que las reglas de negocio críticas no sean legibles si alguien inspecciona el código del navegador.
+- [ ] **Ofuscación de Código en Producción:** Falta blindar las reglas de negocio críticas en la build de producción para evitar ingeniería inversa en la web. Vital para la propiedad intelectual: nadie debe poder extraer la lógica algorítmica ni el enfoque de prevención de riesgos (que modela directamente la mente del experto).
 - [ ] **Rotación Automática de Keys (JWT):** Política de expiración corta de sesiones para mitigar el riesgo si se pierde un dispositivo físico en obra.
-- [ ] **Zonas Estrictas en React (StrictMode):** Mantener habilitado en desarrollo para prevenir ciclos infinitos y re-renders que calienten el celular.
-- [ ] **Compresión de Imágenes al Vuelo:** Si un supervisor toma una foto de 10MB a un andamio, usar la API de Canvas para reducirla a 500KB antes de cualquier proceso.
-- [ ] **Variables de Entorno Blindadas:** Mover cualquier token de API externa (como OpenWeather) a Cloud Functions, para que el celular solo consulte tu propio servidor seguro.
+- [ ] **Compresión de Imágenes en Cliente:** Implementar un compresor de imágenes local (API de Canvas) antes de subir fotos de evidencia (que pueden pesar 10MB) a Firebase. Esencial para no drenar la cuota de Storage y ahorrar ancho de banda en terrenos de baja señal.
+- [ ] **Seguridad de API Keys:** La clave de Gemini (`GEMINI_API_KEY`) sigue acoplada al frontend en algunos submódulos heredados; debe aislarse *completamente* a Node.js/Cloud Functions sin excepción.
+- [ ] **Control de Costos IA (Batching en Zettelkasten):** Procesar nodos huérfanos con Gemini en segundo plano (`useRiskEngine.ts`) podría agotar las cuotas de la API si no se controla adecuadamente el "batching". Se requiere asimilar una estrategia rigurosa para enviar los prompts en lote y economizar tokens.
 - [ ] **Arquitectura CQRS Local:** Separar las lecturas (ej. ver el PTS) de las escrituras (ej. crear un PTS) en IndexedDB para máxima velocidad.
 - [ ] **Purgado de Caché Obsoleto:** Script automático que elimina versiones viejas de la app (v1.0.1) cuando detecta la instalación de la nueva (v1.0.2).
 - [x] **Error Boundary Silencioso:** Si un gráfico de la Matriz falla, que caiga solo ese componente mostrando un ícono amigable, manteniendo el resto de la app operativa.
@@ -332,12 +332,13 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 ### Fase 2: Sustitución Táctica de Sensores (Plugins Nativos)
 - [x] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
+- [ ] **Autenticación Biométrica Nativa:** Integración segura con lectores de huella dactilar o FaceID de los dispositivos físicos a través de plugins oficiales de Capacitor, permitiendo firmar PTS o aprobar matrices rápidamente.
 - [x] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
 - [x] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
 - [x] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
 
 ### Fase 3: El Sistema de Alertas (Push Notifications)
-- [x] **Notificaciones Infallables:** Integrar `@capacitor/push-notifications` con Firebase Cloud Messaging (FCM) para alertas críticas (gas, sismos) que suenen incluso con la app cerrada.
+- [ ] **Push Notifications Críticas (FCM):** Integrar completamente `@capacitor/push-notifications` con Firebase Cloud Messaging para asegurar que las alertas de incidentes, derrames HAZMAT o sismos suenen inmediatamente incluso con la aplicación totalmente cerrada en el teléfono.
 
 ### Fase 4: Pruebas de Terreno
 - [x] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.
@@ -373,17 +374,16 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 ## Prioridad 11: El Flujo de Pichilemu (Resolución de Conflictos Offline)
 
-- [ ] **Marcas de Tiempo Dobles:** Guardar `localUpdatedAt` y `serverTimestamp`.
-- [ ] **Generador de IDs en Origen:** Usar UUIDv4 generados en el cliente para evitar duplicados.
-- [x] **Cola de Acciones (Action Queue):** Usar SQLite (Capacitor) para guardar acciones ordenadas offline.
-- [ ] **Fusión de Listas Inteligente:** Lógica backend para unir listas de asistencia marcadas offline por distintos supervisores.
-- [ ] **Estrategia "El Último Gana" (LWW):** Prevalencia del timestamp más reciente para campos simples.
-- [ ] **Sistema de Notificación de Conflictos:** Marcar en rojo conflictos complejos (ej. aprobar un PTS eliminado) para revisión manual.
-- [ ] **Indicador Visual de Salud (Sync):** Ícono de estado de respaldo de datos en el Dashboard.
+- [ ] **Marcas de Tiempo Dobles:** Guardar `localUpdatedAt` y `serverTimestamp` para trazabilidad exacta.
+- [x] **Cola de Acciones (Action Queue):** Usar almacenamiento local (Capacitor/IDB) para encolar operaciones offline.
+- [ ] **Colisiones de Sincronización en IPER:** Reemplazar el sistema crudo de "El Último Gana". Si dos supervisores editan la *misma matriz*, ambas modificaciones deben quedar como opciones concurrentes en la UI hasta que un superior lo resuelva (o lo debatan en persona). Si editan riesgos *diferentes* en la misma matriz, hacer un merge inteligente automático, pero siempre ofreciendo la oportunidad de revisar el historial de fusiones.
+- [ ] **Fusión de Listas Inteligente:** Lógica backend para unir listas de asistencia o de EPP marcadas offline.
+- [ ] **Indicador Visual de Salud (Sync):** Ícono de estado en el Dashboard y en la vista de Matriz para indicar cuando hay conflictos de fusión pendientes de revisión por un superior.
 
 ## Prioridad 12: La Red Nerviosa (Broker MQTT para IoT Real)
 
 - [ ] **Selección del Broker Industrial:** Integrar AWS IoT Core o EMQX.
+- [ ] **Integración IoT Total (MQTT Broker):** Conexión de telemetría masiva de maquinaria pesada sin colapsar la base de datos Firestore (aislar los datos puros en el broker de hardware).
 - [ ] **Jerarquía de Tópicos (Topics):** Diseñar rutas limpias (ej. `empresaA/mina1/camion_4/telemetria`).
 - [ ] **Reglas de Ingesta Inteligentes:** Guardar en Firestore solo datos anómalos (ej. Gas > umbral); el resto solo se muestra en vivo.
 - [ ] **Autenticación X.509:** Certificados únicos para sensores y Wearables.
@@ -409,7 +409,7 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 ### Fase 4: Deep Tech y Hardware (Factibilidad Media-Alta)
 - [x] **Auditorías de Protección Visuales (MediaPipe Vision):** Emplear la cámara del dispositivo como escáner automático para verificar el uso de EPP (casco, chaleco) y habilitar el acceso a zonas de riesgo, reduciendo el error humano.
-- [x] **Simulaciones Tácticas en 3D (Reconocimiento del Terreno):** Aprovechar `@react-three/fiber` para renderizar mapas interactivos y simulaciones de evacuación inmersivas, entrenando la memoria muscular del personal.
+- [ ] **Digital Twins:** Simulaciones 3D inmersivas a mayor escala utilizando librerías WebGL avanzadas para entrenar personal dentro de réplicas exactas de yacimientos.
 - [x] **Uso Predictivo para la Optimización de Energía:** Conectar la telemetría de wearables (Web Bluetooth API / DeviceMotion) para medir biometría y ritmo de trabajo en tiempo real, anticipando fatiga antes de que se convierta en accidente.
 - [x] **Blindaje de Credenciales:** Asegurar que todas las claves sensibles (como la API Key de Gemini) se procesen exclusivamente del lado del servidor (Cloud Functions o Node.js) para proteger la integridad del ecosistema.
 
