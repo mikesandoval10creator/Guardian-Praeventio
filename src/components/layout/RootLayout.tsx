@@ -14,6 +14,7 @@ import { SyncCenterModal } from '../shared/SyncCenterModal';
 import { MFASetupModal } from '../auth/MFASetupModal';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
+import { get, set } from 'idb-keyval';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -29,6 +30,18 @@ export function RootLayout() {
   const [isMfaForced, setIsMfaForced] = useState(false);
   const [mfaSuccessCallback, setMfaSuccessCallback] = useState<(() => void) | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [mfaSetupCompleted, setMfaSetupCompleted] = useState<boolean>(false);
+
+  useEffect(() => {
+    const loadMfaStatus = async () => {
+      const mfa = await get('mfa_setup_completed');
+      setMfaSetupCompleted(mfa === 'true');
+      
+      const themePref = await get('theme_preference');
+      if (themePref) setThemeMode(themePref as any);
+    };
+    loadMfaStatus();
+  }, []);
 
   // Initialize background watcher
   useAutonomousAlerts();
@@ -45,8 +58,9 @@ export function RootLayout() {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
 
-    const handleRequireMfa = (e: any) => {
-      if (localStorage.getItem('mfa_setup_completed') !== 'true') {
+    const handleRequireMfa = async (e: any) => {
+      const mfa = await get('mfa_setup_completed');
+      if (mfa !== 'true') {
         setIsMfaSetupOpen(true);
         setIsMfaForced(e.detail?.isForced ?? true); // Force by default when required
         if (e.detail?.onSuccess) {
@@ -70,12 +84,7 @@ export function RootLayout() {
     };
   }, []);
 
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system' | 'auto'>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('theme_preference') as any) || 'system';
-    }
-    return 'system';
-  });
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system' | 'auto'>('system');
 
   const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -98,17 +107,18 @@ export function RootLayout() {
       const root = window.document.documentElement;
       if (shouldBeDark) {
         root.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
+        set('theme', 'dark');
       } else {
         root.classList.remove('dark');
-        localStorage.setItem('theme', 'light');
+        set('theme', 'light');
       }
     };
 
     applyTheme();
 
-    const handleThemePrefChange = () => {
-      setThemeMode((localStorage.getItem('theme_preference') as any) || 'system');
+    const handleThemePrefChange = async () => {
+      const pref = await get('theme_preference');
+      setThemeMode((pref as any) || 'system');
     };
     window.addEventListener('theme_preference_changed', handleThemePrefChange);
 
@@ -129,10 +139,10 @@ export function RootLayout() {
     };
   }, [themeMode]);
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
     const newMode = isDarkMode ? 'light' : 'dark';
     setThemeMode(newMode);
-    localStorage.setItem('theme_preference', newMode);
+    await set('theme_preference', newMode);
     window.dispatchEvent(new Event('theme_preference_changed'));
   };
 
@@ -286,7 +296,7 @@ export function RootLayout() {
             onClick={() => navigate('/profile')}
             className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm"
           >
-            {localStorage.getItem('mfa_setup_completed') !== 'true' && (
+            {mfaSetupCompleted === false && (
               <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
             )}
             <div className="w-7 h-7 bg-gradient-to-br from-zinc-700 to-zinc-900 dark:from-zinc-600 dark:to-zinc-800 rounded-lg flex items-center justify-center shadow-inner">
@@ -308,8 +318,9 @@ export function RootLayout() {
           setIsMfaSetupOpen(false);
           setMfaSuccessCallback(null);
         }} 
-        onComplete={() => {
-          localStorage.setItem('mfa_setup_completed', 'true');
+        onComplete={async () => {
+          await set('mfa_setup_completed', 'true');
+          setMfaSetupCompleted(true);
           setIsMfaSetupOpen(false);
           if (mfaSuccessCallback) {
             mfaSuccessCallback();

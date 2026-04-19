@@ -40,7 +40,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               uid: currentUser.uid,
               displayName: currentUser.displayName || 'Anonymous',
               email: currentUser.email || '',
-              role: 'worker', // Default role matching firestore rules
+              role: 'operario', // Default role matching firestore rules
               industry: 'General',
               createdAt: new Date().toISOString(),
             };
@@ -48,12 +48,12 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               newUserData.photoURL = currentUser.photoURL;
             }
             await setDoc(userDocRef, newUserData);
-            setUserRole('worker');
+            setUserRole('operario');
             setUserIndustry('General');
           } else {
             const userData = userDoc.data();
-            setIsAdmin(userData.role === 'admin');
-            setUserRole(userData.role || 'worker');
+            setIsAdmin(userData.role === 'admin' || userData.role === 'gerente');
+            setUserRole(userData.role || 'operario');
             setUserIndustry(userData.industry || 'General');
           }
 

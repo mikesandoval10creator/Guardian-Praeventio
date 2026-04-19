@@ -12,12 +12,19 @@ const INDUSTRY_NORMATIVES: Record<string, string[]> = {
 };
 
 const ROLE_EPP: Record<string, string[]> = {
+  'Gerente': ['Casco de seguridad de visita', 'Zapatos de seguridad de visita', 'Lentes de seguridad', 'Chaleco reflectante'],
+  'Prevencionista': ['Casco de seguridad', 'Zapatos de seguridad cómodos', 'Chaleco reflectante de alta visibilidad (Geólogo)', 'Lentes de seguridad oscuros/claros', 'Protección auditiva'],
+  'Director_Obra': ['Casco de seguridad', 'Zapatos de seguridad', 'Chaleco reflectante', 'Lentes de seguridad'],
+  'Medico_Ocupacional': ['Delantal', 'Guantes de nitrilo clínico', 'Mascarilla quirúrgica', 'Lentes de seguridad', 'Zapatos antideslizantes'],
+  'Topografo': ['Casco de seguridad', 'Zapatos de seguridad outdoor', 'Chaleco reflectante de alta visibilidad', 'Lentes de seguridad oscuros', 'Gorro legionario'],
+  'Pintor': ['Casco de seguridad', 'Zapatos de seguridad', 'Buzo de papel/Tívek', 'Respirador medio rostro con filtros mixtos', 'Guantes de nitrilo'],
+  'Maquinista': ['Casco de seguridad', 'Zapatos de seguridad', 'Chaleco reflectante de alta visibilidad', 'Lentes de seguridad oscuros/claros', 'Protección auditiva'],
+  'Electrico': ['Casco dieléctrico (Clase E)', 'Guantes dieléctricos', 'Zapatos dieléctricos sin partes metálicas', 'Ropa ignífuga', 'Lentes de seguridad', 'Protector facial contra arco eléctrico'],
   'Soldador': ['Careta de soldar fotosensible', 'Guantes de cuero mosquetero', 'Coleto de cuero', 'Polainas de cuero', 'Zapatos de seguridad dieléctricos', 'Respirador para humos metálicos (P100)'],
-  'Operador de Grúa': ['Casco de seguridad', 'Zapatos de seguridad', 'Chaleco reflectante de alta visibilidad', 'Lentes de seguridad oscuros/claros', 'Protección auditiva'],
-  'Electricista': ['Casco dieléctrico (Clase E)', 'Guantes dieléctricos', 'Zapatos dieléctricos sin partes metálicas', 'Ropa ignífuga', 'Lentes de seguridad', 'Protector facial contra arco eléctrico'],
-  'Jornalero': ['Casco de seguridad', 'Zapatos de seguridad con puntera', 'Guantes de cabritilla/multiflex', 'Lentes de seguridad', 'Chaleco reflectante'],
-  'Trabajador en Altura': ['Arnés de cuerpo completo (mínimo 3 argollas)', 'Doble cabo de vida con amortiguador de impacto', 'Casco con barbiquejo', 'Zapatos de seguridad', 'Guantes de cabritilla'],
-  'Mecánico': ['Zapatos de seguridad', 'Guantes de nitrilo/mecánico', 'Lentes de seguridad', 'Overol resistente a grasas', 'Protección auditiva'],
+  'Mecanico': ['Zapatos de seguridad', 'Guantes de nitrilo/mecánico', 'Lentes de seguridad', 'Overol resistente a grasas', 'Protección auditiva'],
+  'Operario': ['Casco de seguridad', 'Zapatos de seguridad con puntera', 'Guantes de cabritilla/multiflex', 'Lentes de seguridad', 'Chaleco reflectante'],
+  'Contratista': ['Casco de seguridad', 'Zapatos de seguridad', 'Chaleco reflectante', 'Lentes de seguridad oscuros/claros', 'Protección auditiva'],
+  'Worker': ['Casco de seguridad', 'Zapatos de seguridad con puntera', 'Guantes', 'Lentes de seguridad', 'Chaleco reflectante']
 };
 
 const INDUSTRY_TRAINING: Record<string, string[]> = {

@@ -12,6 +12,7 @@ import {
   Loader2,
   FileText
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { 
   BarChart, 
   Bar, 
@@ -24,7 +25,13 @@ import {
   Line,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Legend
 } from 'recharts';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
@@ -36,6 +43,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 export function Analytics() {
+  const { t } = useTranslation();
   const { nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -52,6 +60,19 @@ export function Analytics() {
   const findings = projectNodes.filter(n => n.type === NodeType.FINDING);
   const audits = projectNodes.filter(n => n.type === NodeType.AUDIT);
   const epps = projectNodes.filter(n => n.type === NodeType.EPP);
+
+  // Dimensions for Radar Chart
+  const calculateSafetyDimensions = () => {
+    return [
+      { subject: 'EPP', A: 85, B: 90 },
+      { subject: 'Normativa', A: 78, B: 85 },
+      { subject: 'Conducta', A: 92, B: 88 },
+      { subject: 'Procesos', A: 70, B: 80 },
+      { subject: 'Entorno', A: 88, B: 92 },
+    ];
+  };
+
+  const safetyDimensionsData = calculateSafetyDimensions();
 
   const criticalRisks = risks.filter(r => r.metadata?.level === 'Crítico').length;
   const highRisks = risks.filter(r => r.metadata?.level === 'Alto').length;
@@ -179,8 +200,8 @@ export function Analytics() {
             <BarChart3 className="w-6 h-6 text-indigo-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-950">Reportabilidad Gerencial</h1>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Analytics & Insights Ejecutivos</p>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-950 dark:text-white">{t('analytics.title', 'Reportabilidad Gerencial')}</h1>
+            <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('analytics.tagline', 'Analytics & Insights Ejecutivos')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -357,6 +378,24 @@ export function Analytics() {
                   <Line type="monotone" dataKey="incidentes" stroke="#ef4444" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                   <Line type="monotone" dataKey="hallazgos" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
                 </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Safety Dimensions (New) */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm lg:col-span-2">
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6">Radar de Dimensiones de Seguridad</h3>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={safetyDimensionsData}>
+                  <PolarGrid stroke="#e4e4e7" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#71717a', fontSize: 12 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: '#71717a', fontSize: 10 }} />
+                  <Radar name="Actual" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.6} />
+                  <Radar name="Objetivo" dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+                  <Legend />
+                  <Tooltip />
+                </RadarChart>
               </ResponsiveContainer>
             </div>
           </div>

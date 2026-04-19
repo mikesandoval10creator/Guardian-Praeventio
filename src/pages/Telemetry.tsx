@@ -33,6 +33,8 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { useEmergency } from '../contexts/EmergencyContext';
 
+import { set } from 'idb-keyval';
+
 interface Earthquake {
   Fecha: string;
   Profundidad: string;
@@ -425,8 +427,8 @@ export function Telemetry() {
       });
     }
 
-    // Save to local storage for other components (like Evacuation) to access
-    localStorage.setItem('telemetry_state', JSON.stringify({ workers, machinery }));
+    // Save to IndexedDB for other components (like Evacuation) to access
+    set('telemetry_state', { workers, machinery });
 
     return { workers, machinery };
   }, [iotEvents]);

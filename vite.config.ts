@@ -18,13 +18,13 @@ export default defineConfig(({mode}) => {
       }),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg'],
+        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon.ico'],
         manifest: {
           name: 'Praeventio Guard',
           short_name: 'Praeventio',
           description: 'Sistema de Gestión de Seguridad y Salud en el Trabajo',
-          theme_color: '#18181b',
-          background_color: '#18181b',
+          theme_color: '#4eb5ac',
+          background_color: '#4eb5ac',
           display: 'standalone',
           icons: [
             {
@@ -46,8 +46,8 @@ export default defineConfig(({mode}) => {
           ]
         },
         workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-          maximumFileSizeToCacheInBytes: 52428800, // 50MB
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,json}'],
+          maximumFileSizeToCacheInBytes: 100 * 1024 * 1024, // 100MB for offline assets
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -76,6 +76,31 @@ export default defineConfig(({mode}) => {
                   statuses: [0, 200]
                 }
               }
+            },
+            {
+              urlPattern: /^https:\/\/picsum\.photos\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'placeholder-images',
+                expiration: {
+                  maxEntries: 50,
+                  maxAgeSeconds: 60 * 60 * 24 * 30
+                },
+                cacheableResponse: {
+                  statuses: [0, 200]
+                }
+              }
+            },
+            {
+               urlPattern: ({ request }) => request.destination === 'image' || request.destination === 'font',
+               handler: 'StaleWhileRevalidate',
+               options: {
+                 cacheName: 'static-assets',
+                 expiration: {
+                   maxEntries: 200,
+                   maxAgeSeconds: 60 * 60 * 24 * 30
+                 }
+               }
             }
           ]
         }
@@ -97,7 +122,6 @@ export default defineConfig(({mode}) => {
           'cookie-parser',
           'express-session',
           'connect-session-firebase',
-          '@pinecone-database/pinecone',
           'pdfkit'
         ]
       }
@@ -109,7 +133,6 @@ export default defineConfig(({mode}) => {
         'cookie-parser',
         'express-session',
         'connect-session-firebase',
-        '@pinecone-database/pinecone',
         'pdfkit'
       ]
     },

@@ -1,6 +1,8 @@
 import Fuse from 'fuse.js';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
 
+import { get, set, del } from 'idb-keyval';
+
 export interface OfflineTopic {
   id: string;
   keywords: string[];
@@ -96,27 +98,27 @@ export const getOfflineResponse = (query: string, nodes?: any[]): string => {
   return 'Actualmente te encuentras sin conexión a internet. He guardado tu consulta y te avisaré apenas recuperemos la señal para darte una respuesta detallada con todo el poder de la IA.';
 };
 
-export const savePendingOfflineQuery = (query: string) => {
+export const savePendingOfflineQuery = async (query: string) => {
   try {
-    const queries = JSON.parse(localStorage.getItem('pendingOfflineQueries') || '[]');
+    const queries: string[] = (await get('pendingOfflineQueries')) || [];
     // Avoid duplicates
     if (!queries.includes(query)) {
       queries.push(query);
-      localStorage.setItem('pendingOfflineQueries', JSON.stringify(queries));
+      await set('pendingOfflineQueries', queries);
     }
   } catch (e) {
     console.error('Error saving pending query', e);
   }
 };
 
-export const getPendingOfflineQueries = (): string[] => {
+export const getPendingOfflineQueries = async (): Promise<string[]> => {
   try {
-    return JSON.parse(localStorage.getItem('pendingOfflineQueries') || '[]');
+    return (await get('pendingOfflineQueries')) || [];
   } catch (e) {
     return [];
   }
 };
 
-export const clearPendingOfflineQueries = () => {
-  localStorage.removeItem('pendingOfflineQueries');
+export const clearPendingOfflineQueries = async () => {
+  await del('pendingOfflineQueries');
 };

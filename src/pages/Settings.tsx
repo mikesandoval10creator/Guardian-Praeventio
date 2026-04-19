@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   Settings as SettingsIcon, 
   Shield, 
@@ -25,8 +26,10 @@ import { useNavigate } from 'react-router-dom';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { BunkerManager } from '../components/BunkerManager';
+import { get, set } from 'idb-keyval';
 
 export function Settings() {
+  const { t, i18n } = useTranslation();
   const { notificationPermissionStatus, requestPermission } = usePushNotifications();
   const isOnline = useOnlineStatus();
   const { addNotification } = useNotifications();
@@ -72,7 +75,22 @@ export function Settings() {
   const [pushNotifs, setPushNotifs] = useState(notificationPermissionStatus === 'granted');
   const [aiDetail, setAiDetail] = useState('equilibrado');
   const [aiProactive, setAiProactive] = useState(true);
-  const [language, setLanguage] = useState('es');
+  const [language, setLanguage] = useState(i18n.language || 'es');
+  const [themePref, setThemePref] = useState('system');
+
+  const handleLanguageChange = (newLang: string) => {
+    setLanguage(newLang);
+    i18n.changeLanguage(newLang);
+    addNotification({
+      title: t('common.success', 'Éxito'),
+      message: `Idioma cambiado a ${newLang === 'es' ? 'Español' : 'English'}`,
+      type: 'success'
+    });
+  };
+
+  useEffect(() => {
+    get('theme_preference').then(val => setThemePref((val as string) || 'system'));
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -87,15 +105,15 @@ export function Settings() {
     setActiveSection(prev => prev === title ? null : title);
   };
 
-  const handleThemeToggle = () => {
+  const handleThemeToggle = async () => {
     const root = window.document.documentElement;
     if (isDark) {
       root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      await set('theme', 'light');
       setIsDark(false);
     } else {
       root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      await set('theme', 'dark');
       setIsDark(true);
     }
   };
@@ -233,9 +251,11 @@ export function Settings() {
             <div>
               <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Preferencia de Tema</label>
               <select 
-                value={localStorage.getItem('theme_preference') || 'system'} 
-                onChange={(e) => {
-                  localStorage.setItem('theme_preference', e.target.value);
+                value={themePref} 
+                onChange={async (e) => {
+                  const newPref = e.target.value;
+                  setThemePref(newPref);
+                  await set('theme_preference', newPref);
                   window.dispatchEvent(new Event('theme_preference_changed'));
                 }} 
                 className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
@@ -252,11 +272,11 @@ export function Settings() {
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Alternar rápidamente (sobrescribe la preferencia)</p>
               </div>
               <button 
-                onClick={() => {
+                onClick={async () => {
                   const root = window.document.documentElement;
                   const isCurrentlyDark = root.classList.contains('dark');
                   const newMode = isCurrentlyDark ? 'light' : 'dark';
-                  localStorage.setItem('theme_preference', newMode);
+                  await set('theme_preference', newMode);
                   window.dispatchEvent(new Event('theme_preference_changed'));
                   setIsDark(!isCurrentlyDark);
                 }} 
@@ -272,7 +292,7 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
               <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
-              <select value={language} onChange={(e) => setLanguage(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <select value={language} onChange={(e) => handleLanguageChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="es">Español (Latinoamérica)</option>
                 <option value="en">English (US)</option>
                 <option value="pt">Português (Brasil)</option>

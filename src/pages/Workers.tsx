@@ -141,10 +141,18 @@ export function Workers() {
             className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none transition-all shadow-sm"
           >
             <option value="all">Todos los roles</option>
-            <option value="Supervisor">Supervisor</option>
-            <option value="Operario">Operario</option>
             <option value="Prevencionista">Prevencionista</option>
-            <option value="Técnico">Técnico</option>
+            <option value="Director_Obra">Director de Obra</option>
+            <option value="Medico_Ocupacional">Médico Ocupacional</option>
+            <option value="Topografo">Topógrafo</option>
+            <option value="Pintor">Pintor</option>
+            <option value="Maquinista">Maquinista</option>
+            <option value="Electrico">Eléctrico</option>
+            <option value="Soldador">Soldador</option>
+            <option value="Mecanico">Mecánico</option>
+            <option value="Operario">Operario General</option>
+            <option value="Contratista">Contratista Independiente</option>
+            <option value="Gerente">Gerente</option>
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
         </div>

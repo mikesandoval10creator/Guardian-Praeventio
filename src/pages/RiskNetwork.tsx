@@ -11,6 +11,7 @@ import { es } from 'date-fns/locale';
 import { analyzeRiskNetwork, predictAccidents } from '../services/geminiService';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { get } from 'idb-keyval';
 
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
 
@@ -43,9 +44,9 @@ export function RiskNetwork() {
     try {
       const context = nodes.map(n => `${n.type}: ${n.title} - ${n.description}`).join('\n');
       
-      // Gather telemetry context from localStorage
-      const twinState = JSON.parse(localStorage.getItem('twinState') || '{}');
-      const bioMetrics = JSON.parse(localStorage.getItem('bioMetricsHistory') || '[]');
+      // Gather telemetry context from IndexedDB
+      const twinState: any = (await get('twinState')) || {};
+      const bioMetrics: any[] = (await get('bioMetricsHistory')) || [];
       const latestBio = bioMetrics.length > 0 ? bioMetrics[bioMetrics.length - 1] : null;
       
       const telemetryContext = `

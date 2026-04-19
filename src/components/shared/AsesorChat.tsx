@@ -63,24 +63,30 @@ export function AsesorChat() {
   };
 
   useEffect(() => {
-    // Load pending queries from local storage on mount
-    const storedQueries = getPendingOfflineQueries();
-    if (storedQueries.length > 0) {
-      setPendingQueries(storedQueries);
-    }
+    // Load pending queries from IndexedDB on mount
+    const loadPending = async () => {
+      const storedQueries = await getPendingOfflineQueries();
+      if (storedQueries.length > 0) {
+        setPendingQueries(storedQueries);
+      }
+    };
+    loadPending();
   }, []);
 
   useEffect(() => {
-    if (isOnline && pendingQueries.length > 0) {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: `**¡Conexión Restaurada!** 🌐\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\n¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
-        timestamp: new Date()
-      }]);
-      setPendingQueries([]); // Clear pending queries after notifying
-      clearPendingOfflineQueries();
-    }
+    const handleReconnection = async () => {
+      if (isOnline && pendingQueries.length > 0) {
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `**¡Conexión Restaurada!** 🌐\n\nHe notado que tenías consultas pendientes mientras estabas offline:\n\n${pendingQueries.map(q => `- "${q}"`).join('\n')}\n\n¿Te gustaría que analice alguna de estas consultas ahora con toda mi capacidad?`,
+          timestamp: new Date()
+        }]);
+        setPendingQueries([]); // Clear pending queries state
+        await clearPendingOfflineQueries(); // Clear IndexedDB
+      }
+    };
+    handleReconnection();
   }, [isOnline, pendingQueries]);
 
   useEffect(() => {
@@ -120,7 +126,7 @@ export function AsesorChat() {
 
     if (!isOnline) {
       // Handle Offline Mode
-      setTimeout(() => {
+      setTimeout(async () => {
         const offlineResponse = getOfflineResponse(currentInput, nodes);
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -131,7 +137,7 @@ export function AsesorChat() {
         };
         setMessages(prev => [...prev, assistantMessage]);
         setPendingQueries(prev => [...prev, currentInput]);
-        savePendingOfflineQuery(currentInput);
+        await savePendingOfflineQuery(currentInput);
         setLoading(false);
       }, 600);
       return;
@@ -161,7 +167,8 @@ export function AsesorChat() {
         },
         body: JSON.stringify({
           query: searchQuery,
-          projectId: selectedProject?.id
+          projectId: selectedProject?.id,
+          stream: true
         })
       });
 

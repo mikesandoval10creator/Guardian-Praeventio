@@ -1,19 +1,7 @@
 import admin from "firebase-admin";
-import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenAI } from "@google/genai";
 
 const API_KEY = process.env.GEMINI_API_KEY;
-
-let pinecone: Pinecone | null = null;
-try {
-  if (process.env.PINECONE_API_KEY) {
-    pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY,
-    });
-  }
-} catch (error) {
-  console.error("Failed to initialize Pinecone in networkBackend:", error);
-}
 
 /**
  * Generates an embedding for a text.
@@ -27,7 +15,7 @@ const getEmbedding = async (text: string): Promise<number[]> => {
 };
 
 /**
- * Upserts a safety node both to Firestore and Pinecone for unified RAG.
+ * Upserts a safety node both to Firestore and the vector store for unified RAG.
  * Also handles bidirectional connections with admin privileges.
  */
 export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
@@ -42,7 +30,7 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
   const nodeId = nodeData.id || db.collection('nodes').doc().id;
   const nodeRef = db.collection('nodes').doc(nodeId);
 
-  // 2. Save to Firestore
+  // 2. Save to Firestore (Nodes collection)
   const finalData = {
     ...nodeData,
     id: nodeId,
@@ -51,26 +39,27 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
     "metadata.syncedAt": admin.firestore.FieldValue.serverTimestamp()
   };
   
+  // Remove embedding from the main node document if we want to keep it light, 
+  // but usually it's better to keep it for local filtering or if we don't mind the size.
+  // However, for Vector Search, it MUST be in the collection where findNearest is called.
   await nodeRef.set(finalData, { merge: true });
 
-  // 3. Sync to Pinecone for "El Guardián" (RAG)
-  if (pinecone && process.env.PINECONE_INDEX_NAME) {
-    try {
-      const index = pinecone.index(process.env.PINECONE_INDEX_NAME);
-      await index.upsert([{
-        id: nodeId,
-        values: nodeData.embedding,
-        metadata: {
-          text: `${nodeData.title}: ${nodeData.description}`,
-          type: nodeData.type,
-          projectId: nodeData.projectId || 'global',
-          title: nodeData.title
-        }
-      }]);
-      console.log(`[NetworkBackend] Node ${nodeId} upserted to Pinecone.`);
-    } catch (e) {
-      console.error(`[NetworkBackend] Failed to upsert to Pinecone:`, e);
-    }
+  // 3. Sync to Firestore Vector Store for "El Guardián" (RAG)
+  try {
+    const vectorStoreRef = db.collection('vector_store').doc(`node-${nodeId}`);
+    await vectorStoreRef.set({
+      id: `node-${nodeId}`,
+      nodeId: nodeId,
+      title: nodeData.title,
+      content: `${nodeData.title}: ${nodeData.description}`,
+      embedding: admin.firestore.FieldValue.vector(nodeData.embedding),
+      type: nodeData.type,
+      projectId: nodeData.projectId || 'global',
+      indexedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log(`[NetworkBackend] Node ${nodeId} synced to Firestore Vector Store.`);
+  } catch (e) {
+    console.error(`[NetworkBackend] Failed to sync to Firestore Vector Store:`, e);
   }
 
   // 4. Handle Bidirectional Connections
@@ -112,11 +101,9 @@ export const syncBatchToNetwork = async (operations: any[], authorUid: string) =
         const nodeId = op.id;
         // 1. Delete from Firestore
         await db.collection('nodes').doc(nodeId).delete();
-        // 2. Delete from Pinecone
-        if (pinecone && process.env.PINECONE_INDEX_NAME) {
-          const index = pinecone.index(process.env.PINECONE_INDEX_NAME);
-          await index.deleteOne(nodeId);
-        }
+        // 2. Delete from Vector Store
+        await db.collection('vector_store').doc(`node-${nodeId}`).delete();
+        
         results.push({ id: nodeId, status: 'deleted' });
       }
     } catch (e: any) {

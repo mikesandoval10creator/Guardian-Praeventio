@@ -30,6 +30,7 @@ import { NodeType } from '../types';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { WifiOff } from 'lucide-react';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { get } from 'idb-keyval';
 
 const containerStyle = {
   width: '100%',
@@ -97,17 +98,14 @@ export function Evacuation() {
     if (!isOnline) return;
     setCalculating(true);
     try {
-      // Get real workers and machinery data from local storage or context if available, 
-      // otherwise fallback to a realistic default state based on the project.
-      // In a real app, this would come from a global state management solution (Zustand/Redux) or context.
-      const storedTelemetry = localStorage.getItem('telemetry_state');
+      // Get real workers and machinery data from IndexedDB or context if available
+      const storedTelemetry = await get('telemetry_state');
       let workers = [];
       let machinery = [];
       
       if (storedTelemetry) {
-        const parsed = JSON.parse(storedTelemetry);
-        workers = parsed.workers || [];
-        machinery = parsed.machinery || [];
+        workers = (storedTelemetry as any).workers || [];
+        machinery = (storedTelemetry as any).machinery || [];
       }
 
       const activeEmergencies = [

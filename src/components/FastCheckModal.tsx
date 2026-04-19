@@ -58,7 +58,7 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
         });
 
         // Save pending query for later sync/analysis
-        savePendingOfflineQuery(`FastCheck Offline: ${observation}`);
+        await savePendingOfflineQuery(`FastCheck Offline: ${observation}`);
         
         // Award points
         await addPoints(20, 'Fast Check Reportado (Offline)');

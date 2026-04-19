@@ -125,9 +125,9 @@ export function GuardianVoiceAssistant() {
   }, [onlineStatus, isRecording, isProcessing, isSpeaking]);
 
   useEffect(() => {
-    const handleOnline = () => {
+    const handleOnline = async () => {
       setOnlineStatus(true);
-      const pending = getPendingOfflineQueries();
+      const pending = await getPendingOfflineQueries();
       if (pending.length > 0) {
         setPendingPrompt(`¡Conexión recuperada! Mientras estabas offline preguntaste sobre: "${pending[0]}". ¿Te gustaría que profundicemos en eso ahora con IA?`);
         setIsOpen(true);
@@ -144,8 +144,8 @@ export function GuardianVoiceAssistant() {
     };
   }, []);
 
-  const handleClearPending = () => {
-    clearPendingOfflineQueries();
+  const handleClearPending = async () => {
+    await clearPendingOfflineQueries();
     setPendingPrompt(null);
   };
 
@@ -158,10 +158,10 @@ export function GuardianVoiceAssistant() {
     setResponse('');
 
     if (!onlineStatus) {
-      setTimeout(() => {
+      setTimeout(async () => {
         const offlineRes = getOfflineResponse(query, nodes);
         setResponse(offlineRes);
-        savePendingOfflineQuery(query);
+        await savePendingOfflineQuery(query);
         setIsProcessing(false);
       }, 800);
       return;
@@ -385,10 +385,10 @@ export function GuardianVoiceAssistant() {
                   <p className="text-sm text-emerald-400 mb-3">{pendingPrompt}</p>
                   <div className="flex gap-2">
                     <button 
-                      onClick={() => {
-                        const queries = getPendingOfflineQueries();
+                      onClick={async () => {
+                        const queries = await getPendingOfflineQueries();
                         setTextInput(queries[0] || '');
-                        handleClearPending();
+                        await handleClearPending();
                       }}
                       className="flex-1 bg-emerald-500 text-white text-xs font-bold py-2 rounded-xl"
                     >

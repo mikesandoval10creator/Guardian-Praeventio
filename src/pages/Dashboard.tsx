@@ -53,6 +53,7 @@ import {
   Car
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
@@ -102,17 +103,9 @@ export function Dashboard() {
   const [isFastCheckOpen, setIsFastCheckOpen] = useState(false);
   const [showMorningCheckIn, setShowMorningCheckIn] = useState(false);
 
-  useEffect(() => {
+  const handleMorningCheckInComplete = async () => {
     const today = new Date().toISOString().split('T')[0];
-    const lastCheckIn = localStorage.getItem('lastMorningCheckIn');
-    if (lastCheckIn !== today) {
-      setShowMorningCheckIn(true);
-    }
-  }, []);
-
-  const handleMorningCheckInComplete = () => {
-    const today = new Date().toISOString().split('T')[0];
-    localStorage.setItem('lastMorningCheckIn', today);
+    await set('lastMorningCheckIn', today);
     setShowMorningCheckIn(false);
   };
   const [isPlannerOpen, setIsPlannerOpen] = useState(false);
@@ -471,6 +464,18 @@ export function Dashboard() {
 
   return (
     <div className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
+      
+      {/* Quick Action Bar */}
+      <div className="flex justify-end mb-1 sm:mb-2">
+        <button 
+          onClick={() => setShowMorningCheckIn(true)} 
+          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-full text-[10px] sm:text-xs font-bold transition-all border border-emerald-500/20 hover:scale-105"
+        >
+          <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          Despertar Matutino
+        </button>
+      </div>
+
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
       )}

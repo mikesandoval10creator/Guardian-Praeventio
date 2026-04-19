@@ -1,4 +1,6 @@
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import cookieParser from "cookie-parser";
@@ -11,7 +13,6 @@ import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/servic
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
 import admin from "firebase-admin";
 import fs from 'fs';
-import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenAI } from "@google/genai";
 import { google } from 'googleapis';
 
@@ -26,21 +27,6 @@ try {
   }
 } catch (error) {
   console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
-}
-
-// Initialize Pinecone
-let pinecone: Pinecone | null = null;
-try {
-  if (process.env.PINECONE_API_KEY) {
-    pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY,
-    });
-    console.log("Pinecone initialized successfully.");
-  } else {
-    console.warn("PINECONE_API_KEY not found. Vector database features will be disabled.");
-  }
-} catch (error) {
-  console.error("Failed to initialize Pinecone:", error);
 }
 
 // Read Firebase Config once at startup
@@ -72,6 +58,22 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
 
 const app = express();
 const PORT = 3000;
+
+// Security Middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for compatibility with Vite in dev
+  crossOriginEmbedderPolicy: false
+}));
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many requests from this IP, please try again after 15 minutes"
+});
+
+app.use("/api/", limiter);
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (process.env.NODE_ENV === 'production' && !sessionSecret) {
@@ -132,7 +134,7 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
 
 // Ask Guardian Endpoint (El Cerebro Externo)
 app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
-  const { query, projectId } = req.body;
+  const { query, stream = false } = req.body;
   
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
@@ -140,103 +142,162 @@ app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
 
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    let context = "";
-
-    // If Pinecone is available, fetch relevant context
-    if (pinecone && process.env.PINECONE_INDEX_NAME) {
-      try {
-        // 1. Generate embedding for the query
-        const embedResponse = await ai.models.embedContent({
-          model: "text-embedding-004",
-          contents: query,
-        });
-        const queryEmbedding = embedResponse.embeddings?.[0]?.values;
-
-        if (queryEmbedding) {
-          // 2. Query Pinecone
-          const index = pinecone.index(process.env.PINECONE_INDEX_NAME);
-          const queryResponse = await index.query({
-            vector: queryEmbedding,
-            topK: 5,
-            includeMetadata: true,
-            filter: projectId ? { projectId: { $eq: projectId } } : undefined
-          });
-
-          // 3. Build context string
-          context = queryResponse.matches
-            .map(match => match.metadata?.text || '')
-            .join('\n\n');
-        }
-      } catch (pcError) {
-        console.error("Pinecone query error:", pcError);
-        // Continue without context if Pinecone fails
-      }
-    }
+    
+    // Unified context search using Firestore Vector Search
+    const { searchRelevantContext } = await import('./src/services/ragService.js');
+    const context = await searchRelevantContext(query);
 
     // Generate response using Gemini
     const prompt = `
       Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
       Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
       Responde de forma profesional, vigilante y altamente técnica pero accionable.
-      
-      Contexto recuperado de la base de datos de conocimiento (si aplica):
+
+      REGLA DE ORO: Si el usuario te pregunta por procedimientos específicos o leyes, prioritiza la información en el CONTEXTO LEGAL proporcionado.
+      Si no hay información específica en el contexto, usa tu base de conocimientos pero aclara que es una recomendación general.
+
+      CONTEXTO LEGAL RELEVANTE:
       ${context}
 
-      Consulta del usuario:
+      PREGUNTA DEL USUARIO:
       ${query}
     `;
 
-    // Use SSE for streaming response
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
 
-    const responseStream = await ai.models.generateContentStream({
-      model: "gemini-3.1-pro", // Using Pro for the RAG engine
-      contents: prompt,
-    });
+      const responseStream = await ai.models.generateContentStream({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+      });
 
-    for await (const chunk of responseStream) {
-      if (chunk.text) {
-        res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
+      for await (const chunk of responseStream) {
+        if (chunk.text) {
+          res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
+        }
       }
+      res.write('data: [DONE]\n\n');
+      res.end();
+    } else {
+      const result = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+      });
+
+      res.json({ 
+        response: result.text,
+        contextUsed: context !== "No se encontró contexto legal relevante."
+      });
     }
-    res.write('data: [DONE]\n\n');
-    res.end();
 
   } catch (error) {
     console.error("Error in /api/ask-guardian:", error);
-    res.status(500).json({ error: "Internal server error" });
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Internal server error" });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: "Internal server error" })}\n\n`);
+      res.end();
+    }
   }
 });
 
-// PDF Generation Endpoint (El Cuarto de Máquinas)
+// PDF Generation Endpoint (El Cuarto de Máquinas - Reportes Ocupacionales)
 app.post("/api/reports/generate-pdf", verifyAuth, async (req, res) => {
-  const { incidentId, title, content } = req.body;
+  const { incidentId, title, content, type = 'general', metadata = {} } = req.body;
   
   try {
     const PDFDocument = (await import('pdfkit')).default;
     
-    // Create a document
-    const doc = new PDFDocument();
+    // Create a document with styling and margins appropriate for legal/occupational reports
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 50, bottom: 50, left: 50, right: 50 },
+      info: {
+        Title: title || 'Reporte de Seguridad',
+        Author: 'Praeventio Guard AI',
+      }
+    });
+
+    const buffers: Buffer[] = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', () => {
+      const pdfData = Buffer.concat(buffers);
+      
+      // We could optionally save this buffer to Firebase Storage here before sending it down
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=Reporte_SUSESO_${incidentId || Date.now()}.pdf`);
+      res.setHeader('Content-Length', pdfData.length.toString());
+      res.end(pdfData);
+    });
+
+    // --- PDF Construction ---
+
+    // 1. Header (Logo/Brand Placeholder)
+    doc.rect(0, 0, doc.page.width, 100).fill('#0f172a'); // Slate 900 background header
+    doc.fill('#ffffff').fontSize(24).font('Helvetica-Bold').text('Praeventio Guard', 50, 35);
+    doc.fontSize(10).font('Helvetica').text('Sistema Integrado de Gestión de Riesgos', 50, 65);
+    doc.text(`Doc ID: ${incidentId || `REQ-${Date.now()}`}`, 400, 35, { align: 'right' });
+    doc.text(`Fecha: ${new Date().toLocaleDateString('es-CL')}`, 400, 50, { align: 'right' });
+    doc.text(`Tipo: ${type.toUpperCase()}`, 400, 65, { align: 'right' });
+
+    doc.moveDown(5); // Move below header
+
+    // 2. Title Section
+    doc.fillColor('#000000').fontSize(18).font('Helvetica-Bold').text(title || 'Documento Oficial de Seguridad Ocupacional', { align: 'center' });
+    doc.moveDown(1);
     
-    // Set response headers
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=reporte-${incidentId || 'general'}.pdf`);
+    // 3. Divider Line
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#e2e8f0');
+    doc.moveDown(1);
+
+    // 4. Metadata Box (If any, e.g., location, severity, supervisor)
+    if (Object.keys(metadata).length > 0) {
+      doc.rect(50, doc.y, 495, (Object.keys(metadata).length * 20) + 10).fill('#f8fafc');
+      doc.fillColor('#334155').fontSize(10).font('Helvetica');
+      let currentY = doc.y + 5;
+      for (const [key, value] of Object.entries(metadata)) {
+        doc.font('Helvetica-Bold').text(`${key.toUpperCase()}: `, 60, currentY, { continued: true })
+           .font('Helvetica').text(String(value));
+        currentY += 20;
+      }
+      doc.y = currentY + 15;
+    }
+
+    // 5. Main Content (Markdown roughly converted or plain text)
+    doc.fillColor('#1e293b').fontSize(11).font('Helvetica');
     
-    // Pipe the PDF into the response
-    doc.pipe(res);
-    
-    // Add content to the PDF
-    doc.fontSize(25).text(title || 'Reporte Praeventio Guard', 100, 100);
-    doc.moveDown();
-    doc.fontSize(12).text(`Generado el: ${new Date().toLocaleString()}`);
-    doc.moveDown();
-    doc.fontSize(14).text(content || 'Contenido del reporte...');
-    
-    // Finalize the PDF and end the stream
+    // Simple pseudo-markdown parsing for the PDF
+    const lines = content ? content.split('\n') : ['Sin contenido registrado.'];
+    lines.forEach(line => {
+      if (line.startsWith('# ')) {
+        doc.moveDown().font('Helvetica-Bold').fontSize(14).text(line.replace('# ', '')).font('Helvetica').fontSize(11);
+      } else if (line.startsWith('## ')) {
+        doc.moveDown().font('Helvetica-Bold').fontSize(12).text(line.replace('## ', '')).font('Helvetica').fontSize(11);
+      } else if (line.startsWith('- ') || line.startsWith('* ')) {
+        doc.text(`  • ${line.substring(2)}`, { indent: 10 });
+      } else if (line.trim() === '') {
+        doc.moveDown(0.5);
+      } else {
+        doc.text(line, { align: 'justify' });
+      }
+    });
+
+    // 6. Footer (Page numbers and legal disclaimer)
+    const totalPages = doc.bufferedPageRange().count;
+    for (let i = 0; i < totalPages; i++) {
+        doc.switchToPage(i);
+        doc.rect(0, doc.page.height - 50, doc.page.width, 50).fill('#f1f5f9');
+        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica').text(
+          'Documento generado por Praeventio AI. Válido como registro interno conforme a directrices Minsal.',
+          50, doc.page.height - 35
+        );
+        doc.text(`Página ${i + 1} de ${totalPages}`, 450, doc.page.height - 35, { align: 'right' });
+    }
+
     doc.end();
-    
   } catch (error) {
     console.error("Error generating PDF:", error);
     res.status(500).json({ error: "Internal server error during PDF generation" });
@@ -736,7 +797,9 @@ const ALLOWED_GEMINI_ACTIONS = [
   'mapRisksToSurveillance',
   'analyzeHealthPatterns',
   'generatePredictiveForecast',
-  'analyzeRiskCorrelations'
+  'analyzeRiskCorrelations',
+  'downloadSpecificNormative',
+  'searchRelevantContext'
 ];
 
 app.post("/api/gemini", verifyAuth, async (req, res) => {
@@ -911,8 +974,117 @@ setInterval(() => {
 // Run immediately at startup
 updateGlobalEnvironmentalContext().catch(console.error);
 
+// Setup Realtime Triggers (Simulated Cloud Functions via Firebase Admin)
+const setupBackgroundTriggers = () => {
+  try {
+    const db = admin.firestore();
+    let isInitialLoadIncidents = true;
+    let isInitialLoadRAG = true;
+
+    // Trigger 1: Listen to new incidents to trigger pseudo push notifications / emails
+    db.collection('nodes')
+      .where('type', '==', 'finding')
+      .where('tags', 'array-contains', 'Incidente')
+      .onSnapshot((snapshot) => {
+        if (isInitialLoadIncidents) {
+          isInitialLoadIncidents = false;
+          return;
+        }
+        
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const isCritical = data.metadata?.severity === 'Crítica' || data.metadata?.severity === 'Alta';
+            
+            console.log(`[TRIGGER: Incident Report] => Processing incident: ${change.doc.id}`);
+            console.log(`- Severity: ${data.metadata?.severity}`);
+            console.log(`- Alerting Supervisor Network / Sending Push Notification...`);
+            
+            if (isCritical) {
+              console.log(`- [CRITICAL] ⚠️ Escalatng to SendGrid Email API (Mock) for immediate managerial action.`);
+            }
+          }
+        });
+      }, (error) => {
+        console.error("Error in incidents background trigger listener:", error);
+      });
+
+    // Trigger 2: RAG Continuous Ingestion Pipeline (Auto-Vectorize Knowledge)
+    // Whenever a new normative, PTS, protocol, or document node is created/updated, generate embeddings
+    db.collection('nodes')
+      .where('type', 'in', ['normative', 'pts', 'protocol', 'document'])
+      .onSnapshot(async (snapshot) => {
+        if (isInitialLoadRAG) {
+          isInitialLoadRAG = false;
+          return;
+        }
+
+        for (const change of snapshot.docChanges()) {
+          // Process newly added or modified documents
+          if (change.type === 'added' || change.type === 'modified') {
+            const data = change.doc.data();
+            
+            // Skip processing if it already has an embedding or is currently being processed
+            if (data._ragProcessingStatus === 'completed' || data._ragProcessingStatus === 'processing') {
+              continue;
+            }
+
+            console.log(`[TRIGGER: RAG Pipeline] => Generating embeddings for: ${change.doc.id} (${data.type})`);
+            
+            try {
+              // Mark as processing
+              await change.doc.ref.update({ _ragProcessingStatus: 'processing' });
+              
+              const { GoogleGenAI } = await import('@google/genai');
+              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              
+              // Prepare text for vectorization
+              const textToEmbed = `Título: ${data.title || ''}\nDescripción: ${data.description || ''}\nContenido: ${data.content || ''}`;
+              
+              if (textToEmbed.trim().length < 10) {
+                 await change.doc.ref.update({ _ragProcessingStatus: 'skipped_too_short' });
+                 continue;
+              }
+
+              // Assume generic embed call or load the geminiBackend method
+              const { generateEmbeddingsBatch } = await import('./src/services/geminiBackend.js');
+              const [embedding] = await generateEmbeddingsBatch([textToEmbed]);
+
+              if (embedding && embedding.length > 0) {
+                // Save vector to Firestore (requires Enterprise setup ideally or simple array for now)
+                await change.doc.ref.update({
+                  embedding,
+                  _ragProcessingStatus: 'completed',
+                  _ragProcessedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                console.log(`[TRIGGER: RAG Pipeline] ✅ Embeddings successfully saved for ${change.doc.id}`);
+              } else {
+                throw new Error("Empty embedding returned");
+              }
+            } catch (error) {
+              console.error(`[TRIGGER: RAG Pipeline] ❌ Error processing ${change.doc.id}:`, error);
+              await change.doc.ref.update({ 
+                 _ragProcessingStatus: 'failed',
+                 _ragError: error instanceof Error ? error.message : 'Unknown error'
+              });
+            }
+          }
+        }
+      }, (error) => {
+        console.error("Error in RAG background trigger listener:", error);
+      });
+
+  } catch (err) {
+    console.error("Failed to setup background triggers:", err);
+  }
+};
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
+
+  if (admin.apps.length > 0) {
+    setupBackgroundTriggers();
+  }
 
   // Proactive Project Health Checks (Every 6 hours to balance quota)
   setInterval(async () => {

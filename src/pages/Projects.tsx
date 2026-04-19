@@ -29,6 +29,7 @@ import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { get } from 'idb-keyval';
 
 export function Projects() {
   const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
@@ -57,7 +58,8 @@ export function Projects() {
     e.preventDefault();
     
     // Require MFA before saving a project
-    if (localStorage.getItem('mfa_setup_completed') !== 'true') {
+    const mfaCompleted = await get('mfa_setup_completed');
+    if (mfaCompleted !== 'true') {
       window.dispatchEvent(new CustomEvent('require-mfa', {
         detail: {
           isForced: false,

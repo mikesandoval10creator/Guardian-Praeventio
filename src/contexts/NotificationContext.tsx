@@ -5,9 +5,11 @@ import { useProject } from './ProjectContext';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
+import { get, set } from 'idb-keyval';
+
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
-export interface Notification {
+interface Notification {
   id: string;
   title: string;
   message: string;
@@ -43,15 +45,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return () => unsubscribe();
   }, [selectedProject?.id]);
 
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    const saved = localStorage.getItem('praeventio_notifications');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', title: 'Bienvenido a Praeventio Guard', message: 'Tu sistema de gestión de seguridad está listo.', type: 'success', time: 'Ahora', read: false, createdAt: Date.now() }
-    ];
-  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('praeventio_notifications', JSON.stringify(notifications));
+    const loadNotifications = async () => {
+      const saved = await get('praeventio_notifications');
+      if (saved) {
+        setNotifications(saved as Notification[]);
+      } else {
+        setNotifications([
+          { id: '1', title: 'Bienvenido a Praeventio Guard', message: 'Tu sistema de gestión de seguridad está listo.', type: 'success', time: 'Ahora', read: false, createdAt: Date.now() }
+        ]);
+      }
+    };
+    loadNotifications();
+  }, []);
+
+  useEffect(() => {
+    if (notifications.length > 0) {
+      set('praeventio_notifications', notifications);
+    }
   }, [notifications]);
 
   useEffect(() => {

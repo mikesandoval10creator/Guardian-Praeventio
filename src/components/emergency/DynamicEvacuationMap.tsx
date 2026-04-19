@@ -15,6 +15,7 @@ import {
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../../types';
 import { calculateDynamicEvacuationRoute } from '../../services/geminiService';
+import { get } from 'idb-keyval';
 
 import { VectorialEvacuationMap } from './VectorialEvacuationMap';
 
@@ -38,7 +39,7 @@ export function DynamicEvacuationMap() {
     setIsCalculating(true);
     
     try {
-      const twinState = JSON.parse(localStorage.getItem('twinState') || '{}');
+      const twinState: any = (await get('twinState')) || {};
       const workers = twinState.workers ? Object.values(twinState.workers) : [];
       const machinery = twinState.machinery ? Object.values(twinState.machinery) : [];
       

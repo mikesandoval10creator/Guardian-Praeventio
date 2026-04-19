@@ -20,6 +20,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { generateOperationalTasks } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { get, set } from 'idb-keyval';
 
 interface Normative {
   id: string;
@@ -39,10 +40,16 @@ export function NormativeDetail() {
   const [loading, setLoading] = useState(true);
   const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
   const [operationalTasks, setOperationalTasks] = useState<string[]>([]);
-  const [savedIds, setSavedIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('savedNormatives');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const loadSaved = async () => {
+      const saved = await get('savedNormatives');
+      if (saved) setSavedIds(saved as string[]);
+    };
+    loadSaved();
+  }, []);
+  
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
@@ -64,13 +71,11 @@ export function NormativeDetail() {
     fetchNormative();
   }, [id]);
 
-  const toggleSave = () => {
+  const toggleSave = async () => {
     if (!id) return;
-    setSavedIds(prev => {
-      const newSaved = prev.includes(id) ? prev.filter(savedId => savedId !== id) : [...prev, id];
-      localStorage.setItem('savedNormatives', JSON.stringify(newSaved));
-      return newSaved;
-    });
+    const newSaved = savedIds.includes(id) ? savedIds.filter(savedId => savedId !== id) : [...savedIds, id];
+    setSavedIds(newSaved);
+    await set('savedNormatives', newSaved);
   };
 
   const handleGenerateTasks = async () => {

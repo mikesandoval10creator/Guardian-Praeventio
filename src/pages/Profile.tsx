@@ -29,6 +29,7 @@ import { useNavigate } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { TrainingSession, SafetyPost } from '../types';
 import { motion } from 'framer-motion';
+import { get, set } from 'idb-keyval';
 
 import { MFASetupModal } from '../components/auth/MFASetupModal';
 import { Medal3DViewer } from '../components/gamification/Medal3DViewer';
@@ -210,8 +211,8 @@ export function Profile() {
       <MFASetupModal 
         isOpen={isMfaSetupOpen} 
         onClose={() => setIsMfaSetupOpen(false)} 
-        onComplete={() => {
-          localStorage.setItem('mfa_setup_completed', 'true');
+        onComplete={async () => {
+          await set('mfa_setup_completed', 'true');
           setIsMfaSetupOpen(false);
         }} 
       />

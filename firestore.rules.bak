@@ -1,0 +1,234 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isSupervisor() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'supervisor' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supervisor'
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidList(list, maxSize) {
+      return list is list && list.size() <= maxSize;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'createdAt']) &&
+             hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL', 'role', 'company', 'location', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'supervisor', 'worker'] &&
+             (!('photoURL' in data) || data.photoURL == null || isValidUrl(data.photoURL));
+    }
+
+    function isValidNode(data) {
+      return hasRequiredFields(['type', 'title', 'description', 'createdAt', 'updatedAt']) &&
+             hasOnlyAllowedFields(['id', 'type', 'title', 'description', 'tags', 'connections', 'metadata', 'projectId', 'isPublic', 'createdAt', 'updatedAt', 'embedding']) &&
+             data.type is string &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 50000 &&
+             (!('tags' in data) || data.tags == null || isValidList(data.tags, 50)) &&
+             (!('connections' in data) || data.connections == null || isValidList(data.connections, 200));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin() || isSupervisor();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'worker' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.members || isAdmin());
+      allow create: if isAdmin() || isSupervisor();
+      allow update: if isAdmin() || isSupervisor();
+      allow delete: if isAdmin();
+
+      match /workers/{workerId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /documents/{docId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /events/{eventId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /emergency_protocols/{protocolId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /emergency_messages/{messageId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /emergency_checkins/{checkinId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create: if isAuthenticated() && request.resource.data.workerId == request.auth.uid;
+        allow update: if isAuthenticated() && request.resource.data.workerId == request.auth.uid && resource.data.workerId == request.auth.uid;
+        allow delete: if isAdmin() || isSupervisor();
+      }
+
+      match /epp_items/{itemId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /epp_assignments/{assignmentId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /reports/{reportId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /controls/{controlId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+
+      match /materials/{materialId} {
+        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members || isAdmin());
+        allow create, update, delete: if isAdmin() || isSupervisor();
+      }
+    }
+
+    match /nodes/{nodeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidNode(request.resource.data);
+      allow update: if isAuthenticated() && isValidNode(request.resource.data) && 
+                    (isAdmin() || isSupervisor() || resource.data.metadata.authorId == request.auth.uid ||
+                     (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['connections', 'updatedAt'])));
+      allow delete: if isAdmin() || isSupervisor();
+    }
+
+    match /user_stats/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && request.resource.data.points == 0;
+      allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points', 'completedTrainings', 'safetyPosts', 'medals', 'loginStreak', 'lastLogin']) &&
+                    (request.resource.data.points >= resource.data.points);
+      allow delete: if isAdmin();
+    }
+
+    match /assets/{assetId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    match /telemetry_events/{eventId} {
+      allow read: if isAdmin() || isSupervisor();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /training/{sessionId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    match /normatives/{normativeId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /safety_posts/{postId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAdmin() || isSupervisor() || resource.data.authorId == request.auth.uid;
+    }
+
+    match /safety_solutions/{solutionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.authorId == request.auth.uid && request.resource.data.authorId == request.auth.uid;
+      allow delete: if isAdmin() || isSupervisor() || resource.data.authorId == request.auth.uid;
+    }
+    
+    match /workers/{workerId} {
+      allow read: if isAdmin() || isSupervisor();
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    match /projects/{projectId}/locations/{locationId} {
+      allow read: if isAuthenticated() && (isAdmin() || isSupervisor() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /blueprints/{blueprintId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin() || isSupervisor();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin() || isSupervisor();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false; // Immutable audit trail
+    }
+
+    match /vector_store/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /_metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

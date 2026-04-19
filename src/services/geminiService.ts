@@ -115,3 +115,5 @@ export const summarizeAgreements = async (rawMeetingNotes: string) => callGemini
 export const mapRisksToSurveillance = async (risks: any[]) => callGeminiAPI('mapRisksToSurveillance', [risks]);
 export const analyzeHealthPatterns = async (medicalRecords: any[]) => callGeminiAPI('analyzeHealthPatterns', [medicalRecords]);
 export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => callGeminiAPI('analyzeRiskCorrelations', [nodes, events]);
+export const downloadSpecificNormative = async (normativeId: string, force: boolean = false) => callGeminiAPI('downloadSpecificNormative', [normativeId, force]);
+export const searchRelevantContext = async (query: string) => callGeminiAPI('searchRelevantContext', [query]);

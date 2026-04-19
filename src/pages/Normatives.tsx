@@ -15,7 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
-import { suggestNormativesWithAI } from '../services/geminiService';
+import { suggestNormativesWithAI, downloadSpecificNormative } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 interface Normative {
@@ -29,15 +29,23 @@ interface Normative {
   lastReview: string;
 }
 
+import { get, set } from 'idb-keyval';
+
 export function Normatives() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
-  const [savedIds, setSavedIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('savedNormatives');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const loadSaved = async () => {
+      const saved = await get('savedNormatives');
+      if (saved) setSavedIds(saved as string[]);
+    };
+    loadSaved();
+  }, []);
+
   const { data: normatives, loading } = useFirestoreCollection<Normative>('normatives');
   const { selectedProject } = useProject();
   const [industryProtocols, setIndustryProtocols] = useState<any[]>([]);
@@ -67,7 +75,20 @@ export function Normatives() {
   const seedNormatives = async () => {
     setIsSeeding(true);
     try {
-      const { addDoc, collection } = await import('firebase/firestore');
+      // 1. Trigger backend synchronization for critical laws
+      const criticalLaws = [
+        { id: "28650", name: "Ley 16.744" },
+        { id: "14305", name: "DS 594" },
+        { id: "25510", name: "DS 40" }
+      ];
+
+      for (const law of criticalLaws) {
+        console.log(`Syncing ${law.name}...`);
+        await downloadSpecificNormative(law.id);
+      }
+
+      // 2. Also keep the frontend metadata for the UI listing (legacy support)
+      const { addDoc, collection, getDocs, query, where } = await import('firebase/firestore');
       const { db } = await import('../services/firebase');
       
       const initialNormatives = [
@@ -130,9 +151,14 @@ export function Normatives() {
       ];
 
       for (const norm of initialNormatives) {
-        await addDoc(collection(db, 'normatives'), norm);
+        const q = query(collection(db, 'normatives'), where('code', '==', norm.code));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          await addDoc(collection(db, 'normatives'), norm);
+        }
       }
-      alert('Biblioteca sincronizada con éxito');
+      alert('Biblioteca sincronizada con éxito (Vectores + Metadata)');
     } catch (error) {
       console.error('Error seeding normatives:', error);
     } finally {
@@ -140,12 +166,11 @@ export function Normatives() {
     }
   };
 
-  const toggleSave = (id: string) => {
-    setSavedIds(prev => {
-      const newSaved = prev.includes(id) ? prev.filter(savedId => savedId !== id) : [...prev, id];
-      localStorage.setItem('savedNormatives', JSON.stringify(newSaved));
-      return newSaved;
-    });
+  const toggleSave = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newSaved = savedIds.includes(id) ? savedIds.filter(savedId => savedId !== id) : [...savedIds, id];
+    setSavedIds(newSaved);
+    await set('savedNormatives', newSaved);
   };
 
   const filteredNormatives = normatives.filter(norm => {

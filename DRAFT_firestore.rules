@@ -26,29 +26,23 @@ service cloud.firestore {
     function isAdmin() {
       return isEmailVerified() && (
         request.auth.token.role == 'admin' ||
-        request.auth.token.role == 'gerente' ||
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'gerente'
+        request.auth.token.email == 'contacto@praeventio.net'
       );
     }
 
     function isSupervisor() {
       return isEmailVerified() && (
-        request.auth.token.role in ['supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional'] ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional']
+        request.auth.token.role == 'supervisor' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'supervisor'
       );
-    }
-
-    function isProjectCreator(projectId) {
-      return isEmailVerified() && get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy == request.auth.uid;
     }
 
     function isProjectMember(projectId) {
       return isEmailVerified() && (
         request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.members ||
         isAdmin() ||
-        isSupervisor() ||
-        isProjectCreator(projectId)
+        isSupervisor()
       );
     }
 
@@ -68,29 +62,23 @@ service cloud.firestore {
     // ENTITY VALIDATION HELPERS (Blueprints)
     // ===============================================================
     
-    function isValidRole(role) {
-      return role in ['admin', 'gerente', 'supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional', 'topografo', 'pintor', 'maquinista', 'electrico', 'soldador', 'mecanico', 'operario', 'contratista', 'worker'];
-    }
-
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
              data.keys().size() <= 15 &&
-             data.uid == request.auth.uid && data.uid is string && data.uid.size() <= 128 &&
-             data.email == request.auth.token.email && data.email is string && data.email.size() <= 256 &&
-             isValidRole(data.role) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.role in ['admin', 'supervisor', 'worker'] &&
              data.createdAt == (resource == null ? request.time : resource.data.createdAt);
     }
 
     function isValidNode(data) {
-      return data.keys().hasAll(['type', 'title', 'description', 'createdAt', 'updatedAt', 'projectId', 'metadata']) &&
+      return data.keys().hasAll(['type', 'title', 'description', 'createdAt', 'updatedAt']) &&
              data.keys().size() <= 15 &&
-             data.type is string && data.type.size() > 0 && data.type.size() <= 50 &&
+             data.type is string &&
              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
              data.description is string && data.description.size() > 0 && data.description.size() <= 50000 &&
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 50)) &&
              (!('connections' in data) || (data.connections is list && data.connections.size() <= 200)) &&
-             (!('isPublic' in data) || data.isPublic is bool) &&
-             isValidId(data.projectId) &&
              data.createdAt == (resource == null ? request.time : resource.data.createdAt) &&
              data.updatedAt == request.time;
     }
@@ -127,22 +115,18 @@ service cloud.firestore {
     // COLLECTION MATCHING
     // ===============================================================
 
-    function isWorkerRole(role) {
-      return role in ['topografo', 'pintor', 'maquinista', 'electrico', 'soldador', 'mecanico', 'operario', 'contratista', 'worker'];
-    }
-
     match /users/{userId} {
-      allow read: if isValidId(userId) && (isOwner(userId) || isAdmin() || isSupervisor());
-      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (isWorkerRole(incoming().role) || isAdmin());
+      allow read: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (incoming().role == 'worker' || isAdmin());
       allow update: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (incoming().role == existing().role || isAdmin());
       allow delete: if isAdmin();
     }
 
     match /projects/{projectId} {
       allow read: if isValidId(projectId) && isProjectMember(projectId);
-      allow create: if isEmailVerified() && isValidProject(incoming()) && incoming().createdBy == request.auth.uid;
-      allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid) && isValidProject(incoming());
-      allow delete: if isEmailVerified() && (isAdmin() || existing().createdBy == request.auth.uid);
+      allow create: if (isAdmin() || isSupervisor()) && isValidProject(incoming());
+      allow update: if (isAdmin() || isSupervisor()) && isValidProject(incoming());
+      allow delete: if isAdmin();
 
       // Master Gate for sub-collections
       match /{subCollection=**}/{docId} {
@@ -165,7 +149,7 @@ service cloud.firestore {
       match /safety_posts/{postId} {
         allow create: if isValidId(projectId) && isProjectMember(projectId) && isValidPost(incoming());
         allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid)) && (
-          incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'comments', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'comments']) ||
           isValidPost(incoming())
         );
         allow delete: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid));
@@ -177,25 +161,19 @@ service cloud.firestore {
         allow update: if isValidId(projectId) && isProjectMember(projectId) && existing().userId == request.auth.uid && incoming().userId == request.auth.uid;
       }
       
-      // Admin/Creator-only write for remaining sub-collections
-      match /events/{eventId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /emergency_protocols/{protocolId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /epp_items/{itemId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /epp_assignments/{assignmentId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /controls/{controlId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /materials/{materialId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /assets/{assetId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
-      match /workers/{workerId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
+      // Admin-only write for remaining sub-collections
+      match /events/{eventId} { allow write: if isAdmin() || isSupervisor(); }
+      match /emergency_protocols/{protocolId} { allow write: if isAdmin() || isSupervisor(); }
+      match /epp_items/{itemId} { allow write: if isAdmin() || isSupervisor(); }
+      match /epp_assignments/{assignmentId} { allow write: if isAdmin() || isSupervisor(); }
+      match /controls/{controlId} { allow write: if isAdmin() || isSupervisor(); }
+      match /materials/{materialId} { allow write: if isAdmin() || isSupervisor(); }
+      match /assets/{assetId} { allow write: if isAdmin() || isSupervisor(); }
+      match /workers/{workerId} { allow write: if isAdmin() || isSupervisor(); }
     }
 
     match /nodes/{nodeId} {
-      allow read: if isEmailVerified() && (
-        existing().isPublic == true ||
-        isProjectMember(existing().projectId) ||
-        existing().metadata.authorId == request.auth.uid ||
-        isAdmin() ||
-        isSupervisor()
-      );
+      allow read: if isEmailVerified();
       allow create: if isEmailVerified() && isValidNode(incoming()) && incoming().metadata.authorId == request.auth.uid;
       allow update: if isEmailVerified() && isValidNode(incoming()) && (
         isAdmin() || 
@@ -219,37 +197,28 @@ service cloud.firestore {
     }
 
     match /training/{sessionId} {
-      allow read: if isEmailVerified() && (
-        isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMember(existing().projectId))
-      );
+      allow read: if isEmailVerified();
       allow write: if isAdmin() || isSupervisor();
     }
 
     match /safety_solutions/{solutionId} {
-      allow read: if isEmailVerified() && (
-        isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMember(existing().projectId))
-      );
+      allow read: if isEmailVerified();
       allow write: if isAdmin() || isSupervisor();
     }
 
     match /normatives/{normativeId} {
-      allow read: if isEmailVerified(); // Note: Global normative data may be public for verified users
+      allow read: if isEmailVerified();
       allow write: if isAdmin();
     }
 
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if isEmailVerified() && incoming().userId == request.auth.uid && incoming().userId is string && incoming().userId.size() <= 128;
+      allow create: if isEmailVerified() && incoming().userId == request.auth.uid;
       allow update, delete: if false; // Immutable audit trail
     }
 
     match /vector_store/{docId} {
-      allow read: if isEmailVerified() && (
-        isAdmin() || isSupervisor() || 
-        (existing().projectId != null && isProjectMember(existing().projectId))
-      );
+      allow read: if isEmailVerified();
       allow write: if isAdmin();
     }
     

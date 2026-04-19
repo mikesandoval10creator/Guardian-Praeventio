@@ -2565,3 +2565,4 @@ export * from './trainingBackend.js';
 export * from './inventoryBackend.js';
 export * from './networkBackend.js';
 export * from './routingBackend.js';
+export * from './ragService.js';

@@ -4,6 +4,8 @@ import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, Opera
 import { useFirebase } from './FirebaseContext';
 import { fetchEnvironmentContext } from '../services/orchestratorService';
 
+import { get, set } from 'idb-keyval';
+
 interface UniversalKnowledgeContextType {
   nodes: RiskNode[];
   loading: boolean;
@@ -94,14 +96,14 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       getDocs(glossaryQuery).then(snapshot => {
         const glossary = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setCommunityGlossary(glossary);
-        // Save to localStorage for offline access
-        localStorage.setItem(`community_glossary_${userIndustry}`, JSON.stringify(glossary));
-      }).catch(error => {
+        // Save to IndexedDB for offline access
+        set(`community_glossary_${userIndustry}`, glossary);
+      }).catch(async (error) => {
         console.error("Error fetching community glossary:", error);
-        // Try to load from localStorage if offline
-        const cached = localStorage.getItem(`community_glossary_${userIndustry}`);
+        // Try to load from IndexedDB if offline
+        const cached = await get(`community_glossary_${userIndustry}`);
         if (cached) {
-          setCommunityGlossary(JSON.parse(cached));
+          setCommunityGlossary(cached as any[]);
         }
       });
     });

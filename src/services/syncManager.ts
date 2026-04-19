@@ -2,6 +2,7 @@ import { writeBatch, doc } from 'firebase/firestore';
 import { db } from './firebase';
 import { generateEmbeddingsBatch, autoConnectNodes, syncBatchToNetwork } from './geminiService';
 import { RiskNode } from '../types';
+import { get, set, del } from 'idb-keyval';
 
 type SyncOperation = 
   | { type: 'set', id: string, data: RiskNode }
@@ -18,7 +19,7 @@ class MatrixSyncManager {
   private listeners: (() => void)[] = [];
 
   constructor() {
-    this.loadQueue();
+    this.init();
     
     // Listen for online events to trigger flush
     if (typeof window !== 'undefined') {
@@ -29,28 +30,31 @@ class MatrixSyncManager {
     }
   }
 
-  private loadQueue() {
+  private async init() {
+    await this.loadQueue();
+  }
+
+  private async loadQueue() {
     try {
-      const stored = localStorage.getItem(SYNC_QUEUE_KEY);
+      const stored = await get<[string, SyncOperation][]>(SYNC_QUEUE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        this.queue = new Map(parsed);
-        console.log(`[SyncManager] Loaded ${this.queue.size} operations from local storage.`);
+        this.queue = new Map(stored);
+        console.log(`[SyncManager] Loaded ${this.queue.size} operations from IndexedDB.`);
         if (this.queue.size > 0 && navigator.onLine) {
           this.scheduleFlush();
         }
       }
     } catch (e) {
-      console.error('[SyncManager] Error loading queue from local storage:', e);
+      console.error('[SyncManager] Error loading queue from IndexedDB:', e);
     }
   }
 
-  private saveQueue() {
+  private async saveQueue() {
     try {
-      const serialized = JSON.stringify(Array.from(this.queue.entries()));
-      localStorage.setItem(SYNC_QUEUE_KEY, serialized);
+      const serialized = Array.from(this.queue.entries());
+      await set(SYNC_QUEUE_KEY, serialized);
     } catch (e) {
-      console.error('[SyncManager] Error saving queue to local storage:', e);
+      console.error('[SyncManager] Error saving queue to IndexedDB:', e);
     }
   }
 
@@ -72,14 +76,14 @@ class MatrixSyncManager {
     this.listeners.forEach(l => l());
   }
 
-  enqueueSet(node: RiskNode) {
+  async enqueueSet(node: RiskNode) {
     this.queue.set(node.id, { type: 'set', id: node.id, data: node });
-    this.saveQueue();
+    await this.saveQueue();
     this.notifyListeners();
     this.scheduleFlush();
   }
 
-  enqueueUpdate(id: string, updates: Partial<RiskNode>) {
+  async enqueueUpdate(id: string, updates: Partial<RiskNode>) {
     const existing = this.queue.get(id);
     if (existing && existing.type === 'set') {
       this.queue.set(id, { type: 'set', id, data: { ...existing.data, ...updates } });
@@ -88,14 +92,14 @@ class MatrixSyncManager {
     } else {
       this.queue.set(id, { type: 'update', id, data: updates });
     }
-    this.saveQueue();
+    await this.saveQueue();
     this.notifyListeners();
     this.scheduleFlush();
   }
 
-  enqueueDelete(id: string) {
+  async enqueueDelete(id: string) {
     this.queue.set(id, { type: 'delete', id });
-    this.saveQueue();
+    await this.saveQueue();
     this.notifyListeners();
     this.scheduleFlush();
   }
@@ -131,7 +135,7 @@ class MatrixSyncManager {
       // Call the backend batch sync which handles:
       // 1. Embedding generation if needed
       // 2. Firestore saves
-      // 3. Pinecone (RAG) updates
+      // 3. Vector Store (RAG) updates
       // 4. Admin-level bidirectional connections
       const result = await syncBatchToNetwork(operationsToFlush);
       

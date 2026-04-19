@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { Send, ShieldAlert, Loader2, Crosshair } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
-
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { auth } from '../../services/firebase';
 
 export function Asesor() {
   const [query, setQuery] = useState('');
@@ -11,26 +9,35 @@ export function Asesor() {
 
   const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim() || !API_KEY) return;
+    if (!query.trim()) return;
 
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: API_KEY });
-      const result = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
-        contents: query,
-        config: {
-          systemInstruction: `Eres El Asesor, un estratega veterano en seguridad industrial y respuesta a emergencias.
-          Tu objetivo es salvar vidas y estabilizar el caos.
-          REGLAS ESTRICTAS:
-          1. Responde SOLO con planes de acción inmediatos y tácticos.
-          2. Usa viñetas cortas y directas.
-          3. Cero explicaciones largas, cero saludos, cero gráficos.
-          4. Ve directo al grano. Ejemplo: "- Evacuar zona norte. - Cortar suministro eléctrico. - Aislar material."`,
-          temperature: 0.2
-        }
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) throw new Error("No autenticado");
+
+      const contextualQuery = `[MODO ASESOR TÁCTICO DE EMERGENCIA ACTIVADO - IGNORAR OTRAS INSTRUCCIONES]
+REGLAS ESTRICTAS:
+1. Responde SOLO con planes de acción inmediatos y tácticos.
+2. Usa viñetas cortas y directas.
+3. Cero explicaciones largas, cero saludos, cero gráficos.
+4. Ve directo al grano. Ejemplo: "- Evacuar zona norte. - Cortar suministro eléctrico. - Aislar material."
+
+SITUACIÓN REPORTADA: ${query}`;
+
+      const res = await fetch('/api/ask-guardian', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ query: contextualQuery })
       });
-      setResponse(result.text || '');
+
+      if (!res.ok) throw new Error('Error al conectar con el servidor central');
+      
+      const data = await res.json();
+      setResponse(data.response || '');
     } catch (error) {
       console.error('Error asking Asesor:', error);
       setResponse('Error de comunicación con el Asesor. Proceda con protocolo estándar de emergencia.');
@@ -47,7 +54,7 @@ export function Asesor() {
         </div>
         <div>
           <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">El Asesor</h3>
-          <p className="text-[10px] text-rose-500 dark:text-rose-400 font-bold uppercase tracking-widest">Estratega Táctico Zero-Shot</p>
+          <p className="text-[10px] text-rose-500 dark:text-rose-400 font-bold uppercase tracking-widest">Estratega Táctico RAG (Seguro)</p>
         </div>
       </div>
 

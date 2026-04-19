@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -90,57 +91,59 @@ type MenuGroup = {
   items: MenuItem[];
 };
 
-const menuGroups: MenuGroup[] = [
-  {
-    title: "Centro de Mando",
-    icon: Home,
-    items: [
-      { title: "Inicio", icon: Home, path: "/", color: "text-emerald-500" },
-      { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
-      { title: "Muro Social", icon: Users, path: "/safety-feed", color: "text-emerald-500" },
-      { title: "Proyectos", icon: Briefcase, path: "/projects", color: "text-blue-500" },
-      { title: "Reportabilidad", icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
-    ],
-  },
-  {
-    title: "Inteligencia Artificial",
-    icon: Brain,
-    items: [
-      { title: "AI Hub", icon: Zap, path: "/ai-hub", color: "text-violet-500" },
-      { title: "Zettelkasten", icon: Database, path: "/zettelkasten", color: "text-blue-500" },
-      { title: "Procesador Académico", icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
-      { title: "Motor OCR", icon: Scan, path: "/document-ocr", color: "text-violet-400" },
-    ],
-  },
-  {
-    title: "Módulos Operativos",
-    icon: LayoutGrid,
-    items: [
-      { title: "Gestión Operativa", icon: Briefcase, path: "/hub/operations", color: "text-blue-500" },
-      { title: "Prevención y Riesgos", icon: ShieldAlert, path: "/hub/risks", color: "text-violet-500" },
-      { title: "Salud y Bienestar", icon: HeartPulse, path: "/hub/health", color: "text-rose-500" },
-      { title: "Entorno y Emergencias", icon: AlertTriangle, path: "/hub/emergencies", color: "text-amber-500" },
-      { title: "Cumplimiento Legal", icon: ClipboardCheck, path: "/hub/compliance", color: "text-emerald-500" },
-      { title: "Talento y Cultura", icon: Users, path: "/hub/training", color: "text-indigo-500" },
-    ],
-  },
-  {
-    title: "Configuración",
-    icon: Settings,
-    items: [
-      { title: "Mi Perfil", icon: User, path: "/profile", color: "text-zinc-400" },
-      { title: "Ajustes", icon: Settings, path: "/settings", color: "text-zinc-400" },
-      { title: "Planes y Facturación", icon: Key, path: "/pricing", color: "text-zinc-400" },
-      { title: "Ayuda y Soporte", icon: HelpCircle, path: "/help", color: "text-zinc-400" },
-    ],
-  }
-];
-
 export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarProps) {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
   const [showSurvivalMode, setShowSurvivalMode] = useState(false);
+
+  const menuGroups: MenuGroup[] = [
+    {
+      title: t("nav.command_center", "Centro de Mando"),
+      icon: Home,
+      items: [
+        { title: t("nav.dashboard", "Inicio"), icon: Home, path: "/", color: "text-emerald-500" },
+        { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
+        { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-emerald-500" },
+        { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
+        { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
+      ],
+    },
+    {
+      title: t("nav.ai_group", "Inteligencia Artificial"),
+      icon: Brain,
+      items: [
+        { title: t("nav.ai_hub", "AI Hub"), icon: Zap, path: "/ai-hub", color: "text-violet-500" },
+        { title: t("nav.zettelkasten", "Zettelkasten"), icon: Database, path: "/zettelkasten", color: "text-blue-500" },
+        { title: t("nav.academic_processor", "Procesador Académico"), icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
+        { title: t("nav.ocr_motor", "Motor OCR"), icon: Scan, path: "/document-ocr", color: "text-violet-400" },
+      ],
+    },
+    {
+      title: t("nav.ops_group", "Módulos Operativos"),
+      icon: LayoutGrid,
+      items: [
+        { title: t("nav.ops_mgmt", "Gestión Operativa"), icon: Briefcase, path: "/hub/operations", color: "text-blue-500" },
+        { title: t("nav.risk_network", "Prevención y Riesgos"), icon: ShieldAlert, path: "/hub/risks", color: "text-violet-500" },
+        { title: t("nav.health", "Salud y Bienestar"), icon: HeartPulse, path: "/hub/health", color: "text-rose-500" },
+        { title: t("nav.emergencies", "Entorno y Emergencias"), icon: AlertTriangle, path: "/hub/emergencies", color: "text-amber-500" },
+        { title: t("nav.compliance", "Cumplimiento Legal"), icon: ClipboardCheck, path: "/hub/compliance", color: "text-emerald-500" },
+        { title: t("nav.culture", "Talento y Cultura"), icon: Users, path: "/hub/training", color: "text-indigo-500" },
+      ],
+    },
+    {
+      title: t("nav.settings_group", "Configuración"),
+      icon: Settings,
+      items: [
+        { title: t("nav.profile", "Mi Perfil"), icon: User, path: "/profile", color: "text-zinc-400" },
+        { title: t("nav.settings", "Ajustes"), icon: Settings, path: "/settings", color: "text-zinc-400" },
+        { title: t("nav.pricing", "Planes y Facturación"), icon: Key, path: "/pricing", color: "text-zinc-400" },
+        { title: t("nav.help", "Ayuda y Soporte"), icon: HelpCircle, path: "/help", color: "text-zinc-400" },
+      ],
+    }
+  ];
+
   const [openGroup, setOpenGroup] = useState<string | null>(() => {
     const activeGroup = menuGroups.find((group) =>
       group.items.some((item) => location.pathname === item.path),
@@ -342,7 +345,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
           >
             <ShieldAlert className="w-4 h-4" />
             <span className="text-xs font-bold tracking-wide uppercase">
-              Modo Supervivencia
+              {t("nav.survival_mode", "Modo Supervivencia")}
             </span>
           </button>
           
@@ -353,7 +356,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
             >
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               <span className="text-xs font-bold tracking-wide">
-                {isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
+                {isDarkMode ? t("nav.theme_light", "Modo Claro") : t("nav.theme_dark", "Modo Oscuro")}
               </span>
             </button>
           )}
@@ -363,7 +366,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
           >
             <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
             <span className="text-xs font-bold tracking-wide">
-              Cerrar Sesión
+              {t("nav.logout", "Cerrar Sesión")}
             </span>
           </button>
           <div className="mt-4 text-center flex flex-col gap-1">
