@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Clock, MapPin, Type, FileText, Loader2 } from 'lucide-react';
+import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, AlertTriangle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 
 interface AddEventModalProps {
   isOpen: boolean;
@@ -11,8 +11,9 @@ interface AddEventModalProps {
 }
 
 export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
-  const { selectedProject } = useProject();
+  const { selectedProject, projects } = useProject();
   const [loading, setLoading] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -22,11 +23,51 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
     type: 'Reunión' as 'Capacitación' | 'Inspección' | 'Auditoría' | 'Reunión'
   });
 
+  const checkOverlaps = async () => {
+    const overlapPromises = projects.map(async (project) => {
+      // Omitir proyectos no sincronizados guardados localmente
+      if (project.isPendingSync) return false;
+      
+      const eventsRef = collection(db, `projects/${project.id}/events`);
+      const q = query(
+        eventsRef,
+        where('date', '==', formData.date),
+        where('time', '==', formData.time)
+      );
+      
+      try {
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          return project.name;
+        }
+      } catch (e) {
+        // Ignorar si el usuario no tiene permisos de lectura extendidos
+      }
+      return false;
+    });
+    
+    const results = await Promise.all(overlapPromises);
+    const overlappingProjectNames = results.filter(Boolean) as string[];
+    return overlappingProjectNames;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject) return;
 
     setLoading(true);
+    setConflictError(null);
+
+    // Detección de colisiones inter-proyectos
+    if (navigator.onLine) {
+      const overlaps = await checkOverlaps();
+      if (overlaps.length > 0) {
+        setConflictError(`Conflicto detectado: Tienes eventos agendados a la misma hora en: ${overlaps.join(', ')}.`);
+        setLoading(false);
+        return; // Detenemos la creación
+      }
+    }
+
     try {
       await addDoc(collection(db, `projects/${selectedProject.id}/events`), {
         ...formData,
@@ -90,6 +131,22 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
 
             <div className="overflow-y-auto custom-scrollbar flex-1">
               <form id="add-event-form" onSubmit={handleSubmit} className="p-6 space-y-4">
+                <AnimatePresence>
+                  {conflictError && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                      exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                      className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex gap-3 text-amber-600 dark:text-amber-400 overflow-hidden"
+                    >
+                      <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <p className="text-xs sm:text-sm font-medium leading-relaxed">
+                        {conflictError}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
                     Título del Evento

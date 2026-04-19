@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, Trash2, Edit2, Save } from 'lucide-react';
+import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, Trash2, Edit2, Save, AlertTriangle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 interface Event {
   id: string;
@@ -23,25 +23,67 @@ interface EventDetailsModalProps {
 }
 
 export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalProps) {
-  const { selectedProject } = useProject();
+  const { selectedProject, projects } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Event>>({});
 
   React.useEffect(() => {
     if (event) {
       setFormData(event);
       setIsEditing(false);
+      setConflictError(null);
     }
   }, [event]);
 
   if (!event) return null;
+
+  const checkOverlaps = async () => {
+    const overlapPromises = projects.map(async (project) => {
+      if (project.isPendingSync) return false;
+      
+      const eventsRef = collection(db, `projects/${project.id}/events`);
+      const q = query(
+        eventsRef,
+        where('date', '==', formData.date),
+        where('time', '==', formData.time)
+      );
+      
+      try {
+        const snapshot = await getDocs(q);
+        // Excluimos el evento actual si estamos editando en el mismo proyecto
+        const overlaps = snapshot.docs.filter(d => !(project.id === selectedProject?.id && d.id === event.id));
+        if (overlaps.length > 0) {
+          return project.name;
+        }
+      } catch (e) {
+        // Ignoramos si no hay permisos Extendidos
+      }
+      return false;
+    });
+    
+    const results = await Promise.all(overlapPromises);
+    return results.filter(Boolean) as string[];
+  };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProject || !event.id) return;
 
     setLoading(true);
+    setConflictError(null);
+
+    // Revisar colisiones al editar
+    if (navigator.onLine && (formData.date !== event.date || formData.time !== event.time)) {
+      const overlaps = await checkOverlaps();
+      if (overlaps.length > 0) {
+        setConflictError(`Conflicto detectado: Tienes eventos a la misma hora en: ${overlaps.join(', ')}.`);
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const eventRef = doc(db, `projects/${selectedProject.id}/events`, event.id);
       await updateDoc(eventRef, {
@@ -139,6 +181,22 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
             <div className="overflow-y-auto custom-scrollbar flex-1">
               {isEditing ? (
                 <form id="edit-event-form" onSubmit={handleUpdate} className="p-6 space-y-4">
+                  <AnimatePresence>
+                    {conflictError && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                        exit={{ opacity: 0, height: 0, scale: 0.95 }}
+                        className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex gap-3 text-amber-600 dark:text-amber-400 overflow-hidden"
+                      >
+                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                        <p className="text-xs sm:text-sm font-medium leading-relaxed">
+                          {conflictError}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
                       Título del Evento

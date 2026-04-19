@@ -111,6 +111,69 @@ const verifyAuth = async (req: express.Request, res: express.Response, next: exp
   }
 };
 
+// Desconexión Forzada (Revoke Tokens - El Haki del Rey / Security)
+app.post("/api/admin/revoke-access", verifyAuth, async (req, res) => {
+  const { targetUid } = req.body;
+  const callerUid = (req as any).user.uid;
+
+  try {
+    const callerRecord = await admin.auth().getUser(callerUid);
+    if (callerRecord.customClaims?.role !== 'master_admin' && callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires admin or gerente role to revoke access" });
+    }
+
+    // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
+    await admin.auth().revokeRefreshTokens(targetUid);
+    
+    // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
+    await admin.firestore().collection('user_sessions').doc(targetUid).set({
+      revokedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    res.json({ success: true, message: `Access revoked for user ${targetUid}` });
+  } catch (error) {
+    console.error("Error revoking sessions:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Sincronización Nocturna con ERP (Módulo Cloud Functions Mock / API First)
+app.post("/api/erp/sync-workers", verifyAuth, async (req, res) => {
+  const { workers, projectId } = req.body;
+  const callerUid = (req as any).user.uid;
+  
+  try {
+    if (!Array.isArray(workers)) {
+      return res.status(400).json({ error: "Invalid payload: workers must be an array" });
+    }
+
+    const batch = admin.firestore().batch();
+    let synced = 0;
+
+    for (const worker of workers) {
+      if (!worker.id || !worker.name) continue;
+      const workerRef = admin.firestore()
+        .collection('projects')
+        .doc(projectId)
+        .collection('workers')
+        .doc(worker.id.toString());
+        
+      batch.set(workerRef, {
+        ...worker,
+        updatedViaERP: true,
+        lastSync: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+      synced++;
+    }
+
+    await batch.commit();
+    res.json({ success: true, syncedCount: synced, message: `Sincronizados ${synced} trabajadores desde ERP externo.` });
+  } catch (error) {
+    console.error("Error syncing ERP data:", error);
+    res.status(500).json({ error: "Internal server error during ERP sync" });
+  }
+});
+
 // Custom Claims Endpoint (El Haki del Rey)
 app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
   const { uid, role } = req.body;

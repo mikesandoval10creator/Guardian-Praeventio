@@ -91,17 +91,17 @@ service cloud.firestore {
              (!('connections' in data) || (data.connections is list && data.connections.size() <= 200)) &&
              (!('isPublic' in data) || data.isPublic is bool) &&
              isValidId(data.projectId) &&
-             data.createdAt == (resource == null ? request.time : resource.data.createdAt) &&
-             data.updatedAt == request.time;
+             data.createdAt is string &&
+             data.updatedAt is string;
     }
 
     function isValidProject(data) {
       return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
-             data.keys().size() <= 15 &&
+             data.keys().size() <= 25 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&
              data.status in ['active', 'completed', 'archived'] &&
-             data.createdAt == (resource == null ? request.time : resource.data.createdAt);
+             data.createdAt is string && data.createdAt.size() > 0;
     }
 
     function isValidReport(data) {
@@ -111,7 +111,7 @@ service cloud.firestore {
              data.status in ['Pendiente', 'Cerrado', 'En Proceso'] &&
              data.type in ['Incidente', 'Auditoría', 'Observación'] &&
              isValidId(data.projectId) &&
-             data.createdAt == (resource == null ? request.time : resource.data.createdAt);
+             data.createdAt is string && data.createdAt.size() > 0;
     }
 
     function isValidPost(data) {
@@ -120,7 +120,7 @@ service cloud.firestore {
              data.userId == request.auth.uid &&
              data.content is string && data.content.size() > 0 && data.content.size() <= 5000 &&
              data.type in ['SafetyMoment', 'Tip', 'SuccessStory', 'Warning'] &&
-             data.createdAt == (resource == null ? request.time : resource.data.createdAt);
+             data.createdAt is string && data.createdAt.size() > 0;
     }
 
     // ===============================================================
