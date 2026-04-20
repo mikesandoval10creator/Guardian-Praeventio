@@ -106,15 +106,27 @@ export default defineConfig(({mode}) => {
         }
       })
     ],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
     },
     build: {
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: true,
+          drop_debugger: true,
+        },
+        mangle: {
+          toplevel: true, // Ofuscación fuerte
+          keep_classnames: false,
+          keep_fnames: false,
+        },
+        format: {
+          comments: false,
+        }
+      },
       rollupOptions: {
         external: [
           'express',

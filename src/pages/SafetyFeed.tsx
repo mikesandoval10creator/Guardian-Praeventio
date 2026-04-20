@@ -100,10 +100,17 @@ export function SafetyFeed() {
       if (newPost.imageBase64) {
         // Convert base64 to blob
         const response = await fetch(newPost.imageBase64);
-        const blob = await response.blob();
+        const originalBlob = await response.blob();
+        
+        // Optimizar y comprimir imagen en cliente
+        const { compressImage } = await import('../utils/imageCompression');
+        const FileConstructor = window.File || window.Blob;
+        const tempFile = new FileConstructor([originalBlob], "temp_image.jpg", { type: originalBlob.type }) as File;
+        const compressedFile = await compressImage(tempFile, { maxSizeMB: 0.5 }); // Target: 500KB Max
+        
         const fileName = `feed_${Date.now()}_${crypto.randomUUID()}.jpg`;
         const storageRef = ref(storage, `projects/${selectedProject.id}/feed/${fileName}`);
-        await uploadBytes(storageRef, blob);
+        await uploadBytes(storageRef, compressedFile);
         imageUrl = await getDownloadURL(storageRef);
       }
 
