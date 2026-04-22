@@ -61,8 +61,13 @@ export function OfflineSyncManager() {
             }
           }
         } else if (action.type === 'upload' && action.file) {
+          let fileToUpload = action.file;
+          if (action.file instanceof File && action.file.type.startsWith('image/')) {
+            const { compressImage } = await import('../utils/imageCompression');
+            fileToUpload = await compressImage(action.file, { maxSizeMB: 1, maxWidthOrHeight: 1920 });
+          }
           const storageRef = ref(storage, action.data.storagePath);
-          await uploadBytes(storageRef, action.file);
+          await uploadBytes(storageRef, fileToUpload);
           const downloadUrl = await getDownloadURL(storageRef);
           
           // Add document to Firestore

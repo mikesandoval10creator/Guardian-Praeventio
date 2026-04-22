@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -12,11 +12,11 @@ import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
 import { ReloadPrompt } from './ReloadPrompt';
-import { SyncCenterModal } from '../shared/SyncCenterModal';
-import { MFASetupModal } from '../auth/MFASetupModal';
-import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
+
+const SyncCenterModal = lazy(() => import('../shared/SyncCenterModal').then(m => ({ default: m.SyncCenterModal })));
+const MFASetupModal = lazy(() => import('../auth/MFASetupModal').then(m => ({ default: m.MFASetupModal })));
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -324,23 +324,27 @@ export function RootLayout() {
         </div>
       </header>
 
-      <MFASetupModal 
-        isOpen={isMfaSetupOpen} 
-        onClose={() => {
-          setIsMfaSetupOpen(false);
-          setMfaSuccessCallback(null);
-        }} 
-        onComplete={async () => {
-          await set('mfa_setup_completed', 'true');
-          setMfaSetupCompleted(true);
-          setIsMfaSetupOpen(false);
-          if (mfaSuccessCallback) {
-            mfaSuccessCallback();
-            setMfaSuccessCallback(null);
-          }
-        }} 
-        isForced={isMfaForced}
-      />
+      {isMfaSetupOpen && (
+        <Suspense fallback={null}>
+          <MFASetupModal
+            isOpen={isMfaSetupOpen}
+            onClose={() => {
+              setIsMfaSetupOpen(false);
+              setMfaSuccessCallback(null);
+            }}
+            onComplete={async () => {
+              await set('mfa_setup_completed', 'true');
+              setMfaSetupCompleted(true);
+              setIsMfaSetupOpen(false);
+              if (mfaSuccessCallback) {
+                mfaSuccessCallback();
+                setMfaSuccessCallback(null);
+              }
+            }}
+            isForced={isMfaForced}
+          />
+        </Suspense>
+      )}
 
       <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar w-full px-2 sm:px-4 py-2 pb-2 flex flex-col lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <AnimatePresence mode="wait">
@@ -357,7 +361,11 @@ export function RootLayout() {
         </AnimatePresence>
       </main>
       <AsesorChat />
-      <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
+      {isSyncModalOpen && (
+        <Suspense fallback={null}>
+          <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

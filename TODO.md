@@ -303,7 +303,7 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [ ] **Ofuscación de Código en Producción:** Falta blindar las reglas de negocio críticas en la build de producción para evitar ingeniería inversa en la web. Vital para la propiedad intelectual: nadie debe poder extraer la lógica algorítmica ni el enfoque de prevención de riesgos (que modela directamente la mente del experto).
 - [ ] **Rotación Automática de Keys (JWT):** Política de expiración corta de sesiones para mitigar el riesgo si se pierde un dispositivo físico en obra.
 - [ ] **Compresión de Imágenes en Cliente:** Implementar un compresor de imágenes local (API de Canvas) antes de subir fotos de evidencia (que pueden pesar 10MB) a Firebase. Esencial para no drenar la cuota de Storage y ahorrar ancho de banda en terrenos de baja señal.
-- [ ] **Seguridad de API Keys:** La clave de Gemini (`GEMINI_API_KEY`) sigue acoplada al frontend en algunos submódulos heredados; debe aislarse *completamente* a Node.js/Cloud Functions sin excepción.
+- [x] **Seguridad de API Keys:** `GEMINI_API_KEY` confirmada aislada exclusivamente en Node.js backend (`server.ts` y `src/services/*Backend.ts`). Ningún archivo importado por el bundle del cliente de Vite la expone.
 - [ ] **Control de Costos IA (Batching en Zettelkasten):** Procesar nodos huérfanos con Gemini en segundo plano (`useRiskEngine.ts`) podría agotar las cuotas de la API si no se controla adecuadamente el "batching". Se requiere asimilar una estrategia rigurosa para enviar los prompts en lote y economizar tokens.
 - [ ] **Arquitectura CQRS Local:** Separar las lecturas (ej. ver el PTS) de las escrituras (ej. crear un PTS) en IndexedDB para máxima velocidad.
 - [ ] **Purgado de Caché Obsoleto:** Script automático que elimina versiones viejas de la app (v1.0.1) cuando detecta la instalación de la nueva (v1.0.2).
@@ -312,7 +312,7 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Manejo de Permisos Degradado:** Si el usuario niega acceso a la cámara, la app debe seguir funcionando con opciones manuales de ingreso.
 - [x] **Validación Zod para Formularios:** Asegurar que los datos ingresados en el módulo Diagnóstico sean del tipo correcto antes de guardarlos.
 - [x] **Evitar Cálculos Flotantes Complejos:** Redondear geolocalizaciones al cuarto decimal (aprox. 11 metros de precisión) para acelerar cálculos matemáticos de zonas de riesgo.
-- [ ] **Precarga de DNS (dns-prefetch):** Acelerar el micro-segundo de resolución al conectarse a los servidores de Firebase.
+- [x] **Precarga de DNS (dns-prefetch):** Links de dns-prefetch y preconnect añadidos a index.html en commit da2211e.
 - [x] **Skeleton Loaders:** En los submódulos, usar estructuras grises animadas suavemente mientras se carga la data local, dando percepción visual de velocidad extrema.
 - [x] **Modo Pantalla Siempre Activa (Wake Lock API):** En el submódulo de /emergency, evitar que la pantalla del celular se apague mientras se dictan coordenadas.
 - [x] **Prevención de Doble Envío:** Bloquear botones críticas (como "Declarar Emergencia") instantáneamente tras el primer toque para evitar colapsos por pánico.
@@ -320,6 +320,30 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Virtualización de Listas Larga:** En el submódulo /history, usar bibliotecas como react-window para renderizar solo los 10 reportes visibles, ahorrando memoria al hacer scroll entre cientos.
 - [x] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
 - [x] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.
+
+---
+
+## Prioridad 14: Mejoras Phase 3 — Escala, Roles y Conocimiento Colectivo
+
+*Implementadas y pendientes de la refactorización de roles por proyecto, modelo de precios y sistema de conocimiento de controles.*
+
+### Completado ✅
+- [x] **Nuevo modelo de precios (4 planes):** Libre / Profesional ($10) / Empresa ($35) / Corporativo ($90). Filosofía: paga por escala, no por funciones. Todos los módulos de seguridad incluidos en todos los planes.
+- [x] **SubscriptionContext rediseñado:** Límites por proyectos, trabajadores/proyecto, equipo/proyecto. Migración automática de planes legacy. `canAccessExecutiveDashboard`, `canUseAPI` expuestos.
+- [x] **Pricing.tsx rediseñado:** Tabla comparativa completa mostrando todas las funciones disponibles. Sin bloqueo de características de seguridad por plan.
+- [x] **Roles por proyecto:** `Project` interface exportada con `memberRoles`, `createdBy`. El creador se asigna como `gerente` al crear.
+- [x] **Sistema de invitaciones:** 5 endpoints en `server.ts` (invite, accept, list members, remove, cancel invite). Colección `invitations` con reglas Firestore.
+- [x] **TeamManagementModal:** Gestión de equipo desde Projects.tsx (ícono Users). Listado de miembros con roles, formulario de invitación, invitaciones pendientes con cancelación, eliminación de miembros.
+- [x] **PendingInvitesBanner:** Banner en tiempo real (Firestore onSnapshot) para invitaciones pendientes. Aceptar desde el banner sin ir al correo.
+- [x] **Sistema de conocimiento de controles (tipos):** `NodeType.CONTROL`, interfaces `ImplementationGuide`, `ImplementationSpec`, `ImplementationEquipment`, campo `implementationGuide?` en `RiskNode`.
+
+### Pendiente 🔲
+- [ ] **UI de Guía de Implementación:** Formulario embebido en la vista de detalle de nodos tipo CONTROL para capturar: pasos de implementación, especificaciones técnicas (clave + valor + unidad), equipos requeridos (nombre + norma + cantidad), restricciones ambientales, tasa de éxito, nº de implementaciones y notas contextuales. Permite reutilizar controles efectivos con sus especificaciones exactas (altura de línea de vida, tipo de anclaje, etc.).
+- [ ] **Enforcement de límites de plan en createProject:** Verificar `PLAN_LIMITS[plan].projects` antes de crear proyecto. Mostrar modal de upgrade si el usuario alcanzó el límite.
+- [ ] **Dashboard Ejecutivo (Empresa/Corporativo):** KPIs cruzados entre proyectos: tasa de siniestralidad, cumplimiento normativo, evolución de riesgos. Solo visible en planes Empresa y Corporativo (`canAccessExecutiveDashboard`).
+- [ ] **Envío de invitaciones por email:** Integrar SendGrid o Resend para notificar por correo cuando se genera un token de invitación. El email incluye el link de aceptación con el token.
+- [ ] **Compresión de imágenes en cliente:** Hook `useImageCompressor` basado en Canvas API. Comprimir a máx. 1200px y 80% de calidad JPEG antes de subir a Firebase Storage. Prioridad alta: fotos de evidencia de incidentes pueden pesar 10MB desde dispositivos modernos.
+- [ ] **Carga diferida inteligente (Lazy Modals):** Modales pesados (TeamManagementModal, SyncCenterModal, MFASetupModal) lazy-loaded con React.lazy + Suspense para no incluirlos en el bundle inicial.
 
 ## Prioridad 7: La "Resina Nativa" (Estrategia Capacitor)
 

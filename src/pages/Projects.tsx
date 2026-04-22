@@ -24,16 +24,18 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
-import { TeamManagementModal } from '../components/projects/TeamManagementModal';
+const TeamManagementModal = React.lazy(() => import('../components/projects/TeamManagementModal').then(m => ({ default: m.TeamManagementModal })));
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
 
 export function Projects() {
   const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
+  const { planLimits, plan } = useSubscription();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -254,21 +256,36 @@ export function Projects() {
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">Gestión de Proyectos</h1>
           <p className="text-zinc-500 font-medium text-[9px] sm:text-xs md:text-sm mt-1">Administra tus faenas, industrias y niveles de riesgo</p>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setIsModalOpen(true)}
-          disabled={!isOnline}
-          title={!isOnline ? 'Requiere conexión a internet' : ''}
-          className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
-            !isOnline 
-              ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' 
-              : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
-          }`}
-        >
-          {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
-          {!isOnline ? 'Requiere Conexión' : 'Nuevo Proyecto'}
-        </motion.button>
+        {projects.length >= planLimits.projects ? (
+          <div className="flex flex-col items-end gap-1 w-full sm:w-auto shrink-0">
+            <button
+              disabled
+              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 cursor-not-allowed w-full sm:w-auto"
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              Nuevo Proyecto
+            </button>
+            <p className="text-[9px] text-amber-600 dark:text-amber-400 font-medium text-right">
+              Límite del plan <span className="font-bold capitalize">{plan}</span>: {planLimits.projects} proyecto{planLimits.projects !== 1 ? 's' : ''}. <a href="/pricing" className="underline">Actualizar</a>
+            </p>
+          </div>
+        ) : (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsModalOpen(true)}
+            disabled={!isOnline}
+            title={!isOnline ? 'Requiere conexión a internet' : ''}
+            className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
+              !isOnline
+                ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed'
+                : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+            }`}
+          >
+            {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {!isOnline ? 'Requiere Conexión' : 'Nuevo Proyecto'}
+          </motion.button>
+        )}
       </div>
 
       {/* Stats Summary */}
@@ -582,10 +599,12 @@ export function Projects() {
       {/* Team Management Modal */}
       <AnimatePresence>
         {isTeamModalOpen && selectedProject && (
-          <TeamManagementModal
-            project={selectedProject}
-            onClose={() => setIsTeamModalOpen(false)}
-          />
+          <React.Suspense fallback={null}>
+            <TeamManagementModal
+              project={selectedProject}
+              onClose={() => setIsTeamModalOpen(false)}
+            />
+          </React.Suspense>
         )}
       </AnimatePresence>
     </div>
