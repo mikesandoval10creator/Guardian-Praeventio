@@ -18,19 +18,7 @@ import { google } from 'googleapis';
 
 dotenv.config();
 
-// Initialize Firebase Admin
-try {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
-  }
-} catch (error) {
-  console.error("FATAL: Firebase Admin initialization failed.", error);
-  process.exit(1);
-}
-
-// Read Firebase Config once at startup
+// Read Firebase Config once at startup FIRST
 let firebaseConfig: any = null;
 try {
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
@@ -39,6 +27,37 @@ try {
   }
 } catch (error) {
   console.error("Failed to read firebase-applet-config.json at startup:", error);
+}
+
+// Initialize Firebase Admin
+try {
+  if (!admin.apps.length) {
+    const initConfig: any = {
+      credential: admin.credential.applicationDefault(),
+    };
+    if (firebaseConfig?.projectId) {
+      initConfig.projectId = firebaseConfig.projectId;
+    }
+    admin.initializeApp(initConfig);
+  }
+
+  // Override admin.firestore() to always return the correct database instance
+  if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
+    const originalFirestore = admin.firestore;
+    const { getFirestore } = await import('firebase-admin/firestore');
+    
+    const firestoreWrapper = () => getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
+    Object.assign(firestoreWrapper, originalFirestore);
+    
+    Object.defineProperty(admin, 'firestore', {
+      get: () => firestoreWrapper,
+      configurable: true
+    });
+    
+    console.log(`✅ Firebase Admin configured for databaseId: ${firebaseConfig.firestoreDatabaseId}`);
+  }
+} catch (error) {
+  console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
 }
 
 // Initialize Google Play Developer API
@@ -89,7 +108,7 @@ app.use(session({
   saveUninitialized: true,
   cookie: { 
     secure: process.env.NODE_ENV === "production", 
-    sameSite: 'lax',
+    sameSite: 'none',
     httpOnly: true 
   }
 }));
@@ -181,7 +200,7 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
   const callerUid = (req as any).user.uid;
 
   try {
-    // Only gerente can assign roles — no single superuser account
+    // Verify caller is a gerente (highest app-level role)
     const callerRecord = await admin.auth().getUser(callerUid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: "Forbidden: Requires gerente role" });
@@ -695,7 +714,7 @@ app.post("/api/telemetry/ingest", async (req, res) => {
 });
 
 // Seed Glossary Endpoint
-app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
+app.post("/api/seed-glossary", async (req, res) => {
   try {
     const { runSeed } = await import('./src/services/seedBackend.js');
     await runSeed();
@@ -707,7 +726,7 @@ app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
 });
 
 // Seed Data Endpoint
-app.post("/api/seed-data", verifyAuth, async (req, res) => {
+app.post("/api/seed-data", async (req, res) => {
   try {
     const { seedInitialData } = await import('./src/services/dataSeedService.js');
     await seedInitialData();
@@ -1230,12 +1249,7 @@ app.post("/api/billing/webhook", async (req, res) => {
   }
 
   try {
-    let decodedData: any;
-    try {
-      decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    } catch {
-      return res.status(400).send("Invalid message data: not valid JSON");
-    }
+    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
     console.log("[RTDN Webhook] Received:", decodedData);
 
     const { subscriptionNotification, developerNotification } = decodedData;
@@ -1291,20 +1305,14 @@ setInterval(() => {
 updateGlobalEnvironmentalContext().catch(console.error);
 
 // Setup Realtime Triggers (Simulated Cloud Functions via Firebase Admin)
-const backgroundUnsubscribers: (() => void)[] = [];
-
 const setupBackgroundTriggers = () => {
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn("[Background Triggers] GEMINI_API_KEY is not set. RAG pipeline trigger will be skipped.");
-  }
-
   try {
     const db = admin.firestore();
     let isInitialLoadIncidents = true;
     let isInitialLoadRAG = true;
 
     // Trigger 1: Listen to new incidents to trigger pseudo push notifications / emails
-    const unsubscribeIncidents = db.collection('nodes')
+    db.collection('nodes')
       .where('type', '==', 'finding')
       .where('tags', 'array-contains', 'Incidente')
       .onSnapshot((snapshot) => {
@@ -1312,16 +1320,16 @@ const setupBackgroundTriggers = () => {
           isInitialLoadIncidents = false;
           return;
         }
-
+        
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const data = change.doc.data();
             const isCritical = data.metadata?.severity === 'Crítica' || data.metadata?.severity === 'Alta';
-
+            
             console.log(`[TRIGGER: Incident Report] => Processing incident: ${change.doc.id}`);
             console.log(`- Severity: ${data.metadata?.severity}`);
             console.log(`- Alerting Supervisor Network / Sending Push Notification...`);
-
+            
             if (isCritical) {
               console.log(`- [CRITICAL] ⚠️ Escalatng to SendGrid Email API (Mock) for immediate managerial action.`);
             }
@@ -1330,11 +1338,10 @@ const setupBackgroundTriggers = () => {
       }, (error) => {
         console.error("Error in incidents background trigger listener:", error);
       });
-    backgroundUnsubscribers.push(unsubscribeIncidents);
 
     // Trigger 2: RAG Continuous Ingestion Pipeline (Auto-Vectorize Knowledge)
     // Whenever a new normative, PTS, protocol, or document node is created/updated, generate embeddings
-    const unsubscribeRAG = db.collection('nodes')
+    db.collection('nodes')
       .where('type', 'in', ['normative', 'pts', 'protocol', 'document'])
       .onSnapshot(async (snapshot) => {
         if (isInitialLoadRAG) {
@@ -1342,27 +1349,28 @@ const setupBackgroundTriggers = () => {
           return;
         }
 
-        if (!process.env.GEMINI_API_KEY) return;
-
         for (const change of snapshot.docChanges()) {
           // Process newly added or modified documents
           if (change.type === 'added' || change.type === 'modified') {
             const data = change.doc.data();
-
+            
             // Skip processing if it already has an embedding or is currently being processed
             if (data._ragProcessingStatus === 'completed' || data._ragProcessingStatus === 'processing') {
               continue;
             }
 
             console.log(`[TRIGGER: RAG Pipeline] => Generating embeddings for: ${change.doc.id} (${data.type})`);
-
+            
             try {
               // Mark as processing
               await change.doc.ref.update({ _ragProcessingStatus: 'processing' });
-
+              
+              const { GoogleGenAI } = await import('@google/genai');
+              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+              
               // Prepare text for vectorization
               const textToEmbed = `Título: ${data.title || ''}\nDescripción: ${data.description || ''}\nContenido: ${data.content || ''}`;
-
+              
               if (textToEmbed.trim().length < 10) {
                  await change.doc.ref.update({ _ragProcessingStatus: 'skipped_too_short' });
                  continue;
@@ -1385,7 +1393,7 @@ const setupBackgroundTriggers = () => {
               }
             } catch (error) {
               console.error(`[TRIGGER: RAG Pipeline] ❌ Error processing ${change.doc.id}:`, error);
-              await change.doc.ref.update({
+              await change.doc.ref.update({ 
                  _ragProcessingStatus: 'failed',
                  _ragError: error instanceof Error ? error.message : 'Unknown error'
               });
@@ -1395,20 +1403,11 @@ const setupBackgroundTriggers = () => {
       }, (error) => {
         console.error("Error in RAG background trigger listener:", error);
       });
-    backgroundUnsubscribers.push(unsubscribeRAG);
 
   } catch (err) {
     console.error("Failed to setup background triggers:", err);
   }
 };
-
-// Clean up Firestore listeners on server shutdown
-const shutdown = () => {
-  backgroundUnsubscribers.forEach(unsub => unsub());
-  process.exit(0);
-};
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);

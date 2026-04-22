@@ -27,10 +27,10 @@ export function RootLayout() {
   // Call it to keep the socket alive and receive foreground messages
   usePushNotifications();
 
-  // AUTH GUARD: Si no hay usuario, redirigir al login
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+  // Permitir la navegación inicial sin usuario para poder ver el Dashboard (público o versión reducida)
+  // if (!user) {
+  //   return <Navigate to="/login" state={{ from: location }} replace />;
+  // }
 
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
