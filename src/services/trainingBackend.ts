@@ -26,7 +26,7 @@ export const generateCustomSafetyTraining = async (gapDescription: string, audie
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     generationConfig: {
       responseMimeType: "application/json",
@@ -71,7 +71,7 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     generationConfig: {
       responseMimeType: "application/json",

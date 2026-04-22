@@ -119,8 +119,8 @@ app.post("/api/admin/revoke-access", verifyAuth, async (req, res) => {
 
   try {
     const callerRecord = await admin.auth().getUser(callerUid);
-    if (callerRecord.customClaims?.role !== 'master_admin' && callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires admin or gerente role to revoke access" });
+    if (callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires gerente role to revoke access" });
     }
 
     // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
@@ -181,10 +181,10 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
   const callerUid = (req as any).user.uid;
 
   try {
-    // Verify caller is a master admin
+    // Only gerente can assign roles — no single superuser account
     const callerRecord = await admin.auth().getUser(callerUid);
-    if (callerRecord.customClaims?.role !== 'master_admin') {
-      return res.status(403).json({ error: "Forbidden: Requires master_admin role" });
+    if (callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
     }
 
     // Set custom claim
