@@ -33,7 +33,7 @@ const Settings = lazy(() => import('./pages/Settings').then(module => ({ default
 const Help = lazy(() => import('./pages/Help').then(module => ({ default: module.Help })));
 const PublicNodeView = lazy(() => import('./pages/PublicNodeView').then(module => ({ default: module.PublicNodeView })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
-const Login = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
+const Login = lazy(() => import('./pages/Login'));
 const Splash = lazy(() => import('./pages/Splash').then(module => ({ default: module.Splash })));
 const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ default: module.SafetyFeed })));
 const Analytics = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));

@@ -6,6 +6,9 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useNotifications } from '../../contexts/NotificationContext';
 
+import { useProject } from '../../contexts/ProjectContext';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+
 interface LaborManagementModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,21 +18,92 @@ interface LaborManagementModalProps {
 export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagementModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const { addNotification } = useNotifications();
+  const { projects } = useProject();
 
   const [contractStatus, setContractStatus] = useState(worker.contractStatus || 'Vigente');
   const [odiSigned, setOdiSigned] = useState(worker.odiSigned || false);
   const [digitalSignatureStatus, setDigitalSignatureStatus] = useState(worker.digitalSignatureStatus || 'Pendiente');
+  const [shiftStart, setShiftStart] = useState(worker.shiftStart || '08:00');
+  const [shiftEnd, setShiftEnd] = useState(worker.shiftEnd || '18:00');
 
   if (!isOpen) return null;
+
+  const checkWorkerShiftOverlaps = async () => {
+    if (!navigator.onLine) return [];
+    if (!worker.email) return [];
+
+    const overlapPromises = projects.map(async (project) => {
+      if (project.isPendingSync) return false;
+      if (project.id === worker.projectId) return false; // Skip the current project
+
+      const workersRef = collection(db, `projects/${project.id}/workers`);
+      const q = query(workersRef, where('email', '==', worker.email));
+      
+      try {
+        const snapshot = await getDocs(q);
+        let hasOverlap = false;
+
+        snapshot.forEach((doc) => {
+          const otherWorker = doc.data();
+          const otherStart = otherWorker.shiftStart || '08:00';
+          const otherEnd = otherWorker.shiftEnd || '18:00';
+
+          // Check if shifts overlap (start1 < end2 && end1 > start2)
+          if (shiftStart < otherEnd && shiftEnd > otherStart) {
+            hasOverlap = true;
+          }
+        });
+
+        if (hasOverlap) {
+          return project.name;
+        }
+      } catch (e) {
+        // Ignore permission errors
+      }
+      return false;
+    });
+
+    const results = await Promise.all(overlapPromises);
+    return results.filter(Boolean) as string[];
+  };
 
   const handleSave = async () => {
     setIsUpdating(true);
     try {
-      const workerRef = doc(db, 'workers', worker.id);
+      if (shiftStart >= shiftEnd) {
+        addNotification({
+          title: 'Error de Turno',
+          message: 'La hora de inicio debe ser anterior a la hora de fin.',
+          type: 'error'
+        });
+        setIsUpdating(false);
+        return;
+      }
+
+      // Check overlaps
+      const overlaps = await checkWorkerShiftOverlaps();
+      if (overlaps.length > 0) {
+        addNotification({
+          title: 'Colisión de Turnos',
+          message: `El trabajador tiene turnos superpuestos en: ${overlaps.join(', ')}.`,
+          type: 'warning' // As required, we might just warn, or block. Let's warn but allow save or block. The requirement implies detection is critical. Let's block it for safety.
+        });
+        
+        const confirmSave = window.confirm(`El trabajador tiene turnos superpuestos en: ${overlaps.join(', ')}.\n\n¿Guardar de todos modos (doble turno/excepción)?`);
+        if (!confirmSave) {
+          setIsUpdating(false);
+          return;
+        }
+      }
+
+      const workerPath = worker.projectId ? `projects/${worker.projectId}/workers` : 'workers';
+      const workerRef = doc(db, workerPath, worker.id);
       await updateDoc(workerRef, {
         contractStatus,
         odiSigned,
         digitalSignatureStatus,
+        shiftStart,
+        shiftEnd
       });
       
       addNotification({
@@ -113,6 +187,34 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
                       </div>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Turno Laboral */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-3">
+                  <Clock className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
+                  Turno Laboral (Asignación)
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Inicio de Turno</label>
+                    <input
+                      type="time"
+                      value={shiftStart}
+                      onChange={(e) => setShiftStart(e.target.value)}
+                      className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-zinc-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Fin de Turno</label>
+                    <input
+                      type="time"
+                      value={shiftEnd}
+                      onChange={(e) => setShiftEnd(e.target.value)}
+                      className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-zinc-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    />
+                  </div>
                 </div>
               </div>
 

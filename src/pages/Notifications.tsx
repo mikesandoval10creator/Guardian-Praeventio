@@ -12,9 +12,11 @@ import {
 } from 'lucide-react';
 
 import { useNotifications } from '../contexts/NotificationContext';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 export function Notifications() {
   const { notifications, markAsRead, markAllAsRead, clearAll } = useNotifications();
+  const { requestPermission, notificationPermissionStatus } = usePushNotifications();
 
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
@@ -24,9 +26,9 @@ export function Notifications() {
           <p className="text-zinc-400 mt-1 text-[10px] sm:text-sm">Mantente al tanto de las alertas y actualizaciones de seguridad</p>
         </div>
         <div className="flex items-center gap-2">
-          {'Notification' in window && Notification.permission !== 'granted' && (
+          {notificationPermissionStatus !== 'granted' && (
             <button 
-              onClick={() => Notification.requestPermission()}
+              onClick={requestPermission}
               className="px-3 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors flex-1 sm:flex-none text-center"
             >
               Activar Notificaciones Push

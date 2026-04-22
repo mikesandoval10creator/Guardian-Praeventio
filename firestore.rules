@@ -81,11 +81,14 @@ service cloud.firestore {
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
-             data.keys().size() <= 15 &&
+             data.keys().size() <= 20 &&
              data.uid == request.auth.uid && data.uid is string && data.uid.size() <= 128 &&
              data.email == request.auth.token.email && data.email is string && data.email.size() <= 256 &&
              isValidRole(data.role) &&
-             data.createdAt == (resource == null ? request.time : resource.data.createdAt);
+             data.createdAt == (resource == null ? request.time : resource.data.createdAt) &&
+             (!('display_name' in data) || data.display_name is string) &&
+             (!('photo_url' in data) || data.photo_url is string) &&
+             (!('biometricKeys' in data) || data.biometricKeys is list);
     }
 
     function isValidNode(data) {
@@ -168,6 +171,10 @@ service cloud.firestore {
 
       match /emergency_checkins/{checkinId} {
         allow create, update: if isValidId(projectId) && isProjectMember(projectId) && incoming().workerId == request.auth.uid;
+      }
+
+      match /attendance/{attendanceId} {
+        allow create, update: if isValidId(projectId) && (isProjectMember(projectId) || isSupervisor() || isAdmin());
       }
 
       match /reports/{reportId} {

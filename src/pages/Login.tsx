@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion';
-import { signInWithGoogle, auth } from '../services/firebase';
-import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft, Fingerprint } from 'lucide-react';
+import { signInWithGoogle, auth, db } from '../services/firebase';
+import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/shared/Card';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { isBiometricSupported, verifyBiometric, registerBiometric } from '../utils/biometrics';
+import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 
-export function Login() {
+export default function Login() {
   const isOnline = useOnlineStatus();
   const [hasBiometric, setHasBiometric] = useState(false);
   const [biometricCredential, setBiometricCredential] = useState<string | null>(null);
@@ -24,23 +25,40 @@ export function Login() {
     });
   }, []);
 
+  const syncBiometricToCloud = async (uid: string, credId: string) => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await updateDoc(userRef, {
+        biometricKeys: arrayUnion(credId)
+      });
+    } catch (e) {
+      console.log("No se pudo sincronizar BD, pero la llave local existe", e);
+    }
+  };
+
   const handleLogin = async () => {
     if (!isOnline) return;
     try {
-      if (hasBiometric && !biometricCredential) {
-        // Sign in first to get UID
-        await signInWithGoogle();
-        const user = auth.currentUser;
-        if (user) {
-          try {
-            const credId = await registerBiometric(user.uid, user.email || 'user');
-            localStorage.setItem('praeventio_biometric_id', credId);
-          } catch(e) {
-             console.log("Biometric registration skipped", e);
+      await signInWithGoogle();
+      const user = auth.currentUser;
+      
+      if (user && hasBiometric && !biometricCredential) {
+        // Sign in occurred on a new device or cleared cache, register biometrics
+        try {
+          // Re-sync: first check if we already have it linked in Firestore
+          const userSnap = await getDoc(doc(db, 'users', user.uid));
+          if (userSnap.exists()) {
+             // Let's create a new passkey specifically for this new device session
+             const credId = await registerBiometric(user.uid, user.email || 'user');
+             localStorage.setItem('praeventio_biometric_id', credId);
+             await syncBiometricToCloud(user.uid, credId);
           }
+        } catch(e) {
+           console.log("Biometric registration skipped", e);
         }
-      } else {
-         await signInWithGoogle();
+      } else if (user && hasBiometric && biometricCredential) {
+         // Already registered, just make sure cloud knows about this device's key
+         await syncBiometricToCloud(user.uid, biometricCredential);
       }
     } catch (error) {
       console.error('Error logging in:', error);
@@ -118,7 +136,7 @@ export function Login() {
                       : 'bg-emerald-500 hover:bg-emerald-600 text-white hover:scale-[1.02] active:scale-[0.98]'
                   }`}
                 >
-                  <Fingerprint className="w-5 h-5" />
+                  <Zap className="w-5 h-5" />
                   Usar Biometría (Face ID / Huella)
                 </Button>
               ) : null}

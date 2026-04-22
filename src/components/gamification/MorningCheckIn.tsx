@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, ShieldCheck, HeartPulse, Brain, CheckCircle2, Award, X } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 
 interface MorningCheckInProps {
   onComplete: () => void;
@@ -19,14 +20,43 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
   });
   const [mood, setMood] = useState<number | null>(null);
   const [showReward, setShowReward] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const allEppChecked = Object.values(eppChecked).every(Boolean);
 
-  const handleComplete = () => {
-    setShowReward(true);
-    setTimeout(() => {
+  const handleComplete = async () => {
+    if (!user) {
       onComplete();
-    }, 3000);
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      // Save affidavit to immutable audit logs
+      await addDoc(collection(db, 'audit_logs'), {
+        userId: user.uid,
+        action: 'MORNING_CHECKIN_AFFIDAVIT',
+        module: 'Gamification',
+        timestamp: new Date().toISOString(),
+        details: {
+          eppChecked,
+          psychosocialMood: mood,
+          declarationText: "Declaro bajo juramento que cuento con el equipo de protección personal requerido y me encuentro en condiciones óptimas para desempeñar mis labores de manera segura.",
+          legalStatus: "Declaración Jurada Simple"
+        }
+      });
+      setShowReward(true);
+      setTimeout(() => {
+        onComplete();
+      }, 3000);
+    } catch (error) {
+      console.error("Error saving checkin affidavit:", error);
+      handleFirestoreError(error, OperationType.CREATE, 'audit_logs');
+      // Even on failure in saving, complete so they aren't stuck, but maybe alert
+      onComplete();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -141,16 +171,16 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                   </div>
 
                   <div className="flex gap-3 mt-8">
-                    <Button variant="outline" onClick={() => setStep(1)} className="flex-1">
+                    <Button variant="outline" onClick={() => setStep(1)} className="flex-1" disabled={isSaving}>
                       Atrás
                     </Button>
                     <Button 
                       variant="primary" 
                       className="flex-1"
-                      disabled={!mood}
+                      disabled={!mood || isSaving}
                       onClick={handleComplete}
                     >
-                      Sincronizar
+                      {isSaving ? 'Registrando...' : 'Firmar y Sincronizar'}
                     </Button>
                   </div>
                 </motion.div>

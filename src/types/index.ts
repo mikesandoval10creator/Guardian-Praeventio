@@ -126,6 +126,8 @@ export interface Worker {
   odiSigned?: boolean;
   digitalSignatureStatus?: 'Firmado' | 'Pendiente' | 'Rechazado';
   hasArt22?: boolean; // Artículo 22 (24/7 tracking)
+  shiftStart?: string;
+  shiftEnd?: string;
 }
 
 export interface TrainingSession {

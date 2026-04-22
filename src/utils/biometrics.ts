@@ -44,8 +44,10 @@ export const registerBiometric = async (userId: string, userEmail: string): Prom
       { type: "public-key", alg: -257 }, // RS256
     ],
     authenticatorSelection: {
-      authenticatorAttachment: "platform", // Fuerza FaceID/TouchID en lugar de llaves USB
+      authenticatorAttachment: "platform", // FaceID/TouchID
       userVerification: "required",
+      residentKey: "required", // Transforma en Passkey que se sincroniza en Google/iCloud
+      requireResidentKey: true
     },
     timeout: 60000,
     attestation: "none"
@@ -54,7 +56,6 @@ export const registerBiometric = async (userId: string, userEmail: string): Prom
   try {
     const credential = await navigator.credentials.create({ publicKey }) as PublicKeyCredential;
     if (credential) {
-      // Devolvemos el ID de la credencial generada para guardarlo localmente o en el backend
       return bufferEncode(credential.rawId);
     }
     throw new Error("No credential returned");

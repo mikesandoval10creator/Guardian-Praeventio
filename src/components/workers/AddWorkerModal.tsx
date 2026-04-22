@@ -53,7 +53,9 @@ export function AddWorkerModal({ isOpen, onClose, projectId }: AddWorkerModalPro
         ...formData,
         joinedAt: new Date().toISOString(),
         projectId: projectId || null,
-        requiredEPP: suggestedEPP // Save required EPP to worker profile
+        requiredEPP: suggestedEPP, // Save required EPP to worker profile
+        shiftStart: '08:00', // Default shift start
+        shiftEnd: '18:00' // Default shift end
       };
 
       if (!isOnline) {

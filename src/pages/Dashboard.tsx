@@ -119,6 +119,22 @@ export function Dashboard() {
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
+    const checkCheckIn = async () => {
+      try {
+        const lastCheckIn = await get('lastMorningCheckIn');
+        const today = new Date().toISOString().split('T')[0];
+        if (lastCheckIn !== today) {
+          setShowMorningCheckIn(true);
+        }
+      } catch (err) {
+        console.error("Error checking IDB checkin", err);
+        setShowMorningCheckIn(true);
+      }
+    };
+    checkCheckIn();
+  }, []);
+
+  useEffect(() => {
     const fetchInsights = async () => {
       if (nodes.length === 0) return;
       setLoadingInsights(true);
