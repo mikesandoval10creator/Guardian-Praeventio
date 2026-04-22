@@ -86,15 +86,21 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
         });
         alert('Archivo guardado para sincronización. Se subirá cuando recuperes la conexión.');
       } else {
-        const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
+        // Compress images before uploading to reduce Storage costs and upload time
+        let fileToUpload = file;
+        if (file.type.startsWith('image/')) {
+          const { compressImage } = await import('../../utils/imageCompression');
+          fileToUpload = await compressImage(file, { maxSizeMB: 1, maxWidthOrHeight: 1920 });
+        }
+        const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${fileToUpload.name}`);
+        const snapshot = await uploadBytes(storageRef, fileToUpload);
         const url = await getDownloadURL(snapshot.ref);
 
         await addDoc(collection(db, 'project_documents'), {
           name: file.name,
           url,
-          type: file.type,
-          size: file.size,
+          type: fileToUpload.type,
+          size: fileToUpload.size,
           projectId,
           uploadedBy: user.uid,
           createdAt: new Date().toISOString()
