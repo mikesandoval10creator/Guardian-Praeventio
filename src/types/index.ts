@@ -11,7 +11,6 @@ export enum NodeType {
   WORKER = 'Trabajador',
   MACHINE = 'Máquina',
   RISK = 'Riesgo',
-  CONTROL = 'Control',
   NORMATIVE = 'Normativa',
   EPP = 'EPP',
   INSPECTION = 'Inspección',
@@ -34,31 +33,6 @@ export enum NodeType {
   SAFE_ZONE = 'Zona de Seguridad',
 }
 
-export interface ImplementationSpec {
-  key: string;
-  value: string;
-  unit?: string;
-}
-
-export interface ImplementationEquipment {
-  name: string;
-  standard?: string;
-  quantity?: number;
-}
-
-// Captures HOW a control was implemented, not just that it worked.
-// Enables contextual reuse: "at what height was the lifeline placed?
-// with what elements? is it feasible in this other environment?"
-export interface ImplementationGuide {
-  steps: string[];
-  technicalSpecs: ImplementationSpec[];
-  requiredEquipment: ImplementationEquipment[];
-  environmentalConstraints: string[];
-  successRate?: number;
-  implementationsCount?: number;
-  contextualNotes?: string;
-}
-
 export interface RiskNode {
   id: string;
   type: NodeType;
@@ -66,14 +40,13 @@ export interface RiskNode {
   description: string;
   tags: string[];
   metadata: Record<string, any>;
-  connections: string[];
+  connections: string[]; // IDs of connected nodes
   projectId?: string;
   isPublic?: boolean;
   createdAt: string;
   updatedAt: string;
   embedding?: number[];
   isPendingSync?: boolean;
-  implementationGuide?: ImplementationGuide;
 }
 
 export interface WeatherData {
