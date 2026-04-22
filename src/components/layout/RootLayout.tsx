@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Sun, Moon, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
@@ -8,6 +8,7 @@ import { AsesorChat } from '../shared/AsesorChat';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
@@ -21,6 +22,15 @@ export function RootLayout() {
   const { unreadCount } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // Call it to keep the socket alive and receive foreground messages
+  usePushNotifications();
+
+  // AUTH GUARD: Si no hay usuario, redirigir al login
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);

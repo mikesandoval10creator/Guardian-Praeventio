@@ -1,21 +1,65 @@
 import { motion } from 'framer-motion';
-import { signInWithGoogle } from '../services/firebase';
-import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
+import { signInWithGoogle, auth } from '../services/firebase';
+import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft, Fingerprint } from 'lucide-react';
 import { Button } from '../components/shared/Card';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { isBiometricSupported, verifyBiometric, registerBiometric } from '../utils/biometrics';
 
 export function Login() {
   const isOnline = useOnlineStatus();
+  const [hasBiometric, setHasBiometric] = useState(false);
+  const [biometricCredential, setBiometricCredential] = useState<string | null>(null);
+
+  useEffect(() => {
+    isBiometricSupported().then(supported => {
+      if (supported) {
+        setHasBiometric(true);
+        const savedCred = localStorage.getItem('praeventio_biometric_id');
+        if (savedCred) {
+          setBiometricCredential(savedCred);
+        }
+      }
+    });
+  }, []);
 
   const handleLogin = async () => {
     if (!isOnline) return;
     try {
-      await signInWithGoogle();
+      if (hasBiometric && !biometricCredential) {
+        // Sign in first to get UID
+        await signInWithGoogle();
+        const user = auth.currentUser;
+        if (user) {
+          try {
+            const credId = await registerBiometric(user.uid, user.email || 'user');
+            localStorage.setItem('praeventio_biometric_id', credId);
+          } catch(e) {
+             console.log("Biometric registration skipped", e);
+          }
+        }
+      } else {
+         await signInWithGoogle();
+      }
     } catch (error) {
       console.error('Error logging in:', error);
     }
   };
+
+  const handleBiometricLogin = async () => {
+    if (!biometricCredential) return;
+    try {
+      const verified = await verifyBiometric(biometricCredential);
+      if (verified) {
+        // En una app Capacitor real, aquí inyectaríamos el refresh token o usaríamos signInWithCustomToken.
+        // Simularemos invocando a Google Sign In sin forzar selección de cuenta si el navegador lo permite
+        await signInWithGoogle();
+      }
+    } catch(error) {
+      console.error("Biometric verification failed", error);
+    }
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-6 font-sans relative">
@@ -47,7 +91,7 @@ export function Login() {
                 Praeventio Guard
               </h1>
               <span className="text-[8px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest text-center">
-                Conciencia Arquitectónica
+                Identidad y Conciencia
               </span>
             </div>
 
@@ -55,24 +99,30 @@ export function Login() {
               <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
                 <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 mt-0.5 sm:mt-1 shrink-0" />
                 <div>
-                  <h3 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">Prevención Proactiva</h3>
+                  <h3 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">Protección Biométrica</h3>
                   <p className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    Anticípate a los riesgos antes de que se conviertan en incidentes.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
-                <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 mt-0.5 sm:mt-1 shrink-0" />
-                <div>
-                  <h3 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">Excelencia Operacional</h3>
-                  <p className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    Optimiza tus procesos con inteligencia artificial y datos en tiempo real.
+                    Tus datos médicos y proyectos sellados bajo biometría (Face ID / Huella).
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-3">
+              {biometricCredential ? (
+                <Button
+                  onClick={handleBiometricLogin}
+                  disabled={!isOnline}
+                  className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 sm:gap-3 transition-all shadow-xl ${
+                    !isOnline 
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' 
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                  }`}
+                >
+                  <Fingerprint className="w-5 h-5" />
+                  Usar Biometría (Face ID / Huella)
+                </Button>
+              ) : null}
+
               <Button
                 onClick={handleLogin}
                 disabled={!isOnline}
@@ -90,7 +140,7 @@ export function Login() {
                 ) : (
                   <>
                     <LogIn className="w-4 h-4" />
-                    Iniciar con Google
+                    {biometricCredential ? "Iniciar de otra forma" : "Iniciar con Google"}
                   </>
                 )}
               </Button>

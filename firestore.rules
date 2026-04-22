@@ -39,6 +39,13 @@ service cloud.firestore {
       );
     }
 
+    function isDoctor() {
+      return isEmailVerified() && (
+        request.auth.token.role == 'medico_ocupacional' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'medico_ocupacional'
+      );
+    }
+
     function isProjectCreator(projectId) {
       return isEmailVerified() && get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy == request.auth.uid;
     }
@@ -136,6 +143,12 @@ service cloud.firestore {
       allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (isWorkerRole(incoming().role) || isAdmin());
       allow update: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (incoming().role == existing().role || isAdmin());
       allow delete: if isAdmin();
+      
+      // Strict privacy envelope for user's medical exams (Excludes Admin/Supervisor by default unless they are the Doctor)
+      match /medical_exams/{examId} {
+        allow read: if isOwner(userId) || isDoctor();
+        allow write: if isDoctor();
+      }
     }
 
     match /projects/{projectId} {

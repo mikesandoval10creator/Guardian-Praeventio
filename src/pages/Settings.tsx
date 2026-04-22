@@ -77,6 +77,29 @@ export function Settings() {
   const [aiProactive, setAiProactive] = useState(true);
   const [language, setLanguage] = useState(i18n.language || 'es');
   const [themePref, setThemePref] = useState('system');
+  const [notifPrefs, setNotifPrefs] = useState({
+    emergencies: true,
+    medical: true,
+    training: true,
+    ai_alerts: true
+  });
+
+  const updateNotifPref = async (key: keyof typeof notifPrefs, value: boolean) => {
+    const newPrefs = { ...notifPrefs, [key]: value };
+    setNotifPrefs(newPrefs);
+    if (user) {
+      import('firebase/firestore').then(({ doc, updateDoc }) => {
+        import('../services/firebase').then(({ db }) => {
+          updateDoc(doc(db, 'users', user.uid), {
+            notificationPreferences: newPrefs
+          }).catch(err => {
+            console.error("Error updating notification preferences", err);
+            addNotification({title: 'Error', message: 'No se pudieron guardar las preferencias', type: 'error'});
+          });
+        });
+      });
+    }
+  };
 
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
@@ -91,6 +114,20 @@ export function Settings() {
   useEffect(() => {
     get('theme_preference').then(val => setThemePref((val as string) || 'system'));
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      import('firebase/firestore').then(({ doc, getDoc }) => {
+        import('../services/firebase').then(({ db }) => {
+          getDoc(doc(db, 'users', user.uid)).then(docSnap => {
+            if (docSnap.exists() && docSnap.data().notificationPreferences) {
+              setNotifPrefs(docSnap.data().notificationPreferences);
+            }
+          });
+        });
+      });
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -182,17 +219,65 @@ export function Settings() {
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${emailNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
-              <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Notificaciones Push (Navegador)</h4>
-                <p className="text-xs text-zinc-600 dark:text-zinc-500">Alertas en tiempo real en tu dispositivo.</p>
+            
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Notificaciones Push</h4>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-500">Recibe alertas instantáneas.</p>
+                </div>
+                <button onClick={() => {
+                  setPushNotifs(!pushNotifs);
+                  if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
+                }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                  <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${pushNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
+                </button>
               </div>
-              <button onClick={() => {
-                setPushNotifs(!pushNotifs);
-                if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
-              }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
-                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${pushNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
-              </button>
+              
+              {/* Nested specific toggles if Push is enabled */}
+              {pushNotifs && (
+                <div className="pl-4 border-l-2 border-zinc-100 dark:border-white/10 space-y-4 mt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🚨 Emergencias (S.O.S)</h5>
+                      <p className="text-[10px] text-zinc-500">Alertas de S.O.S, evacuación y clima extremo. (No se puede desactivar por seguridad)</p>
+                    </div>
+                    <button disabled className="w-10 h-5 rounded-full bg-red-500 opacity-50 cursor-not-allowed relative">
+                      <div className="w-3 h-3 rounded-full bg-white absolute top-1 translate-x-6" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🩺 Exámenes Médicos</h5>
+                      <p className="text-[10px] text-zinc-500">Recordatorios de vigencia y nuevos resultados médicos.</p>
+                    </div>
+                    <button onClick={() => updateNotifPref('medical', !notifPrefs.medical)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.medical ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.medical ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">📚 Capacitaciones</h5>
+                      <p className="text-[10px] text-zinc-500">Asignaciones de cursos, ODI y charlas programadas.</p>
+                    </div>
+                    <button onClick={() => updateNotifPref('training', !notifPrefs.training)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.training ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.training ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🤖 Asistente IA (Guardian)</h5>
+                      <p className="text-[10px] text-zinc-500">Consejos predictivos y anomalías detectadas en terreno.</p>
+                    </div>
+                    <button onClick={() => updateNotifPref('ai_alerts', !notifPrefs.ai_alerts)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.ai_alerts ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.ai_alerts ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         );
