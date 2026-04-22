@@ -28,6 +28,7 @@ import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
+import { TeamManagementModal } from '../components/projects/TeamManagementModal';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
 
@@ -35,6 +36,7 @@ export function Projects() {
   const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'assets'>('overview');
@@ -141,6 +143,13 @@ export function Projects() {
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setIsTeamModalOpen(true)}
+              title="Gestionar Equipo"
+              className="p-2.5 sm:p-3 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300 dark:hover:border-emerald-500/30 transition-all shadow-sm"
+            >
+              <Users className="w-4 h-4 sm:w-6 sm:h-6" />
+            </button>
             <button className="p-2.5 sm:p-3 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shadow-sm">
               <BarChart3 className="w-4 h-4 sm:w-6 sm:h-6" />
             </button>
@@ -567,6 +576,16 @@ export function Projects() {
               </form>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Team Management Modal */}
+      <AnimatePresence>
+        {isTeamModalOpen && selectedProject && (
+          <TeamManagementModal
+            project={selectedProject}
+            onClose={() => setIsTeamModalOpen(false)}
+          />
         )}
       </AnimatePresence>
     </div>

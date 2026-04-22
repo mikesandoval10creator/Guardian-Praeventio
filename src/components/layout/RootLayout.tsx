@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar';
 import { AsesorChat } from '../shared/AsesorChat';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
+import { PendingInvitesBanner } from './PendingInvitesBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
@@ -161,6 +162,7 @@ export function RootLayout() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
+        <PendingInvitesBanner />
       </div>
       <ReloadPrompt />
 

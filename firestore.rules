@@ -107,11 +107,12 @@ service cloud.firestore {
 
     function isValidProject(data) {
       return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
-             data.keys().size() <= 25 &&
+             data.keys().size() <= 27 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&
              data.status in ['active', 'completed', 'archived'] &&
-             data.createdAt is string && data.createdAt.size() > 0;
+             data.createdAt is string && data.createdAt.size() > 0 &&
+             (!('memberRoles' in data) || data.memberRoles is map);
     }
 
     function isValidReport(data) {
@@ -276,6 +277,28 @@ service cloud.firestore {
     match /transactions/{transactionId} {
       allow read: if isOwner(get(/databases/$(database)/documents/transactions/$(transactionId)).data.userId) || isAdmin();
       allow write: if false; // Only server-side via Admin SDK
+    }
+
+    match /invitations/{inviteId} {
+      // Invited user can see their own invites; project creator and admins see project invites
+      allow read: if isEmailVerified() && (
+        resource.data.invitedEmail == request.auth.token.email ||
+        isProjectCreator(resource.data.projectId) ||
+        isAdmin()
+      );
+      // Only project creator or admin can send invitations
+      allow create: if isEmailVerified() &&
+        (isProjectCreator(incoming().projectId) || isAdmin()) &&
+        incoming().invitedBy == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().invitedEmail is string &&
+        incoming().invitedRole is string;
+      // Project creator or admin can cancel (delete) invitations
+      allow delete: if isEmailVerified() && (
+        isProjectCreator(resource.data.projectId) || isAdmin()
+      );
+      // Status updates only via Admin SDK (accept/expire flows)
+      allow update: if false;
     }
   }
 }
