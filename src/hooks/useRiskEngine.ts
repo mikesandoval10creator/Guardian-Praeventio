@@ -56,7 +56,7 @@ export const useRiskEngine = () => {
     return () => {
       unsubscribe();
     };
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user, selectedProject]);
 
   const nodes = useMemo(() => {
     const pendingNodes = pendingActions
@@ -169,7 +169,11 @@ export const useRiskEngine = () => {
     
     // If critical information is missing, ask AI to generate the real, accurate data
     if (!enrichedData.title || !enrichedData.description || enrichedData.title === 'Sin título' || enrichedData.description === 'Sin descripción') {
-      enrichedData = await enrichNodeData(enrichedData);
+      try {
+        enrichedData = await enrichNodeData(enrichedData);
+      } catch (enrichError) {
+        console.error('Failed to enrich node data via AI, using original data:', enrichError);
+      }
     }
     
     const id = crypto.randomUUID();
@@ -204,16 +208,18 @@ export const useRiskEngine = () => {
     const now = new Date().toISOString();
 
     try {
-      if (!node1.connections.includes(id2)) {
+      const conn1 = node1.connections ?? [];
+      if (!conn1.includes(id2)) {
         matrixSyncManager.enqueueUpdate(id1, {
-          connections: [...node1.connections, id2],
+          connections: [...conn1, id2],
           updatedAt: now
         });
       }
-      
-      if (!node2.connections.includes(id1)) {
+
+      const conn2 = node2.connections ?? [];
+      if (!conn2.includes(id1)) {
         matrixSyncManager.enqueueUpdate(id2, {
-          connections: [...node2.connections, id1],
+          connections: [...conn2, id1],
           updatedAt: now
         });
       }

@@ -138,7 +138,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'projects');
+      // handleFirestoreError throws — catching here to prevent uncaught rejection
+      // that would break the entire ProjectContext.
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'projects');
+      } catch (e) {
+        console.error('ProjectContext: Firestore subscription error:', e);
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();

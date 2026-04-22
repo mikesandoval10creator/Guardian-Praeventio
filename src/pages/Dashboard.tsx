@@ -516,7 +516,7 @@ export function Dashboard() {
 
               <div className="flex flex-row items-center gap-2 sm:gap-4">
                 <div className="hidden sm:flex w-12 h-12 sm:w-14 sm:h-14 bg-emerald-100 dark:bg-emerald-800/50 rounded-full items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                  {weather && weather.sunrise && weather.sunset && (new Date().getTime() > weather.sunrise && new Date().getTime() < weather.sunset) ? <Sun className="w-7 h-7 sm:w-8 sm:h-8" /> : <Moon className="w-7 h-7 sm:w-8 sm:h-8" />}
+                  {weather && weather.sunrise && weather.sunset && (new Date().getTime() > new Date(weather.sunrise).getTime() && new Date().getTime() < new Date(weather.sunset).getTime()) ? <Sun className="w-7 h-7 sm:w-8 sm:h-8" /> : <Moon className="w-7 h-7 sm:w-8 sm:h-8" />}
                 </div>
                 
                 {loadingWeather ? (
