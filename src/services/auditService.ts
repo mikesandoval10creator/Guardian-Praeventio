@@ -1,4 +1,4 @@
-import { collection, addDoc, serverTimestamp, db, auth, handleFirestoreError, OperationType } from './firebase';
+import { collection, addDoc, serverTimestamp, db, auth, OperationType } from './firebase';
 
 export interface AuditLog {
   action: string;
@@ -31,9 +31,11 @@ export const logAuditAction = async (
       projectId: projectId || null
     });
   } catch (error) {
-    // We don't want audit logging to break the main application flow,
-    // but we should log it to the console.
-    console.error('Failed to write audit log:', error);
-    // handleFirestoreError(error, OperationType.CREATE, 'audit_logs');
+    // Audit failures are non-fatal but must be visible for compliance review.
+    console.error('Failed to write audit log:', JSON.stringify({
+      error: error instanceof Error ? error.message : String(error),
+      operationType: OperationType.CREATE,
+      path: 'audit_logs'
+    }));
   }
 };
