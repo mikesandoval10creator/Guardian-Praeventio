@@ -78,5 +78,10 @@ export const fetchLawFromBCN = async (idNorma: string): Promise<BCNLaw | null> =
 export const CRITICAL_LAWS = [
   { id: "28650", name: "Ley 16.744 (Accidentes del Trabajo)" },
   { id: "14305", name: "DS 594 (Condiciones Sanitarias y Ambientales)" },
-  { id: "25510", name: "DS 40 (Prevención de Riesgos Profesionales)" }
+  { id: "25510", name: "DS 40 (Prevención de Riesgos Profesionales)" },
+  { id: "221064", name: "DS 132/2004 Reglamento de Seguridad Minera" },
+  { id: "257601", name: "DS 76/2007 (Empresas Contratistas)" },
+  { id: "254080", name: "Ley 20.123 (Régimen de Subcontratación)" },
+  { id: "1088802", name: "DS 43/2016 (Almacenamiento Sustancias Peligrosas)" },
+  { id: "1131706", name: "Ley 21.156 (Desfibriladores Automáticos Portátiles)" }
 ];

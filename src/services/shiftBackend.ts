@@ -34,7 +34,7 @@ export const generateShiftHandoverInsights = async (previousShiftEvents: any[], 
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt,
     generationConfig: {
       responseMimeType: "application/json",
@@ -77,7 +77,7 @@ export const analyzeShiftFatiguePatterns = async (attendanceData: any[]) => {
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-1.5-flash",
+    model: "gemini-3-flash-preview",
     contents: prompt
   });
 
