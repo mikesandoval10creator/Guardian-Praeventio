@@ -300,10 +300,10 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Ranking de Cuadrillas "Flow":** Tabla de posiciones basada en el cumplimiento proactivo y la prevención, fomentando el orgullo de equipo.
 
 #### VIII. Seguridad Técnica, Estabilidad y Optimizaciones
-- [ ] **Ofuscación de Código en Producción:** Falta blindar las reglas de negocio críticas en la build de producción para evitar ingeniería inversa en la web. Vital para la propiedad intelectual: nadie debe poder extraer la lógica algorítmica ni el enfoque de prevención de riesgos (que modela directamente la mente del experto).
+- [x] **Ofuscación de Código en Producción:** Falta blindar las reglas de negocio críticas en la build de producción para evitar ingeniería inversa en la web. Vital para la propiedad intelectual: nadie debe poder extraer la lógica algorítmica ni el enfoque de prevención de riesgos (que modela directamente la mente del experto).
 - [ ] **Rotación Automática de Keys (JWT):** Política de expiración corta de sesiones para mitigar el riesgo si se pierde un dispositivo físico en obra.
 - [ ] **Compresión de Imágenes en Cliente:** Implementar un compresor de imágenes local (API de Canvas) antes de subir fotos de evidencia (que pueden pesar 10MB) a Firebase. Esencial para no drenar la cuota de Storage y ahorrar ancho de banda en terrenos de baja señal.
-- [ ] **Seguridad de API Keys:** La clave de Gemini (`GEMINI_API_KEY`) sigue acoplada al frontend en algunos submódulos heredados; debe aislarse *completamente* a Node.js/Cloud Functions sin excepción.
+- [x] **Seguridad de API Keys:** La clave de Gemini (`GEMINI_API_KEY`) y la configuración de Firebase Admin SDK fueron aisladas *completamente* a Node.js (Servidor Express), evadiendo la exposición al cliente frontend. Se inicializa mediante un wrapper nativo que respeta el `firestoreDatabaseId`.
 - [ ] **Control de Costos IA (Batching en Zettelkasten):** Procesar nodos huérfanos con Gemini en segundo plano (`useRiskEngine.ts`) podría agotar las cuotas de la API si no se controla adecuadamente el "batching". Se requiere asimilar una estrategia rigurosa para enviar los prompts en lote y economizar tokens.
 - [ ] **Arquitectura CQRS Local:** Separar las lecturas (ej. ver el PTS) de las escrituras (ej. crear un PTS) en IndexedDB para máxima velocidad.
 - [ ] **Purgado de Caché Obsoleto:** Script automático que elimina versiones viejas de la app (v1.0.1) cuando detecta la instalación de la nueva (v1.0.2).
@@ -354,10 +354,10 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 ## Prioridad 9: El Cerebro Externo (Motor RAG y Vector DB)
 
-- [ ] **Elección de Vector DB:** Integrar Pinecone para almacenar embeddings.
-- [ ] **Pipeline de Ingesta Continua:** Cloud Function que procesa nuevos PTS/IPERC con Gemini y guarda vectores en Pinecone.
+- [x] **Elección de Vector DB:** Optimizamos el uso de Firestore y background triggers en lugar de Pinecone como primera iteración para el almacenamiento y búsqueda semántica de nuestros embeddings y documentos RAG.
+- [x] **Pipeline de Ingesta Continua:** Background Triggers implementados en nuestro propio backend `server.ts` que auto-procesan nuevos documentos y reportes de incidentes utilizando Gemini y retroalimentan el Zettelkasten y motor AI.
 - [ ] **Búsqueda Híbrida:** Filtrar por metadatos (ej. proyecto) + similitud semántica.
-- [ ] **Endpoint Protegido:** Backend `/api/ask-guardian` para ocultar la API Key de Gemini.
+- [x] **Endpoint Protegido:** Backend Node.js / Express con endpoints protegidos para consumir la API de Gemini ocultando la `GEMINI_API_KEY` totalmente del cliente frontend.
 - [ ] **Inyección de Contexto Limitado:** Enviar solo los Top 5 fragmentos a Gemini para optimizar costos.
 - [ ] **Streaming de Respuestas:** Server-Sent Events (SSE) para respuestas rápidas letra a letra.
 - [ ] **Bucle de Mejora (RLHF):** Botones "Útil/No útil" para ajustar prompts futuros.

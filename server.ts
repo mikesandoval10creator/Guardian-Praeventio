@@ -18,18 +18,7 @@ import { google } from 'googleapis';
 
 dotenv.config();
 
-// Initialize Firebase Admin
-try {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-    });
-  }
-} catch (error) {
-  console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
-}
-
-// Read Firebase Config once at startup
+// Read Firebase Config once at startup FIRST
 let firebaseConfig: any = null;
 try {
   const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
@@ -38,6 +27,37 @@ try {
   }
 } catch (error) {
   console.error("Failed to read firebase-applet-config.json at startup:", error);
+}
+
+// Initialize Firebase Admin
+try {
+  if (!admin.apps.length) {
+    const initConfig: any = {
+      credential: admin.credential.applicationDefault(),
+    };
+    if (firebaseConfig?.projectId) {
+      initConfig.projectId = firebaseConfig.projectId;
+    }
+    admin.initializeApp(initConfig);
+  }
+
+  // Override admin.firestore() to always return the correct database instance
+  if (firebaseConfig?.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
+    const originalFirestore = admin.firestore;
+    const { getFirestore } = await import('firebase-admin/firestore');
+    
+    const firestoreWrapper = () => getFirestore(admin.app(), firebaseConfig.firestoreDatabaseId);
+    Object.assign(firestoreWrapper, originalFirestore);
+    
+    Object.defineProperty(admin, 'firestore', {
+      get: () => firestoreWrapper,
+      configurable: true
+    });
+    
+    console.log(`✅ Firebase Admin configured for databaseId: ${firebaseConfig.firestoreDatabaseId}`);
+  }
+} catch (error) {
+  console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
 }
 
 // Initialize Google Play Developer API

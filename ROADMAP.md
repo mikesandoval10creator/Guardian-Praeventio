@@ -13,8 +13,9 @@
 - ✅ Data Encryption: Cifrado en tránsito y reposo.
 - ✅ Secure Session Management: Gestión segura de sesiones.
 
-#### GCP Infrastructure & Cloud Functions
+#### GCP Infrastructure & Custom Backend
 - ✅ 100% Cloud Native en GCP.
+- ✅ Custom Backend Node.js/Express: Servidor dedicado que proporciona endpoints a prueba de exposición de credenciales y orquesta pipelines RAG.
 - ✅ Cloud SQL (PostgreSQL) & Firestore (NoSQL).
 - ✅ Vertex AI Integration: Base para funcionalidades de IA.
 - ✅ Cloud Monitoring & Logging: Observabilidad completa.
