@@ -22,7 +22,7 @@ export const generatePredictiveForecast = async (projectName: string, context: s
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-1.5-pro",
     contents: prompt,
     config: {
       responseMimeType: "application/json",

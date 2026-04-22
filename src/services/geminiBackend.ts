@@ -1834,7 +1834,7 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
   // 2. Use Gemini to translate the deterministic route into human instructions
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-1.5-flash",
     contents: `Actúa como un experto en logística de emergencias y evacuación industrial de Praeventio Guard. 
     Se ha calculado matemáticamente una ruta de evacuación segura que evita zonas de peligro. Tu tarea es traducir esta ruta en instrucciones claras, calmadas y precisas para el personal.
     

@@ -24,7 +24,7 @@ export const mapRisksToSurveillance = async (risks: any[]) => {
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-1.5-pro",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -100,7 +100,7 @@ export const generateCompensatoryExercises = async (fatigue: number, posture: nu
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-1.5-flash",
     contents: prompt,
     config: {
       responseMimeType: "application/json",
