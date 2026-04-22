@@ -939,6 +939,43 @@ app.delete("/api/projects/:id/members/:uid", verifyAuth, async (req, res) => {
   }
 });
 
+// DELETE /api/projects/:id/invite  — project creator cancels a pending invitation
+app.delete("/api/projects/:id/invite", verifyAuth, async (req, res) => {
+  const projectId = req.params.id;
+  const callerUid = (req as any).user.uid;
+  const { inviteId } = req.body;
+
+  if (!inviteId) {
+    return res.status(400).json({ error: "inviteId is required" });
+  }
+
+  try {
+    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
+    if (!projectDoc.exists) return res.status(404).json({ error: "Project not found" });
+
+    const projectData = projectDoc.data()!;
+    const isCreator = projectData.createdBy === callerUid;
+    if (!isCreator) {
+      const callerRecord = await admin.auth().getUser(callerUid);
+      if (callerRecord.customClaims?.role !== 'gerente' && callerRecord.customClaims?.role !== 'admin') {
+        return res.status(403).json({ error: "Forbidden: Only the project creator can cancel invitations" });
+      }
+    }
+
+    const inviteDoc = await admin.firestore().collection('invitations').doc(inviteId).get();
+    if (!inviteDoc.exists) return res.status(404).json({ error: "Invitation not found" });
+    if (inviteDoc.data()!.projectId !== projectId) {
+      return res.status(403).json({ error: "Invitation does not belong to this project" });
+    }
+
+    await inviteDoc.ref.delete();
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error canceling invitation:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Gamification Endpoints
