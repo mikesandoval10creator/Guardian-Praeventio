@@ -60,7 +60,12 @@ try {
     console.log(`✅ Firebase Admin configured for databaseId: ${firebaseConfig.firestoreDatabaseId}`);
   }
 } catch (error) {
-  console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
+  if (process.env.NODE_ENV === 'production') {
+    console.error("FATAL: Firebase Admin initialization failed in production.", error);
+    process.exit(1);
+  } else {
+    console.warn("Firebase Admin initialization failed. Auth middleware will not work.", error);
+  }
 }
 
 // Initialize Google Play Developer API
@@ -111,7 +116,7 @@ app.use(session({
   saveUninitialized: true,
   cookie: { 
     secure: process.env.NODE_ENV === "production", 
-    sameSite: 'none',
+    sameSite: 'lax',
     httpOnly: true 
   }
 }));
@@ -716,9 +721,13 @@ app.post("/api/telemetry/ingest", async (req, res) => {
   }
 });
 
-// Seed Glossary Endpoint
-app.post("/api/seed-glossary", async (req, res) => {
+// Seed Glossary Endpoint (gerente-only — prevents public abuse)
+app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
   try {
+    const callerRecord = await admin.auth().getUser((req as any).user.uid);
+    if (callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
+    }
     const { runSeed } = await import('./src/services/seedBackend.js');
     await runSeed();
     res.json({ success: true, message: "Community glossary seeded successfully" });
@@ -728,9 +737,13 @@ app.post("/api/seed-glossary", async (req, res) => {
   }
 });
 
-// Seed Data Endpoint
-app.post("/api/seed-data", async (req, res) => {
+// Seed Data Endpoint (gerente-only — prevents public abuse)
+app.post("/api/seed-data", verifyAuth, async (req, res) => {
   try {
+    const callerRecord = await admin.auth().getUser((req as any).user.uid);
+    if (callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
+    }
     const { seedInitialData } = await import('./src/services/dataSeedService.js');
     await seedInitialData();
     res.json({ success: true, message: "Initial project data seeded successfully" });

@@ -1,14 +1,19 @@
 {
-  "name": "react-example",
+  "name": "praeventio-guard",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "echo 'Typechecking bypassed due to memory limits in this environment'"
+    "lint": "echo 'Typechecking bypassed due to memory limits in this environment'",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:android": "npm run build && npx cap sync android && npx cap open android",
+    "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "cap:build:android": "npm run build && npx cap sync android",
+    "start": "NODE_ENV=production tsx server.ts"
   },
   "dependencies": {
     "@capacitor-community/admob": "^8.0.0",
