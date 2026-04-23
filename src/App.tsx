@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { initAdMob } from './services/adService';
 import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
@@ -46,6 +47,8 @@ const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(modu
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
+const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
+const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -74,6 +77,7 @@ function AppRoutes() {
           path="/login"
           element={!user ? <Login /> : <Navigate to="/" />}
         />
+                  <Route path="/invite" element={<InviteAccept />} />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
@@ -106,6 +110,7 @@ function AppRoutes() {
                     <Route path="help" element={<Help />} />
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
+                    <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route
                       path="profile"
                       element={user ? <Profile /> : <Navigate to="/login" />}
@@ -119,6 +124,8 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useEffect(() => { initAdMob(); }, []);
+
   return (
     <ErrorBoundary>
       <FirebaseProvider>

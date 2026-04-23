@@ -23,7 +23,6 @@ import { AddAuditModal } from '../components/audits/AddAuditModal';
 import { SafetyInspection } from '../components/safety/SafetyInspection';
 import { ISOAudit } from '../components/audits/ISOAudit';
 import { AuditDetailModal } from '../components/audits/AuditDetailModal';
-import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function Audits() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,7 +49,6 @@ export function Audits() {
   };
 
   return (
-    <PremiumFeatureGuard featureName="Auditorías e Inspecciones" description="Realiza inspecciones de seguridad y auditorías ISO con listas de verificación personalizables y reportes automáticos.">
     <div className="p-4 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -253,6 +251,5 @@ export function Audits() {
         onClose={() => setSelectedAudit(null)}
       />
     </div>
-    </PremiumFeatureGuard>
   );
 }

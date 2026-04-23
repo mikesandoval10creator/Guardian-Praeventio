@@ -321,6 +321,33 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
 - [x] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.
 
+---
+
+## Prioridad 14: Mejoras Phase 3 — Escala, Roles y Conocimiento Colectivo
+
+*Implementadas y pendientes de la refactorización de roles por proyecto, modelo de precios y sistema de conocimiento de controles.*
+
+### Completado ✅
+- [x] **Nuevo modelo de precios (4 planes):** Libre / Profesional ($10) / Empresa ($35) / Corporativo ($90). Filosofía: paga por escala, no por funciones. Todos los módulos de seguridad incluidos en todos los planes.
+- [x] **SubscriptionContext rediseñado:** Límites por proyectos, trabajadores/proyecto, equipo/proyecto. Migración automática de planes legacy. `canAccessExecutiveDashboard`, `canUseAPI` expuestos.
+- [x] **Pricing.tsx rediseñado:** Tabla comparativa completa mostrando todas las funciones disponibles. Sin bloqueo de características de seguridad por plan.
+- [x] **Roles por proyecto:** `Project` interface exportada con `memberRoles`, `createdBy`. El creador se asigna como `gerente` al crear.
+- [x] **Sistema de invitaciones:** 5 endpoints en `server.ts` (invite, accept, list members, remove, cancel invite). Colección `invitations` con reglas Firestore.
+- [x] **TeamManagementModal:** Gestión de equipo desde Projects.tsx (ícono Users). Listado de miembros con roles, formulario de invitación, invitaciones pendientes con cancelación, eliminación de miembros.
+- [x] **PendingInvitesBanner:** Banner en tiempo real (Firestore onSnapshot) para invitaciones pendientes. Aceptar desde el banner sin ir al correo.
+- [x] **Sistema de conocimiento de controles (tipos):** `NodeType.CONTROL`, interfaces `ImplementationGuide`, `ImplementationSpec`, `ImplementationEquipment`, campo `implementationGuide?` en `RiskNode`.
+
+### Pendiente 🔲
+- [ ] **Página de aceptación de invitaciones vía email (`/invite`):** Landing page pública que acepta el token desde query string. Si el usuario no tiene sesión muestra botón "Aceptar con Google". Si tiene sesión, llama `POST /api/invitations/:token/accept` automáticamente y redirige a proyectos. Incluye endpoint público `GET /api/invitations/info/:token` (sin auth) para previsualizar el proyecto y rol.
+
+### Completado ✅ (antes Pendiente)
+- [x] **UI de Guía de Implementación:** Formulario embebido en la vista de detalle de nodos tipo CONTROL para capturar: pasos de implementación, especificaciones técnicas (clave + valor + unidad), equipos requeridos (nombre + norma + cantidad), restricciones ambientales, tasa de éxito, nº de implementaciones y notas contextuales.
+- [x] **Enforcement de límites de plan en createProject:** Se verifica `PLAN_LIMITS[plan].projects` en Projects.tsx antes de mostrar el botón de crear. Si el usuario alcanzó el límite se muestra link a `/pricing`.
+- [x] **Dashboard Ejecutivo (Empresa/Corporativo):** KPIs cruzados entre proyectos en `/executive-dashboard`. Gate por `canAccessExecutiveDashboard`. Gráficos con recharts, PDF export, resumen IA.
+- [x] **Envío de invitaciones por email:** Resend SDK integrado en server.ts. `POST /api/projects/:id/invite` envía email branded con botón CTA al token de aceptación.
+- [x] **Compresión de imágenes en cliente:** Canvas API implementada en `ProjectDocuments.tsx` y `OfflineSyncManager.tsx`. Comprime imágenes antes de subir a Firebase Storage.
+- [x] **Carga diferida inteligente (Lazy Modals):** `TeamManagementModal`, `SyncCenterModal`, `MFASetupModal` lazy-loaded con React.lazy + Suspense.
+
 ## Prioridad 7: La "Resina Nativa" (Estrategia Capacitor)
 
 _Transformación de la PWA en una aplicación móvil nativa real con acceso a hardware de bajo nivel._

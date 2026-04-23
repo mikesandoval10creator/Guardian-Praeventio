@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
-import { useSubscription } from '../../contexts/SubscriptionContext';
 import ReactMarkdown from 'react-markdown';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
@@ -37,7 +36,6 @@ export function AsesorChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { nodes, addNode } = useRiskEngine();
   const { selectedProject } = useProject();
-  const { isPremium } = useSubscription();
 
   const handleSaveToRiskNetwork = async (content: string, topic: string) => {
     if (!selectedProject) return;

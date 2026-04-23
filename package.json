@@ -11,6 +11,7 @@
     "lint": "echo 'Typechecking bypassed due to memory limits in this environment'"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^8.0.0",
     "@capacitor-community/bluetooth-le": "^8.1.3",
     "@capacitor-community/keep-awake": "^8.0.0",
     "@capacitor-community/sqlite": "^8.1.0",
@@ -78,6 +79,7 @@
     "recharts": "^3.8.1",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
+    "resend": "^6.12.2",
     "tailwind-merge": "^3.5.0",
     "tesseract.js": "^7.0.0",
     "three": "^0.183.2",

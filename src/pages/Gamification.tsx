@@ -8,7 +8,6 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import confetti from 'canvas-confetti';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
-import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { ExtinguisherSimulator } from '../components/gamification/ExtinguisherSimulator';
 import { NormativeQuiz } from '../components/gamification/NormativeQuiz';
 import { ReflexBuzzer } from '../components/gamification/ReflexBuzzer';
@@ -238,7 +237,6 @@ export function Gamification() {
   ];
 
   return (
-    <PremiumFeatureGuard featureName="Gamificación y Recompensas" description="Motiva a tu equipo con un sistema de medallas, desafíos diarios y rankings basados en su participación en seguridad.">
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 sm:gap-6">
         <div className="space-y-2">
@@ -791,7 +789,6 @@ export function Gamification() {
         )}
       </AnimatePresence>
     </div>
-    </PremiumFeatureGuard>
   );
 }
 
