@@ -312,7 +312,7 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Manejo de Permisos Degradado:** Si el usuario niega acceso a la cámara, la app debe seguir funcionando con opciones manuales de ingreso.
 - [x] **Validación Zod para Formularios:** Asegurar que los datos ingresados en el módulo Diagnóstico sean del tipo correcto antes de guardarlos.
 - [x] **Evitar Cálculos Flotantes Complejos:** Redondear geolocalizaciones al cuarto decimal (aprox. 11 metros de precisión) para acelerar cálculos matemáticos de zonas de riesgo.
-- [x] **Precarga de DNS (dns-prefetch):** Links de dns-prefetch y preconnect añadidos a index.html en commit da2211e.
+- [ ] **Precarga de DNS (dns-prefetch):** Acelerar el micro-segundo de resolución al conectarse a los servidores de Firebase.
 - [x] **Skeleton Loaders:** En los submódulos, usar estructuras grises animadas suavemente mientras se carga la data local, dando percepción visual de velocidad extrema.
 - [x] **Modo Pantalla Siempre Activa (Wake Lock API):** En el submódulo de /emergency, evitar que la pantalla del celular se apague mientras se dictan coordenadas.
 - [x] **Prevención de Doble Envío:** Bloquear botones críticas (como "Declarar Emergencia") instantáneamente tras el primer toque para evitar colapsos por pánico.

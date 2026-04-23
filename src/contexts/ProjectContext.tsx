@@ -3,7 +3,7 @@ import { db, collection, onSnapshot, query, where, handleFirestoreError, Operati
 import { useFirebase } from './FirebaseContext';
 import { usePendingActions } from '../hooks/usePendingActions';
 
-export interface Project {
+interface Project {
   id: string;
   name: string;
   description: string;
@@ -15,15 +15,12 @@ export interface Project {
   endDate?: string;
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
-  workersCount?: number;
+  workersCount?: number; // Added for subscription and legal compliance
   isPendingSync?: boolean;
-  createdBy?: string;
-  members?: string[];
-  memberRoles?: { [uid: string]: string };
   // Tracking & Shifts
-  shiftStart?: string;
-  shiftEnd?: string;
-  trackCommute?: boolean;
+  shiftStart?: string; // e.g., "08:00"
+  shiftEnd?: string;   // e.g., "18:00"
+  trackCommute?: boolean; // Track 1 hour before/after
   settings?: {
     geofences?: any[];
     manDownInactivityThreshold?: number;
@@ -84,8 +81,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             ...projectData,
             createdAt: new Date().toISOString(),
             createdBy: user?.uid,
-            members: [user?.uid],
-            memberRoles: user?.uid ? { [user.uid]: 'gerente' } : {}
+            members: [user?.uid]
           }
         });
         alert('Proyecto guardado para sincronización cuando haya conexión.');
@@ -99,8 +95,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         ...projectData,
         createdAt: new Date().toISOString(),
         createdBy: user?.uid,
-        members: [user?.uid],
-        memberRoles: user?.uid ? { [user.uid]: 'gerente' } : {}
+        members: [user?.uid]
       });
 
       // Seed initial data for the new project
