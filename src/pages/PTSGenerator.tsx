@@ -12,7 +12,6 @@ import { logAuditAction } from '../services/auditService';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
-import { useSubscription } from '../contexts/SubscriptionContext';
 import { generatePTS, generatePTSWithManufacturerData } from '../services/geminiService';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -29,7 +28,6 @@ export function PTSGenerator() {
   const { user } = useFirebase();
   const { addNode, addConnection, nodes } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
-  const { isPremium } = useSubscription();
   const [documentType, setDocumentType] = useState('PTS');
   const [taskName, setTaskName] = useState(searchParams.get('title') || '');
   const [taskDescription, setTaskDescription] = useState(searchParams.get('desc') || '');

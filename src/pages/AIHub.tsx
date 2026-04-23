@@ -27,7 +27,6 @@ export function AIHub() {
   const isOnline = useOnlineStatus();
 
   return (
-    <PremiumFeatureGuard featureName="AI Hub Predictivo" description="Accede a la inteligencia artificial avanzada para predecir accidentes, analizar imágenes en tiempo real y generar planes de emergencia automáticamente.">
       <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 sm:space-y-12">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
         <div className="space-y-1.5 sm:space-y-2">
@@ -232,6 +231,5 @@ export function AIHub() {
         </div>
       </div>
     </div>
-    </PremiumFeatureGuard>
   );
 }
