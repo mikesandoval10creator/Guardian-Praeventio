@@ -1302,14 +1302,18 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    // Validate productId is a known plan name (whitelist)
+    const VALID_PLANS = ['free','comite','departamento','plata','oro','platino','empresarial','corporativo','ilimitado'];
+    const resolvedPlan = VALID_PLANS.includes(productId) ? productId : 'comite';
+
     // Update user subscription status
     if (type === 'subscription') {
       const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
-      // Detailed check for subscription status codes (e.g., paymentState)
-      const isActive = data.paymentState === 1 || data.paymentState === 2; // 1: Recibido, 2: Free trial
+      // paymentState 1 = received, 2 = free trial
+      const isActive = data.paymentState === 1 || data.paymentState === 2;
 
       await db.collection('users').doc(uid).update({
-        'subscription.planId': productId.includes('premium') ? 'premium' : 'basic',
+        'subscription.planId': resolvedPlan,
         'subscription.status': isActive ? 'active' : 'expired',
         'subscription.expiryDate': expiryDate,
         'subscription.purchaseToken': purchaseToken,

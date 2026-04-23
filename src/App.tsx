@@ -27,6 +27,8 @@ import { HealthRoutes } from "./routes/HealthRoutes";
 import { ComplianceRoutes } from "./routes/ComplianceRoutes";
 import { AIRoutes } from "./routes/AIRoutes";
 
+const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
+
 // Other Lazy Loaded Routes
 const History = lazy(() => import('./pages/History').then(module => ({ default: module.History })));
 const Notifications = lazy(() => import('./pages/Notifications').then(module => ({ default: module.Notifications })));
@@ -61,7 +63,19 @@ function AppRoutes() {
     return <ConsciousnessLoader />;
   }
 
-  if (!hasEntered) {
+  // Skip landing/splash for direct deep-links (invite, public node)
+  const skipLanding = window.location.pathname.startsWith('/invite') ||
+    window.location.pathname.startsWith('/public');
+
+  if (!hasEntered && !skipLanding) {
+    // Show landing page first; after "Entrar" briefly show splash then the app
+    if (!user) {
+      return (
+        <Suspense fallback={<ConsciousnessLoader />}>
+          <LandingPage onEnter={() => setHasEntered(true)} />
+        </Suspense>
+      );
+    }
     return <Splash onEnter={() => setHasEntered(true)} />;
   }
 
