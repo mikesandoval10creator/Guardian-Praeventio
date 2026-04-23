@@ -54,7 +54,7 @@ export function Training() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
-  const { plan } = useSubscription();
+  const { plan, isPremium } = useSubscription();
   const { isEmergencyActive } = useEmergency();
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
   const [adTrainingTitle, setAdTrainingTitle] = useState<string | null>(null);
@@ -81,12 +81,12 @@ export function Training() {
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
-  // Preload native AdMob interstitial so it's ready when training completes (libre plan only)
+  // Preload native AdMob interstitial so it's ready when training completes (free plan only)
   useEffect(() => {
-    if (activeVideoSession && plan === 'libre') {
+    if (activeVideoSession && !isPremium) {
       prepareInterstitial();
     }
-  }, [activeVideoSession, plan]);
+  }, [activeVideoSession, isPremium]);
 
   const filteredSessions = allSessions.filter(session => {
     if (activeTab === 'library') return session.isCurated;
@@ -178,7 +178,7 @@ export function Training() {
       setQuizAnswers([]);
       setCurrentQuestionIndex(0);
 
-      if (plan === 'libre' && canShowAd() && !isEmergencyActive) {
+      if (!isPremium && canShowAd() && !isEmergencyActive) {
         recordAdShown();
         setTimeout(() => setAdTrainingTitle(session.title), 400);
       }
