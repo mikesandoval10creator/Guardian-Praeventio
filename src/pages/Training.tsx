@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Play, 
-  CheckCircle2, 
-  Clock, 
-  Users, 
-  Plus, 
+import {
+  Play,
+  CheckCircle2,
+  Clock,
+  Users,
+  Plus,
   Search,
   BookOpen,
   Award,
@@ -32,6 +32,9 @@ import { TrainingSession } from '../types';
 import { FindTheGuardian } from '../components/gamification/FindTheGuardian';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { saveForSync } from '../utils/pwa-offline';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { PostTrainingAdModal } from '../components/shared/PostTrainingAdModal';
+import { prepareInterstitial } from '../services/adService';
 
 interface QuizQuestion {
   question: string;
@@ -50,7 +53,9 @@ export function Training() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
+  const { plan } = useSubscription();
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
+  const [adTrainingTitle, setAdTrainingTitle] = useState<string | null>(null);
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
   const [capsule, setCapsule] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
@@ -73,6 +78,13 @@ export function Training() {
   const { data: allSessions, loading } = useFirestoreCollection<TrainingSession>('training');
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+
+  // Preload native AdMob interstitial so it's ready when training completes
+  useEffect(() => {
+    if (activeVideoSession) {
+      prepareInterstitial();
+    }
+  }, [activeVideoSession]);
 
   const filteredSessions = allSessions.filter(session => {
     if (activeTab === 'library') return session.isCurated;
@@ -137,20 +149,25 @@ export function Training() {
 
     try {
       const docRef = doc(db, `projects/${selectedProject.id}/training`, session.id);
-      const newAttendees = session.attendees?.includes(user.uid) 
-        ? session.attendees 
+      const newAttendees = session.attendees?.includes(user.uid)
+        ? session.attendees
         : [...(session.attendees || []), user.uid];
 
       await updateDoc(docRef, {
         status: 'completed',
         attendees: newAttendees
       });
+
       setActiveVideoSession(null);
       setIsQuizActive(false);
       setIsQuizFinished(false);
       setQuizQuestions([]);
       setQuizAnswers([]);
       setCurrentQuestionIndex(0);
+
+      if (plan === 'libre') {
+        setAdTrainingTitle(session.title);
+      }
     } catch (error) {
       console.error('Error completing video:', error);
     }
@@ -806,6 +823,13 @@ export function Training() {
             Programa tu primera sesión de capacitación o genera una <span className="text-blue-500">Cápsula IA</span> para empezar a fortalecer la cultura preventiva.
           </p>
         </div>
+      )}
+
+      {adTrainingTitle && (
+        <PostTrainingAdModal
+          trainingTitle={adTrainingTitle}
+          onClose={() => setAdTrainingTitle(null)}
+        />
       )}
     </div>
   );
