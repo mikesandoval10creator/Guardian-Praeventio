@@ -78,6 +78,7 @@
     "recharts": "^3.8.1",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
+    "resend": "^6.12.2",
     "tailwind-merge": "^3.5.0",
     "tesseract.js": "^7.0.0",
     "three": "^0.183.2",

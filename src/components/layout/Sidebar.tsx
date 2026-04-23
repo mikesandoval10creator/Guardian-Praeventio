@@ -67,6 +67,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
 import { logOut } from "../../services/firebase";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+import { useSubscription } from "../../contexts/SubscriptionContext";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
 
@@ -96,6 +97,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
   const location = useLocation();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
+  const { isEnterprise } = useSubscription();
   const [showSurvivalMode, setShowSurvivalMode] = useState(false);
 
   const menuGroups: MenuGroup[] = [
@@ -108,6 +110,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-emerald-500" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
+        ...(isEnterprise ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
     {

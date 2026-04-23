@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import session from "express-session";
 import crypto from "crypto";
 import dotenv from "dotenv";
+import { Resend } from "resend";
 import { initializeRAG } from "./src/services/ragService.js";
 import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
@@ -17,6 +18,8 @@ import { GoogleGenAI } from "@google/genai";
 import { google } from 'googleapis';
 
 dotenv.config();
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Read Firebase Config once at startup FIRST
 let firebaseConfig: any = null;
@@ -752,6 +755,42 @@ app.post("/api/projects/:projectId/health-check", verifyAuth, async (req, res) =
 
 // ─── Project Invitation System ───────────────────────────────────────────────
 
+function buildInviteEmailHtml({ projectName, inviterName, role, token }: { projectName: string; inviterName: string; role: string; token: string }) {
+  const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
+  const acceptUrl = `${appUrl}/invite?token=${token}`;
+  const roleLabels: Record<string, string> = {
+    gerente: 'Gerente de Prevención',
+    prevencionista: 'Prevencionista de Riesgos',
+    supervisor: 'Supervisor',
+    director_obra: 'Director de Obra',
+    medico_ocupacional: 'Médico Ocupacional',
+    operario: 'Operario',
+    contratista: 'Contratista',
+  };
+  const roleLabel = roleLabels[role] || role;
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invitación a Praeventio</title></head><body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f5;color:#18181b">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0"><tr><td align="center">
+  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+    <tr><td style="background:#09090b;padding:32px 40px;text-align:center">
+      <span style="font-size:24px;font-weight:900;color:#10b981;letter-spacing:-1px">PRAEVENTIO</span>
+      <span style="font-size:10px;font-weight:700;color:#6b7280;display:block;letter-spacing:4px;margin-top:2px">GUARD</span>
+    </td></tr>
+    <tr><td style="padding:40px">
+      <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">Fuiste invitado a un proyecto</h2>
+      <p style="margin:0 0 24px;font-size:14px;color:#71717a"><strong style="color:#09090b">${inviterName}</strong> te invitó a unirte a <strong style="color:#09090b">"${projectName}"</strong> como <strong style="color:#10b981">${roleLabel}</strong>.</p>
+      <div style="text-align:center;margin:32px 0">
+        <a href="${acceptUrl}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Aceptar Invitación</a>
+      </div>
+      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">Si no esperabas esta invitación, puedes ignorar este email.</p>
+      <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${acceptUrl}</p>
+    </td></tr>
+    <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
+      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
+    </td></tr>
+  </table></td></tr></table>
+</body></html>`;
+}
+
 // POST /api/projects/:id/invite  — project creator sends an invitation
 app.post("/api/projects/:id/invite", verifyAuth, async (req, res) => {
   const projectId = req.params.id;
@@ -811,6 +850,20 @@ app.post("/api/projects/:id/invite", verifyAuth, async (req, res) => {
       createdAt: new Date().toISOString(),
       expiresAt,
     });
+
+    // Send invitation email — failure does NOT block the response
+    try {
+      const callerRecord = await admin.auth().getUser(callerUid);
+      const inviterName = callerRecord.displayName || callerRecord.email || 'Tu equipo';
+      await resend.emails.send({
+        from: 'Praeventio Guard <noreply@praeventio.net>',
+        to: invitedEmail,
+        subject: `${inviterName} te invitó a "${projectData.name || 'un proyecto'}" en Praeventio`,
+        html: buildInviteEmailHtml({ projectName: projectData.name || 'un proyecto', inviterName, role: invitedRole, token }),
+      });
+    } catch (emailErr) {
+      console.warn('Email delivery failed (invitation stored successfully):', emailErr);
+    }
 
     res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
