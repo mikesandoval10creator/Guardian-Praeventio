@@ -241,7 +241,7 @@ export function DigitalTwin({ workers: propWorkers, machinery: propMachinery }: 
           </div>
         </div>
 
-        <Canvas camera={{ position: [10, 10, 10], fov: 50 }}>
+        <Canvas camera={{ position: [10, 10, 10], fov: 50 }} gl={{ powerPreference: 'low-power' }}>
           <Scene workers={workers} machinery={machinery} />
         </Canvas>
       </div>

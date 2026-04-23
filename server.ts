@@ -872,6 +872,30 @@ app.post("/api/projects/:id/invite", verifyAuth, async (req, res) => {
   }
 });
 
+// GET /api/invitations/info/:token  — public, returns safe invite preview (no auth required)
+app.get("/api/invitations/info/:token", async (req, res) => {
+  const { token } = req.params;
+  try {
+    const snapshot = await admin.firestore().collection('invitations')
+      .where('token', '==', token)
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get();
+    if (snapshot.empty) return res.status(404).json({ error: "Invitation not found or already used" });
+    const invite = snapshot.docs[0].data();
+    if (new Date(invite.expiresAt) < new Date()) return res.status(410).json({ error: "Invitation has expired" });
+    // Return only safe, non-sensitive fields
+    res.json({
+      projectName: invite.projectName || 'un proyecto',
+      invitedRole: invite.invitedRole,
+      invitedEmail: invite.invitedEmail,
+      expiresAt: invite.expiresAt,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // POST /api/invitations/:token/accept  — invited user accepts
 app.post("/api/invitations/:token/accept", verifyAuth, async (req, res) => {
   const { token } = req.params;

@@ -47,6 +47,7 @@ const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: 
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
+const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -75,6 +76,7 @@ function AppRoutes() {
           path="/login"
           element={!user ? <Login /> : <Navigate to="/" />}
         />
+                  <Route path="/invite" element={<InviteAccept />} />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}

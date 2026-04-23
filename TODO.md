@@ -338,12 +338,15 @@ _Requiere hardware externo, integraciones corporativas pesadas, regulaciones o i
 - [x] **Sistema de conocimiento de controles (tipos):** `NodeType.CONTROL`, interfaces `ImplementationGuide`, `ImplementationSpec`, `ImplementationEquipment`, campo `implementationGuide?` en `RiskNode`.
 
 ### Pendiente 🔲
-- [ ] **UI de Guía de Implementación:** Formulario embebido en la vista de detalle de nodos tipo CONTROL para capturar: pasos de implementación, especificaciones técnicas (clave + valor + unidad), equipos requeridos (nombre + norma + cantidad), restricciones ambientales, tasa de éxito, nº de implementaciones y notas contextuales. Permite reutilizar controles efectivos con sus especificaciones exactas (altura de línea de vida, tipo de anclaje, etc.).
-- [ ] **Enforcement de límites de plan en createProject:** Verificar `PLAN_LIMITS[plan].projects` antes de crear proyecto. Mostrar modal de upgrade si el usuario alcanzó el límite.
-- [ ] **Dashboard Ejecutivo (Empresa/Corporativo):** KPIs cruzados entre proyectos: tasa de siniestralidad, cumplimiento normativo, evolución de riesgos. Solo visible en planes Empresa y Corporativo (`canAccessExecutiveDashboard`).
-- [ ] **Envío de invitaciones por email:** Integrar SendGrid o Resend para notificar por correo cuando se genera un token de invitación. El email incluye el link de aceptación con el token.
-- [ ] **Compresión de imágenes en cliente:** Hook `useImageCompressor` basado en Canvas API. Comprimir a máx. 1200px y 80% de calidad JPEG antes de subir a Firebase Storage. Prioridad alta: fotos de evidencia de incidentes pueden pesar 10MB desde dispositivos modernos.
-- [ ] **Carga diferida inteligente (Lazy Modals):** Modales pesados (TeamManagementModal, SyncCenterModal, MFASetupModal) lazy-loaded con React.lazy + Suspense para no incluirlos en el bundle inicial.
+- [ ] **Página de aceptación de invitaciones vía email (`/invite`):** Landing page pública que acepta el token desde query string. Si el usuario no tiene sesión muestra botón "Aceptar con Google". Si tiene sesión, llama `POST /api/invitations/:token/accept` automáticamente y redirige a proyectos. Incluye endpoint público `GET /api/invitations/info/:token` (sin auth) para previsualizar el proyecto y rol.
+
+### Completado ✅ (antes Pendiente)
+- [x] **UI de Guía de Implementación:** Formulario embebido en la vista de detalle de nodos tipo CONTROL para capturar: pasos de implementación, especificaciones técnicas (clave + valor + unidad), equipos requeridos (nombre + norma + cantidad), restricciones ambientales, tasa de éxito, nº de implementaciones y notas contextuales.
+- [x] **Enforcement de límites de plan en createProject:** Se verifica `PLAN_LIMITS[plan].projects` en Projects.tsx antes de mostrar el botón de crear. Si el usuario alcanzó el límite se muestra link a `/pricing`.
+- [x] **Dashboard Ejecutivo (Empresa/Corporativo):** KPIs cruzados entre proyectos en `/executive-dashboard`. Gate por `canAccessExecutiveDashboard`. Gráficos con recharts, PDF export, resumen IA.
+- [x] **Envío de invitaciones por email:** Resend SDK integrado en server.ts. `POST /api/projects/:id/invite` envía email branded con botón CTA al token de aceptación.
+- [x] **Compresión de imágenes en cliente:** Canvas API implementada en `ProjectDocuments.tsx` y `OfflineSyncManager.tsx`. Comprime imágenes antes de subir a Firebase Storage.
+- [x] **Carga diferida inteligente (Lazy Modals):** `TeamManagementModal`, `SyncCenterModal`, `MFASetupModal` lazy-loaded con React.lazy + Suspense.
 
 ## Prioridad 7: La "Resina Nativa" (Estrategia Capacitor)
 

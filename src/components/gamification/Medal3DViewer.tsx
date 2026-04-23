@@ -37,7 +37,7 @@ function Medal({ title, color }: { title: string, color: string }) {
 export function Medal3DViewer({ title = "SEMANA INVICTA", color = "#fbbf24" }: { title?: string, color?: string }) {
   return (
     <div className="w-full h-48 relative cursor-grab active:cursor-grabbing">
-      <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
+      <Canvas camera={{ position: [0, 0, 5], fov: 50 }} gl={{ powerPreference: 'low-power' }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 5]} intensity={1.5} />
         <pointLight position={[-10, -10, -5]} intensity={0.5} />
