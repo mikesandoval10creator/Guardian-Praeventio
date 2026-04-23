@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { initAdMob } from './services/adService';
 import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
@@ -123,6 +124,8 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useEffect(() => { initAdMob(); }, []);
+
   return (
     <ErrorBoundary>
       <FirebaseProvider>

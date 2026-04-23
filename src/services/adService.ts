@@ -55,12 +55,29 @@ export async function showInterstitial(): Promise<void> {
 
 let adSenseLoaded = false;
 
-export function loadAdSenseScript(): void {
-  if (isNative() || adSenseLoaded || !AD_CONFIG.adsenseClient) return;
-  adSenseLoaded = true;
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CONFIG.adsenseClient}`;
-  script.crossOrigin = 'anonymous';
-  document.head.appendChild(script);
+export function loadAdSenseScript(): Promise<void> {
+  if (isNative() || !AD_CONFIG.adsenseClient) return Promise.resolve();
+  if (adSenseLoaded) return Promise.resolve();
+  return new Promise((resolve) => {
+    adSenseLoaded = true;
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CONFIG.adsenseClient}`;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve();
+    script.onerror = () => resolve(); // silencioso si falla
+    document.head.appendChild(script);
+  });
+}
+
+const AD_COOLDOWN_MS = 60 * 60 * 1000; // 1 hora
+const AD_LAST_SHOWN_KEY = 'pg_last_ad_ts';
+
+export function canShowAd(): boolean {
+  const last = Number(localStorage.getItem(AD_LAST_SHOWN_KEY) ?? 0);
+  return Date.now() - last > AD_COOLDOWN_MS;
+}
+
+export function recordAdShown(): void {
+  localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now()));
 }

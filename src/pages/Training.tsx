@@ -34,7 +34,8 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { saveForSync } from '../utils/pwa-offline';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { PostTrainingAdModal } from '../components/shared/PostTrainingAdModal';
-import { prepareInterstitial } from '../services/adService';
+import { prepareInterstitial, canShowAd, recordAdShown } from '../services/adService';
+import { useEmergency } from '../contexts/EmergencyContext';
 
 interface QuizQuestion {
   question: string;
@@ -54,6 +55,7 @@ export function Training() {
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
   const { plan } = useSubscription();
+  const { isEmergencyActive } = useEmergency();
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
   const [adTrainingTitle, setAdTrainingTitle] = useState<string | null>(null);
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
@@ -79,12 +81,12 @@ export function Training() {
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
-  // Preload native AdMob interstitial so it's ready when training completes
+  // Preload native AdMob interstitial so it's ready when training completes (libre plan only)
   useEffect(() => {
-    if (activeVideoSession) {
+    if (activeVideoSession && plan === 'libre') {
       prepareInterstitial();
     }
-  }, [activeVideoSession]);
+  }, [activeVideoSession, plan]);
 
   const filteredSessions = allSessions.filter(session => {
     if (activeTab === 'library') return session.isCurated;
@@ -147,6 +149,17 @@ export function Training() {
   const handleCompleteVideo = async (session: TrainingSession) => {
     if (!selectedProject || !user) return;
 
+    // Guard: training already completed — clear UI but skip ad
+    if (session.status === 'completed') {
+      setActiveVideoSession(null);
+      setIsQuizActive(false);
+      setIsQuizFinished(false);
+      setQuizQuestions([]);
+      setQuizAnswers([]);
+      setCurrentQuestionIndex(0);
+      return;
+    }
+
     try {
       const docRef = doc(db, `projects/${selectedProject.id}/training`, session.id);
       const newAttendees = session.attendees?.includes(user.uid)
@@ -165,8 +178,9 @@ export function Training() {
       setQuizAnswers([]);
       setCurrentQuestionIndex(0);
 
-      if (plan === 'libre') {
-        setAdTrainingTitle(session.title);
+      if (plan === 'libre' && canShowAd() && !isEmergencyActive) {
+        recordAdShown();
+        setTimeout(() => setAdTrainingTitle(session.title), 400);
       }
     } catch (error) {
       console.error('Error completing video:', error);

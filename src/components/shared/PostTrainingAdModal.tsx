@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, X } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { AD_CONFIG, isNative, showInterstitial, loadAdSenseScript } from '../../services/adService';
 
 const AD_DURATION = 30; // seconds
@@ -24,13 +25,13 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
   const [nativeAdShown, setNativeAdShown] = useState(false);
   const adRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const navigate = useNavigate();
 
   // On native: show AdMob interstitial immediately and run the countdown
   useEffect(() => {
     if (isNative()) {
       showInterstitial().finally(() => setNativeAdShown(true));
     } else {
-      loadAdSenseScript();
       injectAdSenseBanner();
     }
 
@@ -48,9 +49,10 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  const injectAdSenseBanner = () => {
+  const injectAdSenseBanner = async () => {
     if (!AD_CONFIG.adsenseClient || !AD_CONFIG.adsenseSlot) return;
     try {
+      await loadAdSenseScript(); // wait for script to be available
       const ins = document.createElement('ins');
       ins.className = 'adsbygoogle';
       ins.style.display = 'block';
@@ -62,7 +64,7 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
       (window as any).adsbygoogle = (window as any).adsbygoogle || [];
       (window as any).adsbygoogle.push({});
     } catch {
-      // AdSense not loaded yet — silently ignore
+      // silently ignore
     }
   };
 
@@ -107,7 +109,7 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
           )}
 
           {/* Footer with countdown */}
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 py-5 space-y-3">
             <p className="text-[10px] text-zinc-500 text-center leading-relaxed">
               Los anuncios permiten que Praeventio Guard sea gratuito para equipos de hasta 10 personas.
             </p>
@@ -130,6 +132,15 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
                 </div>
               </div>
             )}
+
+            <div className="text-center pt-1">
+              <button
+                onClick={() => { onClose(); navigate('/pricing'); }}
+                className="text-[9px] text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition-colors"
+              >
+                Eliminar anuncios · Plan Profesional desde $10/mes
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>
