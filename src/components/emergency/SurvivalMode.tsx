@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, HeartPulse, Flame, Droplets, Wind, Map, BookOpen, X, ChevronRight } from 'lucide-react';
+import { ShieldAlert, HeartPulse, Flame, Droplets, Wind, Map, BookOpen, X, ChevronRight, Zap, Radio, Mic, MicOff } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
+import { useAcousticSOS } from '../../hooks/useAcousticSOS';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 interface SurvivalModeProps {
   onClose: () => void;
@@ -37,7 +39,7 @@ const survivalGuides = [
   {
     id: 'earthquake',
     title: 'Sismo Severo',
-    icon: Wind, // Using Wind as a placeholder for tremor/earthquake
+    icon: Wind,
     color: 'text-amber-500',
     content: [
       { step: '1', text: 'Mantener la calma. Agacharse, cubrirse y afirmarse.' },
@@ -49,15 +51,132 @@ const survivalGuides = [
   }
 ];
 
+// Emergency breathing overlay — auto-starts, uses physiological sigh pattern
+function EmergencyBreathing({ onDismiss }: { onDismiss: () => void }) {
+  const [phase, setPhase] = useState<'Inhala' | 'Inhala más' | 'Exhala lento'>('Inhala');
+
+  useEffect(() => {
+    // Physiological sigh: double inhale + long exhale (Huberman protocol)
+    const cycle = async () => {
+      setPhase('Inhala');
+      await new Promise(r => setTimeout(r, 2000));
+      setPhase('Inhala más');
+      navigator.vibrate?.([80]);
+      await new Promise(r => setTimeout(r, 1000));
+      setPhase('Exhala lento');
+      navigator.vibrate?.([300]);
+      await new Promise(r => setTimeout(r, 4000));
+    };
+
+    let active = true;
+    const run = async () => {
+      while (active) { await cycle(); }
+    };
+    run();
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-[150] bg-black/95 flex flex-col items-center justify-center p-6"
+    >
+      <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-4">
+        Tu señal está activa. El rescate está en camino.
+      </p>
+      <motion.div
+        animate={{ scale: phase === 'Exhala lento' ? 1 : phase === 'Inhala más' ? 1.6 : 1.3 }}
+        transition={{ duration: phase === 'Exhala lento' ? 4 : phase === 'Inhala más' ? 1 : 2, ease: 'easeInOut' }}
+        className="w-36 h-36 rounded-full bg-sky-500/20 border-2 border-sky-500/50 flex items-center justify-center mb-8"
+      >
+        <span className="text-sky-300 font-black text-lg text-center leading-tight px-2">{phase}</span>
+      </motion.div>
+      <p className="text-white font-black text-2xl uppercase tracking-tight mb-2">Respira conmigo</p>
+      <p className="text-zinc-500 text-xs text-center max-w-xs">
+        Respirar lento reduce el consumo de oxígeno y mantiene tu mente clara.
+      </p>
+      <button
+        onClick={onDismiss}
+        className="mt-10 px-6 py-3 border border-zinc-700 rounded-xl text-xs font-bold text-zinc-400 hover:text-white uppercase tracking-widest transition-colors"
+      >
+        Estoy calmado
+      </button>
+    </motion.div>
+  );
+}
+
 export function SurvivalMode({ onClose }: SurvivalModeProps) {
   const [activeGuide, setActiveGuide] = useState<string | null>(null);
+  const [isStrobeActive, setIsStrobeActive] = useState(false);
+  const [strobeFlash, setStrobeFlash] = useState(false);
+  const [showPanic, setShowPanic] = useState(false);
+  const torchStreamRef = useRef<MediaStream | null>(null);
+  const { requestWakeLock, releaseWakeLock } = useWakeLock();
+
+  // Acoustic SOS: 3 loud knocks → auto-activate strobe
+  const { isActive: sosListening, noiseLevel, start: startSOS, stop: stopSOS } = useAcousticSOS({
+    threshold: 75,
+    onSOS: useCallback(() => {
+      setIsStrobeActive(true);
+      navigator.vibrate?.([500, 200, 500, 200, 500]);
+    }, []),
+  });
+
+  // Strobe beacon: 2Hz flash
+  useEffect(() => {
+    if (!isStrobeActive) {
+      setStrobeFlash(false);
+      return;
+    }
+    requestWakeLock();
+    const interval = setInterval(() => setStrobeFlash(f => !f), 500);
+
+    // Try to toggle device torch as well
+    const startTorch = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        torchStreamRef.current = stream;
+        const track = stream.getVideoTracks()[0];
+        let on = false;
+        setInterval(() => {
+          on = !on;
+          (track.applyConstraints as any)({ advanced: [{ torch: on }] }).catch(() => {});
+        }, 500);
+      } catch { /* torch not available, screen strobe is enough */ }
+    };
+    startTorch();
+
+    return () => {
+      clearInterval(interval);
+      if (torchStreamRef.current) {
+        torchStreamRef.current.getTracks().forEach(t => t.stop());
+        torchStreamRef.current = null;
+      }
+      releaseWakeLock();
+    };
+  }, [isStrobeActive, requestWakeLock, releaseWakeLock]);
 
   const guide = survivalGuides.find(g => g.id === activeGuide);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col">
+      {/* Strobe overlay */}
+      {isStrobeActive && (
+        <div
+          className={`fixed inset-0 z-[120] pointer-events-none transition-colors duration-75 ${
+            strobeFlash ? 'bg-white' : 'bg-transparent'
+          }`}
+        />
+      )}
+
+      {/* Emergency breathing overlay */}
+      <AnimatePresence>
+        {showPanic && <EmergencyBreathing onDismiss={() => setShowPanic(false)} />}
+      </AnimatePresence>
+
       {/* Header */}
-      <div className="p-4 border-b border-rose-500/20 bg-rose-500/5 flex items-center justify-between">
+      <div className="p-4 border-b border-rose-500/20 bg-rose-500/5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-rose-500/20 rounded-lg animate-pulse">
             <ShieldAlert className="w-6 h-6 text-rose-500" />
@@ -75,6 +194,57 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
           <X className="w-6 h-6 text-zinc-400" />
         </button>
       </div>
+
+      {/* Emergency action buttons */}
+      <div className="p-4 grid grid-cols-3 gap-2 shrink-0 border-b border-white/5">
+        {/* Strobe beacon */}
+        <button
+          onClick={() => setIsStrobeActive(v => !v)}
+          className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${
+            isStrobeActive
+              ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400 animate-pulse'
+              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+          }`}
+        >
+          <Zap className="w-5 h-5" />
+          <span className="text-[9px] font-bold uppercase tracking-wider">
+            {isStrobeActive ? 'Faro ON' : 'Faro'}
+          </span>
+        </button>
+
+        {/* Acoustic SOS listener */}
+        <button
+          onClick={() => sosListening ? stopSOS() : startSOS()}
+          className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${
+            sosListening
+              ? 'bg-rose-500/20 border-rose-500/50 text-rose-400'
+              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+          }`}
+        >
+          {sosListening ? <Radio className="w-5 h-5 animate-pulse" /> : <Mic className="w-5 h-5" />}
+          <span className="text-[9px] font-bold uppercase tracking-wider">
+            {sosListening ? `SOS ${noiseLevel}` : 'SOS Acústico'}
+          </span>
+        </button>
+
+        {/* Anti-panic breathing */}
+        <button
+          onClick={() => setShowPanic(true)}
+          className="flex flex-col items-center gap-1 p-3 rounded-xl border border-zinc-700 text-zinc-400 hover:border-sky-500 hover:text-sky-400 transition-all"
+        >
+          <Wind className="w-5 h-5" />
+          <span className="text-[9px] font-bold uppercase tracking-wider">Respirar</span>
+        </button>
+      </div>
+
+      {/* Acoustic SOS hint */}
+      {sosListening && (
+        <div className="px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 shrink-0">
+          <p className="text-[10px] text-rose-400 text-center font-bold">
+            Escuchando — 3 golpes fuertes activan el faro automáticamente
+          </p>
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
@@ -115,7 +285,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
                 exit={{ opacity: 0, y: 20 }}
                 className="space-y-6"
               >
-                <button 
+                <button
                   onClick={() => setActiveGuide(null)}
                   className="text-sm font-bold text-zinc-400 hover:text-white flex items-center gap-2 uppercase tracking-wider"
                 >

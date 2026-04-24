@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HeartPulse, Activity, ChevronRight, X, Play, Square } from 'lucide-react';
+import { HeartPulse, Activity, ChevronRight, X, Play, Square, Vibrate } from 'lucide-react';
+import { useAccelerometer } from '../../hooks/useAccelerometer';
 
 const guides = [
   {
@@ -42,6 +43,56 @@ const guides = [
 export function FirstAidCards() {
   const [activeGuide, setActiveGuide] = useState<string | null>(null);
   const [metronomeActive, setMetronomeActive] = useState(false);
+  const [depthCheckActive, setDepthCheckActive] = useState(false);
+  const [depthFeedback, setDepthFeedback] = useState<'OK' | 'DEEPER' | 'FASTER' | null>(null);
+  const peakAccelRef = useRef<number>(0);
+  const lastBeatRef = useRef<number>(Date.now());
+
+  const { data: accelData, start: startAccel, stop: stopAccel } = useAccelerometer({
+    threshold: 99, // don't use fall detection
+    onFallDetected: undefined,
+  });
+
+  // CPR depth feedback — uses accelerometer while metronome is active
+  useEffect(() => {
+    if (!depthCheckActive || !accelData) return;
+
+    const { acceleration } = accelData;
+    // Track peak acceleration per beat (compression spike)
+    if (acceleration > peakAccelRef.current) {
+      peakAccelRef.current = acceleration;
+    }
+
+    // Evaluate every ~600ms (one beat at 100 BPM)
+    const now = Date.now();
+    if (now - lastBeatRef.current >= 600) {
+      const peak = peakAccelRef.current;
+      peakAccelRef.current = 0;
+      lastBeatRef.current = now;
+
+      if (peak < 12) {
+        setDepthFeedback('DEEPER');
+        navigator.vibrate?.([200, 50, 200]);
+      } else if (now - lastBeatRef.current > 750) {
+        setDepthFeedback('FASTER');
+        navigator.vibrate?.([100]);
+      } else {
+        setDepthFeedback('OK');
+        navigator.vibrate?.([50]);
+      }
+    }
+  }, [accelData, depthCheckActive]);
+
+  const toggleDepthCheck = async () => {
+    if (depthCheckActive) {
+      setDepthCheckActive(false);
+      setDepthFeedback(null);
+      stopAccel();
+    } else {
+      setDepthCheckActive(true);
+      await startAccel();
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -126,10 +177,13 @@ export function FirstAidCards() {
                         {guide.title}
                       </h2>
                     </div>
-                    <button 
+                    <button
                       onClick={() => {
                         setActiveGuide(null);
                         setMetronomeActive(false);
+                        setDepthCheckActive(false);
+                        setDepthFeedback(null);
+                        stopAccel();
                       }}
                       className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
@@ -160,8 +214,8 @@ export function FirstAidCards() {
                         <button
                           onClick={() => setMetronomeActive(!metronomeActive)}
                           className={`w-full py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                            metronomeActive 
-                              ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.5)] animate-pulse' 
+                            metronomeActive
+                              ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.5)] animate-pulse'
                               : 'bg-zinc-900 dark:bg-white text-white dark:text-black'
                           }`}
                         >
@@ -177,6 +231,40 @@ export function FirstAidCards() {
                             </>
                           )}
                         </button>
+
+                        {/* CPR depth feedback via accelerometer */}
+                        {metronomeActive && (
+                          <div className="w-full space-y-2">
+                            <button
+                              onClick={toggleDepthCheck}
+                              className={`w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border ${
+                                depthCheckActive
+                                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                                  : 'border-zinc-600 text-zinc-400 hover:border-zinc-400'
+                              }`}
+                            >
+                              <Vibrate className="w-4 h-4" />
+                              {depthCheckActive ? 'Desactivar Guía de Profundidad' : 'Activar Guía de Profundidad'}
+                            </button>
+
+                            {depthCheckActive && depthFeedback && (
+                              <motion.div
+                                key={depthFeedback}
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className={`w-full py-3 rounded-xl text-center font-black uppercase tracking-widest text-sm ${
+                                  depthFeedback === 'OK'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                                }`}
+                              >
+                                {depthFeedback === 'OK' && '✓ Profundidad correcta'}
+                                {depthFeedback === 'DEEPER' && '↓ Más fuerte'}
+                                {depthFeedback === 'FASTER' && '↑ Más rápido'}
+                              </motion.div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

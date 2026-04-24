@@ -40,7 +40,8 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
         };
         
         setResult(offlineAnalysis);
-        
+        navigator.vibrate?.([50, 30, 100]); // success haptic
+
         // Save to Risk Network
         await addNode({
           type: NodeType.RISK,
@@ -65,7 +66,8 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
       } else {
         const analysis = await analyzeFastCheck(observation);
         setResult(analysis);
-        
+        navigator.vibrate?.([50, 30, 100]); // success haptic
+
         // Save to Risk Network
         await addNode({
           type: analysis.tipo as NodeType || NodeType.RISK,
@@ -87,6 +89,7 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
       }
 
     } catch (error) {
+      navigator.vibrate?.([200, 100, 200]); // error haptic
       console.error('Error analyzing Fast Check:', error);
     } finally {
       setIsAnalyzing(false);

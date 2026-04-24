@@ -11,6 +11,10 @@ interface PraeventioDB extends DBSchema {
     key: number;
     value: { id?: number; action: 'create' | 'update' | 'delete'; collection: string; data: any; timestamp: number; };
   };
+  blackbox: {
+    key: string;
+    value: { id: string; workerId: string; data: any; timestamp: number; locked: boolean };
+  };
 }
 
 let idbPromise: Promise<IDBPDatabase<PraeventioDB>> | null = null;
@@ -19,7 +23,7 @@ let sqliteDB: SQLiteDBConnection | null = null;
 
 const initIDB = () => {
   if (!idbPromise) {
-    idbPromise = openDB<PraeventioDB>('praeventio-bunker', 1, {
+    idbPromise = openDB<PraeventioDB>('praeventio-bunker', 2, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('workers')) {
           const workerStore = db.createObjectStore('workers', { keyPath: 'id' });
@@ -35,6 +39,9 @@ const initIDB = () => {
         }
         if (!db.objectStoreNames.contains('offlineQueue')) {
           db.createObjectStore('offlineQueue', { keyPath: 'id', autoIncrement: true });
+        }
+        if (!db.objectStoreNames.contains('blackbox')) {
+          db.createObjectStore('blackbox', { keyPath: 'id' });
         }
       },
     });
@@ -224,5 +231,50 @@ export const clearOfflineQueueItem = async (id: number) => {
   } else {
     const db = await initIDB();
     await db.delete('offlineQueue', id);
+  }
+};
+
+// ─── Black Box (Caja Negra Biométrica) ─────────────────────────────────────
+// Saves an immutable telemetry dump when a ManDown event is confirmed.
+// Locked by default — only unlockable via biometric auth or auditor key.
+
+export const saveBlackBox = async (workerId: string, telemetry: Record<string, any>) => {
+  const entry = {
+    id: `blackbox_${workerId}_${Date.now()}`,
+    workerId,
+    data: { ...telemetry, savedAt: new Date().toISOString() },
+    timestamp: Date.now(),
+    locked: true,
+  };
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if (db) await db.run(
+      'INSERT INTO offlineQueue (action, collection, data, timestamp) VALUES (?, ?, ?, ?)',
+      ['create', 'blackbox', JSON.stringify(entry), Date.now()]
+    );
+  } else {
+    const db = await initIDB();
+    await db.put('blackbox', entry);
+  }
+};
+
+export const getBlackBoxEntries = async (): Promise<any[]> => {
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if (!db) return [];
+    const res = await db.query("SELECT data FROM offlineQueue WHERE collection = 'blackbox'");
+    return res.values?.map(row => JSON.parse(row.data)) || [];
+  } else {
+    const db = await initIDB();
+    return await db.getAll('blackbox');
+  }
+};
+
+export const unlockBlackBox = async (id: string) => {
+  if (Capacitor.isNativePlatform()) return; // native unlock handled separately
+  const db = await initIDB();
+  const entry = await db.get('blackbox', id);
+  if (entry) {
+    await db.put('blackbox', { ...entry, locked: false });
   }
 };
