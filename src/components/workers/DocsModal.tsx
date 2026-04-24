@@ -55,18 +55,38 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
 
   if (!worker) return null;
 
+  const compressImage = (file: File, maxPx = 1280, quality = 0.8): Promise<Blob> =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => resolve(blob ?? file), file.type, quality);
+      };
+      img.onerror = () => resolve(file);
+      img.src = URL.createObjectURL(file);
+    });
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !worker) return;
-    const file = e.target.files[0];
+    let file: File | Blob = e.target.files[0];
     setIsUploading(true);
     try {
-      const docName = file.name;
+      const docName = (e.target.files[0] as File).name;
       const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
-      
+
+      // Compress images before upload to save Storage quota and improve load times
+      if (file.type.startsWith('image/')) {
+        file = await compressImage(e.target.files[0]);
+      }
+
       // 1. Upload to Firebase Storage
       const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
       const { storage } = await import('../../services/firebase');
-      const storageRef = ref(storage, `documents/${worker.id}/${Date.now()}_${file.name}`);
+      const storageRef = ref(storage, `documents/${worker.id}/${Date.now()}_${docName}`);
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
 

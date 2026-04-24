@@ -18,9 +18,11 @@ import {
   X,
   Youtube,
   Gamepad2,
-  WifiOff
+  WifiOff,
+  Download
 } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { generateTrainingCertificate } from '../utils/trainingCertificate';
 import { db } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
@@ -810,13 +812,29 @@ export function Training() {
                     Asignar a mi Proyecto
                   </button>
                 ) : session.youtubeUrl ? (
-                  <button 
-                    onClick={() => setActiveVideoSession(session)}
-                    className="w-full sm:w-auto justify-center text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-red-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
-                  >
-                    <Youtube className="w-4 h-4" />
-                    <span>Ver Video</span>
-                  </button>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {session.status === 'completed' && (
+                      <button
+                        onClick={() => generateTrainingCertificate(
+                          session.title,
+                          user?.displayName || 'Participante',
+                          selectedProject?.name || 'Proyecto',
+                          session.date
+                        )}
+                        className="justify-center text-amber-500 hover:text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 transition-all active:scale-95"
+                        title="Descargar certificado"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setActiveVideoSession(session)}
+                      className="flex-1 sm:flex-none justify-center text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-red-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
+                    >
+                      <Youtube className="w-4 h-4" />
+                      <span>{session.status === 'completed' ? 'Repetir' : 'Ver Video'}</span>
+                    </button>
+                  </div>
                 ) : (
                   <button className="w-full sm:w-auto justify-center text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-emerald-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none">
                     <span>Ver Detalles</span>

@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
-import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { useFirebase } from './FirebaseContext';
 import { db } from '../services/firebase';
 
 import { get, set } from 'idb-keyval';
@@ -32,6 +33,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const [isCrisisMode, setIsCrisisMode] = useState(false);
 
   useEffect(() => {
@@ -76,11 +78,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         // Request permission and get token
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          const token = await getToken(messaging, {
-            // VAPID key should be configured in a real production environment
-            // vapidKey: 'YOUR_PUBLIC_VAPID_KEY_HERE'
-          });
-          console.log('FCM Token:', token);
+          const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+          const token = await getToken(messaging, vapidKey ? { vapidKey } : undefined);
+          // Persist token so server can send targeted pushes
+          if (token && user?.uid) {
+            try {
+              await updateDoc(doc(db, 'users', user.uid), { fcmToken: token });
+            } catch {} // non-critical
+          }
           
           // Handle incoming messages when app is in foreground
           onMessage(messaging, (payload) => {

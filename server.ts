@@ -103,6 +103,16 @@ const limiter = rateLimit({
 
 app.use("/api/", limiter);
 
+// Stricter per-user rate limit for expensive AI calls
+const geminiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => (req as any).user?.uid || req.ip || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos." }
+});
+
 const sessionSecret = process.env.SESSION_SECRET;
 if (process.env.NODE_ENV === 'production' && !sessionSecret) {
   throw new Error("FATAL ERROR: SESSION_SECRET is not defined in production environment.");
@@ -1226,7 +1236,7 @@ const ALLOWED_GEMINI_ACTIONS = [
   'searchRelevantContext'
 ];
 
-app.post("/api/gemini", verifyAuth, async (req, res) => {
+app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {
   const { action, args } = req.body;
   
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
@@ -1425,17 +1435,45 @@ const setupBackgroundTriggers = () => {
           return;
         }
         
-        snapshot.docChanges().forEach((change) => {
+        snapshot.docChanges().forEach(async (change) => {
           if (change.type === 'added') {
             const data = change.doc.data();
             const isCritical = data.metadata?.severity === 'Crítica' || data.metadata?.severity === 'Alta';
-            
-            console.log(`[TRIGGER: Incident Report] => Processing incident: ${change.doc.id}`);
-            console.log(`- Severity: ${data.metadata?.severity}`);
-            console.log(`- Alerting Supervisor Network / Sending Push Notification...`);
-            
-            if (isCritical) {
-              console.log(`- [CRITICAL] ⚠️ Escalatng to SendGrid Email API (Mock) for immediate managerial action.`);
+            if (!isCritical || !data.projectId) return;
+
+            try {
+              // Gather FCM tokens of supervisors/gerentes in this project
+              const membersSnap = await db.collection(`projects/${data.projectId}/members`).get();
+              const supervisorUids: string[] = [];
+              membersSnap.forEach(d => {
+                const role = d.data().role;
+                if (role === 'supervisor' || role === 'gerente' || role === 'prevencionista') {
+                  supervisorUids.push(d.id);
+                }
+              });
+
+              if (supervisorUids.length === 0) return;
+
+              const tokenDocs = await Promise.all(
+                supervisorUids.map(uid => db.collection('users').doc(uid).get())
+              );
+              const tokens = tokenDocs
+                .map(d => d.data()?.fcmToken as string | undefined)
+                .filter((t): t is string => !!t);
+
+              if (tokens.length === 0) return;
+
+              await admin.messaging().sendEachForMulticast({
+                tokens,
+                notification: {
+                  title: `⚠️ Incidente ${data.metadata?.severity || 'Crítico'}`,
+                  body: `${data.title || 'Nuevo incidente'} — ${data.metadata?.location || 'Ver detalles en la app'}`,
+                },
+                data: { projectId: data.projectId, nodeId: change.doc.id },
+                android: { priority: 'high' },
+              });
+            } catch (err) {
+              console.error('[TRIGGER: FCM Push] Error:', err);
             }
           }
         });
