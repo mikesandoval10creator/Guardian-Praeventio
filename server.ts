@@ -1425,10 +1425,9 @@ const setupBackgroundTriggers = () => {
     let isInitialLoadIncidents = true;
     let isInitialLoadRAG = true;
 
-    // Trigger 1: Listen to new incidents to trigger pseudo push notifications / emails
+    // Trigger 1: Listen to new critical incidents → real FCM push to supervisors
     db.collection('nodes')
-      .where('type', '==', 'finding')
-      .where('tags', 'array-contains', 'Incidente')
+      .where('type', 'in', ['Hallazgo', 'Incidente', 'Riesgo'])
       .onSnapshot((snapshot) => {
         if (isInitialLoadIncidents) {
           isInitialLoadIncidents = false;
