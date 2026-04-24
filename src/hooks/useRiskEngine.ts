@@ -56,7 +56,7 @@ export const useRiskEngine = () => {
     return () => {
       unsubscribe();
     };
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user, selectedProject]);
 
   const nodes = useMemo(() => {
     const pendingNodes = pendingActions

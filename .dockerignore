@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+firebase-applet-config.json
+.git
+.gitignore
+*.log
+*.md
+.vscode
+.idea
+coverage
+.nyc_output

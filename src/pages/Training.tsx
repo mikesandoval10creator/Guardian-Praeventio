@@ -161,7 +161,7 @@ export function Training() {
     }
 
     try {
-      const docRef = doc(db, `projects/${selectedProject.id}/training`, session.id);
+      const docRef = doc(db, 'training', session.id);
       const newAttendees = session.attendees?.includes(user.uid)
         ? session.attendees
         : [...(session.attendees || []), user.uid];

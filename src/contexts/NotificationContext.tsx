@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getMessagingInstance } from '../services/firebase';
 import { getToken, onMessage } from 'firebase/messaging';
 import { useProject } from './ProjectContext';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 import { get, set } from 'idb-keyval';
@@ -101,6 +101,45 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     setupMessaging();
   }, [isCrisisMode]);
+
+  // Track Firestore notification IDs already surfaced to avoid re-showing on re-subscribe
+  const processedFirestoreIds = useRef<Set<string>>(new Set());
+
+  // Listen for system notifications written by useZettelkastenIntelligence and server triggers
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+
+    const notifQuery = query(
+      collection(db, `projects/${selectedProject.id}/notifications`),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+
+    const unsubscribe = onSnapshot(notifQuery, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type !== 'added') return;
+        const docId = change.doc.id;
+        if (processedFirestoreIds.current.has(docId)) return;
+        processedFirestoreIds.current.add(docId);
+        const data = change.doc.data();
+        const notification: Notification = {
+          id: docId,
+          title: data.title || 'Notificación',
+          message: data.message || '',
+          type: data.severity === 'high' ? 'warning' : 'info',
+          time: 'Ahora',
+          read: false,
+          createdAt: Date.now(),
+        };
+        setNotifications(prev => prev.some(n => n.id === docId) ? prev : [notification, ...prev]);
+      });
+    }, () => {}); // silent error — non-critical feature
+
+    return () => {
+      processedFirestoreIds.current.clear();
+      unsubscribe();
+    };
+  }, [selectedProject?.id]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 

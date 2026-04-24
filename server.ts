@@ -89,7 +89,7 @@ const PORT = 3000;
 
 // Security Middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for compatibility with Vite in dev
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
   crossOriginEmbedderPolicy: false
 }));
 
@@ -214,7 +214,11 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden: Requires gerente role" });
     }
 
-    // Set custom claim
+    const VALID_ROLES = ['gerente', 'prevencionista', 'supervisor', 'trabajador', 'medico'];
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
     await admin.auth().setCustomUserClaims(uid, { role });
     res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {
@@ -1336,6 +1340,12 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
 });
 
 app.post("/api/billing/webhook", async (req, res) => {
+  // Verify shared secret — configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
+  const expectedToken = process.env.WEBHOOK_SECRET;
+  if (expectedToken && req.query.token !== expectedToken) {
+    return res.status(401).send("Unauthorized");
+  }
+
   // RTDN Verification (Google Cloud Pub/Sub push)
   const { message } = req.body;
   if (!message || !message.data) {
