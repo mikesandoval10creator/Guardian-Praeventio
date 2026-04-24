@@ -274,6 +274,12 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             <div className="flex items-center gap-1.5 text-zinc-600 text-xs font-bold">
               <Lock className="w-3 h-3" />Datos seguros · Firebase
             </div>
+            <button
+              onClick={() => navigate('/privacidad')}
+              className="text-zinc-600 hover:text-zinc-400 text-xs font-bold transition-colors"
+            >
+              Privacidad
+            </button>
           </div>
           <p className="text-xs text-zinc-700 font-bold">
             © {new Date().getFullYear()} Praeventio · Chile

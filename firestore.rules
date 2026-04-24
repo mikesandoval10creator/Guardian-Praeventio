@@ -277,5 +277,54 @@ service cloud.firestore {
       allow read: if isOwner(get(/databases/$(database)/documents/transactions/$(transactionId)).data.userId) || isAdmin();
       allow write: if false; // Only server-side via Admin SDK
     }
+
+    // Invitations — written by server (Admin SDK), read by invited user to see pending invites
+    match /invitations/{inviteId} {
+      allow read: if isEmailVerified() && (
+        resource.data.invitedEmail == request.auth.token.email ||
+        isAdmin() ||
+        isProjectCreator(resource.data.projectId)
+      );
+      allow write: if false; // Only server-side via Admin SDK
+    }
+
+    // Gamification content — global content written by admins, readable by all authenticated users
+    match /gamification_content/{contentId} {
+      allow read: if isEmailVerified();
+      allow write: if isAdmin();
+    }
+
+    // Community glossary — global shared knowledge, writable only by admins/supervisors
+    match /community_glossary/{termId} {
+      allow read: if isEmailVerified();
+      allow write: if isAdmin() || isSupervisor();
+    }
+
+    // Blueprints — project-scoped floor plans and technical drawings
+    match /blueprints/{blueprintId} {
+      allow read: if isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
+      allow update: if isEmailVerified() && (isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId));
+      allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
+    }
+
+    // Global templates — seed data, read-only for all authenticated users
+    match /global_templates/{templateId} {
+      allow read: if isEmailVerified();
+      allow write: if isAdmin();
+    }
+
+    // Project documents — uploaded files scoped to a project
+    match /project_documents/{docId} {
+      allow read: if isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
+      allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
+    }
   }
 }

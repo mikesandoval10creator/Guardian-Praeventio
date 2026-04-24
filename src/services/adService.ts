@@ -1,21 +1,13 @@
 import { Capacitor } from '@capacitor/core';
 
-/**
- * Ad unit IDs:
- * - Web: set VITE_ADSENSE_CLIENT and VITE_ADSENSE_SLOT in .env
- * - Android: set VITE_ADMOB_ANDROID_INTERSTITIAL in .env
- * - iOS: set VITE_ADMOB_IOS_INTERSTITIAL in .env
- *
- * For testing, Google's official test IDs are used as fallback.
- * Replace with real unit IDs from AdMob console before production.
- */
+// Ad unit IDs come exclusively from env vars — no test-ID fallback in production builds.
+// Required vars: VITE_ADMOB_ANDROID_INTERSTITIAL, VITE_ADMOB_IOS_INTERSTITIAL
+// Optional (web PWA): VITE_ADSENSE_CLIENT, VITE_ADSENSE_SLOT
 export const AD_CONFIG = {
   adsenseClient: import.meta.env.VITE_ADSENSE_CLIENT ?? '',
   adsenseSlot: import.meta.env.VITE_ADSENSE_SLOT ?? '',
-  androidInterstitialId: import.meta.env.VITE_ADMOB_ANDROID_INTERSTITIAL
-    ?? 'ca-app-pub-3940256099942544/1033173712', // Google test ID
-  iosInterstitialId: import.meta.env.VITE_ADMOB_IOS_INTERSTITIAL
-    ?? 'ca-app-pub-3940256099942544/4411468910', // Google test ID
+  androidInterstitialId: import.meta.env.VITE_ADMOB_ANDROID_INTERSTITIAL ?? '',
+  iosInterstitialId: import.meta.env.VITE_ADMOB_IOS_INTERSTITIAL ?? '',
 };
 
 export const isNative = () => Capacitor.isNativePlatform();
@@ -32,11 +24,12 @@ export async function initAdMob(): Promise<void> {
 
 export async function prepareInterstitial(): Promise<void> {
   if (!isNative()) return;
+  const adId = Capacitor.getPlatform() === 'android'
+    ? AD_CONFIG.androidInterstitialId
+    : AD_CONFIG.iosInterstitialId;
+  if (!adId) return; // no unit ID configured — skip silently
   try {
     const { AdMob, InterstitialAdPluginEvents } = await import('@capacitor-community/admob');
-    const adId = Capacitor.getPlatform() === 'android'
-      ? AD_CONFIG.androidInterstitialId
-      : AD_CONFIG.iosInterstitialId;
     await AdMob.prepareInterstitial({ adId });
   } catch (err) {
     console.warn('[AdService] prepareInterstitial failed:', err);
