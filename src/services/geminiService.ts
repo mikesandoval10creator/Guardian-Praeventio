@@ -118,3 +118,4 @@ export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => ca
 export const downloadSpecificNormative = async (normativeId: string, force: boolean = false) => callGeminiAPI('downloadSpecificNormative', [normativeId, force]);
 export const searchRelevantContext = async (query: string) => callGeminiAPI('searchRelevantContext', [query]);
 export const getNutritionSuggestion = async (mood: number, role?: string, taskContext?: string) => callGeminiAPI('getNutritionSuggestion', [mood, role, taskContext]);
+export const scanLegalUpdates = async (normativeTitle: string, normativeText: string, modulesSummary: string) => callGeminiAPI('scanLegalUpdates', [normativeTitle, normativeText, modulesSummary]);

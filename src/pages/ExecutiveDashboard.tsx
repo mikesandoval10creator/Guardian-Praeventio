@@ -13,7 +13,8 @@ import {
   BarChart3,
   Lock,
   ArrowRight,
-  Activity
+  Activity,
+  Leaf
 } from 'lucide-react';
 import {
   BarChart,
@@ -157,6 +158,20 @@ export function ExecutiveDashboard() {
     { name: 'Medio',   value: allRisks.filter(r => r.metadata?.level === 'Medio').length,   color: '#EAB308' },
     { name: 'Bajo',    value: allRisks.filter(r => r.metadata?.level === 'Bajo').length,    color: '#22C55E' },
   ].filter(d => d.value > 0);
+
+  // ESG Score calculation
+  const trainedWorkers = nodes.filter(n => n.type === NodeType.TRAINING && n.metadata?.status === 'completed').length;
+  const esgEnvironmental = Math.min(100, 50 + nodes.filter(n => n.type === NodeType.INSPECTION).length * 3);
+  const esgSocial = totalWorkers > 0 ? Math.min(100, Math.round((trainedWorkers / Math.max(totalWorkers, 1)) * 100 + 30)) : 40;
+  const esgGovernance = avgCompliance;
+  const esgTotal = Math.round((esgEnvironmental + esgSocial + esgGovernance) / 3);
+  const esgData = [
+    { subject: 'Ambiente', A: esgEnvironmental },
+    { subject: 'Social',   A: esgSocial },
+    { subject: 'Gobierno', A: esgGovernance },
+    { subject: 'Capacitación', A: Math.min(100, trainedWorkers * 5 + 40) },
+    { subject: 'Incidentes', A: Math.max(0, 100 - recentIncidents.length * 15) },
+  ];
 
   // ISO 45001 radar
   const isoData = [
@@ -406,6 +421,47 @@ export function ExecutiveDashboard() {
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* ESG Score Panel */}
+        <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/10 rounded-xl">
+                <Leaf className="w-5 h-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Score ESG</p>
+                <p className="text-xs text-zinc-400">Ambiental · Social · Gobernanza</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className={`text-4xl font-black ${esgTotal >= 70 ? 'text-emerald-500' : esgTotal >= 45 ? 'text-amber-500' : 'text-rose-500'}`}>{esgTotal}</p>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">/100</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { label: 'E — Ambiental', value: esgEnvironmental, color: 'text-emerald-500' },
+              { label: 'S — Social',    value: esgSocial,        color: 'text-sky-500' },
+              { label: 'G — Gobierno',  value: esgGovernance,    color: 'text-violet-500' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3 text-center border border-zinc-100 dark:border-white/5">
+                <p className={`text-2xl font-black ${color}`}>{value}</p>
+                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <ResponsiveContainer width="100%" height={180}>
+            <RadarChart data={esgData}>
+              <PolarGrid stroke="rgba(255,255,255,0.08)" />
+              <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#71717a' }} />
+              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8, fill: '#71717a' }} />
+              <Radar name="ESG" dataKey="A" stroke="#10b981" fill="#10b981" fillOpacity={0.18} />
+            </RadarChart>
+          </ResponsiveContainer>
         </div>
 
       </div>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, UserCheck, Radio, ShieldAlert, MapPin, AlertTriangle, CheckCircle2, Search, Clock } from 'lucide-react';
+import { Users, UserCheck, Radio, ShieldAlert, MapPin, AlertTriangle, CheckCircle2, Search, Clock, Award } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { getBreadcrumbs } from '../../utils/offlineStorage';
+import { SkillTree } from './SkillTree';
 
 interface SquadMember {
   id: string;
@@ -30,18 +31,18 @@ export function EmergencySquadManager() {
   ]);
 
   const [activeRole, setActiveRole] = useState<string | null>(null);
-  const [searchMode, setSearchMode] = useState(false);
+  const [viewMode, setViewMode] = useState<'squad' | 'search' | 'skills'>('squad');
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([]);
   const [loadingCrumbs, setLoadingCrumbs] = useState(false);
 
   useEffect(() => {
-    if (!searchMode || !user) return;
+    if (viewMode !== 'search' || !user) return;
     setLoadingCrumbs(true);
     getBreadcrumbs(user.uid, 20)
       .then(setBreadcrumbs)
       .catch(() => setBreadcrumbs([]))
       .finally(() => setLoadingCrumbs(false));
-  }, [searchMode, user]);
+  }, [viewMode, user]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -81,15 +82,19 @@ export function EmergencySquadManager() {
             <p className="text-sm text-zinc-400 font-medium">Asignación Cinética de Roles</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className={`border-zinc-700 text-zinc-300 hover:bg-zinc-800 ${searchMode ? 'border-amber-500/50 text-amber-400 bg-amber-500/10' : ''}`}
-            onClick={() => setSearchMode(v => !v)}
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Búsqueda
-          </Button>
+        <div className="flex gap-2 flex-wrap">
+          {(['squad', 'search', 'skills'] as const).map(mode => (
+            <Button
+              key={mode}
+              variant="outline"
+              className={`border-zinc-700 text-zinc-300 hover:bg-zinc-800 ${viewMode === mode ? 'border-amber-500/50 text-amber-400 bg-amber-500/10' : ''}`}
+              onClick={() => setViewMode(mode)}
+            >
+              {mode === 'squad' && <><Users className="w-4 h-4 mr-2" />Escuadrón</>}
+              {mode === 'search' && <><Search className="w-4 h-4 mr-2" />Búsqueda</>}
+              {mode === 'skills' && <><Award className="w-4 h-4 mr-2" />Habilidades</>}
+            </Button>
+          ))}
           <Button variant="outline" className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10">
             <Radio className="w-4 h-4 mr-2" />
             Llamado General
@@ -98,7 +103,11 @@ export function EmergencySquadManager() {
       </div>
 
       <AnimatePresence mode="wait">
-        {searchMode ? (
+        {viewMode === 'skills' ? (
+          <motion.div key="skills" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+            <SkillTree />
+          </motion.div>
+        ) : viewMode === 'search' ? (
           <motion.div
             key="search"
             initial={{ opacity: 0, y: 10 }}
@@ -144,7 +153,7 @@ export function EmergencySquadManager() {
               {breadcrumbs.length > 0 && `${breadcrumbs.length} posición(es) registrada(s) • Última: ${new Date(breadcrumbs[0]?.timestamp).toLocaleTimeString()}`}
             </p>
           </motion.div>
-        ) : (
+        ) : viewMode === 'squad' ? (
           <motion.div
             key="squad"
             initial={{ opacity: 0 }}
@@ -215,7 +224,7 @@ export function EmergencySquadManager() {
               ))}
             </AnimatePresence>
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </Card>
   );

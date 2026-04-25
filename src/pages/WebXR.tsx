@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, AlertTriangle, Thermometer, Lock, Zap, Info, X } from 'lucide-react';
+import { Camera, AlertTriangle, Thermometer, Lock, Zap, Info, X, Network, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { useProject } from '../contexts/ProjectContext';
 
 interface ARMarker {
   id: string;
@@ -19,6 +22,9 @@ export default function WebXR() {
   const [markers, setMarkers] = useState<ARMarker[]>([]);
   const [selectedMarker, setSelectedMarker] = useState<ARMarker | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [zkNodes, setZkNodes] = useState<any[]>([]);
+  const [zkLoading, setZkLoading] = useState(false);
+  const { selectedProject } = useProject();
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -89,6 +95,22 @@ export default function WebXR() {
       }
     };
   }, [isScanning]);
+
+  // Load Zettelkasten nodes related to the selected marker whenever it changes
+  useEffect(() => {
+    if (!selectedMarker || !selectedProject) { setZkNodes([]); return; }
+    setZkLoading(true);
+    getDocs(
+      query(
+        collection(db, 'nodes'),
+        where('projectId', '==', selectedProject.id),
+        where('tags', 'array-contains', selectedMarker.title)
+      )
+    )
+      .then(snap => setZkNodes(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 4)))
+      .catch(() => setZkNodes([]))
+      .finally(() => setZkLoading(false));
+  }, [selectedMarker, selectedProject]);
 
   const getMarkerIcon = (type: string) => {
     switch (type) {
@@ -240,6 +262,29 @@ export default function WebXR() {
               </p>
             </div>
             
+            {/* Zettelkasten nodes related to this marker */}
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Network className="w-4 h-4 text-indigo-500" />
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Nodos ZK Relacionados</p>
+                {zkLoading && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
+              </div>
+              {!zkLoading && zkNodes.length === 0 && (
+                <p className="text-xs text-gray-400">Sin nodos registrados para este equipo.</p>
+              )}
+              <div className="space-y-2">
+                {zkNodes.map(node => (
+                  <div key={node.id} className="flex items-start gap-2 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-indigo-800">{node.title}</p>
+                      {node.description && <p className="text-[10px] text-indigo-600 mt-0.5 line-clamp-2">{node.description}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="mt-6 flex justify-end gap-3">
               <button className="px-4 py-2 text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
                 Ver Historial

@@ -1234,7 +1234,8 @@ const ALLOWED_GEMINI_ACTIONS = [
   'analyzeRiskCorrelations',
   'downloadSpecificNormative',
   'searchRelevantContext',
-  'getNutritionSuggestion'
+  'getNutritionSuggestion',
+  'scanLegalUpdates'
 ];
 
 app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {

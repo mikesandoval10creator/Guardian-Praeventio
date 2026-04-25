@@ -2552,6 +2552,42 @@ export const processGlobalSafetyAudit = async (projectId: string, projectData: a
   return JSON.parse(response.text);
 };
 
+export const scanLegalUpdates = async (normativeTitle: string, normativeText: string, modulesSummary: string) => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const prompt = `
+    Eres un experto en normativa de seguridad laboral chilena (DS 594, DS 40, Ley 16.744, SUSESO).
+    Se ha publicado o actualizado la siguiente norma: "${normativeTitle}".
+    Extracto: ${normativeText.slice(0, 1500)}
+
+    Módulos operativos actuales del sistema: ${modulesSummary.slice(0, 800)}
+
+    Analiza si esta actualización normativa afecta alguno de los módulos. Responde en JSON.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          affected: { type: Type.BOOLEAN },
+          impactLevel: { type: Type.STRING, enum: ["Crítico", "Alto", "Moderado", "Bajo", "Sin impacto"] },
+          affectedModules: { type: Type.ARRAY, items: { type: Type.STRING } },
+          summary: { type: Type.STRING },
+          recommendedAction: { type: Type.STRING }
+        },
+        required: ["affected", "impactLevel", "affectedModules", "summary", "recommendedAction"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
 export const getNutritionSuggestion = async (mood: number, role: string = 'Trabajador', taskContext: string = '') => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });

@@ -1,12 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Gamepad2, Trophy, Star, AlertTriangle, ShieldAlert, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Gamepad2, Trophy, Star, AlertTriangle, ShieldAlert, Zap, BookOpen, Loader2, CheckCircle2, X } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { useProject } from '../contexts/ProjectContext';
+import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
+import { NodeType } from '../types';
+import { generateEmergencyScenario } from '../services/geminiService';
 
 export function ArcadeGames() {
   const [gameState, setGameState] = useState<'start' | 'playing' | 'gameover' | 'won'>('start');
   const [score, setScore] = useState(0);
   const [tokens, setTokens] = useState(5);
+  const [showScenario, setShowScenario] = useState(false);
+  const [scenarioLoading, setScenarioLoading] = useState(false);
+  const [scenario, setScenario] = useState<any>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const { nodes } = useUniversalKnowledge();
+  const { selectedProject } = useProject();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
   
@@ -14,6 +24,40 @@ export function ArcadeGames() {
   const playerRef = useRef({ x: 50, y: 150, width: 30, height: 30, speed: 5, dy: 0 });
   const hazardsRef = useRef<{x: number, y: number, width: number, height: number, type: 'fire' | 'spill', speed: number}[]>([]);
   const frameCountRef = useRef(0);
+
+  const loadHistoricalScenario = async () => {
+    setShowScenario(true);
+    setScenario(null);
+    setSelectedAnswer(null);
+    setScenarioLoading(true);
+    try {
+      // Use the worst 3 incidents from project nodes as context
+      const incidents = nodes
+        .filter(n => n.type === NodeType.INCIDENT && (!selectedProject || n.projectId === selectedProject.id))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 3);
+      const context = incidents.length > 0
+        ? incidents.map(i => `${i.title}: ${i.description || ''}`).join('\n')
+        : 'Incidente genérico de obra: trabajador sin EPP en zona HAZMAT';
+      const result = await generateEmergencyScenario(context);
+      setScenario(result);
+    } catch {
+      setScenario({
+        title: 'Escape de Gas en Bodega',
+        situation: 'Detectas olor a gas cerca de la bodega de químicos. Hay 3 trabajadores dentro.',
+        options: [
+          'Entrar inmediatamente a sacar a los trabajadores',
+          'Activar alarma, evacuar y llamar a emergencias desde afuera',
+          'Abrir todas las ventanas y esperar',
+          'Ignorar el olor y continuar el turno'
+        ],
+        correct: 1,
+        explanation: 'Nunca entres a un área con escape de gas sin EPP adecuado. La acción correcta es activar la alarma, evacuar y llamar desde afuera.'
+      });
+    } finally {
+      setScenarioLoading(false);
+    }
+  };
 
   const startGame = () => {
     if (tokens <= 0) return;
@@ -207,6 +251,85 @@ export function ArcadeGames() {
             <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md px-4 py-2 rounded-lg border border-white/10">
               <span className="text-xl font-black text-white">{score} PTS</span>
             </div>
+          )}
+        </Card>
+
+        {/* Scenario Panel */}
+        <Card className="p-6 border-white/5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-amber-500" />
+              Historia Real
+            </h2>
+            <Button
+              onClick={loadHistoricalScenario}
+              disabled={scenarioLoading}
+              className="bg-amber-600 hover:bg-amber-500 text-white text-xs px-4 py-2 h-auto"
+            >
+              {scenarioLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generar Escenario IA'}
+            </Button>
+          </div>
+
+          <AnimatePresence>
+            {showScenario && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                {scenarioLoading ? (
+                  <div className="flex flex-col items-center gap-3 py-6">
+                    <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
+                    <p className="text-xs text-zinc-400">Generando escenario desde incidentes históricos...</p>
+                  </div>
+                ) : scenario && (
+                  <>
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                      <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-1">{scenario.title}</p>
+                      <p className="text-sm text-zinc-300 leading-relaxed">{scenario.situation}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(scenario.options || []).map((opt: string, i: number) => (
+                        <button
+                          key={i}
+                          onClick={() => setSelectedAnswer(i)}
+                          disabled={selectedAnswer !== null}
+                          className={`w-full text-left px-4 py-3 rounded-xl border text-xs font-medium transition-all ${
+                            selectedAnswer === null
+                              ? 'border-zinc-700 text-zinc-300 hover:border-zinc-500'
+                              : i === scenario.correct
+                                ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                                : selectedAnswer === i
+                                  ? 'border-rose-500 bg-rose-500/10 text-rose-400'
+                                  : 'border-zinc-800 text-zinc-600'
+                          }`}
+                        >
+                          <span className="font-black mr-2">{String.fromCharCode(65 + i)}.</span> {opt}
+                        </button>
+                      ))}
+                    </div>
+
+                    {selectedAnswer !== null && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`p-3 rounded-xl border flex gap-3 ${
+                          selectedAnswer === scenario.correct
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                        <p className="text-xs leading-relaxed">{scenario.explanation}</p>
+                      </motion.div>
+                    )}
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {!showScenario && (
+            <p className="text-xs text-zinc-500 text-center py-4">
+              Genera un escenario basado en incidentes reales de tu proyecto para entrenarte.
+            </p>
           )}
         </Card>
 
