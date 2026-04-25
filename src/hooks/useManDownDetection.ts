@@ -5,8 +5,14 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useSensors } from '../contexts/SensorContext';
 import { NodeType } from '../types';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
+import { saveBlackBox } from '../utils/offlineStorage';
 
-export function useManDownDetection() {
+interface ManDownOptions {
+  onManDownConfirmed?: (impactData: { userId?: string; userName?: string; timestamp: string }) => void;
+}
+
+export function useManDownDetection(options: ManDownOptions = {}) {
+  const { onManDownConfirmed } = options;
   const [isActive, setIsActive] = useState(false);
   const [isAlerting, setIsAlerting] = useState(false);
   const [countdown, setCountdown] = useState(10);
@@ -38,7 +44,19 @@ export function useManDownDetection() {
 
   const triggerAlert = async () => {
     if (!selectedProject || !user) return;
-    
+
+    // Dump last telemetry snapshot to black box before any network call
+    const impactTimestamp = new Date().toISOString();
+    await saveBlackBox(user.uid, {
+      userId: user.uid,
+      userName: user.displayName,
+      projectId: selectedProject.id,
+      projectName: selectedProject.name,
+      acceleration: sensorData.acceleration,
+      inactivityMs: INACTIVITY_THRESHOLD,
+      timestamp: impactTimestamp,
+    }).catch(() => {}); // silently fail — safety data has priority
+
     try {
       const location = await new Promise<string>((resolve) => {
         if (!navigator.geolocation) {
@@ -89,6 +107,13 @@ export function useManDownDetection() {
 
       setIsAlerting(false);
       setCountdown(10);
+
+      // Notify consumers so they can show TriageBeacon or other UI
+      onManDownConfirmed?.({
+        userId: user.uid,
+        userName: user.displayName || undefined,
+        timestamp: impactTimestamp,
+      });
     } catch (error) {
       console.error('Error triggering man down alert:', error);
     }

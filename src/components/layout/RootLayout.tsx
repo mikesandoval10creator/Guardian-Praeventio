@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Sun, Moon, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar';
 import { AsesorChat } from '../shared/AsesorChat';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
+import { PendingInvitesBanner } from './PendingInvitesBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
@@ -23,13 +24,8 @@ export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Call it to keep the socket alive and receive foreground messages
+  // Call it to keep the socket alive and receive foreground messages (no-op when !user)
   usePushNotifications();
-
-  // Permitir la navegación inicial sin usuario para poder ver el Dashboard (público o versión reducida)
-  // if (!user) {
-  //   return <Navigate to="/login" state={{ from: location }} replace />;
-  // }
 
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -161,6 +157,7 @@ export function RootLayout() {
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
+        <PendingInvitesBanner />
       </div>
       <ReloadPrompt />
 
@@ -302,23 +299,33 @@ export function RootLayout() {
             )}
           </Link>
           
-          <div 
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm"
-          >
-            {mfaSetupCompleted === false && (
-              <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
-            )}
-            <div className="w-7 h-7 bg-gradient-to-br from-zinc-700 to-zinc-900 dark:from-zinc-600 dark:to-zinc-800 rounded-lg flex items-center justify-center shadow-inner">
-              <UserIcon className="w-4 h-4 text-white" />
+          {user ? (
+            <div
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm"
+            >
+              {mfaSetupCompleted === false && (
+                <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
+              )}
+              <div className="w-7 h-7 bg-gradient-to-br from-zinc-700 to-zinc-900 dark:from-zinc-600 dark:to-zinc-800 rounded-lg flex items-center justify-center shadow-inner">
+                <UserIcon className="w-4 h-4 text-white" />
+              </div>
+              <div className="hidden sm:flex flex-col pr-1 sm:pr-2">
+                <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white leading-none truncate max-w-[60px] sm:max-w-[100px]">{user.displayName || 'Mi perfil'}</span>
+                <span className={`text-[9px] sm:text-[10px] font-medium mt-0.5 ${isOnline ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
+                  {isOnline ? 'Online' : 'Offline'}
+                </span>
+              </div>
             </div>
-            <div className="hidden sm:flex flex-col pr-1 sm:pr-2">
-              <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white leading-none truncate max-w-[60px] sm:max-w-[100px]">{user?.displayName || 'Admin'}</span>
-              <span className={`text-[9px] sm:text-[10px] font-medium mt-0.5 ${isOnline ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
-                {isOnline ? 'Online' : 'Offline'}
-              </span>
-            </div>
-          </div>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="flex items-center gap-2 bg-[#58D66D] hover:bg-[#4bc95e] px-3 py-2 rounded-xl cursor-pointer transition-all shadow-sm"
+            >
+              <UserIcon className="w-4 h-4 text-zinc-950" />
+              <span className="hidden sm:block text-[11px] font-black uppercase tracking-wider text-zinc-950">Iniciar sesión</span>
+            </button>
+          )}
         </div>
       </header>
 

@@ -1,21 +1,39 @@
 {
-  "name": "Praeventio Guard",
+  "name": "Guardian Praeventio",
   "short_name": "Praeventio",
-  "description": "Plataforma de Prevención de Riesgos con IA",
+  "description": "Plataforma de Prevención de Riesgos Laborales con IA — Cumplimiento DS 54, DS 40, Ley 16.744",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#18181b",
-  "theme_color": "#18181b",
+  "theme_color": "#58D66D",
+  "categories": ["business", "productivity", "utilities"],
+  "lang": "es-CL",
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml"
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "/icon.svg",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.praeventio.guard",
+      "id": "com.praeventio.guard"
     }
   ]
 }

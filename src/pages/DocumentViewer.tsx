@@ -124,12 +124,12 @@ export function DocumentViewer() {
                       {value.map((item, i) => (
                         <li key={i} className="flex items-start gap-2 sm:gap-3 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
                           <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 sm:mt-2 flex-shrink-0" />
-                          <span className="break-words" dangerouslySetInnerHTML={{ __html: typeof item === 'string' ? item : JSON.stringify(item) }} />
+                          <span className="break-words">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: typeof value === 'string' ? value : JSON.stringify(value) }} />
+                    <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed break-words">{typeof value === 'string' ? value : JSON.stringify(value)}</p>
                   )}
                 </div>
               ))}

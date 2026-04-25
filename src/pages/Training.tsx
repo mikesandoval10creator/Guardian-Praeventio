@@ -18,9 +18,11 @@ import {
   X,
   Youtube,
   Gamepad2,
-  WifiOff
+  WifiOff,
+  Download
 } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { generateTrainingCertificate } from '../utils/trainingCertificate';
 import { db } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
@@ -54,7 +56,7 @@ export function Training() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
-  const { plan } = useSubscription();
+  const { plan, isPremium } = useSubscription();
   const { isEmergencyActive } = useEmergency();
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'library' | 'gamification'>('all');
   const [adTrainingTitle, setAdTrainingTitle] = useState<string | null>(null);
@@ -81,12 +83,12 @@ export function Training() {
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
-  // Preload native AdMob interstitial so it's ready when training completes (libre plan only)
+  // Preload native AdMob interstitial so it's ready when training completes (free plan only)
   useEffect(() => {
-    if (activeVideoSession && plan === 'libre') {
+    if (activeVideoSession && !isPremium) {
       prepareInterstitial();
     }
-  }, [activeVideoSession, plan]);
+  }, [activeVideoSession, isPremium]);
 
   const filteredSessions = allSessions.filter(session => {
     if (activeTab === 'library') return session.isCurated;
@@ -161,7 +163,7 @@ export function Training() {
     }
 
     try {
-      const docRef = doc(db, `projects/${selectedProject.id}/training`, session.id);
+      const docRef = doc(db, 'training', session.id);
       const newAttendees = session.attendees?.includes(user.uid)
         ? session.attendees
         : [...(session.attendees || []), user.uid];
@@ -178,7 +180,7 @@ export function Training() {
       setQuizAnswers([]);
       setCurrentQuestionIndex(0);
 
-      if (plan === 'libre' && canShowAd() && !isEmergencyActive) {
+      if (!isPremium && canShowAd() && !isEmergencyActive) {
         recordAdShown();
         setTimeout(() => setAdTrainingTitle(session.title), 400);
       }
@@ -810,13 +812,29 @@ export function Training() {
                     Asignar a mi Proyecto
                   </button>
                 ) : session.youtubeUrl ? (
-                  <button 
-                    onClick={() => setActiveVideoSession(session)}
-                    className="w-full sm:w-auto justify-center text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-red-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
-                  >
-                    <Youtube className="w-4 h-4" />
-                    <span>Ver Video</span>
-                  </button>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {session.status === 'completed' && (
+                      <button
+                        onClick={() => generateTrainingCertificate(
+                          session.title,
+                          user?.displayName || 'Participante',
+                          selectedProject?.name || 'Proyecto',
+                          session.date
+                        )}
+                        className="justify-center text-amber-500 hover:text-amber-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 transition-all active:scale-95"
+                        title="Descargar certificado"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setActiveVideoSession(session)}
+                      className="flex-1 sm:flex-none justify-center text-red-500 hover:text-red-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-red-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
+                    >
+                      <Youtube className="w-4 h-4" />
+                      <span>{session.status === 'completed' ? 'Repetir' : 'Ver Video'}</span>
+                    </button>
+                  </div>
                 ) : (
                   <button className="w-full sm:w-auto justify-center text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-emerald-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none">
                     <span>Ver Detalles</span>

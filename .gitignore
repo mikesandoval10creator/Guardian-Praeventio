@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Firebase config — contains project credentials, use env vars in production
+firebase-applet-config.json

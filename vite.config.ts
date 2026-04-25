@@ -18,28 +18,19 @@ export default defineConfig(({mode}) => {
       }),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon.ico'],
+        includeAssets: ['icon.svg'],
         manifest: {
-          name: 'Praeventio Guard',
+          name: 'Guardian Praeventio',
           short_name: 'Praeventio',
-          description: 'Sistema de Gestión de Seguridad y Salud en el Trabajo',
-          theme_color: '#4eb5ac',
-          background_color: '#4eb5ac',
+          description: 'Plataforma de Prevención de Riesgos Laborales con IA — Cumplimiento DS 54, DS 40, Ley 16.744',
+          theme_color: '#58D66D',
+          background_color: '#18181b',
           display: 'standalone',
+          lang: 'es-CL',
           icons: [
             {
               src: 'icon.svg',
-              sizes: '192x192',
-              type: 'image/svg+xml'
-            },
-            {
-              src: 'icon.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml'
-            },
-            {
-              src: 'icon.svg',
-              sizes: '512x512',
+              sizes: 'any',
               type: 'image/svg+xml',
               purpose: 'any maskable'
             }

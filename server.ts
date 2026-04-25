@@ -60,7 +60,12 @@ try {
     console.log(`✅ Firebase Admin configured for databaseId: ${firebaseConfig.firestoreDatabaseId}`);
   }
 } catch (error) {
-  console.warn("Firebase Admin initialization failed. Auth middleware may not work without credentials.", error);
+  if (process.env.NODE_ENV === 'production') {
+    console.error("FATAL: Firebase Admin initialization failed in production.", error);
+    process.exit(1);
+  } else {
+    console.warn("Firebase Admin initialization failed. Auth middleware will not work.", error);
+  }
 }
 
 // Initialize Google Play Developer API
@@ -84,7 +89,7 @@ const PORT = 3000;
 
 // Security Middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable CSP for compatibility with Vite in dev
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
   crossOriginEmbedderPolicy: false
 }));
 
@@ -97,6 +102,16 @@ const limiter = rateLimit({
 });
 
 app.use("/api/", limiter);
+
+// Stricter per-user rate limit for expensive AI calls
+const geminiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => (req as any).user?.uid || req.ip || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos." }
+});
 
 const sessionSecret = process.env.SESSION_SECRET;
 if (process.env.NODE_ENV === 'production' && !sessionSecret) {
@@ -111,7 +126,7 @@ app.use(session({
   saveUninitialized: true,
   cookie: { 
     secure: process.env.NODE_ENV === "production", 
-    sameSite: 'none',
+    sameSite: 'lax',
     httpOnly: true 
   }
 }));
@@ -209,7 +224,11 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden: Requires gerente role" });
     }
 
-    // Set custom claim
+    const VALID_ROLES = ['gerente', 'prevencionista', 'supervisor', 'trabajador', 'medico'];
+    if (!VALID_ROLES.includes(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
     await admin.auth().setCustomUserClaims(uid, { role });
     res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {
@@ -716,9 +735,13 @@ app.post("/api/telemetry/ingest", async (req, res) => {
   }
 });
 
-// Seed Glossary Endpoint
-app.post("/api/seed-glossary", async (req, res) => {
+// Seed Glossary Endpoint (gerente-only — prevents public abuse)
+app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
   try {
+    const callerRecord = await admin.auth().getUser((req as any).user.uid);
+    if (callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
+    }
     const { runSeed } = await import('./src/services/seedBackend.js');
     await runSeed();
     res.json({ success: true, message: "Community glossary seeded successfully" });
@@ -728,9 +751,13 @@ app.post("/api/seed-glossary", async (req, res) => {
   }
 });
 
-// Seed Data Endpoint
-app.post("/api/seed-data", async (req, res) => {
+// Seed Data Endpoint (gerente-only — prevents public abuse)
+app.post("/api/seed-data", verifyAuth, async (req, res) => {
   try {
+    const callerRecord = await admin.auth().getUser((req as any).user.uid);
+    if (callerRecord.customClaims?.role !== 'gerente') {
+      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
+    }
     const { seedInitialData } = await import('./src/services/dataSeedService.js');
     await seedInitialData();
     res.json({ success: true, message: "Initial project data seeded successfully" });
@@ -1203,13 +1230,14 @@ const ALLOWED_GEMINI_ACTIONS = [
   'summarizeAgreements',
   'mapRisksToSurveillance',
   'analyzeHealthPatterns',
-  'generatePredictiveForecast',
   'analyzeRiskCorrelations',
   'downloadSpecificNormative',
-  'searchRelevantContext'
+  'searchRelevantContext',
+  'getNutritionSuggestion',
+  'scanLegalUpdates'
 ];
 
-app.post("/api/gemini", verifyAuth, async (req, res) => {
+app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {
   const { action, args } = req.body;
   
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
@@ -1289,14 +1317,18 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    // Validate productId is a known plan name (whitelist)
+    const VALID_PLANS = ['free','comite','departamento','plata','oro','platino','empresarial','corporativo','ilimitado'];
+    const resolvedPlan = VALID_PLANS.includes(productId) ? productId : 'comite';
+
     // Update user subscription status
     if (type === 'subscription') {
       const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
-      // Detailed check for subscription status codes (e.g., paymentState)
-      const isActive = data.paymentState === 1 || data.paymentState === 2; // 1: Recibido, 2: Free trial
+      // paymentState 1 = received, 2 = free trial
+      const isActive = data.paymentState === 1 || data.paymentState === 2;
 
       await db.collection('users').doc(uid).update({
-        'subscription.planId': productId.includes('premium') ? 'premium' : 'basic',
+        'subscription.planId': resolvedPlan,
         'subscription.status': isActive ? 'active' : 'expired',
         'subscription.expiryDate': expiryDate,
         'subscription.purchaseToken': purchaseToken,
@@ -1319,6 +1351,12 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
 });
 
 app.post("/api/billing/webhook", async (req, res) => {
+  // Verify shared secret — configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
+  const expectedToken = process.env.WEBHOOK_SECRET;
+  if (expectedToken && req.query.token !== expectedToken) {
+    return res.status(401).send("Unauthorized");
+  }
+
   // RTDN Verification (Google Cloud Pub/Sub push)
   const { message } = req.body;
   if (!message || !message.data) {
@@ -1388,27 +1426,54 @@ const setupBackgroundTriggers = () => {
     let isInitialLoadIncidents = true;
     let isInitialLoadRAG = true;
 
-    // Trigger 1: Listen to new incidents to trigger pseudo push notifications / emails
+    // Trigger 1: Listen to new critical incidents → real FCM push to supervisors
     db.collection('nodes')
-      .where('type', '==', 'finding')
-      .where('tags', 'array-contains', 'Incidente')
+      .where('type', 'in', ['Hallazgo', 'Incidente', 'Riesgo'])
       .onSnapshot((snapshot) => {
         if (isInitialLoadIncidents) {
           isInitialLoadIncidents = false;
           return;
         }
         
-        snapshot.docChanges().forEach((change) => {
+        snapshot.docChanges().forEach(async (change) => {
           if (change.type === 'added') {
             const data = change.doc.data();
             const isCritical = data.metadata?.severity === 'Crítica' || data.metadata?.severity === 'Alta';
-            
-            console.log(`[TRIGGER: Incident Report] => Processing incident: ${change.doc.id}`);
-            console.log(`- Severity: ${data.metadata?.severity}`);
-            console.log(`- Alerting Supervisor Network / Sending Push Notification...`);
-            
-            if (isCritical) {
-              console.log(`- [CRITICAL] ⚠️ Escalatng to SendGrid Email API (Mock) for immediate managerial action.`);
+            if (!isCritical || !data.projectId) return;
+
+            try {
+              // Gather FCM tokens of supervisors/gerentes in this project
+              const membersSnap = await db.collection(`projects/${data.projectId}/members`).get();
+              const supervisorUids: string[] = [];
+              membersSnap.forEach(d => {
+                const role = d.data().role;
+                if (role === 'supervisor' || role === 'gerente' || role === 'prevencionista') {
+                  supervisorUids.push(d.id);
+                }
+              });
+
+              if (supervisorUids.length === 0) return;
+
+              const tokenDocs = await Promise.all(
+                supervisorUids.map(uid => db.collection('users').doc(uid).get())
+              );
+              const tokens = tokenDocs
+                .map(d => d.data()?.fcmToken as string | undefined)
+                .filter((t): t is string => !!t);
+
+              if (tokens.length === 0) return;
+
+              await admin.messaging().sendEachForMulticast({
+                tokens,
+                notification: {
+                  title: `⚠️ Incidente ${data.metadata?.severity || 'Crítico'}`,
+                  body: `${data.title || 'Nuevo incidente'} — ${data.metadata?.location || 'Ver detalles en la app'}`,
+                },
+                data: { projectId: data.projectId, nodeId: change.doc.id },
+                android: { priority: 'high' },
+              });
+            } catch (err) {
+              console.error('[TRIGGER: FCM Push] Error:', err);
             }
           }
         });

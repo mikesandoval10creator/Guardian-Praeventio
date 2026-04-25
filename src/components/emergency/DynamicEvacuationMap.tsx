@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Map as MapIcon, 
-  Navigation, 
-  AlertCircle, 
-  Shield, 
-  Zap, 
+import {
+  Map as MapIcon,
+  Navigation,
+  AlertCircle,
+  Shield,
+  Zap,
   Loader2,
   CheckCircle2,
   XCircle,
   ArrowRight,
-  Plus
+  Plus,
+  Compass
 } from 'lucide-react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../../types';
@@ -25,6 +26,7 @@ export function DynamicEvacuationMap() {
   const [routeData, setRouteData] = useState<any>(null);
   const [userBlockedAreas, setUserBlockedAreas] = useState<string[]>([]);
   const [newBlockedArea, setNewBlockedArea] = useState('');
+  const [showDeadReckoning, setShowDeadReckoning] = useState(false);
 
   const activeEmergencies = useMemo(() => {
     return nodes.filter(n => {
@@ -84,16 +86,29 @@ export function DynamicEvacuationMap() {
             <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">Cálculo de Evacuación en Tiempo Real</p>
           </div>
         </div>
-        {activeEmergencies.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-full animate-pulse self-start sm:self-auto">
-            <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
-            <span className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest">Emergencia Detectada</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => setShowDeadReckoning(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+              showDeadReckoning
+                ? 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                : 'bg-zinc-800/60 border-white/10 text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Compass className="w-3 h-3 shrink-0" />
+            {showDeadReckoning ? 'DR Activo' : 'Navegación Inercial'}
+          </button>
+          {activeEmergencies.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-rose-500/10 border border-rose-500/20 rounded-full animate-pulse">
+              <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+              <span className="text-[9px] sm:text-[10px] font-black text-rose-500 uppercase tracking-widest">Emergencia Detectada</span>
+            </div>
+          )}
+        </div>
       </header>
 
       <div className="relative aspect-square sm:aspect-video bg-white dark:bg-black/40 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5 overflow-hidden flex items-center justify-center">
-        <VectorialEvacuationMap />
+        <VectorialEvacuationMap showDeadReckoning={showDeadReckoning} />
 
         <AnimatePresence mode="wait">
           {isCalculating ? (

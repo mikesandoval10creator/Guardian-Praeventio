@@ -67,7 +67,13 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (docSnap.exists()) {
           const userData = docSnap.data();
           // Use the new subscription object OR fallback to old field for compatibility
-          const activePlan = userData.subscription?.planId || userData.subscriptionPlan || 'free';
+          const rawPlan = userData.subscription?.planId || userData.subscriptionPlan || 'free';
+          // Normalize legacy plan names written by old billing code
+          const PLAN_MIGRATION: Record<string, SubscriptionPlan> = {
+            premium: 'departamento',
+            basic: 'comite',
+          };
+          const activePlan: SubscriptionPlan = PLAN_MIGRATION[rawPlan] ?? (rawPlan as SubscriptionPlan) ?? 'free';
           setPlan(activePlan);
         } else {
           await setDoc(docRef, { 

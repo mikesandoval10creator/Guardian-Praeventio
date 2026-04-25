@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { RiskNode, NodeType } from '../types';
 import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, deleteDoc, handleFirestoreError, OperationType, where } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
-import { autoConnectNodes, enrichNodeData } from '../services/geminiService';
+import { autoConnectNodes, enrichNodeData, generateEmbeddingsBatch } from '../services/geminiService';
 import { useOnlineStatus } from './useOnlineStatus';
 import { usePendingActions } from './usePendingActions';
 import { matrixSyncManager } from '../services/syncManager';
@@ -56,7 +56,7 @@ export const useRiskEngine = () => {
     return () => {
       unsubscribe();
     };
-  }, [isAuthReady, user]);
+  }, [isAuthReady, user, selectedProject]);
 
   const nodes = useMemo(() => {
     const pendingNodes = pendingActions
@@ -186,6 +186,19 @@ export const useRiskEngine = () => {
 
     try {
       matrixSyncManager.enqueueSet(newNode);
+
+      // Generate vector embedding async so semantic search works for new nodes
+      const embeddingText = `${newNode.title} ${newNode.description} ${newNode.tags.join(' ')}`.trim();
+      if (embeddingText) {
+        generateEmbeddingsBatch([embeddingText])
+          .then(([embedding]) => {
+            if (embedding?.length) {
+              matrixSyncManager.enqueueUpdate(id, { embedding });
+            }
+          })
+          .catch(() => {}); // node works without embedding
+      }
+
       return newNode;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `nodes/${id}`);

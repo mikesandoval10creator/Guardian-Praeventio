@@ -1,8 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Building2, Users, ShieldAlert, Zap, ArrowRight, AlertTriangle, Loader2, CreditCard } from 'lucide-react';
+import { CheckCircle2, Building2, Users, ShieldAlert, Zap, ArrowRight, AlertTriangle, Loader2, CreditCard, Smartphone } from 'lucide-react';
 import { useSubscription, SubscriptionPlan } from '../contexts/SubscriptionContext';
 import { useNotifications } from '../contexts/NotificationContext';
+
+// Payments are processed exclusively through Google Play Billing (native app)
+const isNative = () => typeof (window as any).Capacitor !== 'undefined';
 
 const PLANS = [
   {
@@ -75,53 +78,50 @@ export function Pricing() {
   const [isProcessing, setIsProcessing] = React.useState<string | null>(null);
 
   const handlePayment = async (planId: SubscriptionPlan) => {
+    // Purchases are only available through Google Play on the native app
+    if (!isNative()) {
+      addNotification({
+        title: 'Compra desde la app',
+        message: 'Para suscribirte, descarga Guardian Praeventio en Google Play y realiza la compra desde tu dispositivo.',
+        type: 'info'
+      });
+      return;
+    }
+
     setIsProcessing(planId);
-    
+
     try {
-      // 1. Consultation (Consultar a Google qué productos hay)
-      // En un entorno Capacitor real sería: const products = await Billing.getProducts(['com.praeventio.premium'])
-      console.log(`[Billing] Consultando producto para el plan: ${planId}`);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Google Play Billing flow (requires @capacitor-community/in-app-purchase-2 + Play Console setup)
+      // TODO: replace with real IAP call once Play Console products are configured:
+      //   const { InAppPurchase2 } = await import('@capacitor-community/in-app-purchase-2');
+      //   const purchase = await InAppPurchase2.purchase({ productId: planId });
+      //   purchaseToken = purchase.purchaseToken;
 
-      // 2. Launch (Iniciar flujo de compra en Google Play)
-      // En Capacitor: const purchase = await Billing.purchase(planId)
-      console.log(`[Billing] Iniciando flujo de compra para: ${planId}`);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simulación de un token de compra retornado por Google Play
-      const mockPurchaseToken = `google_play_token_${Math.random().toString(36).substring(7)}`;
-
-      // 3. Processing & Handshake (Backend Verification)
-      // IMPORTANTE: Este es el punto ciego #4 que mencionaste. Enviamos el token al servidor.
       const { verifyGooglePlayPurchase } = await import('../services/billingService');
-      
+
       addNotification({
         title: 'Verificando con Google Play',
-        message: 'Validando transacción en los servidores de Google...',
+        message: 'Validando transacción...',
         type: 'info'
       });
 
-      const verification = await verifyGooglePlayPurchase(mockPurchaseToken, planId as string, 'subscription');
+      // purchaseToken comes from the real Play Billing SDK response
+      const purchaseToken = (window as any).__pendingPurchaseToken ?? '';
+      const verification = await verifyGooglePlayPurchase(purchaseToken, planId as string, 'subscription');
 
       if (verification.success) {
-        // 4. Acknowledge (Reconocimiento)
-        // El backend ya lo reconoció y actualizó Firestore.
-        // En el frontend, cerramos el ciclo.
-        
-        await upgradePlan(planId, mockPurchaseToken);
-        
+        await upgradePlan(planId, purchaseToken);
         addNotification({
           title: 'Suscripción Activada',
-          message: `¡Bienvenido al plan ${planId.toUpperCase()}! Se ha verificado tu pago correctamente.`,
+          message: `¡Bienvenido al plan ${planId.toUpperCase()}!`,
           type: 'success'
         });
       } else {
         throw new Error(verification.error || 'No se pudo verificar la compra');
       }
-
     } catch (error: any) {
       addNotification({
-        title: 'Falla en la Asociación',
+        title: 'Error al procesar pago',
         message: error.message || 'Error al conectar con Google Play Billing.',
         type: 'error'
       });
@@ -141,6 +141,19 @@ export function Pricing() {
           Nuestros planes están diseñados para escalar con tu empresa y asegurar el cumplimiento de la normativa chilena (DS 54, DS 40, Ley 16.744).
         </p>
       </div>
+
+      {/* Web purchase notice */}
+      {!isNative() && (
+        <div className="flex items-start gap-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5 mb-8">
+          <Smartphone className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">Las suscripciones se gestionan desde la app móvil</p>
+            <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+              Descarga <strong>Guardian Praeventio</strong> en Google Play para activar tu plan. Los pagos se procesan de forma segura a través de Google Play Billing.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Compliance Alert */}
       {requiresUpgrade && (

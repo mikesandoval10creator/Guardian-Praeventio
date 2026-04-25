@@ -17,6 +17,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddHygieneModal } from '../components/hygiene/AddHygieneModal';
 import { NoiseMonitor } from '../components/hygiene/NoiseMonitor';
+import { SensoryFatigueMonitor } from '../components/hygiene/SensoryFatigueMonitor';
 import { BreathingExercise } from '../components/hygiene/BreathingExercise';
 import { VitalityMonitor } from '../components/hygiene/VitalityMonitor';
 import { FloraFaunaCatalog } from '../components/hygiene/FloraFaunaCatalog';
@@ -158,6 +159,7 @@ export function Hygiene() {
           <NutritionLog />
           <VitalityMonitor />
           <NoiseMonitor />
+          <SensoryFatigueMonitor />
           <BreathingExercise />
 
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">

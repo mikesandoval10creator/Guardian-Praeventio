@@ -17,6 +17,7 @@ import { SurvivalPing } from "./components/SurvivalPing";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonitor";
 import { PWAUpdateToast } from "./components/shared/PWAUpdateToast";
+import { WisdomCapsuleWatcher } from "./components/shared/WisdomCapsuleWatcher";
 
 // Import Route Groups
 import { EmergencyRoutes } from "./routes/EmergencyRoutes";
@@ -26,6 +27,8 @@ import { RiskRoutes } from "./routes/RiskRoutes";
 import { HealthRoutes } from "./routes/HealthRoutes";
 import { ComplianceRoutes } from "./routes/ComplianceRoutes";
 import { AIRoutes } from "./routes/AIRoutes";
+
+const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
 
 // Other Lazy Loaded Routes
 const History = lazy(() => import('./pages/History').then(module => ({ default: module.History })));
@@ -49,6 +52,7 @@ const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: modu
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -61,7 +65,19 @@ function AppRoutes() {
     return <ConsciousnessLoader />;
   }
 
-  if (!hasEntered) {
+  // Skip landing/splash for direct deep-links (invite, public node)
+  const skipLanding = window.location.pathname.startsWith('/invite') ||
+    window.location.pathname.startsWith('/public');
+
+  if (!hasEntered && !skipLanding) {
+    // Show landing page first; after "Entrar" briefly show splash then the app
+    if (!user) {
+      return (
+        <Suspense fallback={<ConsciousnessLoader />}>
+          <LandingPage onEnter={() => setHasEntered(true)} />
+        </Suspense>
+      );
+    }
     return <Splash onEnter={() => setHasEntered(true)} />;
   }
 
@@ -71,6 +87,7 @@ function AppRoutes() {
       <EmergencyOverlay />
       <FallDetectionMonitor />
       <GeofenceAlert />
+      <WisdomCapsuleWatcher />
       <Suspense fallback={<ConsciousnessLoader />}>
       <Routes>
         <Route
@@ -82,6 +99,8 @@ function AppRoutes() {
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
                   />
+                  <Route path="/privacidad" element={<PrivacyPolicy />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/" element={<RootLayout />}>
                     <Route index element={<Dashboard />} />
                     

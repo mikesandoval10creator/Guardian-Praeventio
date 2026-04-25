@@ -38,19 +38,7 @@ export class ErrorBoundary extends Component<Props, State> {
         );
       }
 
-      let errorDetails = '';
-      try {
-        if (this.state.error?.message) {
-          const parsed = JSON.parse(this.state.error.message);
-          errorDetails = JSON.stringify(parsed, null, 2);
-        }
-      } catch {
-        errorDetails = this.state.error?.message || 'An unexpected error occurred';
-      }
-      
-      if (this.state.error?.stack) {
-        errorDetails += '\n\nStack Trace:\n' + this.state.error.stack;
-      }
+      const errorMessage = this.state.error?.message || 'Error inesperado';
 
       return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950">
@@ -59,9 +47,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 font-mono">
               Se ha detectado una anomalía en el flujo de datos. La conciencia del sistema requiere calibración.
             </p>
-            <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-4 mb-6 overflow-auto max-h-96">
+            <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-4 mb-6 overflow-auto max-h-40">
               <pre className="text-[10px] font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
-                {errorDetails}
+                {errorMessage}
               </pre>
             </div>
             <button

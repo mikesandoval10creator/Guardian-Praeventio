@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { HeartPulse, Activity, ChevronRight, X, Play, Square } from 'lucide-react';
+import { HeartPulse, Activity, ChevronRight, X, Play, Square, Vibrate, AlertTriangle } from 'lucide-react';
+import { useAccelerometer } from '../../hooks/useAccelerometer';
 
 const guides = [
   {
@@ -42,6 +43,56 @@ const guides = [
 export function FirstAidCards() {
   const [activeGuide, setActiveGuide] = useState<string | null>(null);
   const [metronomeActive, setMetronomeActive] = useState(false);
+  const [depthCheckActive, setDepthCheckActive] = useState(false);
+  const [depthFeedback, setDepthFeedback] = useState<'OK' | 'DEEPER' | 'FASTER' | null>(null);
+  const peakAccelRef = useRef<number>(0);
+  const lastBeatRef = useRef<number>(Date.now());
+
+  const { data: accelData, start: startAccel, stop: stopAccel } = useAccelerometer({
+    threshold: 99, // don't use fall detection
+    onFallDetected: undefined,
+  });
+
+  // CPR depth feedback — uses accelerometer while metronome is active
+  useEffect(() => {
+    if (!depthCheckActive || !accelData) return;
+
+    const { acceleration } = accelData;
+    // Track peak acceleration per beat (compression spike)
+    if (acceleration > peakAccelRef.current) {
+      peakAccelRef.current = acceleration;
+    }
+
+    // Evaluate every ~600ms (one beat at 100 BPM)
+    const now = Date.now();
+    if (now - lastBeatRef.current >= 600) {
+      const peak = peakAccelRef.current;
+      peakAccelRef.current = 0;
+      lastBeatRef.current = now;
+
+      if (peak < 12) {
+        setDepthFeedback('DEEPER');
+        navigator.vibrate?.([200, 50, 200]);
+      } else if (now - lastBeatRef.current > 750) {
+        setDepthFeedback('FASTER');
+        navigator.vibrate?.([100]);
+      } else {
+        setDepthFeedback('OK');
+        navigator.vibrate?.([50]);
+      }
+    }
+  }, [accelData, depthCheckActive]);
+
+  const toggleDepthCheck = async () => {
+    if (depthCheckActive) {
+      setDepthCheckActive(false);
+      setDepthFeedback(null);
+      stopAccel();
+    } else {
+      setDepthCheckActive(true);
+      await startAccel();
+    }
+  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -126,10 +177,13 @@ export function FirstAidCards() {
                         {guide.title}
                       </h2>
                     </div>
-                    <button 
+                    <button
                       onClick={() => {
                         setActiveGuide(null);
                         setMetronomeActive(false);
+                        setDepthCheckActive(false);
+                        setDepthFeedback(null);
+                        stopAccel();
                       }}
                       className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
@@ -152,31 +206,82 @@ export function FirstAidCards() {
                     </ol>
 
                     {guide.hasMetronome && (
-                      <div className="mt-8 p-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-zinc-700 flex flex-col items-center gap-4">
-                        <div className="text-center">
-                          <h4 className="font-black uppercase tracking-widest text-zinc-900 dark:text-white">Metrónomo RCP</h4>
-                          <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">100 BPM</p>
+                      <div className="mt-8 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                        {/* Emergency metronome — use during real CPR, hands always on victim */}
+                        <div className="p-6 bg-zinc-100 dark:bg-zinc-800/50 flex flex-col items-center gap-4">
+                          <div className="text-center">
+                            <h4 className="font-black uppercase tracking-widest text-zinc-900 dark:text-white">Metrónomo RCP</h4>
+                            <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">100 BPM</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">
+                              Usa solo el audio y la vibración. Mantén ambas manos sobre la víctima en todo momento.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setMetronomeActive(!metronomeActive)}
+                            className={`w-full py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                              metronomeActive
+                                ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.5)] animate-pulse'
+                                : 'bg-zinc-900 dark:bg-white text-white dark:text-black'
+                            }`}
+                          >
+                            {metronomeActive ? (
+                              <>
+                                <Square className="w-5 h-5 fill-current" />
+                                Detener Metrónomo
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-5 h-5 fill-current" />
+                                Iniciar Metrónomo
+                              </>
+                            )}
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setMetronomeActive(!metronomeActive)}
-                          className={`w-full py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                            metronomeActive 
-                              ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.5)] animate-pulse' 
-                              : 'bg-zinc-900 dark:bg-white text-white dark:text-black'
-                          }`}
-                        >
-                          {metronomeActive ? (
-                            <>
-                              <Square className="w-5 h-5 fill-current" />
-                              Detener Metrónomo
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-5 h-5 fill-current" />
-                              Iniciar Metrónomo
-                            </>
-                          )}
-                        </button>
+
+                        {/* Training-only separator */}
+                        <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-t border-amber-500/30">
+                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                          <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
+                            Solo Entrenamiento — Requiere Maniquí CPR
+                          </p>
+                        </div>
+
+                        {/* Depth guide — training only, shown only when metronome active */}
+                        {metronomeActive && (
+                          <div className="p-4 bg-zinc-50 dark:bg-zinc-900/60 space-y-3">
+                            <p className="text-[10px] text-zinc-500 dark:text-zinc-400 text-center leading-relaxed">
+                              Guía de profundidad de compresión. Coloca el celular sobre el maniquí — <strong>nunca sobre una víctima real.</strong>
+                            </p>
+                            <button
+                              onClick={toggleDepthCheck}
+                              className={`w-full py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all border ${
+                                depthCheckActive
+                                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                                  : 'border-zinc-300 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 hover:border-zinc-400'
+                              }`}
+                            >
+                              <Vibrate className="w-4 h-4" />
+                              {depthCheckActive ? 'Desactivar Guía (Maniquí)' : 'Activar Guía de Profundidad (Maniquí)'}
+                            </button>
+
+                            {depthCheckActive && depthFeedback && (
+                              <motion.div
+                                key={depthFeedback}
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className={`w-full py-3 rounded-xl text-center font-black uppercase tracking-widest text-sm ${
+                                  depthFeedback === 'OK'
+                                    ? 'bg-emerald-500/20 text-emerald-400'
+                                    : 'bg-rose-500/20 text-rose-400 animate-pulse'
+                                }`}
+                              >
+                                {depthFeedback === 'OK' && '✓ Profundidad correcta'}
+                                {depthFeedback === 'DEEPER' && '↓ Más fuerte'}
+                                {depthFeedback === 'FASTER' && '↑ Más rápido'}
+                              </motion.div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
