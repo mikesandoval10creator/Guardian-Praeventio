@@ -17,6 +17,7 @@ import { SurvivalPing } from "./components/SurvivalPing";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonitor";
 import { PWAUpdateToast } from "./components/shared/PWAUpdateToast";
+import { WisdomCapsuleWatcher } from "./components/shared/WisdomCapsuleWatcher";
 
 // Import Route Groups
 import { EmergencyRoutes } from "./routes/EmergencyRoutes";
@@ -86,6 +87,7 @@ function AppRoutes() {
       <EmergencyOverlay />
       <FallDetectionMonitor />
       <GeofenceAlert />
+      <WisdomCapsuleWatcher />
       <Suspense fallback={<ConsciousnessLoader />}>
       <Routes>
         <Route
