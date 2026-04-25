@@ -1233,7 +1233,8 @@ const ALLOWED_GEMINI_ACTIONS = [
   'generatePredictiveForecast',
   'analyzeRiskCorrelations',
   'downloadSpecificNormative',
-  'searchRelevantContext'
+  'searchRelevantContext',
+  'getNutritionSuggestion'
 ];
 
 app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {

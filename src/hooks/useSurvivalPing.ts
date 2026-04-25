@@ -3,6 +3,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useOnlineStatus } from './useOnlineStatus';
+import { saveBreadcrumb } from '../utils/offlineStorage';
 
 export const useSurvivalPing = () => {
   const { user } = useFirebase();
@@ -34,6 +35,9 @@ export const useSurvivalPing = () => {
               }, { merge: true }).catch(err => {
                 console.warn("Survival ping failed (silent):", err);
               });
+
+              // Save local breadcrumb for offline rescue trail
+              saveBreadcrumb(user.uid, lat, lng).catch(() => {});
 
               lastPingRef.current = now;
             },

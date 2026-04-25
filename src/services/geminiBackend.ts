@@ -2552,6 +2552,41 @@ export const processGlobalSafetyAudit = async (projectId: string, projectData: a
   return JSON.parse(response.text);
 };
 
+export const getNutritionSuggestion = async (mood: number, role: string = 'Trabajador', taskContext: string = '') => {
+  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+  const moodLabels: Record<number, string> = { 1: 'Agotado', 2: 'Cansado', 3: 'Normal', 4: 'Bien', 5: 'Óptimo' };
+  const prompt = `
+    Eres un nutricionista especializado en trabajadores de construcción/industria.
+    Estado de ánimo del trabajador: ${moodLabels[mood] || 'Normal'} (${mood}/5).
+    Rol: ${role}.
+    ${taskContext ? `Tarea del día: ${taskContext}.` : ''}
+
+    Sugiere un desayuno/hidratación breve (máx 2 líneas) adaptado a su estado físico y la exigencia del turno.
+    Responde en JSON con los campos: suggestion (texto corto), hydration (consejo de hidratación), energy (nivel de energía esperado: "Alta" | "Media" | "Moderada").
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.0-flash",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          suggestion: { type: Type.STRING },
+          hydration: { type: Type.STRING },
+          energy: { type: Type.STRING, enum: ["Alta", "Media", "Moderada"] }
+        },
+        required: ["suggestion", "hydration", "energy"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text);
+};
+
 export * from './susesoBackend.js';
 export * from './eppBackend.js';
 export * from './comiteBackend.js';

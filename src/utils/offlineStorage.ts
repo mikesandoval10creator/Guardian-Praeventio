@@ -15,6 +15,11 @@ interface PraeventioDB extends DBSchema {
     key: string;
     value: { id: string; workerId: string; data: any; timestamp: number; locked: boolean };
   };
+  breadcrumbs: {
+    key: number;
+    value: { id?: number; userId: string; lat: number; lng: number; timestamp: number };
+    indexes: { 'by-user': string };
+  };
 }
 
 let idbPromise: Promise<IDBPDatabase<PraeventioDB>> | null = null;
@@ -23,7 +28,7 @@ let sqliteDB: SQLiteDBConnection | null = null;
 
 const initIDB = () => {
   if (!idbPromise) {
-    idbPromise = openDB<PraeventioDB>('praeventio-bunker', 2, {
+    idbPromise = openDB<PraeventioDB>('praeventio-bunker', 3, {
       upgrade(db) {
         if (!db.objectStoreNames.contains('workers')) {
           const workerStore = db.createObjectStore('workers', { keyPath: 'id' });
@@ -42,6 +47,10 @@ const initIDB = () => {
         }
         if (!db.objectStoreNames.contains('blackbox')) {
           db.createObjectStore('blackbox', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('breadcrumbs')) {
+          const bcStore = db.createObjectStore('breadcrumbs', { keyPath: 'id', autoIncrement: true });
+          bcStore.createIndex('by-user', 'userId');
         }
       },
     });
@@ -276,5 +285,49 @@ export const unlockBlackBox = async (id: string) => {
   const entry = await db.get('blackbox', id);
   if (entry) {
     await db.put('blackbox', { ...entry, locked: false });
+  }
+};
+
+// ─── Breadcrumbs (Migas de Pan) ─────────────────────────────────────────────
+// Stores the last 50 GPS positions per user for offline rescue trail reconstruction.
+
+export const saveBreadcrumb = async (userId: string, lat: number, lng: number) => {
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if (db) await db.run(
+      'INSERT INTO offlineQueue (action, collection, data, timestamp) VALUES (?, ?, ?, ?)',
+      ['create', 'breadcrumb', JSON.stringify({ userId, lat, lng, timestamp: Date.now() }), Date.now()]
+    );
+  } else {
+    const db = await initIDB();
+    const existing = await db.getAllFromIndex('breadcrumbs', 'by-user', userId);
+    // Prune oldest if over 50 entries
+    if (existing.length >= 50) {
+      const oldest = existing.sort((a, b) => a.timestamp - b.timestamp)[0];
+      if (oldest.id != null) await db.delete('breadcrumbs', oldest.id);
+    }
+    await db.add('breadcrumbs', { userId, lat, lng, timestamp: Date.now() });
+  }
+};
+
+export const getBreadcrumbs = async (userId: string, limit = 20): Promise<{ lat: number; lng: number; timestamp: number }[]> => {
+  if (Capacitor.isNativePlatform()) {
+    const db = await initSQLite();
+    if (!db) return [];
+    const res = await db.query(
+      "SELECT data FROM offlineQueue WHERE collection = 'breadcrumb' ORDER BY timestamp DESC LIMIT ?",
+      [limit * 3] // fetch extra to filter by userId
+    );
+    return (res.values?.map(row => JSON.parse(row.data)) || [])
+      .filter((b: any) => b.userId === userId)
+      .slice(0, limit)
+      .map(({ lat, lng, timestamp }: any) => ({ lat, lng, timestamp }));
+  } else {
+    const db = await initIDB();
+    const all = await db.getAllFromIndex('breadcrumbs', 'by-user', userId);
+    return all
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, limit)
+      .map(({ lat, lng, timestamp }) => ({ lat, lng, timestamp }));
   }
 };

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, ShieldCheck, HeartPulse, Brain, CheckCircle2, Award, X } from 'lucide-react';
+import { Sun, ShieldCheck, HeartPulse, Brain, CheckCircle2, Award, X, Salad, Droplets, Zap } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
+import { getNutritionSuggestion } from '../../services/geminiService';
 
 interface MorningCheckInProps {
   onComplete: () => void;
@@ -21,6 +22,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
   const [mood, setMood] = useState<number | null>(null);
   const [showReward, setShowReward] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [nutrition, setNutrition] = useState<{ suggestion: string; hydration: string; energy: string } | null>(null);
 
   const allEppChecked = Object.values(eppChecked).every(Boolean);
 
@@ -46,9 +48,13 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
         }
       });
       setShowReward(true);
+      // Fetch nutrition suggestion in background; auto-close after 6s if suggestion loads
+      getNutritionSuggestion(mood ?? 3, user.displayName ?? 'Trabajador')
+        .then(setNutrition)
+        .catch(() => {});
       setTimeout(() => {
         onComplete();
-      }, 3000);
+      }, 6000);
     } catch (error) {
       console.error("Error saving checkin affidavit:", error);
       handleFirestoreError(error, OperationType.CREATE, 'audit_logs');
@@ -200,12 +206,41 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
             <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-2">
               ¡Sincronización Exitosa!
             </h2>
-            <p className="text-emerald-400 font-bold tracking-widest uppercase text-sm mb-8">
+            <p className="text-emerald-400 font-bold tracking-widest uppercase text-sm mb-6">
               +50 XP Obtenidos
             </p>
-            <p className="text-zinc-400 text-sm max-w-xs mx-auto">
-              Tu equipo de protección está completo y tu estado mental ha sido registrado. Que tengas un turno seguro.
-            </p>
+
+            <AnimatePresence>
+              {nutrition ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full max-w-xs mx-auto bg-zinc-900/80 border border-emerald-500/20 rounded-2xl p-4 text-left space-y-3"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Salad className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Nutrición Recomendada IA</span>
+                  </div>
+                  <p className="text-sm text-zinc-300 leading-relaxed">{nutrition.suggestion}</p>
+                  <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
+                    <Droplets className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    <p className="text-xs text-zinc-400">{nutrition.hydration}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <p className="text-xs text-zinc-400">Energía esperada: <span className="font-bold text-amber-400">{nutrition.energy}</span></p>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-zinc-500 text-xs"
+                >
+                  Calculando sugerencia nutricional...
+                </motion.p>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
