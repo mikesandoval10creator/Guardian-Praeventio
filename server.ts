@@ -1230,7 +1230,6 @@ const ALLOWED_GEMINI_ACTIONS = [
   'summarizeAgreements',
   'mapRisksToSurveillance',
   'analyzeHealthPatterns',
-  'generatePredictiveForecast',
   'analyzeRiskCorrelations',
   'downloadSpecificNormative',
   'searchRelevantContext',
