@@ -1149,6 +1149,25 @@ app.post("/api/coach/chat", verifyAuth, async (req, res) => {
   }
 });
 
+// Legal Monitor: scan BCN knowledge base for normative impact on system modules
+app.get("/api/legal/check-updates", verifyAuth, async (req, res) => {
+  try {
+    const { bcnKnowledgeBase } = await import('./src/data/bcnKnowledgeBase.js');
+    const geminiBackend = await import('./src/services/geminiBackend.js');
+    const modulesSummary = "Riesgos, Trabajadores, EPP, Hallazgos, Incidentes, Capacitación, Salud Ocupacional, Comité Paritario, Normativas, Proyectos, Emergencia";
+    const results = await Promise.all(
+      bcnKnowledgeBase.map(async (law: any) => {
+        const analysis = await (geminiBackend.scanLegalUpdates as Function)(law.title, law.content, modulesSummary);
+        return { lawId: law.id, title: law.title, lastUpdated: law.lastUpdated, relevantModules: law.relevantModules, ...analysis };
+      })
+    );
+    res.json({ results });
+  } catch (error: any) {
+    console.error("Error in legal check-updates:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Gemini API Proxy
 const ALLOWED_GEMINI_ACTIONS = [
   'generateEmbeddingsBatch',

@@ -4,6 +4,8 @@ export interface BCNLaw {
   description: string;
   content: string;
   tags: string[];
+  lastUpdated: string;
+  relevantModules: string[];
 }
 
 export const bcnKnowledgeBase: BCNLaw[] = [
@@ -16,7 +18,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
     - Accidente de trayecto: Los ocurridos en el trayecto directo, de ida o regreso, entre la habitación y el lugar de trabajo.
     - Enfermedad profesional: La causada de una manera directa por el ejercicio de la profesión o el trabajo que realice una persona y que le produzca incapacidad o muerte.
     - Obligaciones del empleador: Implantar las medidas de prevención de riesgos que indique el organismo administrador; proporcionar a sus trabajadores los equipos e implementos de protección necesarios, no pudiendo en caso alguno cobrarles su valor.`,
-    tags: ["Accidentes", "Enfermedades Profesionales", "Seguro Social", "Obligaciones"]
+    tags: ["Accidentes", "Enfermedades Profesionales", "Seguro Social", "Obligaciones"],
+    lastUpdated: "2023-08-01",
+    relevantModules: ["Riesgos", "Trabajadores", "Hallazgos", "Incidentes", "Salud Ocupacional"]
   },
   {
     id: "ds-594",
@@ -29,7 +33,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
     - Elementos de Protección Personal (EPP): El empleador deberá proporcionar a sus trabajadores, libres de costo, los elementos de protección personal adecuados al riesgo a cubrir y el adiestramiento necesario para su correcto empleo.
     - Ruido: Se establecen límites máximos permisibles para la exposición ocupacional a ruido.
     - Carga Térmica: Se establecen límites para la exposición a calor y frío extremo.`,
-    tags: ["Condiciones Sanitarias", "EPP", "Agua Potable", "Ruido", "Temperatura"]
+    tags: ["Condiciones Sanitarias", "EPP", "Agua Potable", "Ruido", "Temperatura"],
+    lastUpdated: "2022-03-15",
+    relevantModules: ["EPP", "Higiene", "Salud Ocupacional", "Trabajadores"]
   },
   {
     id: "ds-40",
@@ -39,7 +45,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
     - Departamento de Prevención de Riesgos: Toda empresa que ocupe a más de 100 trabajadores deberá contar con un Departamento de Prevención de Riesgos Profesionales.
     - Obligación de Informar (ODI): Los empleadores tienen la obligación de informar oportuna y convenientemente a todos sus trabajadores acerca de los riesgos que entrañan sus labores, de las medidas preventivas y de los métodos de trabajo correctos.
     - Reglamento Interno: Las empresas deben mantener al día un Reglamento Interno de Seguridad e Higiene en el Trabajo.`,
-    tags: ["Prevención", "ODI", "Departamento de Prevención", "Reglamento Interno"]
+    tags: ["Prevención", "ODI", "Departamento de Prevención", "Reglamento Interno"],
+    lastUpdated: "2021-11-20",
+    relevantModules: ["Capacitación", "Trabajadores", "Normativas", "Riesgos"]
   },
   {
     id: "ds-54",
@@ -49,7 +57,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
     - Constitución: En toda empresa, faena, sucursal o agencia en que trabajen más de 25 personas se organizarán Comités Paritarios de Higiene y Seguridad.
     - Composición: Estarán compuestos por tres representantes patronales y tres representantes de los trabajadores.
     - Funciones: Asesorar e instruir a los trabajadores para la correcta utilización de los instrumentos de protección; vigilar el cumplimiento, tanto por parte de las empresas como de los trabajadores, de las medidas de prevención, higiene y seguridad; investigar las causas de los accidentes del trabajo y enfermedades profesionales.`,
-    tags: ["Comité Paritario", "Participación", "Investigación de Accidentes"]
+    tags: ["Comité Paritario", "Participación", "Investigación de Accidentes"],
+    lastUpdated: "2020-06-10",
+    relevantModules: ["Comité Paritario", "Capacitación", "Hallazgos"]
   },
   {
     id: "ley-20123",
@@ -59,7 +69,9 @@ export const bcnKnowledgeBase: BCNLaw[] = [
     - Responsabilidad Solidaria y Subsidiaria: La empresa principal será solidariamente responsable de las obligaciones laborales y previsionales de dar que afecten a los contratistas en favor de los trabajadores de éstos.
     - Protección de la vida y salud: La empresa principal deberá adoptar las medidas necesarias para proteger eficazmente la vida y salud de todos los trabajadores que laboran en su obra, empresa o faena, cualquiera sea su dependencia.
     - Sistema de Gestión de SST: Las empresas principales que contraten o subcontraten obras o servicios, cuando en su conjunto agrupen a más de 50 trabajadores, deberán implementar un Sistema de Gestión de la Seguridad y Salud en el Trabajo.`,
-    tags: ["Subcontratación", "Empresa Principal", "Responsabilidad", "SGSST"]
+    tags: ["Subcontratación", "Empresa Principal", "Responsabilidad", "SGSST"],
+    lastUpdated: "2024-01-05",
+    relevantModules: ["Trabajadores", "Proyectos", "Normativas"]
   }
 ];
 
