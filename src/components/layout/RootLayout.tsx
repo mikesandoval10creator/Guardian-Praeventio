@@ -10,6 +10,7 @@ import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
@@ -24,8 +25,8 @@ export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Call it to keep the socket alive and receive foreground messages (no-op when !user)
   usePushNotifications();
+  useSessionExpiry();
 
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
