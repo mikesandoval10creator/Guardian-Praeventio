@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2 } from 'lucide-react';
+import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { db } from '../../services/firebase';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import ReactMarkdown from 'react-markdown';
@@ -33,6 +35,21 @@ export function AsesorChat() {
   const [detailLevel, setDetailLevel] = useState(1);
   const [lastTopic, setLastTopic] = useState('');
   const [savedNodeId, setSavedNodeId] = useState<string | null>(null);
+  const [messageFeedback, setMessageFeedback] = useState<Record<string, 'up' | 'down'>>({});
+
+  const handleFeedback = async (msgId: string, content: string, vote: 'up' | 'down') => {
+    if (messageFeedback[msgId]) return;
+    setMessageFeedback(prev => ({ ...prev, [msgId]: vote }));
+    try {
+      await addDoc(collection(db, 'ai_feedback'), {
+        messageId: msgId,
+        vote,
+        response: content.slice(0, 1000),
+        userId: auth.currentUser?.uid || null,
+        createdAt: serverTimestamp(),
+      });
+    } catch { /* non-critical — feedback loss is acceptable */ }
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { nodes, addNode } = useRiskEngine();
   const { selectedProject } = useProject();
@@ -323,7 +340,23 @@ export function AsesorChat() {
                       </div>
                       
                       {msg.role === 'assistant' && !msg.isOffline && (
-                        <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-white/5 flex justify-end">
+                        <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-white/5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleFeedback(msg.id, msg.content, 'up')}
+                              title="Útil"
+                              className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'up' ? 'text-emerald-500 bg-emerald-500/10' : 'text-zinc-400 hover:text-emerald-500 hover:bg-emerald-500/10'}`}
+                            >
+                              <ThumbsUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleFeedback(msg.id, msg.content, 'down')}
+                              title="No útil"
+                              className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'down' ? 'text-rose-500 bg-rose-500/10' : 'text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
+                            >
+                              <ThumbsDown className="w-3 h-3" />
+                            </button>
+                          </div>
                           <button
                             onClick={() => handleSaveToRiskNetwork(msg.content, lastTopic)}
                             disabled={savedNodeId !== null}

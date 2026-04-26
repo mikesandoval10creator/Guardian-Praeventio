@@ -15,6 +15,7 @@ export interface SyncAction {
   data: any;
   file?: File;
   timestamp: number;
+  localUpdatedAt: string; // ISO timestamp of when the action was queued offline
 }
 
 let idbPromise: Promise<IDBPDatabase> | null = null;
@@ -120,8 +121,14 @@ export const getBunkerKnowledge = async (id: string) => {
   }
 };
 
-export const saveForSync = async (action: Omit<SyncAction, 'timestamp'>) => {
-  const syncAction: SyncAction = { ...action, timestamp: Date.now() };
+export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localUpdatedAt'>) => {
+  const now = new Date().toISOString();
+  const syncAction: SyncAction = {
+    ...action,
+    timestamp: Date.now(),
+    localUpdatedAt: now,
+    data: { ...action.data, localUpdatedAt: now },
+  };
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if(db) await db.run('INSERT INTO pending_sync (docId, type, collection, data, timestamp) VALUES (?, ?, ?, ?, ?)', [action.docId, action.type, action.collection, JSON.stringify(action.data), syncAction.timestamp]);
