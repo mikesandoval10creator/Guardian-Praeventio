@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ClipboardCheck, 
@@ -22,7 +22,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { AddAuditModal } from '../components/audits/AddAuditModal';
 import { SafetyInspection } from '../components/safety/SafetyInspection';
 import { ISOAudit } from '../components/audits/ISOAudit';
-import { AuditDetailModal } from '../components/audits/AuditDetailModal';
+const AuditDetailModal = lazy(() => import('../components/audits/AuditDetailModal').then(m => ({ default: m.AuditDetailModal })));
 
 export function Audits() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -245,11 +245,15 @@ export function Audits() {
         onClose={() => setIsModalOpen(false)} 
       />
 
-      <AuditDetailModal
-        audit={selectedAudit}
-        isOpen={!!selectedAudit}
-        onClose={() => setSelectedAudit(null)}
-      />
+      {!!selectedAudit && (
+        <Suspense fallback={null}>
+          <AuditDetailModal
+            audit={selectedAudit}
+            isOpen={true}
+            onClose={() => setSelectedAudit(null)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

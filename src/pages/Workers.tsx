@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,7 +33,7 @@ import { QRCodeModal } from '../components/workers/QRCodeModal';
 import { MassImportModal } from '../components/workers/MassImportModal';
 import { AccessControlModal } from '../components/workers/AccessControlModal';
 import { TraceabilityModal } from '../components/workers/TraceabilityModal';
-import { LaborManagementModal } from '../components/workers/LaborManagementModal';
+const LaborManagementModal = lazy(() => import('../components/workers/LaborManagementModal').then(m => ({ default: m.LaborManagementModal })));
 import { UserProfileModal } from '../components/workers/UserProfileModal';
 import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -485,12 +485,14 @@ export function Workers() {
         projectId={selectedProject?.id}
       />
 
-      {selectedWorker && (
-        <LaborManagementModal
-          isOpen={activeModal === 'labor'}
-          onClose={() => setActiveModal(null)}
-          worker={selectedWorker}
-        />
+      {selectedWorker && activeModal === 'labor' && (
+        <Suspense fallback={null}>
+          <LaborManagementModal
+            isOpen={true}
+            onClose={() => setActiveModal(null)}
+            worker={selectedWorker}
+          />
+        </Suspense>
       )}
 
       <AccessControlModal
