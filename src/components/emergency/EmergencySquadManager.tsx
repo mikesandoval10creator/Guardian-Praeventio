@@ -5,6 +5,7 @@ import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { getBreadcrumbs } from '../../utils/offlineStorage';
 import { SkillTree } from './SkillTree';
+import { useBluetoothMesh } from '../../hooks/useBluetoothMesh';
 
 interface SquadMember {
   id: string;
@@ -23,6 +24,7 @@ interface Breadcrumb {
 
 export function EmergencySquadManager() {
   const { user } = useFirebase();
+  const { isSupported: bleSupported, isScanning: bleScanning, peerBreadcrumbs, nearbyDevices, startScanning } = useBluetoothMesh();
   const [squad] = useState<SquadMember[]>([
     { id: '1', name: 'Carlos Mendoza', role: 'Líder', status: 'En Posición', distance: '0m', skills: ['Mando', 'Primeros Auxilios Avanzados'] },
     { id: '2', name: 'Ana Silva', role: 'Rescatista', status: 'En Tránsito', distance: '45m', skills: ['Rescate en Altura', 'Espacios Confinados'] },
@@ -42,7 +44,9 @@ export function EmergencySquadManager() {
       .then(setBreadcrumbs)
       .catch(() => setBreadcrumbs([]))
       .finally(() => setLoadingCrumbs(false));
-  }, [viewMode, user]);
+    // Also trigger BLE scan to detect nearby peers and record their breadcrumbs
+    if (bleSupported) startScanning();
+  }, [viewMode, user, bleSupported]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -152,6 +156,36 @@ export function EmergencySquadManager() {
             <p className="text-[10px] text-zinc-600 text-center">
               {breadcrumbs.length > 0 && `${breadcrumbs.length} posición(es) registrada(s) • Última: ${new Date(breadcrumbs[0]?.timestamp).toLocaleTimeString()}`}
             </p>
+
+            {/* BLE Peer Breadcrumbs */}
+            {bleSupported && (
+              <div className="mt-4 border-t border-white/5 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Radio className="w-4 h-4 text-blue-400" />
+                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Compañeros detectados vía BLE</p>
+                  {bleScanning && <span className="text-[10px] text-blue-400 animate-pulse">Escaneando...</span>}
+                </div>
+                {peerBreadcrumbs.length === 0 ? (
+                  <p className="text-xs text-zinc-600">Sin compañeros BLE detectados en rango.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {peerBreadcrumbs.slice(0, 10).map(peer => (
+                      <div key={peer.peerId} className="flex items-center gap-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                        <div className="w-3 h-3 rounded-full bg-blue-400 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-blue-300 truncate">{peer.peerName}</p>
+                          <p className="text-[10px] text-zinc-500 font-mono truncate">{peer.peerId.slice(0, 12)}…</p>
+                        </div>
+                        <div className="flex items-center gap-1 text-zinc-500 shrink-0">
+                          <Clock className="w-3 h-3" />
+                          <span className="text-[10px]">{formatTime(peer.timestamp)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         ) : viewMode === 'squad' ? (
           <motion.div

@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, AlertTriangle, Thermometer, Lock, Zap, Info, X, Network, Loader2 } from 'lucide-react';
+import { Camera, AlertTriangle, Thermometer, Lock, Zap, Info, X, Network, Loader2, BookOpen, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
+import { NodeType } from '../types';
 
 interface ARMarker {
   id: string;
@@ -24,6 +25,7 @@ export default function WebXR() {
   const [error, setError] = useState<string | null>(null);
   const [zkNodes, setZkNodes] = useState<any[]>([]);
   const [zkLoading, setZkLoading] = useState(false);
+  const [capsules, setCapsules] = useState<any[]>([]);
   const { selectedProject } = useProject();
 
   useEffect(() => {
@@ -96,19 +98,30 @@ export default function WebXR() {
     };
   }, [isScanning]);
 
-  // Load Zettelkasten nodes related to the selected marker whenever it changes
+  // Load ZK nodes + wisdom capsules for the selected marker
   useEffect(() => {
-    if (!selectedMarker || !selectedProject) { setZkNodes([]); return; }
+    if (!selectedMarker || !selectedProject) { setZkNodes([]); setCapsules([]); return; }
     setZkLoading(true);
-    getDocs(
+
+    const nodesPromise = getDocs(
       query(
         collection(db, 'nodes'),
         where('projectId', '==', selectedProject.id),
         where('tags', 'array-contains', selectedMarker.title)
       )
-    )
-      .then(snap => setZkNodes(snap.docs.map(d => ({ id: d.id, ...d.data() })).slice(0, 4)))
-      .catch(() => setZkNodes([]))
+    ).then(snap => snap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+    const capsulesPromise = getDocs(
+      query(
+        collection(db, 'wisdomCapsules'),
+        where('projectId', '==', selectedProject.id),
+        where('machineId', '==', selectedMarker.id)
+      )
+    ).then(snap => snap.docs.map(d => ({ id: d.id, ...d.data() }))).catch(() => []);
+
+    Promise.all([nodesPromise, capsulesPromise])
+      .then(([nodes, caps]) => { setZkNodes(nodes); setCapsules(caps); })
+      .catch(() => { setZkNodes([]); setCapsules([]); })
       .finally(() => setZkLoading(false));
   }, [selectedMarker, selectedProject]);
 
@@ -262,27 +275,83 @@ export default function WebXR() {
               </p>
             </div>
             
-            {/* Zettelkasten nodes related to this marker */}
-            <div className="mt-4 border-t border-gray-100 pt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Network className="w-4 h-4 text-indigo-500" />
-                <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Nodos ZK Relacionados</p>
-                {zkLoading && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
-              </div>
-              {!zkLoading && zkNodes.length === 0 && (
-                <p className="text-xs text-gray-400">Sin nodos registrados para este equipo.</p>
-              )}
-              <div className="space-y-2">
-                {zkNodes.map(node => (
-                  <div key={node.id} className="flex items-start gap-2 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
-                    <div>
-                      <p className="text-xs font-semibold text-indigo-800">{node.title}</p>
-                      {node.description && <p className="text-[10px] text-indigo-600 mt-0.5 line-clamp-2">{node.description}</p>}
+            {/* Zettelkasten AR Overlay — 3 sections */}
+            <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">
+              {zkLoading && <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 className="w-3 h-3 animate-spin" /> Cargando Red de Conocimiento...</div>}
+
+              {/* Section 1: Incidents */}
+              {!zkLoading && (() => {
+                const incidents = zkNodes.filter(n => n.type === NodeType.INCIDENT).slice(0, 3);
+                return incidents.length > 0 ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldAlert className="w-4 h-4 text-rose-500" />
+                      <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Incidentes Recientes</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {incidents.map(node => (
+                        <div key={node.id} className="flex items-start gap-2 p-2 bg-rose-50 rounded-lg border border-rose-100">
+                          <div className="w-2 h-2 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-semibold text-rose-800">{node.title}</p>
+                            {node.description && <p className="text-[10px] text-rose-600 mt-0.5 line-clamp-2">{node.description}</p>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                ) : null;
+              })()}
+
+              {/* Section 2: LOTO / Controls */}
+              {!zkLoading && (() => {
+                const controls = zkNodes.filter(n => n.type === NodeType.CONTROL || (n.tags && n.tags.includes('LOTO'))).slice(0, 3);
+                return controls.length > 0 ? (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Lock className="w-4 h-4 text-amber-500" />
+                      <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Protocolo LOTO / Controles</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {controls.map(node => (
+                        <div key={node.id} className="flex items-start gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                          <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-semibold text-amber-800">{node.title}</p>
+                            {node.description && <p className="text-[10px] text-amber-600 mt-0.5 line-clamp-2">{node.description}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
+              {/* Section 3: Wisdom Capsules */}
+              {!zkLoading && capsules.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <BookOpen className="w-4 h-4 text-indigo-500" />
+                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Cápsulas de Sabiduría</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {capsules.slice(0, 3).map(cap => (
+                      <div key={cap.id} className="flex items-start gap-2 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                        <div>
+                          <p className="text-xs font-semibold text-indigo-800">{cap.title || 'Cápsula'}</p>
+                          {cap.content && <p className="text-[10px] text-indigo-600 mt-0.5 line-clamp-2">{cap.content}</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback when no data */}
+              {!zkLoading && zkNodes.length === 0 && capsules.length === 0 && (
+                <p className="text-xs text-gray-400">Sin datos registrados para este equipo en la Red de Conocimiento.</p>
+              )}
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
