@@ -34,11 +34,14 @@ export function Settings() {
   const isOnline = useOnlineStatus();
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
-  const { user } = useFirebase();
+  const { user, isAdmin } = useFirebase();
   const { authenticate, isSupported } = useBiometricAuth();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [adminTargetUid, setAdminTargetUid] = useState('');
+  const [adminTargetRole, setAdminTargetRole] = useState('operario');
+  const [adminActionStatus, setAdminActionStatus] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -394,6 +397,81 @@ export function Settings() {
             </div>
           </div>
         );
+      case 'Administración de Usuarios':
+        return (
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-6">
+            {/* Set Role */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Asignar Rol a Usuario</p>
+              <input
+                type="text"
+                placeholder="UID del usuario (Firebase Auth)"
+                value={adminTargetUid}
+                onChange={e => { setAdminTargetUid(e.target.value); setAdminActionStatus(null); }}
+                className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
+              />
+              <select
+                value={adminTargetRole}
+                onChange={e => setAdminTargetRole(e.target.value)}
+                className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
+              >
+                {['gerente', 'prevencionista', 'supervisor', 'director_obra', 'medico_ocupacional', 'operario'].map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <button
+                disabled={!adminTargetUid.trim()}
+                onClick={async () => {
+                  setAdminActionStatus('Guardando...');
+                  try {
+                    const token = await user?.getIdToken();
+                    const res = await fetch('/api/admin/set-role', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ uid: adminTargetUid.trim(), role: adminTargetRole }),
+                    });
+                    const data = await res.json();
+                    setAdminActionStatus(res.ok ? `✓ Rol "${adminTargetRole}" asignado` : `Error: ${data.error}`);
+                  } catch { setAdminActionStatus('Error de red'); }
+                }}
+                className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-black rounded-xl transition-colors"
+              >
+                Asignar Rol
+              </button>
+            </div>
+
+            {/* Revoke Access */}
+            <div className="space-y-3 border-t border-zinc-200 dark:border-white/5 pt-4">
+              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Revocar Acceso</p>
+              <p className="text-xs text-zinc-500">Invalida inmediatamente todos los tokens de sesión del usuario.</p>
+              <button
+                disabled={!adminTargetUid.trim()}
+                onClick={async () => {
+                  setAdminActionStatus('Revocando...');
+                  try {
+                    const token = await user?.getIdToken();
+                    const res = await fetch('/api/admin/revoke-access', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ targetUid: adminTargetUid.trim() }),
+                    });
+                    const data = await res.json();
+                    setAdminActionStatus(res.ok ? '✓ Acceso revocado' : `Error: ${data.error}`);
+                  } catch { setAdminActionStatus('Error de red'); }
+                }}
+                className="w-full py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl transition-colors"
+              >
+                Revocar Acceso
+              </button>
+            </div>
+
+            {adminActionStatus && (
+              <p className={`text-xs font-bold text-center ${adminActionStatus.startsWith('✓') ? 'text-emerald-500' : 'text-rose-400'}`}>
+                {adminActionStatus}
+              </p>
+            )}
+          </div>
+        );
       default:
         return null;
     }
@@ -415,6 +493,7 @@ export function Settings() {
     { title: 'Base de Datos y Red Neuronal', icon: Database, description: 'Gestión de nodos, conexiones y exportación de datos.' },
     { title: 'Interfaz y Tema', icon: Palette, description: 'Personaliza el aspecto visual de Praeventio Guard.' },
     { title: 'Idioma y Región', icon: Globe, description: 'Ajusta el idioma de la plataforma y formatos regionales.' },
+    ...(isAdmin ? [{ title: 'Administración de Usuarios', icon: Shield, description: 'Asigna roles y revoca acceso a usuarios de la plataforma.' }] : []),
   ];
 
   return (

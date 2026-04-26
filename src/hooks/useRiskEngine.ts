@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RiskNode, NodeType } from '../types';
 import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, deleteDoc, handleFirestoreError, OperationType, where } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -12,6 +12,7 @@ export const useRiskEngine = () => {
   const [fetchedNodes, setFetchedNodes] = useState<RiskNode[]>([]);
   const [loading, setLoading] = useState(true);
   const { isAuthReady, user } = useFirebase();
+  const healerRanRef = useRef(false);
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const pendingActions = usePendingActions();
@@ -120,9 +121,10 @@ export const useRiskEngine = () => {
     matrixSyncManager.setNodesProvider(() => nodes);
   }, [nodes]);
 
-  // Background Auto-Healer: Detects and fixes incomplete nodes automatically using AI
+  // Background Auto-Healer: runs once per session to avoid exhausting API quota
   useEffect(() => {
-    if (!user || fetchedNodes.length === 0) return;
+    if (!user || fetchedNodes.length === 0 || healerRanRef.current) return;
+    healerRanRef.current = true;
 
     const healIncompleteNodes = async () => {
       const incompleteNodes = fetchedNodes.filter(node => 
