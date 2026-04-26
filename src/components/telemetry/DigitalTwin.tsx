@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Box, Sphere, Cylinder, Text, Environment, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 import { MapPin, Activity, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -138,6 +138,15 @@ function Machinery({ position, status, type }: { position: [number, number, numb
   );
 }
 
+function SceneCleanup() {
+  const { gl } = useThree();
+  useEffect(() => () => {
+    gl.dispose();
+    gl.forceContextLoss();
+  }, [gl]);
+  return null;
+}
+
 // The main 3D Scene
 function Scene({ workers, machinery }: { workers: any[], machinery: any[] }) {
   return (
@@ -242,6 +251,7 @@ export function DigitalTwin({ workers: propWorkers, machinery: propMachinery }: 
         </div>
 
         <Canvas camera={{ position: [10, 10, 10], fov: 50 }} gl={{ powerPreference: 'low-power' }}>
+          <SceneCleanup />
           <Scene workers={workers} machinery={machinery} />
         </Canvas>
       </div>

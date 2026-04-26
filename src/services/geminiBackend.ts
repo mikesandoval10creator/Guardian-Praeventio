@@ -390,17 +390,18 @@ export const generateISOAuditChecklist = async (topic: string, context: string) 
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: `Genera un checklist de auditoría basado en la norma ISO 45001 para el tema: "${topic}".
-    
+
     Utiliza el siguiente contexto de riesgos del proyecto para adaptar las preguntas:
     ${context}
-    
+
     Proporciona:
     1. Un título formal para la auditoría.
     2. Una breve descripción del alcance.
     3. Una lista de ítems a evaluar. Para cada ítem, incluye:
        - Un ID único (ej. ISO-45001-8.1.2).
        - La pregunta de auditoría.
-       - La cláusula o referencia normativa.`,
+       - La cláusula o referencia normativa.
+       - Opcionalmente, dependsOnId (ID del ítem padre) y dependsOnStatus ("No Cumple" o "Cumple") cuando esta pregunta solo debe mostrarse si el ítem padre tiene ese estado. Úsalo para preguntas de seguimiento (ej. "¿Tiene plan de acción?" solo aparece si la pregunta anterior fue "No Cumple").`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -415,7 +416,9 @@ export const generateISOAuditChecklist = async (topic: string, context: string) 
               properties: {
                 id: { type: Type.STRING },
                 question: { type: Type.STRING },
-                reference: { type: Type.STRING }
+                reference: { type: Type.STRING },
+                dependsOnId: { type: Type.STRING },
+                dependsOnStatus: { type: Type.STRING }
               },
               required: ["id", "question", "reference"]
             }
