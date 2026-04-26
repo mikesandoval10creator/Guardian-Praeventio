@@ -21,6 +21,8 @@ interface ISOItem {
   status: 'Cumple' | 'No Cumple' | 'N/A' | 'Pendiente';
   observation: string;
   workerProposal?: string;
+  dependsOnId?: string;
+  dependsOnStatus?: string;
 }
 
 export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalProps) {
@@ -171,6 +173,12 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
 
   const isComplete = auditData?.items.every(i => i.status !== 'Pendiente');
 
+  const isItemVisible = (item: ISOItem): boolean => {
+    if (!item.dependsOnId || !item.dependsOnStatus || !auditData) return true;
+    const parent = auditData.items.find(i => i.id === item.dependsOnId);
+    return !!parent && parent.status === item.dependsOnStatus;
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -256,8 +264,8 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                   </div>
 
                   <div className="space-y-4">
-                    {auditData.items.map((item, index) => (
-                      <div key={item.id} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-zinc-700/50 space-y-4">
+                    {auditData.items.map((item, index) => !isItemVisible(item) ? null : (
+                      <div key={item.id} className={`p-4 rounded-2xl border space-y-4 transition-all ${item.dependsOnId ? 'ml-8 bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-700/30' : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50'}`}>
                         <div className="flex items-start gap-4">
                           <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center shrink-0">
                             <span className="text-[10px] font-black text-zinc-500 dark:text-zinc-400">{index + 1}</span>

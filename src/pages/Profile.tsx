@@ -27,7 +27,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { logOut } from '../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { TrainingSession, SafetyPost } from '../types';
+import { TrainingSession, SafetyPost, RiskNode, NodeType } from '../types';
 import { motion } from 'framer-motion';
 import { get, set } from 'idb-keyval';
 
@@ -53,6 +53,13 @@ export function Profile() {
   const userPosts = posts.filter(p => p.userId === user?.uid).length;
   const userLikes = posts.reduce((total, p) => total + (p.likes.includes(user?.uid || '') ? 1 : 0), 0);
 
+  const { data: nodes } = useFirestoreCollection<RiskNode>('nodes');
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentIncidents = nodes.filter(n => n.type === NodeType.INCIDENT && new Date(n.createdAt).getTime() > sevenDaysAgo).length;
+
+  const memberSince = user?.metadata?.creationTime ? new Date(user.metadata.creationTime).getTime() : Date.now();
+  const daysSinceMember = Math.floor((Date.now() - memberSince) / (24 * 60 * 60 * 1000));
+
   const handleLogout = async () => {
     await logOut();
     navigate('/login');
@@ -63,6 +70,10 @@ export function Profile() {
     { id: 2, title: 'Guardián Activo', description: 'Publica 5 veces en el muro', icon: MessageSquare, color: 'text-emerald-500', bg: 'bg-emerald-500/10', completed: userPosts >= 5 },
     { id: 3, title: 'Experto en Riesgos', description: 'Identifica 10 hallazgos', icon: Shield, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: totalPoints > 1000 },
     { id: 4, title: 'Líder de Seguridad', description: 'Llega al nivel 10', icon: Trophy, color: 'text-purple-500', bg: 'bg-purple-500/10', completed: totalPoints > 5000 },
+    { id: 5, title: 'Semana Invicta', description: 'Sin incidentes registrados en 7 días', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: recentIncidents === 0 },
+    { id: 6, title: 'Curador del Conocimiento', description: 'Recibe 10 likes en publicaciones', icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10', completed: userLikes >= 10 },
+    { id: 7, title: 'Veterano de Campo', description: 'Lleva 30+ días en la plataforma', icon: Star, color: 'text-indigo-500', bg: 'bg-indigo-500/10', completed: daysSinceMember >= 30 },
+    { id: 8, title: 'Colaborador Estrella', description: 'Completa 3 o más capacitaciones', icon: TrendingUp, color: 'text-teal-500', bg: 'bg-teal-500/10', completed: completedCourses >= 3 },
   ];
 
   return (
