@@ -8,6 +8,7 @@ import { AsesorChat } from '../shared/AsesorChat';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
+import { SyncConflictBanner } from '../shared/SyncConflictBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
@@ -159,6 +160,7 @@ export function RootLayout() {
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
         <PendingInvitesBanner />
+        <SyncConflictBanner />
       </div>
       <ReloadPrompt />
 

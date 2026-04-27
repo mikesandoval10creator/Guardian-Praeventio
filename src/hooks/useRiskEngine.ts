@@ -237,17 +237,35 @@ export const useRiskEngine = () => {
     }
   }, [user, nodes]);
 
-  const updateNode = useCallback(async (id: string, updates: Partial<RiskNode>) => {
+  const updateNode = useCallback(async (id: string, updates: Partial<RiskNode>, expectedUpdatedAt?: string) => {
     if (!user) return;
+
+    // Concurrent edit detection: compare caller's version against live in-memory node
+    if (expectedUpdatedAt) {
+      const liveNode = fetchedNodes.find(n => n.id === id);
+      if (liveNode?.updatedAt && liveNode.updatedAt !== expectedUpdatedAt) {
+        window.dispatchEvent(new CustomEvent('sync-conflict', {
+          detail: {
+            collection: 'nodes',
+            id,
+            localUpdatedAt: expectedUpdatedAt,
+            serverUpdatedAt: liveNode.updatedAt,
+            online: true,
+            nodeTitle: liveNode.title,
+          }
+        }));
+        // Still apply (Last-Write-Wins) but user is notified via SyncConflictBanner
+      }
+    }
+
     const now = new Date().toISOString();
     const finalUpdates = { ...updates, updatedAt: now };
-    
     try {
       matrixSyncManager.enqueueUpdate(id, finalUpdates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `nodes/${id}`);
     }
-  }, [user]);
+  }, [user, fetchedNodes]);
 
   const deleteNode = useCallback(async (id: string) => {
     if (!user) return;
