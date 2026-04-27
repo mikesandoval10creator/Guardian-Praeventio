@@ -112,7 +112,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
   const [strobeFlash, setStrobeFlash] = useState(false);
   const [showPanic, setShowPanic] = useState(false);
   const torchStreamRef = useRef<MediaStream | null>(null);
-  const { requestWakeLock, releaseWakeLock } = useWakeLock();
+  const { requestWakeLock, releaseWakeLock, wakeLockFailed } = useWakeLock();
 
   // Acoustic SOS: 3 loud knocks → auto-activate strobe
   const { isActive: sosListening, noiseLevel, start: startSOS, stop: stopSOS } = useAcousticSOS({
@@ -195,19 +195,28 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
         </button>
       </div>
 
-      {/* Emergency action buttons */}
-      <div className="p-4 grid grid-cols-3 gap-2 shrink-0 border-b border-white/5">
+      {/* WakeLock failed warning — screen may turn off during emergency */}
+      {wakeLockFailed && (
+        <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 shrink-0">
+          <p className="text-[11px] text-amber-400 text-center font-bold">
+            ⚠ La pantalla puede apagarse — mantén el dedo sobre la pantalla para evitarlo
+          </p>
+        </div>
+      )}
+
+      {/* Emergency action buttons — large targets for gloved hands */}
+      <div className="p-4 grid grid-cols-3 gap-3 shrink-0 border-b border-white/5">
         {/* Strobe beacon */}
         <button
           onClick={() => setIsStrobeActive(v => !v)}
-          className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${
+          className={`flex flex-col items-center justify-center gap-2 h-20 rounded-2xl border-2 transition-all active:scale-95 ${
             isStrobeActive
-              ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400 animate-pulse'
-              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+              ? 'bg-yellow-500/20 border-yellow-500/60 text-yellow-400 animate-pulse'
+              : 'border-zinc-600 text-zinc-300 hover:border-zinc-400'
           }`}
         >
-          <Zap className="w-5 h-5" />
-          <span className="text-[9px] font-bold uppercase tracking-wider">
+          <Zap className="w-7 h-7" />
+          <span className="text-[11px] font-black uppercase tracking-wider">
             {isStrobeActive ? 'Faro ON' : 'Faro'}
           </span>
         </button>
@@ -215,25 +224,25 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
         {/* Acoustic SOS listener */}
         <button
           onClick={() => sosListening ? stopSOS() : startSOS()}
-          className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${
+          className={`flex flex-col items-center justify-center gap-2 h-20 rounded-2xl border-2 transition-all active:scale-95 ${
             sosListening
-              ? 'bg-rose-500/20 border-rose-500/50 text-rose-400'
-              : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+              ? 'bg-rose-500/20 border-rose-500/60 text-rose-400'
+              : 'border-zinc-600 text-zinc-300 hover:border-zinc-400'
           }`}
         >
-          {sosListening ? <Radio className="w-5 h-5 animate-pulse" /> : <Mic className="w-5 h-5" />}
-          <span className="text-[9px] font-bold uppercase tracking-wider">
-            {sosListening ? `SOS ${noiseLevel}` : 'SOS Acústico'}
+          {sosListening ? <Radio className="w-7 h-7 animate-pulse" /> : <Mic className="w-7 h-7" />}
+          <span className="text-[11px] font-black uppercase tracking-wider">
+            {sosListening ? `SOS ${noiseLevel}dB` : 'SOS Acústico'}
           </span>
         </button>
 
         {/* Anti-panic breathing */}
         <button
           onClick={() => setShowPanic(true)}
-          className="flex flex-col items-center gap-1 p-3 rounded-xl border border-zinc-700 text-zinc-400 hover:border-sky-500 hover:text-sky-400 transition-all"
+          className="flex flex-col items-center justify-center gap-2 h-20 rounded-2xl border-2 border-zinc-600 text-zinc-300 hover:border-sky-500 hover:text-sky-400 transition-all active:scale-95"
         >
-          <Wind className="w-5 h-5" />
-          <span className="text-[9px] font-bold uppercase tracking-wider">Respirar</span>
+          <Wind className="w-7 h-7" />
+          <span className="text-[11px] font-black uppercase tracking-wider">Respirar</span>
         </button>
       </div>
 

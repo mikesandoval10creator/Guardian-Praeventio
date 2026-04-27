@@ -68,6 +68,7 @@ import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { Skeleton } from '../components/shared/Skeleton';
 import { useGamification } from '../hooks/useGamification';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 type ChallengePeriod = 'daily' | 'weekly' | 'monthly' | 'annual';
 
@@ -127,7 +128,7 @@ export function Dashboard() {
           setShowMorningCheckIn(true);
         }
       } catch (err) {
-        console.error("Error checking IDB checkin", err);
+        logger.error('Error checking IDB checkin', err);
         setShowMorningCheckIn(true);
       }
     };
@@ -163,7 +164,7 @@ export function Dashboard() {
         setAiInsights(insights);
         await cacheAIResponse('dashboard-insights', insights);
       } catch (error) {
-        console.error('Error fetching AI insights:', error);
+        logger.error('Error fetching AI insights', error);
         const cached = await getCachedAIResponse('dashboard-insights');
         if (cached) {
           setAiInsights(cached);

@@ -18,6 +18,7 @@ import {
   Award,
   ChevronDown,
   Save,
+  RefreshCw,
   BarChart3,
   AlertCircle
 } from 'lucide-react';
@@ -119,6 +120,7 @@ function ISOChecklist() {
   const [openClause, setOpenClause] = useState<string>('4');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
@@ -136,6 +138,7 @@ function ISOChecklist() {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       await addNode({
         type: NodeType.AUDIT,
@@ -156,6 +159,8 @@ function ISOChecklist() {
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setSaveError('Error al guardar la auditoría. Verifica tu conexión e intenta nuevamente.');
     } finally {
       setSaving(false);
     }
@@ -183,15 +188,29 @@ function ISOChecklist() {
             transition={{ duration: 0.5 }}
           />
         </div>
-        <div className="flex justify-end mt-3">
-          <button
-            onClick={handleSave}
-            disabled={saving || answeredCount === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
-          >
-            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : saved ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
-            {saved ? 'Guardado' : 'Guardar Auditoría'}
-          </button>
+        <div className="flex flex-col items-end gap-2 mt-3">
+          {saveError && (
+            <p className="text-[10px] font-bold text-rose-500 text-right max-w-xs">{saveError}</p>
+          )}
+          <div className="flex gap-2">
+            {saveError && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" /> Reintentar
+              </button>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={saving || answeredCount === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : saved ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
+              {saved ? 'Guardado ✓' : 'Guardar Auditoría'}
+            </button>
+          </div>
         </div>
       </div>
 

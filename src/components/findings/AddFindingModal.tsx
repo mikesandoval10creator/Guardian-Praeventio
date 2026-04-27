@@ -273,8 +273,9 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                     <input
                       required
                       type="text"
+                      maxLength={200}
                       value={formData.location}
-                      onChange={e => setFormData({ ...formData, location: e.target.value })}
+                      onChange={e => setFormData({ ...formData, location: e.target.value.trimStart() })}
                       placeholder="Ej: Bodega Central, Sector B"
                       className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                     />

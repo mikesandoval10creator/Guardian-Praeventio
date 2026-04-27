@@ -6,6 +6,7 @@ export function useWakeLock() {
   const [isSupported, setIsSupported] = useState(false);
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
   const [isNativeLocked, setIsNativeLocked] = useState(false);
+  const [wakeLockFailed, setWakeLockFailed] = useState(false);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -16,13 +17,14 @@ export function useWakeLock() {
   }, []);
 
   const requestWakeLock = useCallback(async () => {
+    setWakeLockFailed(false);
     if (isSupported) {
       if (Capacitor.isNativePlatform()) {
         try {
           await KeepAwake.keepAwake();
           setIsNativeLocked(true);
-        } catch (err) {
-          console.error('Native Wake Lock error:', err);
+        } catch {
+          setWakeLockFailed(true);
         }
       } else if (!wakeLock) {
         try {
@@ -31,10 +33,12 @@ export function useWakeLock() {
           lock.addEventListener('release', () => {
             setWakeLock(null);
           });
-        } catch (err) {
-          console.error('Web Wake Lock error:', err);
+        } catch {
+          setWakeLockFailed(true);
         }
       }
+    } else {
+      setWakeLockFailed(true);
     }
   }, [isSupported, wakeLock]);
 
@@ -43,14 +47,21 @@ export function useWakeLock() {
       try {
         await KeepAwake.allowSleep();
         setIsNativeLocked(false);
-      } catch (err) {
-        console.error('Native Wake Lock release error:', err);
+      } catch {
+        // ignore release errors
       }
     } else if (wakeLock) {
       await wakeLock.release();
       setWakeLock(null);
     }
+    setWakeLockFailed(false);
   }, [wakeLock]);
 
-  return { isSupported, isLocked: Capacitor.isNativePlatform() ? isNativeLocked : !!wakeLock, requestWakeLock, releaseWakeLock };
+  return {
+    isSupported,
+    isLocked: Capacitor.isNativePlatform() ? isNativeLocked : !!wakeLock,
+    wakeLockFailed,
+    requestWakeLock,
+    releaseWakeLock,
+  };
 }

@@ -40,14 +40,14 @@ export function OfflineSyncManager() {
                   
                   // If the server document is newer than our offline version, we have a conflict
                   if (currentUpdatedAt && new Date(currentUpdatedAt) > new Date(originalUpdatedAt)) {
-                    console.warn(`Conflict detected for ${action.collection}/${id}. Server version is newer. Overwriting anyway (Last-Write-Wins).`);
+                    // Notify BEFORE applying the write so the banner reflects the truth
                     window.dispatchEvent(new CustomEvent('sync-conflict', {
                       detail: { collection: action.collection, id, localUpdatedAt: originalUpdatedAt, serverUpdatedAt: currentUpdatedAt }
                     }));
                   }
                 }
               }
-              
+
               await updateDoc(doc(db, action.collection, id), updateData);
               docId = id;
             } catch (error) {

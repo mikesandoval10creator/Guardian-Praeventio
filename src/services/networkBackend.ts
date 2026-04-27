@@ -111,5 +111,13 @@ export const syncBatchToNetwork = async (operations: any[], authorUid: string) =
     }
   }
 
-  return { success: true, results };
+  const failedOps = results
+    .filter(r => r.status === 'error')
+    .map(r => ({ id: r.id }));
+
+  return {
+    success: failedOps.length === 0,
+    results,
+    failedOps: failedOps.length > 0 ? failedOps : undefined,
+  };
 };

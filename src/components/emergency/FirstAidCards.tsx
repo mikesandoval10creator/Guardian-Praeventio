@@ -217,7 +217,19 @@ export function FirstAidCards() {
                             </p>
                           </div>
                           <button
-                            onClick={() => setMetronomeActive(!metronomeActive)}
+                            onClick={() => {
+                              const next = !metronomeActive;
+                              setMetronomeActive(next);
+                              if (next) {
+                                try { navigator.vibrate(200); } catch {}
+                                try {
+                                  const u = new SpeechSynthesisUtterance('Metrónomo iniciado');
+                                  u.lang = 'es-ES';
+                                  u.volume = 1;
+                                  speechSynthesis.speak(u);
+                                } catch {}
+                              }
+                            }}
                             className={`w-full py-4 rounded-xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
                               metronomeActive
                                 ? 'bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.5)] animate-pulse'

@@ -24,16 +24,27 @@ export function useBluetoothMesh() {
 
   // Save a breadcrumb ping for a discovered BLE peer and record locally
   const registerPeerContact = useCallback(async (deviceId: string, deviceName: string) => {
-    // Use 0,0 coords as placeholder — real position comes from inertial nav or GPS if available
-    const pos = (navigator.geolocation)
-      ? await new Promise<{lat: number, lng: number}>(resolve => {
+    const lastKnown = (() => {
+      try {
+        const raw = localStorage.getItem('guardian_last_gps');
+        return raw ? JSON.parse(raw) as { lat: number; lng: number } : null;
+      } catch { return null; }
+    })();
+
+    const pos = navigator.geolocation
+      ? await new Promise<{ lat: number; lng: number }>(resolve => {
           navigator.geolocation.getCurrentPosition(
-            p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-            () => resolve({ lat: 0, lng: 0 }),
-            { timeout: 1000, maximumAge: 30000 }
+            p => {
+              const coords = { lat: p.coords.latitude, lng: p.coords.longitude };
+              try { localStorage.setItem('guardian_last_gps', JSON.stringify(coords)); } catch {}
+              resolve(coords);
+            },
+            // GPS timed out — fall back to last-known position rather than (0,0)
+            () => resolve(lastKnown ?? { lat: 0, lng: 0 }),
+            { timeout: 8000, maximumAge: 30000 }
           );
         })
-      : { lat: 0, lng: 0 };
+      : (lastKnown ?? { lat: 0, lng: 0 });
 
     await saveBreadcrumb(deviceId, pos.lat, pos.lng).catch(() => {});
     setPeerBreadcrumbs(prev => {

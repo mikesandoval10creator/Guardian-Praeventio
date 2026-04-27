@@ -42,7 +42,28 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     if (countdownRef.current) clearInterval(countdownRef.current);
   };
 
+  const cancelCountdown = () => {
+    setIsAlerting(false);
+    setCountdown(10);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+  };
+
   const triggerAlert = async () => {
+    // ── Offline-first alarm: fire immediately, no network required ──
+    try { navigator.vibrate([500, 200, 500, 200, 500, 200, 500]); } catch {}
+    try {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        const ctx = new AudioCtxClass() as AudioContext;
+        const osc = ctx.createOscillator();
+        osc.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.type = 'sine';
+        osc.start();
+        setTimeout(() => { try { osc.stop(); ctx.close(); } catch {} }, 3000);
+      }
+    } catch {}
+
     if (!selectedProject || !user) return;
 
     // Dump last telemetry snapshot to black box before any network call
@@ -174,6 +195,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     isAlerting,
     countdown,
     startDetection,
-    stopDetection
+    stopDetection,
+    cancelCountdown,
   };
 }

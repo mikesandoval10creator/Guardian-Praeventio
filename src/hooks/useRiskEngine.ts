@@ -7,6 +7,7 @@ import { useOnlineStatus } from './useOnlineStatus';
 import { usePendingActions } from './usePendingActions';
 import { matrixSyncManager } from '../services/syncManager';
 import { useProject } from '../contexts/ProjectContext';
+import { logger } from '../utils/logger';
 
 export const useRiskEngine = () => {
   const [fetchedNodes, setFetchedNodes] = useState<RiskNode[]>([]);
@@ -138,7 +139,7 @@ export const useRiskEngine = () => {
       // Process one by one to avoid rate limits
       for (const node of incompleteNodes.slice(0, 5)) { // Limit to 5 per session to avoid overwhelming the API
         try {
-          console.log(`Auto-healing node ${node.id}...`);
+          logger.debug(`Auto-healing node ${node.id}`);
           const enrichedData = await enrichNodeData(node);
           
           if (enrichedData.title !== node.title || enrichedData.description !== node.description) {
@@ -148,10 +149,10 @@ export const useRiskEngine = () => {
               metadata: enrichedData.metadata,
               updatedAt: new Date().toISOString()
             });
-            console.log(`Node ${node.id} healed successfully.`);
+            logger.debug(`Node ${node.id} healed successfully`);
           }
         } catch (error) {
-          console.error(`Failed to heal node ${node.id}:`, error);
+          logger.error(`Failed to heal node ${node.id}`, error);
         }
       }
     };
