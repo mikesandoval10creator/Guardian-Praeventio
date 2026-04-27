@@ -1101,6 +1101,140 @@ app.delete("/api/projects/:id/invite", verifyAuth, async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Email Alerts: CPHS (Comité Paritario) critical findings
+app.post("/api/comite/alert-email", verifyAuth, async (req, res) => {
+  const { projectId, findingTitle, findingDescription, severity, recipients } = req.body as {
+    projectId: string;
+    findingTitle: string;
+    findingDescription: string;
+    severity: string;
+    recipients: string[]; // array of email addresses
+  };
+
+  if (!projectId || !findingTitle || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ error: "projectId, findingTitle, and recipients[] are required" });
+  }
+
+  const db = admin.firestore();
+  const projectSnap = await db.collection('projects').doc(projectId).get();
+  const projectName = projectSnap.exists ? (projectSnap.data()?.name || 'Proyecto') : 'Proyecto';
+
+  const severityColor: Record<string, string> = {
+    'Crítica': '#ef4444',
+    'Alta': '#f97316',
+    'Media': '#eab308',
+    'Baja': '#22c55e',
+  };
+  const color = severityColor[severity] || '#6b7280';
+  const date = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5">
+<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+  <div style="background:#09090b;padding:24px 32px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:20px;font-weight:900;color:#10b981;letter-spacing:-1px">GUARDIAN</span>
+    <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px">PRAEVENTIO</span>
+  </div>
+  <div style="padding:32px">
+    <div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px">
+      <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.08em">⚠ Alerta CPHS — ${severity || 'Sin clasificar'}</span>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${findingTitle}</h2>
+    <p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${findingDescription || 'Sin descripción adicional.'}</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+      <tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;color:#09090b;font-weight:600">${projectName}</td></tr>
+      <tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;color:#09090b;font-weight:600">${date}</td></tr>
+    </table>
+    <p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Este aviso fue generado automáticamente por Guardian Praeventio para el Comité Paritario.</p>
+  </div>
+</div></body></html>`;
+
+  try {
+    await resend.emails.send({
+      from: 'Praeventio Guard <noreply@praeventio.net>',
+      to: recipients,
+      subject: `[CPHS ${projectName}] Hallazgo ${severity || ''}: ${findingTitle}`,
+      html,
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error sending CPHS alert email:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Email Reports: daily safety summary for a project
+app.post("/api/reports/daily-email", verifyAuth, async (req, res) => {
+  const { projectId, recipients } = req.body as { projectId: string; recipients: string[] };
+
+  if (!projectId || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ error: "projectId and recipients[] are required" });
+  }
+
+  const db = admin.firestore();
+  const projectSnap = await db.collection('projects').doc(projectId).get();
+  if (!projectSnap.exists) return res.status(404).json({ error: "Project not found" });
+  const projectName = projectSnap.data()?.name || 'Proyecto';
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const nodesSnap = await db.collection('nodes')
+    .where('projectId', '==', projectId)
+    .where('createdAt', '>=', since.toISOString())
+    .get();
+
+  const nodes = nodesSnap.docs.map(d => d.data());
+  const incidents = nodes.filter(n => n.type === 'Incidente' || n.type === 'Hallazgo');
+  const risks = nodes.filter(n => n.type === 'Riesgo');
+  const audits = nodes.filter(n => n.type === 'Auditoría');
+  const criticalCount = incidents.filter(n => n.metadata?.severity === 'Crítica' || n.metadata?.criticidad === 'Crítica').length;
+
+  const date = new Date().toLocaleDateString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const statRow = (label: string, value: number, color: string) =>
+    `<tr><td style="padding:12px 16px;font-size:13px;color:#52525b;border-bottom:1px solid #f4f4f5">${label}</td><td style="padding:12px 16px;text-align:right;font-size:15px;font-weight:900;color:${color};border-bottom:1px solid #f4f4f5">${value}</td></tr>`;
+
+  const recentRows = incidents.slice(0, 5).map(n =>
+    `<tr><td style="padding:10px 16px;font-size:12px;color:#09090b;border-bottom:1px solid #f4f4f5">${n.title || 'Sin título'}</td><td style="padding:10px 16px;font-size:11px;color:#71717a;border-bottom:1px solid #f4f4f5;text-align:right">${n.metadata?.criticidad || n.metadata?.severity || '—'}</td></tr>`
+  ).join('');
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5">
+<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+  <div style="background:#09090b;padding:24px 32px">
+    <span style="font-size:20px;font-weight:900;color:#10b981;letter-spacing:-1px">GUARDIAN</span>
+    <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px"> PRAEVENTIO</span>
+    <p style="margin:8px 0 0;font-size:12px;color:#71717a">Reporte Diario de Seguridad • ${date}</p>
+  </div>
+  <div style="padding:32px">
+    <h2 style="margin:0 0 4px;font-size:18px;font-weight:900;color:#09090b">${projectName}</h2>
+    <p style="margin:0 0 24px;font-size:13px;color:#71717a">Resumen de actividad en las últimas 24 horas.</p>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #f4f4f5;border-radius:12px;overflow:hidden;margin-bottom:24px">
+      ${statRow('Incidentes / Hallazgos nuevos', incidents.length, incidents.length > 0 ? '#ef4444' : '#22c55e')}
+      ${statRow('Críticos', criticalCount, criticalCount > 0 ? '#ef4444' : '#22c55e')}
+      ${statRow('Riesgos identificados', risks.length, '#f97316')}
+      ${statRow('Auditorías realizadas', audits.length, '#6366f1')}
+      ${statRow('Total registros nuevos', nodes.length, '#09090b')}
+    </table>
+    ${incidents.length > 0 ? `<h3 style="font-size:12px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Últimos incidentes</h3>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #f4f4f5;border-radius:12px;overflow:hidden;margin-bottom:24px">${recentRows}</table>` : ''}
+    <p style="margin:0;font-size:11px;color:#a1a1aa;text-align:center">Reporte generado automáticamente por Guardian Praeventio.</p>
+  </div>
+</div></body></html>`;
+
+  try {
+    await resend.emails.send({
+      from: 'Praeventio Guard <noreply@praeventio.net>',
+      to: recipients,
+      subject: `[Reporte Diario] ${projectName} — ${incidents.length} incidente${incidents.length !== 1 ? 's' : ''} en 24h`,
+      html,
+    });
+    res.json({ success: true, stats: { incidents: incidents.length, criticalCount, risks: risks.length, audits: audits.length } });
+  } catch (err: any) {
+    console.error("Error sending daily report email:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Gamification Endpoints
 app.post("/api/gamification/points", verifyAuth, async (req, res) => {
   const { amount, reason } = req.body;
@@ -1491,6 +1625,26 @@ const setupBackgroundTriggers = () => {
                 data: { projectId: data.projectId, nodeId: change.doc.id },
                 android: { priority: 'high' },
               });
+
+              // Also send CPHS alert email to supervisors who have emails registered
+              const emailRecipients = tokenDocs
+                .map(d => d.data()?.email as string | undefined)
+                .filter((e): e is string => !!e && e.includes('@'));
+              if (emailRecipients.length > 0 && process.env.RESEND_API_KEY) {
+                const projectSnap = await db.collection('projects').doc(data.projectId).get();
+                const projectName = projectSnap.data()?.name || 'Proyecto';
+                const severity = data.metadata?.severity || data.metadata?.criticidad || 'Alta';
+                const severityColor: Record<string, string> = { 'Crítica': '#ef4444', 'Alta': '#f97316', 'Media': '#eab308', 'Baja': '#22c55e' };
+                const color = severityColor[severity] || '#6b7280';
+                const date = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+                const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5"><div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)"><div style="background:#09090b;padding:24px 32px"><span style="font-size:20px;font-weight:900;color:#10b981">GUARDIAN</span><span style="font-size:20px;font-weight:900;color:#fff"> PRAEVENTIO</span></div><div style="padding:32px"><div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px"><span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase">⚠ Alerta CPHS — ${severity}</span></div><h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${data.title || 'Nuevo incidente crítico'}</h2><p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${data.description || ''}</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;font-weight:600">${projectName}</td></tr><tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;font-weight:600">${date}</td></tr></table><p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Aviso automático generado por Guardian Praeventio para el Comité Paritario.</p></div></div></body></html>`;
+                await resend.emails.send({
+                  from: 'Praeventio Guard <noreply@praeventio.net>',
+                  to: emailRecipients,
+                  subject: `[CPHS ${projectName}] Incidente ${severity}: ${data.title || 'Nuevo incidente'}`,
+                  html,
+                }).catch(e => console.warn('[TRIGGER: CPHS Email] delivery failed:', e));
+              }
             } catch (err) {
               console.error('[TRIGGER: FCM Push] Error:', err);
             }
