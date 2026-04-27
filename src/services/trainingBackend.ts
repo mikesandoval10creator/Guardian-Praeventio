@@ -28,7 +28,7 @@ export const generateCustomSafetyTraining = async (gapDescription: string, audie
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
-    generationConfig: {
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
@@ -73,7 +73,7 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
-    generationConfig: {
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.ARRAY,

@@ -3,11 +3,9 @@ import { milestones } from '../data/milestones';
 import { Card } from '../components/shared/Card';
 import { History as HistoryIcon, Globe, MapPin, Filter, Pause, Play, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
-import * as ReactWindow from 'react-window';
+import { List } from 'react-window';
 import { db, collection, onSnapshot, query, orderBy, limit, handleFirestoreError, OperationType } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
-
-const { FixedSizeList: List } = ReactWindow;
 
 interface Report {
   id: string;
@@ -15,6 +13,35 @@ interface Report {
   date: string;
   type: string;
   status: string;
+}
+
+type ReportRowProps = { reports: Report[] };
+function ReportRow({ index, style, reports }: { index: number; style: React.CSSProperties; ariaAttributes?: object } & ReportRowProps) {
+  const report = reports[index];
+  return (
+    <div style={style} className="p-2">
+      <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between h-full hover:border-emerald-500/50 transition-colors">
+        <div className="flex items-center gap-4">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+            report.type === 'Incidente' ? 'bg-rose-500/10 text-rose-500' :
+            report.type === 'Auditoría' ? 'bg-blue-500/10 text-blue-500' :
+            'bg-emerald-500/10 text-emerald-500'
+          }`}>
+            <FileText className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white">{report.title}</h3>
+            <p className="text-xs text-zinc-500">{new Date(report.date).toLocaleDateString()} • {report.type}</p>
+          </div>
+        </div>
+        <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${
+          report.status === 'Cerrado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+        }`}>
+          {report.status}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function History() {
@@ -130,41 +157,14 @@ export function History() {
       {activeTab === 'Reportes' ? (
         <div className="flex-1 w-full max-w-3xl mx-auto bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-white/10 overflow-hidden">
           {reports.length > 0 ? (
-            <List
-              height={600}
-              itemCount={reports.length}
-              itemSize={80}
-              width="100%"
+            <List<ReportRowProps>
+              rowCount={reports.length}
+              rowHeight={80}
+              rowProps={{ reports }}
+              rowComponent={ReportRow}
+              style={{ height: 600 }}
               className="no-scrollbar"
-            >
-              {({ index, style }) => {
-                const report = reports[index];
-                return (
-                  <div style={style} className="p-2">
-                    <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl p-4 flex items-center justify-between h-full hover:border-emerald-500/50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                          report.type === 'Incidente' ? 'bg-rose-500/10 text-rose-500' :
-                          report.type === 'Auditoría' ? 'bg-blue-500/10 text-blue-500' :
-                          'bg-emerald-500/10 text-emerald-500'
-                        }`}>
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-zinc-900 dark:text-white">{report.title}</h3>
-                          <p className="text-xs text-zinc-500">{new Date(report.date).toLocaleDateString()} • {report.type}</p>
-                        </div>
-                      </div>
-                      <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${
-                        report.status === 'Cerrado' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                      }`}>
-                        {report.status}
-                      </div>
-                    </div>
-                  </div>
-                );
-              }}
-            </List>
+            />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-8 text-center">
               <FileText className="w-12 h-12 mb-4 opacity-20" />

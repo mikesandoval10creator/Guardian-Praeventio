@@ -12,7 +12,7 @@ export function usePushNotifications() {
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       PushNotifications.checkPermissions().then((res) => {
-        setNotificationPermissionStatus(res.receive);
+        setNotificationPermissionStatus(res.receive as NotificationPermission);
       });
     } else if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermissionStatus(Notification.permission);

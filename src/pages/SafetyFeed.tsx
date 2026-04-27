@@ -62,8 +62,8 @@ export function SafetyFeed() {
 
   const filteredPosts = posts.filter(p => activeFilter === 'all' || p.type === activeFilter)
     .sort((a, b) => {
-      const timeA = typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : (a.createdAt?.toMillis?.() || 0);
-      const timeB = typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : (b.createdAt?.toMillis?.() || 0);
+      const timeA = typeof a.createdAt === 'string' ? new Date(a.createdAt).getTime() : ((a.createdAt as any)?.toMillis?.() || 0);
+      const timeB = typeof b.createdAt === 'string' ? new Date(b.createdAt).getTime() : ((b.createdAt as any)?.toMillis?.() || 0);
       return timeB - timeA;
     });
 

@@ -10,6 +10,7 @@ interface SubscriptionContextType {
   plan: SubscriptionPlan;
   isPremium: boolean;
   isEnterprise: boolean;
+  canAccessExecutiveDashboard: boolean;
   upgradePlan: (newPlan: SubscriptionPlan) => Promise<void>;
   loading: boolean;
   totalWorkers: number;
@@ -122,13 +123,15 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const isPremium = plan !== 'free';
   const isEnterprise = ['empresarial', 'corporativo', 'ilimitado'].includes(plan);
+  const canAccessExecutiveDashboard = isPremium;
 
   return (
-    <SubscriptionContext.Provider value={{ 
-      plan, 
-      isPremium, 
-      isEnterprise, 
-      upgradePlan, 
+    <SubscriptionContext.Provider value={{
+      plan,
+      isPremium,
+      isEnterprise,
+      canAccessExecutiveDashboard,
+      upgradePlan,
       loading,
       totalWorkers,
       recommendedPlan,

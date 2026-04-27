@@ -95,7 +95,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
 
       const newDoc = {
         name: docName,
-        type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+        type: (file instanceof File ? file.name : 'upload').split('.').pop()?.toUpperCase() || 'FILE',
         url: downloadURL,
         createdAt: new Date().toISOString(),
         workerId: worker.id,

@@ -61,13 +61,13 @@ export function OfflineSyncManager() {
             }
           }
         } else if (action.type === 'upload' && action.file) {
+          const uploadFile = action.file;
           const storageRef = ref(storage, action.data.storagePath);
-          let fileToUpload: Blob = action.file;
-          if (action.file.type.startsWith('image/') && !action.file.type.includes('svg')) {
+          let fileToUpload: Blob = uploadFile;
+          if (uploadFile.type.startsWith('image/') && !uploadFile.type.includes('svg')) {
             try {
               const { compressImage } = await import('../utils/imageCompression');
-              const asFile = action.file instanceof File ? action.file : new File([action.file], 'upload', { type: action.file.type });
-              fileToUpload = await compressImage(asFile, { maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
+              fileToUpload = await compressImage(uploadFile, { maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
             } catch { /* use original if compression fails */ }
           }
           await uploadBytes(storageRef, fileToUpload);

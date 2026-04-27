@@ -9,9 +9,8 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const getEmbedding = async (text: string): Promise<number[]> => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const model = ai.getGenerativeModel({ model: "text-embedding-004" });
-  const result = await model.embedContent(text);
-  return result.embedding.values;
+  const result = await ai.models.embedContent({ model: "text-embedding-004", contents: text });
+  return result.embeddings?.[0]?.values ?? [];
 };
 
 /**

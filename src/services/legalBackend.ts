@@ -38,7 +38,7 @@ export const auditLegalGap = async (companyProcedures: any[], applicableNormativ
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: prompt,
-    generationConfig: {
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,

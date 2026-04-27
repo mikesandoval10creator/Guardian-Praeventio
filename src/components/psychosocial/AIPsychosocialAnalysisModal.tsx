@@ -23,7 +23,7 @@ export function AIPsychosocialAnalysisModal({ isOpen, onClose }: AIPsychosocialA
         ? nodes.filter(n => n.projectId === selectedProject.id)
         : nodes;
 
-      const result = await analyzePsychosocialRisks(JSON.stringify(projectNodes.slice(0, 50)));
+      const result = await analyzePsychosocialRisks(projectNodes.slice(0, 50), selectedProject?.name ?? 'Sin proyecto');
       setAnalysis(result);
     } catch (error) {
       console.error('Error analyzing psychosocial data:', error);
