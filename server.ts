@@ -1305,7 +1305,7 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
   try {
     let verificationResult;
     if (type === 'subscription') {
-      verificationResult = await playDeveloperApi.subscriptions.get({
+      verificationResult = await playDeveloperApi.purchases.subscriptions.get({
         auth: playAuth,
         packageName,
         subscriptionId: productId,
@@ -1401,7 +1401,7 @@ app.post("/api/billing/webhook", async (req, res) => {
         console.log(`[RTDN] Updating subscription for user ${userDoc.id}`);
         
         // Fetch fresh state from Google
-        const verificationResult = await playDeveloperApi.subscriptions.get({
+        const verificationResult = await playDeveloperApi.purchases.subscriptions.get({
           auth: playAuth,
           packageName,
           subscriptionId,
