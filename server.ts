@@ -12,8 +12,9 @@ import { initializeRAG } from "./src/services/ragService.js";
 import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
-import { isValidRole } from "./src/types/roles.js";
-import { saveTokens, getValidAccessToken } from "./src/services/oauthTokenStore.js";
+import { isValidRole, isAdminRole } from "./src/types/roles.js";
+import { saveTokens, getValidAccessToken, revokeTokens } from "./src/services/oauthTokenStore.js";
+import { logger } from "./src/utils/logger.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -90,8 +91,32 @@ const app = express();
 const PORT = 3000;
 
 // Security Middleware
+// CSP directives shared by prod (enforce) and dev (report-only). Reasonable for a
+// Vite + Firebase + Google APIs SPA: 'unsafe-inline' for styles is required by
+// Tailwind's runtime injection; img/media allow blob: + data: for previews.
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "https://*.googleapis.com", "https://apis.google.com"],
+  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+  fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+  imgSrc: ["'self'", "blob:", "data:", "https://*.googleapis.com", "https://*.gstatic.com"],
+  mediaSrc: ["'self'", "blob:", "data:"],
+  connectSrc: [
+    "'self'",
+    "https://*.googleapis.com",
+    "https://*.firebaseio.com",
+    "https://*.cloudfunctions.net",
+    "wss://*.firebaseio.com"
+  ],
+  frameSrc: ["'self'", "https://*.firebaseapp.com", "https://accounts.google.com"],
+  objectSrc: ["'none'"],
+  baseUri: ["'self'"],
+} as const;
+
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  contentSecurityPolicy: process.env.NODE_ENV === 'production'
+    ? { directives: cspDirectives as any }
+    : { reportOnly: true, directives: cspDirectives as any },
   crossOriginEmbedderPolicy: false
 }));
 
@@ -129,7 +154,18 @@ const sessionSecret = (() => {
   return generated;
 })();
 
-app.use(express.json());
+// Default 64kb body limit. Routes that legitimately need larger bodies (e.g.,
+// PDF generation with embedded report content) opt-in with a per-route limit
+// applied before the global parser short-circuits on req.body presence.
+const largeBodyJson = express.json({ limit: '2mb' });
+app.use((req, res, next) => {
+  // Per-route override for endpoints that legitimately need >64kb payloads.
+  if (req.path === '/api/reports/generate-pdf') {
+    return largeBodyJson(req, res, next);
+  }
+  return next();
+});
+app.use(express.json({ limit: '64kb' }));
 app.use(cookieParser());
 app.use(session({
   secret: sessionSecret,
@@ -160,28 +196,45 @@ const verifyAuth = async (req: express.Request, res: express.Response, next: exp
   }
 };
 
+// Firebase Auth uid format constraint shared by privileged admin endpoints.
+const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
+
 // Desconexión Forzada (Revoke Tokens - El Haki del Rey / Security)
 app.post("/api/admin/revoke-access", verifyAuth, async (req, res) => {
   const { targetUid } = req.body;
   const callerUid = (req as any).user.uid;
 
+  if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
+    return res.status(400).json({ error: 'Invalid uid' });
+  }
+
   try {
     const callerRecord = await admin.auth().getUser(callerUid);
-    if (callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires gerente role to revoke access" });
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      return res.status(403).json({ error: "Forbidden: Requires admin role to revoke access" });
     }
 
     // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
     await admin.auth().revokeRefreshTokens(targetUid);
-    
+
     // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
     await admin.firestore().collection('user_sessions').doc(targetUid).set({
       revokedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
+    // Audit trail — see audit_logs schema at the top of this file.
+    await admin.firestore().collection('audit_logs').add({
+      actor: callerUid,
+      action: 'revoke_access',
+      target: targetUid,
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip,
+      ua: req.header('user-agent') || null,
+    });
+
     res.json({ success: true, message: `Access revoked for user ${targetUid}` });
   } catch (error) {
-    console.error("Error revoking sessions:", error);
+    logger.error("admin_revoke_access_failed", error, { callerUid, targetUid });
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -228,21 +281,51 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
   const { uid, role } = req.body;
   const callerUid = (req as any).user.uid;
 
+  if (typeof uid !== 'string' || !UID_REGEX.test(uid)) {
+    return res.status(400).json({ error: 'Invalid uid' });
+  }
+
   try {
-    // Verify caller is a gerente (highest app-level role)
+    // Verify caller is admin/gerente (matches firestore.rules' isAdmin())
     const callerRecord = await admin.auth().getUser(callerUid);
-    if (callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      return res.status(403).json({ error: "Forbidden: Requires admin role" });
     }
 
     if (!isValidRole(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
+    // Capture the existing role before mutation for audit_logs.
+    let oldRole: string | null = null;
+    try {
+      const targetRecord = await admin.auth().getUser(uid);
+      oldRole = (targetRecord.customClaims?.role as string | undefined) ?? null;
+    } catch {
+      // Target may not exist yet; setCustomUserClaims will surface the error.
+    }
+
     await admin.auth().setCustomUserClaims(uid, { role });
+
+    // Force re-auth so the client picks up the new claim immediately rather
+    // than continuing with a stale ID token until natural expiry.
+    await admin.auth().revokeRefreshTokens(uid);
+
+    // Audit trail — see audit_logs schema notes at the top of this file.
+    await admin.firestore().collection('audit_logs').add({
+      actor: callerUid,
+      action: 'set_role',
+      target: uid,
+      oldRole,
+      newRole: role,
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip,
+      ua: req.header('user-agent') || null,
+    });
+
     res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {
-    console.error("Error setting custom claims:", error);
+    logger.error("admin_set_role_failed", error, { callerUid, targetUid: uid });
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -428,6 +511,26 @@ const SCOPES = [
   'https://www.googleapis.com/auth/fitness.heart_rate.read',
   'https://www.googleapis.com/auth/fitness.body.read'
 ].join(' ');
+
+// Server-side OAuth unlink: invoked by client logout flow before signOut.
+// Deletes stored tokens for both Google providers. Idempotent — safe to call
+// when no tokens exist.
+app.post("/api/oauth/unlink", verifyAuth, async (req, res) => {
+  const uid = (req as any).user.uid;
+  try {
+    await Promise.all([
+      revokeTokens({ uid, provider: 'google' }),
+      revokeTokens({ uid, provider: 'google-drive' }),
+    ]);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('oauth_unlink_failed', { uid, message: error?.message });
+    res.status(500).json({
+      error: "Failed to unlink OAuth tokens",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
 
 // API Routes
 app.get("/api/auth/google/url", verifyAuth, (req, res) => {
@@ -745,17 +848,45 @@ app.post("/api/erp/sync", verifyAuth, async (req, res) => {
   }
 });
 
-// IoT Webhook Ingestion Endpoint
+// IoT Webhook Ingestion Endpoint.
+// Authentication: shared secret in the `X-IoT-Secret` request header
+// (timing-safe compared against IOT_WEBHOOK_SECRET). For one release we still
+// accept the secret in the JSON body for backwards compatibility, logging a
+// deprecation warning. Remove the body fallback in the next release.
+// Aligned with the frontend type union in src/pages/Telemetry.tsx + Evacuation.tsx
+// ('wearable' | 'machinery'). 'iot', 'environmental', 'machine' are reserved for
+// gateway-originated telemetry. Keep this in sync if the frontend union changes.
+const IOT_TYPE_ALLOWLIST = new Set(['iot', 'wearable', 'machinery', 'environmental', 'machine']);
 app.post("/api/telemetry/ingest", async (req, res) => {
-  const { secretKey, type, source, metric, value, unit, status, projectId } = req.body;
+  const { type, source, metric, value, unit, status, projectId } = req.body ?? {};
 
   const expectedSecret = process.env.IOT_WEBHOOK_SECRET;
   if (!expectedSecret) {
-    console.error("IOT_WEBHOOK_SECRET is not configured on the server.");
+    logger.error("iot_webhook_misconfigured", undefined, {
+      reason: "IOT_WEBHOOK_SECRET not set",
+    });
     return res.status(500).json({ error: "Server configuration error" });
   }
 
-  if (secretKey !== expectedSecret) {
+  let secretKey: unknown = req.header('x-iot-secret');
+  if (typeof secretKey !== 'string' || secretKey.length === 0) {
+    // Backwards-compat: accept body field for one release. DEPRECATED.
+    if (typeof req.body?.secretKey === 'string' && req.body.secretKey.length > 0) {
+      secretKey = req.body.secretKey;
+      logger.warn('iot_webhook_secret_in_body_deprecated', {
+        source: typeof source === 'string' ? source : 'unknown',
+        hint: 'Move shared secret to X-IoT-Secret header; body field removed next release.',
+      });
+    } else {
+      return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
+    }
+  }
+
+  // Constant-time comparison; bail on length mismatch first to avoid
+  // timingSafeEqual throwing on different-length buffers.
+  const provided = Buffer.from(secretKey as string, 'utf8');
+  const expected = Buffer.from(expectedSecret, 'utf8');
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
     return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
   }
 
@@ -763,9 +894,20 @@ app.post("/api/telemetry/ingest", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  // Conservative input validation before any DB write.
+  if (typeof type !== 'string' || !IOT_TYPE_ALLOWLIST.has(type)) {
+    return res.status(400).json({ error: "Invalid type" });
+  }
+  if (typeof source !== 'string' || source.length === 0 || source.length > 64) {
+    return res.status(400).json({ error: "Invalid source" });
+  }
+  if (typeof metric !== 'string' || metric.length === 0 || metric.length > 64) {
+    return res.status(400).json({ error: "Invalid metric" });
+  }
+
   try {
     const db = admin.firestore();
-    
+
     // Auto-validate with AI backend
     const validation = await autoValidateTelemetry({ type, source, metric, value, unit, status });
     const finalStatus = validation?.isAnomalous ? "alert" : (status || "normal");
@@ -784,13 +926,13 @@ app.post("/api/telemetry/ingest", async (req, res) => {
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Telemetry event ingested successfully",
-      aiValidation: validation 
+      aiValidation: validation
     });
   } catch (error) {
-    console.error('Error ingesting telemetry:', error);
+    logger.error('iot_ingest_failed', error, { type, source, metric });
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -807,7 +949,7 @@ app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
     res.json({ success: true, message: "Community glossary seeded successfully" });
   } catch (error: any) {
     console.error('Error seeding glossary:', error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -823,7 +965,7 @@ app.post("/api/seed-data", verifyAuth, async (req, res) => {
     res.json({ success: true, message: "Initial project data seeded successfully" });
   } catch (error: any) {
     console.error('Error seeding data:', error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -836,7 +978,7 @@ app.post("/api/projects/:projectId/health-check", verifyAuth, async (req, res) =
     res.json({ success: true, result });
   } catch (error: any) {
     console.error(`Error performing health check for project ${projectId}:`, error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -955,7 +1097,7 @@ app.post("/api/projects/:id/invite", verifyAuth, async (req, res) => {
     res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
     console.error("Error creating invitation:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1023,7 +1165,7 @@ app.post("/api/invitations/:token/accept", verifyAuth, async (req, res) => {
     res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
   } catch (error: any) {
     console.error("Error accepting invitation:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1082,7 +1224,7 @@ app.get("/api/projects/:id/members", verifyAuth, async (req, res) => {
     res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
   } catch (error: any) {
     console.error("Error listing project members:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1118,7 +1260,7 @@ app.delete("/api/projects/:id/members/:uid", verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error removing project member:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1155,7 +1297,7 @@ app.delete("/api/projects/:id/invite", verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error canceling invitation:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1467,7 +1609,7 @@ app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {
     }
   } catch (error: any) {
     console.error(`Error in Gemini API Proxy for ${action}:`, error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1558,15 +1700,33 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.error("Purchase verification error:", error);
-    res.status(500).json({ error: "Failed to verify purchase", details: error.message });
+    logger.error("purchase_verification_failed", error, { uid });
+    res.status(500).json({
+      error: "Failed to verify purchase",
+      // Avoid leaking Firebase/googleapis internals in production responses.
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
   }
 });
 
 app.post("/api/billing/webhook", async (req, res) => {
   // Verify shared secret — configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
+  // Fail closed: missing config means we reject everything rather than accept everyone.
   const expectedToken = process.env.WEBHOOK_SECRET;
-  if (expectedToken && req.query.token !== expectedToken) {
+  if (!expectedToken) {
+    logger.error("rtdn_webhook_misconfigured", undefined, {
+      reason: "WEBHOOK_SECRET not set",
+    });
+    return res.status(500).send("Server configuration error");
+  }
+
+  const providedToken = req.query.token;
+  if (typeof providedToken !== 'string' || providedToken.length !== expectedToken.length) {
+    return res.status(401).send("Unauthorized");
+  }
+  const providedBuf = Buffer.from(providedToken, 'utf8');
+  const expectedBuf = Buffer.from(expectedToken, 'utf8');
+  if (!crypto.timingSafeEqual(providedBuf, expectedBuf)) {
     return res.status(401).send("Unauthorized");
   }
 
@@ -1577,23 +1737,49 @@ app.post("/api/billing/webhook", async (req, res) => {
   }
 
   try {
-    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    console.log("[RTDN Webhook] Received:", decodedData);
+    // Idempotency: Pub/Sub may redeliver the same message. Dedupe via
+    // processed_pubsub/{messageId}. Returning 200 on a duplicate prevents
+    // Pub/Sub from retrying. The expiresAt field is a hint for a Firestore
+    // TTL policy configured at the console (collection: processed_pubsub,
+    // field: expiresAt) — Firestore TTL is not configured from code.
+    const messageId: string | undefined = message.messageId || message.message_id;
+    const db = admin.firestore();
+    if (messageId) {
+      const processedRef = db.collection('processed_pubsub').doc(messageId);
+      const processedSnap = await processedRef.get();
+      if (processedSnap.exists) {
+        // Duplicate delivery — already handled. ACK so Pub/Sub stops retrying.
+        return res.status(200).send("OK");
+      }
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await processedRef.set({
+        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt, // hint for Firestore TTL policy (configure in console)
+      });
+    }
 
-    const { subscriptionNotification, developerNotification } = decodedData;
+    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
+    const { subscriptionNotification } = decodedData;
     const packageName = decodedData.packageName;
 
+    // Log only non-sensitive metadata. NEVER log purchaseToken — it's a
+    // bearer credential for Google Play.
+    logger.info('rtdn_received', {
+      notificationType: subscriptionNotification?.notificationType,
+      subscriptionId: subscriptionNotification?.subscriptionId,
+      packageName,
+    });
+
     if (subscriptionNotification) {
-      const { notificationType, purchaseToken, subscriptionId } = subscriptionNotification;
-      
+      const { purchaseToken, subscriptionId } = subscriptionNotification;
+
       // Update the user whose token matches
-      const db = admin.firestore();
       const userQuery = await db.collection('users').where('subscription.purchaseToken', '==', purchaseToken).get();
-      
+
       if (!userQuery.empty) {
         const userDoc = userQuery.docs[0];
-        console.log(`[RTDN] Updating subscription for user ${userDoc.id}`);
-        
+        logger.info('rtdn_updating_user_subscription', { userId: userDoc.id });
+
         // Fetch fresh state from Google
         const verificationResult = await playDeveloperApi.purchases.subscriptions.get({
           auth: playAuth,
@@ -1616,7 +1802,7 @@ app.post("/api/billing/webhook", async (req, res) => {
 
     res.status(200).send("OK");
   } catch (error) {
-    console.error("RTDN Webhook Error:", error);
+    logger.error("rtdn_webhook_failed", error);
     res.status(500).send("Webhook processing failed");
   }
 });
