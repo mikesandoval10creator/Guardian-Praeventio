@@ -162,4 +162,81 @@ describe('sentryAdapter (real SDK)', () => {
       sentryAdapter.captureException(new Error('inner')),
     ).not.toThrow();
   });
+
+  // ─── Round 14: query-string PII scrub via beforeSend ───────────────────────
+  //
+  // Webpay return URLs carry `?token_ws=...` and OAuth flows carry `?code=...`
+  // / `?state=...`. Before Round 14 those values flowed straight into Sentry
+  // events. The extended `beforeSend` redacts known sensitive params from
+  // both `event.request.query_string` and any inline `?...` portion of
+  // `event.request.url`, while leaving non-sensitive params untouched.
+  describe('beforeSend query-string scrub', () => {
+    /**
+     * Capture the `beforeSend` callback Sentry.init was given so we can run
+     * it directly against synthetic event objects without round-tripping
+     * through the SDK.
+     */
+    function captureBeforeSend(): (event: any) => any {
+      sentryAdapter.init({ dsn: 'https://x@sentry.io/1', environment: 'staging' });
+      const calls = (Sentry.init as unknown as ReturnType<typeof vi.fn>).mock.calls;
+      const lastInitArg = calls[calls.length - 1][0] as { beforeSend?: (e: any) => any };
+      expect(typeof lastInitArg.beforeSend).toBe('function');
+      return lastInitArg.beforeSend!;
+    }
+
+    it('redacts sensitive query params from event.request.url', () => {
+      const beforeSend = captureBeforeSend();
+      const event = {
+        request: {
+          url: 'https://app.praeventio.net/billing/webpay/return?token_ws=secret-tx-token&debug=1',
+        },
+      };
+      const out = beforeSend(event);
+      // Placeholder is intentionally NOT percent-encoded so it stays
+      // greppable in Sentry's UI.
+      expect(out.request.url).toContain('token_ws=[REDACTED]');
+      expect(out.request.url).not.toContain('secret-tx-token');
+      // Non-sensitive params stay intact.
+      expect(out.request.url).toContain('debug=1');
+    });
+
+    it('redacts code/state/session/token in query_string string form', () => {
+      const beforeSend = captureBeforeSend();
+      const event = {
+        request: {
+          url: 'https://app.praeventio.net/auth/google/callback',
+          query_string: 'code=abcdef&state=xyz&keep=ok&session=sid&token=tk',
+        },
+      };
+      const out = beforeSend(event);
+      expect(out.request.query_string).toMatch(/code=\[REDACTED\]/);
+      expect(out.request.query_string).toMatch(/state=\[REDACTED\]/);
+      expect(out.request.query_string).toMatch(/session=\[REDACTED\]/);
+      expect(out.request.query_string).toMatch(/token=\[REDACTED\]/);
+      expect(out.request.query_string).toContain('keep=ok');
+    });
+
+    it('redacts headers AND query string together — does not regress header scrub', () => {
+      const beforeSend = captureBeforeSend();
+      const event = {
+        request: {
+          url: 'https://app.praeventio.net/x?token_ws=t',
+          headers: { authorization: 'Bearer abc', cookie: 'sid=1' },
+        },
+      };
+      const out = beforeSend(event);
+      expect(out.request.headers.authorization).toBeUndefined();
+      expect(out.request.headers.cookie).toBeUndefined();
+      expect(out.request.url).not.toContain('token_ws=t');
+    });
+
+    it('beforeSend never throws on malformed input', () => {
+      const beforeSend = captureBeforeSend();
+      expect(() => beforeSend({})).not.toThrow();
+      expect(() => beforeSend({ request: { url: 'not a url' } })).not.toThrow();
+      expect(() =>
+        beforeSend({ request: { query_string: undefined } }),
+      ).not.toThrow();
+    });
+  });
 });

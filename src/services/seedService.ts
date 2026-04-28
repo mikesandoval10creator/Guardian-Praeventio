@@ -1,22 +1,35 @@
 import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
 import { NodeType } from '../types';
 
 export const seedCommunityGlossary = async () => {
+  // Round 14 (A5 audit) — `/api/seed-glossary` is gated by verifyAuth on the
+  // server, but this client-side caller previously sent NO Authorization
+  // header, so every invocation 401'd. Mirror the pattern in
+  // `auditService.ts`: fetch a fresh ID token from the current Firebase
+  // user and attach it as `Authorization: Bearer <token>`. If no user is
+  // signed in we throw early — a public unauthenticated seed call would
+  // never have succeeded anyway.
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Debes iniciar sesión para poblar el Glosario Comunitario.');
+  }
   try {
     console.log('Iniciando poblamiento del Grand Line (Community Glossary)...');
+    const token = await user.getIdToken();
     const response = await fetch('/api/seed-glossary', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     });
-    
+
     if (!response.ok) {
       throw new Error(`Error: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     console.log('Poblamiento completado:', data);
     return data;

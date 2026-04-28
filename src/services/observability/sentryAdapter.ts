@@ -31,6 +31,13 @@
 //   • PII scrubbing happens via the `beforeSend` hook so authorization
 //     headers and cookies don't leak into Sentry. Documented in
 //     OBSERVABILITY.md Round 2 follow-ups.
+//
+//   • Round 14 (A4 audit) extended `beforeSend` to also redact sensitive
+//     query-string params (`token_ws`, `code`, `token`, `session`,
+//     `state`) from BOTH `event.request.url` and
+//     `event.request.query_string`. Webpay return URLs and OAuth
+//     callbacks were the leak vectors. The scrub is wrapped in
+//     try/catch so a malformed URL never causes us to drop the event.
 
 import * as Sentry from '@sentry/node';
 import type {
@@ -39,6 +46,67 @@ import type {
   ErrorTrackingAdapter,
   ErrorTrackingInitOptions,
 } from './types';
+
+/**
+ * Query-string params whose values must never reach Sentry. Match is
+ * case-insensitive on the param NAME; values are replaced with
+ * `[REDACTED]`. Centralized here so adding a new sensitive param
+ * (e.g., `id_token`) is a one-liner.
+ */
+const SENSITIVE_QUERY_PARAMS = new Set([
+  'token_ws',
+  'code',
+  'token',
+  'session',
+  'state',
+]);
+
+/**
+ * Returns a query string identical to the input except every value whose
+ * key is in `SENSITIVE_QUERY_PARAMS` becomes `[REDACTED]`. Defensive: if
+ * URLSearchParams parsing fails (it almost never does — even garbage is
+ * tolerated), we fall back to the raw input rather than throwing.
+ */
+function scrubQueryString(qs: string): string {
+  try {
+    const params = new URLSearchParams(qs);
+    // Hand-roll the serializer: `URLSearchParams.toString()` URL-encodes
+    // brackets in our placeholder (`[REDACTED]` → `%5BREDACTED%5D`),
+    // which makes the redaction marker harder to grep for in Sentry's
+    // UI. Hand-rolling lets us keep the literal sentinel readable while
+    // still correctly encoding non-redacted values.
+    const pieces: string[] = [];
+    for (const [k, v] of params.entries()) {
+      if (SENSITIVE_QUERY_PARAMS.has(k.toLowerCase())) {
+        pieces.push(`${encodeURIComponent(k)}=[REDACTED]`);
+      } else {
+        pieces.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+      }
+    }
+    return pieces.join('&');
+  } catch {
+    return qs;
+  }
+}
+
+/**
+ * Returns a URL string with sensitive query params redacted. If the URL
+ * is unparseable (relative, malformed) we still try to scrub a trailing
+ * `?...` portion via string surgery; on total failure return the input.
+ */
+function scrubUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    u.search = scrubQueryString(u.search.replace(/^\?/, ''));
+    return u.toString();
+  } catch {
+    const qIdx = url.indexOf('?');
+    if (qIdx === -1) return url;
+    const prefix = url.slice(0, qIdx);
+    const qs = url.slice(qIdx + 1);
+    return `${prefix}?${scrubQueryString(qs)}`;
+  }
+}
 
 /**
  * Map our internal `'info' | 'warning' | 'error'` levels onto Sentry's
@@ -88,17 +156,33 @@ class SentryAdapter implements ErrorTrackingAdapter {
         environment: options.environment,
         release: options.release,
         tracesSampleRate: options.sampleRate ?? 0.1,
-        // PII scrubbing — strip auth/cookie headers + any bearer-shaped
-        // strings in the body. Mirrors OBSERVABILITY.md §2 example.
+        // PII scrubbing — strip auth/cookie headers, plus sensitive query
+        // params in url + query_string (Round 14, A4 audit). The whole
+        // hook is wrapped in try/catch so a parse fault never causes the
+        // SDK to drop the original event.
         beforeSend(event) {
-          if (event.request?.headers) {
-            const headers = event.request.headers as Record<string, string>;
-            delete headers.authorization;
-            delete headers.Authorization;
-            delete headers.cookie;
-            delete headers.Cookie;
-            delete headers['set-cookie'];
-            delete headers['Set-Cookie'];
+          try {
+            if (event.request?.headers) {
+              const headers = event.request.headers as Record<string, string>;
+              delete headers.authorization;
+              delete headers.Authorization;
+              delete headers.cookie;
+              delete headers.Cookie;
+              delete headers['set-cookie'];
+              delete headers['Set-Cookie'];
+            }
+            if (event.request) {
+              if (typeof event.request.url === 'string') {
+                event.request.url = scrubUrl(event.request.url);
+              }
+              if (typeof event.request.query_string === 'string') {
+                event.request.query_string = scrubQueryString(
+                  event.request.query_string,
+                );
+              }
+            }
+          } catch {
+            /* never let scrub errors drop the event */
           }
           return event;
         },
