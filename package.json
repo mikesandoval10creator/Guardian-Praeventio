@@ -97,6 +97,7 @@
     "@capacitor/cli": "^8.3.0",
     "@eslint/js": "^10.0.1",
     "@firebase/eslint-plugin-security-rules": "^0.0.1",
+    "@firebase/rules-unit-testing": "^5.0.0",
     "@types/canvas-confetti": "^1.9.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",

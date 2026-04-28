@@ -4,7 +4,7 @@ import {
   calculateDistance,
   type Point,
   type HazardZone,
-} from './routingAlgorithm';
+} from './routingBackend';
 
 // --- Local Haversine helper for assertions (independent of impl) ---
 // Mirrors the formula in the implementation to keep tests self-contained

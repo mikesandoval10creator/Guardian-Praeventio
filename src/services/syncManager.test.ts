@@ -110,4 +110,108 @@ describe('MatrixSyncManager.restoreServerVersion', () => {
     await matrixSyncManager.restoreServerVersion('iper_nodes', 'doc-789', {});
     expect(handler).not.toHaveBeenCalled();
   });
+
+  // Race 1: a consumer stacks two ops for the same docId (user typed, network
+  // was slow, user typed again — second `enqueue*` replaces first by-id in the
+  // Map). Then the conflict banner fires `restoreServerVersion`. We must drop
+  // *whatever* version is pending and emit exactly one restore event.
+  //
+  // characterization: passed on first run. The existing impl deletes by docId
+  // (syncManager.ts:187-188) regardless of which op version is in the Map.
+  it('drops a same-docId op even when an earlier op was just replaced (race 1)', async () => {
+    const handler = vi.fn();
+    const unsubscribe = matrixSyncManager.onRestore(handler);
+
+    // First write — slow network is conceptually still in flight.
+    await matrixSyncManager.enqueueSet(fakeNode('doc-X', 'first edit'));
+    // Second write for the same docId — replaces the first by-id.
+    await matrixSyncManager.enqueueUpdate('doc-X', { title: 'second edit' });
+
+    // Sanity: queue should hold exactly one op for this id (the replacement).
+    const beforeRestore = matrixSyncManager
+      .getPendingOperations()
+      .filter(o => o.id === 'doc-X');
+    expect(beforeRestore.length).toBe(1);
+
+    const serverData = { foo: 'server-value', updatedAt: 4242 };
+    await matrixSyncManager.restoreServerVersion('iper_nodes', 'doc-X', serverData);
+
+    // After restore: no op for doc-X remains, regardless of which version had
+    // been queued.
+    const afterRestore = matrixSyncManager
+      .getPendingOperations()
+      .filter(o => o.id === 'doc-X');
+    expect(afterRestore.length).toBe(0);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      collection: 'iper_nodes',
+      docId: 'doc-X',
+      serverData,
+    });
+
+    unsubscribe();
+  });
+
+  // Race 2: `flush()` snapshots queue entries by reference (PR #9 fix), then
+  // awaits the network. If `restoreServerVersion(docId)` runs *during* that
+  // await, the entry must be dropped and the restore event must fire exactly
+  // once — even if the racing flush's network call later resolves. Acceptable
+  // semantic chosen: (A) restore wins; the server-side network call (if it
+  // landed) is a benign idempotent no-op.
+  //
+  // We pause the network call mid-flight using a deferred promise. The
+  // existing `syncBatchToNetwork` mock from `./geminiService` is patched per
+  // this test only.
+  //
+  // characterization: passed on first run. flush()'s reference-identity guard
+  // (syncManager.ts:235 — `if (this.queue.get(id) === op)`) makes the racing
+  // delete a no-op once restore has already removed the entry; nothing is
+  // re-added.
+  it('drops the queue entry when restore runs mid-flush (race 2)', async () => {
+    const geminiService = await import('./geminiService');
+    const syncBatchToNetwork = geminiService.syncBatchToNetwork as unknown as ReturnType<
+      typeof vi.fn
+    >;
+
+    let release: (value: { failedOps: never[] }) => void = () => {};
+    const networkGate = new Promise<{ failedOps: never[] }>(resolve => {
+      release = resolve;
+    });
+    syncBatchToNetwork.mockImplementationOnce(() => networkGate);
+
+    const handler = vi.fn();
+    const unsubscribe = matrixSyncManager.onRestore(handler);
+
+    await matrixSyncManager.enqueueSet(fakeNode('doc-Y', 'mid-flush edit'));
+    expect(matrixSyncManager.getPendingOperations().some(o => o.id === 'doc-Y')).toBe(true);
+
+    // Kick off flush — DO NOT await; it will park on `networkGate`.
+    const flushPromise = matrixSyncManager.flush();
+    // Yield once so flush() reaches the `await syncBatchToNetwork(...)` point.
+    await Promise.resolve();
+
+    // Mid-flush: user clicks "Use server version".
+    const serverData = { foo: 'server-Y', updatedAt: 9999 };
+    await matrixSyncManager.restoreServerVersion('iper_nodes', 'doc-Y', serverData);
+
+    // Now let the network call complete.
+    release({ failedOps: [] });
+    await flushPromise;
+
+    // Queue must be empty for doc-Y. The flush's reference-identity guard
+    // (line ~235) sees the entry was deleted by restore, so it skips its own
+    // delete — and crucially, never re-adds the op.
+    expect(matrixSyncManager.getPendingOperations().some(o => o.id === 'doc-Y')).toBe(false);
+
+    // Exactly one restore event fired with the right payload.
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      collection: 'iper_nodes',
+      docId: 'doc-Y',
+      serverData,
+    });
+
+    unsubscribe();
+  });
 });
