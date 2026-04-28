@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RiskNode, NodeType } from '../types';
-import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, deleteDoc, handleFirestoreError, OperationType, where } from '../services/firebase';
+import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType, where } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { autoConnectNodes, enrichNodeData, generateEmbeddingsBatch } from '../services/geminiService';
 import { useOnlineStatus } from './useOnlineStatus';
@@ -143,13 +143,16 @@ export const useRiskEngine = () => {
           const enrichedData = await enrichNodeData(node);
           
           if (enrichedData.title !== node.title || enrichedData.description !== node.description) {
-            await updateDoc(doc(db, 'nodes', node.id), {
+            // Route healer through the sync queue so offline edits aren't lost
+            // and so a concurrent queued update for the same id doesn't lose
+            // a last-write-wins race against this direct write.
+            matrixSyncManager.enqueueUpdate(node.id, {
               title: enrichedData.title,
               description: enrichedData.description,
               metadata: enrichedData.metadata,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date().toISOString(),
             });
-            logger.debug(`Node ${node.id} healed successfully`);
+            logger.debug(`Node ${node.id} healed (queued)`);
           }
         } catch (error) {
           logger.error(`Failed to heal node ${node.id}`, error);
@@ -271,11 +274,23 @@ export const useRiskEngine = () => {
   const deleteNode = useCallback(async (id: string) => {
     if (!user) return;
     try {
+      // Cascade: scrub the deleted id from every neighbor's `connections` so
+      // the array doesn't grow toward the 200-edge rules cap with dangling
+      // references. Without this every deletion leaves orphan edges that
+      // `getGraphData` silently drops at render time but persist on disk.
+      const now = new Date().toISOString();
+      const neighbors = nodes.filter(n => n.id !== id && n.connections.includes(id));
+      for (const neighbor of neighbors) {
+        matrixSyncManager.enqueueUpdate(neighbor.id, {
+          connections: neighbor.connections.filter(c => c !== id),
+          updatedAt: now,
+        });
+      }
       matrixSyncManager.enqueueDelete(id);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `nodes/${id}`);
     }
-  }, [user]);
+  }, [user, nodes]);
 
   const getConnectedNodes = useCallback((id: string) => {
     const node = nodes.find(n => n.id === id);
