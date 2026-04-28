@@ -68,6 +68,7 @@ interface FitnessData {
 }
 
 import { generateRealisticIoTEvent } from '../services/geminiService';
+import { getHealthAdapter } from '../services/health';
 
 interface StatusEffect {
   id: string;
@@ -171,6 +172,30 @@ export function Telemetry() {
 
   const handleConnectGoogleFit = async () => {
     setIsConnectingFit(true);
+
+    // Round 2 of HEALTH_CONNECT_MIGRATION.md — prefer the Health Connect /
+    // HealthKit adapter on native; the legacy Google Fit OAuth popup is the
+    // fallback while the rest of the migration completes.
+    const adapter = getHealthAdapter();
+    if (adapter.name === 'health-connect') {
+      try {
+        const result = await adapter.requestPermissions(['heart-rate', 'steps']);
+        if (result.granted.length === 0) {
+          alert('No se concedieron permisos de Health Connect.');
+          setIsConnectingFit(false);
+          return;
+        }
+        setFitTokens({ linked: true, viaHealthConnect: true });
+        setIsConnectingFit(false);
+        fetchFitnessData();
+        return;
+      } catch (error) {
+        console.error('Error requesting Health Connect permissions:', error);
+        setIsConnectingFit(false);
+        return;
+      }
+    }
+
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error('Not authenticated');
@@ -197,6 +222,45 @@ export function Telemetry() {
   };
 
   const fetchFitnessData = useCallback(async () => {
+    // Round 2 surgical swap — when the facade picks Health Connect (or any
+    // future native adapter), read on-device samples and skip the legacy
+    // server hop entirely. The /api/fitness/sync POST below is the
+    // deprecated Google Fit fallback, kept alive until Round 3 sunset.
+    try {
+      const adapter = getHealthAdapter();
+      if (adapter.name === 'health-connect') {
+        const end = new Date();
+        const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+        const [hrSamples, stepSamples] = await Promise.all([
+          adapter.readHeartRate({ start, end }),
+          adapter.readSteps({ start, end }),
+        ]);
+
+        const latestHr = hrSamples.length > 0 ? hrSamples[hrSamples.length - 1].bpm : null;
+        const totalSteps =
+          stepSamples.length > 0
+            ? stepSamples.reduce((sum, s) => sum + s.count, 0)
+            : null;
+
+        setFitnessData({
+          heartRate: latestHr,
+          steps: totalSteps,
+          lastSync: new Date(),
+        });
+
+        if (latestHr && latestHr > 120) {
+          setAlerts(prev => {
+            const msg = `Alerta Wearable: Ritmo cardíaco elevado detectado (${latestHr} bpm). Posible fatiga o estrés térmico.`;
+            return prev.includes(msg) ? prev : [...prev, msg];
+          });
+        }
+        return;
+      }
+    } catch (error) {
+      console.error('Health Connect read failed; falling back to Google Fit:', error);
+      // fall through to the deprecated server path
+    }
+
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error('Not authenticated');
@@ -210,9 +274,9 @@ export function Telemetry() {
       });
 
       if (!response.ok) throw new Error('Failed to fetch fitness data');
-      
+
       const { data } = await response.json();
-      
+
       // Parse Google Fit aggregate data
       let heartRate = null;
       let steps = null;
@@ -241,7 +305,7 @@ export function Telemetry() {
         steps,
         lastSync: new Date()
       });
-      
+
       // If we got critical heart rate, generate an alert
       if (heartRate && heartRate > 120) {
         setAlerts(prev => {

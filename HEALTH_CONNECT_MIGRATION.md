@@ -1,7 +1,14 @@
 # Health Connect Migration Runbook
 
 **Owner:** Agent N4 (this round) -> hands off to whoever takes the next round.
-**Status (2026-04-28):** Round 1 complete — types + adapter scaffolding + facade landed; **no** Capacitor plugin installed yet.
+**Status (2026-04-28):**
+- **Round 1 — done.** Types + adapter scaffolding + facade landed.
+- **Round 2 — done.** `@kiwi-health/capacitor-health-connect@0.0.40` installed,
+  `healthConnectAdapter` implemented against the plugin API, and `Telemetry.tsx`
+  surgically swapped to prefer the facade with the legacy `/api/fitness/sync`
+  path kept as a fall-through.
+- **Round 3 — pending.** Full Telemetry consolidation, server endpoint sunset
+  header + scope cleanup, OAuth re-verification, Android/iOS native config.
 
 ---
 
@@ -37,34 +44,56 @@ The Capacitor ecosystem provides plugins that abstract both stores behind a sing
 
 ## 3. Migration steps
 
-Steps marked **[done]** were completed in Round 1.
+Steps marked **[done]** were completed in Round 1 or Round 2.
 
-1. **[done]** Add types: `src/services/health/types.ts` (HeartRateSample, StepsSample, CaloriesSample, SleepSample, HealthDataRange, HealthAdapter, HealthScope, PermissionResult).
-2. **[done]** Stub `src/services/health/healthConnectAdapter.ts` with the typed interface; every read method throws `NotImplemented`.
-3. **[done]** Wrap existing Google Fit flow in `src/services/health/googleFitAdapter.ts` with `@deprecated` JSDoc that points back here.
-4. **[done]** Add `src/services/health/index.ts` facade — `getHealthAdapter()` picks Health Connect on native, falls back to Google Fit, then noop.
-5. **[done]** TDD `src/services/health/healthFacade.test.ts` — covers all four selection branches + noop empty-array contract.
-6. **[round 2]** Install the Capacitor plugin:
+1. **[done — R1]** Add types: `src/services/health/types.ts` (HeartRateSample, StepsSample, CaloriesSample, SleepSample, HealthDataRange, HealthAdapter, HealthScope, PermissionResult).
+2. **[done — R1]** Stub `src/services/health/healthConnectAdapter.ts` with the typed interface; every read method throws `NotImplemented`.
+3. **[done — R1]** Wrap existing Google Fit flow in `src/services/health/googleFitAdapter.ts` with `@deprecated` JSDoc that points back here.
+4. **[done — R1]** Add `src/services/health/index.ts` facade — `getHealthAdapter()` picks Health Connect on native, falls back to Google Fit, then noop.
+5. **[done — R1]** TDD `src/services/health/healthFacade.test.ts` — covers all four selection branches + noop empty-array contract.
+6. **[done — R2]** Install the Capacitor plugin:
    ```bash
-   npm i @capacitor-community/health-connect@^1.0.0   # confirm latest tag at install time
-   npx cap sync
+   npm i @kiwi-health/capacitor-health-connect@^0.0.40
    ```
-   *Blocked this round* because Agent N5 owns `package.json` for the Webpay/Transbank SDK install. Run after that lands to avoid a merge race.
-7. **[round 2]** Implement `healthConnectAdapter` methods against the plugin API. Drop the `throw notImplemented(...)` lines and flip `isAvailable` to a runtime probe (`HealthConnect.checkAvailability()` or equivalent).
-8. **[round 2]** Android setup:
+   `@capacitor-community/health-connect` was the original Round 1 candidate but
+   the maintained, currently-published namespace is `@kiwi-health`. Plugin is
+   Android-only (mirrors Health Connect's own platform scope); iOS HealthKit
+   parity will land via a separate `@perfood/capacitor-healthkit` adapter in a
+   future round (see open question 1 below).
+7. **[done — R2]** Implement `healthConnectAdapter` methods against the plugin
+   API. Real implementations now exist for `requestPermissions`, `readHeartRate`,
+   `readSteps`, `readCalories`, `readSleep`. `isAvailable` is wired to
+   `HealthConnect.checkAvailability()` with a cached probe + sync getter (the
+   getter returns `false` until the first `Available` response lands; the facade
+   re-asks on every selection so the next call sees `true`).
+8. **[round 3]** Android setup:
    - `android/app/build.gradle`: bump `minSdkVersion` to 26 if not already.
    - `android/app/src/main/AndroidManifest.xml`: add the `<queries>` block for `com.google.android.apps.healthdata`, plus read permissions for HEART_RATE, STEPS, ACTIVE_CALORIES_BURNED, TOTAL_CALORIES_BURNED, SLEEP_SESSION.
    - `MainActivity.kt`: register the Health Connect permission contract launcher.
-9. **[round 2]** iOS setup:
+   - Run `npx cap sync android` after the manifest edits.
+9. **[round 3]** iOS setup (deferred — needs the HealthKit plugin first):
+   - Add `@perfood/capacitor-healthkit` (or equivalent) to `package.json`.
    - Enable HealthKit capability in Xcode.
    - Add `NSHealthShareUsageDescription` and `NSHealthUpdateUsageDescription` to `Info.plist`.
-   - Capacitor 5+ is required — this repo is on `@capacitor/ios@^8.3.0` so the runtime is already fine.
-10. **[round 3]** Migrate `src/pages/Telemetry.tsx` to call `getHealthAdapter()` instead of `fetch('/api/fitness/sync')`. Touchpoints in the file today:
-    - `handleConnectGoogleFit` (line 172) -> replace with `await getHealthAdapter().requestPermissions(['heart-rate', 'steps'])`.
-    - `fetchFitnessData` (line 199) -> replace the `/api/fitness/sync` POST with `await adapter.readHeartRate(range)` + `readSteps(range)`.
-    - Drop the bespoke Google Fit aggregate-parsing block (lines 220-237).
-    Deferred this round to avoid a regression on a 1000+ line file.
-11. **[round 3]** Server cleanup (after Telemetry.tsx has stopped calling the endpoint):
+   - Add an iOS adapter mirroring `healthConnectAdapter` and update the facade to pick it on `Capacitor.getPlatform() === 'ios'`.
+10. **[partial — R2]** Migrate `src/pages/Telemetry.tsx` to call
+    `getHealthAdapter()` instead of `fetch('/api/fitness/sync')`. The two
+    targeted blocks have been **surgically** swapped:
+    - `handleConnectGoogleFit` (now ~line 172): prefers
+      `adapter.requestPermissions(['heart-rate', 'steps'])` when the facade
+      picks Health Connect; falls through to the existing OAuth popup
+      otherwise.
+    - `fetchFitnessData` (now ~line 199): prefers
+      `adapter.readHeartRate({start, end})` + `adapter.readSteps({start, end})`
+      when the facade picks Health Connect; the legacy aggregate-parsing block
+      is preserved as a fall-through and only runs on web / when the native
+      read fails.
+    **Round 3** still needs to: (a) delete the legacy aggregate-parsing block
+    once telemetry/QA confirms the new path is live in production builds,
+    (b) re-label the UI button (currently still says "Google Fit"),
+    (c) audit the `setFitTokens` shape — `fitTokens` is treated as a generic
+    truthy flag today, fine for now but worth a cleanup pass.
+11. **[round 3]** Server cleanup (after Telemetry.tsx fully stops calling the endpoint):
     - Mark `/api/fitness/sync` (`server.ts:828`) deprecated by adding a `Sunset:` HTTP header and a structured log line on every hit.
     - Set a calendar reminder ~30 days before the Google Fit sunset date to remove the route entirely.
 12. **[round 3]** OAuth scope cleanup in `server.ts:545-550`: drop the three `fitness.*` scopes from the `SCOPES` array. The Calendar scope stays.
@@ -85,17 +114,61 @@ Steps marked **[done]** were completed in Round 1.
 
 ---
 
-## 5. Open questions for Round 2
+## 5. Round 2 decisions + Open questions for Round 3
 
-1. **Plugin pick.** `@capacitor-community/health-connect` is Android-only. Do we (a) pair it with `@capacitor-community/health` for iOS, or (b) jump straight to a unified plugin? Decision affects `package.json` size and native config complexity.
-2. **Telemetry.tsx scope.** Migration step 10 is large (the file is >1000 lines). Should Round 3 do a full rewrite of the page or just a surgical swap of the two functions identified above?
-3. **Server endpoint sunset date.** Need a hard date for retiring `/api/fitness/sync` — recommend 90 days after Round 3 ships, instrumented with Sunset headers.
-4. **Sleep & calories on Google Fit.** Today's `/api/fitness/sync` payload only includes heart-rate and steps; the deprecated wrapper returns `[]` for sleep and calories. Worth filling in before the sunset, or accept the gap because we're migrating off anyway?
+### Round 2 decisions (locked in)
+
+- **Plugin pick:** `@kiwi-health/capacitor-health-connect@^0.0.40` (Android only).
+  Last-published version at install time was 0.0.40. Picked over
+  `@capacitor-community/health-connect` because the latter is no longer the
+  actively-maintained namespace; picked over `@capacitor-community/health`
+  because the unified plugin lags the Android-only one's record-type coverage.
+- **iOS strategy:** deferred. `healthConnectAdapter.isAvailable` returns
+  `false` on iOS (it checks `Capacitor.getPlatform() === 'android'` first), so
+  iOS users will continue to fall through to `googleFitAdapter` and
+  `noopAdapter` until a HealthKit-backed adapter ships.
+- **Telemetry.tsx scope:** surgical swap (option (b) from the prior Q list).
+  The two Fit-specific blocks were touched; Bluetooth, MediaPipe, and the rest
+  of the file are untouched.
+- **Plugin API quirks worth flagging:**
+  - The plugin's `RecordType` for heart-rate is `'HeartRateSeries'` (a series
+    of samples per record), **not** a single `'HeartRate'` record. The adapter
+    flattens samples on read.
+  - `requestHealthPermissions` returns granted permissions as full Android
+    permission strings (`android.permission.health.READ_HEART_RATE`); the
+    adapter parses the suffix back to a `HealthScope`.
+  - Sleep stages are returned as numeric enum values; the adapter maps them
+    to the four-bucket `SleepQuality` (`light` / `deep` / `rem` / `awake`).
+
+### Open questions for Round 3
+
+1. **Telemetry.tsx finish line.** The fall-through paths in
+   `handleConnectGoogleFit` and `fetchFitnessData` are still alive. Round 3
+   should (a) confirm via remote-config / build-flag that all production
+   Android builds have HC permissions wired, then (b) delete the legacy
+   blocks. Question: do we keep the OAuth popup path for web-only desktop
+   QA users, or sunset web Fit support entirely with the server endpoint?
+2. **Server endpoint sunset date.** Need a hard date for retiring
+   `/api/fitness/sync` — recommend 90 days after Round 3 ships, instrumented
+   with `Sunset:` headers + structured logs in the meantime.
+3. **Sleep & calories.** Health Connect now exposes both via the new adapter,
+   but `Telemetry.tsx` still surfaces only `heartRate` + `steps`. Decision
+   needed: extend the FitnessData shape and UI now, or treat as a separate
+   feature in a later round?
+4. **iOS HealthKit adapter.** Pick a plugin (`@perfood/capacitor-healthkit`
+   is the leading candidate) and stand up an `iosHealthKitAdapter` next to
+   the Health Connect one; the facade gains a third branch on
+   `Capacitor.getPlatform() === 'ios'`.
+5. **Permission UX (Ley 21.719).** The current `requestPermissions` call
+   bundles all scopes into one Health Connect prompt. Section 4 of this doc
+   requires per-scope toggles. Round 3 should split the prompt into one
+   call per scope or build a UI gate that filters scopes before requesting.
 
 ---
 
-## 6. Files touched this round
+## 6. Files touched
 
+### Round 1
 ```
 src/services/health/types.ts                  (created)
 src/services/health/healthConnectAdapter.ts   (created, stub)
@@ -105,9 +178,18 @@ src/services/health/healthFacade.test.ts      (created, TDD)
 HEALTH_CONNECT_MIGRATION.md                   (this file)
 ```
 
-Read-only references (intentionally unmodified):
+### Round 2
 ```
-src/pages/Telemetry.tsx                       (Google Fit call sites @ lines 172, 199)
-server.ts                                     (/api/fitness/sync @ line 828, SCOPES @ line 545)
-src/services/oauthTokenStore.ts               (token persistence; no migration impact)
+package.json                                  (+ @kiwi-health/capacitor-health-connect@^0.0.40 — already in tree)
+package-lock.json                             (lock entry already present)
+src/services/health/healthConnectAdapter.ts   (replaced stubs with real plugin calls)
+src/services/health/healthFacade.test.ts      (added vi.mock for the plugin + Capacitor.getPlatform)
+src/pages/Telemetry.tsx                       (surgical swap of handleConnectGoogleFit + fetchFitnessData)
+HEALTH_CONNECT_MIGRATION.md                   (this file — Round 2 status)
+```
+
+Read-only references (intentionally unmodified, owned by other agents this round):
+```
+server.ts                                     (/api/fitness/sync @ line 828, SCOPES @ line 545 — Round 3)
+src/services/oauthTokenStore.ts               (Agent O4 owns this round)
 ```

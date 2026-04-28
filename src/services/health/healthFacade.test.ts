@@ -12,6 +12,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
     isNativePlatform: () => false,
+    getPlatform: () => 'web',
+    registerPlugin: () => ({}),
+  },
+}));
+
+// The Health Connect plugin is Android-native; in the unit test environment
+// we replace its surface with stubs so the adapter module loads without
+// touching the Capacitor bridge.
+vi.mock('@kiwi-health/capacitor-health-connect', () => ({
+  HealthConnect: {
+    checkAvailability: vi.fn(async () => ({ availability: 'NotSupported' })),
+    requestHealthPermissions: vi.fn(async () => ({
+      grantedPermissions: [],
+      hasAllPermissions: false,
+    })),
+    checkHealthPermissions: vi.fn(async () => ({
+      grantedPermissions: [],
+      hasAllPermissions: false,
+    })),
+    readRecords: vi.fn(async () => ({ records: [] })),
+    readRecord: vi.fn(async () => ({ record: null })),
+    insertRecords: vi.fn(async () => ({ recordIds: [] })),
+    revokeHealthPermissions: vi.fn(async () => undefined),
+    openHealthConnectSetting: vi.fn(async () => undefined),
+    getChangesToken: vi.fn(async () => ({ token: '' })),
+    getChanges: vi.fn(async () => ({ changes: [], nextToken: '' })),
   },
 }));
 
