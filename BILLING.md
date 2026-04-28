@@ -57,11 +57,14 @@ What is **not** here yet:
                                    │
                                    ▼
                          status: 'paid' / 'rejected'
+                                / pending-payment (transient)
                          + audit_logs entry
 ```
 
-The redirect/return URL flow (browser ↔ Transbank ↔ our `/billing/return`)
-is **not** implemented yet — see the Webpay TODOs.
+The Webpay redirect/return URL flow
+(`/billing/webpay/return` ← Transbank ← cardholder browser) is implemented,
+including `processed_webpay/{token_ws}` lock-then-complete idempotency.
+The Stripe redirect/webhook flow is still pending.
 
 ---
 
@@ -100,25 +103,52 @@ is **not** implemented yet — see the Webpay TODOs.
   `^7` but no v7.x exists on npm — see `npm view transbank-sdk versions`).
 - ✅ `WebpayAdapter` real implementation in `src/services/billing/webpayAdapter.ts`:
   - `createTransaction` → `WebpayPlus.Transaction.create()`
-  - `commitTransaction` → `WebpayPlus.Transaction.commit()` with response mapping
-    (`response_code === 0 && status === 'AUTHORIZED'` → `'AUTHORIZED'`, else `'REJECTED'`).
+  - `commitTransaction` → `WebpayPlus.Transaction.commit()` with three-state
+    response mapping (see "Response-code mapping" below).
   - `refundTransaction` → `WebpayPlus.Transaction.refund()` returning `{ type, balance }`.
   - SDK errors wrapped in `WebpayAdapterError` (no silent failures).
 - ✅ Sandbox credentials (`IntegrationCommerceCodes.WEBPAY_PLUS` +
   `IntegrationApiKeys.WEBPAY`) are the default — dev / CI / E2E never
   touch a real merchant.
 - ✅ `GET /billing/webpay/return` route shipped in `server.ts`. Reads
-  `token_ws` query param, calls `commitTransaction`, updates
-  `invoices/{buyOrder}.status` to `paid` or `cancelled`, writes an
-  `audit_logs` entry, redirects to `/pricing/success` or `/pricing/failed`.
-  Idempotency: skips reprocessing when invoice is already `paid`.
-- ✅ Unit tests with mocked SDK (`webpayAdapter.test.ts`, 13 cases).
+  `token_ws` query param, runs the lock-then-complete dedupe via
+  `processed_webpay/{token_ws}`, calls `commitTransaction`, updates
+  `invoices/{buyOrder}.status` to `paid` / `rejected` / stays
+  `pending-payment`, writes an `audit_logs` entry on success, redirects to
+  `/pricing/success` (paid), `/pricing/failed` (rejected), or
+  `/pricing/retry` (transient).
+- ✅ Robust idempotency via `processed_webpay/{token}` doc (lock-then-
+  complete, mirroring the Google Play RTDN handler). Helpers
+  `acquireWebpayIdempotencyLock` + `finalizeWebpayIdempotencyLock` in
+  `webpayAdapter.ts`. Doc states: `in_progress` (with 5-min staleness
+  window) → `done` (with `outcome` + `invoiceId` for replay-redirects).
+- ✅ Unit tests with mocked SDK (`webpayAdapter.test.ts`, 30 cases).
 - ⚠️ Production credentials require Transbank commerce-code application
   (KYC + onboarding). Not blocking sandbox dev.
-- ⚠️ Stronger idempotency via `processed_webpay/{token}` doc (lock-then-
-  complete pattern, mirroring RTDN) is still TODO — current guard only
-  reads the invoice's own status.
 - ⚠️ Boleta electrónica emission post-AUTHORIZED is still TODO.
+
+### Response-code mapping (`commitTransaction`)
+
+Transbank's `response_code` is overloaded — it conflates card-side
+declines with infrastructure failures. We split them into three states so
+the UI can offer the right next step:
+
+| `response_code`       | `WebpayCommitStatus` | Invoice status      | UX route             |
+| --------------------- | -------------------- | ------------------- | -------------------- |
+| `0` + `'AUTHORIZED'`  | `AUTHORIZED`         | `paid`              | `/pricing/success`   |
+| `-1` … `-8`           | `REJECTED`           | `rejected`          | `/pricing/failed`    |
+| `-96`, `-97`, `-98`   | `FAILED` (transient) | `pending-payment`   | `/pricing/retry`     |
+| anything else / no `response_code` | `FAILED` (defensive) | `pending-payment` | `/pricing/retry`     |
+
+Why three states, not two:
+
+- `-96` / `-97` / `-98` mean **timeout / network / Transbank unavailable**.
+  Mapping them to `REJECTED` would lie to the customer ("your card was
+  declined") and steer them to a "try a different card" page when the
+  same card would work fine on retry.
+- `cancelled` (the previous mapping for non-AUTHORIZED) implies the user
+  or an admin chose to cancel. A card decline is not a cancellation.
+  `cancelled` is now reserved for explicit user/admin cancellation.
 
 ### Environments
 
@@ -142,8 +172,9 @@ is **not** implemented yet — see the Webpay TODOs.
 
 4. Restart the server. `webpayAdapter.isConfigured()` will flip to `true`
    and `/api/billing/checkout` will start producing real Transbank URLs.
-5. **Idempotency follow-up**: add `processed_webpay/{token}` lock-then-
-   complete (same pattern as Google Play RTDN) before going live.
+5. Idempotency is already in place via `processed_webpay/{token_ws}`
+   (server-only Firestore collection, default-deny rules) — no extra
+   step needed before going live.
 
 ### Test cards (integration env)
 
@@ -258,16 +289,23 @@ The following must happen before this scaffolding is production-ready:
       (no env vars needed for sandbox).
 - [x] Implement `WebpayAdapter` against the SDK (`create` / `commit` /
       `refund`). Stub export replaced in-place; type contract preserved.
-- [x] `GET /billing/webpay/return` route — calls `commitTransaction`,
-      updates `invoices/{id}` status, writes audit log, redirects to
-      `/pricing/success` or `/pricing/failed`.
+- [x] `GET /billing/webpay/return` route — runs lock-then-complete
+      dedupe via `processed_webpay/{token_ws}`, calls `commitTransaction`,
+      updates `invoices/{id}` status (`paid` / `rejected` / stays
+      `pending-payment`), writes audit log on success, redirects to
+      `/pricing/success` / `/pricing/failed` / `/pricing/retry`.
 - [x] Unit tests with a mock SDK (`webpayAdapter.test.ts`, vitest +
-      `vi.mock('transbank-sdk', ...)`).
-- [ ] Provision **production** commerce code (Transbank KYC) — requires
-      legal entity verification + email back from Transbank.
-- [ ] Add stronger idempotency via `processed_webpay/{token}` doc
+      `vi.mock('transbank-sdk', ...)`, 30 cases including timeout-code
+      mapping + idempotency-helper tests).
+- [x] Three-state response-code mapping
+      (`AUTHORIZED` / `REJECTED` / `FAILED`) so timeout codes
+      (`-96`/`-97`/`-98`) keep the invoice retryable instead of
+      mislabelling them as card declines.
+- [x] Stronger idempotency via `processed_webpay/{token}` doc
       (lock-then-complete pattern, mirroring the Google Play RTDN
       handler) so duplicate redeliveries cannot double-process.
+- [ ] Provision **production** commerce code (Transbank KYC) — requires
+      legal entity verification + email back from Transbank.
 - [ ] PDF receipt generation post-AUTHORIZED (boleta or temp receipt
       until SII integration lands).
 

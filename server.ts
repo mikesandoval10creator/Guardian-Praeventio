@@ -22,7 +22,12 @@ import type {
   CurrencyCode,
   PaymentMethod,
 } from "./src/services/billing/types.js";
-import { webpayAdapter } from "./src/services/billing/webpayAdapter.js";
+import {
+  webpayAdapter,
+  acquireWebpayIdempotencyLock,
+  finalizeWebpayIdempotencyLock,
+  type WebpayReturnOutcome,
+} from "./src/services/billing/webpayAdapter.js";
 import { stripeAdapter } from "./src/services/billing/stripeAdapter.js";
 import admin from "firebase-admin";
 import fs from 'fs';
@@ -156,6 +161,34 @@ app.use(helmet({
     : { reportOnly: true, directives: cspDirectives as any },
   crossOriginEmbedderPolicy: false
 }));
+
+// Public health probe for Cloud Run / Marketplace listing health checks.
+// Returns 200 + minimal payload when the server can talk to Firestore.
+// Returns 503 when a critical dependency is unreachable.
+//
+// Mounted AFTER helmet (so CSP headers apply) but BEFORE the /api/ rate
+// limiter and verifyAuth — Cloud Run probes hit this endpoint frequently
+// and without an auth token, so it must remain unauthenticated and
+// unthrottled.
+app.get("/api/health", async (req, res) => {
+  const checks: Record<string, 'ok' | 'fail' | 'skipped'> = {};
+  let allOk = true;
+  // Firestore reachability:
+  try {
+    await admin.firestore().listCollections();  // cheap admin op
+    checks.firestore = 'ok';
+  } catch {
+    checks.firestore = 'fail';
+    allOk = false;
+  }
+  // Add more checks as the deployment grows (Resend, Gemini, Webpay).
+  res.status(allOk ? 200 : 503).json({
+    status: allOk ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    version: process.env.APP_VERSION ?? 'dev',
+    checks,
+  });
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -2290,30 +2323,77 @@ app.post("/api/billing/invoice/:id/mark-paid", verifyAuth, async (req, res) => {
 });
 
 // Webpay return URL — Transbank redirects the cardholder's browser back here
-// after they pay. We commit the transaction, mark the invoice paid (or
-// cancelled) and redirect to the SPA. NOT auth-gated: the user may not have
-// our session cookie at this point. Trust comes from the `token_ws` query
-// param being verified by `webpayAdapter.commitTransaction`.
+// after they pay. We commit the transaction, mark the invoice paid /
+// rejected / pending-retry and redirect to the SPA. NOT auth-gated: the
+// user may not have our session cookie at this point. Trust comes from
+// the `token_ws` query param being verified by
+// `webpayAdapter.commitTransaction`.
 //
-// TODO(billing): full idempotency via processed_webpay/{token} (lock-then-
-// complete) — see RTDN handler for the pattern. For now we rely on the
-// invoice's own status check.
+// Idempotency model (lock-then-complete via `processed_webpay/{token_ws}`):
+//
+//   processed_webpay is a server-only collection (default-deny via the
+//   absence of any rule in firestore.rules — see header TODO there).
+//   We mirror the Google Play RTDN pattern (`processed_pubsub`) so a
+//   redelivered token (browser reload, double-tap, eventual-consistency
+//   second hit) cannot double-process the commit.
+//
+//   - 'done'        → replay the original outcome → original redirect URL.
+//   - 'in_progress' fresh (<5 min) → another worker is on it; redirect to
+//                                   /pricing/success and let the SPA poll.
+//   - 'in_progress' stale (>5 min) → assume the original processor died;
+//                                   steal the lock and re-run.
+//   - absent        → write 'in_progress', commit, then update to 'done'.
+//
+//   On exception we deliberately do NOT update the doc; the staleness
+//   window grants the next redelivery a fresh attempt.
+//
+// Status-mapping (matches WebpayCommitStatus + Invoice status):
+//   AUTHORIZED → invoice 'paid'           → /pricing/success?invoice=...
+//   REJECTED   → invoice 'rejected'       → /pricing/failed?invoice=...
+//                (NOT 'cancelled' — card decline ≠ user cancellation)
+//   FAILED     → invoice stays 'pending-payment' → /pricing/retry?invoice=...
+//                (transient infra error; same card can retry)
 app.get("/billing/webpay/return", async (req, res) => {
   const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;
   if (!tokenWs || !/^[A-Za-z0-9_-]{1,128}$/.test(tokenWs)) {
     return res.status(400).send("Missing or invalid token_ws");
   }
+
+  const db = admin.firestore();
+  const lockRef = db.collection('processed_webpay').doc(tokenWs);
+
+  // Helper: build the SPA redirect URL given the outcome + invoiceId.
+  const redirectFor = (outcome: WebpayReturnOutcome, invoiceId: string | null): string => {
+    const inv = invoiceId ? `?invoice=${encodeURIComponent(invoiceId)}` : '';
+    if (outcome === 'paid') return `/pricing/success${inv}`;
+    if (outcome === 'rejected') return `/pricing/failed${inv}`;
+    // 'failed' (transient): user can retry the same card.
+    return `/pricing/retry${inv}`;
+  };
+
   try {
+    // Step 1: try to acquire the idempotency lock.
+    const lock = await acquireWebpayIdempotencyLock(lockRef);
+    if (!lock.acquired) {
+      if (lock.alreadyDone && lock.outcome) {
+        // Replay the original redirect.
+        return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
+      }
+      // In-flight from another worker. Mirror RTDN's "ack and let UI handle
+      // eventual consistency" — redirect to /pricing/success and the SPA
+      // will surface the actual state once Firestore catches up.
+      return res.redirect(`/pricing/success`);
+    }
+
+    // Step 2: do the real work.
     const commit = await webpayAdapter.commitTransaction(tokenWs);
     const invoiceId = commit.buyOrder;
-    const db = admin.firestore();
-    const ref = db.collection('invoices').doc(invoiceId);
-    const snap = await ref.get();
-    if (snap.exists && snap.data()?.status === 'paid') {
-      return res.redirect(`/pricing/success?invoice=${encodeURIComponent(invoiceId)}`);
-    }
+    const invoiceRef = db.collection('invoices').doc(invoiceId);
+
+    let outcome: WebpayReturnOutcome;
     if (commit.status === 'AUTHORIZED') {
-      await ref.set({
+      outcome = 'paid';
+      await invoiceRef.set({
         status: 'paid',
         paidAt: admin.firestore.FieldValue.serverTimestamp(),
         paymentSource: 'webpay',
@@ -2328,11 +2408,38 @@ app.get("/billing/webpay/return", async (req, res) => {
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
       });
-      return res.redirect(`/pricing/success?invoice=${encodeURIComponent(invoiceId)}`);
+    } else if (commit.status === 'REJECTED') {
+      // Card-side decline. Invoice stays actionable — user may retry with a
+      // different card. 'cancelled' is reserved for explicit user/admin
+      // cancellation only.
+      outcome = 'rejected';
+      await invoiceRef.set(
+        { status: 'rejected', webpayToken: tokenWs },
+        { merge: true },
+      );
+    } else {
+      // FAILED (-96/-97/-98 or malformed). Transient. Keep status
+      // 'pending-payment' so the user can retry the same card.
+      outcome = 'failed';
+      await invoiceRef.set(
+        { status: 'pending-payment', webpayToken: tokenWs },
+        { merge: true },
+      );
     }
-    await ref.set({ status: 'cancelled', webpayToken: tokenWs }, { merge: true });
-    return res.redirect(`/pricing/failed?invoice=${encodeURIComponent(invoiceId)}`);
+
+    // Step 3: finalize the lock so a redelivery can replay the redirect.
+    // Best-effort — never throws.
+    await finalizeWebpayIdempotencyLock(lockRef, {
+      outcome,
+      invoiceId,
+      serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return res.redirect(redirectFor(outcome, invoiceId));
   } catch (error: any) {
+    // Deliberate: do NOT update processed_webpay here. Leaving the doc as
+    // 'in_progress' allows the staleness window to grant a future
+    // redelivery a fresh attempt — same approach as the RTDN handler.
     logger.error('webpay_return_failed', error, { tokenWs });
     return res.redirect(`/pricing/failed?error=webpay`);
   }

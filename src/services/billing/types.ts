@@ -72,7 +72,32 @@ export interface Invoice {
   paymentMethod: PaymentMethod;
   /** ISO 8601 issuance timestamp. */
   issuedAt: string;
-  status: 'draft' | 'pending-payment' | 'paid' | 'cancelled' | 'refunded';
+  /**
+   * Lifecycle states. Keep these mutually exclusive — never co-derive from
+   * other fields (e.g., don't infer 'paid' from a non-null `paidAt`).
+   *
+   * - `draft`           → built but not persisted as awaiting payment yet.
+   * - `pending-payment` → persisted; awaiting Webpay/Stripe/manual capture.
+   *                       The `/billing/webpay/return` endpoint also keeps
+   *                       this status on a transient FAILED so the user can
+   *                       retry the same card.
+   * - `paid`            → captured. Terminal until refund.
+   * - `cancelled`       → reserved for explicit user/admin cancellation
+   *                       (admin-only mark via the mark-paid path, future
+   *                       PR). Do NOT use for card declines.
+   * - `rejected`        → a payment attempt failed (card declined, etc.)
+   *                       but the invoice is still actionable — user may
+   *                       retry with a different card. Distinct from
+   *                       `cancelled`: rejection ≠ cancellation.
+   * - `refunded`        → previously paid, then refunded via the adapter.
+   */
+  status:
+    | 'draft'
+    | 'pending-payment'
+    | 'paid'
+    | 'cancelled'
+    | 'rejected'
+    | 'refunded';
 }
 
 export interface CheckoutRequest {

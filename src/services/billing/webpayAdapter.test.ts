@@ -48,8 +48,11 @@ vi.mock('transbank-sdk', () => {
 // Import AFTER vi.mock is registered.
 import {
   __resetWebpayAdapterStateForTests,
+  acquireWebpayIdempotencyLock,
+  finalizeWebpayIdempotencyLock,
   WebpayAdapterError,
   webpayAdapter,
+  WEBPAY_IDEMPOTENCY_STALE_LOCK_MS,
 } from './webpayAdapter.js';
 
 const ORIGINAL_ENV = { ...process.env };
@@ -179,7 +182,10 @@ describe('webpayAdapter.commitTransaction', () => {
     expect(result.authorizationCode).toBeUndefined();
   });
 
-  it('maps response_code: 0 with non-AUTHORIZED status to REJECTED (defense-in-depth)', async () => {
+  it('maps response_code: 0 with non-AUTHORIZED status to FAILED (malformed defensive)', async () => {
+    // response_code 0 but status != AUTHORIZED is a Transbank shape we never
+    // expect in practice; treat it as malformed (FAILED) so the user can retry,
+    // not as a hard card decline.
     commitMock.mockResolvedValueOnce({
       amount: 11990,
       status: 'PENDING',
@@ -187,7 +193,61 @@ describe('webpayAdapter.commitTransaction', () => {
       response_code: 0,
     });
     const result = await webpayAdapter.commitTransaction('TKN_pending');
+    expect(result.status).toBe('FAILED');
+  });
+
+  it('maps response_code: -3 (card-side decline) to REJECTED', async () => {
+    commitMock.mockResolvedValueOnce({
+      amount: 11990,
+      status: 'FAILED',
+      buy_order: 'inv_test_decline_3',
+      response_code: -3,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_decline_3');
     expect(result.status).toBe('REJECTED');
+  });
+
+  it('maps response_code: -96 (timeout) to FAILED so the user can retry', async () => {
+    commitMock.mockResolvedValueOnce({
+      amount: 11990,
+      status: 'FAILED',
+      buy_order: 'inv_test_timeout_96',
+      response_code: -96,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_timeout_96');
+    expect(result.status).toBe('FAILED');
+  });
+
+  it('maps response_code: -97 (network) to FAILED so the user can retry', async () => {
+    commitMock.mockResolvedValueOnce({
+      amount: 11990,
+      status: 'FAILED',
+      buy_order: 'inv_test_timeout_97',
+      response_code: -97,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_timeout_97');
+    expect(result.status).toBe('FAILED');
+  });
+
+  it('maps response_code: -98 (unavailable) to FAILED so the user can retry', async () => {
+    commitMock.mockResolvedValueOnce({
+      amount: 11990,
+      status: 'FAILED',
+      buy_order: 'inv_test_timeout_98',
+      response_code: -98,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_timeout_98');
+    expect(result.status).toBe('FAILED');
+  });
+
+  it('maps a malformed response (no response_code) to FAILED defensively', async () => {
+    commitMock.mockResolvedValueOnce({
+      // No response_code, no status — Transbank misbehaving / proxy mangled.
+      buy_order: 'inv_test_malformed',
+      amount: 11990,
+    });
+    const result = await webpayAdapter.commitTransaction('TKN_malformed');
+    expect(result.status).toBe('FAILED');
   });
 
   it('wraps SDK commit errors in WebpayAdapterError', async () => {
@@ -233,5 +293,115 @@ describe('webpayAdapter.refundTransaction', () => {
     await expect(
       webpayAdapter.refundTransaction('TKN_old', 1000),
     ).rejects.toBeInstanceOf(WebpayAdapterError);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────
+// Idempotency helpers — `processed_webpay/{token_ws}` lock-then-complete.
+//
+// These tests treat the helper as pure: we pass in a fake Firestore
+// document ref (just the methods the helper actually uses) and inspect
+// the writes. No real Firestore. The same helper is called by
+// `/billing/webpay/return` in server.ts.
+// ───────────────────────────────────────────────────────────────────────
+
+interface FakeDocSnap {
+  exists: boolean;
+  data(): Record<string, any> | undefined;
+}
+
+interface FakeDocRef {
+  get: ReturnType<typeof vi.fn>;
+  set: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
+}
+
+function makeFakeRef(initial: Record<string, any> | null): FakeDocRef {
+  let stored: Record<string, any> | null = initial ? { ...initial } : null;
+  return {
+    get: vi.fn(async () => ({
+      exists: stored !== null,
+      data: () => (stored === null ? undefined : { ...stored }),
+    } as FakeDocSnap)),
+    set: vi.fn(async (data: Record<string, any>, opts?: { merge?: boolean }) => {
+      stored = opts?.merge && stored ? { ...stored, ...data } : { ...data };
+    }),
+    update: vi.fn(async (data: Record<string, any>) => {
+      stored = stored ? { ...stored, ...data } : { ...data };
+    }),
+  };
+}
+
+describe('acquireWebpayIdempotencyLock', () => {
+  it('writes status=in_progress when no doc exists (fresh token)', async () => {
+    const ref = makeFakeRef(null);
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.acquired).toBe(true);
+    expect(result.outcome).toBeUndefined();
+    expect(ref.set).toHaveBeenCalledTimes(1);
+    const [data, opts] = ref.set.mock.calls[0];
+    expect(data.status).toBe('in_progress');
+    expect(opts).toEqual({ merge: true });
+  });
+
+  it('returns acquired=false + outcome when doc is status=done (duplicate redelivery)', async () => {
+    const ref = makeFakeRef({
+      status: 'done',
+      outcome: 'paid',
+      invoiceId: 'inv_abc',
+    });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.acquired).toBe(false);
+    expect(result.alreadyDone).toBe(true);
+    expect(result.outcome).toBe('paid');
+    expect(result.invoiceId).toBe('inv_abc');
+    expect(ref.set).not.toHaveBeenCalled();
+  });
+
+  it('returns acquired=false when another worker holds a fresh in_progress lock', async () => {
+    const lockedAtMs = Date.now() - 30 * 1000; // 30s ago — well within 5 min.
+    const ref = makeFakeRef({
+      status: 'in_progress',
+      lockedAtMs,
+    });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.acquired).toBe(false);
+    expect(result.alreadyDone).toBeFalsy();
+    expect(result.inFlight).toBe(true);
+    expect(ref.set).not.toHaveBeenCalled();
+  });
+
+  it('steals a stale in_progress lock (older than the staleness window)', async () => {
+    const lockedAtMs = Date.now() - (WEBPAY_IDEMPOTENCY_STALE_LOCK_MS + 1000);
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.acquired).toBe(true);
+    expect(ref.set).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('finalizeWebpayIdempotencyLock', () => {
+  it('writes status=done with outcome + invoiceId on success', async () => {
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs: Date.now() });
+    await finalizeWebpayIdempotencyLock(ref as any, {
+      outcome: 'paid',
+      invoiceId: 'inv_finalize_1',
+    });
+    expect(ref.update).toHaveBeenCalledTimes(1);
+    const [payload] = ref.update.mock.calls[0];
+    expect(payload.status).toBe('done');
+    expect(payload.outcome).toBe('paid');
+    expect(payload.invoiceId).toBe('inv_finalize_1');
+  });
+
+  it('does NOT throw when finalize update fails (best-effort)', async () => {
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs: Date.now() });
+    ref.update.mockRejectedValueOnce(new Error('firestore unavailable'));
+    await expect(
+      finalizeWebpayIdempotencyLock(ref as any, {
+        outcome: 'paid',
+        invoiceId: 'inv_finalize_2',
+      }),
+    ).resolves.toBeUndefined();
   });
 });

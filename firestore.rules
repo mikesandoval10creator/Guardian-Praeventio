@@ -2,6 +2,13 @@ rules_version = '2';
 // Role identifiers (admin/gerente/supervisor/medico_ocupacional/worker/etc.)
 // MUST match src/types/roles.ts. The scripts/verify-roles-sync.cjs script
 // is run in CI to enforce that this file and roles.ts agree.
+//
+// TODO(billing): the `processed_webpay/{token_ws}` collection (added with
+// the Webpay return-URL idempotency lock — server.ts /billing/webpay/return)
+// is intentionally server-only. The default-deny rule below covers it; do
+// NOT add a client-readable rule for it without a threat-model review
+// (token_ws is short-lived but pairs with invoice ids — same sensitivity
+// envelope as `invoices/{id}` and `processed_pubsub/{messageId}`).
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
