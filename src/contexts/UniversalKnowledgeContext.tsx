@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { RiskNode, EnvironmentContext } from '../types';
-import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, collection, onSnapshot, query, orderBy, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
+import { useProject } from './ProjectContext';
 import { fetchEnvironmentContext } from '../services/orchestratorService';
 
 import { get, set } from 'idb-keyval';
@@ -30,11 +31,12 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   const [loading, setLoading] = useState(true);
   const [environment, setEnvironment] = useState<EnvironmentContext | null>(null);
   const { isAuthReady, user, userIndustry } = useFirebase();
+  const { selectedProject } = useProject();
 
   // Fetch Environment Data (Orchestrator)
   useEffect(() => {
     let isMounted = true;
-    
+
     const loadEnvironment = async () => {
       try {
         const envData = await fetchEnvironmentContext();
@@ -47,10 +49,10 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     };
 
     loadEnvironment();
-    
+
     // Refresh environment data every 15 minutes
     const interval = setInterval(loadEnvironment, 15 * 60 * 1000);
-    
+
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -65,10 +67,34 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       return;
     }
 
-    // Subscribe to ALL nodes the user has access to
-    // The security rules will handle the filtering based on RBAC
-    const q = query(collection(db, 'nodes'), orderBy('updatedAt', 'desc'));
-    
+    // No project selected → don't subscribe yet. We surface an empty list
+    // and `loading=false` so consumers can render their "select a project"
+    // empty states. Without this guard we would issue a wide-open
+    // collection query that the security rules would reject (and hammer
+    // Firestore on every render).
+    if (!selectedProject) {
+      setNodes([]);
+      setLoading(false);
+      return;
+    }
+
+    // Round 14 Task 4: scope the subscription to the active project.
+    //
+    // Previously this query loaded every node the user could read across
+    // every project in their org, then `projectClusters` re-bucketed them
+    // by `projectId` on the client. That worked for a few hundred nodes
+    // but doesn't scale, and it leaked node titles from one project into
+    // the global graph rendering for users who multitask across projects.
+    //
+    // The same `where('projectId','==',selectedProject.id)` filter is
+    // already used by `useRiskEngine.ts:36` for the per-project graph
+    // view, so the data shape is consistent across the two consumers.
+    const q = query(
+      collection(db, 'nodes'),
+      where('projectId', '==', selectedProject.id),
+      orderBy('updatedAt', 'desc'),
+    );
+
     const unsubscribeNodes = onSnapshot(q, (snapshot) => {
       const newNodes = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -78,7 +104,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
           description: data.description || data.content || ''
         };
       }) as RiskNode[];
-      
+
       setNodes(newNodes);
       setLoading(false);
     }, (error) => {
@@ -109,7 +135,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     });
 
     return () => unsubscribeNodes();
-  }, [isAuthReady, user, userIndustry]);
+  }, [isAuthReady, user, userIndustry, selectedProject?.id]);
 
   const projectClusters = useMemo(() => {
     return nodes.reduce((acc, node) => {
@@ -130,7 +156,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       nodesByType[node.type] = (nodesByType[node.type] || 0) + 1;
       totalConnections += node.connections.length;
       if (node.projectId) projectIds.add(node.projectId);
-      
+
       // Heuristic for high risk nodes (can be refined)
       if (node.type === 'Riesgo' && (node.tags.includes('Crítico') || node.tags.includes('Alto'))) {
         highRiskNodes++;

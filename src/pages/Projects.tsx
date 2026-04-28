@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
+import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
@@ -39,7 +40,7 @@ import { get } from 'idb-keyval';
 import type { PredictedActivity } from '../services/calendar/predictions';
 
 export function Projects() {
-  const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
+  const { projects, createProject, loading, error: projectsError, selectedProject, setSelectedProject } = useProject();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -251,6 +252,8 @@ export function Projects() {
 
   return (
     <div className="flex-1 w-full p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+      <DataLoadErrorBanner error={projectsError} resourceLabel="los proyectos" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div className="min-w-0">

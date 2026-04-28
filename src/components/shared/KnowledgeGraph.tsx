@@ -27,8 +27,36 @@ import { analyzeRootCauses } from '../../services/geminiService';
 import jsPDF from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 
-export function KnowledgeGraph() {
-  const { getGraphData, loading } = useRiskEngine();
+/**
+ * Props for {@link KnowledgeGraph}.
+ *
+ * `controlledSelectedId` is an OPTIONAL inversion-of-control hook used by
+ * deep-link consumers (currently `RiskNetwork.tsx`) to programmatically
+ * surface a node when arriving from `/risk-network?node=<id>`. When set
+ * AND the matching node has loaded into `getGraphData()`, the component
+ * promotes it to `selectedNode` (opening the detail drawer) and pans the
+ * 2D camera onto it — matching the click behaviour of `handleNodeClick`.
+ *
+ * Contract:
+ *   - `null` / `undefined` is the uncontrolled default; the component
+ *     manages selection through user clicks alone.
+ *   - The effect re-runs whenever the prop *or* `nodes.length` changes,
+ *     so a deep-link that arrives before nodes settle still resolves
+ *     once the graph data is ready (the `RiskNetwork` page deep-link is
+ *     validated against loaded ids, so a missing id won't fire here).
+ *   - We only react to changes — an external user click (which mutates
+ *     internal `selectedNode` directly) is NOT clobbered as long as the
+ *     prop hasn't changed.
+ *   - The 3D camera path is not exercised today (the deep-link arrives
+ *     before users toggle 3D), so we centre via `centerAt` only. 3D
+ *     framing is a follow-up if/when a deep-link toggles `is3D` first.
+ */
+interface KnowledgeGraphProps {
+  controlledSelectedId?: string | null;
+}
+
+export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {}) {
+  const { nodes, getGraphData, loading } = useRiskEngine();
   const graphRef = useRef<ForceGraphMethods>(null);
   const graph3DRef = useRef<any>(null);
   const [selectedNode, setSelectedNode] = useState<RiskNode | null>(null);
@@ -323,6 +351,48 @@ export function KnowledgeGraph() {
     }
   }, [is3D]);
 
+  // Apply external `controlledSelectedId` once nodes have loaded.
+  //
+  // Wiring:
+  //   1. RiskNetwork.tsx resolves `?node=<id>` → passes here.
+  //   2. We look up the node in `graphData.nodes` (the FILTERED set the
+  //      ForceGraph renders, which includes the d3-attached `x`/`y` once
+  //      simulation has settled).
+  //   3. If found, we set `selectedNode` (opens drawer + drives Backlinks
+  //      computation) and pan the camera. We use the same `centerAt(...,
+  //      1000)` call as `handleNodeClick` so the UX is consistent.
+  //
+  // Edge cases:
+  //   - Node exists in raw data but is filtered out (e.g. user has the
+  //     "orphan" filter active and the deep-linked node is connected):
+  //     we silently no-op rather than mutate `filter`. Surfacing this
+  //     would require feedback UI that isn't in scope this round.
+  //   - `x`/`y` may still be `undefined` on first render before d3 attaches
+  //     positions; `centerAt(undefined, undefined, ...)` is a no-op in
+  //     react-force-graph, so we set `selectedNode` regardless and the
+  //     camera will catch up on the next render where positions exist.
+  useEffect(() => {
+    if (!controlledSelectedId) return;
+    if (graphData.nodes.length === 0) return;
+    // If the user already has this node selected, skip — avoids a
+    // re-pan loop if the parent re-renders.
+    if (selectedNode?.id === controlledSelectedId) return;
+
+    const target = graphData.nodes.find((n: any) => n.id === controlledSelectedId);
+    if (!target) return;
+
+    setSelectedNode(target as RiskNode);
+
+    if (!is3D && graphRef.current && typeof (target as any).x === 'number' && typeof (target as any).y === 'number') {
+      graphRef.current.centerAt((target as any).x, (target as any).y, 1000);
+      graphRef.current.zoom(2, 1000);
+    }
+    // Note: depend on `graphData.nodes.length` (not the array) so we
+    // re-run once data lands, but don't churn when force-sim updates
+    // node coordinates each tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledSelectedId, graphData.nodes.length, is3D]);
+
   if (loading) {
     return (
       <div className="w-full h-[600px] flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-white/5">
@@ -587,6 +657,75 @@ export function KnowledgeGraph() {
                   </div>
                 </div>
               )}
+
+              {/*
+                * Backlinks panel — Round 14 Task 3.
+                *
+                * Shows every node that *points to* the currently selected
+                * node (i.e. the inbound edges). Distinct from the outgoing
+                * `selectedNode.connections` list because the graph stores
+                * bidirectional edges as two separate arrayUnion writes
+                * (see networkBackend.ts step 4): a node can technically
+                * appear here without being in `selectedNode.connections`
+                * if a write was partially applied. We compute fresh from
+                * the live `nodes` array each render so any drift surfaces
+                * immediately rather than relying on stale `connections`.
+                *
+                * Clicking a backlink pivots the drawer to that node by
+                * routing through `handleNodeClick`, so the camera pan +
+                * Backlinks recompute fire as if the user had clicked
+                * directly on the graph.
+                */}
+              {(() => {
+                const backlinks = nodes.filter(
+                  (n) => n.id !== selectedNode.id && Array.isArray(n.connections) && n.connections.includes(selectedNode.id),
+                );
+                return (
+                  <div className="space-y-3 sm:space-y-4">
+                    <h4 className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                      Referencias entrantes
+                      {backlinks.length > 0 && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-zinc-100 dark:bg-white/5 rounded text-zinc-600 dark:text-zinc-400 text-[8px]">
+                          {backlinks.length}
+                        </span>
+                      )}
+                    </h4>
+                    {backlinks.length === 0 ? (
+                      <p className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-500 italic leading-relaxed">
+                        Ningún nodo apunta a este aún.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5 sm:space-y-2">
+                        {backlinks.map((bl) => {
+                          const Icon = getNodeIcon(bl.type);
+                          return (
+                            <li key={bl.id}>
+                              <button
+                                type="button"
+                                onClick={() => handleNodeClick(bl)}
+                                className="w-full flex items-center gap-2 px-2.5 py-2 bg-zinc-50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-lg sm:rounded-xl transition-colors text-left"
+                              >
+                                <span
+                                  className="shrink-0 w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: getNodeColor(bl.type, bl) }}
+                                  aria-hidden="true"
+                                />
+                                <Icon className="w-3 h-3 text-zinc-500 dark:text-zinc-400 shrink-0" />
+                                <span className="text-[10px] sm:text-[11px] font-bold text-zinc-700 dark:text-zinc-300 truncate">
+                                  {bl.title}
+                                </span>
+                                <span className="ml-auto text-[8px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-600 shrink-0">
+                                  {bl.type}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })()}
 
               {selectedNode.tags.length > 0 && (
                 <div className="space-y-3 sm:space-y-4">

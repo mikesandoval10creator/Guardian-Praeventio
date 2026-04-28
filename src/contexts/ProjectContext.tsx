@@ -35,6 +35,11 @@ interface ProjectContextType {
   setSelectedProject: (project: Project | null) => void;
   createProject: (project: Omit<Project, 'id'>) => Promise<string>;
   loading: boolean;
+  // Round 14 Task 5: surface the Firestore subscription error so the
+  // Projects page can render a Spanish-CL error banner. `null` when the
+  // last snapshot succeeded; populated only when `onSnapshot`'s error
+  // callback fires (typically permission-denied or offline-without-cache).
+  error: Error | null;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -43,12 +48,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [fetchedProjects, setFetchedProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const { isAuthReady, user, isAdmin } = useFirebase();
   const pendingActions = usePendingActions('projects');
 
   const projects = useMemo(() => {
     let combined = [...fetchedProjects];
-    
+
     pendingActions.forEach(action => {
       if (action.type === 'update' && action.data.id) {
         const index = combined.findIndex(p => p.id === action.data.id);
@@ -59,7 +65,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         combined = combined.filter(p => p.id !== action.data.id);
       }
     });
-    
+
     const pendingCreates = pendingActions
       .filter(a => a.type === 'create')
       .map(a => ({
@@ -67,7 +73,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         id: `pending-${a.id}`,
         isPendingSync: true
       })) as Project[];
-      
+
     return [...pendingCreates, ...combined];
   }, [fetchedProjects, pendingActions]);
 
@@ -91,7 +97,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       const { addDoc } = await import('firebase/firestore');
       const { seedGlobalData } = await import('../services/seedService');
-      
+
       const docRef = await addDoc(collection(db, 'projects'), {
         ...projectData,
         createdAt: new Date().toISOString(),
@@ -113,6 +119,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (!isAuthReady || !user) {
       setFetchedProjects([]);
       setSelectedProject(null);
+      setError(null);
       setLoading(false);
       return;
     }
@@ -123,30 +130,33 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     } else {
       q = query(collection(db, 'projects'), where('members', 'array-contains', user.uid));
     }
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const newProjects = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Project[];
-      
+
       setFetchedProjects(newProjects);
-      
+      setError(null);
+
       // Auto-select first project if none selected
       if (newProjects.length > 0 && !selectedProject) {
         setSelectedProject(newProjects[0]);
       }
-      
+
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'projects');
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'projects');
+      setError(err as Error);
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [isAuthReady, user]);
 
   return (
-    <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading }}>
+    <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading, error }}>
       {children}
     </ProjectContext.Provider>
   );

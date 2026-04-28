@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
+import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 import { Worker } from '../types';
 import { AddWorkerModal } from '../components/workers/AddWorkerModal';
 import { EditWorkerModal } from '../components/workers/EditWorkerModal';
@@ -77,7 +78,7 @@ export function Workers() {
   };
 
   // Query workers for the selected project (now automatically includes pending actions)
-  const { data: workers, loading } = useFirestoreCollection<Worker & { isPendingSync?: boolean }>(collectionPath);
+  const { data: workers, loading, error: workersError } = useFirestoreCollection<Worker & { isPendingSync?: boolean }>(collectionPath);
   
   const filteredWorkers = workers.filter(worker => {
     const matchesSearch = (worker.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
@@ -121,6 +122,8 @@ export function Workers() {
           </button>
         </div>
       </div>
+
+      <DataLoadErrorBanner error={workersError} resourceLabel="los trabajadores" />
 
       {/* Filters & Search */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6">

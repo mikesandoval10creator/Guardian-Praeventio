@@ -1,6 +1,11 @@
 import { writeBatch, doc } from 'firebase/firestore';
 import { db } from './firebase';
-import { generateEmbeddingsBatch, autoConnectNodes, syncBatchToNetwork } from './geminiService';
+// `autoConnectNodes` was previously imported here but never invoked
+// (Round 14 A2 dead-code finding). It is now wired into the server-side
+// `syncNodeToNetwork` step in `services/networkBackend.ts`, where the
+// recent-nodes lookup runs against Firestore admin instead of the
+// client-side cache. See that file's step 5 comment for rationale.
+import { generateEmbeddingsBatch, syncBatchToNetwork } from './geminiService';
 import { RiskNode } from '../types';
 import { get, set, del } from 'idb-keyval';
 import { logger } from '../utils/logger';

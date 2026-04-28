@@ -16,6 +16,7 @@ import { get } from 'idb-keyval';
 import { logger } from '../utils/logger';
 
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
+import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 
 /**
  * Pure resolver for the `?node=` deep-link query parameter.
@@ -43,7 +44,7 @@ export function resolveSelectedNodeIdFromSearch(
 }
 
 export function RiskNetwork() {
-  const { nodes, loading } = useRiskEngine();
+  const { nodes, loading, error: nodesError } = useRiskEngine();
   const [activeTab, setActiveTab] = useState<'graph' | 'explorer' | 'health' | 'manager'>('graph');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiInsight, setAiInsight] = useState<any>(null);
@@ -136,6 +137,8 @@ export function RiskNetwork() {
       data-page="risk-network"
       data-selected-node-id={selectedNodeId ?? ''}
     >
+        <DataLoadErrorBanner error={nodesError} resourceLabel="la red neuronal" />
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -217,7 +220,7 @@ export function RiskNetwork() {
                   <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Interactúa con los nodos para ver detalles</span>
                 </div>
               </div>
-              <KnowledgeGraph />
+              <KnowledgeGraph controlledSelectedId={selectedNodeId} />
             </motion.div>
           )}
 

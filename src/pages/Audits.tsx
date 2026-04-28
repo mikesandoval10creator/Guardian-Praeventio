@@ -22,6 +22,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { AddAuditModal } from '../components/audits/AddAuditModal';
 import { SafetyInspection } from '../components/safety/SafetyInspection';
 import { ISOAudit } from '../components/audits/ISOAudit';
+import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 const AuditDetailModal = lazy(() => import('../components/audits/AuditDetailModal').then(m => ({ default: m.AuditDetailModal })));
 
 export function Audits() {
@@ -29,7 +30,7 @@ export function Audits() {
   const [selectedAudit, setSelectedAudit] = useState<RiskNode | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<'history' | 'inspection' | 'iso'>('history');
-  const { nodes, loading } = useRiskEngine();
+  const { nodes, loading, error: nodesError } = useRiskEngine();
   const { selectedProject } = useProject();
 
   const audits = nodes.filter(n => 
@@ -50,6 +51,8 @@ export function Audits() {
 
   return (
     <div className="p-4 max-w-5xl mx-auto space-y-6">
+      <DataLoadErrorBanner error={nodesError} resourceLabel="las auditorías" />
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
