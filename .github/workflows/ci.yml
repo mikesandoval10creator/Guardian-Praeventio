@@ -7,6 +7,19 @@ on:
     branches: [main]
 
 jobs:
+  verify-roles:
+    name: RBAC roles sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify src/types/roles.ts and firestore.rules agree
+        run: node scripts/verify-roles-sync.cjs
+
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest

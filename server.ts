@@ -12,6 +12,7 @@ import { initializeRAG } from "./src/services/ragService.js";
 import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
+import { isValidRole } from "./src/types/roles.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -224,8 +225,7 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden: Requires gerente role" });
     }
 
-    const VALID_ROLES = ['gerente', 'prevencionista', 'supervisor', 'trabajador', 'medico'];
-    if (!VALID_ROLES.includes(role)) {
+    if (!isValidRole(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 

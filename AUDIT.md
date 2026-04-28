@@ -82,27 +82,19 @@ Los callbacks OAuth de Google Calendar/Fit y Drive envían los tokens completos 
 
 ## 🟠 Alto
 
-### 2. Roles inconsistentes entre `server.ts` y `firestore.rules`
+### 2. ~~Roles inconsistentes entre `server.ts` y `firestore.rules`~~ ✅ RESUELTO
 
-**`server.ts:227`** declara:
-```ts
-const VALID_ROLES = ['gerente', 'prevencionista', 'supervisor', 'trabajador', 'medico'];
-```
+Antes:
+- `server.ts:227` declaraba `['gerente', 'prevencionista', 'supervisor', 'trabajador', 'medico']`
+- `firestore.rules` esperaba 16 roles incluyendo `'medico_ocupacional'`, `'worker'`, y 9 oficios.
+- Resultado: un admin podía asignar `'medico'` desde `/api/admin/set-role` pero las rules lo rechazaban silenciosamente porque esperaban `'medico_ocupacional'`.
 
-**`firestore.rules`** acepta:
-```
-'admin', 'gerente', 'supervisor', 'prevencionista', 'director_obra',
-'medico_ocupacional', 'topografo', 'pintor', 'maquinista', 'electrico',
-'soldador', 'mecanico', 'operario', 'contratista', 'worker'
-```
-
-Discrepancias:
-- Server permite `'trabajador'` y `'medico'`; rules esperan `'worker'` y `'medico_ocupacional'`.
-- Server no permite los oficios (`topografo`, `electrico`, etc.) que las rules sí aceptan.
-
-**Riesgo:** un admin asigna rol válido en server (`'medico'`), las rules niegan acceso porque esperan `'medico_ocupacional'`. Bug latente en RBAC.
-
-**Recomendación:** definir la lista de roles en un único módulo TS, generar las rules desde ahí o derivar el array desde una constante compartida.
+Resolución:
+- **`src/types/roles.ts`** — fuente única de verdad con `ADMIN_ROLES`, `SUPERVISOR_ROLES`, `DOCTOR_ROLES`, `WORKER_ROLES` y los type guards `isAdminRole/isSupervisorRole/isDoctorRole/isWorkerRole/isValidRole`.
+- **`server.ts`** ahora importa `isValidRole` del módulo central; el `VALID_ROLES` hardcoded fue eliminado.
+- **`firestore.rules`** lleva un comentario en cabecera apuntando al source of truth.
+- **`scripts/verify-roles-sync.cjs`** verifica que ambos archivos declaren los mismos identificadores. Falla con un diff visible si divergen.
+- **CI** corre el verificador en cada PR como job dedicado (`verify-roles`), separado del typecheck para que falle rápido y barato.
 
 ### 3. Sin tests
 

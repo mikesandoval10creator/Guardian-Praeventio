@@ -1,4 +1,7 @@
 rules_version = '2';
+// Role identifiers (admin/gerente/supervisor/medico_ocupacional/worker/etc.)
+// MUST match src/types/roles.ts. The scripts/verify-roles-sync.cjs script
+// is run in CI to enforce that this file and roles.ts agree.
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
