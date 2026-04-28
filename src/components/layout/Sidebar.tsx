@@ -68,6 +68,7 @@ import { ProjectSelector } from "./ProjectSelector";
 import { logOut } from "../../services/firebase";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { useSubscription } from "../../contexts/SubscriptionContext";
+import { NormativaSwitch } from "../normativa/NormativaSwitch";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
 
@@ -342,6 +343,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
 
         {/* Footer */}
         <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4eb5ac] dark:bg-zinc-950 shrink-0 space-y-2">
+          {/* Country normativa selector — mobile only (topbar covers md+) */}
+          <div className="md:hidden flex justify-center pb-2 border-b border-zinc-200/50 dark:border-white/5">
+            <NormativaSwitch />
+          </div>
+
           <button
             onClick={() => setShowSurvivalMode(true)}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 transition-all duration-200 border border-rose-500/20"

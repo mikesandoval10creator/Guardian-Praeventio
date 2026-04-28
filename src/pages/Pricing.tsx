@@ -32,7 +32,7 @@ import {
   useCurrency,
 } from '../components/pricing/CurrencyToggle';
 
-import { NormativaSwitch, NormativaProvider } from '../components/normativa/NormativaSwitch';
+import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
 
 // Payments are processed exclusively through Google Play Billing on the native app.
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
@@ -531,9 +531,7 @@ function PricingInner() {
 export function Pricing() {
   return (
     <CurrencyProvider>
-      <NormativaProvider>
-        <PricingInner />
-      </NormativaProvider>
+      <PricingInner />
     </CurrencyProvider>
   );
 }
