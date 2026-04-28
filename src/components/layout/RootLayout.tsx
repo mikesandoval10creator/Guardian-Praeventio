@@ -20,6 +20,7 @@ import { NormativaSwitch } from '../normativa/NormativaSwitch';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
+import { CookieConsent } from '../legal/CookieConsent';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -157,6 +158,7 @@ export function RootLayout() {
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#4eb5ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-emerald-500/30 flex flex-col transition-colors duration-300">
+      <CookieConsent />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />

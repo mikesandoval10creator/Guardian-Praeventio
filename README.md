@@ -12,6 +12,15 @@
 
 ---
 
+## Soporte
+
+- General: soporte@praeventio.net
+- Privacidad: privacidad@praeventio.net
+- Comercial / Enterprise: ventas@praeventio.net
+- Bugs: https://github.com/mikesandoval10creator/Guardian-Praeventio/issues
+
+---
+
 ## Características principales
 
 - **El Guardián** — asistente IA con RAG sobre la base normativa chilena (BCN, ISO).
