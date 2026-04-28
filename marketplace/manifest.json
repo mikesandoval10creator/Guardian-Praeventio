@@ -1,0 +1,81 @@
+{
+  "_comment_top": "Praeventio Guard — Google Workspace Marketplace SDK config TEMPLATE. Each `_form_section` field maps to a section of the Marketplace SDK 'App Configuration' page in GCP Console (APIs & Services → Marketplace SDK → App Configuration). Copy values verbatim into the form. JSON comments are illegal in strict JSON, so we use sibling `_form_section_*` keys to document mapping; strip them before any tool that validates schema.",
+
+  "name": "Guardian Praeventio",
+  "_form_section_name": "App Configuration → App name (max 50 chars). Must match OAuth Consent Screen 'App name' EXACTLY or the listing is rejected.",
+
+  "description": "Plataforma de prevención de riesgos laborales con IA para Chile y LATAM. Cumplimiento DS 54 / DS 40 / Ley 16.744 + ISO 45001.",
+  "_form_section_description": "App Configuration → Short description (max 200 chars). Same string also goes into the Listing form 'Short description' field — keep them identical.",
+
+  "supportContact": "soporte@praeventio.net",
+  "_form_section_supportContact": "App Configuration → Support contact. Must be a real inbox monitored ≥ 1 business day. Google sends reviewer questions here.",
+
+  "developerName": "Praeventio Guard SpA",
+  "_form_section_developerName": "App Configuration → Developer name. Use the legal SpA name once incorporated; until then use 'Praeventio Guard' as a doing-business-as.",
+
+  "developerWebsite": "https://praeventio.net",
+  "_form_section_developerWebsite": "App Configuration → Developer website. Domain MUST be verified in Search Console under the same Google account submitting the listing.",
+
+  "privacyPolicyUrl": "https://praeventio.net/privacy",
+  "_form_section_privacyPolicyUrl": "App Configuration → Privacy policy URL. Must return 200 over HTTPS, must be in the same domain or a verified subdomain. Reviewers click this link.",
+
+  "termsOfServiceUrl": "https://praeventio.net/terms",
+  "_form_section_termsOfServiceUrl": "App Configuration → Terms of service URL. Same domain rule. Spanish-CL primary text recommended for our market.",
+
+  "universalNavigationUrl": "https://app.praeventio.net",
+  "_form_section_universalNavigationUrl": "App Integration → Universal navigation URL (the deep link Workspace launches when an admin clicks the app icon in the Workspace app launcher). Must serve a logged-in app surface, not the marketing homepage.",
+
+  "categories": ["productivity", "safety", "industry"],
+  "_form_section_categories": "Listing → Categories. Pick up to 3 from Google's enum. 'Productivity' + 'Industry-specific' (Mining/Construction/Health) are the closest matches. 'safety' is illustrative — confirm exact enum at submit time.",
+
+  "languages": ["es-CL", "es-419", "en"],
+  "_form_section_languages": "Listing → Supported languages. es-CL primary; es-419 for LATAM Spanish; en as international fallback.",
+
+  "supportedRegions": ["CL", "PE", "CO", "MX", "AR", "BR", "GLOBAL"],
+  "_form_section_supportedRegions": "Listing → Region availability. PRICING.md commits to multi-país sin recargo, ISO 45001 fallback for any country.",
+
+  "oauth": {
+    "scopes": [
+      "openid",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/drive.file"
+    ],
+    "_form_section_scopes": "App Integration → OAuth scopes. Each scope listed here MUST also be listed on the OAuth Consent Screen page AND have a justification in scope-justifications.md. Sensitive scopes (calendar.events, drive.file) trigger OAuth verification (5-15 business days).",
+    "deprecatedScopes": [
+      "https://www.googleapis.com/auth/fitness.activity.read",
+      "https://www.googleapis.com/auth/fitness.heart_rate.read",
+      "https://www.googleapis.com/auth/fitness.body.read"
+    ],
+    "_form_section_deprecatedScopes": "DO NOT submit these to Google. The Google Fit REST API sunsets 2026-12-31; we are migrating to Health Connect (Android) + HealthKit (iOS), both on-device, no OAuth scope. See HEALTH_CONNECT_MIGRATION.md. Listed here only for our own audit trail."
+  },
+
+  "visibility": "public",
+  "_form_section_visibility": "App Configuration → Visibility. 'public' = listed in the public Marketplace. 'unlisted' = direct-link-only. 'private' = single-domain only. We want public.",
+
+  "installSettings": {
+    "individualInstall": true,
+    "domainWideInstall": true,
+    "minimumWorkspaceTier": "any",
+    "_form_section_individualInstall": "App Configuration → Allow individual install (workers can install on personal Workspace).",
+    "_form_section_domainWideInstall": "App Configuration → Allow domain-wide install (Workspace admins can install for entire org). Required for Titanio+ enterprise tier from PRICING.md.",
+    "_form_section_minimumWorkspaceTier": "App Configuration → Minimum Workspace edition. 'any' covers Business Starter and up. We do not require Enterprise."
+  },
+
+  "branding": {
+    "iconUrl": "https://app.praeventio.net/icons/marketplace-128.png",
+    "promoBannerUrl": "https://app.praeventio.net/marketplace/banner-220x140.png",
+    "_form_section_iconUrl": "Branding → App icon (128×128 PNG with transparency). See assets-spec.md.",
+    "_form_section_promoBannerUrl": "Branding → Promo banner (220×140). See assets-spec.md."
+  },
+
+  "_unfilled_form_fields_to_complete_in_console": [
+    "App Configuration → Pub/Sub topic for events (optional; needed only if we subscribe to install/uninstall webhooks). Decide at submit time.",
+    "App Integration → Drive integration manifest (optional; only if we register file extensions). Skip for v1.",
+    "App Integration → Gmail integration (Add-on manifest; not applicable v1).",
+    "App Integration → Calendar add-on manifest (we hit Calendar API server-side, not as an add-on; skip).",
+    "Pricing → Pricing model. The form does NOT yet support our 10-tier hybrid model; pick 'External pricing' and link to https://praeventio.net/pricing.",
+    "Distribution → Featured request (after first 100 installs)."
+  ]
+}
