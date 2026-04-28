@@ -15,6 +15,15 @@ import { updateGlobalEnvironmentalContext } from "./src/services/environmentBack
 import { isValidRole, isAdminRole } from "./src/types/roles.js";
 import { saveTokens, getValidAccessToken, revokeTokens } from "./src/services/oauthTokenStore.js";
 import { logger } from "./src/utils/logger.js";
+import { buildInvoice } from "./src/services/billing/invoice.js";
+import type {
+  CheckoutRequest,
+  CheckoutResponse,
+  CurrencyCode,
+  PaymentMethod,
+} from "./src/services/billing/types.js";
+import { webpayAdapter } from "./src/services/billing/webpayAdapter.js";
+import { stripeAdapter } from "./src/services/billing/stripeAdapter.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -699,6 +708,71 @@ app.get("/auth/google/callback", async (req, res) => {
 // Proxy for Google Calendar API to avoid CORS.
 // Uses tokens stored server-side via /auth/google/callback; the client never
 // holds an OAuth access_token or refresh_token.
+// List upcoming Calendar events (next 30 days) for predictive features.
+// Used by useCalendarPredictions to detect already-scheduled CPHS meetings,
+// ODI trainings, etc. and suppress duplicate suggestions.
+app.get("/api/calendar/list", verifyAuth, async (req, res) => {
+  const uid = (req as any).user.uid;
+  const accessToken = await getValidAccessToken(
+    { uid, provider: 'google' },
+    GOOGLE_CLIENT_ID || "",
+    GOOGLE_CLIENT_SECRET || "",
+  );
+  if (!accessToken) {
+    // Caller treats empty list as "no calendar" — return 200 with [] so the
+    // predictions hook doesn't surface a noisy error to the user when they
+    // haven't linked Google Calendar yet.
+    return res.json({ items: [] });
+  }
+  try {
+    const now = new Date();
+    const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const params = new URLSearchParams({
+      timeMin: now.toISOString(),
+      timeMax: in30Days.toISOString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '100',
+    });
+    const response = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!response.ok) {
+      logger.warn('calendar_list_upstream_failed', { uid, status: response.status });
+      return res.json({ items: [] });
+    }
+    const data = await response.json();
+    res.json({ items: data.items ?? [] });
+  } catch (error: any) {
+    logger.error('calendar_list_failed', { uid, message: error?.message });
+    res.json({ items: [] }); // graceful degradation
+  }
+});
+
+// 3-day climate forecast endpoint for the Zettelkasten climate-risk coupling.
+// Reads from environmentBackend; returns shape: { forecast: ClimateForecastDay[] }.
+// Best-effort: if upstream OpenWeather is unavailable, returns empty forecast.
+app.get("/api/environment/forecast", async (req, res) => {
+  const days = Math.min(7, Math.max(1, parseInt(String(req.query.days ?? '3'), 10) || 3));
+  try {
+    // environmentBackend currently exposes updateGlobalEnvironmentalContext
+    // for current weather. A dedicated multi-day getForecast helper is a
+    // follow-up; for now we degrade gracefully so useCalendarPredictions
+    // doesn't crash and just skips climate-risk node generation.
+    const mod = (await import('./src/services/environmentBackend.js')) as Record<string, unknown>;
+    const getForecast = mod.getForecast as ((d: number) => Promise<unknown[]>) | undefined;
+    if (typeof getForecast === 'function') {
+      const forecast = await getForecast(days);
+      return res.json({ forecast });
+    }
+    res.json({ forecast: [] });
+  } catch (error: any) {
+    logger.warn('environment_forecast_failed', { days, message: error?.message });
+    res.json({ forecast: [] });
+  }
+});
+
 app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
   const { challenges } = req.body;
   const uid = (req as any).user.uid;
@@ -1943,6 +2017,275 @@ app.post("/api/billing/webhook", async (req, res) => {
     // a fresh attempt — see the comment block at the top of this handler.
     logger.error("rtdn_webhook_failed", error);
     res.status(500).send("Webhook processing failed");
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Chilean B2B Billing scaffolding (IMP5)
+//
+// Two endpoints:
+//   POST /api/billing/checkout              — create invoice + (eventually)
+//                                             redirect URL for Webpay/Stripe.
+//   POST /api/billing/invoice/:id/mark-paid — admin manual fallback for
+//                                             transferencia bancaria.
+//
+// Persistence:
+//   Invoices are written to the `invoices/{id}` Firestore collection via the
+//   Admin SDK only. firestore.rules treats this collection as default-deny
+//   (server-only writes) — clients must NEVER read/write it directly. Do
+//   not add a rule for `invoices/{id}` without an explicit threat-model
+//   review; a wrong rule there leaks tax data and PII.
+//
+// Real provider integration is NOT in this commit — `webpayAdapter` and
+// `stripeAdapter` throw on every method except `isConfigured()`. See
+// BILLING.md for the runbook to wire transbank-sdk + stripe.
+// ───────────────────────────────────────────────────────────────────────────
+
+// Tier pricing fallback: real source of truth is
+// `src/services/pricing/tiers.ts` (IMP1's territory). Until that lands, we
+// read from a small inline table mirroring `tiers.test.ts` so this endpoint
+// type-checks and serves a 5xx with a helpful message for unknown tiers
+// rather than crashing on import.
+type BillingTier = {
+  clpRegular: number;
+  clpAnual: number;
+  usdRegular: number;
+  usdAnual: number;
+};
+const BILLING_TIER_FALLBACK: Record<string, BillingTier> = {
+  // Net amounts (pre-IVA) for CLP; display amounts (incl IVA) live in tiers.ts.
+  // 10075 * 1.19 = 11989.25 → ceil 11990 (matches tiers.test.ts)
+  'comite-paritario': { clpRegular: 10075, clpAnual: 81504, usdRegular: 13, usdAnual: 130 },
+  'departamento-prevencion': { clpRegular: 26042, clpAnual: 250416, usdRegular: 33, usdAnual: 330 },
+  'plata': { clpRegular: 42849, clpAnual: 411513, usdRegular: 54, usdAnual: 540 },
+  'oro': { clpRegular: 76462, clpAnual: 734040, usdRegular: 96, usdAnual: 960 },
+  'titanio': { clpRegular: 210076, clpAnual: 2016720, usdRegular: 263, usdAnual: 2630 },
+  'diamante': { clpRegular: 420160, clpAnual: 4033536, usdRegular: 526, usdAnual: 5260 },
+  'empresarial': { clpRegular: 1260496, clpAnual: 12099960, usdRegular: 1578, usdAnual: 15780 },
+  'corporativo': { clpRegular: 2521000, clpAnual: 24201600, usdRegular: 3158, usdAnual: 31580 },
+  'ilimitado': { clpRegular: 5042008, clpAnual: 48403252, usdRegular: 6315, usdAnual: 63150 },
+};
+
+function resolveBillingTier(tierId: string): BillingTier | null {
+  return BILLING_TIER_FALLBACK[tierId] ?? null;
+}
+
+// Per-unit overage (CLP, net of IVA). Mirrors tiers.test.ts which uses
+// $990/worker incl IVA → 990/1.19 ≈ 832.
+const OVERAGE_CLP_PER_WORKER_NET = 832;
+const OVERAGE_CLP_PER_PROJECT_NET = 5034; // 5990 / 1.19
+
+const VALID_PAYMENT_METHODS: ReadonlyArray<PaymentMethod> = [
+  'webpay', 'stripe', 'manual-transfer',
+];
+const VALID_CURRENCIES: ReadonlyArray<CurrencyCode> = ['CLP', 'USD'];
+
+app.post("/api/billing/checkout", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const callerEmail: string | null = (req as any).user.email ?? null;
+
+  try {
+    const body = req.body ?? {};
+
+    // Input validation — fail closed. Never trust currency/method from client.
+    if (typeof body.tierId !== 'string' || body.tierId.length === 0 || body.tierId.length > 64) {
+      return res.status(400).json({ error: "Invalid tierId" });
+    }
+    if (body.cycle !== 'monthly' && body.cycle !== 'annual') {
+      return res.status(400).json({ error: "Invalid cycle" });
+    }
+    if (!VALID_CURRENCIES.includes(body.currency)) {
+      return res.status(400).json({ error: "Invalid currency" });
+    }
+    if (!VALID_PAYMENT_METHODS.includes(body.paymentMethod)) {
+      return res.status(400).json({ error: "Invalid paymentMethod" });
+    }
+    if (!Number.isFinite(body.totalWorkers) || body.totalWorkers < 0 || body.totalWorkers > 1_000_000) {
+      return res.status(400).json({ error: "Invalid totalWorkers" });
+    }
+    if (!Number.isFinite(body.totalProjects) || body.totalProjects < 0 || body.totalProjects > 100_000) {
+      return res.status(400).json({ error: "Invalid totalProjects" });
+    }
+    const cliente = body.cliente;
+    if (
+      !cliente ||
+      typeof cliente.nombre !== 'string' || cliente.nombre.length === 0 || cliente.nombre.length > 256 ||
+      typeof cliente.email !== 'string' || !cliente.email.includes('@') || cliente.email.length > 256 ||
+      (cliente.rut !== undefined && (typeof cliente.rut !== 'string' || cliente.rut.length > 32))
+    ) {
+      return res.status(400).json({ error: "Invalid cliente" });
+    }
+
+    // CLP must use webpay or manual-transfer. USD must use stripe.
+    if (body.currency === 'CLP' && body.paymentMethod === 'stripe') {
+      return res.status(400).json({ error: "CLP requires webpay or manual-transfer" });
+    }
+    if (body.currency === 'USD' && body.paymentMethod === 'webpay') {
+      return res.status(400).json({ error: "USD requires stripe or manual-transfer" });
+    }
+
+    const tier = resolveBillingTier(body.tierId);
+    if (!tier) {
+      return res.status(400).json({ error: "Unknown tierId" });
+    }
+
+    const checkoutRequest: CheckoutRequest = {
+      tierId: body.tierId,
+      cycle: body.cycle,
+      currency: body.currency,
+      totalWorkers: body.totalWorkers,
+      totalProjects: body.totalProjects,
+      cliente: {
+        nombre: cliente.nombre,
+        email: cliente.email,
+        rut: cliente.rut,
+      },
+      paymentMethod: body.paymentMethod,
+    };
+
+    // Compute overage off the tier limits. For now only Comité Paritario
+    // and Departamento have variable overage in the fallback; the real
+    // calculation belongs in pricing/tiers.ts.
+    const workerOverage = Math.max(0, body.totalWorkers - 25);
+    const projectOverage = Math.max(0, body.totalProjects - 3);
+
+    const invoice = buildInvoice(
+      checkoutRequest,
+      tier,
+      {
+        workers: workerOverage,
+        projects: projectOverage,
+        clpPerWorker: OVERAGE_CLP_PER_WORKER_NET,
+        clpPerProject: OVERAGE_CLP_PER_PROJECT_NET,
+      },
+      {
+        emisorRazonSocial: process.env.BILLING_EMISOR_RAZON_SOCIAL,
+      },
+    );
+
+    const db = admin.firestore();
+    // Use the locally generated invoice.id as the Firestore doc id so the
+    // CheckoutResponse and the Firestore document agree.
+    await db.collection('invoices').doc(invoice.id).set({
+      ...invoice,
+      status: 'pending-payment',
+      createdBy: callerUid,
+      createdByEmail: callerEmail,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Adapter call — typed stubs throw, so we fall back to 'pending-config'.
+    let paymentUrl: string | undefined;
+    let status: CheckoutResponse['status'] = 'pending-config';
+
+    if (body.paymentMethod === 'webpay' && webpayAdapter.isConfigured()) {
+      try {
+        const tx = await webpayAdapter.createTransaction({
+          buyOrder: invoice.id.slice(0, 26),
+          sessionId: callerUid,
+          amount: invoice.totals.total,
+          returnUrl: `${process.env.APP_BASE_URL ?? ''}/billing/return`,
+        });
+        paymentUrl = tx.url;
+        status = 'awaiting-payment';
+      } catch (err) {
+        logger.error('webpay_create_failed', err, { invoiceId: invoice.id });
+      }
+    } else if (body.paymentMethod === 'stripe' && stripeAdapter.isConfigured()) {
+      try {
+        const session = await stripeAdapter.createCheckoutSession({
+          invoiceId: invoice.id,
+          priceId: process.env[`STRIPE_PRICE_${body.tierId.toUpperCase().replace(/-/g, '_')}`] ?? '',
+          quantity: 1,
+          customerEmail: cliente.email,
+          successUrl: `${process.env.APP_BASE_URL ?? ''}/billing/success?invoice=${invoice.id}`,
+          cancelUrl: `${process.env.APP_BASE_URL ?? ''}/billing/cancel?invoice=${invoice.id}`,
+          metadata: { invoiceId: invoice.id, tierId: body.tierId },
+        });
+        paymentUrl = session.url;
+        status = 'awaiting-payment';
+      } catch (err) {
+        logger.error('stripe_create_failed', err, { invoiceId: invoice.id });
+      }
+    } else if (body.paymentMethod === 'manual-transfer') {
+      // No external provider — admin marks paid via /mark-paid endpoint.
+      status = 'awaiting-payment';
+    }
+
+    const response: CheckoutResponse = {
+      invoiceId: invoice.id,
+      invoice: { ...invoice, status: 'pending-payment' },
+      paymentUrl,
+      status,
+    };
+    res.json(response);
+  } catch (error: any) {
+    logger.error('billing_checkout_failed', error, { uid: callerUid });
+    res.status(500).json({
+      error: "Checkout failed",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
+
+app.post("/api/billing/invoice/:id/mark-paid", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const callerEmail: string | null = (req as any).user.email ?? null;
+  const invoiceId = req.params.id;
+
+  if (typeof invoiceId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
+    return res.status(400).json({ error: "Invalid invoice id" });
+  }
+
+  try {
+    const callerRecord = await admin.auth().getUser(callerUid);
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      return res.status(403).json({ error: "Forbidden: admin role required" });
+    }
+
+    const db = admin.firestore();
+    const ref = db.collection('invoices').doc(invoiceId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const current = snap.data();
+    if (current?.status === 'paid') {
+      return res.json({ success: true, alreadyPaid: true });
+    }
+    if (current?.status === 'cancelled' || current?.status === 'refunded') {
+      return res.status(409).json({ error: `Cannot mark ${current.status} invoice as paid` });
+    }
+
+    await ref.update({
+      status: 'paid',
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      paidBy: callerUid,
+      paidByEmail: callerEmail,
+      paymentSource: 'manual',
+    });
+
+    // Mirror /api/audit-log behavior — write directly via Admin SDK so we
+    // stamp the same fields without an extra HTTP hop.
+    await db.collection('audit_logs').add({
+      action: 'billing.mark-paid',
+      module: 'billing',
+      details: { invoiceId, total: current?.totals?.total, currency: current?.totals?.currency },
+      userId: callerUid,
+      userEmail: callerEmail,
+      projectId: null,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip ?? null,
+      userAgent: req.header('user-agent') ?? null,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('billing_mark_paid_failed', error, { uid: callerUid, invoiceId });
+    res.status(500).json({
+      error: "Mark-paid failed",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
   }
 });
 
