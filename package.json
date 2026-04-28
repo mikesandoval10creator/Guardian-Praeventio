@@ -10,6 +10,8 @@
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "verify:roles": "node scripts/verify-roles-sync.cjs",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
@@ -102,6 +104,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-window": "^1.8.8",
     "@types/three": "^0.183.1",
+    "@vitest/ui": "^4.1.5",
     "autoprefixer": "^10.4.21",
     "tailwindcss": "^4.1.14",
     "terser": "^5.46.1",
@@ -110,6 +113,7 @@
     "vite": "^6.2.0",
     "vite-plugin-compression": "^0.5.1",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.5",
     "workbox-window": "^7.4.0"
   }
 }

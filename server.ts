@@ -114,15 +114,24 @@ const geminiLimiter = rateLimit({
   message: { error: "Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos." }
 });
 
-const sessionSecret = process.env.SESSION_SECRET;
-if (process.env.NODE_ENV === 'production' && !sessionSecret) {
-  throw new Error("FATAL ERROR: SESSION_SECRET is not defined in production environment.");
-}
+const sessionSecret = (() => {
+  const fromEnv = process.env.SESSION_SECRET;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error("FATAL ERROR: SESSION_SECRET is not defined in production environment.");
+  }
+  const generated = crypto.randomBytes(32).toString('hex');
+  console.warn(
+    "⚠️  SESSION_SECRET not set — generated a random one for this dev session.\n" +
+    "   Sessions will not survive a server restart. Set SESSION_SECRET in .env.local for stable dev sessions."
+  );
+  return generated;
+})();
 
 app.use(express.json());
 app.use(cookieParser());
 app.use(session({
-  secret: sessionSecret || "fallback-secret-do-not-use-in-production",
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
