@@ -1,120 +1,409 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Building2, Users, ShieldAlert, Zap, ArrowRight, AlertTriangle, Loader2, CreditCard, Smartphone } from 'lucide-react';
+import {
+  CheckCircle2,
+  Building2,
+  Users,
+  Briefcase,
+  ArrowRight,
+  AlertTriangle,
+  Loader2,
+  CreditCard,
+  Smartphone,
+  Sparkles,
+  ShieldCheck,
+  Crown,
+  Mail,
+  Info,
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useSubscription, SubscriptionPlan } from '../contexts/SubscriptionContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import {
+  TIERS,
+  type Tier,
+  type TierId,
+  formatCurrency,
+  withIVA,
+} from '../services/pricing/tiers';
+import {
+  CurrencyProvider,
+  CurrencyToggle,
+  useCurrency,
+} from '../components/pricing/CurrencyToggle';
 
-// Payments are processed exclusively through Google Play Billing (native app)
+import { NormativaSwitch, NormativaProvider } from '../components/normativa/NormativaSwitch';
+
+// Payments are processed exclusively through Google Play Billing on the native app.
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
 
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Plan Gratuito',
-    subtitle: 'Educación Básica',
-    capacity: 'Hasta 10 personas (1 proyecto)',
-    price: '$0',
-    period: 'para siempre',
-    features: [
-      'Acceso a recomendaciones generales',
-      'Inventario básico de EPP',
-      'Planificación de clima para 3 días',
-      'Zettelkasten Core (Gemini Pro)'
-    ],
-    color: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white',
-    buttonColor: 'bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200'
-  },
-  {
-    id: 'comite',
-    name: 'Comité Paritario',
-    subtitle: 'Obligatorio ≥25 trabajadores',
-    capacity: 'Hasta 25 personas',
-    price: '$10',
-    introPrice: '$7',
-    annualPrice: '$96',
-    period: 'por mes',
-    features: [
-      'Todo lo del plan gratis',
-      'Gestión de comités paritarios',
-      'Evaluaciones rápidas de riesgo',
-      'Informes básicos'
-    ],
-    color: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-500/30',
-    buttonColor: 'bg-emerald-500 hover:bg-emerald-600 text-white',
-    popular: true
-  },
-  {
-    id: 'departamento',
-    name: 'Departamento Prevención',
-    subtitle: 'Obligatorio ≥100 trabajadores',
-    capacity: 'Hasta 100 personas',
-    price: '$30',
-    introPrice: '$21',
-    annualPrice: '$288',
-    period: 'por mes',
-    features: [
-      'Todo lo del plan Comité',
-      'Generación de PTS con IA',
-      'Dashboard SUSESO',
-      'Auditorías ISO automatizadas'
-    ],
-    color: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-500/30',
-    buttonColor: 'bg-blue-500 hover:bg-blue-600 text-white'
+// Map our canonical TierId → the legacy SubscriptionPlan id used by the existing
+// Google Play Billing handler. Tiers without a corresponding legacy plan
+// (titanio, diamante) are routed to the B2B sales contact flow instead.
+const TIER_TO_LEGACY_PLAN: Partial<Record<TierId, SubscriptionPlan>> = {
+  gratis: 'free',
+  'comite-paritario': 'comite',
+  'departamento-prevencion': 'departamento',
+  plata: 'plata',
+  oro: 'oro',
+  diamante: 'platino', // legacy "platino" maps to ~1000 worker tier
+  empresarial: 'empresarial',
+  corporativo: 'corporativo',
+  ilimitado: 'ilimitado',
+};
+
+const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
+  'titanio',
+  'diamante',
+  'empresarial',
+  'corporativo',
+  'ilimitado',
+]);
+
+const TIER_FEATURES: Record<TierId, string[]> = {
+  gratis: [
+    'Calendar predictions completas',
+    'Multi-país ilimitado',
+    'ISO 45001 fallback global',
+    'Inventario básico de EPP',
+    'Botón de emergencia siempre activo',
+  ],
+  'comite-paritario': [
+    'Todo lo del plan gratis',
+    'Gestión completa de Comité Paritario (DS 54)',
+    'Evaluaciones rápidas de riesgo',
+    'Informes básicos PDF/Excel',
+    'Multi-país sin recargo',
+  ],
+  'departamento-prevencion': [
+    'Todo lo de Comité Paritario',
+    'Departamento de Prevención (DS 40)',
+    'Generación de PTS con IA',
+    'Dashboard SUSESO',
+    'Auditorías ISO automatizadas',
+  ],
+  plata: [
+    'Todo lo de Departamento',
+    'Hasta 250 trabajadores / 25 proyectos',
+    'Risk Network colaborativo',
+    'Reportes ejecutivos avanzados',
+    'Soporte prioritario por chat',
+  ],
+  oro: [
+    'Todo lo del plan Plata',
+    'Hasta 500 trabajadores / 50 proyectos',
+    'IPERC con IA personalizada',
+    'Análisis predictivo de incidentes',
+    'Integración ERP básica',
+  ],
+  titanio: [
+    'Workspace Native: SSO básico',
+    '750 trabajadores / 75 proyectos (sin overage)',
+    'Customer Success dedicado',
+    'SLA 99.5% mensual',
+    'Onboarding en sitio',
+  ],
+  diamante: [
+    'Workspace Native: SSO + CASA Tier',
+    '1.000 trabajadores / 100 proyectos',
+    'Auditoría de seguridad anual',
+    'API privada con rate-limit empresarial',
+    'Soporte 24/7 con tiempo de respuesta < 1h',
+  ],
+  empresarial: [
+    'Multi-tenant nativo',
+    '2.500 trabajadores / 250 proyectos',
+    'Múltiples filiales/RUTs',
+    'Integraciones SAP / Oracle',
+    'Custom reports + data residency CL',
+  ],
+  corporativo: [
+    'Multi-tenant + CSM dedicado',
+    '5.000 trabajadores / 500 proyectos',
+    'Roadmap influence cuarterly',
+    'Penetration testing anual incluido',
+    'Hot-line ejecutivo 24/7',
+  ],
+  ilimitado: [
+    'Vertex Fine-Tuned: modelo IA propio',
+    'Trabajadores y proyectos ilimitados',
+    'Despliegue privado opcional',
+    'Compliance ad-hoc (NIST, SOC2)',
+    'Equipo de prevención embedded',
+  ],
+};
+
+const TIER_BADGES: Partial<Record<TierId, { label: string; tone: 'green' | 'gold' | 'blue' | 'silver' }>> = {
+  gratis: { label: 'Siempre gratis', tone: 'green' },
+  'departamento-prevencion': { label: 'Más popular para PYME', tone: 'blue' },
+  diamante: { label: 'Más popular B2B', tone: 'gold' },
+  corporativo: { label: 'Elegido por multinacionales', tone: 'silver' },
+};
+
+function badgeClasses(tone: 'green' | 'gold' | 'blue' | 'silver'): string {
+  switch (tone) {
+    case 'green':
+      return 'bg-emerald-500 text-white';
+    case 'gold':
+      return 'bg-gradient-to-r from-amber-400 to-yellow-500 text-zinc-900';
+    case 'blue':
+      return 'bg-blue-500 text-white';
+    case 'silver':
+      return 'bg-gradient-to-r from-zinc-300 to-zinc-100 text-zinc-900';
   }
-];
+}
 
-const ENTERPRISE_PLANS = [
-  { id: 'plata', name: 'Plata', capacity: '250', price: '$50', intro: '$35', annual: '$480' },
-  { id: 'oro', name: 'Oro', capacity: '500', price: '$90', intro: '$63', annual: '$864' },
-  { id: 'platino', name: 'Platino', capacity: '1,000', price: '$160', intro: '$112', annual: '$1,536' },
-  { id: 'empresarial', name: 'Empresarial', capacity: '2,500', price: '$350', intro: '$245', annual: '$3,360' },
-  { id: 'corporativo', name: 'Corporativo', capacity: '5,000', price: '$600', intro: '$420', annual: '$5,760' },
-  { id: 'ilimitado', name: 'Ilimitado', capacity: 'Ilimitado', price: '$1,200', intro: '$840', annual: '$11,520' }
-];
+interface TierCardProps {
+  tier: Tier;
+  currentLegacyPlan: SubscriptionPlan;
+  isProcessing: string | null;
+  onPurchase: (tier: Tier) => void;
+  onContactSales: (tier: Tier) => void;
+}
 
-export function Pricing() {
+function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContactSales }: TierCardProps) {
+  const { currency } = useCurrency();
+  const isPremium = PREMIUM_TIER_IDS.has(tier.id);
+  const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
+  const isCurrent = legacyId !== undefined && legacyId === currentLegacyPlan;
+  const badge = TIER_BADGES[tier.id];
+
+  const monthlyDisplay = useMemo(() => {
+    if (currency === 'USD') {
+      return formatCurrency(tier.usdRegular, 'USD');
+    }
+    return formatCurrency(tier.clpRegular, 'CLP');
+  }, [tier, currency]);
+
+  const annualDisplay = useMemo(() => {
+    if (currency === 'USD') {
+      // Approximate annual USD using same 20%-off ratio
+      const annualUsd = Math.round((tier.clpAnual * tier.usdRegular) / Math.max(tier.clpRegular, 1));
+      return formatCurrency(annualUsd, 'USD');
+    }
+    return formatCurrency(tier.clpAnual, 'CLP');
+  }, [tier, currency]);
+
+  const introDisplay = useMemo(() => {
+    if (currency === 'USD') {
+      const introUsd = Math.round((tier.clpIntro3mo * tier.usdRegular) / Math.max(tier.clpRegular, 1));
+      return formatCurrency(introUsd, 'USD');
+    }
+    return formatCurrency(tier.clpIntro3mo, 'CLP');
+  }, [tier, currency]);
+
+  const ivaBreakdown = useMemo(() => {
+    if (currency !== 'CLP' || tier.clpRegular <= 0) return null;
+    // Reverse IVA so the displayed retail .990 figure matches: subtotal = total / 1.19
+    const subtotal = Math.floor(tier.clpRegular / 1.19);
+    const breakdown = withIVA(subtotal);
+    // The breakdown.total should be ~tier.clpRegular; ensure visual coherence
+    return breakdown;
+  }, [tier, currency]);
+
+  const cardBorder = isPremium
+    ? 'border-2 border-transparent bg-gradient-to-br from-amber-50 via-white to-zinc-100 dark:from-zinc-800 dark:via-zinc-900 dark:to-zinc-950 shadow-2xl ring-1 ring-amber-300/40'
+    : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-zinc-900';
+
+  const ringClass = isCurrent ? 'ring-4 ring-emerald-500 ring-offset-2 dark:ring-offset-zinc-900' : '';
+
+  return (
+    <motion.div
+      id={`tier-${tier.id}`}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`relative rounded-3xl p-6 sm:p-8 flex flex-col ${cardBorder} ${ringClass}`}
+    >
+      {badge && (
+        <div
+          className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClasses(
+            badge.tone,
+          )}`}
+        >
+          {badge.label}
+        </div>
+      )}
+      {isPremium && (
+        <div className="absolute top-4 right-4 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+          <Crown className="w-3.5 h-3.5" />
+          Workspace Native
+        </div>
+      )}
+
+      <div className="mb-6">
+        <h3 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+          {tier.nombre}
+        </h3>
+        <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-1">
+          {tier.id === 'gratis'
+            ? 'Para equipos pequeños y educación'
+            : isPremium
+              ? 'B2B Enterprise · Workspace Native'
+              : 'Para PYMES y empresas en crecimiento'}
+        </p>
+
+        <div className="mt-5 flex items-baseline gap-2">
+          <span className="text-3xl sm:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white">
+            {monthlyDisplay}
+          </span>
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">/mes</span>
+        </div>
+
+        {ivaBreakdown && (
+          <div className="group relative inline-flex items-center gap-1 mt-2 text-[11px] text-zinc-500 dark:text-zinc-400 cursor-help">
+            <Info className="w-3 h-3" />
+            <span>IVA 19% incluido</span>
+            <div className="invisible group-hover:visible group-focus-within:visible absolute left-0 top-full mt-1 z-10 w-60 bg-zinc-900 text-white text-xs p-3 rounded-lg shadow-lg">
+              Subtotal {formatCurrency(ivaBreakdown.subtotal, 'CLP')}
+              <br />+ IVA 19% {formatCurrency(ivaBreakdown.iva, 'CLP')}
+              <br />= Total {formatCurrency(ivaBreakdown.total, 'CLP')}
+            </div>
+          </div>
+        )}
+
+        {tier.clpRegular > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+              Anual {annualDisplay} · ahorra 20%
+            </span>
+            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
+              Intro 3 meses {introDisplay}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-6">
+        <div className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <Users className="w-3 h-3" /> Trabajadores
+          </div>
+          <p className="font-black text-zinc-900 dark:text-white">
+            {tier.trabajadoresMax === Infinity ? 'Ilimitados' : tier.trabajadoresMax.toLocaleString('es-CL')}
+          </p>
+        </div>
+        <div className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3">
+          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <Briefcase className="w-3 h-3" /> Proyectos
+          </div>
+          <p className="font-black text-zinc-900 dark:text-white">
+            {tier.proyectosMax === Infinity ? 'Ilimitados' : tier.proyectosMax}
+          </p>
+        </div>
+      </div>
+
+      <ul className="space-y-3 mb-6 flex-1">
+        {TIER_FEATURES[tier.id].map((feature, i) => (
+          <li key={i} className="flex items-start gap-2.5 text-sm">
+            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+            <span className="text-zinc-700 dark:text-zinc-300">{feature}</span>
+          </li>
+        ))}
+      </ul>
+
+      {isPremium ? (
+        <button
+          onClick={() => onContactSales(tier)}
+          className="w-full inline-flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors"
+        >
+          <Mail className="w-4 h-4" />
+          Hablar con ventas
+        </button>
+      ) : (
+        <button
+          onClick={() => onPurchase(tier)}
+          disabled={isCurrent || isProcessing !== null}
+          className={`w-full inline-flex items-center justify-center gap-2 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors ${
+            isCurrent
+              ? 'bg-zinc-300 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-400 cursor-not-allowed'
+              : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+          }`}
+        >
+          {isProcessing === legacyId ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : isCurrent ? (
+            'Plan actual'
+          ) : tier.id === 'gratis' ? (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Empezar gratis
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-4 h-4" />
+              Seleccionar plan
+            </>
+          )}
+        </button>
+      )}
+    </motion.div>
+  );
+}
+
+function PricingInner() {
   const { plan, totalWorkers, recommendedPlan, requiresUpgrade, upgradePlan } = useSubscription();
   const { addNotification } = useNotifications();
-  const [isProcessing, setIsProcessing] = React.useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
-  const handlePayment = async (planId: SubscriptionPlan) => {
-    // Purchases are only available through Google Play on the native app
-    if (!isNative()) {
+  const handlePurchase = async (tier: Tier) => {
+    const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
+    if (!legacyId) {
+      // Defensive: premium tiers should never reach here, they use Contact Sales
       addNotification({
-        title: 'Compra desde la app',
-        message: 'Para suscribirte, descarga Guardian Praeventio en Google Play y realiza la compra desde tu dispositivo.',
-        type: 'info'
+        title: 'Contacta ventas',
+        message: `${tier.nombre} requiere una propuesta a medida. Te contactaremos.`,
+        type: 'info',
       });
       return;
     }
 
-    setIsProcessing(planId);
+    if (legacyId === 'free') {
+      try {
+        await upgradePlan('free');
+        addNotification({
+          title: 'Plan gratis activado',
+          message: '¡Bienvenido a Praeventio Guard!',
+          type: 'success',
+        });
+      } catch (err: any) {
+        addNotification({ title: 'Error', message: err.message, type: 'error' });
+      }
+      return;
+    }
+
+    // Purchases are only available through Google Play on the native app
+    if (!isNative()) {
+      addNotification({
+        title: 'Compra desde la app',
+        message:
+          'Para suscribirte, descarga Guardian Praeventio en Google Play y realiza la compra desde tu dispositivo. (Stripe / Webpay para B2B llegan pronto.)',
+        type: 'info',
+      });
+      return;
+    }
+
+    setIsProcessing(legacyId);
 
     try {
       // Google Play Billing flow (requires @capacitor-community/in-app-purchase-2 + Play Console setup)
-      // TODO: replace with real IAP call once Play Console products are configured:
-      //   const { InAppPurchase2 } = await import('@capacitor-community/in-app-purchase-2');
-      //   const purchase = await InAppPurchase2.purchase({ productId: planId });
-      //   purchaseToken = purchase.purchaseToken;
-
+      // TODO(IMP5): replace with real IAP call once Play Console products are configured.
       const { verifyGooglePlayPurchase } = await import('../services/billingService');
 
       addNotification({
         title: 'Verificando con Google Play',
         message: 'Validando transacción...',
-        type: 'info'
+        type: 'info',
       });
 
-      // purchaseToken comes from the real Play Billing SDK response
       const purchaseToken = (window as any).__pendingPurchaseToken ?? '';
-      const verification = await verifyGooglePlayPurchase(purchaseToken, planId as string, 'subscription');
+      const verification = await verifyGooglePlayPurchase(purchaseToken, legacyId, 'subscription');
 
       if (verification.success) {
-        await upgradePlan(planId as import('../contexts/SubscriptionContext').SubscriptionPlan);
+        await upgradePlan(legacyId);
         addNotification({
-          title: 'Suscripción Activada',
-          message: `¡Bienvenido al plan ${planId.toUpperCase()}!`,
-          type: 'success'
+          title: 'Suscripción activada',
+          message: `¡Bienvenido al plan ${tier.nombre}!`,
+          type: 'success',
         });
       } else {
         throw new Error(verification.error || 'No se pudo verificar la compra');
@@ -123,177 +412,130 @@ export function Pricing() {
       addNotification({
         title: 'Error al procesar pago',
         message: error.message || 'Error al conectar con Google Play Billing.',
-        type: 'error'
+        type: 'error',
       });
     } finally {
       setIsProcessing(null);
     }
   };
 
+  const handleContactSales = (tier: Tier) => {
+    // TODO(IMP5): wire Stripe / Webpay invoice + sales CRM. For now: mailto link.
+    const subject = encodeURIComponent(`Cotización plan ${tier.nombre}`);
+    const body = encodeURIComponent(
+      `Hola, me interesa el plan ${tier.nombre} (${tier.trabajadoresMax} trabajadores / ${tier.proyectosMax} proyectos).\n\nPor favor envíenme una propuesta.`,
+    );
+    window.location.href = `mailto:ventas@praeventio.cl?subject=${subject}&body=${body}`;
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="text-center max-w-3xl mx-auto mb-12">
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight mb-4">
-          Planes y Cumplimiento Legal
-        </h1>
-        <p className="text-zinc-600 dark:text-zinc-400 text-lg">
-          Nuestros planes están diseñados para escalar con tu empresa y asegurar el cumplimiento de la normativa chilena (DS 54, DS 40, Ley 16.744).
-        </p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="text-center sm:text-left max-w-3xl">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight mb-3">
+            Planes y cumplimiento legal
+          </h1>
+          <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg">
+            Capacidad (trabajadores + proyectos) decide el tier · Cumplimiento normativo se cobra por proyecto · Multi-país sin recargo.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <CurrencyToggle />
+          <div className="hidden sm:inline-flex">
+            <NormativaSwitch />
+          </div>
+          <Link
+            to="/transparencia"
+            className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
+          >
+            Cómo cobramos <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </div>
 
-      {/* Web purchase notice */}
       {!isNative() && (
-        <div className="flex items-start gap-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5 mb-8">
+        <div className="flex items-start gap-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5">
           <Smartphone className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">Las suscripciones se gestionan desde la app móvil</p>
+            <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">
+              Suscripciones consumer: desde la app móvil
+            </p>
             <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-              Descarga <strong>Guardian Praeventio</strong> en Google Play para activar tu plan. Los pagos se procesan de forma segura a través de Google Play Billing.
+              Descarga <strong>Guardian Praeventio</strong> en Google Play para activar planes pagos.
+              Para planes B2B (Titanio en adelante) usa el botón <strong>Hablar con ventas</strong>.
             </p>
           </div>
         </div>
       )}
 
-      {/* Compliance Alert */}
       {requiresUpgrade && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4 shadow-lg mb-8"
+          className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-4"
         >
           <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center shrink-0">
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div className="flex-1 text-center sm:text-left">
-            <h3 className="text-lg font-bold text-red-900 dark:text-red-400">Alerta de Cumplimiento Normativo</h3>
+            <h3 className="text-lg font-bold text-red-900 dark:text-red-400">
+              Alerta de cumplimiento normativo
+            </h3>
             <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-              Actualmente tienes <strong>{totalWorkers} trabajadores</strong> registrados. Según la normativa chilena, requieres hacer upgrade al plan <strong>{PLANS.find(p => p.id === recommendedPlan)?.name || 'Superior'}</strong> para cumplir con la ley.
+              Tienes <strong>{totalWorkers} trabajadores</strong> registrados. Necesitas el plan{' '}
+              <strong>{recommendedPlan.toUpperCase()}</strong> para mantener la cobertura.
             </p>
           </div>
-          <button 
-            onClick={() => handlePayment(recommendedPlan)}
-            disabled={!!isProcessing}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap disabled:opacity-50"
-          >
-            {isProcessing === recommendedPlan ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Actualizar Ahora'}
-          </button>
         </motion.div>
       )}
 
-      {/* Main Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-        {PLANS.map((p) => (
-          <div 
-            key={p.id}
-            className={`relative rounded-3xl p-8 flex flex-col ${p.color} border ${plan === p.id ? 'ring-4 ring-offset-2 ring-emerald-500 dark:ring-offset-zinc-900' : ''}`}
-          >
-            {p.popular && (
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                Recomendado
-              </div>
-            )}
-            
-            <div className="mb-8">
-              <h3 className="text-2xl font-black uppercase tracking-tight mb-1">{p.name}</h3>
-              <p className="text-sm font-medium opacity-80 mb-4">{p.subtitle}</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black tracking-tighter">{p.price}</span>
-                <span className="text-sm font-medium opacity-80">{p.period}</span>
-              </div>
-              {p.introPrice && (
-                <p className="text-xs font-bold mt-2 text-emerald-600 dark:text-emerald-400">
-                  Precio Introductorio: {p.introPrice}/mes (primeros 3 meses)
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 mb-8 bg-white/50 dark:bg-black/20 p-3 rounded-xl">
-              <Users className="w-5 h-5 opacity-70" />
-              <span className="text-sm font-bold">{p.capacity}</span>
-            </div>
-
-            <ul className="space-y-4 mb-8 flex-1">
-              {p.features.map((feature, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 shrink-0 opacity-70 mt-0.5" />
-                  <span className="text-sm font-medium">{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={() => handlePayment(p.id as SubscriptionPlan)}
-              disabled={plan === p.id || !!isProcessing}
-              className={`w-full py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all ${p.buttonColor} ${plan === p.id || !!isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              {isProcessing === p.id ? (
-                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-              ) : plan === p.id ? (
-                'Plan Actual'
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  Seleccionar Plan
-                </span>
-              )}
-            </button>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {TIERS.map((tier) => (
+          <TierCard
+            key={tier.id}
+            tier={tier}
+            currentLegacyPlan={plan}
+            isProcessing={isProcessing}
+            onPurchase={handlePurchase}
+            onContactSales={handleContactSales}
+          />
         ))}
       </div>
 
-      {/* Enterprise Table */}
-      <div className="mt-16 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl overflow-hidden">
-        <div className="p-6 sm:p-8 border-b border-zinc-200 dark:border-white/10">
-          <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
-            <Building2 className="w-6 h-6 text-emerald-500" />
-            Planes Corporativos
-          </h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-            Modelo B2B con Facturación Chilena (IVA incluido). Descuento del 20% en pago anual.
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-xs font-bold">
-              <tr>
-                <th className="p-4 sm:p-6">Plan</th>
-                <th className="p-4 sm:p-6">Capacidad</th>
-                <th className="p-4 sm:p-6">Intro (3 meses)</th>
-                <th className="p-4 sm:p-6">Regular/mes</th>
-                <th className="p-4 sm:p-6">Anual (-20%)</th>
-                <th className="p-4 sm:p-6"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
-              {ENTERPRISE_PLANS.map((p) => (
-                <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors">
-                  <td className="p-4 sm:p-6 font-bold text-zinc-900 dark:text-white uppercase">{p.name}</td>
-                  <td className="p-4 sm:p-6 text-zinc-600 dark:text-zinc-300">{p.capacity} personas</td>
-                  <td className="p-4 sm:p-6 text-emerald-600 dark:text-emerald-400 font-bold">{p.intro}</td>
-                  <td className="p-4 sm:p-6 font-medium">{p.price}</td>
-                  <td className="p-4 sm:p-6 font-bold">{p.annual}</td>
-                  <td className="p-4 sm:p-6 text-right">
-                    <button 
-                      onClick={() => handlePayment(p.id as SubscriptionPlan)}
-                      disabled={plan === p.id || !!isProcessing}
-                      className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold uppercase tracking-wider text-xs flex items-center gap-1 justify-end w-full disabled:opacity-50"
-                    >
-                      {isProcessing === p.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : plan === p.id ? (
-                        'Actual'
-                      ) : (
-                        <>Seleccionar <ArrowRight className="w-4 h-4" /></>
-                      )}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="mt-12 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
+        <div className="flex items-start gap-4">
+          <ShieldCheck className="w-6 h-6 text-emerald-500 shrink-0 mt-1" />
+          <div>
+            <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
+              ¿Por qué la prevención no debe ser opaca?
+            </h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
+              Publicamos cómo cobramos, qué incluye cada tier, y cuándo realmente te conviene
+              upgradear. Compáralo contra alternativas reales del mercado chileno.
+            </p>
+            <Link
+              to="/transparencia"
+              className="inline-flex items-center gap-2 mt-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl"
+            >
+              <Building2 className="w-4 h-4" />
+              Ver transparencia de precios
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+export function Pricing() {
+  return (
+    <CurrencyProvider>
+      <NormativaProvider>
+        <PricingInner />
+      </NormativaProvider>
+    </CurrencyProvider>
+  );
+}
+
+export default Pricing;

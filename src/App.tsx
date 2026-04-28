@@ -48,6 +48,7 @@ const IoTEdgeFiltering = lazy(() => import('./pages/IoTEdgeFiltering').then(modu
 const SSOConfig = lazy(() => import('./pages/SSOConfig').then(module => ({ default: module.SSOConfig })));
 const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(module => ({ default: module.CQRSArchitecture })));
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
+const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
@@ -118,6 +119,7 @@ function AppRoutes() {
                     <Route path="webxr" element={<WebXR />} />
                     <Route path="history" element={<History />} />
                     <Route path="pricing" element={<Pricing />} />
+                    <Route path="transparencia" element={<Transparencia />} />
                     <Route path="google-drive" element={<GoogleDriveIntegrationManager />} />
                     <Route path="immutable-render" element={<ImmutableRender />} />
                     <Route path="wearables" element={<WearablesIntegration />} />
