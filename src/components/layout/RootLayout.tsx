@@ -13,6 +13,7 @@ import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
+import { logger } from '../../utils/logger';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
 import { MFASetupModal } from '../auth/MFASetupModal';
@@ -163,7 +164,39 @@ export function RootLayout() {
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
         <PendingInvitesBanner />
-        <SyncConflictBanner />
+        <SyncConflictBanner
+          onOpenRecord={(collectionName, docId) => {
+            // Map Firestore collection names to existing in-app routes. The
+            // best fit for "iper_nodes" is the Risks page since there is no
+            // dedicated `/risks/iper/:id` route yet (the Knowledge Graph
+            // surfaces nodes via `/risk-network`). When the listing pages
+            // gain detail routes, update the mapping accordingly.
+            const routeMap: Record<string, string> = {
+              // Iper / risk graph nodes — best-guess: Risks listing.
+              iper_nodes: `/risks?node=${encodeURIComponent(docId)}`,
+              nodes: `/risk-network?node=${encodeURIComponent(docId)}`,
+              // Audits has a listing page; no detail route yet.
+              audits: `/audits?id=${encodeURIComponent(docId)}`,
+              // Workers listing; no detail route yet.
+              workers: `/workers?id=${encodeURIComponent(docId)}`,
+              // Documents has a real detail viewer.
+              documents: `/documents/${encodeURIComponent(docId)}`,
+              // Projects: open the listing and let the user pick.
+              projects: `/projects?id=${encodeURIComponent(docId)}`,
+              // Findings listing (best-guess fallback).
+              findings: `/findings?id=${encodeURIComponent(docId)}`,
+            };
+            const target = routeMap[collectionName];
+            if (target) {
+              navigate(target);
+            } else {
+              logger.warn('SyncConflictBanner: no route mapping for collection', {
+                collection: collectionName,
+                docId,
+              });
+            }
+          }}
+        />
       </div>
       <ReloadPrompt />
 

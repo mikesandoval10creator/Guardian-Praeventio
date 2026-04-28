@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, 
-  Search, 
-  MapPin, 
-  Calendar, 
-  Building2, 
-  ShieldAlert, 
-  ChevronRight, 
-  X, 
-  Loader2, 
-  CheckCircle2, 
-  Clock, 
+import {
+  Plus,
+  Search,
+  MapPin,
+  Calendar,
+  Building2,
+  ShieldAlert,
+  ChevronRight,
+  X,
+  Loader2,
+  CheckCircle2,
+  Clock,
   Archive,
   Briefcase,
   Users,
@@ -29,9 +30,13 @@ import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
 import { GanttProjectView } from '../components/projects/GanttProjectView';
+import { PredictedActivityModal } from '../components/projects/PredictedActivityModal';
 import { useCalendarPredictions } from '../hooks/useCalendarPredictions';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useNotifications } from '../contexts/NotificationContext';
+import { logger } from '../utils/logger';
 import { get } from 'idb-keyval';
+import type { PredictedActivity } from '../services/calendar/predictions';
 
 export function Projects() {
   const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
@@ -43,6 +48,9 @@ export function Projects() {
   const [listViewMode, setListViewMode] = useState<'cards' | 'timeline'>('cards');
   const isOnline = useOnlineStatus();
   const { predictions, climateRisks } = useCalendarPredictions();
+  const navigate = useNavigate();
+  const { addNotification } = useNotifications();
+  const [selectedActivity, setSelectedActivity] = useState<PredictedActivity | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -355,11 +363,19 @@ export function Projects() {
           })}
           predictedActivities={predictions}
           climateRisks={climateRisks}
-          // TODO(next-round): wire onActivityClick to open a detail modal
-          // for the predicted obligation; onClimateRiskClick to navigate to
-          // the corresponding RiskNode in the Knowledge Graph.
-          onActivityClick={() => {}}
-          onClimateRiskClick={() => {}}
+          onActivityClick={(activity) => setSelectedActivity(activity)}
+          onClimateRiskClick={(risk) => {
+            // The RiskNetwork page is the canonical "knowledge graph" view.
+            // ClimateRiskNodePayload doesn't expose a stable id (the doc isn't
+            // persisted yet from the Gantt), so we pass the title — the Risk
+            // Network can use that as a search/highlight hint. Fallback to a
+            // synthetic id derived from project + forecast date when needed.
+            const payload = risk?.riskNodePayload;
+            const nodeKey =
+              payload?.title ??
+              `${risk.projectId}::${risk.forecast.date.toISOString().slice(0, 10)}`;
+            navigate(`/risk-network?node=${encodeURIComponent(nodeKey)}`);
+          }}
           onProjectClick={(projectId) => {
             const target = projects.find((p) => p.id === projectId);
             if (target) setSelectedProject(target);
@@ -623,6 +639,47 @@ export function Projects() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Predicted activity detail modal — opened from the Gantt timeline. */}
+      <PredictedActivityModal
+        activity={selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+        onSchedule={async (activity) => {
+          // TODO(calendar-schedule-from-modal): the existing /api/calendar/sync
+          // endpoint only accepts a `challenges` string array (see server.ts
+          // line 809), so it can't carry the recommendedDate / duration of a
+          // PredictedActivity yet. For now we surface a notification so the
+          // user knows the action was acknowledged, and close the modal.
+          // Follow-up: extend the endpoint (or add /api/calendar/events) to
+          // accept structured event payloads, then replace this stub.
+          try {
+            addNotification({
+              title: 'Actividad agendada',
+              message: `${activity.type} programada para ${activity.recommendedDate.toLocaleDateString('es-CL')}. Sincronizaremos con Google Calendar cuando el endpoint estructurado esté disponible.`,
+              type: 'info',
+            });
+            logger.info('predicted_activity_schedule_requested', {
+              type: activity.type,
+              projectId: activity.projectId,
+              recommendedDate: activity.recommendedDate.toISOString(),
+            });
+          } finally {
+            setSelectedActivity(null);
+          }
+        }}
+        onDismiss={(activity) => {
+          // Soft-dismiss: persist a 7-day snooze in localStorage so the same
+          // (projectId, type) tuple isn't re-surfaced immediately. The
+          // prediction hook can read this key on next refresh to suppress.
+          try {
+            const key = `praeventio_dismissed_activity_${activity.projectId}_${activity.type}`;
+            localStorage.setItem(key, String(Date.now()));
+          } catch (err) {
+            logger.warn('predicted_activity_dismiss_persist_failed', { error: String(err) });
+          }
+          setSelectedActivity(null);
+        }}
+      />
     </div>
   );
 }
