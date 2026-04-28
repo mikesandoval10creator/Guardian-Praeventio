@@ -1,0 +1,30 @@
+# Terraform local state + plugin cache
+.terraform/
+.terraform.lock.hcl.bak
+
+# State files (NEVER commit — may contain plaintext secrets pulled into state)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Variable files containing real values. Commit example.tfvars instead.
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Override files used for local-only experimentation
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Plan output
+*.tfplan

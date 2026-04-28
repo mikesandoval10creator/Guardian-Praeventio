@@ -2,15 +2,19 @@
 # Praeventio Guard — Cloud Scheduler / IaC stub for Firestore backups
 # =============================================================================
 #
-# This file is INTENT, not yet wired to Terraform/Pulumi. It documents the
-# GCP resources that need to exist for nightly backups + integrity checks
-# to function. When we adopt an IaC tool (Terraform recommended), this
-# YAML translates almost 1:1 to `google_cloud_scheduler_job` /
-# `google_storage_bucket` / `google_service_account` / `google_cloud_run_v2_job`
-# resources.
+# >>> SUPERSEDED BY TERRAFORM <<<
 #
-# Until IaC is in place, the resources below should be created manually
-# via `gcloud` (snippets at the bottom of this file).
+# As of 2026-04-28 the source of truth for these resources is the Terraform
+# module at `infrastructure/terraform/`. See:
+#
+#   - infrastructure/terraform/storage.tf       (gs://*-backups)
+#   - infrastructure/terraform/iam.tf           (firestore-backup SA + bindings)
+#   - infrastructure/terraform/cloudrun.tf      (Cloud Run jobs v2)
+#   - infrastructure/terraform/scheduler.tf     (Cloud Scheduler triggers)
+#
+# This YAML is kept as human-readable documentation of intent. DO NOT modify
+# it expecting the change to take effect — edit the corresponding .tf files
+# and run `terraform apply` from infrastructure/terraform/ instead.
 #
 # Owner: founder@praeventio.net
 # Last updated: 2026-04-28
@@ -186,11 +190,17 @@ alerts:
 #   --set-env-vars=GCP_PROJECT_ID=praeventio-prod,GCS_BACKUP_BUCKET=gs://praeventio-backups,NODE_ENV=production
 #
 # # Cloud Scheduler trigger
+# # NOTE: Use the Cloud Run Admin API v2 endpoint. The legacy v1 namespaces
+# # URL (southamerica-west1-run.googleapis.com/apis/run.googleapis.com/v1/...)
+# # is deprecated for Cloud Run jobs:run and the Terraform module
+# # (infrastructure/terraform/scheduler.tf) targets v2 via
+# # google_cloud_scheduler_job.http_target.uri. Pattern:
+# #   https://run.googleapis.com/v2/projects/${project}/locations/${region}/jobs/${job}:run
 # gcloud scheduler jobs create http firestore-nightly-backup \
 #   --project=praeventio-prod \
 #   --location=southamerica-west1 \
 #   --schedule="0 3 * * *" \
 #   --time-zone="Etc/UTC" \
-#   --uri="https://southamerica-west1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/praeventio-prod/jobs/firestore-nightly-backup:run" \
+#   --uri="https://run.googleapis.com/v2/projects/praeventio-prod/locations/southamerica-west1/jobs/firestore-nightly-backup:run" \
 #   --http-method=POST \
 #   --oauth-service-account-email=firestore-backup@praeventio-prod.iam.gserviceaccount.com
