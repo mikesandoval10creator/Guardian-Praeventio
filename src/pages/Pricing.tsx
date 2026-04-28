@@ -21,6 +21,8 @@ import {
 import { Link, useLocation } from 'react-router-dom';
 import { useSubscription, SubscriptionPlan } from '../contexts/SubscriptionContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { useProject } from '../contexts/ProjectContext';
 import {
   TIERS,
   type Tier,
@@ -42,15 +44,17 @@ import { logger } from '../utils/logger';
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
 
 // Map our canonical TierId → the legacy SubscriptionPlan id used by the existing
-// Google Play Billing handler. Tiers without a corresponding legacy plan
-// (titanio, diamante) are routed to the B2B sales contact flow instead.
+// Google Play Billing handler. Diamante is routed to the B2B sales contact flow
+// (still no Play SKU); titanio is mapped now that the legacy union has been
+// extended to cover it (R4 Round 14).
 const TIER_TO_LEGACY_PLAN: Partial<Record<TierId, SubscriptionPlan>> = {
   gratis: 'free',
   'comite-paritario': 'comite',
   'departamento-prevencion': 'departamento',
   plata: 'plata',
   oro: 'oro',
-  diamante: 'platino', // legacy "platino" maps to ~1000 worker tier
+  titanio: 'titanio',
+  diamante: 'platino', // legacy "platino" maps to the diamante (~1000 worker) tier
   empresarial: 'empresarial',
   corporativo: 'corporativo',
   ilimitado: 'ilimitado',
@@ -599,7 +603,99 @@ function WebpayReturnBanner() {
 function PricingInner() {
   const { plan, totalWorkers, recommendedPlan, requiresUpgrade, upgradePlan } = useSubscription();
   const { addNotification } = useNotifications();
+  const { user } = useFirebase();
+  const { projects } = useProject();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  /**
+   * Web (non-native) checkout uses Transbank Webpay via the existing
+   * `/api/billing/checkout` route at server.ts:2115. The server creates the
+   * pending invoice, calls webpayAdapter.createTransaction, and returns a
+   * `paymentUrl` we redirect the browser to. After Webpay → server return →
+   * the SPA lands on /pricing/success|failed|retry?invoice=<id> and the
+   * `useInvoicePolling` hook (Round 13) reconciles the URL hint against the
+   * authoritative invoice status.
+   */
+  const startWebpayCheckout = async (tier: Tier, legacyId: SubscriptionPlan) => {
+    if (!user) {
+      addNotification({
+        title: 'Inicia sesión primero',
+        message: 'Necesitas iniciar sesión para suscribirte a un plan pago.',
+        type: 'error',
+      });
+      return;
+    }
+
+    setCheckoutError(null);
+    setIsProcessing(legacyId);
+    try {
+      const totalProjects = projects.length;
+      const idToken = await user.getIdToken();
+
+      const response = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          tierId: tier.id,
+          cycle: 'monthly',
+          currency: 'CLP',
+          paymentMethod: 'webpay',
+          totalWorkers,
+          totalProjects,
+          cliente: {
+            nombre: user.displayName ?? user.email ?? 'Cliente Praeventio',
+            email: user.email ?? '',
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(
+          (detail as { error?: string }).error ??
+            `Checkout falló con estado ${response.status}`,
+        );
+      }
+
+      const data = (await response.json()) as {
+        invoiceId: string;
+        paymentUrl?: string;
+        status: string;
+      };
+
+      if (data.status === 'pending-config' || !data.paymentUrl) {
+        throw new Error(
+          'El proveedor de pagos no está disponible. Reintentá en unos segundos o contacta a soporte@praeventio.net.',
+        );
+      }
+
+      // Redirect the browser to the Webpay hosted form. The user returns to
+      // /pricing/success|failed|retry — handled by WebpayReturnBanner.
+      window.location.href = data.paymentUrl;
+    } catch (err) {
+      logger.error('webpay_checkout_start_failed', err, {
+        tierId: tier.id,
+        uid: user.uid,
+      });
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No pudimos iniciar el pago. Reintentá en unos segundos.';
+      setCheckoutError(message);
+      addNotification({
+        title: 'Error al iniciar el pago',
+        message: 'No pudimos iniciar el pago. Reintentá en unos segundos.',
+        type: 'error',
+      });
+      setIsProcessing(null);
+    }
+    // Note: on success we redirect away — leaving isProcessing set is fine
+    // because the page unloads.
+  };
 
   const handlePurchase = async (tier: Tier) => {
     const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
@@ -627,14 +723,9 @@ function PricingInner() {
       return;
     }
 
-    // Purchases are only available through Google Play on the native app
+    // Web (non-native) → Webpay; Native (Capacitor) → Google Play Billing.
     if (!isNative()) {
-      addNotification({
-        title: 'Compra desde la app',
-        message:
-          'Para suscribirte, descarga Guardian Praeventio en Google Play y realiza la compra desde tu dispositivo. (Stripe / Webpay para B2B llegan pronto.)',
-        type: 'info',
-      });
+      await startWebpayCheckout(tier, legacyId);
       return;
     }
 
@@ -687,6 +778,28 @@ function PricingInner() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
       <WebpayReturnBanner />
+      {checkoutError && (
+        <div
+          role="alert"
+          className="flex items-start gap-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-2xl p-5"
+        >
+          <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold text-red-900 dark:text-red-300 text-sm">
+              No pudimos iniciar el pago. Reintentá en unos segundos.
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+              {checkoutError}
+            </p>
+          </div>
+          <button
+            onClick={() => setCheckoutError(null)}
+            className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-300 hover:underline"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="text-center sm:text-left max-w-3xl">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight mb-3">
@@ -715,11 +828,13 @@ function PricingInner() {
           <Smartphone className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">
-              Suscripciones consumer: desde la app móvil
+              Pagas con Webpay (Transbank) — boleta electrónica incluida
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-              Descarga <strong>Guardian Praeventio</strong> en Google Play para activar planes pagos.
-              Para planes B2B (Titanio en adelante) usa el botón <strong>Hablar con ventas</strong>.
+              Selecciona tu plan y serás redirigido a Webpay para completar el cargo en
+              CLP. Para planes B2B (Titanio en adelante) usa el botón{' '}
+              <strong>Hablar con ventas</strong>. La app móvil de Google Play sigue
+              disponible para suscripciones consumer.
             </p>
           </div>
         </div>
