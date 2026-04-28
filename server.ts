@@ -29,6 +29,7 @@ import {
   type WebpayReturnOutcome,
 } from "./src/services/billing/webpayAdapter.js";
 import { stripeAdapter } from "./src/services/billing/stripeAdapter.js";
+import { withIdempotency } from "./src/services/billing/idempotency.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -1937,141 +1938,92 @@ app.post("/api/billing/webhook", async (req, res) => {
     return res.status(400).send("No message data");
   }
 
+  // Idempotency: Pub/Sub may redeliver the same message. We dedupe via
+  // `processed_pubsub/{messageId}` using the shared `withIdempotency`
+  // helper (lock-then-complete; 5-minute staleness window). The helper
+  // encapsulates the four-state machine — see
+  // src/services/billing/idempotency.ts for the full contract.
+  //
+  // No messageId? We bail out non-idempotently and ACK 200; without a
+  // dedupe key we can't safely persist a lock and we don't want to wedge
+  // the subscription on a malformed delivery.
+  const messageId: string | undefined = message.messageId || message.message_id;
+  const db = admin.firestore();
+
+  if (!messageId) {
+    logger.warn('rtdn_missing_message_id');
+    return res.status(200).send("OK");
+  }
+
   try {
-    // Idempotency (two-step "lock then complete"): Pub/Sub may redeliver the
-    // same message. Dedupe via processed_pubsub/{messageId} with a status
-    // field instead of a single existence check.
-    //
-    // States:
-    //   - status === 'done'        → already handled, ACK 200.
-    //   - status === 'in_progress' && lockedAt < 5 min ago → another worker
-    //                                 is processing; ACK 200 to suppress
-    //                                 redelivery. (We deliberately choose
-    //                                 200 over 503: Pub/Sub will redeliver
-    //                                 anyway after the ack-deadline if the
-    //                                 in-flight processor crashes, and the
-    //                                 staleness window below will let that
-    //                                 redelivery acquire the lock.)
-    //   - status === 'in_progress' && lockedAt >= 5 min ago → stale lock from
-    //                                 a crashed processor; we steal it.
-    //   - absent                   → fresh — write 'in_progress' then process.
-    //
-    // On exception during processing we deliberately do NOT update the doc;
-    // the 5-minute staleness window will permit a future redelivery to
-    // re-acquire the lock and retry. This fixes the prior bug where the
-    // existence-only marker was written *before* processing, so any crash
-    // permanently silenced redeliveries.
-    //
-    // The expiresAt field is a hint for a Firestore TTL policy configured at
-    // the console (collection: processed_pubsub, field: expiresAt) — Firestore
-    // TTL is not configured from code.
-    const messageId: string | undefined = message.messageId || message.message_id;
-    const db = admin.firestore();
-    const STALE_LOCK_MS = 5 * 60 * 1000;
-    let processedRef: admin.firestore.DocumentReference | null = null;
-    if (messageId) {
-      processedRef = db.collection('processed_pubsub').doc(messageId);
-      const processedSnap = await processedRef.get();
-      if (processedSnap.exists) {
-        const data = processedSnap.data() || {};
-        if (data.status === 'done') {
-          // Duplicate delivery, already handled. ACK so Pub/Sub stops retrying.
-          return res.status(200).send("OK");
-        }
-        if (data.status === 'in_progress') {
-          const lockedAt: admin.firestore.Timestamp | undefined = data.lockedAt;
-          const lockedAtMs = lockedAt?.toMillis ? lockedAt.toMillis() : 0;
-          if (lockedAtMs && Date.now() - lockedAtMs < STALE_LOCK_MS) {
-            // Another worker is in-flight. ACK to avoid duplicate work; if it
-            // crashes, the next redelivery (after the ack-deadline) will see a
-            // stale lock and proceed.
-            logger.info('rtdn_in_progress_skip', { messageId });
-            return res.status(200).send("OK");
-          }
-          logger.warn('rtdn_stale_lock_stealing', { messageId, lockedAtMs });
-        }
-      }
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      // TODO(billing): if a future deploy adds a helper like
-      //   withIdempotency(db, messageId, work)
-      // this inline block is the canonical reference implementation.
-      await processedRef.set(
-        {
-          status: 'in_progress',
-          lockedAt: admin.firestore.FieldValue.serverTimestamp(),
-          receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-          expiresAt, // hint for Firestore TTL policy (configure in console)
-        },
-        { merge: true },
-      );
-    }
+    const outcome = await withIdempotency(
+      db,
+      { collection: 'processed_pubsub', key: messageId },
+      async () => {
+        const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
+        const { subscriptionNotification } = decodedData;
+        const packageName = decodedData.packageName;
 
-    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    const { subscriptionNotification } = decodedData;
-    const packageName = decodedData.packageName;
-
-    // Log only non-sensitive metadata. NEVER log purchaseToken — it's a
-    // bearer credential for Google Play.
-    logger.info('rtdn_received', {
-      notificationType: subscriptionNotification?.notificationType,
-      subscriptionId: subscriptionNotification?.subscriptionId,
-      packageName,
-    });
-
-    if (subscriptionNotification) {
-      const { purchaseToken, subscriptionId } = subscriptionNotification;
-
-      // Update the user whose token matches
-      const userQuery = await db.collection('users').where('subscription.purchaseToken', '==', purchaseToken).get();
-
-      if (!userQuery.empty) {
-        const userDoc = userQuery.docs[0];
-        logger.info('rtdn_updating_user_subscription', { userId: userDoc.id });
-
-        // Fetch fresh state from Google
-        const verificationResult = await playDeveloperApi.purchases.subscriptions.get({
-          auth: playAuth,
+        // Log only non-sensitive metadata. NEVER log purchaseToken — it's a
+        // bearer credential for Google Play.
+        logger.info('rtdn_received', {
+          notificationType: subscriptionNotification?.notificationType,
+          subscriptionId: subscriptionNotification?.subscriptionId,
           packageName,
-          subscriptionId,
-          token: purchaseToken
         });
 
-        const data = verificationResult.data;
-        const isActive = data.paymentState === 1 || data.paymentState === 2;
-        const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
+        if (subscriptionNotification) {
+          const { purchaseToken, subscriptionId } = subscriptionNotification;
 
-        await userDoc.ref.update({
-          'subscription.status': isActive ? 'active' : 'expired',
-          'subscription.expiryDate': expiryDate,
-          'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
-        });
-      }
+          // Update the user whose token matches
+          const userQuery = await db.collection('users').where('subscription.purchaseToken', '==', purchaseToken).get();
+
+          if (!userQuery.empty) {
+            const userDoc = userQuery.docs[0];
+            logger.info('rtdn_updating_user_subscription', { userId: userDoc.id });
+
+            // Fetch fresh state from Google
+            const verificationResult = await playDeveloperApi.purchases.subscriptions.get({
+              auth: playAuth,
+              packageName,
+              subscriptionId,
+              token: purchaseToken
+            });
+
+            const data = verificationResult.data;
+            const isActive = data.paymentState === 1 || data.paymentState === 2;
+            const expiryDate = data.expiryTimeMillis ? new Date(parseInt(data.expiryTimeMillis)).toISOString() : null;
+
+            await userDoc.ref.update({
+              'subscription.status': isActive ? 'active' : 'expired',
+              'subscription.expiryDate': expiryDate,
+              'subscription.updatedAt': admin.firestore.FieldValue.serverTimestamp()
+            });
+          }
+        }
+
+        return { ok: true };
+      },
+    );
+
+    // Surface the outcome for observability — preserves the
+    // `rtdn_in_progress_skip` / `rtdn_stale_lock_stealing` signals the
+    // inline implementation emitted.
+    if (outcome.kind === 'in-flight') {
+      logger.info('rtdn_in_progress_skip', { messageId });
+    } else if (outcome.kind === 'stale-retry') {
+      logger.warn('rtdn_stale_lock_stealing', { messageId });
     }
 
-    // Mark idempotency lock as 'done' only AFTER all processing succeeded.
-    // If any step above threw, we fall into the catch — leaving 'in_progress'
-    // intact — so the staleness window will permit a future redelivery to
-    // retry. Best-effort: a failure to update the marker is logged but does
-    // not fail the webhook (the work is already done; the worst case is one
-    // duplicate run after the staleness window).
-    if (processedRef) {
-      try {
-        await processedRef.update({
-          status: 'done',
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        logger.warn('rtdn_idempotency_finalize_failed', { messageId, error: (e as Error)?.message });
-      }
-    }
-
-    res.status(200).send("OK");
+    // All four outcomes ACK 200 to suppress Pub/Sub redelivery — see
+    // contract notes in idempotency.ts.
+    return res.status(200).send("OK");
   } catch (error) {
-    // Deliberate: do NOT update processed_pubsub here. Leaving the doc as
-    // 'in_progress' allows the staleness window to grant a future redelivery
-    // a fresh attempt — see the comment block at the top of this handler.
+    // Deliberate: withIdempotency leaves the doc as 'in_progress' on a
+    // work() exception. The staleness window will grant a future
+    // redelivery a fresh attempt.
     logger.error("rtdn_webhook_failed", error);
-    res.status(500).send("Webhook processing failed");
+    return res.status(500).send("Webhook processing failed");
   }
 });
 
@@ -2344,6 +2296,103 @@ app.post("/api/billing/invoice/:id/mark-paid", verifyAuth, async (req, res) => {
   }
 });
 
+// Per-user invoice-status polling rate limit. Pricing.tsx polls this
+// endpoint at ~1Hz while waiting for a payment to settle, which would blow
+// past the global /api/* limit (100 req / 15 min) in seconds. We bump to 600
+// req / 15 min keyed on uid (≈1 req/sec sustained) to support polling
+// without inviting abuse. Pattern mirrors `geminiLimiter` above.
+const invoiceStatusLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  keyGenerator: (req) => (req as any).user?.uid || req.ip || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Polling muy frecuente. Intenta de nuevo en unos segundos." },
+});
+
+// GET /api/billing/invoice/:id — read-only status poll for the SPA's
+// post-checkout waiting screen. Returns ONLY safe fields (no purchaseToken,
+// no internal audit metadata, no payer notes). Authorization model:
+//
+//   • verifyAuth gates the request to a logged-in user (req.user.uid).
+//   • The doc must have been created by the same uid (`createdBy === uid`).
+//   • Mismatch → 404 (deliberate: do NOT 403, which would leak existence).
+//
+// We deliberately do NOT expose: the full lineItems list (already in the
+// CheckoutResponse the client already has), webpayToken (bearer-credential),
+// webpayAuthCode (PCI-adjacent), createdByEmail (PII duplicated elsewhere),
+// or rawResponse fields from the adapter. If Pricing.tsx needs more, add
+// fields here narrowly — never spread the entire doc.
+app.get("/api/billing/invoice/:id", verifyAuth, invoiceStatusLimiter, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const invoiceId = req.params.id;
+
+  if (typeof invoiceId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
+    return res.status(400).json({ error: "Invalid invoice id" });
+  }
+
+  try {
+    const db = admin.firestore();
+    const snap = await db.collection('invoices').doc(invoiceId).get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+    const data = snap.data() ?? {};
+
+    // Authorization: the invoice must belong to the caller. We use
+    // `createdBy` (set in /api/billing/checkout) as the owner uid. A
+    // mismatch returns 404, NOT 403 — this prevents enumeration of
+    // other users' invoice ids.
+    if (data.createdBy !== callerUid) {
+      return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    // Convert Firestore Timestamps to ISO strings for the wire shape.
+    const tsToIso = (v: any): string | undefined => {
+      if (!v) return undefined;
+      if (typeof v === 'string') return v;
+      if (typeof v.toDate === 'function') return v.toDate().toISOString();
+      return undefined;
+    };
+
+    const safe: {
+      id: string;
+      status: 'draft' | 'pending-payment' | 'paid' | 'cancelled' | 'rejected' | 'refunded';
+      totals: { subtotal: number; iva: number; total: number; currency: 'CLP' | 'USD' };
+      emisorRut: '78231119-0';
+      issuedAt: string;
+      paidAt?: string;
+      rejectionReason?: string;
+    } = {
+      id: invoiceId,
+      status: data.status,
+      totals: {
+        subtotal: data.totals?.subtotal ?? 0,
+        iva: data.totals?.iva ?? 0,
+        total: data.totals?.total ?? 0,
+        currency: data.totals?.currency ?? 'CLP',
+      },
+      emisorRut: '78231119-0',
+      issuedAt: tsToIso(data.issuedAt) ?? tsToIso(data.createdAt) ?? '',
+    };
+
+    if (safe.status === 'paid') {
+      safe.paidAt = tsToIso(data.paidAt);
+    }
+    if (safe.status === 'rejected' && typeof data.rejectionReason === 'string') {
+      safe.rejectionReason = data.rejectionReason;
+    }
+
+    return res.json(safe);
+  } catch (error: any) {
+    logger.error('billing_invoice_status_failed', error, { uid: callerUid, invoiceId });
+    return res.status(500).json({
+      error: "Invoice status read failed",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
+
 // Webpay return URL — Transbank redirects the cardholder's browser back here
 // after they pay. We commit the transaction, mark the invoice paid /
 // rejected / pending-retry and redirect to the SPA. NOT auth-gated: the
@@ -2375,6 +2424,18 @@ app.post("/api/billing/invoice/:id/mark-paid", verifyAuth, async (req, res) => {
 //                (NOT 'cancelled' — card decline ≠ user cancellation)
 //   FAILED     → invoice stays 'pending-payment' → /pricing/retry?invoice=...
 //                (transient infra error; same card can retry)
+//
+// PARALLEL TO RTDN (`/api/billing/webhook`): both handlers implement
+// lock-then-complete idempotency. RTDN now uses the shared
+// `withIdempotency` helper from `src/services/billing/idempotency.ts`.
+// This endpoint keeps the Webpay-specific `acquireWebpayIdempotencyLock`
+// / `finalizeWebpayIdempotencyLock` wrappers because they encode the
+// outcome+invoiceId replay-redirect contract (see types in
+// webpayAdapter.ts) which is too domain-specific to fold into the
+// generic helper without muddying its return shape.
+// TODO(billing): consider unifying after the next round — risk in this
+// commit is too high (would touch the entire payment confirmation
+// path; deferring until invoice-replay typing settles).
 app.get("/billing/webpay/return", async (req, res) => {
   const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;
   if (!tokenWs || !/^[A-Za-z0-9_-]{1,128}$/.test(tokenWs)) {

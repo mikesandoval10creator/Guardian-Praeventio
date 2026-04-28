@@ -113,8 +113,9 @@ async function maybeUnwrapRefreshToken(
   if (stored === undefined) return undefined;
   if (typeof stored === 'string') {
     // Legacy plaintext entry. Works regardless of feature flag state.
-    // TODO(KMS_ROTATION.md): include this doc in the migration job that
-    // re-wraps legacy plaintext to envelope form once cloud-kms lands.
+    // MIGRATION: legacy plaintext entries are rewrapped by
+    // scripts/migrate-oauth-tokens-to-envelope.cjs (one-shot, idempotent).
+    // Run with --dry-run first; see KMS_ROTATION.md §4.
     return stored;
   }
   if (isEnvelopeCiphertext(stored)) {
