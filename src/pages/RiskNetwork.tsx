@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { KnowledgeGraph } from '../components/shared/KnowledgeGraph';
 import { RiskNetworkExplorer } from '../components/risk-network/RiskNetworkExplorer';
 import { RiskNetworkHealth } from '../components/risk-network/RiskNetworkHealth';
@@ -12,8 +13,34 @@ import { analyzeRiskNetwork, predictAccidents } from '../services/geminiService'
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
+
+/**
+ * Pure resolver for the `?node=` deep-link query parameter.
+ *
+ * Returns the trimmed node id only when (a) the param is present and
+ * non-empty after trimming, and (b) the id exists in the loaded node set.
+ * Otherwise returns null so callers can fall back to the default
+ * "show generic graph" behaviour without conditional ladders.
+ *
+ * Exported separately from the component so the contract can be unit-tested
+ * without spinning up jsdom or React (see RiskNetwork.test.tsx).
+ */
+export function resolveSelectedNodeIdFromSearch(
+  params: URLSearchParams,
+  knownIds: Iterable<string>,
+): string | null {
+  const raw = params.get('node');
+  if (raw === null) return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  // Materialise into a Set only if we got a non-Set iterable, so the
+  // caller can pass either shape without paying for an extra allocation.
+  const idSet = knownIds instanceof Set ? knownIds : new Set(knownIds);
+  return idSet.has(trimmed) ? trimmed : null;
+}
 
 export function RiskNetwork() {
   const { nodes, loading } = useRiskEngine();
@@ -23,6 +50,34 @@ export function RiskNetwork() {
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictions, setPredictions] = useState<any[]>([]);
   const isOnline = useOnlineStatus();
+
+  // Deep-link support: when arriving here from `/risk-network?node=<id>`
+  // (e.g. Round 12's Projects.tsx climate-risk row click), surface the
+  // requested node so the graph child can centre/highlight it.
+  // We persist the validated id in `selectedNodeId` and expose it on the
+  // page root as `data-selected-node-id`. Wiring it through to
+  // KnowledgeGraph as a controlled prop is a follow-up (out of scope here:
+  // KnowledgeGraph is owned by another agent).
+  const [searchParams] = useSearchParams();
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  useEffect(() => {
+    // Re-run whenever either the URL param or the loaded node set changes:
+    // on first render `nodes` is typically empty (loading), and we need to
+    // pick up the selection once data arrives.
+    const resolved = resolveSelectedNodeIdFromSearch(
+      searchParams,
+      nodes.map((n) => n.id),
+    );
+    if (resolved === null && searchParams.get('node')) {
+      // The user deep-linked to something we couldn't find. Surface this
+      // at debug level so support can spot it in logs without spamming
+      // the console for the common (no-param) path.
+      logger.debug(
+        `RiskNetwork: ?node=${searchParams.get('node')} not found in loaded set (${nodes.length} nodes); falling back to default view`,
+      );
+    }
+    setSelectedNodeId(resolved);
+  }, [searchParams, nodes]);
 
   const handleAnalyze = async () => {
     if (nodes.length === 0 || !isOnline) return;
@@ -76,7 +131,11 @@ export function RiskNetwork() {
       : 0
   };
   return (
-    <div className={`p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border`}>
+    <div
+      className={`p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 w-full overflow-hidden box-border`}
+      data-page="risk-network"
+      data-selected-node-id={selectedNodeId ?? ''}
+    >
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
           <div className="flex items-center gap-3 sm:gap-4">
