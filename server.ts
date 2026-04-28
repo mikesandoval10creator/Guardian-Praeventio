@@ -2289,6 +2289,55 @@ app.post("/api/billing/invoice/:id/mark-paid", verifyAuth, async (req, res) => {
   }
 });
 
+// Webpay return URL — Transbank redirects the cardholder's browser back here
+// after they pay. We commit the transaction, mark the invoice paid (or
+// cancelled) and redirect to the SPA. NOT auth-gated: the user may not have
+// our session cookie at this point. Trust comes from the `token_ws` query
+// param being verified by `webpayAdapter.commitTransaction`.
+//
+// TODO(billing): full idempotency via processed_webpay/{token} (lock-then-
+// complete) — see RTDN handler for the pattern. For now we rely on the
+// invoice's own status check.
+app.get("/billing/webpay/return", async (req, res) => {
+  const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;
+  if (!tokenWs || !/^[A-Za-z0-9_-]{1,128}$/.test(tokenWs)) {
+    return res.status(400).send("Missing or invalid token_ws");
+  }
+  try {
+    const commit = await webpayAdapter.commitTransaction(tokenWs);
+    const invoiceId = commit.buyOrder;
+    const db = admin.firestore();
+    const ref = db.collection('invoices').doc(invoiceId);
+    const snap = await ref.get();
+    if (snap.exists && snap.data()?.status === 'paid') {
+      return res.redirect(`/pricing/success?invoice=${encodeURIComponent(invoiceId)}`);
+    }
+    if (commit.status === 'AUTHORIZED') {
+      await ref.set({
+        status: 'paid',
+        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+        paymentSource: 'webpay',
+        webpayToken: tokenWs,
+        webpayAuthCode: commit.authorizationCode ?? null,
+      }, { merge: true });
+      await db.collection('audit_logs').add({
+        action: 'billing.webpay-return.authorized',
+        module: 'billing',
+        details: { invoiceId, amount: commit.amount, authCode: commit.authorizationCode },
+        userId: null, userEmail: null, projectId: null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
+      });
+      return res.redirect(`/pricing/success?invoice=${encodeURIComponent(invoiceId)}`);
+    }
+    await ref.set({ status: 'cancelled', webpayToken: tokenWs }, { merge: true });
+    return res.redirect(`/pricing/failed?invoice=${encodeURIComponent(invoiceId)}`);
+  } catch (error: any) {
+    logger.error('webpay_return_failed', error, { tokenWs });
+    return res.redirect(`/pricing/failed?error=webpay`);
+  }
+});
+
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
 

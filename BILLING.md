@@ -4,23 +4,26 @@
 
 **ESTE ARCHIVO ES UN ESQUELETO. La integración real con Transbank/Stripe está pendiente — ver TODOs.**
 
-This commit lands:
+What is now landed:
 
 - Pure invoice math (`src/services/billing/invoice.ts`) with TDD coverage.
-- Typed contracts for the Webpay (Transbank) and Stripe adapters
-  (`webpayAdapter.ts`, `stripeAdapter.ts`) — every method throws
-  `*NotImplementedError` until the real SDK is wired.
-- Two new HTTP endpoints (`POST /api/billing/checkout`,
-  `POST /api/billing/invoice/:id/mark-paid`) that persist invoices to a
-  server-only Firestore collection (`invoices/{id}`) via the Admin SDK.
+- **Webpay (Transbank) — IMPLEMENTED (sandbox)**. Real adapter wired
+  against `transbank-sdk` (`WebpayPlus.Transaction`); see "Webpay setup"
+  below for the implementation status matrix.
+- Stripe adapter still a typed stub (every method throws
+  `StripeNotImplementedError`) — separate scope.
+- HTTP endpoints (`POST /api/billing/checkout`,
+  `POST /api/billing/invoice/:id/mark-paid`,
+  `GET /billing/webpay/return`) that persist invoices to a server-only
+  Firestore collection (`invoices/{id}`) via the Admin SDK.
 
 What is **not** here yet:
 
-- No `transbank-sdk` npm install.
 - No `stripe` npm install.
 - No SII boleta electrónica integration.
 - No `firestore.rules` change for `invoices/{id}` (intentional — the
   collection is admin-only and the default-deny rule keeps it that way).
+- Production Webpay commerce code not provisioned (sandbox only).
 
 ---
 
@@ -91,6 +94,32 @@ is **not** implemented yet — see the Webpay TODOs.
 
 ## Webpay setup (Transbank)
 
+### Implementation status
+
+- ✅ `transbank-sdk@^6.1.1` installed (latest published; spec asked for
+  `^7` but no v7.x exists on npm — see `npm view transbank-sdk versions`).
+- ✅ `WebpayAdapter` real implementation in `src/services/billing/webpayAdapter.ts`:
+  - `createTransaction` → `WebpayPlus.Transaction.create()`
+  - `commitTransaction` → `WebpayPlus.Transaction.commit()` with response mapping
+    (`response_code === 0 && status === 'AUTHORIZED'` → `'AUTHORIZED'`, else `'REJECTED'`).
+  - `refundTransaction` → `WebpayPlus.Transaction.refund()` returning `{ type, balance }`.
+  - SDK errors wrapped in `WebpayAdapterError` (no silent failures).
+- ✅ Sandbox credentials (`IntegrationCommerceCodes.WEBPAY_PLUS` +
+  `IntegrationApiKeys.WEBPAY`) are the default — dev / CI / E2E never
+  touch a real merchant.
+- ✅ `GET /billing/webpay/return` route shipped in `server.ts`. Reads
+  `token_ws` query param, calls `commitTransaction`, updates
+  `invoices/{buyOrder}.status` to `paid` or `cancelled`, writes an
+  `audit_logs` entry, redirects to `/pricing/success` or `/pricing/failed`.
+  Idempotency: skips reprocessing when invoice is already `paid`.
+- ✅ Unit tests with mocked SDK (`webpayAdapter.test.ts`, 13 cases).
+- ⚠️ Production credentials require Transbank commerce-code application
+  (KYC + onboarding). Not blocking sandbox dev.
+- ⚠️ Stronger idempotency via `processed_webpay/{token}` doc (lock-then-
+  complete pattern, mirroring RTDN) is still TODO — current guard only
+  reads the invoice's own status.
+- ⚠️ Boleta electrónica emission post-AUTHORIZED is still TODO.
+
 ### Environments
 
 | Environment   | Use                              | Credentials                                         |
@@ -98,7 +127,7 @@ is **not** implemented yet — see the Webpay TODOs.
 | `integration` | dev / staging / E2E tests        | Transbank "Tienda de Integración" demo credentials  |
 | `production`  | real charges                     | Real commerce code + API key from Transbank Onepay  |
 
-### Setup checklist
+### Setup checklist (production)
 
 1. Apply for a Webpay Plus commerce code at <https://www.transbank.cl/>.
 2. Receive `commerceCode` + `apiKey` (production) by email after KYC.
@@ -107,20 +136,14 @@ is **not** implemented yet — see the Webpay TODOs.
    ```bash
    WEBPAY_COMMERCE_CODE=...
    WEBPAY_API_KEY=...
-   WEBPAY_ENVIRONMENT=integration  # or 'production'
+   WEBPAY_ENV=production            # or omit for sandbox (the default)
    APP_BASE_URL=https://app.praeventio.net
    ```
 
-4. `npm install transbank-sdk` (NOT yet installed — deliberate).
-5. Create `src/services/billing/webpayAdapter.transbank.ts` implementing
-   the `WebpayAdapter` interface. Replace the stub export in
-   `webpayAdapter.ts` once green.
-6. Implement the return URL handler at `/billing/return` that calls
-   `commitTransaction(token)` and updates `invoices/{id}` to `paid` or
-   `cancelled`.
-7. **Idempotency**: Webpay can re-deliver the commit if the user reloads
-   — guard with the same pattern used for Google Play RTDN (lock-then-
-   complete via a `processed_webpay/{token}` doc).
+4. Restart the server. `webpayAdapter.isConfigured()` will flip to `true`
+   and `/api/billing/checkout` will start producing real Transbank URLs.
+5. **Idempotency follow-up**: add `processed_webpay/{token}` lock-then-
+   complete (same pattern as Google Play RTDN) before going live.
 
 ### Test cards (integration env)
 
@@ -230,22 +253,23 @@ The following must happen before this scaffolding is production-ready:
 
 ### Webpay (Transbank)
 
-- [ ] `npm install transbank-sdk`.
-- [ ] Provision Tienda de Integración credentials, store as env vars.
-- [ ] Implement `WebpayAdapter` against the SDK
-      (`createTransaction` → `Transaction.create()`,
-      `commitTransaction` → `Transaction.commit()`,
-      `refundTransaction` → `Transaction.refund()`).
-- [ ] Replace the stub export in `webpayAdapter.ts` with the real
-      implementation — keep the type contract identical.
-- [ ] Add `GET /billing/return` route that pulls the `token_ws` form
-      field, calls `commitTransaction`, and updates `invoices/{id}`.
-- [ ] Add idempotency via `processed_webpay/{token}` doc using the same
-      lock-then-complete pattern as the Google Play RTDN handler.
-- [ ] Apply for production commerce code after smoke-testing in
-      integration.
-- [ ] Add unit tests with a mock SDK (DI the adapter into a small
-      `webpayService` so tests don't hit the real network).
+- [x] `npm install transbank-sdk` (`^6.1.1`).
+- [x] Tienda de Integración credentials are the built-in default
+      (no env vars needed for sandbox).
+- [x] Implement `WebpayAdapter` against the SDK (`create` / `commit` /
+      `refund`). Stub export replaced in-place; type contract preserved.
+- [x] `GET /billing/webpay/return` route — calls `commitTransaction`,
+      updates `invoices/{id}` status, writes audit log, redirects to
+      `/pricing/success` or `/pricing/failed`.
+- [x] Unit tests with a mock SDK (`webpayAdapter.test.ts`, vitest +
+      `vi.mock('transbank-sdk', ...)`).
+- [ ] Provision **production** commerce code (Transbank KYC) — requires
+      legal entity verification + email back from Transbank.
+- [ ] Add stronger idempotency via `processed_webpay/{token}` doc
+      (lock-then-complete pattern, mirroring the Google Play RTDN
+      handler) so duplicate redeliveries cannot double-process.
+- [ ] PDF receipt generation post-AUTHORIZED (boleta or temp receipt
+      until SII integration lands).
 
 ### Stripe
 
