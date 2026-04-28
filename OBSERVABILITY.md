@@ -1,10 +1,12 @@
 # Production Observability — Operations Runbook
 
-Status: **Round 1 (scaffolding only)** — typed adapter interfaces +
-stub implementations + a `noop` adapter that routes through the existing
-structured logger. No real Sentry / Cloud Error Reporting / Cloud
-Monitoring SDK is installed yet. Round 2 swaps the stubs for real SDKs
-without touching call sites.
+Status: **Round 13 — Sentry installed and wired (Round 2 milestone DONE).**
+The Sentry adapter now forwards to the real `@sentry/node` SDK, the
+Express terminal error middleware feeds unhandled exceptions into the
+selected error tracker, and the Webpay return endpoint emits a
+`praeventio/webpay/return_latency_ms` histogram per request. Cloud
+Error Reporting and Cloud Monitoring remain on the stub-with-fallback
+path — those swaps are tracked in §10 (Round-2 follow-ups).
 
 ## 1. Overview
 
@@ -124,13 +126,33 @@ This is the **opposite** policy from the KMS adapter, which refuses to
 silently downgrade. Encryption fall-back is a security bug; observability
 fall-back is a reliability win.
 
-## 2. Sentry setup (Round 2)
+## 2. Sentry setup (Round 13 — DONE)
+
+Status: **DONE** as of Round 13. `@sentry/node@^10.50` and
+`@sentry/react@^10.50` are pinned in `package.json`. `sentryAdapter.ts`
+now forwards every method to the real SDK; the stub
+`ObservabilityNotImplementedError` paths are gone for Sentry. The fall-
+back contract is unchanged: if `SENTRY_DSN` is not set, `init()`
+silently logs a `console.warn` and skips `Sentry.init`, so calls land in
+`logger.error` only (still captured by Cloud Logging).
+
+Wiring summary:
+
+| Concern                                      | Where                                                         |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| `Sentry.init(...)` at process boot           | `server.ts` top-level (right after `dotenv.config()`)         |
+| Express terminal error middleware            | `server.ts` last `app.use(...)` before `app.listen` — feeds `getErrorTracker().captureException` |
+| Webpay return histogram                      | `src/services/billing/webpayMetrics.ts` — see §4              |
+| `Sentry.ErrorBoundary` around React root     | **Deferred** — Round 14 task; see §10 follow-ups              |
+| Source-map upload                            | **Deferred** — Round 14 build-pipeline task                   |
+
+Original install instructions (kept for reference / re-runs):
 
 ```bash
 npm install @sentry/node @sentry/react
 ```
 
-Replace the body of `sentryAdapter.ts`:
+The body of `sentryAdapter.ts` matches:
 
 ```ts
 import * as Sentry from '@sentry/node';
@@ -248,6 +270,41 @@ Define in `metricsAdapter.ts:CloudMonitoringAdapter`:
 | `custom.googleapis.com/webpay/return`       | histogram | `outcome`                           | Webpay return endpoint latency               |
 | `custom.googleapis.com/billing/signups`     | counter   | `tier`                              | Sign-ups per day per tier (business KPI)     |
 
+### `praeventio/webpay/return_latency_ms` (Round 13 — emitting now)
+
+The first real metric wired into the request path. Lives in
+`src/services/billing/webpayMetrics.ts` and is invoked from every exit
+branch of the `/billing/webpay/return` handler in `server.ts`.
+
+| Field         | Value                                                                |
+| ------------- | -------------------------------------------------------------------- |
+| Metric name   | `praeventio/webpay/return_latency_ms`                                |
+| Type          | Histogram (milliseconds)                                             |
+| Labels        | `outcome` ∈ `{ success, failure, invalid }` (matches Terraform descriptor)|
+| Cardinality   | 3 series total (per `MetricsAdapter`); intentionally tiny            |
+| Where emitted | `server.ts` Webpay return handler — entry-to-exit wall-clock         |
+| What it powers| `webpay/return` p95 latency SLO + Round 14 alert policy in `monitoring.tf` |
+
+`outcome` discipline (KEEP THIS — must match `monitoring.tf` resource `webpay_return_latency` label key, which is immutable post-`terraform apply`):
+
+  • `success` — Webpay AUTHORIZED, idempotency replay of an authorized
+    outcome, OR an in-flight redirect to `/pricing/success` (the
+    handler returned in <1 s; the SPA will resolve eventual state).
+  • `failure` — Webpay REJECTED / FAILED, OR an exception caught by the
+    handler's terminal `catch` (`webpay_return_failed`).
+  • `invalid` — `token_ws` missing or didn't match the validator regex.
+    A 400 was returned; we still time the validation work.
+
+Adding a fourth label value is a Cloud Monitoring spend incident waiting
+to happen — keep this enum closed. **NEVER** add `userId`, `tokenWs`,
+`invoiceId`, `tenantId`, or any per-request value to the labels.
+
+Today the metric routes through `noopMetricsAdapter` (logger.debug) in
+dev/CI and falls back to noop in production until
+`METRICS_ADAPTER=cloud-monitoring` ships in Round 14. The histogram
+bucket boundaries will be defined alongside the `CloudMonitoringAdapter`
+SDK swap.
+
 ### SLOs
 
 | SLO                                              | Target            | Notes                                           |
@@ -329,10 +386,20 @@ Observability has its own failure modes. Paths to handle:
 
 ## Round 2 follow-ups
 
-- [ ] **Sentry SDK install + wiring** — replace `sentryAdapter` stub.
-  - [ ] React `Sentry.ErrorBoundary` around root.
-  - [ ] Express `Sentry.Handlers.errorHandler()` in server.ts.
-  - [ ] Source map upload in build step (`@sentry/cli`).
+- [x] **Sentry SDK install + wiring** — replaced `sentryAdapter` stub
+      (Round 13). `@sentry/node@^10.50` + `@sentry/react@^10.50` pinned
+      in `package.json`. Init runs at the top of `server.ts` and the
+      adapter forwards every method to the real SDK.
+  - [ ] React `Sentry.ErrorBoundary` around root — **deferred to Round 14**.
+        `src/main.tsx` is small but the choice of fallback UI (Spanish-CL
+        copy, retry button vs. generic page) deserves a design pass.
+  - [x] Express terminal error middleware — registered as the last
+        `app.use(...)` in `server.ts` and feeds `getErrorTracker().captureException`.
+        We do **not** rely on `Sentry.Handlers.errorHandler()` directly —
+        instead the terminal middleware delegates to whichever tracker
+        `ERROR_TRACKER` selects, so swapping in Cloud Error Reporting
+        later is a config change.
+  - [ ] Source map upload in build step (`@sentry/cli`) — **deferred**.
 - [ ] **Cloud Error Reporting** — alternative path; install
   `@google-cloud/error-reporting`, grant IAM, replace stub.
 - [ ] **Cloud Monitoring** — install `@google-cloud/monitoring`, define

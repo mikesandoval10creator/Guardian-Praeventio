@@ -61,7 +61,12 @@ vi.mock('@perfood/capacitor-healthkit', () => ({
 }));
 
 describe('smoke: critical paths', () => {
-  it('all major modules load without errors', async () => {
+  // Round 13: bumped from 5s default. With `@sentry/node` now imported
+  // transitively via `services/observability`, the cold transform pass
+  // for this many dynamic imports under parallel suite load occasionally
+  // pushes past the 5s default. Local cold runs measure ~4s; the
+  // 15s ceiling leaves headroom for slower CI runners.
+  it('all major modules load without errors', { timeout: 15000 }, async () => {
     await expect(import('../services/pricing/tiers')).resolves.toBeDefined();
     await expect(import('../services/billing/invoice')).resolves.toBeDefined();
     await expect(import('../services/billing/webpayAdapter')).resolves.toBeDefined();

@@ -30,13 +30,17 @@ import {
 import { getErrorTracker, getMetrics } from './index';
 import { ObservabilityNotImplementedError } from './types';
 
-describe('sentryAdapter (stub)', () => {
+describe('sentryAdapter (real SDK; coarse smoke checks)', () => {
+  // Round 13 swapped the stub for the real `@sentry/node` SDK. The
+  // detailed call-shape assertions live in `sentryAdapter.test.ts`
+  // (which mocks `@sentry/node` to spy on every SDK call). Here we keep
+  // only the coarse smoke checks that are still meaningful against the
+  // unmocked singleton — namely `isAvailable` env gating, the adapter
+  // name, and that hot-path methods never throw.
+
   it('isAvailable === false when SENTRY_DSN unset', () => {
-    // Adapter captures isAvailable in its constructor. We re-import a
-    // fresh module to pick up the env state — but since the singleton was
-    // built at module-load time before any test ran, we instead check
-    // whether the DSN is unset right now and assert consistency. In a
-    // typical CI run SENTRY_DSN is unset, which gives us false.
+    // Adapter captures isAvailable in its constructor. In a typical CI
+    // run SENTRY_DSN is unset, which gives us false.
     if (!process.env.SENTRY_DSN) {
       expect(sentryAdapter.isAvailable).toBe(false);
     } else {
@@ -44,19 +48,10 @@ describe('sentryAdapter (stub)', () => {
     }
   });
 
-  it('init() throws ObservabilityNotImplementedError with install command', () => {
+  it('init() with no DSN does NOT throw (silent degradation per fall-back policy)', () => {
     expect(() =>
       sentryAdapter.init({ environment: 'development' }),
-    ).toThrow(ObservabilityNotImplementedError);
-    expect(() =>
-      sentryAdapter.init({ environment: 'development' }),
-    ).toThrow(/npm install @sentry\/node/);
-  });
-
-  it('captureException() throws helpful error including OBSERVABILITY.md', () => {
-    expect(() =>
-      sentryAdapter.captureException(new Error('boom')),
-    ).toThrow(/OBSERVABILITY\.md/);
+    ).not.toThrow();
   });
 
   it('addBreadcrumb / setUserContext / flush DO NOT throw (hot-path safe)', async () => {
@@ -70,6 +65,14 @@ describe('sentryAdapter (stub)', () => {
     ).not.toThrow();
     expect(() => sentryAdapter.setUserContext('uid-1')).not.toThrow();
     await expect(sentryAdapter.flush(1000)).resolves.toBeUndefined();
+  });
+
+  it('captureException() does not throw and returns a string event id', () => {
+    // Without a configured DSN the SDK no-ops internally and returns
+    // `undefined`; our adapter normalizes that to '' so callers always
+    // get a string.
+    const id = sentryAdapter.captureException(new Error('boom'));
+    expect(typeof id).toBe('string');
   });
 
   it('name is "sentry"', () => {

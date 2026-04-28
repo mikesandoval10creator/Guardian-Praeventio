@@ -30,12 +30,37 @@ import {
 } from "./src/services/billing/webpayAdapter.js";
 import { stripeAdapter } from "./src/services/billing/stripeAdapter.js";
 import { withIdempotency } from "./src/services/billing/idempotency.js";
+import { recordWebpayReturnLatency } from "./src/services/billing/webpayMetrics.js";
+import { sentryAdapter } from "./src/services/observability/sentryAdapter.js";
+import { getErrorTracker } from "./src/services/observability/index.js";
 import admin from "firebase-admin";
 import fs from 'fs';
+import { performance } from 'node:perf_hooks';
 import { GoogleGenAI } from "@google/genai";
 import { google } from 'googleapis';
 
 dotenv.config();
+
+// Sentry initialization — must happen as early as possible, before any
+// Express middleware so unhandled errors anywhere in the boot path are
+// captured. Silent no-op when SENTRY_DSN isn't set; see OBSERVABILITY.md
+// §1 (fall-back policy) for why a missing DSN is not fatal.
+try {
+  sentryAdapter.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: (process.env.NODE_ENV === 'production'
+      ? 'production'
+      : process.env.NODE_ENV === 'staging'
+        ? 'staging'
+        : 'development') as 'production' | 'staging' | 'development',
+    release: process.env.APP_VERSION ?? 'dev',
+    sampleRate: process.env.SENTRY_TRACES_SAMPLE_RATE
+      ? Number(process.env.SENTRY_TRACES_SAMPLE_RATE)
+      : 0.1,
+  });
+} catch (err) {
+  console.warn('[observability] Sentry init failed (continuing without it):', err);
+}
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -2437,8 +2462,18 @@ app.get("/api/billing/invoice/:id", verifyAuth, invoiceStatusLimiter, async (req
 // commit is too high (would touch the entire payment confirmation
 // path; deferring until invoice-replay typing settles).
 app.get("/billing/webpay/return", async (req, res) => {
+  // Round 13: capture wall-clock at handler entry so we can emit a
+  // single `praeventio/webpay/return_latency_ms` histogram observation
+  // at every exit. `outcome` is one of {success, failure, invalid}
+  // — see src/services/billing/webpayMetrics.ts for label discipline.
+  // The label key MUST match the Terraform descriptor (monitoring.tf
+  // `webpay_return_latency`) — descriptor labels are immutable.
+  const startedAt = performance.now();
+  const elapsed = () => performance.now() - startedAt;
+
   const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;
   if (!tokenWs || !/^[A-Za-z0-9_-]{1,128}$/.test(tokenWs)) {
+    recordWebpayReturnLatency({ outcome: 'invalid', latencyMs: elapsed() });
     return res.status(400).send("Missing or invalid token_ws");
   }
 
@@ -2454,17 +2489,29 @@ app.get("/billing/webpay/return", async (req, res) => {
     return `/pricing/retry${inv}`;
   };
 
+  // Map WebpayReturnOutcome (paid|rejected|failed) to the histogram's
+  // `outcome` label (success|failure|invalid). Keep cardinality LOW —
+  // see webpayMetrics.ts header.
+  const histogramOutcomeFor = (
+    o: WebpayReturnOutcome,
+  ): 'success' | 'failure' => (o === 'paid' ? 'success' : 'failure');
+
   try {
     // Step 1: try to acquire the idempotency lock.
     const lock = await acquireWebpayIdempotencyLock(lockRef);
     if (!lock.acquired) {
       if (lock.alreadyDone && lock.outcome) {
         // Replay the original redirect.
+        recordWebpayReturnLatency({
+          outcome: histogramOutcomeFor(lock.outcome),
+          latencyMs: elapsed(),
+        });
         return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
       }
       // In-flight from another worker. Mirror RTDN's "ack and let UI handle
       // eventual consistency" — redirect to /pricing/success and the SPA
       // will surface the actual state once Firestore catches up.
+      recordWebpayReturnLatency({ outcome: 'success', latencyMs: elapsed() });
       return res.redirect(`/pricing/success`);
     }
 
@@ -2518,12 +2565,17 @@ app.get("/billing/webpay/return", async (req, res) => {
       serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
     });
 
+    recordWebpayReturnLatency({
+      outcome: histogramOutcomeFor(outcome),
+      latencyMs: elapsed(),
+    });
     return res.redirect(redirectFor(outcome, invoiceId));
   } catch (error: any) {
     // Deliberate: do NOT update processed_webpay here. Leaving the doc as
     // 'in_progress' allows the staleness window to grant a future
     // redelivery a fresh attempt — same approach as the RTDN handler.
     logger.error('webpay_return_failed', error, { tokenWs });
+    recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
     return res.redirect(`/pricing/failed?error=webpay`);
   }
 });
@@ -2690,6 +2742,48 @@ const setupBackgroundTriggers = () => {
     console.error("Failed to setup background triggers:", err);
   }
 };
+
+// Round 13: Express terminal error middleware. MUST be the last `app.use(...)`
+// — Express only treats 4-arg middleware as an error handler, and only
+// the first one registered after the failing route runs. Any unhandled
+// exception thrown synchronously inside a route, or an `await`-rejected
+// promise that bubbles out of an async handler with `next(err)` (or with
+// Express 5's automatic forwarding), lands here.
+//
+// Safety contract:
+//   • Wrapped in try/catch — observability MUST NOT break the response.
+//   • Sends 500 ONLY if headers haven't been sent (protects against
+//     double-send when the route already started streaming).
+//   • Does NOT call `next(err)` — this is the terminal handler. Calling
+//     next would defer to Express's default handler which writes an HTML
+//     error page; the JSON shape we emit here is what callers expect.
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      {
+        endpoint: req.url,
+        tags: { method: req.method },
+      },
+    );
+  } catch (trackerError) {
+    // Observability layer faulted — log via console (NOT logger, to
+    // avoid recursion through observability) and keep going.
+    // eslint-disable-next-line no-console
+    console.warn('[observability] error tracker captureException failed:', trackerError);
+  }
+  try {
+    logger.error('express_unhandled_error', err instanceof Error ? err : new Error(String(err)), {
+      method: req.method,
+      url: req.url,
+    });
+  } catch {
+    /* logger faulted — last-ditch fallback below still fires */
+  }
+  if (!res.headersSent) {
+    res.status(500).json({ error: 'internal_server_error' });
+  }
+});
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);

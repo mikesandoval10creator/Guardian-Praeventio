@@ -44,6 +44,8 @@
     "@react-google-maps/api": "^2.20.8",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@sentry/node": "^10.50.0",
+    "@sentry/react": "^10.50.0",
     "@tailwindcss/vite": "^4.1.14",
     "@turf/boolean-point-in-polygon": "^7.3.4",
     "@turf/helpers": "^7.3.4",
