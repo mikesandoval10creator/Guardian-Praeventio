@@ -48,15 +48,20 @@ function writeStoredConsent(value: ConsentValue): void {
   }
 }
 
+/**
+ * Initial state is computed lazily from localStorage so we read the stored
+ * consent synchronously on first render — no `'pending'` placeholder state,
+ * no one-frame mount flicker for users who already consented.
+ *
+ * Safe in this codebase because the rest of the app is CSR React (no SSR),
+ * so `window.localStorage` is reachable during render. `readStoredConsent`
+ * already guards `typeof window === 'undefined'` and try/catches storage
+ * errors (private mode, locked-down kiosk profiles, etc.), so the lazy
+ * initializer never throws.
+ */
 export function CookieConsent() {
-  // null mientras leemos localStorage para evitar parpadeo del banner en
-  // usuarios que ya consintieron.
-  const [consent, setConsent] = useState<ConsentValue | null | 'pending'>('pending');
+  const [consent, setConsent] = useState<ConsentValue | null>(() => readStoredConsent());
   const acceptButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    setConsent(readStoredConsent());
-  }, []);
 
   // Auto-foco en "Aceptar" cuando el banner aparece, para accesibilidad
   // por teclado. No usamos focus trap completo porque el banner es no-modal:
@@ -77,8 +82,6 @@ export function CookieConsent() {
     setConsent('essential-only');
   };
 
-  // Mientras leemos localStorage no renderizamos nada.
-  if (consent === 'pending') return null;
   // Si ya hay una decisión, el banner permanece oculto.
   if (consent !== null) return null;
 

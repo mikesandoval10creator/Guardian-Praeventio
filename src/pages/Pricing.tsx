@@ -15,8 +15,10 @@ import {
   Crown,
   Mail,
   Info,
+  XCircle,
+  RefreshCw,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useSubscription, SubscriptionPlan } from '../contexts/SubscriptionContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import {
@@ -340,6 +342,115 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
   );
 }
 
+/**
+ * Banner that surfaces the Webpay return outcome to the user. The server
+ * `/billing/webpay/return` handler redirects to one of three SPA paths:
+ *
+ *   /pricing/success?invoice=<id>  → invoice 'paid'
+ *   /pricing/failed?invoice=<id>   → card declined ('rejected')
+ *   /pricing/retry?invoice=<id>    → transient failure ('pending-payment')
+ *
+ * The redirect itself is racy: when another worker holds the idempotency
+ * lock the server redirects optimistically to /pricing/success before the
+ * actual commit finalizes (server.ts:2385 — "ack and let UI handle eventual
+ * consistency"). Eventually the lock-holder writes the real `invoice.status`
+ * and the SPA should reflect that.
+ *
+ * Ideal UX: poll `invoices/{id}` from Firestore until status settles, then
+ * render the authoritative result.
+ *
+ * TODO(billing-status-poll): the `invoices/{id}` Firestore collection is
+ * server-only (no rule in firestore.rules → default deny). Polling from
+ * the client requires a `GET /api/billing/invoice/:id/status` endpoint
+ * (~80 LOC server-side) plus a small client hook. Out of scope for the
+ * O6-polish round; tracked in BILLING.md §10.
+ *
+ * Until then we render a deterministic banner from the URL state and tell
+ * the user a confirmation will arrive by email — explicitly NOT promising
+ * "your card was charged" on /pricing/success because the redirect can
+ * race ahead of the actual commit.
+ */
+function WebpayReturnBanner() {
+  const location = useLocation();
+  const status = useMemo<'success' | 'failed' | 'retry' | null>(() => {
+    if (location.pathname.endsWith('/pricing/success')) return 'success';
+    if (location.pathname.endsWith('/pricing/failed')) return 'failed';
+    if (location.pathname.endsWith('/pricing/retry')) return 'retry';
+    return null;
+  }, [location.pathname]);
+
+  const invoiceId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('invoice');
+  }, [location.search]);
+
+  if (!status) return null;
+
+  if (status === 'success') {
+    return (
+      <div
+        role="status"
+        className="flex items-start gap-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-5"
+      >
+        <Loader2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5 animate-spin" />
+        <div>
+          <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
+            Procesando tu pago…
+          </p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+            Recibimos la respuesta de Webpay
+            {invoiceId ? ` para la factura ${invoiceId}` : ''}. La confirmación
+            final puede tardar unos segundos. Te enviaremos un email cuando se
+            complete; mientras tanto puedes recargar esta página.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'failed') {
+    return (
+      <div
+        role="alert"
+        className="flex items-start gap-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-2xl p-5"
+      >
+        <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-red-900 dark:text-red-300 text-sm">
+            El pago fue rechazado
+          </p>
+          <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+            Tu tarjeta no autorizó el cargo
+            {invoiceId ? ` (factura ${invoiceId})` : ''}. Puedes intentar con
+            otro medio de pago seleccionando el plan de nuevo.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // status === 'retry' — transient infra failure, same card can retry.
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5"
+    >
+      <RefreshCw className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
+      <div>
+        <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
+          Reintenta el pago
+        </p>
+        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+          Tuvimos un problema temporal procesando tu pago
+          {invoiceId ? ` (factura ${invoiceId})` : ''}. La factura sigue
+          pendiente — selecciona el plan de nuevo para reintentar con la misma
+          tarjeta.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function PricingInner() {
   const { plan, totalWorkers, recommendedPlan, requiresUpgrade, upgradePlan } = useSubscription();
   const { addNotification } = useNotifications();
@@ -430,6 +541,7 @@ function PricingInner() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-8">
+      <WebpayReturnBanner />
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="text-center sm:text-left max-w-3xl">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight mb-3">

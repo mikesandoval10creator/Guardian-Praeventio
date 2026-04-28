@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { initAdMob } from './services/adService';
+import { preWarmHealthConnect } from './services/health/healthConnectAdapter';
 import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
@@ -122,6 +123,9 @@ function AppRoutes() {
                     <Route path="webxr" element={<WebXR />} />
                     <Route path="history" element={<History />} />
                     <Route path="pricing" element={<Pricing />} />
+                    <Route path="pricing/success" element={<Pricing />} />
+                    <Route path="pricing/failed" element={<Pricing />} />
+                    <Route path="pricing/retry" element={<Pricing />} />
                     <Route path="transparencia" element={<Transparencia />} />
                     <Route path="google-drive" element={<GoogleDriveIntegrationManager />} />
                     <Route path="immutable-render" element={<ImmutableRender />} />
@@ -148,7 +152,14 @@ function AppRoutes() {
 }
 
 export default function App() {
-  useEffect(() => { initAdMob(); }, []);
+  useEffect(() => {
+    initAdMob();
+    // Pre-warm the Health Connect availability probe so a user tapping
+    // "Connect" on the Telemetry page within ~50ms of boot doesn't race
+    // the cached probe and see a false negative. Errors are swallowed
+    // by `preWarmHealthConnect` (cache resolves to `NotSupported`).
+    void preWarmHealthConnect();
+  }, []);
 
   return (
     <ErrorBoundary>
