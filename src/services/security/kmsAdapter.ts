@@ -5,17 +5,20 @@
  * encryption code and a concrete KMS provider (Google Cloud KMS in
  * production). Keeping this interface narrow lets us:
  *   - run tests / dev without any KMS network calls (in-memory adapter),
- *   - swap in `@google-cloud/kms` in a future round without touching the
- *     envelope math (cloudKmsAdapter is currently a stub),
+ *   - swap in `@google-cloud/kms` for production envelope wraps,
  *   - disable encryption entirely via the noop adapter for emergency
  *     break-glass debugging.
  *
- * IMPORTANT: This file does NOT import `@google-cloud/kms`. That dependency
- * is owned by Agent O5 / a future round (see KMS_ROTATION.md). Until then,
- * `cloudKmsAdapter.encrypt/decrypt` throw a clear NotImplementedError.
+ * Round 2: `cloudKmsAdapter` is now a real `@google-cloud/kms`-backed
+ * implementation. It is gated by `KMS_KEY_RESOURCE_NAME` — when that env var
+ * is missing the adapter reports `isAvailable=false` and any call throws a
+ * clean configuration error. We deliberately do NOT auto-fall-back to the
+ * in-memory KEK in that case (silently downgrading from KMS to a dev key
+ * would be a security bug — see `getKmsAdapter()`).
  */
 
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
+import { KeyManagementServiceClient } from '@google-cloud/kms';
 
 export type KmsAdapterName = 'cloud-kms' | 'in-memory-dev' | 'noop';
 
@@ -31,7 +34,8 @@ export interface KmsAdapter {
    * `true` when the adapter is wired up enough to actually call.
    *   - in-memory-dev: always true.
    *   - noop: true (it just returns input).
-   *   - cloud-kms: false until @google-cloud/kms is installed and configured.
+   *   - cloud-kms: true iff `KMS_KEY_RESOURCE_NAME` is set at construction
+   *     time (the SDK client is built lazily in that case).
    */
   readonly isAvailable: boolean;
 
@@ -93,28 +97,76 @@ export const inMemoryKmsAdapter: KmsAdapter = {
 };
 
 /**
- * Cloud KMS adapter — STUB. Real implementation lands in the next round
- * once `@google-cloud/kms` is added to package.json (see KMS_ROTATION.md
- * "Round 2 TODO"). Until then this exists so callers can reference it by
- * import without conditional require, and isAvailable=false signals to
- * `getKmsAdapter()` to fall back appropriately.
+ * Cloud KMS adapter — production implementation backed by `@google-cloud/kms`.
+ *
+ * Wraps a 32-byte DEK with a Cloud KMS-managed Key Encryption Key (KEK) using
+ * symmetric `Encrypt` / `Decrypt` calls. Cloud KMS auto-handles key versions
+ * on decrypt: a ciphertext wrapped under a previous version still resolves
+ * after rotation without us tracking version IDs.
+ *
+ * Configuration (single env var):
+ *
+ *   KMS_KEY_RESOURCE_NAME — full KMS key resource name, of the shape
+ *     `projects/<proj>/locations/southamerica-west1/keyRings/praeventio/cryptoKeys/oauth-tokens-kek`
+ *
+ * When `KMS_KEY_RESOURCE_NAME` is unset the adapter is `isAvailable=false`
+ * and any encrypt/decrypt call throws a configuration error. We DO NOT fall
+ * back to the in-memory dev KEK in that case — see `getKmsAdapter()`.
+ *
+ * Authentication: standard Google ADC. In Cloud Run, the service identity
+ * needs `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the key. Locally,
+ * `gcloud auth application-default login` or a SA key file referenced by
+ * `GOOGLE_APPLICATION_CREDENTIALS` works. See KMS_ROTATION.md §2 for the
+ * `gcloud kms keys add-iam-policy-binding` setup command.
+ *
+ * The `KeyManagementServiceClient` is constructed lazily inside the
+ * constructor only when `isAvailable === true`, so importing this module in
+ * a context without ADC (e.g. a unit test that stubs the SDK) does not crash
+ * at module load.
  */
-export const cloudKmsAdapter: KmsAdapter = {
-  name: 'cloud-kms',
-  isAvailable: false,
-  async encrypt(_plaintext: Buffer): Promise<Buffer> {
-    throw new Error(
-      'cloudKmsAdapter.encrypt: not implemented in this round. ' +
-        'Install @google-cloud/kms and wire up keyring "praeventio" / key "oauth-tokens-kek" — see KMS_ROTATION.md.',
-    );
-  },
-  async decrypt(_ciphertext: Buffer): Promise<Buffer> {
-    throw new Error(
-      'cloudKmsAdapter.decrypt: not implemented in this round. ' +
-        'Install @google-cloud/kms and wire up keyring "praeventio" / key "oauth-tokens-kek" — see KMS_ROTATION.md.',
-    );
-  },
-};
+class CloudKmsAdapter implements KmsAdapter {
+  readonly name: KmsAdapterName = 'cloud-kms';
+  readonly isAvailable: boolean;
+  private client: KeyManagementServiceClient | null = null;
+  private keyName: string;
+
+  constructor() {
+    this.keyName = process.env.KMS_KEY_RESOURCE_NAME ?? '';
+    this.isAvailable = Boolean(this.keyName);
+    if (this.isAvailable) {
+      this.client = new KeyManagementServiceClient();
+    }
+  }
+
+  async encrypt(plaintext: Buffer): Promise<Buffer> {
+    if (!this.client) {
+      throw new Error(
+        'cloudKmsAdapter.encrypt: not configured. Set KMS_KEY_RESOURCE_NAME ' +
+          'to the full key resource name (projects/.../cryptoKeys/oauth-tokens-kek).',
+      );
+    }
+    const [response] = await this.client.encrypt({ name: this.keyName, plaintext });
+    if (!response.ciphertext) {
+      throw new Error('cloudKmsAdapter.encrypt: KMS response had no ciphertext');
+    }
+    return Buffer.from(response.ciphertext as Uint8Array);
+  }
+
+  async decrypt(ciphertext: Buffer): Promise<Buffer> {
+    if (!this.client) {
+      throw new Error(
+        'cloudKmsAdapter.decrypt: not configured. Set KMS_KEY_RESOURCE_NAME.',
+      );
+    }
+    const [response] = await this.client.decrypt({ name: this.keyName, ciphertext });
+    if (!response.plaintext) {
+      throw new Error('cloudKmsAdapter.decrypt: KMS response had no plaintext');
+    }
+    return Buffer.from(response.plaintext as Uint8Array);
+  }
+}
+
+export const cloudKmsAdapter: KmsAdapter = new CloudKmsAdapter();
 
 /**
  * Noop adapter — ciphertext === plaintext. Exists ONLY for break-glass
