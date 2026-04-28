@@ -110,7 +110,7 @@ export function Pricing() {
       const verification = await verifyGooglePlayPurchase(purchaseToken, planId as string, 'subscription');
 
       if (verification.success) {
-        await upgradePlan(planId, purchaseToken);
+        await upgradePlan(planId as import('../contexts/SubscriptionContext').SubscriptionPlan);
         addNotification({
           title: 'Suscripción Activada',
           message: `¡Bienvenido al plan ${planId.toUpperCase()}!`,

@@ -3,6 +3,7 @@ import { db } from './firebase';
 import { generateEmbeddingsBatch, autoConnectNodes, syncBatchToNetwork } from './geminiService';
 import { RiskNode } from '../types';
 import { get, set, del } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 type SyncOperation = 
   | { type: 'set', id: string, data: RiskNode }
@@ -17,6 +18,8 @@ class MatrixSyncManager {
   private isFlushing = false;
   private flushDelayMs = 5000; // 5 seconds batching window
   private listeners: (() => void)[] = [];
+  // Backoff state: number of consecutive failed flush cycles. Reset to 0 on success.
+  private retryAttempt = 0;
 
   constructor() {
     this.init();
@@ -24,7 +27,7 @@ class MatrixSyncManager {
     // Listen for online events to trigger flush
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
-        console.log('[SyncManager] Back online. Flushing queue...');
+        logger.info('Back online — flushing sync queue');
         this.flush();
       });
     }
@@ -39,13 +42,13 @@ class MatrixSyncManager {
       const stored = await get<[string, SyncOperation][]>(SYNC_QUEUE_KEY);
       if (stored) {
         this.queue = new Map(stored);
-        console.log(`[SyncManager] Loaded ${this.queue.size} operations from IndexedDB.`);
+        logger.debug(`SyncManager loaded ${this.queue.size} operations from IndexedDB`);
         if (this.queue.size > 0 && navigator.onLine) {
           this.scheduleFlush();
         }
       }
     } catch (e) {
-      console.error('[SyncManager] Error loading queue from IndexedDB:', e);
+      logger.error('SyncManager: error loading queue from IndexedDB', e);
     }
   }
 
@@ -54,7 +57,7 @@ class MatrixSyncManager {
       const serialized = Array.from(this.queue.entries());
       await set(SYNC_QUEUE_KEY, serialized);
     } catch (e) {
-      console.error('[SyncManager] Error saving queue to IndexedDB:', e);
+      logger.error('SyncManager: error saving queue to IndexedDB', e);
     }
   }
 
@@ -114,55 +117,90 @@ class MatrixSyncManager {
     return Array.from(this.queue.values());
   }
 
+  /**
+   * Restore an operation back into the queue from outside (e.g. after a UI
+   * "restore server version" decision that needs to retry the local write).
+   * Public surface so components can request a retry/restore without poking
+   * at internals. NOTE: this is a stub — full implementation requires reading
+   * the server doc and reconstructing the local state. See restoreServerVersion.
+   */
+  async restoreServerVersion(_collection: string, _docId: string, _serverData: unknown): Promise<void> {
+    // TODO(sync-restore): src/services/syncManager.ts — implement server-state restore.
+    // Should: 1) fetch authoritative server doc, 2) rewrite local store with it,
+    // 3) drop any pending op for this docId from the queue so we don't re-clobber.
+    logger.warn('SyncManager.restoreServerVersion called but not implemented', { _collection, _docId });
+  }
+
   async flush() {
     if (this.isFlushing || this.queue.size === 0) return;
-    
+
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     if (!isOnline) {
-      console.log('[SyncManager] Offline. Flush deferred.');
+      logger.debug('SyncManager offline — flush deferred');
       return;
     }
 
     this.isFlushing = true;
-    
-    let operationsToFlush: SyncOperation[] = [];
+
+    // Snapshot of [id, opReference] pairs taken BEFORE the network await.
+    // INVARIANT: only delete an entry from this.queue if the *same object reference*
+    // is still there at completion time. If a concurrent enqueue* call replaced
+    // the entry while we were awaiting the network (user re-edited the same id),
+    // the new op MUST be preserved — it will be flushed on the next cycle.
+    // Without this guard, a single delete-by-id silently loses the new edit.
+    let snapshot: Array<[string, SyncOperation]> = [];
     try {
-      operationsToFlush = Array.from(this.queue.values());
-      this.queue.clear();
-      this.saveQueue();
+      snapshot = Array.from(this.queue.entries());
       this.notifyListeners();
-      
-      // Call the backend batch sync which handles:
-      // 1. Embedding generation if needed
-      // 2. Firestore saves
-      // 3. Vector Store (RAG) updates
-      // 4. Admin-level bidirectional connections
+
+      const operationsToFlush = snapshot.map(([, op]) => op);
       const result = await syncBatchToNetwork(operationsToFlush);
-      
-      if (result.success) {
-        console.log(`[SyncManager] Backend batch flush complete for ${operationsToFlush.length} operations.`);
+
+      // Remove only the operations that were confirmed successful AND whose
+      // queue entry has not been replaced since the snapshot.
+      const failedIds = new Set((result.failedOps ?? []).map((op: { id: string }) => op.id));
+      for (const [id, op] of snapshot) {
+        if (failedIds.has(id)) continue;
+        // Reference identity check — a concurrent enqueue* would have replaced
+        // the value with a *different* object. If so, leave it alone.
+        if (this.queue.get(id) === op) {
+          this.queue.delete(id);
+        }
+      }
+      await this.saveQueue();
+      this.notifyListeners();
+
+      if (failedIds.size > 0) {
+        logger.warn(`SyncManager: ${failedIds.size} operation(s) failed and will be retried`);
+        // Partial failure still increments backoff so we don't hammer the backend.
+        this.retryAttempt += 1;
       } else {
-        throw new Error(result.error || 'Backend sync failed');
+        logger.info(`SyncManager: batch flush complete`, { count: operationsToFlush.length });
+        // Reset backoff on full success.
+        this.retryAttempt = 0;
       }
 
     } catch (error) {
-      console.error("[SyncManager] Error flushing sync queue via backend:", error);
-      // Restore failed operations
-      const newOperations = Array.from(this.queue.values());
-      this.queue.clear();
-      for (const op of operationsToFlush) {
-        this.queue.set(op.id, op);
-      }
-      for (const op of newOperations) {
-        this.queue.set(op.id, op);
-      }
-      this.saveQueue();
+      logger.error('SyncManager: error flushing sync queue', error);
+      // Queue was never cleared — operations are still present, nothing lost.
+      this.retryAttempt += 1;
       this.notifyListeners();
     } finally {
       this.isFlushing = false;
       this.flushInterval = null;
       if (this.queue.size > 0) {
-        this.scheduleFlush();
+        let delay: number;
+        if (this.retryAttempt === 0) {
+          // Healthy path: short follow-up flush window.
+          delay = this.flushDelayMs;
+        } else {
+          // Exponential backoff with cap (5 min) and jitter (up to +30%).
+          // Prevents persistent 5xx from hammering the backend.
+          const base = Math.min(15000 * 2 ** (this.retryAttempt - 1), 5 * 60_000);
+          const jitter = Math.random() * 0.3 * base;
+          delay = base + jitter;
+        }
+        this.flushInterval = setTimeout(() => this.flush(), delay);
       }
     }
   }

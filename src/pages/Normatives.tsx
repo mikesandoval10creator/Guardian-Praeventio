@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Book, 
@@ -299,7 +299,7 @@ export function Normatives() {
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleSave(norm.id);
+                    toggleSave(norm.id, e);
                   }}
                   className="p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors group/bookmark"
                 >

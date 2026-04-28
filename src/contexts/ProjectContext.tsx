@@ -16,6 +16,7 @@ interface Project {
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
   workersCount?: number; // Added for subscription and legal compliance
+  updatedAt?: string;
   isPendingSync?: boolean;
   // Tracking & Shifts
   shiftStart?: string; // e.g., "08:00"

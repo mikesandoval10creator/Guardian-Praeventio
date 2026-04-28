@@ -2,12 +2,10 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileSignature, CheckCircle2, AlertTriangle, Clock, FileText, Upload, ShieldCheck, Download } from 'lucide-react';
 import { Worker } from '../../types';
-import { doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useNotifications } from '../../contexts/NotificationContext';
-
 import { useProject } from '../../contexts/ProjectContext';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 interface LaborManagementModalProps {
   isOpen: boolean;

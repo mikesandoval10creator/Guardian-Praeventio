@@ -29,7 +29,41 @@ export const getMessagingInstance = async () => {
 
 // Auth helper functions
 export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
-export const logOut = () => signOut(auth);
+
+/**
+ * Notifies the server that the user is logging out so it can revoke server-side
+ * OAuth tokens (Google Calendar / Google Fit / Drive) before the Firebase session
+ * is torn down. Errors are swallowed — Firebase signOut MUST still proceed even if
+ * the unlink call fails (e.g. offline, server down, network blocked).
+ *
+ * EXPECTED ENDPOINT (server.ts): POST /api/oauth/unlink — verifyAuth + revokeTokens(uid, 'google') + revokeTokens(uid, 'google-drive')
+ */
+async function notifyServerLogout(): Promise<void> {
+  try {
+    const user = auth.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch('/api/oauth/unlink', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      credentials: 'include',
+    });
+  } catch (err) {
+    // Logout must succeed even if the server unlink call fails.
+    console.warn('[firebase.logOut] notifyServerLogout failed (non-fatal):', err);
+  }
+}
+
+export const logOut = async () => {
+  // Capture uid before signOut clears auth.currentUser, so we can clear the
+  // per-uid first-login key for the 8h-shift session expiry hook.
+  const uid = auth.currentUser?.uid;
+  await notifyServerLogout();
+  try {
+    if (uid) localStorage.removeItem('praeventio_first_login_' + uid);
+  } catch {}
+  return signOut(auth);
+};
 
 // Firestore connection test
 export async function testConnection() {

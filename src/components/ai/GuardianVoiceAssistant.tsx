@@ -172,8 +172,8 @@ export function GuardianVoiceAssistant() {
         // Use geminiService for online text processing
         const { getChatResponse, semanticSearch } = await import('../../services/geminiService');
         
-        // Get top 5 most relevant nodes
-        const relevantNodes = await semanticSearch(query, nodes, 5);
+        // Get top 5 most relevant nodes, scoped to the current project
+        const relevantNodes = await semanticSearch(query, nodes, 5, selectedProject?.id);
         const context = relevantNodes.length > 0 
           ? relevantNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n')
           : "Usuario consultando al Guardián AI."; 

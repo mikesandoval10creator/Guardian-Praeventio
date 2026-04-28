@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { RiskNode, NodeType } from '../types';
 import { db, collection, onSnapshot, query, orderBy, setDoc, doc, updateDoc, deleteDoc, handleFirestoreError, OperationType, where } from '../services/firebase';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -7,11 +7,13 @@ import { useOnlineStatus } from './useOnlineStatus';
 import { usePendingActions } from './usePendingActions';
 import { matrixSyncManager } from '../services/syncManager';
 import { useProject } from '../contexts/ProjectContext';
+import { logger } from '../utils/logger';
 
 export const useRiskEngine = () => {
   const [fetchedNodes, setFetchedNodes] = useState<RiskNode[]>([]);
   const [loading, setLoading] = useState(true);
   const { isAuthReady, user } = useFirebase();
+  const healerRanRef = useRef(false);
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const pendingActions = usePendingActions();
@@ -120,9 +122,10 @@ export const useRiskEngine = () => {
     matrixSyncManager.setNodesProvider(() => nodes);
   }, [nodes]);
 
-  // Background Auto-Healer: Detects and fixes incomplete nodes automatically using AI
+  // Background Auto-Healer: runs once per session to avoid exhausting API quota
   useEffect(() => {
-    if (!user || fetchedNodes.length === 0) return;
+    if (!user || fetchedNodes.length === 0 || healerRanRef.current) return;
+    healerRanRef.current = true;
 
     const healIncompleteNodes = async () => {
       const incompleteNodes = fetchedNodes.filter(node => 
@@ -136,7 +139,7 @@ export const useRiskEngine = () => {
       // Process one by one to avoid rate limits
       for (const node of incompleteNodes.slice(0, 5)) { // Limit to 5 per session to avoid overwhelming the API
         try {
-          console.log(`Auto-healing node ${node.id}...`);
+          logger.debug(`Auto-healing node ${node.id}`);
           const enrichedData = await enrichNodeData(node);
           
           if (enrichedData.title !== node.title || enrichedData.description !== node.description) {
@@ -146,10 +149,10 @@ export const useRiskEngine = () => {
               metadata: enrichedData.metadata,
               updatedAt: new Date().toISOString()
             });
-            console.log(`Node ${node.id} healed successfully.`);
+            logger.debug(`Node ${node.id} healed successfully`);
           }
         } catch (error) {
-          console.error(`Failed to heal node ${node.id}:`, error);
+          logger.error(`Failed to heal node ${node.id}`, error);
         }
       }
     };
@@ -235,17 +238,35 @@ export const useRiskEngine = () => {
     }
   }, [user, nodes]);
 
-  const updateNode = useCallback(async (id: string, updates: Partial<RiskNode>) => {
+  const updateNode = useCallback(async (id: string, updates: Partial<RiskNode>, expectedUpdatedAt?: string) => {
     if (!user) return;
+
+    // Concurrent edit detection: compare caller's version against live in-memory node
+    if (expectedUpdatedAt) {
+      const liveNode = fetchedNodes.find(n => n.id === id);
+      if (liveNode?.updatedAt && liveNode.updatedAt !== expectedUpdatedAt) {
+        window.dispatchEvent(new CustomEvent('sync-conflict', {
+          detail: {
+            collection: 'nodes',
+            id,
+            localUpdatedAt: expectedUpdatedAt,
+            serverUpdatedAt: liveNode.updatedAt,
+            online: true,
+            nodeTitle: liveNode.title,
+          }
+        }));
+        // Still apply (Last-Write-Wins) but user is notified via SyncConflictBanner
+      }
+    }
+
     const now = new Date().toISOString();
     const finalUpdates = { ...updates, updatedAt: now };
-    
     try {
       matrixSyncManager.enqueueUpdate(id, finalUpdates);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `nodes/${id}`);
     }
-  }, [user]);
+  }, [user, fetchedNodes]);
 
   const deleteNode = useCallback(async (id: string) => {
     if (!user) return;

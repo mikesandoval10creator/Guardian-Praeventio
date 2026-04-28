@@ -32,45 +32,55 @@ export function Findings() {
 
   const handleGeneratePlan = async (finding: any) => {
     setProcessingId(finding.id);
+    let created = 0;
+    let total = 0;
     try {
       const plan = await generateActionPlan(finding.title, finding.description, finding.metadata.severity);
-      
+      total = plan.tareas.length;
+
       for (const tarea of plan.tareas) {
-        const taskNode = await addNode({
-          type: NodeType.TASK,
-          title: tarea.titulo,
-          description: tarea.descripcion,
-          tags: ['Acción Correctiva', tarea.prioridad, 'IA'],
-          projectId: finding.projectId,
-          connections: [finding.id],
-          metadata: {
-            priority: tarea.prioridad,
-            deadline: `${tarea.plazoDias} días`,
-            status: 'pending',
-            source: 'AI_Finding_Plan'
+        try {
+          const taskNode = await addNode({
+            type: NodeType.TASK,
+            title: tarea.titulo,
+            description: tarea.descripcion,
+            tags: ['Acción Correctiva', tarea.prioridad, 'IA'],
+            projectId: finding.projectId,
+            connections: [finding.id],
+            metadata: {
+              priority: tarea.prioridad,
+              deadline: `${tarea.plazoDias} días`,
+              status: 'pending',
+              source: 'AI_Finding_Plan'
+            }
+          });
+          if (taskNode) {
+            await addConnection(finding.id, taskNode.id);
+            created++;
           }
-        });
-        
-        if (taskNode) {
-          await addConnection(finding.id, taskNode.id);
+        } catch {
+          // Continue — partial success is better than total failure
         }
       }
-      
+
       await logAuditAction(
         'GENERATE_ACTION_PLAN',
         'Findings',
-        {
-          findingId: finding.id,
-          findingTitle: finding.title,
-          tasksGenerated: plan.tareas.length
-        },
+        { findingId: finding.id, findingTitle: finding.title, tasksGenerated: created },
         finding.projectId
       );
 
-      alert(`Se han generado ${plan.tareas.length} tareas de acción correctiva vinculadas a este hallazgo.`);
+      if (created === total) {
+        alert(`Se han generado ${created} tareas de acción correctiva vinculadas a este hallazgo.`);
+      } else {
+        alert(`Se crearon ${created}/${total} tareas. Reintenta para crear las restantes (puede ser problema de conexión).`);
+      }
     } catch (error) {
-      console.error('Error generating action plan:', error);
-      alert('Error al generar el plan de acción con IA.');
+      if (created > 0) {
+        alert(`Se crearon ${created}/${total} tareas antes del error. Reintenta para completar el plan.`);
+      } else {
+        alert('Error al generar el plan de acción con IA. Verifica tu conexión e inténtalo nuevamente.');
+      }
     } finally {
       setProcessingId(null);
     }
@@ -89,7 +99,10 @@ export function Findings() {
       const status = (f.metadata?.status || f.metadata?.estado || '').toLowerCase();
       return status === 'abierto' || status === 'abierta' || status === 'open';
     }).length,
-    critical: findings.filter(f => f.metadata?.severity === 'Crítica').length,
+    critical: findings.filter(f => {
+      const sev = (f.metadata?.severity || f.metadata?.criticidad || '').toLowerCase();
+      return sev === 'crítica' || sev === 'critica';
+    }).length,
     resolved: findings.filter(f => {
       const status = (f.metadata?.status || f.metadata?.estado || '').toLowerCase();
       return status === 'cerrado' || status === 'cerrada' || status === 'completed' || status === 'completado' || status === 'completada';

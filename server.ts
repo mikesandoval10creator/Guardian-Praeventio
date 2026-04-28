@@ -12,6 +12,9 @@ import { initializeRAG } from "./src/services/ragService.js";
 import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
+import { isValidRole, isAdminRole } from "./src/types/roles.js";
+import { saveTokens, getValidAccessToken, revokeTokens } from "./src/services/oauthTokenStore.js";
+import { logger } from "./src/utils/logger.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -88,8 +91,32 @@ const app = express();
 const PORT = 3000;
 
 // Security Middleware
+// CSP directives shared by prod (enforce) and dev (report-only). Reasonable for a
+// Vite + Firebase + Google APIs SPA: 'unsafe-inline' for styles is required by
+// Tailwind's runtime injection; img/media allow blob: + data: for previews.
+const cspDirectives = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'", "https://*.googleapis.com", "https://apis.google.com"],
+  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+  fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+  imgSrc: ["'self'", "blob:", "data:", "https://*.googleapis.com", "https://*.gstatic.com"],
+  mediaSrc: ["'self'", "blob:", "data:"],
+  connectSrc: [
+    "'self'",
+    "https://*.googleapis.com",
+    "https://*.firebaseio.com",
+    "https://*.cloudfunctions.net",
+    "wss://*.firebaseio.com"
+  ],
+  frameSrc: ["'self'", "https://*.firebaseapp.com", "https://accounts.google.com"],
+  objectSrc: ["'none'"],
+  baseUri: ["'self'"],
+} as const;
+
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  contentSecurityPolicy: process.env.NODE_ENV === 'production'
+    ? { directives: cspDirectives as any }
+    : { reportOnly: true, directives: cspDirectives as any },
   crossOriginEmbedderPolicy: false
 }));
 
@@ -113,21 +140,41 @@ const geminiLimiter = rateLimit({
   message: { error: "Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos." }
 });
 
-const sessionSecret = process.env.SESSION_SECRET;
-if (process.env.NODE_ENV === 'production' && !sessionSecret) {
-  throw new Error("FATAL ERROR: SESSION_SECRET is not defined in production environment.");
-}
+const sessionSecret = (() => {
+  const fromEnv = process.env.SESSION_SECRET;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error("FATAL ERROR: SESSION_SECRET is not defined in production environment.");
+  }
+  const generated = crypto.randomBytes(32).toString('hex');
+  console.warn(
+    "⚠️  SESSION_SECRET not set — generated a random one for this dev session.\n" +
+    "   Sessions will not survive a server restart. Set SESSION_SECRET in .env.local for stable dev sessions."
+  );
+  return generated;
+})();
 
-app.use(express.json());
+// Default 64kb body limit. Routes that legitimately need larger bodies (e.g.,
+// PDF generation with embedded report content) opt-in with a per-route limit
+// applied before the global parser short-circuits on req.body presence.
+const largeBodyJson = express.json({ limit: '2mb' });
+app.use((req, res, next) => {
+  // Per-route override for endpoints that legitimately need >64kb payloads.
+  if (req.path === '/api/reports/generate-pdf') {
+    return largeBodyJson(req, res, next);
+  }
+  return next();
+});
+app.use(express.json({ limit: '64kb' }));
 app.use(cookieParser());
 app.use(session({
-  secret: sessionSecret || "fallback-secret-do-not-use-in-production",
+  secret: sessionSecret,
   resave: false,
-  saveUninitialized: true,
-  cookie: { 
-    secure: process.env.NODE_ENV === "production", 
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
     sameSite: 'lax',
-    httpOnly: true 
+    httpOnly: true
   }
 }));
 
@@ -149,28 +196,45 @@ const verifyAuth = async (req: express.Request, res: express.Response, next: exp
   }
 };
 
+// Firebase Auth uid format constraint shared by privileged admin endpoints.
+const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
+
 // Desconexión Forzada (Revoke Tokens - El Haki del Rey / Security)
 app.post("/api/admin/revoke-access", verifyAuth, async (req, res) => {
   const { targetUid } = req.body;
   const callerUid = (req as any).user.uid;
 
+  if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
+    return res.status(400).json({ error: 'Invalid uid' });
+  }
+
   try {
     const callerRecord = await admin.auth().getUser(callerUid);
-    if (callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires gerente role to revoke access" });
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      return res.status(403).json({ error: "Forbidden: Requires admin role to revoke access" });
     }
 
     // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
     await admin.auth().revokeRefreshTokens(targetUid);
-    
+
     // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
     await admin.firestore().collection('user_sessions').doc(targetUid).set({
       revokedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
+    // Audit trail — see audit_logs schema at the top of this file.
+    await admin.firestore().collection('audit_logs').add({
+      actor: callerUid,
+      action: 'revoke_access',
+      target: targetUid,
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip,
+      ua: req.header('user-agent') || null,
+    });
+
     res.json({ success: true, message: `Access revoked for user ${targetUid}` });
   } catch (error) {
-    console.error("Error revoking sessions:", error);
+    logger.error("admin_revoke_access_failed", error, { callerUid, targetUid });
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -217,22 +281,51 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
   const { uid, role } = req.body;
   const callerUid = (req as any).user.uid;
 
+  if (typeof uid !== 'string' || !UID_REGEX.test(uid)) {
+    return res.status(400).json({ error: 'Invalid uid' });
+  }
+
   try {
-    // Verify caller is a gerente (highest app-level role)
+    // Verify caller is admin/gerente (matches firestore.rules' isAdmin())
     const callerRecord = await admin.auth().getUser(callerUid);
-    if (callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
+    if (!isAdminRole(callerRecord.customClaims?.role)) {
+      return res.status(403).json({ error: "Forbidden: Requires admin role" });
     }
 
-    const VALID_ROLES = ['gerente', 'prevencionista', 'supervisor', 'trabajador', 'medico'];
-    if (!VALID_ROLES.includes(role)) {
+    if (!isValidRole(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
+    // Capture the existing role before mutation for audit_logs.
+    let oldRole: string | null = null;
+    try {
+      const targetRecord = await admin.auth().getUser(uid);
+      oldRole = (targetRecord.customClaims?.role as string | undefined) ?? null;
+    } catch {
+      // Target may not exist yet; setCustomUserClaims will surface the error.
+    }
+
     await admin.auth().setCustomUserClaims(uid, { role });
+
+    // Force re-auth so the client picks up the new claim immediately rather
+    // than continuing with a stale ID token until natural expiry.
+    await admin.auth().revokeRefreshTokens(uid);
+
+    // Audit trail — see audit_logs schema notes at the top of this file.
+    await admin.firestore().collection('audit_logs').add({
+      actor: callerUid,
+      action: 'set_role',
+      target: uid,
+      oldRole,
+      newRole: role,
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip,
+      ua: req.header('user-agent') || null,
+    });
+
     res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {
-    console.error("Error setting custom claims:", error);
+    logger.error("admin_set_role_failed", error, { callerUid, targetUid: uid });
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -419,14 +512,39 @@ const SCOPES = [
   'https://www.googleapis.com/auth/fitness.body.read'
 ].join(' ');
 
+// Server-side OAuth unlink: invoked by client logout flow before signOut.
+// Deletes stored tokens for both Google providers. Idempotent — safe to call
+// when no tokens exist.
+app.post("/api/oauth/unlink", verifyAuth, async (req, res) => {
+  const uid = (req as any).user.uid;
+  try {
+    await Promise.all([
+      revokeTokens({ uid, provider: 'google' }),
+      revokeTokens({ uid, provider: 'google-drive' }),
+    ]);
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('oauth_unlink_failed', { uid, message: error?.message });
+    res.status(500).json({
+      error: "Failed to unlink OAuth tokens",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
+
 // API Routes
-app.get("/api/auth/google/url", (req, res) => {
+app.get("/api/auth/google/url", verifyAuth, (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
-  
+
   const state = crypto.randomBytes(16).toString('hex');
-  (req.session as any).oauthState = state;
-  
+  const sess = req.session as any;
+  sess.oauthState = state;
+  // Bind this OAuth flow to the authenticated user. The callback runs in a
+  // popup that shares the session cookie, so we recover the UID there
+  // without ever exposing it (or the resulting tokens) to the browser.
+  sess.oauthInitiator = { uid: (req as any).user.uid, provider: 'google' as const };
+
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || "",
     redirect_uri: redirectUri,
@@ -446,8 +564,13 @@ app.get("/auth/google/callback", async (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
 
-  if (!state || state !== (req.session as any).oauthState) {
+  const sess = req.session as any;
+  if (!state || state !== sess.oauthState) {
     return res.status(403).send("Invalid state parameter (CSRF protection)");
+  }
+  const initiator = sess.oauthInitiator;
+  if (!initiator?.uid || initiator.provider !== 'google') {
+    return res.status(403).send("OAuth initiator missing from session");
   }
 
   try {
@@ -464,24 +587,33 @@ app.get("/auth/google/callback", async (req, res) => {
     });
 
     const tokens = await response.json();
-    
-    // In a real app, store these in a database linked to the user
-    // For this demo, we'll send them back to the client via postMessage
+    if (!tokens.access_token) {
+      console.error('Google token exchange returned no access_token:', tokens);
+      return res.status(500).send("Token exchange failed");
+    }
+
+    // Store server-side; never reaches the browser.
+    await saveTokens({ uid: initiator.uid, provider: 'google' }, tokens);
+
+    delete sess.oauthState;
+    delete sess.oauthInitiator;
+
+    // Tell the popup that linking succeeded — payload contains NO tokens.
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ 
-                type: 'GOOGLE_AUTH_SUCCESS', 
-                tokens: ${JSON.stringify(tokens)} 
+              window.opener.postMessage({
+                type: 'GOOGLE_AUTH_SUCCESS',
+                linked: true
               }, '${appUrl}');
               window.close();
             } else {
               window.location.href = '/';
             }
           </script>
-          <p>Autenticación exitosa. Sincronizando con Praeventio Guard...</p>
+          <p>Cuenta vinculada exitosamente. Puedes cerrar esta ventana.</p>
         </body>
       </html>
     `);
@@ -491,12 +623,20 @@ app.get("/auth/google/callback", async (req, res) => {
   }
 });
 
-// Proxy for Google Calendar API to avoid CORS
-app.post("/api/calendar/sync", async (req, res) => {
-  const { tokens, challenges } = req.body;
-  
-  if (!tokens || !tokens.access_token) {
-    return res.status(401).json({ error: "No access token provided" });
+// Proxy for Google Calendar API to avoid CORS.
+// Uses tokens stored server-side via /auth/google/callback; the client never
+// holds an OAuth access_token or refresh_token.
+app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
+  const { challenges } = req.body;
+  const uid = (req as any).user.uid;
+
+  const accessToken = await getValidAccessToken(
+    { uid, provider: 'google' },
+    GOOGLE_CLIENT_ID || "",
+    GOOGLE_CLIENT_SECRET || "",
+  );
+  if (!accessToken) {
+    return res.status(401).json({ error: "Google account not linked" });
   }
 
   try {
@@ -518,7 +658,7 @@ app.post("/api/calendar/sync", async (req, res) => {
       const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(event),
@@ -535,12 +675,19 @@ app.post("/api/calendar/sync", async (req, res) => {
   }
 });
 
-// Proxy for Google Fit API
-app.post("/api/fitness/sync", async (req, res) => {
-  const { tokens } = req.body;
-  
-  if (!tokens || !tokens.access_token) {
-    return res.status(401).json({ error: "No access token provided" });
+// Proxy for Google Fit API.
+// Uses tokens stored server-side via /auth/google/callback; the client never
+// holds an OAuth access_token or refresh_token.
+app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
+  const uid = (req as any).user.uid;
+
+  const accessToken = await getValidAccessToken(
+    { uid, provider: 'google' },
+    GOOGLE_CLIENT_ID || "",
+    GOOGLE_CLIENT_SECRET || "",
+  );
+  if (!accessToken) {
+    return res.status(401).json({ error: "Google account not linked" });
   }
 
   try {
@@ -550,7 +697,7 @@ app.post("/api/fitness/sync", async (req, res) => {
     const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -579,13 +726,15 @@ app.post("/api/fitness/sync", async (req, res) => {
 });
 
 // Google Drive Integration
-app.get("/api/drive/auth/url", (req, res) => {
+app.get("/api/drive/auth/url", verifyAuth, (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
-  
+
   const state = crypto.randomBytes(16).toString('hex');
-  (req.session as any).driveOauthState = state;
-  
+  const sess = req.session as any;
+  sess.driveOauthState = state;
+  sess.driveOauthInitiator = { uid: (req as any).user.uid, provider: 'google-drive' as const };
+
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || "",
     redirect_uri: redirectUri,
@@ -605,8 +754,13 @@ app.get("/api/drive/auth/callback", async (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
 
-  if (!state || state !== (req.session as any).driveOauthState) {
+  const sess = req.session as any;
+  if (!state || state !== sess.driveOauthState) {
     return res.status(403).send("Invalid state parameter (CSRF protection)");
+  }
+  const initiator = sess.driveOauthInitiator;
+  if (!initiator?.uid || initiator.provider !== 'google-drive') {
+    return res.status(403).send("OAuth initiator missing from session");
   }
 
   try {
@@ -623,22 +777,31 @@ app.get("/api/drive/auth/callback", async (req, res) => {
     });
 
     const tokens = await response.json();
-    
+    if (!tokens.access_token) {
+      console.error('Drive token exchange returned no access_token:', tokens);
+      return res.status(500).send("Token exchange failed");
+    }
+
+    await saveTokens({ uid: initiator.uid, provider: 'google-drive' }, tokens);
+
+    delete sess.driveOauthState;
+    delete sess.driveOauthInitiator;
+
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ 
-                type: 'DRIVE_AUTH_SUCCESS', 
-                tokens: ${JSON.stringify(tokens)} 
+              window.opener.postMessage({
+                type: 'DRIVE_AUTH_SUCCESS',
+                linked: true
               }, '${appUrl}');
               window.close();
             } else {
               window.location.href = '/';
             }
           </script>
-          <p>Autenticación de Google Drive exitosa. Puedes cerrar esta ventana.</p>
+          <p>Google Drive vinculado exitosamente. Puedes cerrar esta ventana.</p>
         </body>
       </html>
     `);
@@ -685,17 +848,45 @@ app.post("/api/erp/sync", verifyAuth, async (req, res) => {
   }
 });
 
-// IoT Webhook Ingestion Endpoint
+// IoT Webhook Ingestion Endpoint.
+// Authentication: shared secret in the `X-IoT-Secret` request header
+// (timing-safe compared against IOT_WEBHOOK_SECRET). For one release we still
+// accept the secret in the JSON body for backwards compatibility, logging a
+// deprecation warning. Remove the body fallback in the next release.
+// Aligned with the frontend type union in src/pages/Telemetry.tsx + Evacuation.tsx
+// ('wearable' | 'machinery'). 'iot', 'environmental', 'machine' are reserved for
+// gateway-originated telemetry. Keep this in sync if the frontend union changes.
+const IOT_TYPE_ALLOWLIST = new Set(['iot', 'wearable', 'machinery', 'environmental', 'machine']);
 app.post("/api/telemetry/ingest", async (req, res) => {
-  const { secretKey, type, source, metric, value, unit, status, projectId } = req.body;
+  const { type, source, metric, value, unit, status, projectId } = req.body ?? {};
 
   const expectedSecret = process.env.IOT_WEBHOOK_SECRET;
   if (!expectedSecret) {
-    console.error("IOT_WEBHOOK_SECRET is not configured on the server.");
+    logger.error("iot_webhook_misconfigured", undefined, {
+      reason: "IOT_WEBHOOK_SECRET not set",
+    });
     return res.status(500).json({ error: "Server configuration error" });
   }
 
-  if (secretKey !== expectedSecret) {
+  let secretKey: unknown = req.header('x-iot-secret');
+  if (typeof secretKey !== 'string' || secretKey.length === 0) {
+    // Backwards-compat: accept body field for one release. DEPRECATED.
+    if (typeof req.body?.secretKey === 'string' && req.body.secretKey.length > 0) {
+      secretKey = req.body.secretKey;
+      logger.warn('iot_webhook_secret_in_body_deprecated', {
+        source: typeof source === 'string' ? source : 'unknown',
+        hint: 'Move shared secret to X-IoT-Secret header; body field removed next release.',
+      });
+    } else {
+      return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
+    }
+  }
+
+  // Constant-time comparison; bail on length mismatch first to avoid
+  // timingSafeEqual throwing on different-length buffers.
+  const provided = Buffer.from(secretKey as string, 'utf8');
+  const expected = Buffer.from(expectedSecret, 'utf8');
+  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
     return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
   }
 
@@ -703,9 +894,20 @@ app.post("/api/telemetry/ingest", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
+  // Conservative input validation before any DB write.
+  if (typeof type !== 'string' || !IOT_TYPE_ALLOWLIST.has(type)) {
+    return res.status(400).json({ error: "Invalid type" });
+  }
+  if (typeof source !== 'string' || source.length === 0 || source.length > 64) {
+    return res.status(400).json({ error: "Invalid source" });
+  }
+  if (typeof metric !== 'string' || metric.length === 0 || metric.length > 64) {
+    return res.status(400).json({ error: "Invalid metric" });
+  }
+
   try {
     const db = admin.firestore();
-    
+
     // Auto-validate with AI backend
     const validation = await autoValidateTelemetry({ type, source, metric, value, unit, status });
     const finalStatus = validation?.isAnomalous ? "alert" : (status || "normal");
@@ -724,13 +926,13 @@ app.post("/api/telemetry/ingest", async (req, res) => {
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Telemetry event ingested successfully",
-      aiValidation: validation 
+      aiValidation: validation
     });
   } catch (error) {
-    console.error('Error ingesting telemetry:', error);
+    logger.error('iot_ingest_failed', error, { type, source, metric });
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -747,7 +949,7 @@ app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
     res.json({ success: true, message: "Community glossary seeded successfully" });
   } catch (error: any) {
     console.error('Error seeding glossary:', error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -763,7 +965,7 @@ app.post("/api/seed-data", verifyAuth, async (req, res) => {
     res.json({ success: true, message: "Initial project data seeded successfully" });
   } catch (error: any) {
     console.error('Error seeding data:', error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -776,7 +978,7 @@ app.post("/api/projects/:projectId/health-check", verifyAuth, async (req, res) =
     res.json({ success: true, result });
   } catch (error: any) {
     console.error(`Error performing health check for project ${projectId}:`, error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -895,7 +1097,7 @@ app.post("/api/projects/:id/invite", verifyAuth, async (req, res) => {
     res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
     console.error("Error creating invitation:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -963,7 +1165,7 @@ app.post("/api/invitations/:token/accept", verifyAuth, async (req, res) => {
     res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
   } catch (error: any) {
     console.error("Error accepting invitation:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1022,7 +1224,7 @@ app.get("/api/projects/:id/members", verifyAuth, async (req, res) => {
     res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
   } catch (error: any) {
     console.error("Error listing project members:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1058,7 +1260,7 @@ app.delete("/api/projects/:id/members/:uid", verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error removing project member:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1095,7 +1297,141 @@ app.delete("/api/projects/:id/invite", verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error canceling invitation:", error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Email Alerts: CPHS (Comité Paritario) critical findings
+app.post("/api/comite/alert-email", verifyAuth, async (req, res) => {
+  const { projectId, findingTitle, findingDescription, severity, recipients } = req.body as {
+    projectId: string;
+    findingTitle: string;
+    findingDescription: string;
+    severity: string;
+    recipients: string[]; // array of email addresses
+  };
+
+  if (!projectId || !findingTitle || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ error: "projectId, findingTitle, and recipients[] are required" });
+  }
+
+  const db = admin.firestore();
+  const projectSnap = await db.collection('projects').doc(projectId).get();
+  const projectName = projectSnap.exists ? (projectSnap.data()?.name || 'Proyecto') : 'Proyecto';
+
+  const severityColor: Record<string, string> = {
+    'Crítica': '#ef4444',
+    'Alta': '#f97316',
+    'Media': '#eab308',
+    'Baja': '#22c55e',
+  };
+  const color = severityColor[severity] || '#6b7280';
+  const date = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5">
+<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+  <div style="background:#09090b;padding:24px 32px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:20px;font-weight:900;color:#10b981;letter-spacing:-1px">GUARDIAN</span>
+    <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px">PRAEVENTIO</span>
+  </div>
+  <div style="padding:32px">
+    <div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px">
+      <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.08em">⚠ Alerta CPHS — ${severity || 'Sin clasificar'}</span>
+    </div>
+    <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${findingTitle}</h2>
+    <p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${findingDescription || 'Sin descripción adicional.'}</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+      <tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;color:#09090b;font-weight:600">${projectName}</td></tr>
+      <tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;color:#09090b;font-weight:600">${date}</td></tr>
+    </table>
+    <p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Este aviso fue generado automáticamente por Guardian Praeventio para el Comité Paritario.</p>
+  </div>
+</div></body></html>`;
+
+  try {
+    await resend.emails.send({
+      from: 'Praeventio Guard <noreply@praeventio.net>',
+      to: recipients,
+      subject: `[CPHS ${projectName}] Hallazgo ${severity || ''}: ${findingTitle}`,
+      html,
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error sending CPHS alert email:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Email Reports: daily safety summary for a project
+app.post("/api/reports/daily-email", verifyAuth, async (req, res) => {
+  const { projectId, recipients } = req.body as { projectId: string; recipients: string[] };
+
+  if (!projectId || !Array.isArray(recipients) || recipients.length === 0) {
+    return res.status(400).json({ error: "projectId and recipients[] are required" });
+  }
+
+  const db = admin.firestore();
+  const projectSnap = await db.collection('projects').doc(projectId).get();
+  if (!projectSnap.exists) return res.status(404).json({ error: "Project not found" });
+  const projectName = projectSnap.data()?.name || 'Proyecto';
+
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const nodesSnap = await db.collection('nodes')
+    .where('projectId', '==', projectId)
+    .where('createdAt', '>=', since.toISOString())
+    .get();
+
+  const nodes = nodesSnap.docs.map(d => d.data());
+  const incidents = nodes.filter(n => n.type === 'Incidente' || n.type === 'Hallazgo');
+  const risks = nodes.filter(n => n.type === 'Riesgo');
+  const audits = nodes.filter(n => n.type === 'Auditoría');
+  const criticalCount = incidents.filter(n => n.metadata?.severity === 'Crítica' || n.metadata?.criticidad === 'Crítica').length;
+
+  const date = new Date().toLocaleDateString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const statRow = (label: string, value: number, color: string) =>
+    `<tr><td style="padding:12px 16px;font-size:13px;color:#52525b;border-bottom:1px solid #f4f4f5">${label}</td><td style="padding:12px 16px;text-align:right;font-size:15px;font-weight:900;color:${color};border-bottom:1px solid #f4f4f5">${value}</td></tr>`;
+
+  const recentRows = incidents.slice(0, 5).map(n =>
+    `<tr><td style="padding:10px 16px;font-size:12px;color:#09090b;border-bottom:1px solid #f4f4f5">${n.title || 'Sin título'}</td><td style="padding:10px 16px;font-size:11px;color:#71717a;border-bottom:1px solid #f4f4f5;text-align:right">${n.metadata?.criticidad || n.metadata?.severity || '—'}</td></tr>`
+  ).join('');
+
+  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5">
+<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+  <div style="background:#09090b;padding:24px 32px">
+    <span style="font-size:20px;font-weight:900;color:#10b981;letter-spacing:-1px">GUARDIAN</span>
+    <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px"> PRAEVENTIO</span>
+    <p style="margin:8px 0 0;font-size:12px;color:#71717a">Reporte Diario de Seguridad • ${date}</p>
+  </div>
+  <div style="padding:32px">
+    <h2 style="margin:0 0 4px;font-size:18px;font-weight:900;color:#09090b">${projectName}</h2>
+    <p style="margin:0 0 24px;font-size:13px;color:#71717a">Resumen de actividad en las últimas 24 horas.</p>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #f4f4f5;border-radius:12px;overflow:hidden;margin-bottom:24px">
+      ${statRow('Incidentes / Hallazgos nuevos', incidents.length, incidents.length > 0 ? '#ef4444' : '#22c55e')}
+      ${statRow('Críticos', criticalCount, criticalCount > 0 ? '#ef4444' : '#22c55e')}
+      ${statRow('Riesgos identificados', risks.length, '#f97316')}
+      ${statRow('Auditorías realizadas', audits.length, '#6366f1')}
+      ${statRow('Total registros nuevos', nodes.length, '#09090b')}
+    </table>
+    ${incidents.length > 0 ? `<h3 style="font-size:12px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Últimos incidentes</h3>
+    <table style="width:100%;border-collapse:collapse;border:1px solid #f4f4f5;border-radius:12px;overflow:hidden;margin-bottom:24px">${recentRows}</table>` : ''}
+    <p style="margin:0;font-size:11px;color:#a1a1aa;text-align:center">Reporte generado automáticamente por Guardian Praeventio.</p>
+  </div>
+</div></body></html>`;
+
+  try {
+    await resend.emails.send({
+      from: 'Praeventio Guard <noreply@praeventio.net>',
+      to: recipients,
+      subject: `[Reporte Diario] ${projectName} — ${incidents.length} incidente${incidents.length !== 1 ? 's' : ''} en 24h`,
+      html,
+    });
+    res.json({ success: true, stats: { incidents: incidents.length, criticalCount, risks: risks.length, audits: audits.length } });
+  } catch (err: any) {
+    console.error("Error sending daily report email:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1273,7 +1609,7 @@ app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {
     }
   } catch (error: any) {
     console.error(`Error in Gemini API Proxy for ${action}:`, error);
-    res.status(500).json({ error: error.message || "Internal server error" });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
   }
 });
 
@@ -1305,7 +1641,7 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
   try {
     let verificationResult;
     if (type === 'subscription') {
-      verificationResult = await playDeveloperApi.subscriptions.get({
+      verificationResult = await playDeveloperApi.purchases.subscriptions.get({
         auth: playAuth,
         packageName,
         subscriptionId: productId,
@@ -1364,15 +1700,33 @@ app.post("/api/billing/verify", verifyAuth, async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.error("Purchase verification error:", error);
-    res.status(500).json({ error: "Failed to verify purchase", details: error.message });
+    logger.error("purchase_verification_failed", error, { uid });
+    res.status(500).json({
+      error: "Failed to verify purchase",
+      // Avoid leaking Firebase/googleapis internals in production responses.
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
   }
 });
 
 app.post("/api/billing/webhook", async (req, res) => {
   // Verify shared secret — configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
+  // Fail closed: missing config means we reject everything rather than accept everyone.
   const expectedToken = process.env.WEBHOOK_SECRET;
-  if (expectedToken && req.query.token !== expectedToken) {
+  if (!expectedToken) {
+    logger.error("rtdn_webhook_misconfigured", undefined, {
+      reason: "WEBHOOK_SECRET not set",
+    });
+    return res.status(500).send("Server configuration error");
+  }
+
+  const providedToken = req.query.token;
+  if (typeof providedToken !== 'string' || providedToken.length !== expectedToken.length) {
+    return res.status(401).send("Unauthorized");
+  }
+  const providedBuf = Buffer.from(providedToken, 'utf8');
+  const expectedBuf = Buffer.from(expectedToken, 'utf8');
+  if (!crypto.timingSafeEqual(providedBuf, expectedBuf)) {
     return res.status(401).send("Unauthorized");
   }
 
@@ -1383,25 +1737,51 @@ app.post("/api/billing/webhook", async (req, res) => {
   }
 
   try {
-    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
-    console.log("[RTDN Webhook] Received:", decodedData);
+    // Idempotency: Pub/Sub may redeliver the same message. Dedupe via
+    // processed_pubsub/{messageId}. Returning 200 on a duplicate prevents
+    // Pub/Sub from retrying. The expiresAt field is a hint for a Firestore
+    // TTL policy configured at the console (collection: processed_pubsub,
+    // field: expiresAt) — Firestore TTL is not configured from code.
+    const messageId: string | undefined = message.messageId || message.message_id;
+    const db = admin.firestore();
+    if (messageId) {
+      const processedRef = db.collection('processed_pubsub').doc(messageId);
+      const processedSnap = await processedRef.get();
+      if (processedSnap.exists) {
+        // Duplicate delivery — already handled. ACK so Pub/Sub stops retrying.
+        return res.status(200).send("OK");
+      }
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await processedRef.set({
+        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        expiresAt, // hint for Firestore TTL policy (configure in console)
+      });
+    }
 
-    const { subscriptionNotification, developerNotification } = decodedData;
+    const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
+    const { subscriptionNotification } = decodedData;
     const packageName = decodedData.packageName;
 
+    // Log only non-sensitive metadata. NEVER log purchaseToken — it's a
+    // bearer credential for Google Play.
+    logger.info('rtdn_received', {
+      notificationType: subscriptionNotification?.notificationType,
+      subscriptionId: subscriptionNotification?.subscriptionId,
+      packageName,
+    });
+
     if (subscriptionNotification) {
-      const { notificationType, purchaseToken, subscriptionId } = subscriptionNotification;
-      
+      const { purchaseToken, subscriptionId } = subscriptionNotification;
+
       // Update the user whose token matches
-      const db = admin.firestore();
       const userQuery = await db.collection('users').where('subscription.purchaseToken', '==', purchaseToken).get();
-      
+
       if (!userQuery.empty) {
         const userDoc = userQuery.docs[0];
-        console.log(`[RTDN] Updating subscription for user ${userDoc.id}`);
-        
+        logger.info('rtdn_updating_user_subscription', { userId: userDoc.id });
+
         // Fetch fresh state from Google
-        const verificationResult = await playDeveloperApi.subscriptions.get({
+        const verificationResult = await playDeveloperApi.purchases.subscriptions.get({
           auth: playAuth,
           packageName,
           subscriptionId,
@@ -1422,7 +1802,7 @@ app.post("/api/billing/webhook", async (req, res) => {
 
     res.status(200).send("OK");
   } catch (error) {
-    console.error("RTDN Webhook Error:", error);
+    logger.error("rtdn_webhook_failed", error);
     res.status(500).send("Webhook processing failed");
   }
 });
@@ -1491,6 +1871,26 @@ const setupBackgroundTriggers = () => {
                 data: { projectId: data.projectId, nodeId: change.doc.id },
                 android: { priority: 'high' },
               });
+
+              // Also send CPHS alert email to supervisors who have emails registered
+              const emailRecipients = tokenDocs
+                .map(d => d.data()?.email as string | undefined)
+                .filter((e): e is string => !!e && e.includes('@'));
+              if (emailRecipients.length > 0 && process.env.RESEND_API_KEY) {
+                const projectSnap = await db.collection('projects').doc(data.projectId).get();
+                const projectName = projectSnap.data()?.name || 'Proyecto';
+                const severity = data.metadata?.severity || data.metadata?.criticidad || 'Alta';
+                const severityColor: Record<string, string> = { 'Crítica': '#ef4444', 'Alta': '#f97316', 'Media': '#eab308', 'Baja': '#22c55e' };
+                const color = severityColor[severity] || '#6b7280';
+                const date = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+                const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5"><div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)"><div style="background:#09090b;padding:24px 32px"><span style="font-size:20px;font-weight:900;color:#10b981">GUARDIAN</span><span style="font-size:20px;font-weight:900;color:#fff"> PRAEVENTIO</span></div><div style="padding:32px"><div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px"><span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase">⚠ Alerta CPHS — ${severity}</span></div><h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${data.title || 'Nuevo incidente crítico'}</h2><p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${data.description || ''}</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;font-weight:600">${projectName}</td></tr><tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;font-weight:600">${date}</td></tr></table><p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Aviso automático generado por Guardian Praeventio para el Comité Paritario.</p></div></div></body></html>`;
+                await resend.emails.send({
+                  from: 'Praeventio Guard <noreply@praeventio.net>',
+                  to: emailRecipients,
+                  subject: `[CPHS ${projectName}] Incidente ${severity}: ${data.title || 'Nuevo incidente'}`,
+                  html,
+                }).catch(e => console.warn('[TRIGGER: CPHS Email] delivery failed:', e));
+              }
             } catch (err) {
               console.error('[TRIGGER: FCM Push] Error:', err);
             }

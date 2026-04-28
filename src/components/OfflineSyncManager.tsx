@@ -38,13 +38,30 @@ export function OfflineSyncManager() {
                   const currentData = docSnap.data();
                   const currentUpdatedAt = currentData.updatedAt?.toDate()?.toISOString() || currentData.updatedAt;
                   
-                  // If the server document is newer than our offline version, we have a conflict
+                  // If the server document is newer than our offline version, we have a conflict.
+                  // We are about to apply an LWW (last-write-wins) overwrite that will
+                  // silently clobber the peer's edit. Surface this honestly to the user
+                  // and give them the option to restore the server version. The previous
+                  // copy ("se aplicó la última versión del servidor") was wrong — the
+                  // local write WAS applied, the server's edit got overwritten.
                   if (currentUpdatedAt && new Date(currentUpdatedAt) > new Date(originalUpdatedAt)) {
-                     console.warn(`Conflict detected for ${action.collection}/${id}. Server version is newer. Overwriting anyway (Last-Write-Wins).`);
+                    // Snapshot the server's data so a "Restaurar versión del servidor"
+                    // action can restore without re-reading.
+                    const serverSnapshot = currentData;
+                    window.dispatchEvent(new CustomEvent('sync-conflict', {
+                      detail: {
+                        collection: action.collection,
+                        id,
+                        localUpdatedAt: originalUpdatedAt,
+                        serverUpdatedAt: currentUpdatedAt,
+                        serverData: serverSnapshot,
+                        nodeTitle: (action.data && (action.data.title || action.data.name)) || undefined,
+                      }
+                    }));
                   }
                 }
               }
-              
+
               await updateDoc(doc(db, action.collection, id), updateData);
               docId = id;
             } catch (error) {
@@ -61,13 +78,13 @@ export function OfflineSyncManager() {
             }
           }
         } else if (action.type === 'upload' && action.file) {
+          const uploadFile = action.file;
           const storageRef = ref(storage, action.data.storagePath);
-          let fileToUpload: Blob = action.file;
-          if (action.file.type.startsWith('image/') && !action.file.type.includes('svg')) {
+          let fileToUpload: Blob = uploadFile;
+          if (uploadFile.type.startsWith('image/') && !uploadFile.type.includes('svg')) {
             try {
               const { compressImage } = await import('../utils/imageCompression');
-              const asFile = action.file instanceof File ? action.file : new File([action.file], 'upload', { type: action.file.type });
-              fileToUpload = await compressImage(asFile, { maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
+              fileToUpload = await compressImage(uploadFile, { maxSizeMB: 0.5, maxWidthOrHeight: 1280 });
             } catch { /* use original if compression fails */ }
           }
           await uploadBytes(storageRef, fileToUpload);

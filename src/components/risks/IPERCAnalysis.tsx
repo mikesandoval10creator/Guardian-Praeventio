@@ -8,6 +8,7 @@ import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCir
 import { Card, Button } from '../shared/Card';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { withGlossary } from '../shared/withGlossary';
+import { logger } from '../../utils/logger';
 
 interface AnalysisResult {
   criticidad: string;
@@ -83,7 +84,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
       const data = await analyzeRiskWithAI(description, nodesContext, selectedProject?.industry);
       setResult(data);
     } catch (error) {
-      console.error('Error analyzing risk:', error);
+      logger.error('Error analyzing risk', error);
     } finally {
       setLoading(false);
     }
@@ -96,7 +97,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
       const plan = await generateActionPlan(description, result.criticidad);
       setActionPlan(plan);
     } catch (error) {
-      console.error('Error generating action plan:', error);
+      logger.error('Error generating action plan', error);
     } finally {
       setGeneratingPlan(false);
     }
@@ -203,7 +204,7 @@ export function IPERCAnalysis({ onClose }: IPERCAnalysisProps) {
 
       setSaved(true);
     } catch (error) {
-      console.error('Error saving nodes:', error);
+      logger.error('Error saving nodes', error);
     } finally {
       setLoading(false);
     }

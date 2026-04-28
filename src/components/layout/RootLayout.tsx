@@ -8,8 +8,10 @@ import { AsesorChat } from '../shared/AsesorChat';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
+import { SyncConflictBanner } from '../shared/SyncConflictBanner';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
@@ -24,8 +26,8 @@ export function RootLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Call it to keep the socket alive and receive foreground messages (no-op when !user)
   usePushNotifications();
+  useSessionExpiry();
 
   const isHome = location.pathname === '/';
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -158,6 +160,7 @@ export function RootLayout() {
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
         <PendingInvitesBanner />
+        <SyncConflictBanner />
       </div>
       <ReloadPrompt />
 

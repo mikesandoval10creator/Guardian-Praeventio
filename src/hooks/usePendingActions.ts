@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getPendingActions, SyncAction } from '../utils/pwa-offline';
+import { logger } from '../utils/logger';
 
 export function usePendingActions(collectionPrefix?: string) {
   const [pendingActions, setPendingActions] = useState<SyncAction[]>([]);
@@ -14,7 +15,7 @@ export function usePendingActions(collectionPrefix?: string) {
           setPendingActions(actions);
         }
       } catch (error) {
-        console.error('Error loading pending actions:', error);
+        logger.error('Error loading pending actions:', error);
       }
     };
 

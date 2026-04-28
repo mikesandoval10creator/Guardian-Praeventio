@@ -31,7 +31,7 @@ const callGeminiAPI = async (action: string, args: any[]) => {
 
 export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[][]> => callGeminiAPI('generateEmbeddingsBatch', [texts]);
 export const autoConnectNodes = async (newNode: any, existingNodes: any[]): Promise<string[]> => callGeminiAPI('autoConnectNodes', [newNode, existingNodes]);
-export const semanticSearch = async (query: string, nodes: any[], topK: number = 3): Promise<any[]> => callGeminiAPI('semanticSearch', [query, nodes, topK]);
+export const semanticSearch = async (query: string, nodes: any[], topK: number = 3, projectId?: string): Promise<any[]> => callGeminiAPI('semanticSearch', [query, nodes, topK, projectId]);
 export const analyzeFastCheck = async (observation: string) => callGeminiAPI('analyzeFastCheck', [observation]);
 export const predictGlobalIncidents = async (context: string, envContext: string) => callGeminiAPI('predictGlobalIncidents', [context, envContext]);
 export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => callGeminiAPI('analyzeRiskWithAI', [description, nodesContext, industry]);

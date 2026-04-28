@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Layout, 
@@ -19,7 +19,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { NodeType, Worker } from '../types';
 import { AddErgonomicsModal } from '../components/ergonomics/AddErgonomicsModal';
-import { AIPostureAnalysisModal } from '../components/ergonomics/AIPostureAnalysisModal';
+const AIPostureAnalysisModal = lazy(() => import('../components/ergonomics/AIPostureAnalysisModal').then(m => ({ default: m.AIPostureAnalysisModal })));
 
 export function Ergonomics() {
   const { selectedProject } = useProject();
@@ -216,11 +216,15 @@ export function Ergonomics() {
         onClose={() => setIsModalOpen(false)} 
         projectId={selectedProject?.id}
       />
-      <AIPostureAnalysisModal 
-        isOpen={isAIModalOpen} 
-        onClose={() => setIsAIModalOpen(false)} 
-        projectId={selectedProject?.id}
-      />
+      {isAIModalOpen && (
+        <Suspense fallback={null}>
+          <AIPostureAnalysisModal
+            isOpen={true}
+            onClose={() => setIsAIModalOpen(false)}
+            projectId={selectedProject?.id}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

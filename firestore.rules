@@ -1,4 +1,7 @@
 rules_version = '2';
+// Role identifiers (admin/gerente/supervisor/medico_ocupacional/worker/etc.)
+// MUST match src/types/roles.ts. The scripts/verify-roles-sync.cjs script
+// is run in CI to enforce that this file and roles.ts agree.
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
@@ -311,6 +314,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
     }
 
+    // OAuth tokens — server-only via Admin SDK. Never readable from client.
+    // Stored at oauth_tokens/{uid}_{provider} (e.g. abc123_google, abc123_google-drive).
+    match /oauth_tokens/{tokenId} {
+      allow read, write: if false;
+    }
+
     // Global templates — seed data, read-only for all authenticated users
     match /global_templates/{templateId} {
       allow read: if isEmailVerified();
@@ -325,6 +334,23 @@ service cloud.firestore {
       );
       allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
       allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
+    }
+
+    // AI feedback — users can submit vote on their own session; admins can read all
+    match /ai_feedback/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if isEmailVerified() && (
+        incoming().userId == request.auth.uid || incoming().userId == null
+      );
+      allow update, delete: if false;
+    }
+
+    // Wisdom capsules — geo-activated knowledge attached to machines/locations
+    match /wisdomCapsules/{capsuleId} {
+      allow read: if isEmailVerified();
+      allow create: if isEmailVerified() && (isAdmin() || isSupervisor());
+      allow update: if isEmailVerified() && (isAdmin() || isSupervisor());
+      allow delete: if isAdmin();
     }
   }
 }

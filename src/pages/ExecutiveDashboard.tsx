@@ -129,7 +129,7 @@ export function ExecutiveDashboard() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const recentIncidents = allIncidents.filter(n => new Date(n.createdAt) >= thirtyDaysAgo);
 
-  const totalWorkers = projects.reduce((acc, p) => acc + (p.workerCount ?? 0), 0);
+  const totalWorkers = projects.reduce((acc, p) => acc + (p.workersCount ?? 0), 0);
   const avgCompliance = projects.length > 0
     ? Math.round(projects.reduce((acc, p) => acc + calculateCompliance(p, nodes), 0) / projects.length)
     : 0;

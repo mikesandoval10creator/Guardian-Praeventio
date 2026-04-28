@@ -38,7 +38,7 @@ export const analyzePsychosocialRisks = async (surveyResults: any[], organizatio
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
-    generationConfig: {
+    config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,

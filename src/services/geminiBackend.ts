@@ -97,9 +97,11 @@ export const autoConnectNodes = async (newNode: Partial<RiskNode>, existingNodes
   }
 };
 
-export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], topK: number = 3): Promise<Partial<RiskNode>[]> => {
-  if (!API_KEY) return nodes.slice(0, topK);
-  if (nodes.length === 0) return [];
+export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], topK: number = 3, projectId?: string): Promise<Partial<RiskNode>[]> => {
+  // Hybrid: metadata filter first, then semantic similarity
+  const candidates = projectId ? nodes.filter(n => (n as any).projectId === projectId) : nodes;
+  if (!API_KEY) return candidates.slice(0, topK);
+  if (candidates.length === 0) return [];
 
   try {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -109,9 +111,9 @@ export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], 
     });
     const queryEmbedding = queryResponse.embeddings?.[0]?.values;
 
-    if (!queryEmbedding) return nodes.slice(0, topK);
+    if (!queryEmbedding) return candidates.slice(0, topK);
 
-    const nodesWithScores = nodes.map(node => {
+    const nodesWithScores = candidates.map(node => {
       let score = 0;
       if (node.embedding && node.embedding.length > 0) {
         let dotProduct = 0;
@@ -133,7 +135,7 @@ export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], 
     return nodesWithScores.slice(0, topK).map(n => n.node);
   } catch (error) {
     console.error("Error in semantic search:", error);
-    return nodes.slice(0, topK);
+    return candidates.slice(0, topK);
   }
 };
 
@@ -998,7 +1000,7 @@ export const generatePersonalizedSafetyPlan = async (workerName: string, role: s
   
   // Search for role-specific safety standards and common risks in Chile
   const searchTerms = `Normativa seguridad Chile rol ${role} riesgos comunes`;
-  const safetyStandardContext = await searchRelevantContext(searchTerms, "legal_docs");
+  const safetyStandardContext = await searchRelevantContext(searchTerms);
 
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
@@ -1104,7 +1106,7 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
   
   // Search for relevant investigation techniques and legal requirements (e.g., DIAT/DIEP)
   const searchTerms = `Metodología investigación incidentes Chile ley 16.744 ${incidentTitle}`;
-  const investigationProtocolContent = await searchRelevantContext(searchTerms, "legal_docs");
+  const investigationProtocolContent = await searchRelevantContext(searchTerms);
 
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
