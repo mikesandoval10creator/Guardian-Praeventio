@@ -108,7 +108,8 @@ hasta que el código las publique. Ver TODOs abajo.
 | --------------------------------------------------------------- | ---------- | ---------- |
 | `custom.googleapis.com/praeventio/calendar/prediction_latency_ms` | DISTRIBUTION | #4       |
 | `custom.googleapis.com/praeventio/climate/risk_coupling_latency_ms` | DISTRIBUTION | —      |
-| `custom.googleapis.com/praeventio/webpay/return_outcome`        | CUMULATIVE | #2         |
+| `custom.googleapis.com/praeventio/webpay/return_outcome`        | CUMULATIVE | KPI (counter) |
+| `custom.googleapis.com/praeventio/webpay/return_latency_ms`     | DISTRIBUTION | #2       |
 | `custom.googleapis.com/praeventio/kms/operations`               | CUMULATIVE | #6         |
 | `custom.googleapis.com/praeventio/health_connect/sync`          | CUMULATIVE | #3         |
 | `custom.googleapis.com/praeventio/billing/signups`              | CUMULATIVE | KPI        |
@@ -166,12 +167,17 @@ prioridad de revisión):
 1. `api_health_uptime` — el 0.1% asume volumen estable; recalibra cuando
    tengas baseline real.
 2. `kms_error_rate` — 1% es generoso; KMS normalmente debe ser ~0%.
-3. `webpay_latency_p95` — depende de qué tan rápido responde Transbank
-   en producción real; staging es engañosamente lento.
-4. `calendar_prediction_p99` — Vertex AI cold-starts dominan; ajusta tras
+3. `calendar_prediction_p99` — Vertex AI cold-starts dominan; ajusta tras
    habilitar `minInstances=1` en el endpoint.
-5. `health_connect_success_rate` — 5% por hora suena alto pero las
+4. `health_connect_success_rate` — 5% por hora suena alto pero las
    primeras conexiones fallan mucho hasta que el usuario otorga permisos.
+
+> **SLO #2 (`webpay_latency_p95`)** ahora consume
+> `praeventio/webpay/return_latency_ms` (histogram). Pendiente: app-side
+> emission desde `server.ts` `/billing/webpay/return` handler. Sin
+> emission, este alert no dispara (ni falsos positivos ni falsos negativos
+> — es absent metric). Por eso baja del top de calibración: no necesita
+> threshold tuning hasta que la métrica se emita y haya datos reales.
 
 ---
 
@@ -234,9 +240,12 @@ Cloud Console → Monitoring → Dashboards → Create dashboard
 - [ ] **Slack #incidents channel** — bot + OAuth token en Secret Manager.
 - [ ] **Threshold calibration after first week** — todos los valores
       marcados `# CALIBRATE` en `monitoring.tf`.
-- [ ] **Histogram metric `praeventio/webpay/return_latency_ms`** — la
-      alerta SLO #2 actualmente usa el counter como proxy; cambiar a
-      histograma cuando el código lo emita.
+- [ ] **Histogram metric `praeventio/webpay/return_latency_ms`** —
+      descriptor ya declarado en `monitoring.tf` y SLO #2 ya consume el
+      filter de histograma. Falta la emisión server-side desde el
+      handler `/billing/webpay/return` en `server.ts`
+      (`getMetrics().histogram('praeventio/webpay/return_latency_ms', { outcome }).observe(latencyMs)`).
+      Hasta que se emita, la alerta es "absent metric" — no dispara.
 - [ ] **Métricas custom no emitidas todavía** — `billing/active_subscriptions`,
       `iper/assessments`. Los paneles del business dashboard quedan vacíos
       hasta que el código las publique.

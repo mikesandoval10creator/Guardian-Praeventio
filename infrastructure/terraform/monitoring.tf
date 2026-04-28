@@ -157,6 +157,34 @@ resource "google_monitoring_metric_descriptor" "webpay_outcome" {
   }
 }
 
+# Histogram companion to webpay_outcome — powers SLO #2 (p95 latency alert).
+# A counter cannot be percentile-aggregated; this descriptor exists so the
+# alert filter can use ALIGN_DELTA + REDUCE_PERCENTILE_95 on a real
+# distribution. App-side emission lives in server.ts via
+# `getMetrics().histogram('praeventio/webpay/return_latency_ms', { outcome }).observe(ms)`
+# and is tracked as a TODO in BILLING.md / OBSERVABILITY.md. Until the
+# server emits it, SLO #2 is an absent metric (no false positives nor
+# false negatives — just no signal).
+resource "google_monitoring_metric_descriptor" "webpay_return_latency" {
+  display_name = "Webpay return endpoint latency"
+  type         = "custom.googleapis.com/praeventio/webpay/return_latency_ms"
+  metric_kind  = "DELTA"        # DISTRIBUTION metrics must be DELTA or CUMULATIVE.
+  value_type   = "DISTRIBUTION" # Histogram for percentile aggregations.
+  unit         = "ms"
+  description  = "Time from /billing/webpay/return entry until commit/redirect, in milliseconds. Powers the p95 SLO alert."
+
+  labels {
+    key         = "outcome"
+    value_type  = "STRING"
+    description = "AUTHORIZED | REJECTED | FAILED."
+  }
+
+  metadata {
+    sample_period = "60s"
+    ingest_delay  = "30s"
+  }
+}
+
 resource "google_monitoring_metric_descriptor" "kms_operations" {
   display_name = "KMS operations"
   type         = "custom.googleapis.com/praeventio/kms/operations"
@@ -286,24 +314,31 @@ resource "google_monitoring_alert_policy" "api_health_uptime" {
 # -----------------------------------------------------------------------------
 # SLO #2 — Webpay return endpoint p95 latency < 5s over rolling 1-hour window
 # -----------------------------------------------------------------------------
+# This alert filters on the DISTRIBUTION metric `webpay/return_latency_ms`,
+# NOT the counter `webpay/return_outcome` (Round-11 reviewer fix: a counter
+# cannot be percentile-aggregated, so the prior filter was structurally
+# incapable of firing). The histogram requires app-side emission from the
+# /billing/webpay/return handler in server.ts; until that lands the alert
+# is silent on absent data — neither a false positive nor a false negative.
 resource "google_monitoring_alert_policy" "webpay_latency_p95" {
   display_name = "SLO#2 — Webpay return p95 latency exceeds 5s"
   combiner     = "OR"
   enabled      = true
 
   conditions {
-    display_name = "Webpay return p95 over 1h"
+    display_name = "Webpay return p95 > 5000ms over 10min"
 
     condition_threshold {
-      filter          = "metric.type=\"custom.googleapis.com/praeventio/webpay/return_outcome\" AND resource.type=\"global\""
+      filter          = "metric.type=\"custom.googleapis.com/praeventio/webpay/return_latency_ms\" AND resource.type=\"global\""
       comparison      = "COMPARISON_GT"
-      duration        = "600s"
-      threshold_value = 5000 # ms; CALIBRATE — replace with histogram-backed metric once webpay/return latency histogram is live
+      duration        = "600s" # 10 min sustained
+      threshold_value = 5000   # ms
 
       aggregations {
         alignment_period     = "60s"
-        per_series_aligner   = "ALIGN_PERCENTILE_95"
-        cross_series_reducer = "REDUCE_MAX"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_PERCENTILE_95"
+        group_by_fields      = []
       }
     }
   }
@@ -316,27 +351,30 @@ resource "google_monitoring_alert_policy" "webpay_latency_p95" {
 
   documentation {
     content = <<-EOT
-      ## SLO #2 — Webpay return endpoint p95 latency
+      ## Webpay return latency p95 alert
 
-      **Target:** p95 < 5s rolling 1h. Above 5s users abandon checkout and
-      revenue stops flowing.
+      The /billing/webpay/return endpoint p95 latency has exceeded 5s for
+      10 minutes sustained.
 
       **Likely causes:**
-      - Transbank Webpay slowness (their staging env can be glacial).
-      - Our webpay return handler doing too much synchronous Firestore I/O.
-      - Cold start on the Cloud Run instance handling the callback.
+      - Transbank API slow response.
+      - Firestore quota exhausted (commit + audit_log writes).
+      - Cloud Run cold start storm.
 
-      **Runbook:**
-      1. Check Webpay status: https://www.transbankdevelopers.cl/status
-      2. Inspect recent traces: Console → Trace → filter `service=praeventio-app /webpay/return`.
-      3. If our handler is slow → look for unbounded Firestore queries.
-      4. Confirm minInstances ≥ 1 on Cloud Run (no cold starts on the revenue path).
-      5. If sustained > 1h, post a status banner on the checkout page.
+      **Triage:**
+      1. Check Transbank status: https://status.transbank.cl/
+      2. Check Cloud Run logs for /billing/webpay/return:
+         `gcloud run services logs read praeventio-app --filter="path=/billing/webpay/return"`
+      3. Check Firestore p99 read/write latency in the operational dashboard.
+      4. If sustained: failover to manual mark-paid flow per BILLING.md.
 
-      **Note:** The threshold is currently bound to the
-      `webpay/return_outcome` counter — once we emit a real histogram metric
-      `praeventio/webpay/return_latency_ms`, switch the filter and drop the
-      ms-vs-count caveat. Tracked as TODO in MONITORING.md.
+      **SLO target:** p95 < 5000ms.
+
+      **Note:** Filter uses the `praeventio/webpay/return_latency_ms`
+      DISTRIBUTION metric. Server-side emission is required —
+      `getMetrics().histogram('praeventio/webpay/return_latency_ms', { outcome }).observe(latencyMs)`
+      from the webpay return handler. Until then this alert reports
+      "no data" rather than firing.
     EOT
     mime_type = "text/markdown"
   }

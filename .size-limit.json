@@ -2,13 +2,31 @@
   {
     "name": "Main bundle (gzipped)",
     "path": "dist/assets/index-*.js",
-    "limit": "300 KB",
+    "limit": "280 KB",
     "gzip": true
   },
   {
-    "name": "Vendor bundle (gzipped)",
-    "path": "dist/assets/vendor-*.js",
-    "limit": "500 KB",
+    "name": "Vendor React (gzipped)",
+    "path": "dist/assets/vendor-react-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor Firebase (gzipped)",
+    "path": "dist/assets/vendor-firebase-*.js",
+    "limit": "150 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor Motion (gzipped)",
+    "path": "dist/assets/vendor-motion-*.js",
+    "limit": "60 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor Gantt (gzipped)",
+    "path": "dist/assets/vendor-gantt-*.js",
+    "limit": "50 KB",
     "gzip": true
   },
   {

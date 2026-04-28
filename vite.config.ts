@@ -125,7 +125,39 @@ export default defineConfig(({mode}) => {
           'cookie-parser',
           'express-session',
           'pdfkit'
-        ]
+        ],
+        output: {
+          // Vendor split: pin large deps into dedicated chunks so
+          // .size-limit.json budgets can watch them individually instead
+          // of dumping everything into the main bundle.
+          manualChunks: {
+            // React + ReactDOM + react-router (~150KB gzip)
+            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+
+            // Firebase client SDK surface used by the web app (~120KB gzip).
+            // firebase-admin is server-side only and stays externalised above.
+            'vendor-firebase': [
+              'firebase/app',
+              'firebase/auth',
+              'firebase/firestore',
+              'firebase/storage',
+              'firebase/functions',
+            ],
+
+            // Animations (framer-motion ~30KB gzip)
+            'vendor-motion': ['framer-motion'],
+
+            // Gantt (gantt-task-react ~30KB gzip)
+            'vendor-gantt': ['gantt-task-react'],
+
+            // Notes:
+            // - lucide-react is tree-shakeable; no manual split needed.
+            // - recharts / d3 / three / react-force-graph stay in app code
+            //   so they get lazy-loaded with their consuming routes.
+            // - Health Connect / HealthKit are native Capacitor plugins and
+            //   never enter the web bundle.
+          },
+        },
       }
     },
     optimizeDeps: {
