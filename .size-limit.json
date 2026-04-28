@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Main bundle (gzipped)",
+    "path": "dist/assets/index-*.js",
+    "limit": "300 KB",
+    "gzip": true
+  },
+  {
+    "name": "Vendor bundle (gzipped)",
+    "path": "dist/assets/vendor-*.js",
+    "limit": "500 KB",
+    "gzip": true
+  },
+  {
+    "name": "Largest lazy chunk",
+    "path": "dist/assets/RiskNetwork-*.js",
+    "limit": "250 KB",
+    "gzip": true
+  },
+  {
+    "name": "Total CSS (gzipped)",
+    "path": "dist/assets/index-*.css",
+    "limit": "60 KB",
+    "gzip": true
+  }
+]
