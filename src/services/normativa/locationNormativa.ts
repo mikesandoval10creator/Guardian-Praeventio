@@ -3,20 +3,28 @@
  *
  * Strategy (in priority order):
  *   1. Manual override (user picked a pack via NormativaSwitch).
- *   2. GPS — `navigator.geolocation.getCurrentPosition` + bounding-box match
- *      against the 6 supported LATAM countries. Requires explicit `consent`.
+ *   2. GPS — `navigator.geolocation.getCurrentPosition` + reverse-geocoding via
+ *      Google Maps Geocoding API (when `VITE_GOOGLE_MAPS_API_KEY` is set), with
+ *      a synchronous bounding-box fallback for offline / no-API-key paths.
+ *      Requires explicit `consent`.
  *   3. `navigator.language` heuristic (es-CL → CL, pt-BR → BR, …).
  *   4. ISO 45001 fallback.
  *
  * The bounding boxes below are intentionally coarse approximations — see
- * `COUNTRY_BBOXES` for citations. They are NOT a substitute for proper reverse
- * geocoding (the app already loads the Google Maps SDK; a future iteration can
- * delegate to the Geocoding API for sub-degree precision and overseas
- * territories. See TODOs).
+ * `COUNTRY_BBOXES` for citations. They miss overseas territories (e.g.
+ * French Guiana, Easter Island when assigning the right country) and
+ * dual-jurisdiction borders. The async path (`countryFromCoordsAsync`) calls
+ * Google Maps Geocoding for worldwide accuracy and falls back to the bbox
+ * method when the API key is missing or the call fails.
  *
- * Pure helpers (`countryFromCoords`, `countryFromLanguage`) are TDD-covered in
- * `./locationNormativa.test.ts`; the orchestrator `detectCountry` is intentionally
- * thin and side-effecting (geolocation API + localStorage), tested manually in QA.
+ * Pure helpers (`countryFromCoords`, `countryFromLanguage`,
+ * `mapAlpha2ToCountryCode`) are TDD-covered in `./locationNormativa.test.ts`;
+ * the orchestrator `detectCountry` is intentionally thin and side-effecting
+ * (geolocation API + localStorage), tested manually in QA.
+ *
+ * Cost note: Google Maps Geocoding API is billed at roughly USD 5 per 1000
+ * requests (Standard tier, 2025). Callers that mass-geocode (e.g. a batch
+ * worker) should cache results and add per-tenant throttling.
  */
 import type { CountryCode } from './countryPacks';
 
@@ -96,6 +104,11 @@ function inside(lat: number, lng: number, bbox: BBox): boolean {
 /**
  * Maps a (lat, lng) pair to a supported country code via bounding-box match.
  *
+ * Synchronous: uses the bounding-box approximations declared above. Fast and
+ * does not consume Google Maps API quota, but misses overseas territories
+ * and dual-jurisdiction borders. Callers that need worldwide accuracy should
+ * use {@link countryFromCoordsAsync} instead.
+ *
  * @returns the matching `CountryCode`, or `null` if the coordinates fall
  *   outside every supported envelope (caller falls back to ISO) or are NaN.
  */
@@ -105,6 +118,165 @@ export function countryFromCoords(lat: number, lng: number): CountryCode | null 
     if (inside(lat, lng, COUNTRY_BBOXES[code])) return code;
   }
   return null;
+}
+
+/**
+ * Set of CountryCodes that have a dedicated normativa pack. Anything else is
+ * routed to the ISO 45001 fallback.
+ */
+export const SUPPORTED_COUNTRIES: ReadonlySet<CountryCode> = new Set<CountryCode>([
+  'CL',
+  'PE',
+  'CO',
+  'MX',
+  'AR',
+  'BR',
+  'ISO',
+]);
+
+/**
+ * Map an ISO 3166-1 alpha-2 country code (case-insensitive) to a supported
+ * `CountryCode`. Unknown / unsupported codes (US, FR, etc.) and falsy inputs
+ * resolve to `'ISO'`.
+ */
+export function mapAlpha2ToCountryCode(code: string | undefined | null): CountryCode {
+  if (!code || typeof code !== 'string') return 'ISO';
+  const upper = code.trim().toUpperCase();
+  if (!upper) return 'ISO';
+  if ((SUPPORTED_COUNTRIES as ReadonlySet<string>).has(upper) && upper !== 'ISO') {
+    return upper as CountryCode;
+  }
+  return 'ISO';
+}
+
+/**
+ * Read the Google Maps API key. Read at call time (not module load) so tests
+ * can override `import.meta.env` / `process.env` between cases.
+ *
+ * Looks first at `import.meta.env.VITE_GOOGLE_MAPS_API_KEY` (Vite client
+ * builds) and falls back to `process.env.VITE_GOOGLE_MAPS_API_KEY` for
+ * Node-side (server.ts, tests).
+ */
+function readGoogleMapsApiKey(): string | undefined {
+  try {
+    const viteEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+    const fromVite = viteEnv?.VITE_GOOGLE_MAPS_API_KEY;
+    if (fromVite) return fromVite;
+  } catch {
+    // import.meta.env may be undefined in some Node test environments.
+  }
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.VITE_GOOGLE_MAPS_API_KEY;
+  }
+  return undefined;
+}
+
+interface GeocodeAddressComponent {
+  short_name?: string;
+  long_name?: string;
+  types?: string[];
+}
+
+interface GeocodeResult {
+  address_components?: GeocodeAddressComponent[];
+}
+
+interface GeocodeResponse {
+  results?: GeocodeResult[];
+  status?: string;
+}
+
+function extractAlpha2(payload: GeocodeResponse): string | null {
+  if (payload.status && payload.status !== 'OK') return null;
+  const results = payload.results;
+  if (!Array.isArray(results) || results.length === 0) return null;
+  for (const r of results) {
+    const components = r.address_components;
+    if (!Array.isArray(components)) continue;
+    for (const c of components) {
+      if (c.types?.includes('country') && c.short_name) {
+        return c.short_name;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Reverse-geocode `(lat, lng)` to a supported `CountryCode` using Google
+ * Maps Geocoding API. Falls back to {@link countryFromCoords} (bbox method)
+ * when:
+ *   - `VITE_GOOGLE_MAPS_API_KEY` is unset,
+ *   - the underlying `fetch` rejects (network error, abort),
+ *   - the API returns a non-OK HTTP status,
+ *   - the JSON payload cannot be parsed.
+ *
+ * When the API responds with a recognisable status but no country (status
+ * `ZERO_RESULTS` over the open ocean, etc.) the function returns `'ISO'`
+ * directly — an ocean is unambiguously NOT one of the supported LATAM
+ * jurisdictions, so falling back to the bbox method would be misleading.
+ *
+ * Cost: roughly USD 5 per 1000 requests on the Geocoding API (Standard
+ * tier, 2025). Throttle in your caller if mass-geocoding.
+ *
+ * @param options.signal — optional `AbortSignal` to cancel the request. The
+ *   abort error is rethrown so callers can distinguish cancellation from
+ *   other failures.
+ */
+export async function countryFromCoordsAsync(
+  lat: number,
+  lng: number,
+  options?: { signal?: AbortSignal },
+): Promise<CountryCode> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return 'ISO';
+
+  const apiKey = readGoogleMapsApiKey();
+  if (!apiKey) {
+    return countryFromCoords(lat, lng) ?? 'ISO';
+  }
+
+  const url =
+    `https://maps.googleapis.com/maps/api/geocode/json` +
+    `?latlng=${lat},${lng}&key=${encodeURIComponent(apiKey)}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, options?.signal ? { signal: options.signal } : undefined);
+  } catch (err) {
+    // AbortError must propagate so callers can distinguish cancellation.
+    if (
+      err instanceof Error &&
+      (err.name === 'AbortError' || (err as { code?: string }).code === 'ABORT_ERR')
+    ) {
+      throw err;
+    }
+    return countryFromCoords(lat, lng) ?? 'ISO';
+  }
+
+  if (!res.ok) {
+    return countryFromCoords(lat, lng) ?? 'ISO';
+  }
+
+  let payload: GeocodeResponse;
+  try {
+    payload = (await res.json()) as GeocodeResponse;
+  } catch {
+    return countryFromCoords(lat, lng) ?? 'ISO';
+  }
+
+  // Recognisable "no results" status — the API resolved cleanly, but the
+  // point is over the ocean / Antarctica / unmapped. Don't fall back to
+  // bbox; just return ISO.
+  if (payload.status === 'ZERO_RESULTS') return 'ISO';
+
+  const alpha2 = extractAlpha2(payload);
+  if (!alpha2) {
+    // Status was OK but no country component — e.g. partial results. Fall
+    // back to the bbox method as a best-effort guess.
+    return countryFromCoords(lat, lng) ?? 'ISO';
+  }
+
+  return mapAlpha2ToCountryCode(alpha2);
 }
 
 /**
@@ -165,11 +337,30 @@ export async function detectCountry(opts?: {
       });
     });
 
-    const code = countryFromCoords(pos.coords.latitude, pos.coords.longitude);
+    // Prefer Google Maps Geocoding (worldwide accuracy + overseas
+    // territories) when an API key is configured; otherwise fall back to
+    // the synchronous bbox method. `countryFromCoordsAsync` handles its
+    // own internal fallback if the API call fails.
+    const apiKey = readGoogleMapsApiKey();
+    let code: CountryCode | null;
+    if (apiKey) {
+      try {
+        code = await countryFromCoordsAsync(
+          pos.coords.latitude,
+          pos.coords.longitude,
+        );
+      } catch {
+        code = countryFromCoords(pos.coords.latitude, pos.coords.longitude);
+      }
+    } else {
+      code = countryFromCoords(pos.coords.latitude, pos.coords.longitude);
+    }
+
     if (code && code !== 'ISO') {
       return { source: 'gps', code, accuracy: pos.coords.accuracy };
     }
-    // GPS resolved but outside all bboxes — fall through to language.
+    // GPS resolved but unsupported / outside all bboxes — fall through to
+    // language.
     const fromLang = countryFromLanguage(lang);
     if (fromLang === 'ISO') return { source: 'default', code: 'ISO' };
     return { source: 'language', code: fromLang };

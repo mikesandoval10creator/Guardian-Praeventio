@@ -304,4 +304,96 @@ describe('getForecast — location parameter', () => {
     expect(url).toContain('lat=51.5074');
     expect(url).toContain('lon=-0.1278');
   });
+
+  it('Lima coords (per-tenant case typed as raw {lat,lng}) → calls OpenWeather with Lima', async () => {
+    const fetchSpy = vi.fn(async () => ({ ok: true, status: 200, json: async () => buildFiveDaySample() })) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchSpy);
+    const { getForecast } = await import('./environmentBackend');
+    await getForecast(3, { lat: -12.05, lng: -77.04 });
+    const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    expect(url).toContain('lat=-12.05');
+    expect(url).toContain('lon=-77.04');
+  });
+});
+
+describe('getForecast — per-tenant location lookup', () => {
+  it('{ tenantId } with primarySite coords → uses those coords', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => buildFiveDaySample(),
+    })) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const mod = await import('./environmentBackend');
+    const resolver = vi.fn(async () => ({ lat: 4.71, lng: -74.07 })); // Bogotá
+    mod.setTenantLocationResolver(resolver);
+    try {
+      await mod.getForecast(3, { tenantId: 'abc' });
+      expect(resolver).toHaveBeenCalledWith('abc');
+      const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+      expect(url).toContain('lat=4.71');
+      expect(url).toContain('lon=-74.07');
+    } finally {
+      mod.setTenantLocationResolver();
+    }
+  });
+
+  it('{ tenantId } with no primarySite → falls back to Santiago default and logs warn', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => buildFiveDaySample(),
+    })) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchSpy);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const mod = await import('./environmentBackend');
+    mod.setTenantLocationResolver(async () => null);
+    try {
+      await mod.getForecast(3, { tenantId: 'no-coords' });
+      const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+      expect(url).toContain('lat=-33.4489');
+      expect(url).toContain('lon=-70.6693');
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('tenant=no-coords'),
+      );
+    } finally {
+      mod.setTenantLocationResolver();
+    }
+  });
+
+  it('{ tenantId } when resolver returns null due to Firestore error → falls back to Santiago, logs warn', async () => {
+    // resolveTenantLocation already swallows Firestore errors and returns
+    // null. From getForecast's perspective the failure is observable via the
+    // same "fall back to Santiago" warn path — pin that here.
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => buildFiveDaySample(),
+    })) as unknown as typeof fetch;
+    vi.stubGlobal('fetch', fetchSpy);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const mod = await import('./environmentBackend');
+    mod.setTenantLocationResolver(async () => {
+      // Simulate the helper's own error-handling path: log + return null.
+      console.warn(
+        '[EnvironmentBackend] resolveTenantLocation: simulated firestore failure',
+      );
+      return null;
+    });
+    try {
+      const result = await mod.getForecast(3, { tenantId: 'firestore-down' });
+      const url = String((fetchSpy as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+      expect(url).toContain('lat=-33.4489');
+      expect(url).toContain('lon=-70.6693');
+      expect(result).toHaveLength(3);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('tenant=firestore-down'),
+      );
+    } finally {
+      mod.setTenantLocationResolver();
+    }
+  });
 });
