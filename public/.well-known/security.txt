@@ -1,4 +1,4 @@
-Contact: mailto:security@praeventio.net
+Contact: mailto:contacto@praeventio.net
 Contact: https://praeventio.net/security
 Expires: 2027-04-28T00:00:00.000Z
 # Encryption: TODO when PGP key published at /.well-known/pgp-key.asc
