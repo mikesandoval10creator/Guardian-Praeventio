@@ -1,0 +1,196 @@
+# =============================================================================
+# Praeventio Guard — Cloud Scheduler / IaC stub for Firestore backups
+# =============================================================================
+#
+# This file is INTENT, not yet wired to Terraform/Pulumi. It documents the
+# GCP resources that need to exist for nightly backups + integrity checks
+# to function. When we adopt an IaC tool (Terraform recommended), this
+# YAML translates almost 1:1 to `google_cloud_scheduler_job` /
+# `google_storage_bucket` / `google_service_account` / `google_cloud_run_v2_job`
+# resources.
+#
+# Until IaC is in place, the resources below should be created manually
+# via `gcloud` (snippets at the bottom of this file).
+#
+# Owner: founder@praeventio.net
+# Last updated: 2026-04-28
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1. GCS bucket for backup artifacts.
+# -----------------------------------------------------------------------------
+storage:
+  - name: praeventio-backups
+    # PUT THIS BUCKET IN A SEPARATE BILLING PROJECT FROM THE APP. If the app
+    # project is accidentally deleted / billing-suspended, the bucket should
+    # survive. See DR_RUNBOOK.md §4.4.
+    project: praeventio-backups-prod   # NOT praeventio-prod — see comment above
+    location: SOUTHAMERICA-WEST1       # match Firestore region for transfer cost
+    storageClass: STANDARD
+    uniformBucketLevelAccess: true
+    versioning: false                  # exports are immutable; versioning is wasted spend
+    publicAccessPrevention: enforced
+    lifecycle:
+      rules:
+        - action: { type: SetStorageClass, storageClass: NEARLINE }
+          condition: { age: 30 }       # 30 days hot -> Nearline
+        - action: { type: Delete }
+          condition: { age: 365 }      # 1 year retention (extend per §6 TODO if needed)
+
+# -----------------------------------------------------------------------------
+# 2. Service account used by the backup Cloud Run jobs + Scheduler.
+# -----------------------------------------------------------------------------
+serviceAccounts:
+  - id: firestore-backup
+    project: praeventio-prod
+    displayName: "Firestore nightly backup"
+    description: "Used by backup-firestore.cjs and test-backup-integrity.cjs"
+    roles:
+      # Required to call FirestoreAdminClient.exportDocuments / importDocuments.
+      - role: roles/datastore.importExportAdmin
+        scope: project:praeventio-prod
+      # Read+write the backup bucket (NOT the whole project's storage).
+      - role: roles/storage.objectAdmin
+        scope: bucket:praeventio-backups
+      # Required for Cloud Run job invocation by Scheduler.
+      - role: roles/run.invoker
+        scope: project:praeventio-prod
+      # Read-only Firestore access used for collection-count manifest step.
+      - role: roles/datastore.viewer
+        scope: project:praeventio-prod
+
+# -----------------------------------------------------------------------------
+# 3. Cloud Run jobs that wrap the backup scripts.
+#    Each Cloud Scheduler trigger invokes one of these jobs.
+# -----------------------------------------------------------------------------
+cloudRunJobs:
+  - name: firestore-nightly-backup
+    project: praeventio-prod
+    region: southamerica-west1
+    serviceAccount: firestore-backup@praeventio-prod.iam.gserviceaccount.com
+    image: gcr.io/praeventio-prod/firestore-backup:latest   # built from Dockerfile that runs scripts/backup-firestore.cjs
+    timeout: 3600s                                          # 60 min — script polls LRO up to 50 min
+    maxRetries: 1                                           # do NOT retry — partial export already lives in GCS, just alarm
+    env:
+      - name: GCP_PROJECT_ID
+        value: praeventio-prod
+      - name: GCS_BACKUP_BUCKET
+        value: gs://praeventio-backups
+      - name: NODE_ENV
+        value: production
+
+  - name: firestore-backup-integrity-check
+    project: praeventio-prod
+    region: southamerica-west1
+    serviceAccount: firestore-backup@praeventio-prod.iam.gserviceaccount.com
+    image: gcr.io/praeventio-prod/firestore-backup:latest
+    command: ["node", "scripts/test-backup-integrity.cjs"]
+    timeout: 600s
+    env:
+      - name: GCP_PROJECT_ID
+        value: praeventio-prod
+      - name: GCS_BACKUP_BUCKET
+        value: gs://praeventio-backups
+      - name: BACKUP_MAX_AGE_HOURS
+        value: "30"
+
+# -----------------------------------------------------------------------------
+# 4. Cloud Scheduler triggers.
+# -----------------------------------------------------------------------------
+schedulerJobs:
+  - name: firestore-nightly-backup
+    project: praeventio-prod
+    region: southamerica-west1
+    schedule: "0 3 * * *"            # 03:00 UTC = 23:00 CLT (off-peak)
+    timeZone: Etc/UTC
+    description: "Nightly Firestore export to gs://praeventio-backups"
+    target:
+      type: cloudRunJob
+      job: firestore-nightly-backup
+      serviceAccount: firestore-backup@praeventio-prod.iam.gserviceaccount.com
+    retryConfig:
+      retryCount: 2
+      maxRetryDuration: 3600s
+      minBackoffDuration: 60s
+      maxBackoffDuration: 600s
+
+  - name: firestore-backup-integrity-weekly
+    project: praeventio-prod
+    region: southamerica-west1
+    schedule: "0 4 * * 0"            # Sundays 04:00 UTC, after Saturday's backup completes
+    timeZone: Etc/UTC
+    description: "Weekly check that latest Firestore backup is fresh + valid"
+    target:
+      type: cloudRunJob
+      job: firestore-backup-integrity-check
+      serviceAccount: firestore-backup@praeventio-prod.iam.gserviceaccount.com
+    retryConfig:
+      retryCount: 1
+
+# -----------------------------------------------------------------------------
+# 5. Alerting (sketch — actual rules live in observability config).
+# -----------------------------------------------------------------------------
+alerts:
+  - name: firestore-backup-failed
+    description: "Nightly backup Cloud Run job exited non-zero"
+    condition: "resource.type=cloud_run_job AND job=firestore-nightly-backup AND severity>=ERROR"
+    notifyChannel: email:founder@praeventio.net
+  - name: firestore-backup-integrity-failed
+    description: "Weekly integrity check found stale or malformed backup"
+    condition: "resource.type=cloud_run_job AND job=firestore-backup-integrity-check AND severity>=ERROR"
+    notifyChannel: email:founder@praeventio.net
+  - name: firestore-backup-missing
+    description: "No firestore-export-* folder created in the last 36h"
+    condition: "log-based: GCS object create event in praeventio-backups, absent for 36h"
+    notifyChannel: email:founder@praeventio.net
+
+# -----------------------------------------------------------------------------
+# 6. Equivalent gcloud commands (run manually until IaC is wired).
+# -----------------------------------------------------------------------------
+# # Bucket
+# gcloud storage buckets create gs://praeventio-backups \
+#   --project=praeventio-backups-prod \
+#   --location=SOUTHAMERICA-WEST1 \
+#   --uniform-bucket-level-access \
+#   --public-access-prevention
+#
+# # Lifecycle (save as lifecycle.json, then apply)
+# gcloud storage buckets update gs://praeventio-backups --lifecycle-file=lifecycle.json
+#
+# # Service account
+# gcloud iam service-accounts create firestore-backup \
+#   --project=praeventio-prod \
+#   --display-name="Firestore nightly backup"
+#
+# # IAM bindings
+# gcloud projects add-iam-policy-binding praeventio-prod \
+#   --member=serviceAccount:firestore-backup@praeventio-prod.iam.gserviceaccount.com \
+#   --role=roles/datastore.importExportAdmin
+#
+# gcloud projects add-iam-policy-binding praeventio-prod \
+#   --member=serviceAccount:firestore-backup@praeventio-prod.iam.gserviceaccount.com \
+#   --role=roles/datastore.viewer
+#
+# gcloud storage buckets add-iam-policy-binding gs://praeventio-backups \
+#   --member=serviceAccount:firestore-backup@praeventio-prod.iam.gserviceaccount.com \
+#   --role=roles/storage.objectAdmin
+#
+# # Cloud Run job (after image is built+pushed)
+# gcloud run jobs create firestore-nightly-backup \
+#   --project=praeventio-prod \
+#   --region=southamerica-west1 \
+#   --image=gcr.io/praeventio-prod/firestore-backup:latest \
+#   --service-account=firestore-backup@praeventio-prod.iam.gserviceaccount.com \
+#   --task-timeout=3600 \
+#   --max-retries=1 \
+#   --set-env-vars=GCP_PROJECT_ID=praeventio-prod,GCS_BACKUP_BUCKET=gs://praeventio-backups,NODE_ENV=production
+#
+# # Cloud Scheduler trigger
+# gcloud scheduler jobs create http firestore-nightly-backup \
+#   --project=praeventio-prod \
+#   --location=southamerica-west1 \
+#   --schedule="0 3 * * *" \
+#   --time-zone="Etc/UTC" \
+#   --uri="https://southamerica-west1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/praeventio-prod/jobs/firestore-nightly-backup:run" \
+#   --http-method=POST \
+#   --oauth-service-account-email=firestore-backup@praeventio-prod.iam.gserviceaccount.com
