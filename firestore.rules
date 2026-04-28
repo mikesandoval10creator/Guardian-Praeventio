@@ -263,8 +263,16 @@ service cloud.firestore {
     }
 
     match /audit_logs/{logId} {
+      // Audit trail is server-only: any client-side `create` is a self-fabrication
+      // vector (a worker could log a fake "I revoked admin X" entry attributing
+      // it to themselves and pollute the immutable audit history). All audit
+      // writes happen via the Admin SDK from server.ts (e.g. /api/admin/set-role,
+      // /api/admin/revoke-access), which bypasses these rules.
+      // TODO(rules-tests): once @firebase/rules-unit-testing is added to
+      // devDependencies, add a test that confirms a client `create` on
+      // /audit_logs is denied for every role.
       allow read: if isAdmin();
-      allow create: if isEmailVerified() && incoming().userId == request.auth.uid && incoming().userId is string && incoming().userId.size() <= 128;
+      allow create: if false; // server-only via Admin SDK
       allow update, delete: if false; // Immutable audit trail
     }
 

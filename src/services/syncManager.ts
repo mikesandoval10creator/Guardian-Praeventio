@@ -12,12 +12,23 @@ type SyncOperation =
 
 const SYNC_QUEUE_KEY = 'guardian_sync_queue';
 
+export interface RestoreEvent {
+  collection: string;
+  docId: string;
+  serverData: unknown;
+}
+
 class MatrixSyncManager {
   private queue: Map<string, SyncOperation> = new Map();
   private flushInterval: any = null;
   private isFlushing = false;
   private flushDelayMs = 5000; // 5 seconds batching window
   private listeners: (() => void)[] = [];
+  // Separate listener list for restore-server-version events. Kept distinct
+  // from the queue-change listeners so callers (the conflict banner / IPER
+  // viewer) can re-fetch only when *they* asked for a rollback, not on every
+  // routine queue mutation.
+  private restoreListeners: ((event: RestoreEvent) => void)[] = [];
   // Backoff state: number of consecutive failed flush cycles. Reset to 0 on success.
   private retryAttempt = 0;
 
@@ -118,17 +129,75 @@ class MatrixSyncManager {
   }
 
   /**
-   * Restore an operation back into the queue from outside (e.g. after a UI
-   * "restore server version" decision that needs to retry the local write).
-   * Public surface so components can request a retry/restore without poking
-   * at internals. NOTE: this is a stub — full implementation requires reading
-   * the server doc and reconstructing the local state. See restoreServerVersion.
+   * Subscribe to restore events. Listeners are notified whenever
+   * {@link restoreServerVersion} is invoked, so they can re-fetch the
+   * authoritative server document and replace their local state.
+   *
+   * Returns an unsubscribe function.
    */
-  async restoreServerVersion(_collection: string, _docId: string, _serverData: unknown): Promise<void> {
-    // TODO(sync-restore): src/services/syncManager.ts — implement server-state restore.
-    // Should: 1) fetch authoritative server doc, 2) rewrite local store with it,
-    // 3) drop any pending op for this docId from the queue so we don't re-clobber.
-    logger.warn('SyncManager.restoreServerVersion called but not implemented', { _collection, _docId });
+  onRestore(listener: (event: RestoreEvent) => void): () => void {
+    this.restoreListeners.push(listener);
+    return () => {
+      this.restoreListeners = this.restoreListeners.filter(l => l !== listener);
+    };
+  }
+
+  private notifyRestore(event: RestoreEvent) {
+    for (const l of this.restoreListeners) {
+      try {
+        l(event);
+      } catch (e) {
+        // A misbehaving listener must not break sibling listeners or the
+        // restore flow — log and continue.
+        logger.error('SyncManager: restore listener threw', e);
+      }
+    }
+  }
+
+  /**
+   * Restore the server version of a document, abandoning any local pending
+   * write for that document.
+   *
+   * Contract:
+   *   1. Drops any queued op (`set`/`update`/`delete`) whose id matches
+   *      `docId` — the local edit is intentionally discarded.
+   *   2. Emits a `restore` event (see {@link onRestore}). Subscribers are
+   *      expected to re-fetch the authoritative server document from
+   *      Firestore and rewrite their in-memory + IndexedDB/SQLite caches
+   *      from the result.
+   *
+   * Why the cache write is delegated upstream: the local persistence layer
+   * (IndexedDB via `idb` for web, Capacitor SQLite for native) is owned by
+   * `pwa-offline.ts` and the per-feature stores. SyncManager only owns the
+   * pending-op queue. Performing the cache write here would require this
+   * service to know every cache schema in the app — instead, callers
+   * receive a notification and refresh from server on their own terms.
+   *
+   * The `collection` argument is currently used only for the event payload
+   * and logging; the queue is keyed by docId because each id is unique
+   * across the queue (collection scoping happens upstream).
+   */
+  async restoreServerVersion(
+    collection: string,
+    docId: string,
+    serverData: unknown,
+  ): Promise<void> {
+    // (a) Drop any queued op for this docId so the next flush won't re-clobber
+    //     the server state we're about to restore.
+    if (this.queue.has(docId)) {
+      this.queue.delete(docId);
+      await this.saveQueue();
+      this.notifyListeners();
+      logger.info('SyncManager: dropped pending op for restored doc', {
+        collection,
+        docId,
+      });
+    }
+
+    // (b) Fan out a restore event so the consumer (banner, IPER UI, etc.)
+    //     can re-fetch the authoritative server doc and overwrite its
+    //     local caches.
+    this.notifyRestore({ collection, docId, serverData });
   }
 
   async flush() {

@@ -170,6 +170,31 @@ export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localU
   }
 };
 
+/**
+ * Convert any localUpdatedAt representation we might encounter (number epoch
+ * ms from SQLite column, number epoch ms from a legacy data payload, ISO
+ * string from current writers, or missing) into a single canonical ISO
+ * string. The contract for {@link SyncAction.localUpdatedAt} is "ISO string
+ * always" — see also the JSDoc on getPendingActions.
+ */
+const toIsoTimestamp = (value: unknown): string | undefined => {
+  if (typeof value === 'string' && value.length > 0) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value).toISOString();
+  }
+  return undefined;
+};
+
+/**
+ * Read pending sync actions from the offline store.
+ *
+ * Type contract: every returned action has `localUpdatedAt` as an ISO 8601
+ * string (top level AND inside `data`). The native (SQLite) branch may
+ * persist epoch-ms numbers in either the column or the JSON payload — we
+ * normalize at the read boundary so consumers never have to branch on type.
+ *
+ * Returns `[]` when the underlying store is unavailable.
+ */
 export const getPendingActions = async (): Promise<SyncAction[]> => {
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
@@ -177,17 +202,27 @@ export const getPendingActions = async (): Promise<SyncAction[]> => {
     const res = await db.query('SELECT * FROM pending_sync');
     return res.values?.map(row => {
       const parsedData = JSON.parse(row.data);
-      // Re-attach localUpdatedAt onto the data payload so OfflineSyncManager's
-      // conflict detection sees the same shape as the IndexedDB branch.
-      // Prefer whatever was already inside `data` (string ISO); fall back to
-      // the SQLite column (epoch ms -> ISO) for rows written before migration.
-      const localUpdatedAtIso = parsedData?.localUpdatedAt
-        ?? (typeof row.localUpdatedAt === 'number' ? new Date(row.localUpdatedAt).toISOString() : undefined);
+      // Boundary conversion: epoch-ms (number) → ISO string, exactly once.
+      // Prefer the JSON-payload value (closer to source-of-truth), fall back
+      // to the column. We do NOT spread `row` directly into the result —
+      // that previously leaked `row.localUpdatedAt: number` through the
+      // typed interface and forced every consumer to re-check the type.
+      const localUpdatedAtIso =
+        toIsoTimestamp(parsedData?.localUpdatedAt) ??
+        toIsoTimestamp(row.localUpdatedAt) ??
+        '';
+      const normalizedData = localUpdatedAtIso
+        ? { ...parsedData, localUpdatedAt: localUpdatedAtIso }
+        : parsedData;
       return {
-        ...row,
-        data: localUpdatedAtIso ? { ...parsedData, localUpdatedAt: localUpdatedAtIso } : parsedData,
-        localUpdatedAt: localUpdatedAtIso ?? '',
-      };
+        id: row.id,
+        docId: row.docId,
+        type: row.type,
+        collection: row.collection,
+        data: normalizedData,
+        timestamp: row.timestamp,
+        localUpdatedAt: localUpdatedAtIso,
+      } as SyncAction;
     }) || [];
   } else {
     const db = await getIDB();

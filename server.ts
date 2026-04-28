@@ -512,6 +512,51 @@ const SCOPES = [
   'https://www.googleapis.com/auth/fitness.body.read'
 ].join(' ');
 
+// Server-side audit log writer. Replaces direct client `addDoc(collection(db,
+// 'audit_logs'), ...)` calls — those are now denied by firestore.rules
+// (audit_logs:create:false) to prevent self-fabrication of audit entries.
+//
+// The endpoint stamps the actor uid + email from the verified token (NOT from
+// req.body), so a worker cannot impersonate someone else. action/module are
+// validated; `details` is opaque (callers responsible for not putting secrets
+// in there).
+app.post("/api/audit-log", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const callerEmail: string | null = (req as any).user.email ?? null;
+  const { action, module: mod, details, projectId } = req.body ?? {};
+
+  if (typeof action !== 'string' || action.length === 0 || action.length > 64) {
+    return res.status(400).json({ error: "Invalid action" });
+  }
+  if (typeof mod !== 'string' || mod.length === 0 || mod.length > 64) {
+    return res.status(400).json({ error: "Invalid module" });
+  }
+  if (projectId !== undefined && projectId !== null && (typeof projectId !== 'string' || projectId.length > 128)) {
+    return res.status(400).json({ error: "Invalid projectId" });
+  }
+
+  try {
+    await admin.firestore().collection('audit_logs').add({
+      action,
+      module: mod,
+      details: details ?? {},
+      userId: callerUid,
+      userEmail: callerEmail,
+      projectId: projectId ?? null,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip ?? null,
+      userAgent: req.header('user-agent') ?? null,
+    });
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('audit_log_write_failed', { uid: callerUid, action, message: error?.message });
+    res.status(500).json({
+      error: "Audit log write failed",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
+
 // Server-side OAuth unlink: invoked by client logout flow before signOut.
 // Deletes stored tokens for both Google providers. Idempotent — safe to call
 // when no tokens exist.
@@ -1737,25 +1782,72 @@ app.post("/api/billing/webhook", async (req, res) => {
   }
 
   try {
-    // Idempotency: Pub/Sub may redeliver the same message. Dedupe via
-    // processed_pubsub/{messageId}. Returning 200 on a duplicate prevents
-    // Pub/Sub from retrying. The expiresAt field is a hint for a Firestore
-    // TTL policy configured at the console (collection: processed_pubsub,
-    // field: expiresAt) — Firestore TTL is not configured from code.
+    // Idempotency (two-step "lock then complete"): Pub/Sub may redeliver the
+    // same message. Dedupe via processed_pubsub/{messageId} with a status
+    // field instead of a single existence check.
+    //
+    // States:
+    //   - status === 'done'        → already handled, ACK 200.
+    //   - status === 'in_progress' && lockedAt < 5 min ago → another worker
+    //                                 is processing; ACK 200 to suppress
+    //                                 redelivery. (We deliberately choose
+    //                                 200 over 503: Pub/Sub will redeliver
+    //                                 anyway after the ack-deadline if the
+    //                                 in-flight processor crashes, and the
+    //                                 staleness window below will let that
+    //                                 redelivery acquire the lock.)
+    //   - status === 'in_progress' && lockedAt >= 5 min ago → stale lock from
+    //                                 a crashed processor; we steal it.
+    //   - absent                   → fresh — write 'in_progress' then process.
+    //
+    // On exception during processing we deliberately do NOT update the doc;
+    // the 5-minute staleness window will permit a future redelivery to
+    // re-acquire the lock and retry. This fixes the prior bug where the
+    // existence-only marker was written *before* processing, so any crash
+    // permanently silenced redeliveries.
+    //
+    // The expiresAt field is a hint for a Firestore TTL policy configured at
+    // the console (collection: processed_pubsub, field: expiresAt) — Firestore
+    // TTL is not configured from code.
     const messageId: string | undefined = message.messageId || message.message_id;
     const db = admin.firestore();
+    const STALE_LOCK_MS = 5 * 60 * 1000;
+    let processedRef: admin.firestore.DocumentReference | null = null;
     if (messageId) {
-      const processedRef = db.collection('processed_pubsub').doc(messageId);
+      processedRef = db.collection('processed_pubsub').doc(messageId);
       const processedSnap = await processedRef.get();
       if (processedSnap.exists) {
-        // Duplicate delivery — already handled. ACK so Pub/Sub stops retrying.
-        return res.status(200).send("OK");
+        const data = processedSnap.data() || {};
+        if (data.status === 'done') {
+          // Duplicate delivery, already handled. ACK so Pub/Sub stops retrying.
+          return res.status(200).send("OK");
+        }
+        if (data.status === 'in_progress') {
+          const lockedAt: admin.firestore.Timestamp | undefined = data.lockedAt;
+          const lockedAtMs = lockedAt?.toMillis ? lockedAt.toMillis() : 0;
+          if (lockedAtMs && Date.now() - lockedAtMs < STALE_LOCK_MS) {
+            // Another worker is in-flight. ACK to avoid duplicate work; if it
+            // crashes, the next redelivery (after the ack-deadline) will see a
+            // stale lock and proceed.
+            logger.info('rtdn_in_progress_skip', { messageId });
+            return res.status(200).send("OK");
+          }
+          logger.warn('rtdn_stale_lock_stealing', { messageId, lockedAtMs });
+        }
       }
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      await processedRef.set({
-        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-        expiresAt, // hint for Firestore TTL policy (configure in console)
-      });
+      // TODO(billing): if a future deploy adds a helper like
+      //   withIdempotency(db, messageId, work)
+      // this inline block is the canonical reference implementation.
+      await processedRef.set(
+        {
+          status: 'in_progress',
+          lockedAt: admin.firestore.FieldValue.serverTimestamp(),
+          receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+          expiresAt, // hint for Firestore TTL policy (configure in console)
+        },
+        { merge: true },
+      );
     }
 
     const decodedData = JSON.parse(Buffer.from(message.data, 'base64').toString());
@@ -1800,8 +1892,28 @@ app.post("/api/billing/webhook", async (req, res) => {
       }
     }
 
+    // Mark idempotency lock as 'done' only AFTER all processing succeeded.
+    // If any step above threw, we fall into the catch — leaving 'in_progress'
+    // intact — so the staleness window will permit a future redelivery to
+    // retry. Best-effort: a failure to update the marker is logged but does
+    // not fail the webhook (the work is already done; the worst case is one
+    // duplicate run after the staleness window).
+    if (processedRef) {
+      try {
+        await processedRef.update({
+          status: 'done',
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        logger.warn('rtdn_idempotency_finalize_failed', { messageId, error: (e as Error)?.message });
+      }
+    }
+
     res.status(200).send("OK");
   } catch (error) {
+    // Deliberate: do NOT update processed_pubsub here. Leaving the doc as
+    // 'in_progress' allows the staleness window to grant a future redelivery
+    // a fresh attempt — see the comment block at the top of this handler.
     logger.error("rtdn_webhook_failed", error);
     res.status(500).send("Webhook processing failed");
   }
