@@ -6,6 +6,7 @@ import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
 import { AppProviders } from "./providers/AppProviders";
+import { NormativaProvider } from "./components/normativa/NormativaSwitch";
 import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
 import { useAutoLogout } from "./hooks/useAutoLogout";
@@ -150,13 +151,15 @@ export default function App() {
   return (
     <ErrorBoundary>
       <FirebaseProvider>
-        <BrowserRouter>
-          <OfflineIndicator />
-          <OfflineSyncManager />
-          <SurvivalPing />
-          <PWAUpdateToast />
-          <AppRoutes />
-        </BrowserRouter>
+        <NormativaProvider>
+          <BrowserRouter>
+            <OfflineIndicator />
+            <OfflineSyncManager />
+            <SurvivalPing />
+            <PWAUpdateToast />
+            <AppRoutes />
+          </BrowserRouter>
+        </NormativaProvider>
       </FirebaseProvider>
     </ErrorBoundary>
   );

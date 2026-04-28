@@ -16,6 +16,7 @@ import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntellig
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
 import { MFASetupModal } from '../auth/MFASetupModal';
+import { NormativaSwitch } from '../normativa/NormativaSwitch';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
@@ -250,7 +251,12 @@ export function RootLayout() {
 
         {/* Right: Notifications, Theme & Profile */}
         <div className="flex items-center gap-2 shrink-0">
-          <Link 
+          {/* Country normativa selector — visible on every page */}
+          <div className="hidden md:block">
+            <NormativaSwitch />
+          </div>
+
+          <Link
             to="/safe-driving"
             className="hidden sm:flex w-10 h-10 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all duration-300 relative shadow-sm"
             title="Modo Conducción Segura"

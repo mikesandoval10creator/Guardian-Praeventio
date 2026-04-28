@@ -28,6 +28,8 @@ import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
+import { GanttProjectView } from '../components/projects/GanttProjectView';
+import { useCalendarPredictions } from '../hooks/useCalendarPredictions';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
 
@@ -38,7 +40,9 @@ export function Projects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'assets'>('overview');
+  const [listViewMode, setListViewMode] = useState<'cards' | 'timeline'>('cards');
   const isOnline = useOnlineStatus();
+  const { predictions, climateRisks } = useCalendarPredictions();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -293,6 +297,28 @@ export function Projects() {
         </div>
       </div>
 
+      {/* View Mode Toggle */}
+      <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full sm:w-auto sm:self-start shadow-sm">
+        {[
+          { id: 'cards' as const, label: 'Tarjetas', icon: Layout },
+          { id: 'timeline' as const, label: 'Línea de tiempo', icon: Calendar },
+        ].map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            onClick={() => setListViewMode(mode.id)}
+            className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-1 sm:flex-none ${
+              listViewMode === mode.id
+                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+            }`}
+          >
+            <mode.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            {mode.label}
+          </button>
+        ))}
+      </div>
+
       {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
@@ -311,6 +337,34 @@ export function Projects() {
             <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 animate-spin" />
             <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest">Sincronizando Proyectos...</p>
           </div>
+      ) : listViewMode === 'timeline' ? (
+        <GanttProjectView
+          projects={filteredProjects.map((p) => {
+            // Guard against malformed startDate strings: new Date('garbage')
+            // returns Invalid Date, which propagates as NaN through the
+            // gantt-task-react timeline math. Validate before passing.
+            const parsedStart = p.startDate ? new Date(p.startDate) : null;
+            const startDate = parsedStart && !Number.isNaN(parsedStart.getTime())
+              ? parsedStart
+              : new Date();
+            const parsedEnd = p.endDate ? new Date(p.endDate) : null;
+            const endDate = parsedEnd && !Number.isNaN(parsedEnd.getTime())
+              ? parsedEnd
+              : new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+            return { id: p.id, name: p.name, startDate, endDate, status: p.status };
+          })}
+          predictedActivities={predictions}
+          climateRisks={climateRisks}
+          // TODO(next-round): wire onActivityClick to open a detail modal
+          // for the predicted obligation; onClimateRiskClick to navigate to
+          // the corresponding RiskNode in the Knowledge Graph.
+          onActivityClick={() => {}}
+          onClimateRiskClick={() => {}}
+          onProjectClick={(projectId) => {
+            const target = projects.find((p) => p.id === projectId);
+            if (target) setSelectedProject(target);
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredProjects.map((project) => (
