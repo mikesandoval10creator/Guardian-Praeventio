@@ -1,92 +1,115 @@
-# Impacto en el bienestar humano + valor empresarial — KMS real, Health Connect operacional, Vertex preparado, SII listo
+# Impacto en el bienestar humano + valor empresarial — Production-ready operativa
+
+**Ronda 10 · 2026-04-28** · Guardián Praeventio
+**Audiencia:** equipo, futuros clientes enterprise LATAM, CONSTRAMET, mutuales chilenas (ACHS / IST / Mutual de Seguridad CChC), prevencionistas de riesgos, reviewers de Google Workspace Marketplace y auditores ISO 27001.
 
 ## Resumen ejecutivo
 
-Esta ronda movió cinco piezas de scaffolding a infraestructura productiva o lista para producir. Los tokens OAuth ya pueden cifrarse con Cloud KMS de Google (no más plaintext en Firestore aunque alguien saque un export). El sunset de Google Fit (31-dic-2026) deja de ser deuda: iOS lee biométrica via HealthKit on-device y el endpoint legacy emite headers RFC 8594. Vertex AI tiene runbook para data-residency Santiago el día que Codelco/AMSA lo pidan. La UX del flujo Webpay tiene feedback claro en éxito/fallo/retry. Y el sistema ya conoce los DTE 33/39/41/56/61 del SII con cuatro PSE comparados. Ninguno requiere ahora "construir desde cero" — solo provisionar credenciales y elegir proveedor.
+Esta ronda cerró la brecha entre "MVP funciona localmente" y "podemos enviar a Google Marketplace y App Store Connect el lunes". Se entregaron cinco bloques: (1) listing completo en Google Workspace Marketplace, (2) ruta nativa iOS / HealthKit con Info.plist y entitlements, (3) política de divulgación RFC 9116 + rúbrica de severidad + runbook de incidentes, (4) observabilidad multi-proveedor con 31 tests, y (5) backup + DR de Firestore con RPO/RTO formales. Todo alineado con Ley 21.719, DS 594, ISO 45001 e ISO 27001.
 
-## 1. Defensa en profundidad real para tokens OAuth
+## 1. Marketplace listing — copy-paste-ready
 
-- `src/services/security/kmsAdapter.ts:127` — clase `CloudKmsAdapter` real contra `@google-cloud/kms@5.4.0`, gateada por `KMS_KEY_RESOURCE_NAME` (línea 134). Si el env no está, `isAvailable=false` y el sistema cae sin romper nada (línea 144).
-- `src/services/security/kmsAdapter.ts:21` — import productivo `KeyManagementServiceClient from '@google-cloud/kms'`.
-- `src/services/security/cloudKmsAdapter.test.ts` — 6 tests con SDK mockeado verifican que el `keyName` se forwardea al cliente KMS.
-- `scripts/migrate-oauth-tokens-to-envelope.cjs` — migración idempotente con `--dry-run` y `--batch=N`. Lee `oauth_tokens` por lotes, cifra plaintext legacy via adapter configurado, escribe back.
-- `KMS_ROTATION.md` — Round 2 marcado done, comandos reales con dry-run, follow-ups Round 3 (alertas en KMS error rate, integration tests con WIF service account).
+- `marketplace/manifest.json:1-81` — manifest SDK con OAuth scopes (calendar.events, drive.file, openid/profile/email), categorías, idiomas es-CL/es-419/en, regiones CL/PE/CO/MX/AR/BR/GLOBAL.
+- `marketplace/oauth-consent-screen.md:1-169` — texto exacto a pegar en el Console form (App name, support email, logo specs, authorized domains, privacy/terms URLs, app type External).
+- `marketplace/scope-justifications.md:1-110` — calendar.events justificado por obligaciones legales (CPHS DS 54, ODI Ley 16.744, PREXOR DS 594, ISO 45001); drive.file por PDFs de auditoría; fitness scopes deprecated → migración a Health Connect / HealthKit on-device.
+- `marketplace/listing-copy.md:1-234` (~1809 palabras es-CL) — descripción, audiencia (prevencionistas / paritarios / gerentes HSE), 10 tiers, IPER, REBA/RULA, multi-país, ISO 45001, data residency, soporte por tier.
+- `marketplace/assets-spec.md:1-180` — specs gráficos: icon 128×128 + 32×32 + 96×96 + 48×48, banner 220×140, screenshots 1280×800 (1-5).
+- `MARKETPLACE_SUBMISSION.md:1-218` — runbook de 11 pasos en Console, desde GCP project hasta el review de 5-15 días.
+- **Qué significa:** cuando el usuario complete su cuenta de developer, el formulario se llena por copy-paste. Cero adivinación, cero rebote por scopes mal justificados.
 
-## 2. iOS + Android pre-Fit-sunset
+## 2. iOS App Store path
 
-- `package.json:39` — `@perfood/capacitor-healthkit@^1.3.2` instalado (con `--legacy-peer-deps` por gap de major en Capacitor, mismo patrón que el plugin Health Connect).
-- `src/services/health/healthKitAdapter.ts` (264 LOC) — impl real contra `CapacitorHealthkit`: `requestPermissions / readHeartRate / readSteps / readCalories / readSleep`, backed by plugin (cero stubs).
-- `src/services/health/index.ts:85` — facade `getHealthAdapter()` selecciona iOS (HealthKit) | Android (Health Connect) | web (noop) | legacy (Google Fit deprecated).
-- `server.ts:871-872` — `/api/fitness/sync` emite `Sunset: Wed, 31 Dec 2026 23:59:59 GMT` y `Deprecation: ...` (RFC 8594), más `Link: rel="successor-version"` a `/api/health-data`.
-- `server.ts:879` — log estructurado `fitness_sync_deprecated_called` con `uid`, userAgent y metadata del sunset.
-- `src/pages/Telemetry.tsx:182,235` — branch dual `'health-connect' || 'healthkit'` para que el flujo nativo funcione transparente en ambas plataformas.
-- 12 → 16 tests del módulo health (4 nuevos casos iOS).
+- `IOS_BUILD.md:1-299` — runbook: prerequisites (Xcode 15+, CocoaPods, Apple Dev US$99/año), 8 sub-pasos initial setup, daily workflow, TestFlight, checklist App Store review.
+- 11 keys `NS*UsageDescription` listas para pegar con copy honesto:
+  - `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription` (HealthKit + Apple Watch)
+  - `NSLocationWhenInUseUsageDescription` (geofencing multi-país)
+  - `NSCameraUsageDescription` (REBA/RULA on-device + evidencia)
+  - `NSMicrophoneUsageDescription` (dosímetro PREXOR DS 594)
+  - `NSBluetoothAlwaysUsageDescription` / `NSBluetoothPeripheralUsageDescription` (wearables certificados)
+  - `NSContactsUsageDescription` (contactos de emergencia)
+  - `NSMotionUsageDescription` (Hombre Caído, fall detection)
+  - `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription` (evidencia de incidente)
+- `App.entitlements` con `com.apple.developer.healthkit` + `aps-environment: production`. `capacitor.config.ts` con comentario documentando el flujo iOS.
+- La carpeta `ios/` no existe todavía: debe correrse `npx cap add ios` en macOS antes del runbook (limitación reconocida).
+- **Qué significa para el trabajador con iPhone:** cuando se despliegue a TestFlight + App Store, su Apple Watch ya tiene los entitlements y usage strings correctos para no ser rechazado por "vague purpose string", el motivo #1 de rejection en HealthKit.
 
-## 3. Data-residency Santiago lista para enterprise
+## 3. Política responsable de divulgación
 
-- `src/services/ai/aiAdapter.ts` — interface `AiAdapter` con `name / region / isAvailable / generate()`. La región es parte del contrato.
-- `src/services/ai/geminiAdapter.ts` — wrapper sobre `@google/genai` actual, region `'us-central1'` (consumer).
-- `src/services/ai/vertexAdapter.ts` — stub con mensaje migration-helpful, region default `'southamerica-west1'`.
-- `src/services/ai/index.ts:71` — facade `getAiAdapter()` selecciona por `AI_ADAPTER` env (línea 72), lee la variable en cada llamada (no cachea) para que tests puedan mutarla.
-- `VERTEX_MIGRATION.md` (246 LOC) — runbook 8 secciones: prerequisites, SDK install, migración de call-sites de `geminiBackend.ts`, costos, fine-tuning (5 fases), DR, testing.
-- 17 tests cubriendo facade + region claim + getter-not-constructor pattern (RED→GREEN).
+- `SECURITY.md:1-73` (~373 palabras) — política bilingüe es/en de responsible disclosure con canal y SLA público.
+- `public/.well-known/security.txt:1-8` — RFC 9116: `Contact: mailto:security@praeventio.net`, `Expires: 2027-04-28T00:00:00.000Z`, `Preferred-Languages: es, en`, `Canonical`, Encryption (PGP TBD), Acknowledgments, Policy.
+- `docs/security/severity-rubric.md:1-124` (~708 palabras) — 4 niveles con CVSS adaptado a app safety-critical:
+  - **CRITICAL:** falla alarma Hombre Caído, bypass SOS, exfiltración masiva de datos de salud.
+  - **HIGH:** leak `medical_exams`, OAuth tokens compromise, tampering `audit_logs`.
+  - **MEDIUM:** XSS admin-only, rate-limit bypass, CSRF no crítico.
+  - **LOW:** missing security headers, verbose errors dev.
+- `docs/security/incident-response.md:1-45` (~241 palabras) — runbook con TDD-first regression test + Ley 21.719 art. 50 (72h breach reporting) + ISO 27001 A.5.24.
+- **Qué significa para el trabajador:** si un investigador encuentra una vuln que comprometa Hombre Caído, hay canal claro con SLA de 24h ack + 72h triage + 30d patch.
 
-## 4. UX coherente en el path de pago
+## 4. Observabilidad adapter pattern
 
-- `src/components/legal/CookieConsent.tsx:63` — `useState<ConsentValue | null>(() => readStoredConsent())` con lazy initialState. Antes había un frame de estado `'pending'`; ahora cero flicker para el usuario que ya consintió.
-- `src/services/health/healthConnectAdapter.ts:188,212` — nuevos exports `preWarmHealthConnect()` y `awaitAvailability()`.
-- `src/App.tsx:4,161` — App component llama `void preWarmHealthConnect()` en mount, evita el falso-negativo "Health Connect no disponible" que aparecía antes de que el plugin terminara de inicializar.
-- `src/App.tsx:126-128` — rutas `/pricing/success`, `/pricing/failed`, `/pricing/retry` mapeadas al componente Pricing.
-- `src/pages/Pricing.tsx:373` — `WebpayReturnBanner` renderiza al tope de PricingInner (montado en línea 544) según pathname:
-  - `/pricing/success` (línea 376) → spinner + "Procesando pago…" + invoice id.
-  - `/pricing/failed` (línea 377) → tarjeta roja "Pago rechazado, vuelve a intentar".
-  - `/pricing/retry` (línea 378) → tarjeta amber "Pago en cola, volveremos a intentar".
-- `firestore.rules:6` — `TODO(billing)` corregido a `NOTE(billing)` (la colección `processed_webpay/{token_ws}` es lock por diseño, no deuda).
+- `src/services/observability/types.ts:1-197` — `ErrorContext`, `Breadcrumb`, `ErrorTrackingAdapter`, `MetricsAdapter` con `sampleRate` 0.0-1.0 (L71) y aviso de cardinalidad (L168).
+- `src/services/observability/sentryAdapter.ts:1-76` — stub que arroja `npm install @sentry/node` hasta que se instale el SDK.
+- `src/services/observability/cloudErrorReportingAdapter.ts:1-78` — alternativa GCP-native (Cloud Error Reporting + Cloud Monitoring).
+- `src/services/observability/noopErrorTrackingAdapter.ts:1-117` — rutea vía `logger.error/warn/info`; event id `noop-<base36-timestamp>-<6char-random>` (L36).
+- `src/services/observability/metricsAdapter.ts:1-205` — counter / gauge / histogram con warning de cardinalidad (no user IDs en labels).
+- `src/services/observability/index.ts:1-166` — `getErrorTracker()` + `getMetrics()` pickean por env. Fallback policy: silent → noop (opuesto a KMS: aquí reliability > security blocking).
+- `src/services/observability/observability.test.ts:1-309` — 31 tests con RED→GREEN.
+- `OBSERVABILITY.md:1-296` — SLOs: `/api/health` 99.9%, Webpay return p95 < 5s, Health Connect ≥ 95%, Calendar predictions p99 < 10s.
+- **Qué significa:** cuando la app rompa en prod, el equipo no se entera por Twitter — es alertado en Cloud Monitoring + Sentry con stack traces, breadcrumbs y user context anónimo.
 
-## 5. Facturación electrónica chilena scaffolded
+## 5. Disaster recovery profesional
 
-- `src/services/sii/types.ts` — types DTE 33/39/41/56/61, DteHeader/Item/Totals/Request/Response, `emisorRut: '78231119-0'` lockeado como literal.
-- `src/services/sii/siiAdapter.ts:44,76` — `calculateDteTotals` pure helper con `Math.ceil(net * 0.19)`, mismo rounding que `pricing/tiers.ts:withIVA` (cross-link explícito en docstring línea 34).
-- `src/services/sii/{openfactura,simpleApi,bsale,libredte}Adapter.ts` — 4 stubs de PSE con URLs de docs, listos para cuando se elija proveedor.
-- `src/services/sii/index.ts:51` — facade `getSiiAdapter()` por `SII_PSE` env, default `'noop'` (línea 52) para no caer si la var falta.
-- `SII_INTEGRATION.md` (156 LOC) — runbook con prerequisites SII contribuyente electrónico (~30 días), CAF management, tabla comparativa PSE: OpenFactura ($20-50k flat + tier, mid-market default), SimpleAPI (per-DTE ~$20-50, REST + HMAC), Bsale ($30k+ ERP completo), LibreDTE (self-hosted free, requiere DevOps).
-- 34 tests cubriendo math (RED→GREEN con regresión de `Math.floor`), facade y stubs.
+- `scripts/backup-firestore.cjs:1-258` — export nightly a GCS vía `FirestoreAdminClient.exportDocuments`. Manifest con conteo por colección, subfolder ISO UTC + opcional `--label`.
+- `scripts/restore-firestore.cjs:1-218` — restore con flag obligatoria `--confirm-i-know-what-im-doing` (L34) contra prod + `--dry-run` (L40) + warning sleep 5s.
+- `scripts/test-backup-integrity.cjs:1-238` — chequeo semanal vía Cloud Scheduler.
+- `DR_RUNBOOK.md:1-285` — tabla RPO/RTO por tipo de desastre:
+
+| Disaster | RPO | RTO |
+|---|---|---|
+| Accidental admin delete | 24h | 4h |
+| Firestore corruption | 24h | 1h |
+| Regional outage | live | Google SLA-dependent |
+| Catastrophic loss | 7-30d | 1-3 days |
+| Security incident | latest backup | 8h |
+
+- `infrastructure/cloud-scheduler.yaml:1-196` — IaC stub: bucket lifecycle (30d Standard → 365d Nearline → delete), service account `firestore-backup@`, Cloud Run jobs, Scheduler triggers, alerting policies.
+- **Qué significa para clientes Empresarial+:** si un admin de cliente borra registros por error, hay restore procedure con RPO 24h. Cumplimiento Ley 21.719 + ISO 27001 A.5.30.
 
 ## Lo que el trabajador chileno gana
 
-- Si un admin con permiso de Firestore export saca la base, sus tokens OAuth (acceso a su Google Calendar/Fit) NO están en plaintext — defensa en profundidad bajo Ley 19.628 / 21.719.
-- El trabajador con iPhone, cuando llegue el sunset Fit el 31-dic-2026, sigue alimentando data biométrica al sistema vía HealthKit on-device — sin OAuth, sin servidor intermediario, mejor privacidad.
-- El trabajador Android con Health Connect ya no ve "Health Connect no disponible" por race condition al abrir la app: el pre-warm en App mount resuelve la disponibilidad antes de pintar el primer Telemetry.
-- Después de pagar Webpay ya no ve "Página no encontrada" ni se queda colgado — ve feedback claro: éxito con invoice id, rechazo con mensaje accionable, retry con explicación.
-- Si revoca el consentimiento de cookies y vuelve, el banner no parpadea — la decisión se respeta de inmediato.
+- Si la alarma Hombre Caído falla en obra, hay canal de seguridad que procesa el reporte en 24h, no un email perdido.
+- Su iPhone / Apple Watch recibe la app por App Store sin rechazo por permisos vagos: cámara, mic, ubicación y HealthKit están justificados en lenguaje claro.
+- Si sus exámenes preocupacionales se pierden por error de admin, hay restore documentado con RPO 24h.
+- Cuando algo se cae en producción, el equipo se entera en minutos (Sentry / Cloud Monitoring), no en días.
 
 ## Lo que la empresa cliente gana
 
-- Argumento de procurement concreto para Codelco/AMSA: "tu data biométrica nunca sale de Chile" — switch `AI_ADAPTER=vertex-ai` activa data-residency Santiago el día que se firme.
-- Migración Google Fit terminada antes del sunset oficial; nada se rompe el 1-ene-2027 ni para flotas iOS ni Android.
-- Tokens OAuth cifrados con KMS rotable: cumple expectativas de auditoría enterprise (ISO 27001 / SOC 2) sin trabajo adicional del equipo del cliente.
-- Cuando emita su primera factura electrónica al cliente final, Praeventio ya tiene contrato DTE listo — no demora de 30 días encima de la habilitación SII.
+- Marketplace listing = instalación de un click desde Workspace Admin, sin negociar APKs.
+- SLA público de vulns + rúbrica de severidad = ítem listo para due diligence de compras corporativas.
+- DR runbook con RPO/RTO formal = respuesta válida en RFP de continuidad operativa.
+- Observabilidad multi-proveedor (Sentry + Cloud + Prometheus + noop) = sin lock-in de APM.
+- Compliance kit alineado a ISO 27001 A.5.24 / A.5.30 y Ley 21.719 art. 50.
 
-## Lo que Praeventio (la empresa) gana
+## Lo que Praeventio gana
 
-- KMS real elimina el principal hallazgo del audit interno (tokens plaintext) — desbloquea compliance con mutuales.
-- `VERTEX_MIGRATION.md` y `SII_INTEGRATION.md` son runbooks ejecutables: cualquier ingeniero nuevo (o un consultor externo) puede operarlos sin tribal knowledge.
-- 16 tests health + 17 tests AI + 34 tests SII + 6 tests KMS añadidos esta ronda — la regresión está cubierta antes de los cambios de producción.
-- Stubs typed de Vertex y de los 4 PSE significan que el "go-decision" futuro es de pricing/comercial, no de arquitectura — el código está listo.
-- Sunset header RFC 8594 en `/api/fitness/sync` es el camino estándar para deprecar APIs públicas; las flotas que aún hablan ese endpoint avisan al log y al cliente con la fecha exacta.
+- Tiempo a Marketplace: el form de Console se completa en una sesión, no en una semana.
+- Tiempo a App Store: primer build = una sesión macOS + cuenta Apple, sin reinventar usage strings.
+- Blast radius reducido: los noop adapters garantizan que el sistema no caiga si Sentry cae.
+- Backups nocturnos + integrity check semanal = noches durmiendo tranquilos.
+- Marca "vendor serio": `SECURITY.md` + `security.txt` + DR runbook son señales que enterprise mira antes de firmar.
 
-## Limitaciones reconocidas honestamente
+## Limitaciones reconocidas
 
-- `KMS_KEY_RESOURCE_NAME` aún no provisionado en Cloud Run prod — el adapter cae a `isAvailable=false` y los tokens nuevos quedan en el path legacy hasta que se cree el keyring/key.
-- iOS HealthKit requiere `Info.plist` con `NSHealthShareUsageDescription` y entitlements de capability, pendientes en el proyecto Xcode (no se hace desde JS).
-- Vertex SDK (`@google-cloud/vertexai` o equivalente) NO está instalado todavía — el adapter es stub que tira con mensaje migration-helpful; instalación es Round siguiente.
-- SII PSE pick pendiente — los 4 adapters son stubs hasta que el equipo comercial decida proveedor según volumen real de DTE/mes.
-- Migración OAuth a envelope encryption es manual (correr `scripts/migrate-oauth-tokens-to-envelope.cjs`) y aún no está agendada en producción.
+- **Assets gráficos pendientes:** los specs están en `marketplace/assets-spec.md`, los PNGs (icon, banner, 5 screenshots) deben producirse en diseño antes del submit.
+- **PGP key TBD:** `security.txt` declara Encryption pero la clave aún no se publicó en `/.well-known/pgp-key.txt`.
+- **Carpeta `ios/` no existe:** debe correrse `npx cap add ios` en macOS antes del runbook.
+- **Sentry SDK no instalado:** `sentryAdapter.ts` arroja hasta `npm install @sentry/node` + `SENTRY_DSN`.
+- **Bucket GCS no provisionado:** `cloud-scheduler.yaml` es IaC stub; falta `gcloud apply` para crear `gs://praeventio-firestore-backups` y la service account.
 
 ## KPIs sugeridos
 
-- % de tokens OAuth en Firestore con prefijo de envelope KMS (target 100% post-migración, hoy 0%).
-- Conteo diario de `fitness_sync_deprecated_called` en logs — debe bajar a cero antes del 31-dic-2026.
-- Latencia p95 de `getHealthAdapter()` en mount de Telemetry — el pre-warm debería mantenerla <200ms en Android low-end.
-- Bounce rate en `/pricing/failed` y `/pricing/retry` (proxy de claridad del banner) y conversion rate en `/pricing/success`.
-- Tiempo desde "decisión de PSE" hasta primera DTE emitida en producción — runbook claim ≤2 semanas con OpenFactura.
+- **Time-to-Marketplace-approval:** días desde submit hasta listing publicado (target ≤ 15 días).
+- **Vulnerability MTTR:** mediana de días desde report a `security@` hasta patch desplegado (target ≤ 30 días para HIGH+).
+- **Backup success rate:** % de noches con export Firestore exitoso (target ≥ 99% / 30d rolling).
+- **DR drill cadence:** cantidad de restore drills ejecutados por trimestre (target ≥ 1, documentado en `DR_RUNBOOK.md`).
+- **Observability coverage:** % de endpoints críticos con alerta SLO configurada en Cloud Monitoring (target 100% de los 4 SLOs declarados en `OBSERVABILITY.md`).
