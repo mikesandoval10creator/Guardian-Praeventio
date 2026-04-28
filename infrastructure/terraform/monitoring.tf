@@ -176,7 +176,7 @@ resource "google_monitoring_metric_descriptor" "webpay_return_latency" {
   labels {
     key         = "outcome"
     value_type  = "STRING"
-    description = "AUTHORIZED | REJECTED | FAILED."
+    description = "success | failure | invalid. Matches the runtime `outcome` label emitted by webpayMetrics.ts (3 series total — KEEP THIS LOW-CARDINALITY)."
   }
 
   metadata {
@@ -375,6 +375,99 @@ resource "google_monitoring_alert_policy" "webpay_latency_p95" {
       `getMetrics().histogram('praeventio/webpay/return_latency_ms', { outcome }).observe(latencyMs)`
       from the webpay return handler. Until then this alert reports
       "no data" rather than firing.
+    EOT
+    mime_type = "text/markdown"
+  }
+
+  user_labels = {
+    slo      = "webpay-latency-p95"
+    severity = "p2"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# SLO #2 (companion) — Webpay return latency metric ABSENT
+# -----------------------------------------------------------------------------
+# Round 13 NIT: the threshold policy above only fires on a percentile breach;
+# if the metric stops arriving entirely (server crashed mid-request, the
+# emission code path was deleted in a refactor, the metric pipeline is broken),
+# the threshold alert silently reports "no data" and we never page. This
+# companion policy paints the absent-data half of the same SLO surface so
+# either failure mode produces a signal.
+#
+# Kept as a separate `google_monitoring_alert_policy` (not a second
+# `conditions {}` block on the threshold policy) so they can be silenced
+# independently — e.g., during a planned maintenance window where the
+# absent-data alert would be expected to fire while the threshold one
+# wouldn't, you can mute just one.
+#
+# Aggregation choice: ALIGN_DELTA + REDUCE_COUNT against the histogram. Each
+# `observe()` increments the count; if the count is zero across the
+# alignment_period the absent condition starts counting toward duration. We
+# deliberately do NOT group_by `outcome` — a single arriving observation of
+# any outcome is enough to prove the pipeline is alive.
+#
+# Calibration note: 600s (10min) gives short blips a pass. If real Webpay
+# traffic genuinely sleeps overnight (low-volume tier launch), expect this
+# to fire nightly until traffic ramps; consider widening to 1800s or
+# auto-snoozing via `alert_strategy.notification_rate_limit` once volume
+# data is in. See report below.
+resource "google_monitoring_alert_policy" "webpay_return_latency_absent_data" {
+  display_name = "SLO#2 — Webpay return latency metric absent for 10+ minutes"
+  combiner     = "OR"
+  enabled      = true
+
+  conditions {
+    display_name = "No webpay/return_latency_ms observations for 10min"
+
+    condition_absent {
+      filter   = "metric.type=\"custom.googleapis.com/praeventio/webpay/return_latency_ms\" AND resource.type=\"global\""
+      duration = "600s" # 10 min — gives short traffic blips a pass
+
+      aggregations {
+        alignment_period     = "60s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_COUNT"
+      }
+    }
+  }
+
+  notification_channels = local.default_notification_channels
+
+  alert_strategy {
+    auto_close = "1800s"
+  }
+
+  documentation {
+    content = <<-EOT
+      ## Webpay return latency — ABSENT DATA
+
+      Fires when no Webpay return events have been recorded for 10+ minutes.
+      Either no traffic (verify with web analytics) or the metric pipeline is
+      broken (check `server.ts` emission code path).
+
+      **Likely causes (in order of probability):**
+      - Genuinely zero traffic (low-volume tier, overnight, weekend). Check
+        analytics + Stripe/Webpay dashboard volumes before treating this as
+        an incident.
+      - Server-side emission removed or regressed in a refactor — search
+        `server.ts` for `praeventio/webpay/return_latency_ms` and confirm
+        the histogram observe call is still on the /billing/webpay/return
+        success and failure code paths.
+      - Cloud Monitoring write API down or quota exhausted (check
+        https://status.cloud.google.com/).
+      - Webpay return endpoint is itself unreachable (LB or DNS issue) —
+        complementary signal: the SLO #1 policy should fire.
+
+      **Triage:**
+      1. Confirm whether traffic actually exists in this window. If zero
+         legitimate traffic, suppress this incident and consider widening
+         `duration` per the calibration note in monitoring.tf.
+      2. Tail Cloud Run logs filtered to `path=/billing/webpay/return`.
+      3. Verify the histogram emission call still exists in `server.ts`:
+         `getMetrics().histogram('praeventio/webpay/return_latency_ms', { outcome }).observe(ms)`.
+      4. If the pipeline is the issue, the threshold alert is also silent —
+         restore emission and both policies recover together.
     EOT
     mime_type = "text/markdown"
   }

@@ -207,4 +207,46 @@ describe('countryFromCoordsAsync', () => {
     expect(await countryFromCoordsAsync(NaN, NaN)).toBe('ISO');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  // Round 13 NIT: lat/lng must be (1) clamped to 6 decimals so the URL is
+  // stable across float drift and (2) URL-encoded so a future caller passing
+  // odd characters (or a sign-flipped negative zero) cannot inject query
+  // separators. The API key path is already encoded — assert we don't double-
+  // encode the encoded comma when joining lat/lng.
+  it('builds a Google Maps URL with lat/lng to 6 decimals and encodeURIComponent', async () => {
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        results: [
+          {
+            address_components: [
+              { short_name: 'CL', long_name: 'Chile', types: ['country', 'political'] },
+            ],
+          },
+        ],
+        status: 'OK',
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchSpy as unknown as typeof fetch);
+
+    // Use values whose default toString would expose floating-point drift
+    // (e.g., -33.4500000001) so the .toFixed(6) rule is observable.
+    await countryFromCoordsAsync(-33.4500000001, -70.660000001);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const calledUrl = String((fetchSpy.mock.calls[0] as unknown[])[0]);
+
+    // Lat/lng appear in 6-decimal form.
+    const expectedLat = encodeURIComponent((-33.4500000001).toFixed(6));
+    const expectedLng = encodeURIComponent((-70.660000001).toFixed(6));
+    expect(calledUrl).toContain(`latlng=${expectedLat},${expectedLng}`);
+
+    // Drifted form must NOT appear (proves the rounding actually happened).
+    expect(calledUrl).not.toContain('-33.4500000001');
+    expect(calledUrl).not.toContain('-70.660000001');
+
+    // The API key path is still present and properly encoded once.
+    expect(calledUrl).toContain('key=test-gmaps-key');
+  });
 });

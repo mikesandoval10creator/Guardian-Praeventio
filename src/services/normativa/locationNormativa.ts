@@ -235,9 +235,19 @@ export async function countryFromCoordsAsync(
     return countryFromCoords(lat, lng) ?? 'ISO';
   }
 
+  // Round 13 NIT hardening: clamp coords to 6 decimals (≈11cm precision —
+  // far more than civilian GPS) so the URL is stable across float drift
+  // (cache key benefit if a caller layer memoises by URL), then
+  // `encodeURIComponent` each side of the comma so a future caller passing
+  // unexpected characters (sign-flipped zero, NaN-like strings via wider
+  // typings) cannot smuggle query separators into the URL. The API key is
+  // already encoded once below — the comma between lat and lng stays raw,
+  // matching Google's documented `latlng=<lat>,<lng>` format.
+  const latStr = encodeURIComponent(lat.toFixed(6));
+  const lngStr = encodeURIComponent(lng.toFixed(6));
   const url =
     `https://maps.googleapis.com/maps/api/geocode/json` +
-    `?latlng=${lat},${lng}&key=${encodeURIComponent(apiKey)}`;
+    `?latlng=${latStr},${lngStr}&key=${encodeURIComponent(apiKey)}`;
 
   let res: Response;
   try {

@@ -36,6 +36,7 @@ import {
 
 import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
 import { useInvoicePolling } from '../hooks/useInvoicePolling';
+import { logger } from '../utils/logger';
 
 // Payments are processed exclusively through Google Play Billing on the native app.
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
@@ -460,6 +461,15 @@ function WebpayReturnBanner() {
 
     // Settled with a non-terminal status — shouldn't happen given the
     // default settleStatuses, but render the pending UX defensively.
+    // Round 13 NIT: emit a structured warn so the silent fall-through is
+    // diagnosable via Cloud Logging (e.g., a value like `processing` that
+    // finalised between polls). No test for this branch — Pricing.tsx has
+    // no existing component test harness; adding one solely for a log call
+    // would be high-effort low-value (see E4 round-13 report).
+    logger.warn('webpay_return_banner_unexpected_status', {
+      status: inv.status,
+      invoiceId: inv.id,
+    });
   }
 
   if (pollState.kind === 'timeout') {
