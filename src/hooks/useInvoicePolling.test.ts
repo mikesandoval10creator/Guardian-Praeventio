@@ -219,12 +219,37 @@ describe('runInvoicePoll — state machine', () => {
     expect(h.fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('6b. missing token (signed-out user) errors out with "sin sesión"', async () => {
+  it('6b. signed-out user (token always null) errors out with "sin sesión"', async () => {
+    // After Round 13's hydration grace (one-shot retry on a null first-tick
+    // token), the "signed out" contract requires the token to be null on
+    // BOTH attempts. A single null + a real token on the second tick now
+    // resolves successfully (see test 12). Two consecutive nulls = no session.
     const h = makeHarness();
-    h.getTokenMock.mockResolvedValueOnce(null);
+    h.getTokenMock.mockResolvedValue(null);
 
     await runInvoicePoll({
       invoiceId: 'inv_6b',
+      deps: h.deps,
+      onState: (s) => h.states.push(s),
+      signal: h.controller.signal,
+      intervalMs: 1,
+    });
+
+    const final = h.states[h.states.length - 1];
+    expect(final.kind).toBe('error');
+    if (final.kind === 'error') expect(final.message).toBe('sin sesión');
+    expect(h.fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('11. 4xx other than 401/404 (e.g. 422) errors out with "respuesta inválida" and stops', async () => {
+    // Round 13 D6 MEDIUM coverage: 422 / 400 / 403 are fatal but were lacking
+    // a dedicated test. The production code already routes them to
+    // `respuesta inválida (status)` — this test pins that contract.
+    const h = makeHarness();
+    h.fetchMock.mockResolvedValueOnce(emptyResponse(422));
+
+    await runInvoicePoll({
+      invoiceId: 'inv_11',
       deps: h.deps,
       onState: (s) => h.states.push(s),
       signal: h.controller.signal,
@@ -232,8 +257,60 @@ describe('runInvoicePoll — state machine', () => {
 
     const final = h.states[h.states.length - 1];
     expect(final.kind).toBe('error');
+    if (final.kind === 'error') {
+      expect(final.message).toContain('respuesta inválida');
+      expect(final.message).toContain('422');
+    }
+    expect(h.fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('12. first-tick null token retries once (Firebase Auth hydration grace period)', async () => {
+    // Round 13 D6 MEDIUM: when the page mounts before Firebase Auth has
+    // resolved currentUser, getToken briefly returns null. Bailing out
+    // surfaces a misleading "sin sesión" to a logged-in user. The engine
+    // grants a one-shot retry instead.
+    const h = makeHarness();
+    h.getTokenMock
+      .mockResolvedValueOnce(null) // first attempt: still hydrating
+      .mockResolvedValue('fake-id-token'); // subsequent attempts: real token
+
+    h.fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, makeInvoice({ status: 'paid' })),
+    );
+
+    await runInvoicePoll({
+      invoiceId: 'inv_12',
+      deps: h.deps,
+      onState: (s) => h.states.push(s),
+      signal: h.controller.signal,
+      intervalMs: 1,
+    });
+
+    const final = h.states[h.states.length - 1];
+    expect(final.kind).toBe('settled');
+    expect(h.getTokenMock).toHaveBeenCalledTimes(2);
+    expect(h.fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('12b. hydration grace is one-shot — two consecutive nulls still bail with "sin sesión"', async () => {
+    // The grace must NOT loop forever: a real signed-out user should still
+    // see the error (see test 6b for the redundant guarantee).
+    const h = makeHarness();
+    h.getTokenMock.mockResolvedValue(null); // forever null
+
+    await runInvoicePoll({
+      invoiceId: 'inv_12b',
+      deps: h.deps,
+      onState: (s) => h.states.push(s),
+      signal: h.controller.signal,
+      intervalMs: 1,
+    });
+
+    const final = h.states[h.states.length - 1];
+    expect(final.kind).toBe('error');
     if (final.kind === 'error') expect(final.message).toBe('sin sesión');
     expect(h.fetchMock).not.toHaveBeenCalled();
+    expect(h.getTokenMock).toHaveBeenCalledTimes(2);
   });
 
   it('7. timeout reached emits {kind: timeout} and stops polling', async () => {

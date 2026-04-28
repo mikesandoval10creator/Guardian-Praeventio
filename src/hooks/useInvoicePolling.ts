@@ -112,6 +112,12 @@ export async function runInvoicePoll(args: RunInvoicePollArgs): Promise<void> {
   const startedAt = Date.now();
   let attempt = 0;
   let lastInvoice: InvoiceStatus | undefined;
+  // Firebase Auth hydration grace: the FIRST null/throwing getToken
+  // observed during this poll is treated as "auth still hydrating" and
+  // we schedule one retry. Any subsequent null surfaces "sin sesión".
+  // The grace is keyed to null-token COUNT, not to attempt number, so a
+  // session that expires mid-poll also gets one quiet retry.
+  let tokenGraceUsed = false;
 
   const emit = (state: InvoicePollState) => {
     if (signal.aborted) return;
@@ -134,6 +140,12 @@ export async function runInvoicePoll(args: RunInvoicePollArgs): Promise<void> {
     }
     if (signal.aborted) return { done: true };
     if (!token) {
+      if (!tokenGraceUsed) {
+        // First null token: assume Firebase Auth is still hydrating. Burn the
+        // grace and reschedule. Subsequent nulls fall through to "sin sesión".
+        tokenGraceUsed = true;
+        return { done: false, nextDelay: nextBackoff(attempt) };
+      }
       emit({ kind: 'error', message: 'sin sesión' });
       return { done: true };
     }
