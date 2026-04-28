@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ADMIN_ROLES,
   SUPERVISOR_ROLES,
+  DOCTOR_ROLES,
   WORKER_ROLES,
   ALL_ROLES,
   isAdminRole,
@@ -67,5 +68,23 @@ describe('roles — source of truth for RBAC', () => {
     for (const r of ALL_ROLES) {
       expect(isValidRole(r)).toBe(true);
     }
+  });
+
+  // ---- Structural invariants (H-roles-3) ---------------------------------
+
+  it('every DOCTOR_ROLES entry is also in SUPERVISOR_ROLES', () => {
+    // Doctors currently inherit supervisor permissions; if this changes,
+    // firestore.rules helpers and this test must be revisited together.
+    expect(SUPERVISOR_ROLES).toEqual(expect.arrayContaining([...DOCTOR_ROLES]));
+  });
+
+  it('ALL_ROLES has no duplicate entries (Set size matches array length)', () => {
+    expect(new Set(ALL_ROLES).size).toBe(ALL_ROLES.length);
+  });
+
+  it('ALL_ROLES includes every DOCTOR_ROLES entry (regression guard for H-roles-1)', () => {
+    // If a doctor-only role is ever added that is NOT also a supervisor,
+    // ALL_ROLES must still accept it via isValidRole.
+    expect(ALL_ROLES).toEqual(expect.arrayContaining([...DOCTOR_ROLES]));
   });
 });

@@ -41,6 +41,7 @@ export const WORKER_ROLES = [
 const _allUnique = [
   ...ADMIN_ROLES,
   ...SUPERVISOR_ROLES,
+  ...DOCTOR_ROLES,
   ...WORKER_ROLES,
 ] as const;
 
@@ -50,7 +51,7 @@ export type AdminRole = typeof ADMIN_ROLES[number];
 export type SupervisorRole = typeof SUPERVISOR_ROLES[number];
 export type DoctorRole = typeof DOCTOR_ROLES[number];
 export type WorkerRole = typeof WORKER_ROLES[number];
-export type Role = AdminRole | SupervisorRole | WorkerRole;
+export type Role = AdminRole | SupervisorRole | DoctorRole | WorkerRole;
 
 export function isAdminRole(role: unknown): role is AdminRole {
   return typeof role === 'string' && (ADMIN_ROLES as readonly string[]).includes(role);
