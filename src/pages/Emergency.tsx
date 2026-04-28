@@ -40,7 +40,7 @@ export function Emergency() {
   const { selectedProject } = useProject();
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
-  const { isActive, isAlerting, countdown, startDetection, stopDetection } = useManDownDetection();
+  const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } = useManDownDetection();
   const isOnline = useOnlineStatus();
   const { isSupported: isWakeLockSupported, isLocked: isWakeLocked, requestWakeLock, releaseWakeLock } = useWakeLock();
 
@@ -133,9 +133,29 @@ export function Emergency() {
               <p className="text-white/60 text-sm font-medium">
                 Si no cancelas esta alerta, se enviará una notificación de emergencia a todo el equipo en {countdown} segundos.
               </p>
+              {/* B8: Primary "Estoy bien" CTA — large, glove-operable, only during countdown. */}
+              {countdown != null && countdown > 0 && (
+                <button
+                  onClick={cancelCountdown}
+                  aria-label="Cancelar alarma de hombre caído"
+                  className="w-full min-h-[96px] bg-white text-rose-600 py-8 px-6 rounded-3xl font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all text-2xl sm:text-3xl"
+                >
+                  Estoy bien ({countdown}s)
+                </button>
+              )}
+              {/* B9: Supervisor acknowledgement — secondary, only while the alarm is sounding (countdown finished). */}
+              {countdown === 0 && (
+                <button
+                  onClick={acknowledgeAlert}
+                  aria-label="Detener alarma — rescate en camino"
+                  className="w-full bg-white/10 border border-white/40 text-white py-4 rounded-2xl font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs sm:text-sm"
+                >
+                  Detener alarma — rescate en camino
+                </button>
+              )}
               <button
                 onClick={stopDetection}
-                className="w-full bg-white text-rose-600 py-6 rounded-3xl font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all"
+                className="w-full bg-white/0 border border-white/30 text-white/80 py-3 rounded-2xl font-bold uppercase tracking-widest active:scale-95 transition-all text-[10px] sm:text-xs"
               >
                 Cancelar Alerta
               </button>

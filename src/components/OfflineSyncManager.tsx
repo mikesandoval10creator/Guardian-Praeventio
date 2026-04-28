@@ -38,11 +38,25 @@ export function OfflineSyncManager() {
                   const currentData = docSnap.data();
                   const currentUpdatedAt = currentData.updatedAt?.toDate()?.toISOString() || currentData.updatedAt;
                   
-                  // If the server document is newer than our offline version, we have a conflict
+                  // If the server document is newer than our offline version, we have a conflict.
+                  // We are about to apply an LWW (last-write-wins) overwrite that will
+                  // silently clobber the peer's edit. Surface this honestly to the user
+                  // and give them the option to restore the server version. The previous
+                  // copy ("se aplicó la última versión del servidor") was wrong — the
+                  // local write WAS applied, the server's edit got overwritten.
                   if (currentUpdatedAt && new Date(currentUpdatedAt) > new Date(originalUpdatedAt)) {
-                    // Notify BEFORE applying the write so the banner reflects the truth
+                    // Snapshot the server's data so a "Restaurar versión del servidor"
+                    // action can restore without re-reading.
+                    const serverSnapshot = currentData;
                     window.dispatchEvent(new CustomEvent('sync-conflict', {
-                      detail: { collection: action.collection, id, localUpdatedAt: originalUpdatedAt, serverUpdatedAt: currentUpdatedAt }
+                      detail: {
+                        collection: action.collection,
+                        id,
+                        localUpdatedAt: originalUpdatedAt,
+                        serverUpdatedAt: currentUpdatedAt,
+                        serverData: serverSnapshot,
+                        nodeTitle: (action.data && (action.data.title || action.data.name)) || undefined,
+                      }
                     }));
                   }
                 }
