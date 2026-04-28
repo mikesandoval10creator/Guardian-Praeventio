@@ -1,11 +1,48 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Award, Star, Clock, FileText, CheckCircle2, TrendingUp, Briefcase, AlertTriangle, FolderOpen, Zap, Target, Heart } from 'lucide-react';
-import { Card } from '../components/shared/Card';
+import { ShieldCheck, Award, Star, Clock, FileText, CheckCircle2, TrendingUp, Briefcase, AlertTriangle, FolderOpen, Zap, Target, Heart, Plus, BadgeCheck } from 'lucide-react';
+import { Card, Button } from '../components/shared/Card';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { ClaimForm } from '../components/curriculum/ClaimForm';
+import { ClaimStatus } from '../components/curriculum/ClaimStatus';
+import { auth } from '../services/firebase';
+import type { CurriculumClaim } from '../services/curriculum/claims';
 
 export function PortableCurriculum() {
   const { user } = useFirebase();
+
+  // ── Round 14 (R5): worker's verifiable claims (anti-fraud experience). ──
+  // The hardcoded `badges`/`history`/`skills` below are pre-Round-14 mock
+  // data flagged by A7 — we intentionally do NOT touch them here; only
+  // wire the new claims section.
+  const [claims, setClaims] = useState<CurriculumClaim[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [claimsError, setClaimsError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  async function fetchClaims() {
+    if (!auth.currentUser) return;
+    setClaimsLoading(true);
+    setClaimsError(null);
+    try {
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/curriculum/claims', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (!res.ok) throw new Error('No se pudieron cargar los claims.');
+      const data = await res.json();
+      setClaims(Array.isArray(data?.claims) ? data.claims : []);
+    } catch (err: any) {
+      setClaimsError(err?.message || 'Error al cargar los claims.');
+    } finally {
+      setClaimsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (user) fetchClaims();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   // Simulated data for the curriculum
   const stats = {
@@ -224,6 +261,54 @@ export function PortableCurriculum() {
             </div>
           </Card>
         </div>
+      </div>
+
+      {/* ── Round 14 (R5): Verifiable claims section ─────────────────── */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <BadgeCheck className="w-5 h-5 text-emerald-500" />
+            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">
+              Mis claims verificados
+            </h2>
+          </div>
+          {!showForm && (
+            <Button onClick={() => setShowForm(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Crear nuevo claim
+            </Button>
+          )}
+        </div>
+
+        {showForm && (
+          <ClaimForm
+            onCreated={() => {
+              setShowForm(false);
+              fetchClaims();
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        )}
+
+        {claimsLoading && (
+          <Card className="p-6 text-center text-xs text-zinc-500">Cargando claims...</Card>
+        )}
+        {claimsError && (
+          <Card className="p-4 text-xs text-rose-500 bg-rose-500/5 border-rose-500/20">
+            {claimsError}
+          </Card>
+        )}
+        {!claimsLoading && claims.length === 0 && !claimsError && !showForm && (
+          <Card className="p-6 text-center text-xs text-zinc-500 space-y-2">
+            <p>Todavía no creaste ningún claim verificable.</p>
+            <p className="text-[10px] text-zinc-400">
+              Un claim es algo verificable sobre tu experiencia (años de trabajo, certificaciones, registro de incidentes) que firmarás con huella y será co-firmado por 2 referencias.
+            </p>
+          </Card>
+        )}
+        {claims.map((c) => (
+          <ClaimStatus key={c.id} claim={c} />
+        ))}
       </div>
     </div>
   );

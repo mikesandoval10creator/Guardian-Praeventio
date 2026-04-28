@@ -55,6 +55,7 @@ const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: modu
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
+const RefereeAccept = lazy(() => import('./pages/RefereeAccept').then(module => ({ default: module.RefereeAccept })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const Terms = lazy(() => import('./pages/Terms').then(module => ({ default: module.Terms })));
 
@@ -69,9 +70,11 @@ function AppRoutes() {
     return <ConsciousnessLoader />;
   }
 
-  // Skip landing/splash for direct deep-links (invite, public node)
+  // Skip landing/splash for direct deep-links (invite, public node,
+  // curriculum referee co-sign — Round 14 R5).
   const skipLanding = window.location.pathname.startsWith('/invite') ||
-    window.location.pathname.startsWith('/public');
+    window.location.pathname.startsWith('/public') ||
+    window.location.pathname.startsWith('/curriculum/referee');
 
   if (!hasEntered && !skipLanding) {
     // Show landing page first; after "Entrar" briefly show splash then the app
@@ -99,6 +102,7 @@ function AppRoutes() {
           element={!user ? <Login /> : <Navigate to="/" />}
         />
                   <Route path="/invite" element={<InviteAccept />} />
+                  <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
