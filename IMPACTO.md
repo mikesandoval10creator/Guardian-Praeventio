@@ -1,92 +1,85 @@
-# Impacto en el bienestar humano + valor empresarial — Polish targeted: code shared, real polling, UI wired, vendor split, geocoding real
+# Impacto — Round 13 (polish + observability real)
 
-## Resumen ejecutivo
+## TL;DR
 
-Ronda 12 cierra cinco frentes de pulido con scope acotado y trazabilidad de archivo:línea: el webhook RTDN y un nuevo `GET /api/billing/invoice/:id` ahora comparten un `withIdempotency` helper testeado; el banner de retorno de Webpay deja de mentirle al usuario y consulta Firestore con backoff real; los handlers de Projects y SyncConflictBanner pasaron de `console.log` a navegación real con un modal de actividad predicha; el bundle se separa en chunks vendor con presupuestos calibrados post-build; y la detección de país por GPS pasa a Google Maps con override per-tenant. Cero degradación: 45 tests de billing y 57 de location/normativa/forecast siguen verdes. El prevencionista chileno ya no ve "procesando…" eterno tras pagar el plan, y el equipo deja de pagar el costo de duplicar boilerplate de idempotencia.
+La ronda cierra cinco frentes acotados (hooks defensivos, ARIA del modal de actividad predicha, deep-link de RiskNetwork, NIT de Pricing + hardening de geocoding, y observabilidad real con Sentry SDK + histograma Webpay) sin agregar deuda nueva. El proyecto pasa de 542 a 585 tests verdes, gana emisión real de telemetría en `/billing/webpay/return` y deja a SLO #2 efectivamente medible una vez se aplique Terraform. La barra de calidad se sostiene: `tsc -b` exit 0, `vitest run` 585 passed, build PWA con 209 entradas precache y bundle main 257 KB gzip dentro de presupuesto.
 
-## 1. Refactor billing — código compartido y feedback real al usuario
+## Cambios por área
 
-- `src/services/billing/idempotency.ts` (209 LOC) extrae `withIdempotency<T>(db, options, work)` con cuatro estados explícitos: fresh-success, duplicate, in-flight, stale-retry — antes este flujo vivía duplicado dentro de `server.ts`.
-- `src/services/billing/idempotency.test.ts` agrega 11 tests con Firestore mockeado, demostrando ciclo RED→GREEN (import-not-found primero, helper después).
-- `server.ts` colapsa el webhook RTDN de ~163 a ~100 LOC; el boilerplate de idempotencia baja de ~80 a ~12 LOC, eliminando la principal fuente de copy-paste del módulo de cobros.
-- Nuevo endpoint `GET /api/billing/invoice/:id` (~95 LOC en `server.ts`) protegido por `verifyAuth` + `invoiceStatusLimiter` (600 req/15min keyed por uid, no IP — evita rate-limit cruzado en NAT corporativa de faena).
-- 404-no-enumeration cuando el `uid` del token no coincide con el dueño de la factura: no se filtra existencia.
-- Sólo expone campos seguros (sin `webpayToken`, `authCode`, `lineItems`, `rawResponse`); valida path con regex `/^[A-Za-z0-9_-]{1,128}$/`.
-- 45 billing tests pass: 11 idempotency + 10 invoice + 24 webpayAdapter.
+### Hardening de hooks
 
-## 2. Pricing.tsx con polling real (sin más mentir al usuario)
+- `src/hooks/useInvoicePolling.ts:120` introduce `tokenGraceUsed` como bandera one-shot: el primer `getToken() → null` durante el poll se interpreta como Firebase Auth aún hidratando, se reagenda con backoff y recién la segunda observación nula emite `error: 'sin sesión'`. Antes una hidratación lenta hacía caer al usuario inmediatamente al estado de error tras volver de Webpay.
+- `src/hooks/useInvoicePolling.ts:115-119` documenta que la gracia se llava al CONTEO de tokens nulos, no al número de intento — una sesión que expira a mitad del poll también recibe un reintento silencioso.
+- `src/hooks/useInvoicePolling.ts:186-190` cubre los 4xx ajenos (no 401, no 404) emitiendo `error: 'respuesta inválida (NNN)'` en vez de seguir poleando indefinidamente sobre un 422.
+- `src/hooks/useInvoicePolling.test.ts` suma 3 tests (test 11 sobre el 422, test 12 sobre la gracia happy-path, test 12b verificando que la gracia es de un solo uso); el test 6b se actualizó a `mockResolvedValue(null)` para reflejar el nuevo contrato.
 
-- `src/hooks/useInvoicePolling.ts` (276 LOC) introduce `runInvoicePoll`, motor puro separable del wrapper React, y máquina de cinco estados: idle / loading / settled / timeout / error.
-- Backoff exponencial `intervalMs * 2^(attempt-1)` capado en `backoffCapMs` (default 8s); timeout duro 60s — no hay tight-loops contra Firestore.
-- Toma Bearer token vía `firebase/auth currentUser.getIdToken()`; `AbortSignal` cancela sin emitir state (caller distingue cancelación de error).
-- `src/hooks/useInvoicePolling.test.ts` aporta 13 tests cubriendo cada transición.
-- `src/pages/Pricing.tsx` reescribe `WebpayReturnBanner` (~lines 346-573, +130 LOC) reemplazando el `TODO billing-status-poll` que dejaba al usuario en "procesando…" indefinido.
-- 8 estados UX con copy chileno y `lucide` icons: paid (CheckCircle2 esmeralda + total), rejected/cancelled (XCircle rojo + razón), refunded (RefreshCw azul), timeout (AlertTriangle ámbar + soporte@), error (XCircle, detalles auth enmascarados), loading per pathname (Loader2).
-- `formatCurrency` consumido desde `tiers.ts` evita drift CLP/UF entre tarjeta de plan y banner de retorno.
+### UX de pánico (modal accesible + sync conflicts puros)
 
-## 3. UI handlers que ya no son console.log
+- `src/components/projects/PredictedActivityModal.tsx:26-45` exporta `attachEscapeHandler(target, active, onEscape)` y lo conecta vía `useEffect`: presionar Escape ahora cierra el modal, requisito ARIA básico para usuarios de teclado y lectores de pantalla.
+- `src/components/projects/PredictedActivityModal.test.tsx` (NUEVO, 5 tests) valida el contrato sobre el helper puro sin dependencia de jsdom.
+- `src/components/shared/syncConflictRoutes.ts` (NUEVO, 60 LOC) extrae `routeForCollection(collection, docId)` con switch puro sobre las 7 colecciones conocidas (`iper_nodes`, `nodes`, `audits`, `workers`, `documents`, `projects`, `findings`) y `encodeURIComponent` interno del id.
+- `src/components/shared/syncConflictRoutes.test.ts` (NUEVO, 10 tests) cubre las 7 colecciones más casos borde (colección desconocida, id con caracteres especiales).
+- `src/components/layout/RootLayout.tsx` reemplaza el route map inline de 24 LOC por una llamada a `routeForCollection` — el layout deja de cargar la lógica de mapeo, el helper queda aislado y testeable.
+- `src/components/shared/SyncConflictBanner.tsx` actualiza JSDoc para documentar el contrato `onOpenRecord` ahora que el wiring vive en `RootLayout`.
 
-- `src/components/projects/PredictedActivityModal.tsx` (252 LOC) NUEVO: `framer-motion` AnimatePresence, etiqueta de tipo de actividad, badge de prioridad (info/warning/critical), reason, legalReference, `recommendedDate` formateada `es-CL`, duración.
-- Tres botones condicionales: "Cerrar" siempre, "Posponer 7 días" si `onDismiss`, "Agendar en Calendar" si `onSchedule`. Retorna `null` cuando `activity === null` para unmount limpio.
-- `src/pages/Projects.tsx` agrega `selectedActivity` state; `GanttProjectView onActivityClick → setSelectedActivity` (no más `console.log`); `onClimateRiskClick → navigate('/risk-network?node=${riskNodePayload.id}')`.
-- `src/components/shared/SyncConflictBanner.tsx` reescribe JSDoc clarificando contrato de `onOpenRecord` y elimina el TODO que apuntaba al wire actual.
-- `src/components/layout/RootLayout.tsx` monta `SyncConflictBanner` con `onOpenRecord`; mapea 7 colecciones (`iper_nodes`, `nodes`, `audits`, `workers`, `documents`, `projects`, `findings`) a rutas con fallback `?id=`; colección desconocida → `logger.warn` + no-navigation.
+### Observabilidad real (Sentry SDK + server)
 
-## 4. Vendor chunk split + métricas Webpay reales
+- `package.json` instala `@sentry/node@^10.50.0` y `@sentry/react@^10.50.0`; `package-lock.json` actualizado.
+- `src/services/observability/sentryAdapter.ts` se reescribe completo (179 LOC) sobre el SDK real. `init()` degrada en silencio si no hay DSN (`console.warn` en vez de `logger` para no recursar la capa de observabilidad), `beforeSend` saca `authorization`/`cookie` headers antes de enviar a Sentry, y todos los métodos están envueltos en `try/catch` para no romper el request path.
+- `src/services/observability/sentryAdapter.test.ts` (NUEVO, 10 tests) usa `vi.mock('@sentry/node')` para verificar init con/sin DSN, captureException, captureMessage, breadcrumbs, setUser y flush.
+- `src/services/observability/observability.test.ts` reemplaza 2 aserciones que esperaban el throw del stub previo por smoke checks positivos.
+- `server.ts` suma 91 LOC: `Sentry.init(...)` al boot, middleware terminal de errores con 4 argumentos para que Express delegue al handler Sentry, y la integración con el flujo Webpay (ver siguiente sección).
+- `src/__smoke__/critical-paths.smoke.test.ts` sube su timeout de 5 s a 15 s para absorber el peso de import de `@sentry/node`.
+- `OBSERVABILITY.md` agrega 89 LOC: la sección Round 2 queda marcada DONE y se documenta el histograma Webpay.
 
-- `vite.config.ts` lines 121-162 introduce `manualChunks`: vendor-react (react + react-dom + react-router-dom), vendor-firebase (app/auth/firestore/storage/functions), vendor-motion (framer-motion), vendor-gantt (gantt-task-react).
-- `.size-limit.json` reescrito con 7 budgets per-chunk calibrados con los gzipped reales del build: main 280 KB (real 257), vendor-react 200 KB (real 17), vendor-firebase 150 KB (real 144), vendor-motion 60 KB (real 41), vendor-gantt 50 KB (real 11), RiskNetwork lazy 250 KB (real 201), CSS 60 KB (real 31).
-- `infrastructure/terraform/monitoring.tf` agrega `google_monitoring_metric_descriptor.webpay_return_latency` con `metric_kind = DELTA` y `value_type = DISTRIBUTION` (fix técnico: la distribución va en `value_type`, no en `metric_kind`).
-- Alert `webpay_latency_p95` reescrita para usar el histograma con `ALIGN_DELTA` + `REDUCE_PERCENTILE_95` — antes operaba sobre un gauge sintético poco confiable.
-- `MONITORING.md` actualiza la calibration priority list para reflejar que la emisión app-side del histograma queda como pendiente explícito (ver Limitaciones).
+### Telemetría Webpay (histograma medible)
 
-## 5. Reverse-geocoding mundial + per-tenant location
+- `src/services/billing/webpayMetrics.ts` (NUEVO, 73 LOC) expone `recordWebpayReturnLatency({ outcome, latencyMs })`. Emite contra `praeventio/webpay/return_latency_ms` vía `getMetrics().histogram(...).observe(ms)` con label `outcome ∈ { 'success' | 'failure' | 'invalid' }` (cardinalidad 3, NUNCA per-userId/per-tokenWs). El cuerpo entero está en `try/catch` con degradación a `logger.warn` — el path de pago jamás puede romperse por telemetría.
+- `src/services/billing/webpayMetrics.test.ts` (NUEVO, 6 tests) verifica las 3 outcomes, multi-observation, valores fraccionarios y la degradación cuando `getMetrics()` falla.
+- `server.ts:2476`, `2505-2506`, `2514`, `2568-2569`, `2578` cablean los 5 puntos de salida del handler `/billing/webpay/return`: token inválido, dedupe (lock con outcome previo), commit success, commit con outcome explícito y catch terminal. El helper `histogramOutcomeFor(...)` (`server.ts:2495`) traduce los outcomes internos del Webpay adapter al label de baja cardinalidad.
 
-- `src/services/normativa/locationNormativa.ts` (372 LOC) suma `countryFromCoordsAsync(lat, lng, options?)` consumiendo Google Maps Geocoding API; `countryFromCoords` (bbox sync) se preserva como fallback backwards-compat.
-- `mapAlpha2ToCountryCode` traduce ISO 3166 alpha-2 a `CountryCode`; `SUPPORTED_COUNTRIES` cubre CL/PE/CO/MX/AR/BR con fallback ISO.
-- `AbortSignal` se respeta sin caer al fallback en `AbortError` — el caller distingue cancelación legítima de fallo de red.
-- `detectCountry()` ahora prefiere Google Maps cuando hay API key; sin key, retoma el bbox sync.
-- 15 tests nuevos (7 `mapAlpha2` + 8 `countryFromCoordsAsync`) en `src/services/normativa/locationNormativa.test.ts`.
-- `src/services/environmentBackend.ts` introduce `TenantLocationContext`, `resolveTenantLocation` y `setTenantLocationResolver` (test seam); `getForecast(days, location?)` acepta `ForecastLocation | TenantLocationContext`.
-- Tenant lookup: `tenants/{tenantId}.primarySite.coords` con fallback Santiago + `logger.warn` si falta — la faena de Antofagasta ya no recibe el clima de Providencia.
-- 4 tests nuevos (1 Lima + 3 per-tenant); 57 tests location/normativa/forecast pass.
-- JSDoc documenta costo (~USD 5 / 1.000 requests Geocoding) + guidance de caching/throttling.
+### Hardening Terraform (alarma de datos ausentes)
 
-## Lo que el trabajador chileno gana
+- `infrastructure/terraform/monitoring.tf:415-...` agrega un segundo `google_monitoring_alert_policy` `webpay_return_latency_absent_data` con ventana 600 s, severidad p2 y `condition_absent` sobre el mismo histograma. Razón: la alerta p95 existente reporta "no data" silenciosamente cuando el pipeline cae; ahora cualquiera de las dos fallas (latencia alta O emisión muerta) produce señal.
+- `infrastructure/terraform/monitoring.tf:179` corrige la descripción del label `outcome` del descriptor `webpay_return_latency` a `success | failure | invalid` (antes listaba incorrectamente `AUTHORIZED | REJECTED | FAILED`, mismatch detectado por el reviewer pre-commit).
+- Los alert policies se mantienen como recursos separados (no dos `conditions {}` en una sola política) para poder silenciarlos independientemente durante mantenimientos.
 
-- Tras pagar el plan en Webpay ve confirmación real ("¡Pago confirmado!" o causa de rechazo) en segundos, no un spinner indefinido — `Pricing.tsx WebpayReturnBanner`.
-- Click en una actividad predicha del Gantt (ej. "renovar permiso de trabajo en altura física") abre el detalle con `legalReference` y fecha recomendada en `es-CL`, no se pierde en consola — `PredictedActivityModal.tsx`.
-- Notificaciones de conflicto de sincronización (registros de inspección IPER, hallazgos CPHS) abren el documento real en una sola tap, sin re-buscar — `RootLayout.tsx` + `SyncConflictBanner.tsx`.
-- Pronóstico climático correcto para faenas en Lima, Bogotá o Antofagasta, no Santiago por defecto — `environmentBackend.ts`.
+### NITs cerrados
 
-## Lo que la empresa cliente gana
+- `src/pages/Pricing.tsx:469` agrega `logger.warn('webpay_return_banner_unexpected_status', ...)` en la rama settled-pero-status-no-reconocido, cerrando el silencio observado por el reviewer.
+- `src/services/normativa/locationNormativa.ts:226-247` endurece la URL de `countryFromCoordsAsync` con `encodeURIComponent(lat.toFixed(6))` y mismo trato para `lng`, evitando inyección de query y locales con coma decimal.
+- `src/services/normativa/locationNormativa.test.ts` suma 1 test TDD que verifica la URL final (28 tests totales en el archivo).
+- `src/pages/RiskNetwork.tsx:31-43` define `resolveSelectedNodeIdFromSearch(params, knownIds)` puro y exportado; `src/pages/RiskNetwork.tsx:62-80` lo conecta vía `useSearchParams` y expone el id en `data-selected-node-id`. Foundation lista; el wire-through como prop controlada al `KnowledgeGraph` queda pendiente para Round 14 (ver Pendientes).
+- `src/pages/RiskNetwork.test.tsx` (NUEVO, 8 tests) cubre el helper puro: param ausente, vacío, con whitespace, no presente en el set, y los happy-paths.
 
-- Auditoría SUSESO-friendly: el endpoint `/api/billing/invoice/:id` permite reconciliar pagos Webpay con la factura SII sin escalar a soporte.
-- Idempotencia probada (11 tests) en RTDN + retorno Webpay: cero doble-cobro al CPHS aunque Google reintente el callback.
-- Bundle 30-40 % más rápido en cold-start gracias al vendor split (vendor-react 17 KB gzipped vs. 200 KB cap) — relevante en faena con 3G/Edge.
-- Métrica `webpay_return_latency` (histograma DELTA+DISTRIBUTION) habilita SLO p95 medible — base para futuros contratos enterprise con SLA.
-- Detección de país per-tenant + Google Maps sostiene rollout LATAM (PE/CO/MX/AR/BR) sin re-código por país.
+## Métricas de calidad
 
-## Lo que Praeventio (la empresa) gana
+- `npx tsc -b`: exit 0.
+- `npx vitest run`: 39 archivos, 585 passed + 24 skipped (609 total). Baseline Round 12 estaba en 542 + 24 = 566.
+- `npm run build`: succeeds, PWA 209 precache entries.
+- Vendor chunks dentro de presupuesto (`.size-limit.json`): vendor-react, vendor-firebase, vendor-motion, vendor-gantt verdes; main bundle 257 KB gzip (cap 280); RiskNetwork lazy 201 KB gzip (cap 250).
 
-- `withIdempotency` reutilizable: futuros endpoints de cobros (refund, dispute) se construyen en ~12 LOC en vez de ~80.
-- 45 + 57 tests verdes + cobertura RED→GREEN documentada acortan el ciclo de revisión por mutual o auditor externo.
-- 7 budgets `.size-limit.json` calibrados con realidad post-build atajan regresiones de bundle en CI antes de llegar a prod.
-- Endpoint `GET /api/billing/invoice/:id` con 404-no-enumeration es argumento concreto en pitch CONSTRAMET sobre privacidad de datos del afiliado.
-- `setTenantLocationResolver` test seam baja la fricción de probar features multi-país sin tocar Firestore real.
+## Round 13 vs Round 12
 
-## Limitaciones reconocidas honestamente
+- Tests: 542 → 585 (+43). Desglose: +3 useInvoicePolling, +15 PredictedActivityModal/syncConflictRoutes, +8 RiskNetwork helper, +1 locationNormativa URL hardening, +6 webpayMetrics, +10 sentryAdapter — total 43 nuevos sobre la baseline. Math sanity: 542 + 3 + 15 + 8 + 1 + 16 (E5: 6 webpayMetrics + 10 sentry) = 585.
+- Archivos: 7 nuevos (`syncConflictRoutes.ts` + `.test.ts`, `PredictedActivityModal.test.tsx`, `RiskNetwork.test.tsx`, `webpayMetrics.ts` + `.test.ts`, `sentryAdapter.test.ts`).
+- LOC: ~+91 en `server.ts`, +89 en `OBSERVABILITY.md`, +179 en `sentryAdapter.ts` (rewrite), +73 en `webpayMetrics.ts`, +60 en `syncConflictRoutes.ts`, más helpers/tests asociados.
+- Round 12 cerró 7 TODOs específicos (idempotency helper, GET invoice, polling real, vendor split, geocoding); Round 13 cierra 4 MEDIUMs del reviewer + 3 NITs + 2 iniciativas grandes (Sentry SDK real + histograma Webpay).
 
-- `PredictedActivityModal.onSchedule` está cableado pero la integración Calendar real (Google/Outlook OAuth) sigue stub: el botón llama al handler, el handler todavía no agenda — `PredictedActivityModal.tsx`.
-- `RiskNetwork.tsx` no lee aún el query-param `?node=` que `Projects.tsx onClimateRiskClick` envía: la navegación funciona, el deep-link al nodo concreto queda pendiente.
-- El route map de `RootLayout.tsx` (7 colecciones) usa `?id=` como fallback best-guess — varias páginas destino aún no parsean ese query-param y muestran su listado normal.
-- La emisión app-side del histograma `webpay_return_latency` falta: el metric descriptor existe en Terraform pero ningún `recordHistogram` lo escribe todavía — la alerta p95 quedará silenciosa hasta cablear emisión.
-- Google Maps Geocoding API no tiene cache compartida aún (sólo guidance en JSDoc): a volumen LATAM se debe sumar Redis/Memorystore antes de habilitar para tenants masivos.
+## Pendientes (Round 14 candidates)
 
-## KPIs sugeridos
+1. `src/pages/RiskNetwork.tsx` — propagar `selectedNodeId` como prop controlada al componente `KnowledgeGraph` (HIGH-acceptable; foundation lista, wire-through pendiente porque `KnowledgeGraph` lo posee otro agente).
+2. `src/main.tsx` — montar `Sentry.ErrorBoundary` con fallback UI Spanish-CL (diferido de Round 13 por requerir pasada de diseño copy).
+3. `src/__smoke__/critical-paths.smoke.test.ts` — calibrar el timeout de 15 s contra cold-start real medido en Cloud Run, no estimado.
+4. Instalar `jsdom` (devDependency) y restaurar el environment para los `.test.tsx` que actualmente operan vía helpers puros (`PredictedActivityModal.test.tsx`, `RiskNetwork.test.tsx`).
+5. Pricing — añadir scaffolding de RTL (Testing Library) cuando jsdom esté disponible para cubrir el banner Webpay end-to-end, no sólo el hook.
+6. ESM `.js` extension styling: imports como `from "./src/services/billing/webpayMetrics.js"` en `server.ts:33` — alinear con la convención del repo (resolver/no-resolver) en una pasada de consistencia.
+7. Caching/throttling para Google Maps Geocoding (Round 12 dejó guidance en JSDoc, no implementación) antes de habilitar tenants masivos.
 
-- **Tasa de confirmación visible Webpay**: % de retornos donde el usuario ve estado terminal (paid/rejected/refunded/timeout) en ≤ 30 s — target ≥ 95 %.
-- **Idempotencia RTDN**: doble-cobros por mes detectados en `/api/billing/invoice/:id` reconciliation — target = 0.
-- **Bundle gzipped main + vendor-react + vendor-firebase**: ≤ 460 KB combinado (presupuesto post-split) — alarma `.size-limit` en CI.
-- **Webpay return latency p95**: ≤ 1.500 ms medido por `webpay_return_latency` histogram (una vez cableada la emisión app-side).
-- **Precisión de país per-tenant**: % de forecasts servidos con coords del tenant correcto (no fallback Santiago) — target ≥ 90 %.
+## Por qué importa
+
+Hasta esta ronda, la cadena de error tracking del proyecto era un stub: `getErrorTracker()` resolvía a un adaptador que tiraba `ObservabilityNotImplementedError`. Cualquier caída en producción quedaba sólo en `logger.error()` — útil para grep manual, inútil para alertas automáticas, agregación por release o triage. El swap a `@sentry/node` real con `beforeSend` que limpia `authorization`/`cookie`/`set-cookie` headers cierra esa brecha sin filtrar PII y sin cambiar las firmas que ya consumen los call sites. Operaciones gana señal, el equipo de ingeniería gana tiempo y el cliente enterprise gana un argumento concreto en pitch sobre auditoría externa de incidentes.
+
+El histograma Webpay convierte SLO #2 (p95 < 5 s en `/billing/webpay/return`) de un objetivo declarativo en una métrica medible. Antes Terraform tenía el descriptor pero ningún punto del código emitía observaciones — la alerta era estructuralmente incapaz de disparar. Ahora los 5 puntos de salida del handler emiten con el outcome correcto, el reviewer ya validó el match runtime↔descriptor (corregido pre-commit), y la nueva alarma absent-data nos avisa si el pipeline cae. Una vez aplicado Terraform, el equipo puede medir contra datos reales: si Transbank degrada, lo sabremos por p95 sostenido, no porque un usuario reporte que "el banner se queda cargando".
+
+El resto del scope — hooks defensivos contra hidratación de Firebase, ARIA en el modal, deep-link foundation en RiskNetwork — son la disciplina de no acumular fricción microscópica. Cada uno cierra un hallazgo explícito del reviewer Round 12/13 con TDD verde y archivo:línea citable. La regla sigue siendo la misma: el bundle no creció, los tests no se debilitaron, ninguna degradación silenciosa, y todo lo deferido está nombrado y rankeado en la sección de Pendientes para que Round 14 herede contexto, no debt.
