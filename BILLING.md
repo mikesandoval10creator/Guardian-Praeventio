@@ -229,9 +229,28 @@ Why three states, not two:
 
 ## Boleta electrónica SII
 
+**Status: scaffolded; PSE pick pending.** See
+[`SII_INTEGRATION.md`](./SII_INTEGRATION.md) for the full runbook.
+
 Chilean B2B requires emitting a **boleta** or **factura electrónica**
-through the SII (Servicio de Impuestos Internos). We have not picked a
-provider yet — candidates:
+through the SII (Servicio de Impuestos Internos) per Resolución Exenta
+SII 80/2014 — the customer is legally entitled to a tax receipt within
+24h of payment.
+
+The scaffolding lives in `src/services/sii/`:
+
+- `types.ts` — typed `DteRequest` / `DteResponse` / `SiiAdapter`
+  contract per SII DTE schema (types 33, 39, 41, 56, 61).
+- `siiAdapter.ts` — shared helpers including `calculateDteTotals` (uses
+  the same `Math.ceil(net * 0.19)` rule as `pricing/tiers.ts:withIVA`)
+  plus a `noopSiiAdapter` for dev/CI.
+- `openfacturaAdapter.ts`, `simpleApiAdapter.ts`, `bsaleAdapter.ts`,
+  `libredteAdapter.ts` — stubs that throw `SiiNotImplementedError` with
+  the PSE's docs URL until Round 2 picks one.
+- `index.ts` — `getSiiAdapter()` resolves the active adapter from
+  `SII_PSE`; falls back to `noop` when unset so dev never crashes.
+
+PSE candidates (full comparison in the runbook):
 
 | Provider     | Notes                                                              |
 | ------------ | ------------------------------------------------------------------ |
@@ -240,10 +259,13 @@ provider yet — candidates:
 | Bsale        | Bigger ecosystem; if we need ERP/inventory later.                  |
 | LibreDTE     | Open-source self-hosted option; more ops work.                     |
 
-Once a provider is selected, add a `siiAdapter.ts` mirroring the
-Webpay/Stripe pattern (typed interface + stub). The `Invoice` document
-already carries `emisorRut`, `emisorRazonSocial`, and itemized lines —
-those map cleanly to the SII DTE schema.
+The `Invoice` document already carries `emisorRut`, `emisorRazonSocial`,
+and itemized lines — those map cleanly to the SII DTE schema.
+
+**Round 2 wiring** (deferred): replace one PSE stub with a real call,
+then trigger emission from `GET /billing/webpay/return` (after AUTHORIZED)
+and `POST /api/billing/invoice/:id/mark-paid`, persisting the result to
+`dte_emissions/{folio}`.
 
 ---
 
