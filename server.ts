@@ -13,6 +13,7 @@ import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/se
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
 import { isValidRole } from "./src/types/roles.js";
+import { saveTokens, getValidAccessToken } from "./src/services/oauthTokenStore.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -429,13 +430,18 @@ const SCOPES = [
 ].join(' ');
 
 // API Routes
-app.get("/api/auth/google/url", (req, res) => {
+app.get("/api/auth/google/url", verifyAuth, (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
-  
+
   const state = crypto.randomBytes(16).toString('hex');
-  (req.session as any).oauthState = state;
-  
+  const sess = req.session as any;
+  sess.oauthState = state;
+  // Bind this OAuth flow to the authenticated user. The callback runs in a
+  // popup that shares the session cookie, so we recover the UID there
+  // without ever exposing it (or the resulting tokens) to the browser.
+  sess.oauthInitiator = { uid: (req as any).user.uid, provider: 'google' as const };
+
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || "",
     redirect_uri: redirectUri,
@@ -455,8 +461,13 @@ app.get("/auth/google/callback", async (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/auth/google/callback`;
 
-  if (!state || state !== (req.session as any).oauthState) {
+  const sess = req.session as any;
+  if (!state || state !== sess.oauthState) {
     return res.status(403).send("Invalid state parameter (CSRF protection)");
+  }
+  const initiator = sess.oauthInitiator;
+  if (!initiator?.uid || initiator.provider !== 'google') {
+    return res.status(403).send("OAuth initiator missing from session");
   }
 
   try {
@@ -473,24 +484,33 @@ app.get("/auth/google/callback", async (req, res) => {
     });
 
     const tokens = await response.json();
-    
-    // In a real app, store these in a database linked to the user
-    // For this demo, we'll send them back to the client via postMessage
+    if (!tokens.access_token) {
+      console.error('Google token exchange returned no access_token:', tokens);
+      return res.status(500).send("Token exchange failed");
+    }
+
+    // Store server-side; never reaches the browser.
+    await saveTokens({ uid: initiator.uid, provider: 'google' }, tokens);
+
+    delete sess.oauthState;
+    delete sess.oauthInitiator;
+
+    // Tell the popup that linking succeeded — payload contains NO tokens.
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ 
-                type: 'GOOGLE_AUTH_SUCCESS', 
-                tokens: ${JSON.stringify(tokens)} 
+              window.opener.postMessage({
+                type: 'GOOGLE_AUTH_SUCCESS',
+                linked: true
               }, '${appUrl}');
               window.close();
             } else {
               window.location.href = '/';
             }
           </script>
-          <p>Autenticación exitosa. Sincronizando con Praeventio Guard...</p>
+          <p>Cuenta vinculada exitosamente. Puedes cerrar esta ventana.</p>
         </body>
       </html>
     `);
@@ -500,12 +520,20 @@ app.get("/auth/google/callback", async (req, res) => {
   }
 });
 
-// Proxy for Google Calendar API to avoid CORS
+// Proxy for Google Calendar API to avoid CORS.
+// Uses tokens stored server-side via /auth/google/callback; the client never
+// holds an OAuth access_token or refresh_token.
 app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
-  const { tokens, challenges } = req.body;
-  
-  if (!tokens || !tokens.access_token) {
-    return res.status(401).json({ error: "No access token provided" });
+  const { challenges } = req.body;
+  const uid = (req as any).user.uid;
+
+  const accessToken = await getValidAccessToken(
+    { uid, provider: 'google' },
+    GOOGLE_CLIENT_ID || "",
+    GOOGLE_CLIENT_SECRET || "",
+  );
+  if (!accessToken) {
+    return res.status(401).json({ error: "Google account not linked" });
   }
 
   try {
@@ -527,7 +555,7 @@ app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
       const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(event),
@@ -544,12 +572,19 @@ app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
   }
 });
 
-// Proxy for Google Fit API
+// Proxy for Google Fit API.
+// Uses tokens stored server-side via /auth/google/callback; the client never
+// holds an OAuth access_token or refresh_token.
 app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
-  const { tokens } = req.body;
-  
-  if (!tokens || !tokens.access_token) {
-    return res.status(401).json({ error: "No access token provided" });
+  const uid = (req as any).user.uid;
+
+  const accessToken = await getValidAccessToken(
+    { uid, provider: 'google' },
+    GOOGLE_CLIENT_ID || "",
+    GOOGLE_CLIENT_SECRET || "",
+  );
+  if (!accessToken) {
+    return res.status(401).json({ error: "Google account not linked" });
   }
 
   try {
@@ -559,7 +594,7 @@ app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
     const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${tokens.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -588,13 +623,15 @@ app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
 });
 
 // Google Drive Integration
-app.get("/api/drive/auth/url", (req, res) => {
+app.get("/api/drive/auth/url", verifyAuth, (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
-  
+
   const state = crypto.randomBytes(16).toString('hex');
-  (req.session as any).driveOauthState = state;
-  
+  const sess = req.session as any;
+  sess.driveOauthState = state;
+  sess.driveOauthInitiator = { uid: (req as any).user.uid, provider: 'google-drive' as const };
+
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || "",
     redirect_uri: redirectUri,
@@ -614,8 +651,13 @@ app.get("/api/drive/auth/callback", async (req, res) => {
   const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
   const redirectUri = `${appUrl}/api/drive/auth/callback`;
 
-  if (!state || state !== (req.session as any).driveOauthState) {
+  const sess = req.session as any;
+  if (!state || state !== sess.driveOauthState) {
     return res.status(403).send("Invalid state parameter (CSRF protection)");
+  }
+  const initiator = sess.driveOauthInitiator;
+  if (!initiator?.uid || initiator.provider !== 'google-drive') {
+    return res.status(403).send("OAuth initiator missing from session");
   }
 
   try {
@@ -632,22 +674,31 @@ app.get("/api/drive/auth/callback", async (req, res) => {
     });
 
     const tokens = await response.json();
-    
+    if (!tokens.access_token) {
+      console.error('Drive token exchange returned no access_token:', tokens);
+      return res.status(500).send("Token exchange failed");
+    }
+
+    await saveTokens({ uid: initiator.uid, provider: 'google-drive' }, tokens);
+
+    delete sess.driveOauthState;
+    delete sess.driveOauthInitiator;
+
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-              window.opener.postMessage({ 
-                type: 'DRIVE_AUTH_SUCCESS', 
-                tokens: ${JSON.stringify(tokens)} 
+              window.opener.postMessage({
+                type: 'DRIVE_AUTH_SUCCESS',
+                linked: true
               }, '${appUrl}');
               window.close();
             } else {
               window.location.href = '/';
             }
           </script>
-          <p>Autenticación de Google Drive exitosa. Puedes cerrar esta ventana.</p>
+          <p>Google Drive vinculado exitosamente. Puedes cerrar esta ventana.</p>
         </body>
       </html>
     `);

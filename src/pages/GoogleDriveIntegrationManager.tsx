@@ -4,6 +4,7 @@ import { Cloud, HardDrive, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, 
 import { Card, Button } from '../components/shared/Card';
 import { getPendingActions, SyncAction } from '../utils/pwa-offline';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { auth } from '../services/firebase';
 
 export function GoogleDriveIntegrationManager() {
   const [isLinked, setIsLinked] = useState(false);
@@ -26,11 +27,12 @@ export function GoogleDriveIntegrationManager() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'DRIVE_AUTH_SUCCESS' && event.data.tokens) {
+      // Server posts { type, linked: true } after storing OAuth tokens
+      // server-side. No tokens travel through the browser.
+      if (event.data?.type === 'DRIVE_AUTH_SUCCESS' && event.data.linked) {
         setIsLinked(true);
         setIsSyncing(false);
         setLastSync(new Date());
-        // In a real app, you would save these tokens securely or the backend would have already saved them
       }
     };
 
@@ -41,7 +43,11 @@ export function GoogleDriveIntegrationManager() {
   const handleLinkAccount = async () => {
     setIsSyncing(true);
     try {
-      const response = await fetch('/api/drive/auth/url');
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not authenticated');
+      const response = await fetch('/api/drive/auth/url', {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
       if (!response.ok) throw new Error('Failed to get auth URL');
       const { url } = await response.json();
 

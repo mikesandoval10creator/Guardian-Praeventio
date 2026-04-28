@@ -65,18 +65,25 @@ Removidos del raíz porque no eran usados en build ni en runtime y solo causaban
 
 ---
 
-## 🔴 Pendientes críticos
+## 🔴 ~~Pendientes críticos~~ — todos resueltos
 
-### 1. OAuth tokens enviados al cliente vía `postMessage` (`server.ts:469-475` y `632`)
+### 1. ~~OAuth tokens enviados al cliente vía `postMessage`~~ ✅ RESUELTO
 
-Los callbacks OAuth de Google Calendar/Fit y Drive envían los tokens completos (incluyendo `refresh_token`) al frontend mediante `window.opener.postMessage`. **El refresh_token nunca debe llegar al navegador.**
+Antes:
+- `/auth/google/callback` (server.ts:469-475) y `/api/drive/auth/callback` (line 632) enviaban el objeto `tokens` completo (incluyendo `refresh_token`) al popup vía `window.opener.postMessage`.
+- El cliente almacenaba los tokens en estado de React y los enviaba en el body de `/api/fitness/sync`.
+- Riesgo: XSS, extensiones maliciosas o caching del DOM = persistencia indefinida en la cuenta Google del usuario.
 
-**Riesgo:** XSS o extensión maliciosa = persistencia indefinida en la cuenta Google del usuario.
+Resolución:
+- **`src/services/oauthTokenStore.ts`** — helper server-only sobre Firestore Admin con `saveTokens`, `getValidAccessToken` (auto-refresh con bufer de 60s) y `revokeTokens`. Tokens viven en `oauth_tokens/{uid}_{provider}`.
+- **`firestore.rules`** — match explícito para `oauth_tokens/*` con `allow read, write: if false` (además del default-deny).
+- **`/api/auth/google/url`** y **`/api/drive/auth/url`** ahora requieren `verifyAuth`. Guardan el UID en la sesión Express (`oauthInitiator`) para que el callback sepa a qué usuario asociar los tokens.
+- **`/auth/google/callback`** y **`/api/drive/auth/callback`** intercambian el `code` por tokens, los persisten vía `saveTokens`, limpian la sesión y envían `{ type, linked: true }` al popup. **No se envía ningún token al navegador.**
+- **`/api/calendar/sync`** y **`/api/fitness/sync`** ya no aceptan `tokens` en el body — buscan los tokens del usuario autenticado vía `getValidAccessToken` (con auto-refresh) y proxean.
+- **Cliente** (`Telemetry.tsx`, `GoogleDriveIntegrationManager.tsx`) actualizado: agrega Bearer auth a las llamadas que ahora la requieren, y los handlers de `postMessage` esperan `event.data.linked` en vez de `event.data.tokens`.
 
-**Recomendación:**
-- Almacenar `refresh_token` en Firestore cifrado (con CMEK) o Secret Manager por user UID.
-- El cliente recibe solo un access_token de corta vida (o ni eso: el cliente llama al backend, el backend usa el refresh_token internamente).
-- Eliminar el comentario `// In a real app, store these in a database` y abrir issue.
+Hardening pendiente para prod:
+- Cifrar los tokens almacenados con AES-256-GCM usando una key de KMS o `SESSION_SECRET`. Hoy se confía en el cifrado-en-reposo por defecto de Firestore + las reglas server-only.
 
 ---
 

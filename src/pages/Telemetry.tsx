@@ -27,7 +27,7 @@ import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../types';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { collection, addDoc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../services/firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../services/firebase';
 import { DigitalTwin, WorkerData, MachineryData } from '../components/telemetry/DigitalTwin';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
@@ -172,7 +172,11 @@ export function Telemetry() {
   const handleConnectGoogleFit = async () => {
     setIsConnectingFit(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/auth/google/url`);
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not authenticated');
+      const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/auth/google/url`, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
       if (!response.ok) throw new Error('Failed to get auth URL');
       const { url } = await response.json();
 
@@ -192,12 +196,17 @@ export function Telemetry() {
     }
   };
 
-  const fetchFitnessData = useCallback(async (tokens: any) => {
+  const fetchFitnessData = useCallback(async () => {
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error('Not authenticated');
       const response = await fetch(`${import.meta.env.VITE_APP_URL || ''}/api/fitness/sync`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tokens })
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
       });
 
       if (!response.ok) throw new Error('Failed to fetch fitness data');
@@ -248,10 +257,12 @@ export function Telemetry() {
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.tokens) {
-        setFitTokens(event.data.tokens);
+      // The popup posts { type, linked: true } after the server has stored
+      // the OAuth tokens in Firestore. No tokens travel through the browser.
+      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data.linked) {
+        setFitTokens({ linked: true });
         setIsConnectingFit(false);
-        fetchFitnessData(event.data.tokens);
+        fetchFitnessData();
       }
     };
 
@@ -263,7 +274,7 @@ export function Telemetry() {
   useEffect(() => {
     if (!fitTokens) return;
     const interval = setInterval(() => {
-      fetchFitnessData(fitTokens);
+      fetchFitnessData();
     }, 5 * 60 * 1000); // Every 5 minutes
     return () => clearInterval(interval);
   }, [fitTokens, fetchFitnessData]);
