@@ -90,6 +90,34 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
 const app = express();
 const PORT = 3000;
 
+/**
+ * Constant-time comparison of a client-supplied secret against an expected secret.
+ *
+ * Both inputs are padded to the expected length before invoking
+ * `crypto.timingSafeEqual`, so the running time does not branch on either
+ * the provided or the expected length. A naive `if (a.length !== b.length)`
+ * guard leaks the expected secret length via wall-clock timing — minor in
+ * practice but trivial to avoid. The length check is folded into the final
+ * boolean *after* the constant-time compare so both branches do equal work.
+ *
+ * Use this for shared-secret webhook authentication where the secret is
+ * a compile-time/env-derived constant. Returns `false` if `provided` is
+ * undefined (caller doesn't need a separate guard).
+ */
+function safeSecretEqual(provided: string | undefined, expected: string): boolean {
+  if (typeof provided !== 'string') return false;
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  const providedBuf = Buffer.from(provided, 'utf8');
+  // Pad provided to expected length so timingSafeEqual sees equal-size buffers
+  // and does not throw. Padding bytes (zeros) don't matter — a different
+  // length forces lengthOk=false regardless of the bytewise compare.
+  const padded = Buffer.alloc(expectedBuf.length);
+  providedBuf.copy(padded);
+  const lengthOk = providedBuf.length === expectedBuf.length;
+  const valueOk = crypto.timingSafeEqual(padded, expectedBuf);
+  return lengthOk && valueOk;
+}
+
 // Security Middleware
 // CSP directives shared by prod (enforce) and dev (report-only). Reasonable for a
 // Vite + Firebase + Google APIs SPA: 'unsafe-inline' for styles is required by
@@ -927,11 +955,11 @@ app.post("/api/telemetry/ingest", async (req, res) => {
     }
   }
 
-  // Constant-time comparison; bail on length mismatch first to avoid
-  // timingSafeEqual throwing on different-length buffers.
-  const provided = Buffer.from(secretKey as string, 'utf8');
-  const expected = Buffer.from(expectedSecret, 'utf8');
-  if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
+  // Constant-time comparison via safeSecretEqual: pads the provided value to
+  // the expected length so neither length nor bytes leak through wall-clock
+  // timing. The previous `length !== length` short-circuit was technically
+  // a length-disclosure side channel.
+  if (!safeSecretEqual(secretKey as string, expectedSecret)) {
     return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
   }
 
@@ -1765,13 +1793,12 @@ app.post("/api/billing/webhook", async (req, res) => {
     return res.status(500).send("Server configuration error");
   }
 
+  // Constant-time comparison via safeSecretEqual: pads the provided value to
+  // the expected length so neither length nor bytes leak through wall-clock
+  // timing. The previous `length !== length` short-circuit was technically
+  // a length-disclosure side channel.
   const providedToken = req.query.token;
-  if (typeof providedToken !== 'string' || providedToken.length !== expectedToken.length) {
-    return res.status(401).send("Unauthorized");
-  }
-  const providedBuf = Buffer.from(providedToken, 'utf8');
-  const expectedBuf = Buffer.from(expectedToken, 'utf8');
-  if (!crypto.timingSafeEqual(providedBuf, expectedBuf)) {
+  if (typeof providedToken !== 'string' || !safeSecretEqual(providedToken, expectedToken)) {
     return res.status(401).send("Unauthorized");
   }
 
