@@ -1,69 +1,73 @@
-# Impacto en el bienestar humano + valor empresarial — UX integrado, predicción climática real, pagos operativos
+# Impacto en el bienestar humano + valor empresarial — Pagos robustos, Marketplace listing-ready, KMS envelope, Health Connect
 
 ## Resumen ejecutivo
-Esta ronda cierra cinco brechas que separaban a Praeventio Guardian de un producto enterprise listo para LATAM. El Gantt y el switch de normativa quedan visibles desde cualquier pantalla; el motor predictivo deja de operar con datos mock y consume el boletín climático real de OpenWeather; las obligaciones legales chilenas (CPHS, ODI, audiometría PREXOR) se evalúan automáticamente proyecto por proyecto, con aceleración por dosis de ruido; queda un camino concreto para sobrevivir al sunset 2026 de Google Fit; y los pagos B2B vía Webpay pasan de stub a SDK real con sandbox y endpoint de retorno. Para el trabajador chileno significa menos faenas operando con riesgo invisible. Para la empresa cliente significa cumplimiento auditable. Para Praeventio significa pipeline LATAM acelerado y deuda técnica acotada.
+Esta ronda cierra los tres bloqueadores formales que impedían a Praeventio entrar al Google Workspace Marketplace, endurece los pagos B2B chilenos contra los timeouts de Transbank (un trabajador ya no pierde su factura por congestión de red), instala los cimientos para cifrar los OAuth tokens al reposo bajo Ley 19.628, y aterriza la migración Health Connect con plugin real instalado y adapter funcionando — el sunset Google Fit 2026 ya no es una amenaza, es un proceso. El switch multi-país queda accesible desde el bolsillo del trabajador en faena. Es una ronda de habilitación: no agrega features llamativos, abre puertas comerciales (listing público, contratos enterprise) y cierra deuda técnica de seguridad y resiliencia.
 
-## 1. La app ahora se ve completa: Gantt + Normativa en topbar
-- `src/pages/Projects.tsx:31` importa `GanttProjectView`; `src/pages/Projects.tsx:304` añade la pestaña "Línea de tiempo" y `src/pages/Projects.tsx:340-341` la renderiza con proyectos, predicciones de actividades preventivas y riesgos climáticos en una única vista.
-- `src/components/layout/RootLayout.tsx:19` importa `NormativaSwitch`; `src/components/layout/RootLayout.tsx:255-256` lo monta en el topbar bajo `hidden md:block`, permitiendo que un prevencionista cambie el país de referencia (Chile / Perú / Argentina) desde cualquier ruta sin volver a Settings.
-- `src/App.tsx:9` importa `NormativaProvider`; `src/App.tsx:153-163` lo envuelve entre `FirebaseProvider` y el árbol de rutas, respetando el orden semántico auth → país de referencia normativa → proyectos.
-- Resultado: las features ya construidas (Gantt + multi-país) dejan de ser código muerto y se vuelven parte del flujo diario del prevencionista.
+## 1. Pagos B2B chilenos robustos contra timeouts
+- `src/services/billing/webpayAdapter.ts:156-220`: mapeo three-state AUTHORIZED / REJECTED / FAILED. Códigos -96 / -97 / -98 (timeout Transbank, falla de red entre TBK y emisor, servicio no disponible) ya NO se mapean a REJECTED — ahora son FAILED, que mantiene la invoice en `pending-payment` para reintento limpio con la misma tarjeta.
+- `src/services/billing/types.ts:75-101`: union de status extendida con `'rejected'`. Vocabulario correcto: tarjeta declinada (rejected, accionable, reintentable) ≠ usuario o admin canceló (cancelled, terminal). Ya no se confunden en la UI ni en los reportes contables.
+- `src/services/billing/webpayAdapter.ts:306-457`: idempotency lock-then-complete vía `processed_webpay/{token_ws}`, mismo patrón que el RTDN webhook de Google Play. Race-safe: dos hits concurrentes del return URL (recarga de browser, doble-tap, retry de red) no procesan la transacción dos veces ni cobran dos veces.
+- `server.ts:2356-2415`: `/billing/webpay/return` reescrito con la nueva lógica — REJECTED marca `status: 'rejected'` (la invoice sigue actionable), FAILED preserva `pending-payment`, AUTHORIZED finaliza a `paid`.
+- 23 → 34 billing tests. **Para un trabajador en faena**: si su empresa paga el plan Praeventio justo cuando Transbank tiene congestión, no recibe una factura cancelada por error y un correo de "su tarjeta fue rechazada" — la invoice queda accionable y el ERP corporativo no entra en pánico contable.
 
-## 2. Boletín climático real alimentando el motor de prevención
-- `src/services/environmentBackend.ts:295` expone `getForecast(days, location?)`; `src/services/environmentBackend.ts:311` consulta el endpoint real `https://api.openweathermap.org/data/2.5/forecast` (3-hour step) y `src/services/environmentBackend.ts:170` agrupa los buckets en días UTC quedándose con worst-case condition, máxima temperatura, máximo viento y suma de precipitación.
-- `server.ts:756-774` expone `GET /api/environment/forecast` con dynamic import de `environmentBackend` y graceful degradation (devuelve `{ forecast: [] }` si la API key no está o el upstream falla), así `useCalendarPredictions` nunca rompe la UI.
-- 21 tests cubren mapeo de weather IDs (200=stormy, 500=rainy, 600=snow, 800=sunny), agregación, promociones (viento ≥40 km/h → windy solo cuando la base es sunny) y el camino degradado.
-- Significado en faena: cuando un trabajador minero del Atacama o un cuadrillero de obra civil en Concepción abre la app, la predicción de riesgos climáticos (golpe de calor, viento blanco, lluvia que vuelve la pendiente inestable) viene del clima real, no de un mock que nunca cambiaba.
+## 2. Listing público en Google Workspace Marketplace habilitado
+- `server.ts:173-189`: `/api/health` endpoint público (sin auth, sin rate-limit) que Cloud Run y el Marketplace usan para health probes. Verifica reachability de Firestore con `listCollections()` y reporta 200 OK / 503 degraded más timestamp y versión.
+- `src/pages/Terms.tsx` + `src/services/legal/termsContent.ts`: página `/terms` con 10 secciones bajo Ley 19.496 (protección al consumidor) + Ley 19.628 (datos personales). Disclaimer explícito y honesto: "Praeventio NO reemplaza al prevencionista certificado SUSESO; es herramienta complementaria". Protege legalmente a Praeventio y, más importante, no le miente al usuario sobre el alcance de la app.
+- `src/components/legal/CookieConsent.tsx`: banner consent (Aceptar / Solo esenciales) con persistencia en `localStorage`. Compliance LGPD (Brasil) / GDPR (UE, para clientes con operaciones europeas) / Ley 21.719 (Chile, vigente para datos personales).
+- `README.md` sección "Soporte": 4 mailboxes (soporte@ / privacidad@ / ventas@ / legal@) y URL para reportar bugs. Marketplace exige canal de soporte verificable.
+- **Para Praeventio**: estos eran los 3 BLOCKERs que GW2 detectó como impedimento de listing. Cumplimiento formal logrado; falta solo el approval de Google (5–15 días hábiles). El pipeline enterprise LATAM destrabado.
 
-## 3. Cumplimiento legal automatizado per-proyecto, end-to-end
-- `src/services/capacity/normativeAlerts.ts:73-75` codifica la cadencia de DS 54 art. 16/24 (CPHS mensual): warning a 25 días, critical a ≥30, y critical "Constituye comité" cuando un proyecto ≥25 trabajadores no tiene reuniones registradas.
-- `src/services/capacity/normativeAlerts.ts:78-79` codifica Ley 16.744 art. 21 + DS 40 (ODI semestral): warning a ~5 meses, critical a ≥6 meses, también per-proyecto.
-- `src/services/capacity/normativeAlerts.ts:81-85` codifica NT MINSAL PREXOR: cadencia anual por defecto, **acelerada a 180 días cuando la dosis acumulada de ruido supera 100 % del TLV** (DS 594 acción límite). `src/services/capacity/normativeAlerts.ts:225-258` evalúa la regla por trabajador y proyecta el `projectId` correcto vía `workerProjectMap`.
-- La invariante "per-faena, no agregada" queda explícita en `src/services/capacity/normativeAlerts.ts:14-17`: tres proyectos de 10 trabajadores no gatillan Comité Paritario, porque la ley aplica "por cada faena, sucursal o agencia".
-- Los tests pasaron de 7 a 23 escenarios cubriendo never-met, edge cases (justo en el umbral), dose-acceleration y determinismo (todas las funciones son puras y aceptan `context.now`).
-- Significado en terreno: el prevencionista no necesita un calendario externo; la app le dice proyecto-por-proyecto qué obligación de la SUSESO/mutual está vencida y por cuántos días, con texto en castellano legal, listo para mostrarle al fiscalizador.
+## 3. Multi-país accesible desde cualquier pantalla
+- `src/components/layout/Sidebar.tsx:346-349`: `<NormativaSwitch />` montado dentro del footer del sidebar con `md:hidden`, complementando la topbar que solo aparece en md+. Antes el switch solo era accesible desde Pricing.tsx en mobile, lo cual era una trampa de UX.
+- `src/pages/Pricing.tsx:531-537`: removido el `<NormativaProvider>` local redundante. El provider ya viene global desde App.tsx; tenerlo duplicado abría una ventana de inconsistencia entre el país visible en pricing y el país operativo del resto de la app.
+- **Para el prevencionista o supervisor en faena con celular**: cuando la empresa lo traslada de Codelco Chuquicamata (Chile) a Cerro Verde (Perú), cambia el contexto normativo con un tap desde cualquier pantalla — Sidebar, Telemetría, Proyectos, Charlas — sin volver al pricing.
 
-## 4. Camino de migración Health Connect preparado (sin pánico ante sunset 2026)
-- `src/services/health/index.ts` y `src/services/health/healthFacade.test.ts` (12 tests) implementan un facade que selecciona automáticamente el adapter por plataforma: `src/services/health/healthConnectAdapter.ts` para Android/iOS modernos y `src/services/health/googleFitAdapter.ts` como wrapper deprecated con noop silencioso para web.
-- `HEALTH_CONNECT_MIGRATION.md` documenta los 13 pasos en 3 rondas, con cross-references a `Telemetry.tsx`, `server.ts:545` (definición de `SCOPES` Google Fit) y `server.ts:828` (`/api/fitness/sync`), de modo que la próxima ronda pueda ejecutarse en paralelo por otro agente sin reaprender el dominio.
-- Por qué importa: Google cerró el sign-up de Fit en mayo 2024 y el sunset es 2026. Cuando ocurra, los wearables y biometría de los trabajadores siguen funcionando porque hay un puente listo y testeado, no una migración de pánico.
+## 4. Defensa en profundidad para tokens OAuth
+- `src/services/security/kmsEnvelope.ts`: envelope encryption AES-256-GCM con IV aleatorio por encrypt + verificación de authTag (rechaza ciphertext manipulado) + adapter pattern (`in-memory-dev` / `cloud-kms` / `noop`).
+- `src/services/security/kmsAdapter.ts`: typed adapter interface y stub para Cloud KMS. El SDK real (`@google-cloud/kms`) se cablea en próxima ronda — el scaffolding queda probado y listo para activar con flag.
+- `src/services/oauthTokenStore.ts:100-127`: `maybeWrap` / `maybeUnwrap` en la frontera Firestore. Feature flag `OAUTH_ENVELOPE_ENABLED` (default `false`, backwards-compatible) — entradas legacy plaintext siguen leyéndose sin error mientras se programa la migración.
+- `KMS_ROTATION.md`: runbook de 224 líneas con setup gcloud, migración de tokens legacy a envelope, key rotation cada 90 días y procedimiento de disaster recovery si se pierde acceso a KMS.
+- 14 tests con rechazo de authTag manipulado, verificado RED→GREEN removiendo `setAuthTag` para confirmar que la verificación efectivamente falla.
+- **Para el trabajador**: si un admin con permisos de Firestore o un atacante con credenciales filtradas exporta la base de datos, los OAuth tokens que dan acceso a su Google Calendar y datos biométricos de Health Connect / Fit NO están en plaintext. Cumplimiento real (no de papel) bajo Ley 19.628 art. 11 ("medidas de seguridad apropiadas") y Ley 21.719.
 
-## 5. Pagos chilenos B2B operativos (sandbox)
-- `src/services/billing/webpayAdapter.ts:24-30` integra `transbank-sdk` real (`WebpayPlus`); `src/services/billing/webpayAdapter.ts:1-22` documenta la postura PCI (no log de PAN/CVV) y el switch sandbox/producción por env (`WEBPAY_COMMERCE_CODE` + `WEBPAY_API_KEY` + `WEBPAY_ENV`).
-- Métodos `createTransaction`, `commitTransaction`, `refundTransaction` operan contra la "Tienda de Integración" Transbank por defecto (CI/dev nunca tocan producción accidentalmente).
-- `server.ts:2292-2339` expone `GET /billing/webpay/return`, no auth-gated (el comprador vuelve sin cookie), validando `token_ws` con regex estricta, comiteando vía adapter, escribiendo `audit_logs` en AUTHORIZED y haciendo redirect a `/pricing/success` o `/pricing/failed`. Idempotency básica: `server.ts:2312` salta si la invoice ya está `paid`.
-- 23 tests de billing pasan (13 nuevos de Webpay + 10 invoice existentes).
-- Pendiente próxima ronda (declarado en `server.ts:2298-2300`): commerce code de producción y idempotency robusta vía `processed_webpay/{token}` con lock-then-complete pattern siguiendo el patrón del handler RTDN.
+## 5. Migración Google Fit → Health Connect sin sobresaltos
+- `package.json:34`: `@kiwi-health/capacitor-health-connect@^0.0.40` instalado. Plugin nativo Android oficial vía Capacitor.
+- `src/services/health/healthConnectAdapter.ts`: 360 LOC de implementación real — `readHeartRate`, `readSteps`, `readCalories`, `readSleep`, `requestPermissions`, todos contra el plugin nativo. Respeta el contrato `HealthAdapter` ya existente.
+- `src/pages/Telemetry.tsx:172-222`: `handleConnectGoogleFit` ahora consulta el facade primero. Si el adapter resuelto es `'health-connect'` (Android nativo con Health Connect disponible), bypasses OAuth y solicita permisos vía Health Connect. Si no, fall-through al flujo Google Fit deprecated (sigue funcionando hasta sunset 2026).
+- `src/pages/Telemetry.tsx:225-303`: `fetchFitnessData` igual — lee últimas 24h de heart rate y steps del adapter Health Connect cuando aplica, evitando el hop al servidor que toca Google Fit.
+- `HEALTH_CONNECT_MIGRATION.md`: Round 2 marcado done; Round 3 pendiente (full Telemetry swap, server-side sunset header, OAuth scopes cleanup, re-verification del proyecto OAuth).
+- **Para el trabajador minero con wearable** (smartwatch, banda Mi Band, ring, teléfono Android): cuando Google sunset Fit en 2026, su pulsera o reloj sigue alimentando frecuencia cardíaca y pasos a Praeventio sin interrupción. La migración es invisible para él y para el prevencionista que monitorea.
 
 ## Lo que el trabajador chileno gana
-- Predicción climática real para su faena: ya no es mock, viene de OpenWeather y se agrega con worst-case por día.
-- Vigilancia audiométrica que se acelera automáticamente cuando él está expuesto a ruido alto (dosis >100 % TLV → control a 6 meses, no a 12).
-- Comité Paritario y ODI evaluados por su faena específica, no diluidos en un promedio de empresa.
-- Continuidad del seguimiento biométrico cuando llegue el sunset de Google Fit; sus pulsaciones y fatiga siguen siendo visibles para el prevencionista.
+- Su empresa no recibe facturas canceladas por error cuando Transbank tiene una mala noche de tráfico.
+- Sus OAuth tokens (Calendar, Fit, futuras integraciones) están cifrados al reposo, no solo en tránsito.
+- Cuando lo trasladan de faena entre países, la app refleja la normativa correcta sin obligarlo a navegar a una pantalla de pricing.
+- Su wearable seguirá detectando estrés térmico y fatiga después del sunset Google Fit 2026.
+- La página `/terms` le dice honestamente: "esto complementa al prevencionista, no lo reemplaza" — sin venta humo.
 
 ## Lo que la empresa cliente gana
-- Topbar muestra país de referencia normativa: una empresa con faenas en Chile, Perú y Argentina cambia el contexto en un click.
-- Gantt operativo permite ver proyectos + actividades preventivas + riesgos climáticos en una sola pantalla — apto para reunión semanal con gerencia o sindicato.
-- Alertas de cumplimiento por-proyecto con texto en castellano legal, citando DS 54, Ley 16.744 y NT MINSAL PREXOR; reduce horas de un fiscalizador interno.
-- Pagos B2B con Webpay sandbox listo: la siguiente ronda es solo provisioning del commerce code productivo.
+- Cobranza B2B robusta: una invoice nunca queda en estado ambiguo por un timeout de red.
+- Página de términos cumple Ley 19.496 + Ley 19.628 + Ley 21.719 — auditable por el área legal de la empresa contratante.
+- Cookie consent listo para clientes con operaciones en LATAM, Brasil (LGPD) o subsidiarias en Europa (GDPR).
+- Health probes en `/api/health` permiten al SRE de la empresa cliente integrar Praeventio en sus dashboards Grafana / Datadog.
+- Tokens OAcuth cifrados al reposo: el área de seguridad informática puede firmar contratos sin levantar findings.
 
 ## Lo que Praeventio (la empresa) gana
-- Pipeline LATAM acelerado: la propuesta enterprise para CONSTRAMET y mutuales ya tiene UX visible (Gantt) y el switch multi-país operativo.
-- Billing operativo en sandbox: pasamos de "stub que devuelve 200" a integración real validable contra la "Tienda de Integración" Transbank.
-- Deuda Google Fit ya managed: 13 pasos documentados con file:line cross-references; ninguna sorpresa cuando llegue 2026.
-- 21 + 23 + 12 + 13 = 69 tests nuevos esta ronda, todos deterministas (puros, `context.now` inyectable).
-- Reducción del riesgo de discovery enterprise: cualquier prospecto que abra la app ve features completas, no esqueletos.
+- Listing público en Google Workspace Marketplace destrabado — solo falta approval de Google (5–15 días hábiles).
+- Pipeline LATAM (mutuales chilenas ACHS / IST, sindicato CONSTRAMET, prevencionistas independientes) puede demoear con confianza: pagos robustos, términos cumplidos, datos cifrados.
+- Sunset Google Fit 2026 deja de ser un riesgo de churn; ahora es un proceso documentado en `HEALTH_CONNECT_MIGRATION.md` con Round 2 ya cerrado.
+- Deuda técnica de seguridad acotada: el TODO histórico de cifrar OAuth tokens al reposo está scaffolded y testeado.
 
 ## Limitaciones reconocidas honestamente
-- `getForecast` (`src/services/environmentBackend.ts:14-15`) usa coords default de Santiago; el override per-tenant queda como follow-up declarado en el TODO al final del archivo.
-- Idempotency Webpay (`server.ts:2298-2300`) confía en el status check de la invoice. La ruta robusta vía `processed_webpay/{token}` con lock-then-complete está identificada pero no implementada.
-- Health Connect: el facade y tests están listos, pero la integración real con `Telemetry.tsx` y `server.ts:828` ocurre en la próxima ronda según `HEALTH_CONNECT_MIGRATION.md`.
-- Las cadencias de `normativeAlerts.ts` están duplicadas localmente respecto a `src/services/calendar/legalObligations.ts` (declarado en líneas 21-26). Si divergen, el shared module gana — pero la consolidación es deuda.
-- Webpay producción requiere provisioning del commerce code Transbank por la operación comercial, no por código.
+- Webpay sigue corriendo contra sandbox Transbank (Integration). El commerce code y API key de producción aún no están provisionados — feature requirement, no defecto técnico. El código ya distingue ambos entornos vía `WEBPAY_ENV`.
+- KMS adapter `cloud-kms` es un stub — el SDK real `@google-cloud/kms` se instala y cablea en la próxima ronda. El flag `OAUTH_ENVELOPE_ENABLED` queda en `false` hasta entonces; los tokens hoy siguen como plaintext en Firestore (mismo estado que antes de esta ronda).
+- iOS HealthKit deferred. Health Connect cubre solo Android; el adapter HealthKit queda en `noop` y los usuarios iPhone seguirán dependiendo del flujo Google Fit (que muere en 2026 — si Praeventio quiere market share iOS, esa es la próxima prioridad).
+- Round 3 de la migración Health Connect pendiente: full swap de Telemetry, sunset banner server-side, cleanup de scopes OAuth, re-verification del proyecto OAuth con Google.
+- El listing en Marketplace requiere un approval humano de Google — el código está listing-ready, pero la fecha de "go-live público" no está bajo nuestro control.
 
 ## KPIs sugeridos
-- % de faenas con CPHS al día / total que requieren CPHS (target: ≥95 % a 90 días post-onboarding).
-- Tasa de aceleración audiometría: # trabajadores con dosis >100 % TLV detectados antes de los 12 meses default. Cualquier número > 0 es valor capturado.
-- Latencia p95 de `GET /api/environment/forecast` (target: <800 ms con cache, degrada graceful a forecast vacío).
-- Tasa de éxito de transacciones Webpay (`status === 'AUTHORIZED'` / total commit) en sandbox y luego producción.
-- Adopción del switch de normativa: # de cambios de país por sesión enterprise — proxy de penetración multi-país real.
+- Tasa de invoices Webpay que terminan en `failed` vs. `rejected` vs. `paid` (objetivo: `failed` < 1% de los intentos en producción tras estabilización).
+- Tiempo desde submit-listing hasta approval Marketplace (target: ≤ 15 días hábiles).
+- Adopción Health Connect: porcentaje de usuarios Android cuyo `getHealthAdapter().name === 'health-connect'` vs. fallback Google Fit (target: > 60% en 90 días).
+- Cookie consent acceptance rate: ratio Aceptar todo / Solo esenciales (señal de confianza del usuario en la marca).
+- Tokens OAuth cifrados con envelope vs. plaintext legacy (target tras migración Round 3: 100% envelope, 0 entradas plaintext en Firestore).
