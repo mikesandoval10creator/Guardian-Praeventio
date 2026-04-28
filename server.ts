@@ -9,7 +9,7 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import { Resend } from "resend";
 import { initializeRAG } from "./src/services/ragService.js";
-import { performProjectSafetyHealthCheck, autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
+import { autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
 import { isValidRole, isAdminRole } from "./src/types/roles.js";
@@ -33,6 +33,7 @@ import { withIdempotency } from "./src/services/billing/idempotency.js";
 import { recordWebpayReturnLatency } from "./src/services/billing/webpayMetrics.js";
 import { sentryAdapter } from "./src/services/observability/sentryAdapter.js";
 import { getErrorTracker } from "./src/services/observability/index.js";
+import { assertProjectMember, ProjectMembershipError } from "./src/services/auth/projectMembership.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { performance } from 'node:perf_hooks';
@@ -40,6 +41,28 @@ import { GoogleGenAI } from "@google/genai";
 import { google } from 'googleapis';
 
 dotenv.config();
+
+// Round 14 — Removed routes flagged dead by A1 audit AND cross-tenant
+// exploitable by A5: /api/erp/sync-workers, /api/comite/alert-email,
+// /api/reports/daily-email, /api/projects/:projectId/health-check.
+// Future re-introduction must use assertProjectMember.
+
+// Round 14 (A6 audit) — KMS production pre-flight. The OAuth token store
+// uses envelope encryption with a Key Encryption Key resolved by
+// `KMS_ADAPTER` (see src/services/security/kmsAdapter.ts). In dev the
+// default `'in-memory-dev'` is fine; in production it MUST be
+// `'cloud-kms'` so the KEK lives in Google Cloud KMS and rotates via
+// our documented procedure. Booting prod with the dev adapter would
+// silently degrade key custody — refuse to start instead.
+if (
+  process.env.NODE_ENV === 'production' &&
+  (process.env.KMS_ADAPTER ?? 'in-memory-dev') !== 'cloud-kms'
+) {
+  console.error(
+    '[boot] FATAL: NODE_ENV=production but KMS_ADAPTER is not cloud-kms. Refusing to start.',
+  );
+  process.exit(1);
+}
 
 // Sentry initialization — must happen as early as possible, before any
 // Express middleware so unhandled errors anywhere in the boot path are
@@ -335,43 +358,6 @@ app.post("/api/admin/revoke-access", verifyAuth, async (req, res) => {
   }
 });
 
-// Sincronización Nocturna con ERP (Módulo Cloud Functions Mock / API First)
-app.post("/api/erp/sync-workers", verifyAuth, async (req, res) => {
-  const { workers, projectId } = req.body;
-  const callerUid = (req as any).user.uid;
-  
-  try {
-    if (!Array.isArray(workers)) {
-      return res.status(400).json({ error: "Invalid payload: workers must be an array" });
-    }
-
-    const batch = admin.firestore().batch();
-    let synced = 0;
-
-    for (const worker of workers) {
-      if (!worker.id || !worker.name) continue;
-      const workerRef = admin.firestore()
-        .collection('projects')
-        .doc(projectId)
-        .collection('workers')
-        .doc(worker.id.toString());
-        
-      batch.set(workerRef, {
-        ...worker,
-        updatedViaERP: true,
-        lastSync: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-      synced++;
-    }
-
-    await batch.commit();
-    res.json({ success: true, syncedCount: synced, message: `Sincronizados ${synced} trabajadores desde ERP externo.` });
-  } catch (error) {
-    console.error("Error syncing ERP data:", error);
-    res.status(500).json({ error: "Internal server error during ERP sync" });
-  }
-});
-
 // Custom Claims Endpoint (El Haki del Rey)
 app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
   const { uid, role } = req.body;
@@ -629,6 +615,22 @@ app.post("/api/audit-log", verifyAuth, async (req, res) => {
   }
   if (projectId !== undefined && projectId !== null && (typeof projectId !== 'string' || projectId.length > 128)) {
     return res.status(400).json({ error: "Invalid projectId" });
+  }
+
+  // Round 14 — A5 audit found projectId-from-body without membership check.
+  // Without this guard a worker on project A could write an audit entry
+  // tagged to project B, polluting B's compliance trail. assertProjectMember
+  // throws ProjectMembershipError(403) when uid is neither in members[] nor
+  // is the project's createdBy.
+  if (typeof projectId === 'string' && projectId.length > 0) {
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
   }
 
   try {
@@ -1197,19 +1199,6 @@ app.post("/api/seed-data", verifyAuth, async (req, res) => {
   }
 });
 
-// Project Health Check Endpoint
-app.post("/api/projects/:projectId/health-check", verifyAuth, async (req, res) => {
-  const { projectId } = req.params;
-  try {
-    const result = await performProjectSafetyHealthCheck(projectId);
-    if (!result) return res.status(404).json({ error: "Project not found" });
-    res.json({ success: true, result });
-  } catch (error: any) {
-    console.error(`Error performing health check for project ${projectId}:`, error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
 // ─── Project Invitation System ───────────────────────────────────────────────
 
 function buildInviteEmailHtml({ projectName, inviterName, role, token }: { projectName: string; inviterName: string; role: string; token: string }) {
@@ -1530,138 +1519,6 @@ app.delete("/api/projects/:id/invite", verifyAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Email Alerts: CPHS (Comité Paritario) critical findings
-app.post("/api/comite/alert-email", verifyAuth, async (req, res) => {
-  const { projectId, findingTitle, findingDescription, severity, recipients } = req.body as {
-    projectId: string;
-    findingTitle: string;
-    findingDescription: string;
-    severity: string;
-    recipients: string[]; // array of email addresses
-  };
-
-  if (!projectId || !findingTitle || !Array.isArray(recipients) || recipients.length === 0) {
-    return res.status(400).json({ error: "projectId, findingTitle, and recipients[] are required" });
-  }
-
-  const db = admin.firestore();
-  const projectSnap = await db.collection('projects').doc(projectId).get();
-  const projectName = projectSnap.exists ? (projectSnap.data()?.name || 'Proyecto') : 'Proyecto';
-
-  const severityColor: Record<string, string> = {
-    'Crítica': '#ef4444',
-    'Alta': '#f97316',
-    'Media': '#eab308',
-    'Baja': '#22c55e',
-  };
-  const color = severityColor[severity] || '#6b7280';
-  const date = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
-
-  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5">
-<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-  <div style="background:#09090b;padding:24px 32px;display:flex;align-items:center;gap:12px">
-    <span style="font-size:20px;font-weight:900;color:#10b981;letter-spacing:-1px">GUARDIAN</span>
-    <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px">PRAEVENTIO</span>
-  </div>
-  <div style="padding:32px">
-    <div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px">
-      <span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.08em">⚠ Alerta CPHS — ${severity || 'Sin clasificar'}</span>
-    </div>
-    <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${findingTitle}</h2>
-    <p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${findingDescription || 'Sin descripción adicional.'}</p>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-      <tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;color:#09090b;font-weight:600">${projectName}</td></tr>
-      <tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;color:#09090b;font-weight:600">${date}</td></tr>
-    </table>
-    <p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Este aviso fue generado automáticamente por Guardian Praeventio para el Comité Paritario.</p>
-  </div>
-</div></body></html>`;
-
-  try {
-    await resend.emails.send({
-      from: 'Praeventio Guard <noreply@praeventio.net>',
-      to: recipients,
-      subject: `[CPHS ${projectName}] Hallazgo ${severity || ''}: ${findingTitle}`,
-      html,
-    });
-    res.json({ success: true });
-  } catch (err: any) {
-    console.error("Error sending CPHS alert email:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Email Reports: daily safety summary for a project
-app.post("/api/reports/daily-email", verifyAuth, async (req, res) => {
-  const { projectId, recipients } = req.body as { projectId: string; recipients: string[] };
-
-  if (!projectId || !Array.isArray(recipients) || recipients.length === 0) {
-    return res.status(400).json({ error: "projectId and recipients[] are required" });
-  }
-
-  const db = admin.firestore();
-  const projectSnap = await db.collection('projects').doc(projectId).get();
-  if (!projectSnap.exists) return res.status(404).json({ error: "Project not found" });
-  const projectName = projectSnap.data()?.name || 'Proyecto';
-
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const nodesSnap = await db.collection('nodes')
-    .where('projectId', '==', projectId)
-    .where('createdAt', '>=', since.toISOString())
-    .get();
-
-  const nodes = nodesSnap.docs.map(d => d.data());
-  const incidents = nodes.filter(n => n.type === 'Incidente' || n.type === 'Hallazgo');
-  const risks = nodes.filter(n => n.type === 'Riesgo');
-  const audits = nodes.filter(n => n.type === 'Auditoría');
-  const criticalCount = incidents.filter(n => n.metadata?.severity === 'Crítica' || n.metadata?.criticidad === 'Crítica').length;
-
-  const date = new Date().toLocaleDateString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-  const statRow = (label: string, value: number, color: string) =>
-    `<tr><td style="padding:12px 16px;font-size:13px;color:#52525b;border-bottom:1px solid #f4f4f5">${label}</td><td style="padding:12px 16px;text-align:right;font-size:15px;font-weight:900;color:${color};border-bottom:1px solid #f4f4f5">${value}</td></tr>`;
-
-  const recentRows = incidents.slice(0, 5).map(n =>
-    `<tr><td style="padding:10px 16px;font-size:12px;color:#09090b;border-bottom:1px solid #f4f4f5">${n.title || 'Sin título'}</td><td style="padding:10px 16px;font-size:11px;color:#71717a;border-bottom:1px solid #f4f4f5;text-align:right">${n.metadata?.criticidad || n.metadata?.severity || '—'}</td></tr>`
-  ).join('');
-
-  const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5">
-<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
-  <div style="background:#09090b;padding:24px 32px">
-    <span style="font-size:20px;font-weight:900;color:#10b981;letter-spacing:-1px">GUARDIAN</span>
-    <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-1px"> PRAEVENTIO</span>
-    <p style="margin:8px 0 0;font-size:12px;color:#71717a">Reporte Diario de Seguridad • ${date}</p>
-  </div>
-  <div style="padding:32px">
-    <h2 style="margin:0 0 4px;font-size:18px;font-weight:900;color:#09090b">${projectName}</h2>
-    <p style="margin:0 0 24px;font-size:13px;color:#71717a">Resumen de actividad en las últimas 24 horas.</p>
-    <table style="width:100%;border-collapse:collapse;border:1px solid #f4f4f5;border-radius:12px;overflow:hidden;margin-bottom:24px">
-      ${statRow('Incidentes / Hallazgos nuevos', incidents.length, incidents.length > 0 ? '#ef4444' : '#22c55e')}
-      ${statRow('Críticos', criticalCount, criticalCount > 0 ? '#ef4444' : '#22c55e')}
-      ${statRow('Riesgos identificados', risks.length, '#f97316')}
-      ${statRow('Auditorías realizadas', audits.length, '#6366f1')}
-      ${statRow('Total registros nuevos', nodes.length, '#09090b')}
-    </table>
-    ${incidents.length > 0 ? `<h3 style="font-size:12px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">Últimos incidentes</h3>
-    <table style="width:100%;border-collapse:collapse;border:1px solid #f4f4f5;border-radius:12px;overflow:hidden;margin-bottom:24px">${recentRows}</table>` : ''}
-    <p style="margin:0;font-size:11px;color:#a1a1aa;text-align:center">Reporte generado automáticamente por Guardian Praeventio.</p>
-  </div>
-</div></body></html>`;
-
-  try {
-    await resend.emails.send({
-      from: 'Praeventio Guard <noreply@praeventio.net>',
-      to: recipients,
-      subject: `[Reporte Diario] ${projectName} — ${incidents.length} incidente${incidents.length !== 1 ? 's' : ''} en 24h`,
-      html,
-    });
-    res.json({ success: true, stats: { incidents: incidents.length, criticalCount, risks: risks.length, audits: audits.length } });
-  } catch (err: any) {
-    console.error("Error sending daily report email:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2742,6 +2599,365 @@ const setupBackgroundTriggers = () => {
     console.error("Failed to setup background triggers:", err);
   }
 };
+
+// ─────────────────────────────────────────────────────────────────────
+// Round 14 — Curriculum claims (R5 agent scope).
+//
+// Flagship anti-fraud feature: workers create signed claims about their
+// own experience, and 2 named referees co-sign via magic-link emails.
+// Once both co-sign, the claim becomes immutable in Firestore. See
+// `src/services/curriculum/claims.ts` for the engine + invariants.
+//
+// Endpoints below are intentionally placed at the end of server.ts —
+// before the terminal error middleware — so they participate in the
+// global error handler but do NOT interfere with R1's deletion blocks
+// or KMS pre-flight at the top of the file.
+// ─────────────────────────────────────────────────────────────────────
+import {
+  createClaim as curriculumCreateClaim,
+  recordRefereeEndorsement as curriculumEndorse,
+  getClaimsByWorker as curriculumGetByWorker,
+  type ClaimCategory,
+  type AuditLogger as CurriculumAuditLogger,
+} from "./src/services/curriculum/claims.js";
+import { hashToken as curriculumHashToken, generateRefereeToken as curriculumGenToken } from "./src/services/curriculum/refereeTokens.js";
+
+/** Server-side audit-log writer for curriculum events. Uses the same
+ *  audit_logs collection as /api/audit-log; differences:
+ *    • userId is the server (we stamp 'system' if no caller uid is
+ *      available — referee endpoint is unauthed).
+ *    • timestamp is server-stamped via FieldValue.serverTimestamp().
+ *  Failures are logged but never break the main flow.                */
+function buildCurriculumAuditor(callerUid: string | null, callerEmail: string | null, ipMaybe?: string, uaMaybe?: string): CurriculumAuditLogger {
+  return async (action, details) => {
+    try {
+      await admin.firestore().collection('audit_logs').add({
+        action,
+        module: 'curriculum',
+        details: details ?? {},
+        userId: callerUid ?? 'system',
+        userEmail: callerEmail ?? null,
+        projectId: null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: ipMaybe ?? null,
+        userAgent: uaMaybe ?? null,
+      });
+    } catch (err: any) {
+      logger.error('curriculum_audit_failed', { action, message: err?.message });
+    }
+  };
+}
+
+function buildClaimEmailHtml({ workerName, refereeName, claimText, magicLink }: { workerName: string; refereeName: string; claimText: string; magicLink: string }) {
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Co-firma un claim en Praeventio</title></head><body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f5;color:#18181b">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0"><tr><td align="center">
+  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+    <tr><td style="background:#09090b;padding:32px 40px;text-align:center">
+      <span style="font-size:24px;font-weight:900;color:#10b981;letter-spacing:-1px">PRAEVENTIO</span>
+      <span style="font-size:10px;font-weight:700;color:#6b7280;display:block;letter-spacing:4px;margin-top:2px">GUARD</span>
+    </td></tr>
+    <tr><td style="padding:40px">
+      <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">Te nombraron como referencia</h2>
+      <p style="margin:0 0 16px;font-size:14px;color:#71717a">Hola <strong style="color:#09090b">${refereeName}</strong>, <strong style="color:#09090b">${workerName}</strong> te nombró referencia en un claim verificable de su currículum profesional.</p>
+      <blockquote style="margin:16px 0;padding:14px 16px;background:#f4f4f5;border-left:4px solid #10b981;border-radius:8px;font-size:13px;color:#27272a;font-style:italic">"${claimText.replace(/"/g, '&quot;')}"</blockquote>
+      <p style="margin:0 0 24px;font-size:13px;color:#71717a">Si confirmas que es verídico, co-fírmalo para incorporarlo a su currículum portátil. Si no lo conoces o crees que es falso, puedes rechazarlo.</p>
+      <div style="text-align:center;margin:32px 0">
+        <a href="${magicLink}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Revisar y Co-firmar</a>
+      </div>
+      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">El enlace expira en 14 días. Si no lo conoces a ${workerName}, ignora este email.</p>
+      <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${magicLink}</p>
+    </td></tr>
+    <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
+      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
+    </td></tr>
+  </table></td></tr></table>
+</body></html>`;
+}
+
+// In-memory per-token resend rate limit. The global /api/ limiter applies
+// too; this is the per-claim cooldown so a worker can't spam-resend a
+// magic-link to the same referee. Resets on server restart — fine for
+// MVP volumes (high-traffic abuse would still be caught upstream).
+const curriculumResendCooldown = new Map<string, number>();
+const CURRICULUM_RESEND_COOLDOWN_MS = 30_000;
+
+// POST /api/curriculum/claim — worker creates a claim (signed) and the
+// server fires off the 2 magic-link emails to the referees.
+app.post("/api/curriculum/claim", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const callerEmail: string | null = (req as any).user.email ?? null;
+  const ipMaybe = req.ip ?? undefined;
+  const uaMaybe = req.header('user-agent') ?? undefined;
+  const { claim, category, referees, signedByWorker } = req.body ?? {};
+
+  if (typeof claim !== 'string' || claim.trim().length === 0 || claim.trim().length > 500) {
+    return res.status(400).json({ error: 'claim text is required and must be ≤500 chars' });
+  }
+  const validCategories: ClaimCategory[] = ['experience', 'certification', 'incident_record', 'other'];
+  if (!validCategories.includes(category)) {
+    return res.status(400).json({ error: 'invalid category' });
+  }
+  if (!Array.isArray(referees) || referees.length !== 2) {
+    return res.status(400).json({ error: 'exactly 2 referees are required' });
+  }
+
+  try {
+    const audit = buildCurriculumAuditor(callerUid, callerEmail, ipMaybe, uaMaybe);
+    const callerRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const workerName = callerRecord?.displayName || callerEmail || 'Trabajador Praeventio';
+    const result = await curriculumCreateClaim(
+      {
+        workerId: callerUid,
+        workerEmail: callerEmail ?? '',
+        claim,
+        category,
+        signedByWorker: signedByWorker ?? {},
+        referees,
+      },
+      admin.firestore() as any,
+      audit,
+    );
+
+    // Send the 2 magic-link emails. We do NOT block the response on
+    // email delivery — failures are logged and the worker can use
+    // /api/curriculum/claim/:id/resend to retry.
+    const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
+    await Promise.all(result.refereeTokens.map(async (rawToken, idx) => {
+      const ref = referees[idx];
+      const magicLink = `${appUrl}/curriculum/referee/${rawToken}`;
+      try {
+        await resend.emails.send({
+          from: 'Praeventio Guard <noreply@praeventio.net>',
+          to: ref.email,
+          subject: `${workerName} te nombró referencia en un claim — Praeventio`,
+          html: buildClaimEmailHtml({
+            workerName,
+            refereeName: ref.name,
+            claimText: claim,
+            magicLink,
+          }),
+        });
+      } catch (emailErr) {
+        logger.error('curriculum_email_failed', { claimId: result.id, refereeIndex: idx, message: (emailErr as any)?.message });
+      }
+    }));
+
+    res.json({ success: true, claimId: result.id });
+  } catch (error: any) {
+    const message = error?.message || 'Internal server error';
+    // Validation-style errors thrown by the service map to 400.
+    if (/required|invalid|exactly 2|distinct|500/i.test(message)) {
+      return res.status(400).json({ error: message });
+    }
+    logger.error('curriculum_claim_create_failed', { uid: callerUid, message });
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : message });
+  }
+});
+
+// GET /api/curriculum/claims — list claims for the authenticated worker.
+app.get("/api/curriculum/claims", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  try {
+    const claims = await curriculumGetByWorker(callerUid, admin.firestore() as any);
+    res.json({ success: true, claims });
+  } catch (error: any) {
+    logger.error('curriculum_claims_list_failed', { uid: callerUid, message: error?.message });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/curriculum/claim/:id/resend — re-email the magic link to one
+// of the still-pending referees. Rate-limited per (claimId,refereeIndex).
+app.post("/api/curriculum/claim/:id/resend", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const claimId = req.params.id;
+  const { refereeIndex } = req.body ?? {};
+  if (refereeIndex !== 0 && refereeIndex !== 1) {
+    return res.status(400).json({ error: 'refereeIndex must be 0 or 1' });
+  }
+  try {
+    const snap = await admin.firestore().collection('curriculum_claims').doc(claimId).get();
+    if (!snap.exists) return res.status(404).json({ error: 'claim not found' });
+    const claim = snap.data() as any;
+    if (claim.workerId !== callerUid) return res.status(403).json({ error: 'not your claim' });
+    if (claim.status !== 'pending_referees') return res.status(409).json({ error: 'claim is not pending' });
+    const slot = claim.referees?.[refereeIndex];
+    if (!slot || slot.signedAt) return res.status(409).json({ error: 'referee already responded' });
+
+    const cdKey = `${claimId}:${refereeIndex}`;
+    const now = Date.now();
+    const last = curriculumResendCooldown.get(cdKey) ?? 0;
+    if (now - last < CURRICULUM_RESEND_COOLDOWN_MS) {
+      return res.status(429).json({ error: 'too many resends — espera unos segundos' });
+    }
+    curriculumResendCooldown.set(cdKey, now);
+
+    // We cannot resend the original raw token (only its hash is stored).
+    // Resend semantics: rotate the token — issue a NEW raw token, replace
+    // the slot's hash, and email that. Old token in flight becomes a
+    // no-op (no slot matches its hash).
+    const newRaw = curriculumGenToken();
+    const newHash = curriculumHashToken(newRaw);
+    const updatedReferees = claim.referees.map((r: any, i: number) => i === refereeIndex ? { ...r, tokenHash: newHash } : r);
+    await snap.ref.update({ referees: updatedReferees });
+
+    const callerRecord = await admin.auth().getUser(callerUid).catch(() => null);
+    const workerName = callerRecord?.displayName || callerRecord?.email || 'Trabajador Praeventio';
+    const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
+    const magicLink = `${appUrl}/curriculum/referee/${newRaw}`;
+    try {
+      await resend.emails.send({
+        from: 'Praeventio Guard <noreply@praeventio.net>',
+        to: slot.email,
+        subject: `Recordatorio: ${workerName} necesita tu co-firma — Praeventio`,
+        html: buildClaimEmailHtml({
+          workerName,
+          refereeName: slot.name,
+          claimText: claim.claim,
+          magicLink,
+        }),
+      });
+    } catch (emailErr) {
+      logger.error('curriculum_resend_email_failed', { claimId, message: (emailErr as any)?.message });
+    }
+    res.json({ success: true });
+  } catch (error: any) {
+    logger.error('curriculum_resend_failed', { uid: callerUid, message: error?.message });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Stricter rate limit for the public referee endpoints — they are
+// unauthenticated and the magic-link tokens, while 256 bits of entropy,
+// should not be enumerable at unbounded rates.
+const refereeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' },
+});
+
+// GET /api/curriculum/referee/:token — public preview for the magic-link
+// landing page. Returns minimal claim metadata if the token matches.
+app.get("/api/curriculum/referee/:token", refereeLimiter, async (req, res) => {
+  const rawToken = req.params.token ?? '';
+  if (typeof rawToken !== 'string' || !/^[0-9a-f]{64}$/.test(rawToken)) {
+    return res.status(400).json({ error: 'invalid token format' });
+  }
+  try {
+    const tokenHash = curriculumHashToken(rawToken);
+    // Token-hash lookup. We need a `where` query because the hash lives
+    // inside the `referees` array — we filter client-side after fetching
+    // by status. A scoped indexed approach (referees_index sub-collection)
+    // would scale better; this is fine for MVP volumes.
+    const all = await admin.firestore().collection('curriculum_claims')
+      .where('status', 'in', ['pending_referees', 'verified', 'expired'])
+      .get();
+    let matchedClaim: any = null;
+    let matchedIdx = -1;
+    for (const d of all.docs) {
+      const data = d.data();
+      const idx = (data.referees ?? []).findIndex((r: any) => r.tokenHash === tokenHash);
+      if (idx !== -1) {
+        matchedClaim = { ...data, id: d.id };
+        matchedIdx = idx;
+        break;
+      }
+    }
+    if (!matchedClaim) return res.status(404).json({ error: 'token does not match any claim' });
+    if (new Date(matchedClaim.expiresAt).getTime() < Date.now() && matchedClaim.status === 'pending_referees') {
+      // Lazy expire on read.
+      await admin.firestore().collection('curriculum_claims').doc(matchedClaim.id).update({ status: 'expired' });
+      matchedClaim.status = 'expired';
+    }
+    const slot = matchedClaim.referees[matchedIdx];
+    let workerName = matchedClaim.workerEmail || 'Trabajador Praeventio';
+    try {
+      const wr = await admin.auth().getUser(matchedClaim.workerId);
+      workerName = wr.displayName || wr.email || workerName;
+    } catch { /* worker may have been deleted; fall back to email */ }
+    res.json({
+      claimText: matchedClaim.claim,
+      workerName,
+      workerEmail: matchedClaim.workerEmail,
+      refereeName: slot.name,
+      refereeEmail: slot.email,
+      category: matchedClaim.category,
+      status: matchedClaim.status,
+      alreadySigned: !!slot.signedAt,
+      expiresAt: matchedClaim.expiresAt,
+    });
+  } catch (error: any) {
+    logger.error('curriculum_referee_preview_failed', { message: error?.message });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/curriculum/referee/:token — public co-sign / decline.
+// UNAUTHED: the security barrier is the 256-bit token. The server hashes
+// it and matches against the stored slot. Rate-limited via refereeLimiter.
+app.post("/api/curriculum/referee/:token", refereeLimiter, async (req, res) => {
+  const rawToken = req.params.token ?? '';
+  const { action, method, signature } = req.body ?? {};
+  if (typeof rawToken !== 'string' || !/^[0-9a-f]{64}$/.test(rawToken)) {
+    return res.status(400).json({ error: 'invalid token format' });
+  }
+  if (action !== 'cosign' && action !== 'decline') {
+    return res.status(400).json({ error: 'action must be cosign or decline' });
+  }
+  if (action === 'cosign' && method !== 'webauthn' && method !== 'standard') {
+    return res.status(400).json({ error: 'method must be webauthn or standard' });
+  }
+  if (typeof signature !== 'string' || signature.length === 0 || signature.length > 1024) {
+    return res.status(400).json({ error: 'signature is required (≤1024 chars)' });
+  }
+  try {
+    // Locate the claim id by scanning (same as preview).
+    const tokenHash = curriculumHashToken(rawToken);
+    const all = await admin.firestore().collection('curriculum_claims')
+      .where('status', '==', 'pending_referees')
+      .get();
+    let claimId: string | null = null;
+    for (const d of all.docs) {
+      const data = d.data();
+      const idx = (data.referees ?? []).findIndex((r: any) => r.tokenHash === tokenHash);
+      if (idx !== -1) { claimId = d.id; break; }
+    }
+    if (!claimId) return res.status(404).json({ error: 'token does not match any pending claim' });
+
+    if (action === 'decline') {
+      // Decline path: mark slot.declined = true and flip claim to rejected.
+      const ref = admin.firestore().collection('curriculum_claims').doc(claimId);
+      const snap = await ref.get();
+      const data = snap.data() as any;
+      const idx = data.referees.findIndex((r: any) => r.tokenHash === tokenHash);
+      const updatedReferees = data.referees.map((r: any, i: number) => i === idx ? { ...r, declined: true, signedAt: new Date().toISOString(), signature, method: method ?? 'standard' } : r);
+      await ref.update({ referees: updatedReferees, status: 'rejected' });
+      const audit = buildCurriculumAuditor(null, null, req.ip ?? undefined, req.header('user-agent') ?? undefined);
+      await audit('curriculum.referee.declined', { claimId, refereeEmail: data.referees[idx].email });
+      return res.json({ success: true, verified: false, declined: true });
+    }
+
+    // Cosign path: delegate to the service.
+    const audit = buildCurriculumAuditor(null, null, req.ip ?? undefined, req.header('user-agent') ?? undefined);
+    const result = await curriculumEndorse(
+      claimId,
+      rawToken,
+      { signature, method: method as 'webauthn' | 'standard' },
+      admin.firestore() as any,
+      audit,
+    );
+    res.json({ success: true, verified: result.verified });
+  } catch (error: any) {
+    const message = error?.message || 'Internal server error';
+    if (/expired/i.test(message)) return res.status(410).json({ error: message });
+    if (/already/i.test(message)) return res.status(409).json({ error: message });
+    if (/token|match/i.test(message)) return res.status(404).json({ error: message });
+    logger.error('curriculum_referee_endorse_failed', { message });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Round 13: Express terminal error middleware. MUST be the last `app.use(...)`
 // — Express only treats 4-arg middleware as an error handler, and only
