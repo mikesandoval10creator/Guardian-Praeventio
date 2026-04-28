@@ -26,6 +26,11 @@ const config: CapacitorConfig = {
     limitsNavigationsToAppBoundDomains: true,
   },
   plugins: {
+    // Note: @perfood/capacitor-healthkit (v1.3.2) does NOT accept a
+    // `CapacitorHealthkit` config block — it auto-discovers via CocoaPods.
+    // All iOS-side config (Info.plist usage strings, HealthKit capability,
+    // App.entitlements) lives in the Xcode project under `ios/App/App/`.
+    // See IOS_BUILD.md for the full runbook + copy-paste templates.
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
