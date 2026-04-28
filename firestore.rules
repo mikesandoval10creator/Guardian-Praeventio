@@ -366,5 +366,39 @@ service cloud.firestore {
       allow update: if isEmailVerified() && (isAdmin() || isSupervisor());
       allow delete: if isAdmin();
     }
+
+    // Round 14 (R5) — Curriculum claims (Experience-Validation System).
+    //
+    // The flagship anti-fraud feature. A worker creates a claim about
+    // their own experience; 2 named referees co-sign via a magic-link
+    // emailed to them. Once both co-sign, the doc becomes immutable.
+    //
+    // Security envelope:
+    //   • Worker can CREATE only their own claim (workerId == uid) and
+    //     only in the initial 'pending_referees' state.
+    //   • Worker can READ their own claims (admin can read any).
+    //   • Referee co-signature does NOT happen via these rules: the
+    //     POST /api/curriculum/referee/:token endpoint uses the Admin
+    //     SDK (which bypasses these rules) after verifying the token
+    //     hash. We DENY all client updates to keep verified claims
+    //     immutable from the client side.
+    //   • DELETE is permanently denied — verified claims are part of
+    //     the worker's portable curriculum and must persist.
+    match /curriculum_claims/{claimId} {
+      allow read: if isEmailVerified() && (
+        isAdmin() ||
+        (resource != null && resource.data.workerId == request.auth.uid)
+      );
+      allow create: if isEmailVerified() &&
+        incoming().workerId == request.auth.uid &&
+        incoming().status == 'pending_referees' &&
+        incoming().claim is string &&
+        incoming().claim.size() > 0 && incoming().claim.size() <= 500 &&
+        incoming().referees is list && incoming().referees.size() == 2 &&
+        incoming().verifiedAt == null;
+      // Updates and deletes go ONLY through the server (Admin SDK).
+      // Client-side cosign or tampering is denied.
+      allow update, delete: if false;
+    }
   }
 }

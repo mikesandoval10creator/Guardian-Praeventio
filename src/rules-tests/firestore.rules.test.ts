@@ -519,4 +519,182 @@ describe('firestore.rules', () => {
       );
     });
   });
+
+  // ───────────────────────────────────────────────────────────────────
+  // Round 14 (R5) — curriculum_claims/{claimId}.
+  //
+  // Pin the security envelope:
+  //   • Worker can create their own claim (workerId == uid, status =
+  //     pending_referees, ≤500-char text, exactly 2 referees).
+  //   • Worker can read their own claims; admins can read any.
+  //   • Updates and deletes are server-only — even the worker themselves
+  //     cannot mutate the claim from the client (referee co-signature
+  //     happens via /api/curriculum/referee/:token using the Admin SDK).
+  // ───────────────────────────────────────────────────────────────────
+  describe('curriculum_claims/{claimId} — server-managed verification', () => {
+    const WORKER = 'worker-curriculum-uid';
+    const VALID_BODY = {
+      workerId: WORKER,
+      workerEmail: 'worker-curriculum-uid@example.com',
+      claim: 'He trabajado 5 años como capataz de seguridad sin incidentes graves.',
+      category: 'experience',
+      signedByWorker: { signedAt: new Date().toISOString(), fallbackAttest: false },
+      referees: [
+        { email: 'a@ref.cl', name: 'Ana', tokenHash: 'h1', signedAt: null },
+        { email: 'b@ref.cl', name: 'Bruno', tokenHash: 'h2', signedAt: null },
+      ],
+      status: 'pending_referees',
+      createdAt: new Date().toISOString(),
+      verifiedAt: null,
+      expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    async function seedClaim(claimId: string, overrides: Partial<typeof VALID_BODY> = {}) {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(
+          doc(ctx.firestore(), 'curriculum_claims', claimId),
+          { ...VALID_BODY, ...overrides },
+        );
+      });
+    }
+
+    it('allows worker to create their own claim with valid shape', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'curriculum_claims', 'c-new'), VALID_BODY),
+      );
+    });
+
+    it('denies create when workerId does not match auth.uid', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'curriculum_claims', 'c-spoof'), {
+          ...VALID_BODY,
+          workerId: 'someone-else-uid',
+        }),
+      );
+    });
+
+    it('denies create when status is not pending_referees', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'curriculum_claims', 'c-prefab'), {
+          ...VALID_BODY,
+          status: 'verified',
+          verifiedAt: new Date().toISOString(),
+        }),
+      );
+    });
+
+    it('denies create when claim text exceeds 500 chars', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'curriculum_claims', 'c-long'), {
+          ...VALID_BODY,
+          claim: 'x'.repeat(501),
+        }),
+      );
+    });
+
+    it('denies create when referees count is not exactly 2', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'curriculum_claims', 'c-one-ref'), {
+          ...VALID_BODY,
+          referees: [VALID_BODY.referees[0]],
+        }),
+      );
+    });
+
+    it('allows worker to read their own claim', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      await seedClaim('c-read');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertSucceeds(getDoc(doc(w.firestore(), 'curriculum_claims', 'c-read')));
+    });
+
+    it('denies read for an unrelated worker', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      await seedUserDoc('peer-uid', 'operario');
+      await seedClaim('c-other');
+      const peer = env.authenticatedContext('peer-uid', verifiedToken('operario'));
+      await assertFails(getDoc(doc(peer.firestore(), 'curriculum_claims', 'c-other')));
+    });
+
+    it('allows read for admin', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      await seedUserDoc('admin-uid', 'admin');
+      await seedClaim('c-admin-read');
+      const a = env.authenticatedContext('admin-uid', verifiedToken('admin'));
+      await assertSucceeds(getDoc(doc(a.firestore(), 'curriculum_claims', 'c-admin-read')));
+    });
+
+    it('denies update from the worker (server-only via Admin SDK)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      await seedClaim('c-update');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'curriculum_claims', 'c-update'), {
+          status: 'verified',
+        }),
+      );
+    });
+
+    it('denies update from admin (server-only)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      await seedUserDoc('admin-uid', 'admin');
+      await seedClaim('c-admin-update');
+      const a = env.authenticatedContext('admin-uid', verifiedToken('admin'));
+      await assertFails(
+        updateDoc(doc(a.firestore(), 'curriculum_claims', 'c-admin-update'), {
+          status: 'verified',
+        }),
+      );
+    });
+
+    it('denies delete (immutable record of professional reputation)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(WORKER, 'operario');
+      await seedClaim('c-del');
+      const w = env.authenticatedContext(WORKER, verifiedToken('operario', VALID_BODY.workerEmail));
+      await assertFails(deleteDoc(doc(w.firestore(), 'curriculum_claims', 'c-del')));
+    });
+
+    it('denies any access for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedClaim('c-anon');
+      const u = env.unauthenticatedContext();
+      await assertFails(getDoc(doc(u.firestore(), 'curriculum_claims', 'c-anon')));
+      await assertFails(
+        setDoc(doc(u.firestore(), 'curriculum_claims', 'c-anon-2'), VALID_BODY),
+      );
+    });
+  });
 });
