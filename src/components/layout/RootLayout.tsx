@@ -9,6 +9,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
 import { SyncConflictBanner } from '../shared/SyncConflictBanner';
+import { routeForCollection } from '../shared/syncConflictRoutes';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
@@ -166,27 +167,10 @@ export function RootLayout() {
         <PendingInvitesBanner />
         <SyncConflictBanner
           onOpenRecord={(collectionName, docId) => {
-            // Map Firestore collection names to existing in-app routes. The
-            // best fit for "iper_nodes" is the Risks page since there is no
-            // dedicated `/risks/iper/:id` route yet (the Knowledge Graph
-            // surfaces nodes via `/risk-network`). When the listing pages
-            // gain detail routes, update the mapping accordingly.
-            const routeMap: Record<string, string> = {
-              // Iper / risk graph nodes — best-guess: Risks listing.
-              iper_nodes: `/risks?node=${encodeURIComponent(docId)}`,
-              nodes: `/risk-network?node=${encodeURIComponent(docId)}`,
-              // Audits has a listing page; no detail route yet.
-              audits: `/audits?id=${encodeURIComponent(docId)}`,
-              // Workers listing; no detail route yet.
-              workers: `/workers?id=${encodeURIComponent(docId)}`,
-              // Documents has a real detail viewer.
-              documents: `/documents/${encodeURIComponent(docId)}`,
-              // Projects: open the listing and let the user pick.
-              projects: `/projects?id=${encodeURIComponent(docId)}`,
-              // Findings listing (best-guess fallback).
-              findings: `/findings?id=${encodeURIComponent(docId)}`,
-            };
-            const target = routeMap[collectionName];
+            // Mapping lives in the shared `routeForCollection` helper so it
+            // can be unit-tested in isolation; see
+            // `src/components/shared/syncConflictRoutes.ts`.
+            const target = routeForCollection(collectionName, docId);
             if (target) {
               navigate(target);
             } else {

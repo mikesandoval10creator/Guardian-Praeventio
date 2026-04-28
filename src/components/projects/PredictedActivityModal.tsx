@@ -12,6 +12,38 @@ import {
 } from 'lucide-react';
 import type { PredictedActivity } from '../../services/calendar/predictions';
 
+/**
+ * Attach an `Escape`-key listener to the given EventTarget (typically
+ * `window`). Exported for unit testing — the modal calls this from its
+ * `useEffect` so we don't need a DOM environment to verify the contract.
+ *
+ * - When `active` is false, no listener is attached and the cleanup is a
+ *   no-op. This mirrors the modal's "do nothing while closed" behavior.
+ * - The listener filters for `event.key === 'Escape'` exactly, ignoring
+ *   `Esc`, `Enter`, etc.
+ * - Returns the cleanup function to be returned from `useEffect`.
+ */
+export function attachEscapeHandler(
+  target: EventTarget,
+  active: boolean,
+  onEscape: () => void,
+): () => void {
+  if (!active) {
+    return () => {
+      /* no-op */
+    };
+  }
+  const handler = (e: Event) => {
+    if ((e as KeyboardEvent).key === 'Escape') {
+      onEscape();
+    }
+  };
+  target.addEventListener('keydown', handler);
+  return () => {
+    target.removeEventListener('keydown', handler);
+  };
+}
+
 interface Props {
   activity: PredictedActivity | null;
   onClose: () => void;
@@ -78,6 +110,13 @@ function formatTimeEsCL(date: Date): string {
 export function PredictedActivityModal({ activity, onClose, onSchedule, onDismiss }: Props) {
   const isOpen = activity !== null;
   const [isScheduling, setIsScheduling] = React.useState(false);
+
+  // A11y: Escape closes the modal when open. Listener is attached only while
+  // open so background pages aren't impacted. See `attachEscapeHandler` for
+  // the reusable, unit-tested implementation.
+  React.useEffect(() => {
+    return attachEscapeHandler(window, isOpen, onClose);
+  }, [isOpen, onClose]);
 
   const handleSchedule = async () => {
     if (!activity || !onSchedule) return;

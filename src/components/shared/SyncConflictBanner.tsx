@@ -17,10 +17,13 @@ export interface SyncConflictBannerProps {
   /**
    * Router-aware navigator wired up by the parent layout (RootLayout owns the
    * mapping from Firestore collection names to in-app routes via
-   * `react-router-dom`'s `useNavigate`). When omitted, the "Abrir registro"
-   * button stays hidden — the banner is route-agnostic by design and never
-   * imports `react-router-dom` itself, which keeps it usable in storybook /
-   * isolated tests.
+   * `react-router-dom`'s `useNavigate`). The mapping itself lives in the
+   * shared `routeForCollection` helper at
+   * `src/components/shared/syncConflictRoutes.ts` so it can be unit-tested
+   * without a router. When omitted, the "Abrir registro" button stays hidden
+   * — the banner is route-agnostic by design and never imports
+   * `react-router-dom` itself, which keeps it usable in storybook / isolated
+   * tests.
    *
    * Contract: callers receive the raw Firestore collection name (e.g.
    * "nodes", "audits", "workers") and the document id. They are responsible
@@ -167,6 +170,7 @@ export function SyncConflictBanner({ onOpenRecord, onRestoreServerVersion }: Syn
   );
 }
 
-// `onOpenRecord` is wired from the consumer side (RootLayout). See the JSDoc
-// on `SyncConflictBannerProps.onOpenRecord` for the prop contract — this
+// `onOpenRecord` is wired from the consumer side (RootLayout) via the shared
+// `routeForCollection` helper at `./syncConflictRoutes.ts`. See the JSDoc on
+// `SyncConflictBannerProps.onOpenRecord` for the prop contract — this
 // component intentionally stays router-agnostic.
