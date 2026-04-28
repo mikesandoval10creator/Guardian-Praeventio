@@ -59,6 +59,7 @@
     "firebase-admin": "^13.8.0",
     "framer-motion": "^12.38.0",
     "fuse.js": "^7.3.0",
+    "gantt-task-react": "^0.3.9",
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
