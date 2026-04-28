@@ -1,14 +1,21 @@
 # Health Connect Migration Runbook
 
-**Owner:** Agent N4 (this round) -> hands off to whoever takes the next round.
+**Owner:** Agent A2 (this round) -> hands off to whoever takes the next round.
 **Status (2026-04-28):**
 - **Round 1 — done.** Types + adapter scaffolding + facade landed.
 - **Round 2 — done.** `@kiwi-health/capacitor-health-connect@0.0.40` installed,
   `healthConnectAdapter` implemented against the plugin API, and `Telemetry.tsx`
   surgically swapped to prefer the facade with the legacy `/api/fitness/sync`
   path kept as a fall-through.
-- **Round 3 — pending.** Full Telemetry consolidation, server endpoint sunset
-  header + scope cleanup, OAuth re-verification, Android/iOS native config.
+- **Round 3 phase 1 — done.** `@perfood/capacitor-healthkit@1.3.2` installed,
+  `healthKitAdapter` implemented, facade gained an iOS branch, `/api/fitness/sync`
+  carries a `Sunset:` header (RFC 8594) with structured deprecation logs, and
+  `Telemetry.tsx` now branches both adapters. Test count grew 12 -> 16.
+- **Round 3 phase 2 — pending.** Full Telemetry rewrite (consolidate the legacy
+  Google Fit aggregate-parsing block once production telemetry confirms zero
+  hits), `SCOPES` cleanup in `server.ts` (drop `fitness.*` OAuth scopes),
+  Google OAuth consent screen re-verification with the reduced sensitive-scope
+  set, eventual removal of `/api/fitness/sync` after 2026-12-31 sunset.
 
 ---
 
@@ -188,8 +195,67 @@ src/pages/Telemetry.tsx                       (surgical swap of handleConnectGoo
 HEALTH_CONNECT_MIGRATION.md                   (this file — Round 2 status)
 ```
 
+### Round 3 phase 1
+```
+package.json                                  (+ @perfood/capacitor-healthkit@^1.3.2)
+package-lock.json                             (lock entry added by npm install)
+src/services/health/types.ts                  (HealthAdapterName += 'healthkit')
+src/services/health/healthKitAdapter.ts       (created — real plugin implementation)
+src/services/health/index.ts                  (facade gained iOS branch + __setPlatformChecker)
+src/services/health/healthFacade.test.ts      (4 new iOS-path test cases; vi.mock for healthkit plugin)
+src/pages/Telemetry.tsx                       (handleConnectGoogleFit + fetchFitnessData branch on 'healthkit' too)
+server.ts                                     (Sunset/Deprecation/Link headers + structured log on /api/fitness/sync)
+HEALTH_CONNECT_MIGRATION.md                   (this file — Round 3 phase 1 status)
+```
+
+### Round 3 phase 1 — iOS plugin pick
+
+- **Plugin pick:** `@perfood/capacitor-healthkit@^1.3.2`
+  - Last published: **2025-02-13** (~14 months prior to this round; the
+    plugin's API is stable and the project is still tagged as the
+    leading HealthKit-only Capacitor option in the community).
+  - Capacitor compat: peer `@capacitor/core@^4.0.0` declared; the project
+    uses `@capacitor/core@^8.3.0`. Plugins targeting Cap 4 still work on
+    Cap 5/6/7/8 because the bridge ABI is forward-compatible (the same is
+    true for `@kiwi-health/capacitor-health-connect`); installed with
+    `--legacy-peer-deps` to acknowledge the version gap explicitly.
+  - Considered alternatives (NOT picked):
+    - `cordova-plugin-health` — older Cordova-era plugin, requires the
+      Capawesome/cordova bridge, less typed surface.
+    - `@awesome-cordova-plugins/health` — wraps the cordova plugin; same
+      bridge dependency.
+  - If activity stalls or Cap 9 ships breaking changes, migrate to
+    `@capacitor-community/health` (currently lags HealthKit-only coverage)
+    or fork `@perfood/capacitor-healthkit` into a Guardian-owned namespace.
+
+### Round 3 phase 1 — iOS native config TODOs
+
+The adapter is wired and selected by the facade on `Capacitor.getPlatform() === 'ios'`,
+but the iOS app **will not** prompt for HealthKit access until these native
+edits land in `ios/`:
+
+1. Xcode project: add the **HealthKit** capability to the App target's
+   `Signing & Capabilities` pane. This generates the `HealthKit` entitlement
+   in `App.entitlements`.
+2. `ios/App/App/Info.plist`: add the user-facing usage strings (Apple rejects
+   submissions without these even if the app never reads):
+   ```xml
+   <key>NSHealthShareUsageDescription</key>
+   <string>Guardian-Praeventio reads your heart rate, steps, calories, and sleep to surface heat-stress and fatigue alerts. Data stays on this device.</string>
+   <key>NSHealthUpdateUsageDescription</key>
+   <string>Guardian-Praeventio does not write data to HealthKit; this declaration is required by the HealthKit framework.</string>
+   ```
+3. `npx cap sync ios` after the manifest edits to copy the plugin's iOS
+   sources into the Xcode workspace.
+4. (Optional) `Background Modes` capability with the `Background Delivery`
+   sub-mode if we later add background reads.
+
 Read-only references (intentionally unmodified, owned by other agents this round):
 ```
-server.ts                                     (/api/fitness/sync @ line 828, SCOPES @ line 545 — Round 3)
-src/services/oauthTokenStore.ts               (Agent O4 owns this round)
+src/services/oauthTokenStore.ts               (token storage; Agent O4 owns)
+src/services/security/                        (KMS — Agent A1)
+src/services/billing/                         (billing — agent unspecified)
+src/services/vertex/                          (Vertex — Agent A3)
+firestore.rules                               (Agent A4 polishing this round)
+KMS_ROTATION.md                               (Agent A1)
 ```

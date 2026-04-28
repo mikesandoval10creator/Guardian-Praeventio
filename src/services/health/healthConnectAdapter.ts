@@ -166,6 +166,56 @@ export function __resetHealthConnectAvailability(value: HealthConnectAvailabilit
   availabilityProbeStarted = value !== null;
 }
 
+/**
+ * Force a fresh availability probe and resolve once the cached value is
+ * updated. Subsequent synchronous reads of `healthConnectAdapter.isAvailable`
+ * will return the correct value.
+ *
+ * Call this on app mount so the cache is warm by the time the user navigates
+ * to the Telemetry / Wearables UI. Without this pre-warm, a user tapping
+ * "Connect" within ~50ms of boot can race the probe and see a false negative
+ * (the sync getter conservatively returns `false` while the probe is in
+ * flight).
+ *
+ * Safe to call repeatedly — the probe is short-circuited on non-Android
+ * platforms, and the underlying `HealthConnect.checkAvailability` call is
+ * idempotent.
+ *
+ * Returns the resolved availability flag (`true` only when Health Connect
+ * is installed and reachable on Android). Errors are swallowed — the cache
+ * is set to `'NotSupported'` on failure.
+ */
+export async function preWarmHealthConnect(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+    cachedAvailability = 'NotSupported';
+    availabilityProbeStarted = true;
+    return false;
+  }
+  availabilityProbeStarted = true;
+  try {
+    const result = await HealthConnect.checkAvailability();
+    cachedAvailability = result.availability;
+  } catch {
+    cachedAvailability = 'NotSupported';
+  }
+  return cachedAvailability === 'Available';
+}
+
+/**
+ * Resolve when the in-flight availability probe completes. Useful for code
+ * paths that want to await readiness without forcing a fresh probe — e.g.
+ * tests that have already triggered the probe via a `isAvailable` read.
+ *
+ * If no probe has been started yet, this kicks one off. If the cache is
+ * already populated, it resolves immediately.
+ */
+export async function awaitAvailability(): Promise<boolean> {
+  if (cachedAvailability !== null) {
+    return cachedAvailability === 'Available';
+  }
+  return preWarmHealthConnect();
+}
+
 export const healthConnectAdapter: HealthAdapter = {
   name: 'health-connect',
   platform: 'capacitor',

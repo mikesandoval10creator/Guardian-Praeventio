@@ -78,6 +78,7 @@ export interface PermissionResult {
 /** Adapter implementation identity. Used by the facade and tests. */
 export type HealthAdapterName =
   | 'health-connect'
+  | 'healthkit'
   | 'google-fit-deprecated'
   | 'noop';
 

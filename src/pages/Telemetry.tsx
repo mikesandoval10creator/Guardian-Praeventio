@@ -173,24 +173,27 @@ export function Telemetry() {
   const handleConnectGoogleFit = async () => {
     setIsConnectingFit(true);
 
-    // Round 2 of HEALTH_CONNECT_MIGRATION.md — prefer the Health Connect /
-    // HealthKit adapter on native; the legacy Google Fit OAuth popup is the
-    // fallback while the rest of the migration completes.
+    // Round 3 phase 1 of HEALTH_CONNECT_MIGRATION.md — prefer the on-device
+    // health adapter (Health Connect on Android, HealthKit on iOS). The
+    // legacy Google Fit OAuth popup is the web/desktop fallback only and
+    // is scheduled for full removal once `/api/fitness/sync` sunsets
+    // (2026-12-31, see server.ts Sunset header).
     const adapter = getHealthAdapter();
-    if (adapter.name === 'health-connect') {
+    if (adapter.name === 'health-connect' || adapter.name === 'healthkit') {
+      const label = adapter.name === 'healthkit' ? 'HealthKit' : 'Health Connect';
       try {
         const result = await adapter.requestPermissions(['heart-rate', 'steps']);
         if (result.granted.length === 0) {
-          alert('No se concedieron permisos de Health Connect.');
+          alert(`No se concedieron permisos de ${label}.`);
           setIsConnectingFit(false);
           return;
         }
-        setFitTokens({ linked: true, viaHealthConnect: true });
+        setFitTokens({ linked: true, viaNativeHealth: true, adapter: adapter.name });
         setIsConnectingFit(false);
         fetchFitnessData();
         return;
       } catch (error) {
-        console.error('Error requesting Health Connect permissions:', error);
+        console.error(`Error requesting ${label} permissions:`, error);
         setIsConnectingFit(false);
         return;
       }
@@ -222,13 +225,14 @@ export function Telemetry() {
   };
 
   const fetchFitnessData = useCallback(async () => {
-    // Round 2 surgical swap — when the facade picks Health Connect (or any
-    // future native adapter), read on-device samples and skip the legacy
-    // server hop entirely. The /api/fitness/sync POST below is the
-    // deprecated Google Fit fallback, kept alive until Round 3 sunset.
+    // Round 3 phase 1 — when the facade picks an on-device adapter (Health
+    // Connect on Android, HealthKit on iOS), read samples directly and skip
+    // the legacy server hop. The /api/fitness/sync POST below is the
+    // deprecated Google Fit fallback, kept alive until 2026-12-31 (see
+    // server.ts Sunset header) for web users only.
     try {
       const adapter = getHealthAdapter();
-      if (adapter.name === 'health-connect') {
+      if (adapter.name === 'health-connect' || adapter.name === 'healthkit') {
         const end = new Date();
         const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
         const [hrSamples, stepSamples] = await Promise.all([
@@ -257,9 +261,16 @@ export function Telemetry() {
         return;
       }
     } catch (error) {
-      console.error('Health Connect read failed; falling back to Google Fit:', error);
+      console.error('Native health adapter read failed; falling back to Google Fit:', error);
       // fall through to the deprecated server path
     }
+
+    // TODO(round-4-phase-2): once production telemetry confirms zero hits on
+    // /api/fitness/sync (track via the structured `fitness_sync_deprecated_called`
+    // log added in server.ts) AND the iOS/Android consent screens have been
+    // re-verified by Google with the reduced sensitive-scope set, delete the
+    // remaining Google Fit aggregate-parsing block below + remove the legacy
+    // OAuth popup branch in handleConnectGoogleFit. Sunset: 2026-12-31.
 
     try {
       const idToken = await auth.currentUser?.getIdToken();

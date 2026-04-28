@@ -5,19 +5,20 @@
  * use to read worker biometrics. It picks the best available implementation
  * at runtime:
  *
- *   1. On a Capacitor native platform with Health Connect installed
- *      -> `healthConnectAdapter`.
- *   2. Otherwise (web, or native without the plugin yet)
- *      -> `googleFitAdapter` while Google Fit is still alive.
- *   3. Web/SSR/test environments where neither is reachable
- *      -> `noopAdapter` (returns `[]` for every read; never throws).
+ *   1. Native Android with Health Connect installed -> `healthConnectAdapter`.
+ *   2. Native iOS with HealthKit available         -> `healthKitAdapter`.
+ *   3. Otherwise (web, or native without the plugin yet)
+ *      -> `googleFitAdapter` while Google Fit is still alive (deprecated).
+ *   4. Final fallback (no adapter reachable at all) -> `noopAdapter`.
  *
- * Tests can override the platform check via `__setCapacitorChecker(...)`.
+ * Tests can override the platform check via `__setCapacitorChecker(...)`
+ * and `__setPlatformChecker(...)`.
  */
 
 import { Capacitor } from '@capacitor/core';
 import { googleFitAdapter } from './googleFitAdapter';
 import { healthConnectAdapter } from './healthConnectAdapter';
+import { healthKitAdapter } from './healthKitAdapter';
 import type {
   CaloriesSample,
   HealthAdapter,
@@ -58,22 +59,38 @@ export const noopAdapter: HealthAdapter = {
 type IsNativeChecker = () => boolean;
 let isNativeChecker: IsNativeChecker = () => Capacitor.isNativePlatform();
 
+/** Test seam: lets tests mock `Capacitor.getPlatform()` ('android' | 'ios' | 'web'). */
+type PlatformChecker = () => string;
+let platformChecker: PlatformChecker = () => Capacitor.getPlatform();
+
 /** @internal — exported only for tests. */
 export function __setCapacitorChecker(next: IsNativeChecker | null): void {
   isNativeChecker = next ?? (() => Capacitor.isNativePlatform());
+}
+
+/** @internal — exported only for tests. */
+export function __setPlatformChecker(next: PlatformChecker | null): void {
+  platformChecker = next ?? (() => Capacitor.getPlatform());
 }
 
 /**
  * Pick the best health adapter for the current runtime.
  *
  * Selection order (first match wins):
- *   1. `healthConnectAdapter` if `isAvailable` AND we're on a native platform.
- *   2. `googleFitAdapter` if `isAvailable` (deprecated, but live until 2026).
- *   3. `noopAdapter` as the final fallback.
+ *   1. Native Android + Health Connect available -> `healthConnectAdapter`.
+ *   2. Native iOS + HealthKit available          -> `healthKitAdapter`.
+ *   3. `googleFitAdapter` if `isAvailable` (deprecated, but live until 2026).
+ *   4. `noopAdapter` as the final fallback.
  */
 export function getHealthAdapter(): HealthAdapter {
-  if (isNativeChecker() && healthConnectAdapter.isAvailable) {
-    return healthConnectAdapter;
+  if (isNativeChecker()) {
+    const platform = platformChecker();
+    if (platform === 'android' && healthConnectAdapter.isAvailable) {
+      return healthConnectAdapter;
+    }
+    if (platform === 'ios' && healthKitAdapter.isAvailable) {
+      return healthKitAdapter;
+    }
   }
   if (googleFitAdapter.isAvailable) {
     return googleFitAdapter;
@@ -82,7 +99,7 @@ export function getHealthAdapter(): HealthAdapter {
 }
 
 // Re-exports so callers only need a single import path.
-export { googleFitAdapter, healthConnectAdapter };
+export { googleFitAdapter, healthConnectAdapter, healthKitAdapter };
 export type {
   CaloriesSample,
   HealthAdapter,

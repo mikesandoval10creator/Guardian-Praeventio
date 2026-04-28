@@ -858,8 +858,30 @@ app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
 // Proxy for Google Fit API.
 // Uses tokens stored server-side via /auth/google/callback; the client never
 // holds an OAuth access_token or refresh_token.
+//
+// DEPRECATED — Round 3 of HEALTH_CONNECT_MIGRATION.md.
+// Google Fit REST sunsets in 2026; the on-device replacements (Health
+// Connect on Android, HealthKit on iOS) are already wired through
+// `src/services/health/`. This endpoint stays alive as a web/legacy fallback
+// until 2026-12-31, after which the route is removed entirely.
 app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  // Sunset / Deprecation signaling per RFC 8594. Clients that honor these
+  // headers can surface their own deprecation UI; we also instrument every
+  // hit so we can quantify residual call volume before the hard cutoff.
+  res.setHeader('Sunset', 'Wed, 31 Dec 2026 23:59:59 GMT');
+  res.setHeader('Deprecation', 'Wed, 31 Dec 2026 23:59:59 GMT');
+  res.setHeader('Link', '</api/health-data>; rel="successor-version"');
+
+  const uid = (req as any).user?.uid;
+
+  // Structured deprecation log so we can quantify residual usage of the
+  // legacy endpoint and confirm Telemetry.tsx truly stopped calling it.
+  logger.warn('fitness_sync_deprecated_called', {
+    uid,
+    userAgent: req.header('user-agent') ?? 'unknown',
+    sunset: '2026-12-31',
+    successor: 'health-connect|healthkit (on-device, no server hop)',
+  });
 
   const accessToken = await getValidAccessToken(
     { uid, provider: 'google' },

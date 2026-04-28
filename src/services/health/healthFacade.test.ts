@@ -41,11 +41,33 @@ vi.mock('@kiwi-health/capacitor-health-connect', () => ({
   },
 }));
 
+// HealthKit plugin is iOS-native; mock its surface so the adapter module
+// loads on every CI environment without touching the Capacitor bridge.
+vi.mock('@perfood/capacitor-healthkit', () => ({
+  CapacitorHealthkit: {
+    requestAuthorization: vi.fn(async () => undefined),
+    queryHKitSampleType: vi.fn(async () => ({ countReturn: 0, resultData: [] })),
+    isAvailable: vi.fn(async () => undefined),
+    multipleQueryHKitSampleType: vi.fn(async () => ({ countReturn: 0, resultData: [] })),
+    isEditionAuthorized: vi.fn(async () => undefined),
+    multipleIsEditionAuthorized: vi.fn(async () => undefined),
+  },
+  SampleNames: {
+    HEART_RATE: 'heartRate',
+    STEP_COUNT: 'stepCount',
+    ACTIVE_ENERGY_BURNED: 'activeEnergyBurned',
+    BASAL_ENERGY_BURNED: 'basalEnergyBurned',
+    SLEEP_ANALYSIS: 'sleepAnalysis',
+  },
+}));
+
 import {
   __setCapacitorChecker,
+  __setPlatformChecker,
   getHealthAdapter,
   googleFitAdapter,
   healthConnectAdapter,
+  healthKitAdapter,
   noopAdapter,
 } from './index';
 
@@ -59,32 +81,71 @@ function setAvailable(adapter: { isAvailable: boolean }, value: boolean) {
 }
 
 const originalHC = healthConnectAdapter.isAvailable;
+const originalHK = healthKitAdapter.isAvailable;
 const originalGF = googleFitAdapter.isAvailable;
 
 describe('getHealthAdapter — facade selection', () => {
   beforeEach(() => {
     setAvailable(healthConnectAdapter, originalHC);
+    setAvailable(healthKitAdapter, originalHK);
     setAvailable(googleFitAdapter, originalGF);
     __setCapacitorChecker(null);
+    __setPlatformChecker(null);
   });
 
   afterEach(() => {
     setAvailable(healthConnectAdapter, originalHC);
+    setAvailable(healthKitAdapter, originalHK);
     setAvailable(googleFitAdapter, originalGF);
     __setCapacitorChecker(null);
+    __setPlatformChecker(null);
   });
 
-  it('returns health-connect when Capacitor is native AND health-connect is available', () => {
+  it('returns health-connect on native Android when health-connect is available', () => {
     __setCapacitorChecker(() => true);
+    __setPlatformChecker(() => 'android');
     setAvailable(healthConnectAdapter, true);
 
     const adapter = getHealthAdapter();
     expect(adapter.name).toBe('health-connect');
   });
 
-  it('falls back to google-fit when native but health-connect not available', () => {
+  it('returns healthkit on native iOS when healthkit is available', () => {
     __setCapacitorChecker(() => true);
+    __setPlatformChecker(() => 'ios');
+    setAvailable(healthKitAdapter, true);
     setAvailable(healthConnectAdapter, false);
+
+    const adapter = getHealthAdapter();
+    expect(adapter.name).toBe('healthkit');
+  });
+
+  it('does NOT pick health-connect on iOS even if its isAvailable says true', () => {
+    // Defense-in-depth: the platform branch must gate before isAvailable.
+    __setCapacitorChecker(() => true);
+    __setPlatformChecker(() => 'ios');
+    setAvailable(healthConnectAdapter, true);
+    setAvailable(healthKitAdapter, false);
+    setAvailable(googleFitAdapter, true);
+
+    const adapter = getHealthAdapter();
+    expect(adapter.name).toBe('google-fit-deprecated');
+  });
+
+  it('falls back to google-fit when native Android but health-connect not available', () => {
+    __setCapacitorChecker(() => true);
+    __setPlatformChecker(() => 'android');
+    setAvailable(healthConnectAdapter, false);
+    setAvailable(googleFitAdapter, true);
+
+    const adapter = getHealthAdapter();
+    expect(adapter.name).toBe('google-fit-deprecated');
+  });
+
+  it('falls back to google-fit on iOS when healthkit is unavailable', () => {
+    __setCapacitorChecker(() => true);
+    __setPlatformChecker(() => 'ios');
+    setAvailable(healthKitAdapter, false);
     setAvailable(googleFitAdapter, true);
 
     const adapter = getHealthAdapter();
@@ -93,16 +154,20 @@ describe('getHealthAdapter — facade selection', () => {
 
   it('returns google-fit on web while it is still alive (deprecated wrapper)', () => {
     __setCapacitorChecker(() => false);
+    __setPlatformChecker(() => 'web');
     setAvailable(healthConnectAdapter, false);
+    setAvailable(healthKitAdapter, false);
     setAvailable(googleFitAdapter, true);
 
     const adapter = getHealthAdapter();
     expect(adapter.name).toBe('google-fit-deprecated');
   });
 
-  it('returns noop when neither health-connect nor google-fit is available', () => {
+  it('returns noop when neither native adapter nor google-fit is available', () => {
     __setCapacitorChecker(() => false);
+    __setPlatformChecker(() => 'web');
     setAvailable(healthConnectAdapter, false);
+    setAvailable(healthKitAdapter, false);
     setAvailable(googleFitAdapter, false);
 
     const adapter = getHealthAdapter();
@@ -141,6 +206,11 @@ describe('adapter identity fields are consistent', () => {
   it('healthConnectAdapter has the right name and platform', () => {
     expect(healthConnectAdapter.name).toBe('health-connect');
     expect(healthConnectAdapter.platform).toBe('capacitor');
+  });
+
+  it('healthKitAdapter has the right name and platform', () => {
+    expect(healthKitAdapter.name).toBe('healthkit');
+    expect(healthKitAdapter.platform).toBe('capacitor');
   });
 
   it('googleFitAdapter is marked deprecated by name and is on web platform', () => {
