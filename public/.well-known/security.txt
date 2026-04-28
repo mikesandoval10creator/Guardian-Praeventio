@@ -1,7 +1,11 @@
 Contact: mailto:security@praeventio.net
 Contact: https://praeventio.net/security
 Expires: 2027-04-28T00:00:00.000Z
-Encryption: https://praeventio.net/.well-known/pgp-key.asc
+# Encryption: TODO when PGP key published at /.well-known/pgp-key.asc
+# (Removed deliberately — a 404 on the encryption hint is worse than
+# its absence. SECURITY.md describes the interim coordination path
+# (plain email + ad-hoc Signal/Wire) until a PGP key is generated and
+# the .asc file is committed alongside re-enabling this header.)
 Acknowledgments: https://github.com/mikesandoval10creator/Guardian-Praeventio/blob/main/SECURITY.md#hall-of-fame
 Preferred-Languages: es, en
 Canonical: https://praeventio.net/.well-known/security.txt

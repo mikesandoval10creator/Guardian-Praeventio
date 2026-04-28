@@ -16,7 +16,15 @@
 // Mirrors the success-shaped fakes in `src/services/sii/siiAdapter.ts`
 // (`noopSiiAdapter`) and `src/services/security/kmsAdapter.ts`
 // (`noopKmsAdapter`).
+//
+// Per-request user context:
+//   We use Node's built-in `AsyncLocalStorage` (node:async_hooks) so each
+//   request's user context is isolated even when the runtime concurrently
+//   serves multiple requests in the same process (Cloud Run + serverless).
+//   See OBSERVABILITY.md §1 (Per-request user context with AsyncLocalStorage)
+//   for the Express middleware integration pattern.
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { logger } from '../../utils/logger';
 import type {
   Breadcrumb,
@@ -37,12 +45,25 @@ function noopEventId(): string {
 }
 
 /**
- * In-process user context. Real SDKs maintain this in async-local storage
- * so each request's context is isolated; the noop just keeps the last set
- * value as a single global because this adapter is only meant for dev/CI
- * and serial test runs.
+ * Per-request user context store. Real Sentry / Cloud Error Reporting SDKs
+ * use the same primitive (AsyncLocalStorage) under the hood; we adopt it
+ * here so:
+ *
+ *   1. The noop adapter is correct under serverless concurrency. Two
+ *      simultaneous requests cannot leak each other's `userId` into the
+ *      logs — each request lives in its own ALS scope.
+ *   2. The contract matches what real adapters will offer in Round 2; no
+ *      caller code changes when we swap in `sentryAdapter`.
+ *
+ * Express middleware wraps every request with
+ *   `userContextStore.run({ userId, props }, () => next())`
+ * and `setUserContext` becomes a no-op outside of a `.run(...)` scope (it
+ * has nowhere to attach state — that's intentional). See OBSERVABILITY.md.
  */
-let currentUserContext: { userId?: string; props?: Record<string, unknown> } = {};
+const userContextStore = new AsyncLocalStorage<{
+  userId?: string;
+  props?: Record<string, unknown>;
+}>();
 
 export const noopErrorTrackingAdapter: ErrorTrackingAdapter = {
   name: 'noop',
@@ -60,9 +81,11 @@ export const noopErrorTrackingAdapter: ErrorTrackingAdapter = {
 
   captureException(error: Error, context?: ErrorContext): string {
     const id = noopEventId();
+    const stored = userContextStore.getStore();
+    const userId = context?.userId ?? stored?.userId;
     logger.error('observability:captured-exception', error, {
       eventId: id,
-      ...(currentUserContext.userId ? { userId: currentUserContext.userId } : {}),
+      ...(userId ? { userId } : {}),
       ...(context ?? {}),
     });
     return id;
@@ -70,9 +93,11 @@ export const noopErrorTrackingAdapter: ErrorTrackingAdapter = {
 
   captureMessage(message, level, context): string {
     const id = noopEventId();
+    const stored = userContextStore.getStore();
+    const userId = context?.userId ?? stored?.userId;
     const meta = {
       eventId: id,
-      ...(currentUserContext.userId ? { userId: currentUserContext.userId } : {}),
+      ...(userId ? { userId } : {}),
       ...(context ?? {}),
     };
     if (level === 'error') {
@@ -100,7 +125,38 @@ export const noopErrorTrackingAdapter: ErrorTrackingAdapter = {
   },
 
   setUserContext(userId: string, additionalProps?: Record<string, unknown>): void {
-    currentUserContext = { userId, props: additionalProps };
+    // For per-request isolation, attach onto the current ALS store if we're
+    // inside a `userContextStore.run(...)` scope (started by the Express
+    // middleware in OBSERVABILITY.md §1). If we're not in a scope (dev REPL,
+    // unit tests that didn't wrap, scripts), this is a no-op — attempting to
+    // create a global store retroactively would re-introduce the cross-
+    // request leak we're trying to avoid.
+    //
+    // The Express middleware pattern is:
+    //
+    //   app.use((req, res, next) => userContextStore.run(
+    //     { userId: req.user?.uid }, () => next()
+    //   ));
+    //
+    // Inside that scope, additionalProps gets merged onto the existing
+    // store entry so downstream `setUserContext` calls (e.g. when auth
+    // upgrades from anon -> authed mid-request) are honoured.
+    const stored = userContextStore.getStore();
+    if (stored) {
+      stored.userId = userId;
+      if (additionalProps) {
+        stored.props = { ...stored.props, ...additionalProps };
+      }
+    }
+    // Outside an ALS scope: silently no-op. Logged at debug only when
+    // explicitly in development to avoid noise in tests.
+    else if (process.env.NODE_ENV === 'development') {
+      logger.debug('observability:noop:setUserContext-outside-scope', {
+        message:
+          'setUserContext called without an active userContextStore.run() scope. ' +
+          'Wrap request handlers in middleware. See OBSERVABILITY.md §1.',
+      });
+    }
   },
 
   async flush(_timeout?: number): Promise<void> {
@@ -109,9 +165,26 @@ export const noopErrorTrackingAdapter: ErrorTrackingAdapter = {
 };
 
 /**
- * Test-only helper. Resets the in-process user context so each test starts
- * clean. Mirrors `__resetNoopSiiAdapterStateForTests`.
+ * Test-only export. Lets tests verify per-request behaviour by entering
+ * the ALS scope explicitly via `userContextStore.run(...)`.
+ *
+ * Mirrors the `__test__` export pattern Sentry uses for its scope helpers.
+ */
+export const __test__ = { userContextStore };
+
+/**
+ * Test-only helper. Resets any ambient store (no-op when no `.run(...)` is
+ * active, which is the common case). Mirrors `__resetNoopSiiAdapterStateForTests`.
+ *
+ * Kept as an export for backward compat with existing tests.
  */
 export function __resetNoopErrorTrackerStateForTests(): void {
-  currentUserContext = {};
+  // AsyncLocalStorage scopes auto-clean when their `.run(...)` callback
+  // returns; nothing to reset here. The function exists so callers don't
+  // have to be aware of the implementation change.
+  const stored = userContextStore.getStore();
+  if (stored) {
+    stored.userId = undefined;
+    stored.props = undefined;
+  }
 }

@@ -12,7 +12,17 @@ Por eso tomamos los reportes de seguridad muy en serio.
 
 **No la publiques.** Reporta privadamente a:
 
-📧 **security@praeventio.net** (PGP key: [link a key]; fingerprint: [TBD])
+📧 **security@praeventio.net**
+
+**Sobre encryption (PGP):** publicar una clave PGP en
+`/.well-known/pgp-key.asc` está en el roadmap pero aún no está hecho.
+Mientras tanto, te pedimos que envíes el reporte por email plano. Si tu
+reporte incluye material que requiere encryption (PoC con datos
+personales, exploit funcional contra producción, secretos filtrados),
+**contáctanos primero por security@praeventio.net** y coordinaremos un
+canal seguro (Signal / Wire) ad-hoc antes de que envíes los detalles
+sensibles. Cuando publiquemos la clave, este documento y
+`/.well-known/security.txt` se actualizarán juntos con el fingerprint.
 
 Incluye:
 1. Descripción de la vulnerabilidad

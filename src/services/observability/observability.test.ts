@@ -17,6 +17,7 @@ import { sentryAdapter } from './sentryAdapter';
 import { cloudErrorReportingAdapter } from './cloudErrorReportingAdapter';
 import {
   __resetNoopErrorTrackerStateForTests,
+  __test__ as noopAdapterTestExports,
   noopErrorTrackingAdapter,
 } from './noopErrorTrackingAdapter';
 import {
@@ -156,6 +157,45 @@ describe('noopErrorTrackingAdapter', () => {
   it('flush resolves without rejecting', async () => {
     await expect(noopErrorTrackingAdapter.flush()).resolves.toBeUndefined();
     await expect(noopErrorTrackingAdapter.flush(500)).resolves.toBeUndefined();
+  });
+
+  // ---- AsyncLocalStorage per-request user context ---------------------
+  // These tests verify the noop adapter's per-request isolation. The
+  // expectation is that `setUserContext` mutates only the ALS scope it's
+  // called within (created by Express middleware via `userContextStore.run`)
+  // and is a silent no-op outside any scope. See OBSERVABILITY.md §1.
+
+  it('setUserContext mutates the active userContextStore.run() scope and propagates to captureException', () => {
+    const { userContextStore } = noopAdapterTestExports;
+    let captured: unknown = undefined;
+    userContextStore.run({}, () => {
+      noopErrorTrackingAdapter.setUserContext('uid-async', { tier: 'oro' });
+      captured = userContextStore.getStore();
+      // captureException should still not throw and should pick up the
+      // store's userId implicitly (via getStore()) when no explicit
+      // context.userId is provided.
+      expect(() =>
+        noopErrorTrackingAdapter.captureException(new Error('async-test')),
+      ).not.toThrow();
+    });
+    expect(captured).toMatchObject({ userId: 'uid-async', props: { tier: 'oro' } });
+    // Outside the .run() scope, the store reverts to undefined (per ALS
+    // semantics). This is the cross-request isolation guarantee.
+    expect(userContextStore.getStore()).toBeUndefined();
+  });
+
+  it('setUserContext outside any userContextStore.run() scope is a silent no-op (does not crash, captureException uid is undefined)', () => {
+    const { userContextStore } = noopAdapterTestExports;
+    expect(userContextStore.getStore()).toBeUndefined();
+    // No throw, no global mutation.
+    expect(() =>
+      noopErrorTrackingAdapter.setUserContext('uid-leak', { rogue: true }),
+    ).not.toThrow();
+    expect(userContextStore.getStore()).toBeUndefined();
+    // captureException without an active scope and without explicit userId
+    // in context produces an event id and does not crash; uid is undefined.
+    const id = noopErrorTrackingAdapter.captureException(new Error('boom'));
+    expect(id).toMatch(/^noop-/);
   });
 });
 

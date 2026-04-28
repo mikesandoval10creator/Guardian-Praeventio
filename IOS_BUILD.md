@@ -226,8 +226,45 @@ Create `ios/App/App/App.entitlements` with this exact content. The HealthKit cap
 Notes:
 
 - `com.apple.developer.healthkit.access` is an **empty array**. That's intentional — it disables Clinical Health Records (FHIR) access. We don't read FHIR.
-- `aps-environment` set to `production` enables Push Notifications. For development builds Xcode auto-substitutes `development` via the build configuration. If you maintain a separate `App.Debug.entitlements`, set that one to `<string>development</string>`.
+- `aps-environment` set to `production` enables Push Notifications for **release** builds (Archive / TestFlight production / App Store). See the warning below for debug builds.
 - For Sign in with Apple (if added later), append `<key>com.apple.developer.applesignin</key><array><string>Default</string></array>`.
+
+> **IMPORTANT — Debug builds need a separate entitlements file:**
+> The release entitlements above set `aps-environment: production`. **Debug builds (running from Xcode locally, or sideloaded for development testing) will fail to register for push notifications with that value** — Apple's APNs sandbox and production environments are completely separate, and a token minted under `production` will never deliver pushes to a Debug-signed binary.
+
+Create a separate `ios/App/App/App.Debug.entitlements` for development builds:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.developer.healthkit</key>
+    <true/>
+    <key>com.apple.developer.healthkit.access</key>
+    <array/>
+    <key>aps-environment</key>
+    <string>development</string>
+    <!-- HealthKit + any other entitlements MUST mirror App.entitlements
+         exactly; only aps-environment differs. -->
+</dict>
+</plist>
+```
+
+Then in Xcode wire each build configuration to its file:
+
+1. Select the **App** target > **Build Settings** tab.
+2. Search for **Code Signing Entitlements**.
+3. Expand the row to reveal per-configuration values and set:
+   - **Debug:** `App/App.Debug.entitlements`
+   - **Release:** `App/App.entitlements`
+
+Verification:
+
+- After switching to the Debug entitlements, run on device, open Console.app on macOS, filter for your bundle id, and look for an APNs registration log mentioning `apns-environment=development`. If you still see `production` the per-configuration mapping didn't take — re-check Build Settings.
+- Push tokens captured under Debug will NOT work in Release builds (and vice versa). Always re-register on first launch and treat the token as ephemeral until the user is verified in production.
+
+> Apple's APNs sandbox (`development`) vs production environments are isolated by design. Sending a notification to a sandbox token from a production server (or vice versa) silently drops the payload — Apple does not return an error. Always pair the entitlement with the matching APNs server endpoint.
 
 ### 6.3 capacitor.config.ts — current ios block (no edits needed)
 
@@ -279,7 +316,8 @@ If a future plugin version (v2 alpha is in development) introduces init options,
 
 - [ ] `ios/` directory committed to git (after `npx cap add ios` runs successfully).
 - [ ] `ios/App/App/Info.plist` contains every key in section 6.1.
-- [ ] `ios/App/App/App.entitlements` matches section 6.2.
+- [ ] `ios/App/App/App.entitlements` matches section 6.2 (Release: `aps-environment=production`).
+- [ ] `ios/App/App/App.Debug.entitlements` exists with `aps-environment=development` and Build Settings > Code Signing Entitlements is wired per-configuration (Debug -> Debug file, Release -> Release file). Section 6.2.
 - [ ] HealthKit capability visible under Signing & Capabilities in Xcode.
 - [ ] Bundle identifier matches `com.praeventio.guard` in `capacitor.config.ts`.
 - [ ] `server` block in `capacitor.config.ts` is gated by `NODE_ENV` (already is — verify it's empty when `NODE_ENV=production`).

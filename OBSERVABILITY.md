@@ -27,6 +27,64 @@ The adapter pattern mirrors the project's existing precedents:
 Selection is via env vars; dev/CI defaults to `noop` so missing config
 never crashes a boot.
 
+### Per-request user context with AsyncLocalStorage
+
+Both real adapters (Sentry, GCP Error Reporting) and our `noop` adapter
+expose `setUserContext(userId, props)`. To make this safe under serverless
+concurrency (a single Cloud Run container handling multiple in-flight
+requests), the noop adapter stores user context inside an
+[`AsyncLocalStorage`](https://nodejs.org/api/async_context.html#class-asynclocalstorage)
+scope rather than a closure-scoped global.
+
+**Express middleware integration** (do this once in `server.ts`, before any
+route handlers):
+
+```ts
+import { __test__ as observabilityNoopInternals } from './services/observability/noopErrorTrackingAdapter';
+
+// The store is also re-exported from the noop adapter for tests; in
+// production code prefer to thread it through your DI container.
+const { userContextStore } = observabilityNoopInternals;
+
+app.use((req, res, next) => {
+  // Best-effort identity binding — works whether or not auth has resolved.
+  userContextStore.run(
+    { userId: (req as any).user?.uid, props: undefined },
+    () => next(),
+  );
+});
+```
+
+After this middleware is in place, anywhere downstream that calls
+`tracker.setUserContext(uid, { tier })` mutates only the current request's
+ALS scope. When the request finishes, Node tears down the scope and any
+concurrent request running on the same container sees its own untouched
+store.
+
+**Why it's still safe in dev / scripts / unit tests without the middleware:**
+`AsyncLocalStorage.getStore()` returns `undefined` outside any active
+`.run(...)` scope. Our `setUserContext` checks for an active store and
+silently no-ops if none exists — this is intentional. The alternative
+(creating a global fallback store on first call) would re-introduce the
+cross-request leak we're trying to avoid. `captureException` /
+`captureMessage` continue to work; the event simply has no `userId`
+unless one is passed explicitly via `context.userId`.
+
+**Tests** that need to assert user-context propagation enter the scope
+explicitly via the `__test__` export:
+
+```ts
+import { __test__ } from './noopErrorTrackingAdapter';
+__test__.userContextStore.run({}, () => {
+  adapter.setUserContext('uid-1');
+  // assertions here run inside the scope
+});
+```
+
+When swapping in a real adapter (Round 2), Sentry's `Sentry.withScope` /
+GCP Error Reporting's per-request reporter accept the same pattern; the
+ALS-based noop matches their semantics exactly.
+
 ### Files
 
 ```
