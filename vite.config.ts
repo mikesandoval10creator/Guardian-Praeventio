@@ -124,7 +124,6 @@ export default defineConfig(({mode}) => {
           'firebase-admin',
           'cookie-parser',
           'express-session',
-          'connect-session-firebase',
           'pdfkit'
         ]
       }
@@ -135,7 +134,6 @@ export default defineConfig(({mode}) => {
         'firebase-admin',
         'cookie-parser',
         'express-session',
-        'connect-session-firebase',
         'pdfkit'
       ]
     },
