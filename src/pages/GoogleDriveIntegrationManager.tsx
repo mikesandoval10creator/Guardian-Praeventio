@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Cloud, HardDrive, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, FileText, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { getPendingActions, SyncAction } from '../utils/pwa-offline';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { auth } from '../services/firebase';
@@ -78,7 +79,16 @@ export function GoogleDriveIntegrationManager() {
     }, 2000);
   };
 
+  // Gate: Google Workspace add-on (Drive sync, OAuth-backed corporate folders)
+  // ships with the Workspace Native bundle starting at Titanio. The previous
+  // route was wide-open; tighten to `canUseGoogleWorkspaceAddon` so only tiers
+  // that actually include the add-on can authorize OAuth tokens server-side.
   return (
+    <PremiumFeatureGuard
+      feature="canUseGoogleWorkspaceAddon"
+      featureName="Google Workspace Sync"
+      description="La integración con Google Workspace (Drive corporativo, OAuth) está disponible desde el plan Titanio. Actualiza tu plan para sincronizar documentos."
+    >
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
@@ -197,5 +207,6 @@ export function GoogleDriveIntegrationManager() {
         </Card>
       </div>
     </div>
+    </PremiumFeatureGuard>
   );
 }

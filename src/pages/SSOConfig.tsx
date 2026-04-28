@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Key, ShieldAlert, CheckCircle2, AlertTriangle, Building, Users, Lock, ChevronRight } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function SSOConfig() {
   const [isConfiguring, setIsConfiguring] = useState(false);
@@ -16,7 +17,16 @@ export function SSOConfig() {
     }, 3000);
   };
 
+  // Gate: SSO (SAML/OIDC corporate auth) is a Workspace Native add-on shipped
+  // only with Titanio+. The old `isPremium` boolean would have let any paid
+  // tier (e.g. Comité Paritario at CLP $11.990/mes) reach this surface, which
+  // is not what we sell. `canUseSSO` enforces the actual product boundary.
   return (
+    <PremiumFeatureGuard
+      feature="canUseSSO"
+      featureName="Single Sign-On (SSO)"
+      description="SSO corporativo (SAML/OIDC, Azure AD, Okta) está disponible desde el plan Titanio. Actualiza tu plan para configurar autenticación corporativa."
+    >
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
@@ -175,5 +185,6 @@ export function SSOConfig() {
         </Card>
       </div>
     </div>
+    </PremiumFeatureGuard>
   );
 }

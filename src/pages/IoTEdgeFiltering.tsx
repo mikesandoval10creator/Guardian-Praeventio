@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Cpu, Activity, ShieldAlert, AlertTriangle, Wifi, WifiOff, Database, Server, Info } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function IoTEdgeFiltering() {
   const [isConnected, setIsConnected] = useState(false);
@@ -37,7 +38,16 @@ export function IoTEdgeFiltering() {
     return () => clearInterval(interval);
   }, [isConnected]);
 
+  // Gate: MQTT broker integration + edge-filtered telemetry pipeline is API
+  // surface for industrial sensors — falls under the "API privada / Vertex
+  // workspace" bundle starting at Empresarial. Previously ungated, which
+  // would have let any browser session spin up a broker connection.
   return (
+    <PremiumFeatureGuard
+      feature="canUseAPIAccess"
+      featureName="IoT Edge Filtering"
+      description="La integración MQTT con sensores industriales y filtrado en el borde está disponible desde el plan Empresarial (API privada)."
+    >
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
@@ -154,5 +164,6 @@ export function IoTEdgeFiltering() {
         </Card>
       </div>
     </div>
+    </PremiumFeatureGuard>
   );
 }

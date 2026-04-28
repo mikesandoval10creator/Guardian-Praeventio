@@ -98,7 +98,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
   const location = useLocation();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
-  const { isEnterprise } = useSubscription();
+  // Use the granular `canUseExecutiveDashboard` flag (oro+) instead of the
+  // coarse `isEnterprise` (empresarial+). The route guard in
+  // ExecutiveDashboard.tsx already opens at oro+ — the sidebar entry was
+  // hidden until empresarial, which made the route undiscoverable for
+  // ~1500 customers in oro/titanio/diamante. (R4 Round 14.)
+  const { features } = useSubscription();
   const [showSurvivalMode, setShowSurvivalMode] = useState(false);
 
   const menuGroups: MenuGroup[] = [
@@ -111,7 +116,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-emerald-500" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
-        ...(isEnterprise ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
+        ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
     {

@@ -109,6 +109,10 @@ const CHART_COLORS = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8
 export function ExecutiveDashboard() {
   const { nodes, loading } = useUniversalKnowledge();
   const { projects } = useProject();
+  // Tightened: `canAccessExecutiveDashboard` previously aliased `isPremium`
+  // (any paid tier, including Comité Paritario). It is now backed by the
+  // granular `canUseExecutiveDashboard` flag (oro+), so PYMEs on lower paid
+  // tiers see the upgrade block instead of an empty/stunted dashboard.
   const { canAccessExecutiveDashboard, plan } = useSubscription();
   const isOnline = useOnlineStatus();
   const navigate = useNavigate();

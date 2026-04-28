@@ -167,7 +167,19 @@ export function AIHub() {
         </div>
         <div className="grid grid-cols-1 gap-8">
           <BlueprintViewer />
-          <PremiumFeatureGuard featureName="Herramientas de Ingeniería" description="Actualiza a Premium para acceder a la Calculadora Estructural y Diseño de Bodegas Hazmat.">
+          {/*
+            Gate: structural calculations (OGUC/DS43) and Hazmat storage design
+            require certified-engineer-grade tooling. Tightened from the coarse
+            `isPremium` (any paid plan, including the CLP $11.990 Comité tier)
+            to `canUseAdvancedAnalytics` (Diamante+), matching how the feature
+            is described in TIER_FEATURES (Pricing.tsx) and avoiding
+            misrepresentation of professional-grade engineering output.
+          */}
+          <PremiumFeatureGuard
+            feature="canUseAdvancedAnalytics"
+            featureName="Herramientas de Ingeniería Avanzada"
+            description="La Calculadora Estructural y el Diseño de Bodegas Hazmat son herramientas de ingeniería avanzada disponibles desde el plan Diamante."
+          >
             <div className="grid grid-cols-1 gap-8">
               <StructuralCalculator />
               <HazmatStorageDesigner />

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Printer, ShieldAlert, FileText, Download, CheckCircle2, AlertTriangle, FileCheck, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function ImmutableRender() {
   const [isRendering, setIsRendering] = useState(false);
@@ -18,7 +19,16 @@ export function ImmutableRender() {
     }, 3000);
   };
 
+  // Gate: server-side Puppeteer rendering for legal PDFs (notarized hash,
+  // long-form audit reports) is part of the advanced analytics / branded
+  // export bundle. Diamante+ aligns with the Custom Branding flag — same
+  // tier that gets the white-label PDF output.
   return (
+    <PremiumFeatureGuard
+      feature="canUseCustomBranding"
+      featureName="Renderizado Inmutable"
+      description="La generación de PDFs legales con rendering server-side y branding personalizado está disponible desde el plan Diamante."
+    >
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
@@ -172,5 +182,6 @@ export function ImmutableRender() {
         </Card>
       </div>
     </div>
+    </PremiumFeatureGuard>
   );
 }
