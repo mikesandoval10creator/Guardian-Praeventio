@@ -123,11 +123,11 @@ app.use(cookieParser());
 app.use(session({
   secret: sessionSecret || "fallback-secret-do-not-use-in-production",
   resave: false,
-  saveUninitialized: true,
-  cookie: { 
-    secure: process.env.NODE_ENV === "production", 
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production",
     sameSite: 'lax',
-    httpOnly: true 
+    httpOnly: true
   }
 }));
 
@@ -492,7 +492,7 @@ app.get("/auth/google/callback", async (req, res) => {
 });
 
 // Proxy for Google Calendar API to avoid CORS
-app.post("/api/calendar/sync", async (req, res) => {
+app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
   const { tokens, challenges } = req.body;
   
   if (!tokens || !tokens.access_token) {
@@ -536,7 +536,7 @@ app.post("/api/calendar/sync", async (req, res) => {
 });
 
 // Proxy for Google Fit API
-app.post("/api/fitness/sync", async (req, res) => {
+app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
   const { tokens } = req.body;
   
   if (!tokens || !tokens.access_token) {
