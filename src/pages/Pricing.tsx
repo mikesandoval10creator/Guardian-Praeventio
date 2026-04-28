@@ -35,6 +35,7 @@ import {
 } from '../components/pricing/CurrencyToggle';
 
 import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
+import { useInvoicePolling } from '../hooks/useInvoicePolling';
 
 // Payments are processed exclusively through Google Play Billing on the native app.
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
@@ -346,69 +347,182 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
  * Banner that surfaces the Webpay return outcome to the user. The server
  * `/billing/webpay/return` handler redirects to one of three SPA paths:
  *
- *   /pricing/success?invoice=<id>  → invoice 'paid'
+ *   /pricing/success?invoice=<id>  → invoice should reach 'paid'
  *   /pricing/failed?invoice=<id>   → card declined ('rejected')
  *   /pricing/retry?invoice=<id>    → transient failure ('pending-payment')
  *
  * The redirect itself is racy: when another worker holds the idempotency
  * lock the server redirects optimistically to /pricing/success before the
  * actual commit finalizes (server.ts:2385 — "ack and let UI handle eventual
- * consistency"). Eventually the lock-holder writes the real `invoice.status`
- * and the SPA should reflect that.
- *
- * Ideal UX: poll `invoices/{id}` from Firestore until status settles, then
- * render the authoritative result.
- *
- * TODO(billing-status-poll): the `invoices/{id}` Firestore collection is
- * server-only (no rule in firestore.rules → default deny). Polling from
- * the client requires a `GET /api/billing/invoice/:id/status` endpoint
- * (~80 LOC server-side) plus a small client hook. Out of scope for the
- * O6-polish round; tracked in BILLING.md §10.
- *
- * Until then we render a deterministic banner from the URL state and tell
- * the user a confirmation will arrive by email — explicitly NOT promising
- * "your card was charged" on /pricing/success because the redirect can
- * race ahead of the actual commit.
+ * consistency"). To resolve this race we poll the authoritative invoice via
+ * `GET /api/billing/invoice/:id` (Agent D1) and reconcile the URL hint
+ * against the server-side truth. The hook handles 404/5xx as transient
+ * (server may not have written the doc yet) and bails on 401 / unauth.
  */
 function WebpayReturnBanner() {
   const location = useLocation();
-  const status = useMemo<'success' | 'failed' | 'retry' | null>(() => {
-    if (location.pathname.endsWith('/pricing/success')) return 'success';
-    if (location.pathname.endsWith('/pricing/failed')) return 'failed';
-    if (location.pathname.endsWith('/pricing/retry')) return 'retry';
-    return null;
-  }, [location.pathname]);
+  const params = new URLSearchParams(location.search);
+  const invoiceId = params.get('invoice');
+  const pathname = location.pathname;
 
-  const invoiceId = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    return params.get('invoice');
-  }, [location.search]);
+  const initialStatus: 'pending-payment' | 'rejected' | null = pathname.endsWith('/pricing/success')
+    ? 'pending-payment'
+    : pathname.endsWith('/pricing/failed')
+      ? 'rejected'
+      : pathname.endsWith('/pricing/retry')
+        ? 'pending-payment'
+        : null;
 
-  if (!status) return null;
+  // Hook is called unconditionally to satisfy Rules of Hooks; passing
+  // `null` short-circuits to {kind:'idle'} with no fetch.
+  const pollState = useInvoicePolling(initialStatus ? invoiceId : null);
 
-  if (status === 'success') {
+  if (!initialStatus) return null;
+
+  // ────────────────────────────────────────────────────────────────────
+  // Render based on the reconciled state. Priority:
+  //   1. Server says terminal → trust server (settled).
+  //   2. Server unreachable / pending → fall back to URL hint.
+  //   3. Timeout / error → show degraded UX with support contact.
+  // ────────────────────────────────────────────────────────────────────
+
+  if (pollState.kind === 'settled') {
+    const inv = pollState.invoice;
+    const totalLabel = formatCurrency(inv.totals.total, inv.totals.currency);
+
+    if (inv.status === 'paid') {
+      return (
+        <div
+          role="status"
+          className="flex items-start gap-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-5"
+        >
+          <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
+              ¡Pago confirmado!
+            </p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+              Cobramos {totalLabel} a tu tarjeta. Tu suscripción ya está activa
+              {invoiceId ? ` (factura ${invoiceId})` : ''}. Te enviamos la
+              boleta electrónica al correo registrado.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (inv.status === 'rejected' || inv.status === 'cancelled') {
+      const reason =
+        inv.rejectionReason ??
+        (inv.status === 'cancelled'
+          ? 'La transacción fue cancelada antes de completarse.'
+          : 'Tu tarjeta no autorizó el cargo.');
+      return (
+        <div
+          role="alert"
+          className="flex items-start gap-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-2xl p-5"
+        >
+          <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-red-900 dark:text-red-300 text-sm">
+              El pago fue rechazado
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+              {reason}
+              {invoiceId ? ` (factura ${invoiceId})` : ''} Puedes intentar con
+              otro medio de pago seleccionando el plan de nuevo.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (inv.status === 'refunded') {
+      return (
+        <div
+          role="status"
+          className="flex items-start gap-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5"
+        >
+          <RefreshCw className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">
+              Reembolso procesado
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
+              Devolvimos {totalLabel} a tu medio de pago original
+              {invoiceId ? ` (factura ${invoiceId})` : ''}. El abono puede
+              tardar 1-2 días hábiles según tu banco.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Settled with a non-terminal status — shouldn't happen given the
+    // default settleStatuses, but render the pending UX defensively.
+  }
+
+  if (pollState.kind === 'timeout') {
     return (
       <div
-        role="status"
-        className="flex items-start gap-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-5"
+        role="alert"
+        className="flex items-start gap-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5"
       >
-        <Loader2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5 animate-spin" />
+        <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
         <div>
-          <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
-            Procesando tu pago…
+          <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
+            Tu pago tarda más de lo normal
           </p>
-          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-            Recibimos la respuesta de Webpay
-            {invoiceId ? ` para la factura ${invoiceId}` : ''}. La confirmación
-            final puede tardar unos segundos. Te enviaremos un email cuando se
-            complete; mientras tanto puedes recargar esta página.
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+            No pudimos confirmar el estado de tu transacción
+            {invoiceId ? ` (factura ${invoiceId})` : ''} dentro del tiempo
+            esperado. Si el cargo aparece en tu cartola pero la suscripción no
+            se activó, contáctanos a{' '}
+            <a
+              href="mailto:soporte@praeventio.net"
+              className="underline font-semibold"
+            >
+              soporte@praeventio.net
+            </a>
+            .
           </p>
         </div>
       </div>
     );
   }
 
-  if (status === 'failed') {
+  if (pollState.kind === 'error') {
+    return (
+      <div
+        role="alert"
+        className="flex items-start gap-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 rounded-2xl p-5"
+      >
+        <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+        <div>
+          <p className="font-bold text-red-900 dark:text-red-300 text-sm">
+            No pudimos verificar tu pago
+          </p>
+          <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+            Recibimos la respuesta de Webpay
+            {invoiceId ? ` para la factura ${invoiceId}` : ''} pero no pudimos
+            confirmarla. Por favor escríbenos a{' '}
+            <a
+              href="mailto:soporte@praeventio.net"
+              className="underline font-semibold"
+            >
+              soporte@praeventio.net
+            </a>{' '}
+            y revisaremos tu transacción.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // idle / loading — also covers the URL-only fallback while the first
+  // poll is in flight. Diverge copy by URL hint so /failed and /retry
+  // don't show a green spinner.
+  if (initialStatus === 'rejected') {
     return (
       <div
         role="alert"
@@ -421,30 +535,51 @@ function WebpayReturnBanner() {
           </p>
           <p className="text-xs text-red-700 dark:text-red-400 mt-1">
             Tu tarjeta no autorizó el cargo
-            {invoiceId ? ` (factura ${invoiceId})` : ''}. Puedes intentar con
-            otro medio de pago seleccionando el plan de nuevo.
+            {invoiceId ? ` (factura ${invoiceId})` : ''}. Estamos verificando
+            el estado final con Webpay…
           </p>
         </div>
       </div>
     );
   }
 
-  // status === 'retry' — transient infra failure, same card can retry.
+  if (pathname.endsWith('/pricing/retry')) {
+    return (
+      <div
+        role="alert"
+        className="flex items-start gap-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5"
+      >
+        <RefreshCw className="w-6 h-6 text-amber-500 shrink-0 mt-0.5 animate-spin" />
+        <div>
+          <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
+            Reintenta el pago
+          </p>
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+            Tuvimos un problema temporal procesando tu pago
+            {invoiceId ? ` (factura ${invoiceId})` : ''}. Verificando estado
+            con el banco — selecciona el plan de nuevo si la factura sigue
+            pendiente.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // /pricing/success while still loading — hopeful spinner.
   return (
     <div
-      role="alert"
-      className="flex items-start gap-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-5"
+      role="status"
+      className="flex items-start gap-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-5"
     >
-      <RefreshCw className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
+      <Loader2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5 animate-spin" />
       <div>
-        <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
-          Reintenta el pago
+        <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
+          Procesando pago…
         </p>
-        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-          Tuvimos un problema temporal procesando tu pago
-          {invoiceId ? ` (factura ${invoiceId})` : ''}. La factura sigue
-          pendiente — selecciona el plan de nuevo para reintentar con la misma
-          tarjeta.
+        <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+          Recibimos la respuesta de Webpay
+          {invoiceId ? ` para la factura ${invoiceId}` : ''}. Confirmando con
+          el banco — esto suele tardar unos segundos.
         </p>
       </div>
     </div>
