@@ -528,6 +528,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Round 17 (R5) — WebAuthn challenge cache.
+    //
+    // Server-issued, single-use, TTL-bound challenges that close the
+    // R6/R16 MEDIUM finding (client-generated WebAuthn challenges are
+    // replay-vulnerable). Doc id: `${uid}_${challengeId}`. Writes happen
+    // ONLY through src/services/auth/webauthnChallenge.ts via the Admin
+    // SDK (server.ts /api/auth/webauthn/challenge endpoint). The default
+    // -deny block above is enough to lock clients out, but we keep an
+    // explicit deny rule here for clarity (so future agents don't add a
+    // permissive rule by accident).
+    //
+    // ISO 27001 §A.9.4.1 — server-side authentication state must not be
+    // mutable by the authenticating party.
+    match /webauthn_challenges/{docId} {
+      allow read, write: if false; // Server-only via Admin SDK
+    }
+
     // Round 14 (R5) — Curriculum claims (Experience-Validation System).
     //
     // The flagship anti-fraud feature. A worker creates a claim about

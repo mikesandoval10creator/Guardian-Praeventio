@@ -5,29 +5,32 @@ import { Card, Button } from '../components/shared/Card';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { ClaimForm } from '../components/curriculum/ClaimForm';
 import { ClaimStatus } from '../components/curriculum/ClaimStatus';
-import { auth } from '../services/firebase';
+import { auth, db } from '../services/firebase';
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import type { CurriculumClaim } from '../services/curriculum/claims';
+import {
+  aggregateUserHistory,
+  type AuditLogRow,
+  type CurriculumHistoryEvent,
+  type GamificationScoreRow,
+} from '../services/curriculum/historyAggregator';
+import { logger } from '../utils/logger';
 
-// ── Round 16 (R1) — replace hardcoded mock data with honest empty states ──
+// ── Round 17 (R5) — wires the Firestore reads documented in Round 16 (R1).
 //
-// The previous implementation rendered four pre-canned `badges`, four
-// `history` projects, and five `skills` rows so the page would always
-// look "alive" in a demo. A7 flagged this as fake data; the data is
-// neither owned by Firestore nor verifiable. We replaced the inline
-// literals with empty arrays loaded from documented Firestore paths
-// (see below).
+// We now hydrate badges, history, skills and stats from real Firestore
+// rows (subject to firestore.rules). Each source is independently
+// resilient: a missing collection, an empty result, or an outright read
+// error degrades gracefully to an honest "Sin datos aún" empty state
+// instead of fabricating CV content.
 //
-// Schema is intentionally NOT defined here — the corresponding writers
-// (gamification, audit, profile.skills) belong to other agents/rounds.
-// Until those land we surface "Sin datos aún" copy and keep the layout.
-//
-// Firestore paths (read-only here; writers are deferred to Round 17+):
-//   badges  → users/{uid}/awards   (gamification_scores write events)
-//   history → audit_logs filtered by userId + module='safety'
-//   skills  → users/{uid}.profile.skills (manual or training-derived)
-//
-// `stats` is also no longer mocked — we expose 0/1 baselines that stay
-// honest until a derived view lands.
+// Firestore paths used:
+//   badges  → users/{uid}/awards            (subcollection)
+//   history → audit_logs WHERE userId == uid + safety/training/curriculum/
+//             gamification action prefixes (filtered + ordered + limit 20
+//             via the pure aggregator at services/curriculum/historyAggregator.ts)
+//   skills  → users/{uid}.profile.skills    (array field on user doc)
+//   stats   → derived (level/xp from gamification_scores; counts from audit_logs)
 
 interface CurriculumBadge {
   id: string;
@@ -35,15 +38,6 @@ interface CurriculumBadge {
   description: string;
   icon: string;
   color: string;
-}
-
-interface CurriculumHistoryEntry {
-  id: string;
-  project: string;
-  role: string;
-  duration: string;
-  incidentFree: boolean;
-  date: string;
 }
 
 interface CurriculumSkill {
@@ -55,6 +49,45 @@ interface CurriculumSkill {
   color: string;
 }
 
+// Map an audit-log action to a human-readable history entry. Pure UI
+// projection — keeps the Spanish-CL copy out of the aggregator.
+function describeEvent(ev: CurriculumHistoryEvent): {
+  project: string;
+  role: string;
+  duration: string;
+  incidentFree: boolean;
+  date: string;
+} {
+  const date = ev.timestamp ? new Date(ev.timestamp as any).toLocaleDateString('es-CL') : '';
+  const action = ev.action;
+  let project = action;
+  let role = ev.module ?? 'Praeventio';
+  let incidentFree = true;
+  if (action.startsWith('training.') && action.endsWith('.completed')) {
+    project = 'Capacitación completada';
+  } else if (action.startsWith('safety.iper.')) {
+    project = 'Evaluación IPER';
+    incidentFree = ((ev.details as any)?.level ?? '') !== 'CRITICO';
+  } else if (action.startsWith('safety.ergonomic.')) {
+    project = 'Evaluación ergonómica';
+    const score = Number((ev.details as any)?.score);
+    incidentFree = !(Number.isFinite(score) && score >= 11);
+  } else if (action.startsWith('safety.report.')) {
+    project = 'Reporte de seguridad';
+  } else if (action.startsWith('curriculum.')) {
+    project = 'Claim verificable';
+  } else if (action.startsWith('gamification.')) {
+    project = 'Logro / medalla';
+  }
+  return { project, role, duration: '', incidentFree, date };
+}
+
+const SKILL_ICONS: Record<string, typeof ShieldCheck> = {
+  safety: ShieldCheck,
+  training: Target,
+  default: Star,
+};
+
 export function PortableCurriculum() {
   const { user } = useFirebase();
 
@@ -64,26 +97,126 @@ export function PortableCurriculum() {
   const [claimsError, setClaimsError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  // ── Round 16 (R1): real-data placeholders. The Firestore reads are
-  // intentionally TODO until R2 publishes the rules + R5 lands the
-  // writers. For now we render empty arrays so the page is honest about
-  // having no history yet rather than fabricating a CV.
-  const [badges] = useState<CurriculumBadge[]>([]);
-  const [history] = useState<CurriculumHistoryEntry[]>([]);
-  const [skills] = useState<CurriculumSkill[]>([]);
-
-  // Stats derived from the (currently empty) collections. Once the
-  // writers land we can compute level from XP, safeHours from audit
-  // logs filtered by `safety.*.completed`, and perfectChecks from
-  // fast-check submissions.
-  const stats = {
+  // ── Round 17 (R5): real Firestore reads (cancelled-flag pattern, mirrors
+  // UserProfileModal.tsx Round 16). Each source degrades independently:
+  // a user with badges but no audit_logs still sees their badges; a user
+  // with audit_logs but no gamification_scores sees a level-1/xp-0 baseline.
+  const [badges, setBadges] = useState<CurriculumBadge[]>([]);
+  const [history, setHistory] = useState<CurriculumHistoryEvent[]>([]);
+  const [skills, setSkills] = useState<CurriculumSkill[]>([]);
+  const [stats, setStats] = useState({
     level: 1,
     xp: 0,
     nextLevelXp: 1000,
     safeHours: 0,
     coursesCompleted: 0,
     perfectChecks: 0,
-  };
+  });
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let cancelled = false;
+    const uid = user.uid;
+    async function loadCurriculum() {
+      // Read each source independently so a single failure (e.g. missing
+      // index, rules denial) doesn't black out the whole page.
+      let auditRows: AuditLogRow[] = [];
+      let gamRows: GamificationScoreRow[] = [];
+      try {
+        const auditQ = query(
+          collection(db, 'audit_logs'),
+          where('userId', '==', uid),
+          limit(200),
+        );
+        const auditSnap = await getDocs(auditQ);
+        auditRows = auditSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      } catch (err) {
+        logger.warn('curriculum_audit_logs_load_failed', {
+          uid,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      try {
+        const gamQ = query(collection(db, 'gamification_scores'), where('userId', '==', uid));
+        const gamSnap = await getDocs(gamQ);
+        gamRows = gamSnap.docs.map((d) => d.data() as any);
+      } catch (err) {
+        logger.warn('curriculum_gamification_load_failed', {
+          uid,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      let awardsList: CurriculumBadge[] = [];
+      try {
+        const awardsSnap = await getDocs(collection(db, 'users', uid, 'awards'));
+        awardsList = awardsSnap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            name: String(data.name ?? data.title ?? 'Medalla'),
+            description: String(data.description ?? ''),
+            icon: String(data.icon ?? '🏅'),
+            color: String(data.color ?? 'bg-amber-500/20 text-amber-500'),
+          };
+        });
+      } catch (err) {
+        logger.warn('curriculum_awards_load_failed', {
+          uid,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      let skillsList: CurriculumSkill[] = [];
+      try {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        const profileSkills = (userSnap.data() as any)?.profile?.skills;
+        if (Array.isArray(profileSkills)) {
+          skillsList = profileSkills
+            .filter((s) => s && typeof s === 'object' && typeof s.name === 'string')
+            .map((s, idx) => {
+              const cat = String(s.category ?? 'default');
+              return {
+                id: String(s.id ?? `skill-${idx}`),
+                name: String(s.name),
+                level: Math.max(0, Number(s.level) || 0),
+                max: Math.max(1, Number(s.max) || 5),
+                icon: SKILL_ICONS[cat] ?? SKILL_ICONS.default,
+                color: String(s.color ?? 'text-indigo-500'),
+              };
+            });
+        }
+      } catch (err) {
+        logger.warn('curriculum_skills_load_failed', {
+          uid,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      if (cancelled) return;
+
+      const aggregated = aggregateUserHistory(auditRows, gamRows);
+      setHistory(aggregated.events);
+      setBadges(awardsList);
+      setSkills(skillsList);
+
+      // nextLevelXp follows the same /1000 ladder as the aggregator.
+      const xp = aggregated.stats.xp;
+      const level = aggregated.stats.level;
+      setStats({
+        level,
+        xp,
+        nextLevelXp: level * 1000,
+        safeHours: 0, // placeholder — wire when audit emits training.*.duration.
+        coursesCompleted: aggregated.stats.completedTrainings,
+        perfectChecks: Math.max(0, aggregated.events.length - aggregated.stats.criticalAssessments),
+      });
+    }
+    loadCurriculum();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   async function fetchClaims() {
     if (!auth.currentUser) return;
@@ -272,49 +405,53 @@ export function PortableCurriculum() {
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {history.map((item, index) => (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="relative group cursor-pointer"
-                  >
-                    {/* Folder Tab */}
-                    <div className="w-1/3 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-t-lg ml-3 transition-colors group-hover:bg-emerald-500/20" />
+                {history.map((event, index) => {
+                  const item = describeEvent(event);
+                  const key = `${event.action}-${event.timestamp ?? index}-${index}`;
+                  return (
+                    <motion.div
+                      key={key}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="relative group cursor-pointer"
+                    >
+                      {/* Folder Tab */}
+                      <div className="w-1/3 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-t-lg ml-3 transition-colors group-hover:bg-emerald-500/20" />
 
-                    {/* Folder Body */}
-                    <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl rounded-tl-none p-5 shadow-sm hover:shadow-md transition-all group-hover:border-emerald-500/30 min-h-[160px] flex flex-col justify-between">
-                      <div>
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-xl ${item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                              <FolderOpen className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h3 className="font-black text-zinc-900 dark:text-white text-sm leading-tight">{item.project}</h3>
-                              <p className="text-xs text-zinc-500 font-medium mt-0.5">{item.role}</p>
+                      {/* Folder Body */}
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl rounded-tl-none p-5 shadow-sm hover:shadow-md transition-all group-hover:border-emerald-500/30 min-h-[160px] flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2.5 rounded-xl ${item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                <FolderOpen className="w-6 h-6" />
+                              </div>
+                              <div>
+                                <h3 className="font-black text-zinc-900 dark:text-white text-sm leading-tight">{item.project}</h3>
+                                <p className="text-xs text-zinc-500 font-medium mt-0.5">{item.role}</p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5" /> {item.duration} ({item.date})
-                          </span>
-                        </div>
-                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider w-fit ${
-                          item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                        }`}>
-                          {item.incidentFree ? <Star className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                          {item.incidentFree ? 'Cero Incidentes' : 'Incidente Menor'}
+                        <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5" /> {item.date || 'Sin fecha'}
+                            </span>
+                          </div>
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider w-fit ${
+                            item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                          }`}>
+                            {item.incidentFree ? <Star className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                            {item.incidentFree ? 'Cero Incidentes' : 'Hallazgo crítico'}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </Card>
