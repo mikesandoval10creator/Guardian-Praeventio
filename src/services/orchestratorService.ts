@@ -148,26 +148,37 @@ const fetchAirQualityLabel = async (lat: number, lon: number): Promise<string | 
   }
 };
 
+/**
+ * Round 18 (R6): honest empty-state fallback.
+ *
+ * Previously this function fabricated numbers (24°C, 55 km/h, AQI
+ * "Moderada", altitude 1200 m, "Faena Minera") whenever the
+ * OPENWEATHER_API_KEY was missing. Round 17 made the success path
+ * truthful (null airQuality / null altitude); the mock fallback was
+ * still lying. Now every field is `null` and `unavailable: true` is
+ * set so the UI renders "Datos no disponibles — verifique
+ * configuración OPENWEATHER_API_KEY" instead of plotting fictional
+ * telemetry that crews could mistake for real readings.
+ *
+ * Numeric/string fields on `WeatherData` are typed non-null for
+ * callers that read them on the success path; the cast at the return
+ * site is intentional and safe because consumers MUST short-circuit
+ * on `unavailable === true` before dereferencing them.
+ */
 const getMockWeatherData = (): WeatherData => {
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  
   return {
-    temp: 24,
-    condition: 'Soleado',
-    humidity: 45,
-    uv: 8,
-    airQuality: 'Moderada',
-    altitude: 1200,
-    location: 'Faena Minera',
-    windSpeed: 55, // Set to 55 to trigger Haki de Observacion Consultivo
-    recommendations: [
-      'Uso obligatorio de bloqueador solar FPS 50+',
-      'Hidratación cada 45 minutos',
-      'Precaución con polvo en suspensión'
-    ],
-    sunrise: todayStart + 7 * 60 * 60 * 1000, // 07:00 AM
-    sunset: todayStart + 20 * 60 * 60 * 1000 // 08:00 PM
+    temp: null as unknown as number,
+    condition: null as unknown as string,
+    humidity: null as unknown as number,
+    uv: null as unknown as number,
+    airQuality: null,
+    altitude: null,
+    location: null as unknown as string,
+    windSpeed: undefined,
+    recommendations: [],
+    sunrise: undefined,
+    sunset: undefined,
+    unavailable: true,
   };
 };
 

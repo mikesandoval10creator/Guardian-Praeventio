@@ -71,6 +71,13 @@ export interface WeatherData {
   windSpeed?: number;
   sunrise?: number;
   sunset?: number;
+  /**
+   * Round 18 (R6): truthful empty-state flag. When `true`, every
+   * numeric/string field is a placeholder (null) and the UI MUST
+   * render "Datos no disponibles — verifique configuración
+   * OPENWEATHER_API_KEY" instead of plotting fictional values.
+   */
+  unavailable?: boolean;
 }
 
 export interface SeismicData {
