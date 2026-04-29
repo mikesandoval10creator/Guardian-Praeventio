@@ -41,6 +41,11 @@ import { mercadoPagoAdapter } from './mercadoPagoAdapter.js';
 import { withIdempotency } from './idempotency.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
 import { logger } from '../../utils/logger.js';
+import {
+  getJwks,
+  type JsonWebKey as MpJsonWebKey,
+  type JsonWebKeySet,
+} from './mpJwksCache.js';
 
 /** Outcome of processing a MercadoPago IPN — maps to invoice statuses. */
 export type MpIpnOutcome = 'paid' | 'rejected' | 'pending';
@@ -150,6 +155,222 @@ export function verifyMercadoPagoIpnSignatureFromBody(
     }
   }
   return false;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Round 19 (A9) — OIDC JWT verification.
+//
+// MercadoPago is migrating IPN authentication from `x-signature` HMAC over
+// the canonical body (Round 18 R6) to an OIDC scheme: each delivery carries
+// `Authorization: Bearer <jwt>` where the JWT is RS256-signed by an MP key
+// published at MP's JWKS endpoint. The HMAC mode is preserved as a fallback
+// (see route handler — precedence: OIDC > HMAC > LEGACY_HMAC_FALLBACK).
+//
+// Implementation: a minimal in-house RS256 verifier that
+//   1. splits the compact JWS,
+//   2. base64url-decodes the protected header to find `kid` + `alg`,
+//   3. resolves the matching JWK from `getJwks()` (refreshes once if `kid`
+//      isn't present in the cached set — keys may have rotated),
+//   4. converts the JWK to a Node KeyObject via `crypto.createPublicKey`
+//      (no third-party dep), and
+//   5. verifies the RS256 signature over `header.payload` and the
+//      iss/aud/exp claims.
+//
+// We deliberately do NOT take a runtime dependency on `jose` here even
+// though the package is present in node_modules transitively. Adding an
+// undeclared import would couple us to whatever hoisting npm does today;
+// R20 is the right round to either declare `jose` in package.json or move
+// to it intentionally. For now, RS256 + JWKS is enough scope to verify
+// MP's signature and surface a clean public API the route can call.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Outcome of an MP OIDC JWT verification. */
+export interface MpOidcVerifyResult {
+  /** True iff every check (signature, iss, aud, exp) passed. */
+  valid: boolean;
+  /** Echoed `payer.email` / `email` claim if present, for audit. */
+  payerEmail?: string;
+  /** JWT `exp` claim (seconds since epoch) if present. */
+  expiresAt?: number;
+  /** Short-form reason on failure — for logs/audit, never user-facing. */
+  reason?: string;
+}
+
+/** Default MP OIDC issuer. Override with MP_OIDC_ISSUER env var. */
+const DEFAULT_MP_ISSUER = 'https://api.mercadopago.com';
+
+/** Decode a base64url string (JWT segments use base64url, not base64). */
+function decodeBase64Url(input: string): Buffer {
+  // Pad to a multiple of 4 and translate URL-safe alphabet to standard.
+  const pad = input.length % 4 === 0 ? '' : '='.repeat(4 - (input.length % 4));
+  return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/') + pad, 'base64');
+}
+
+/** Convert an RSA JWK ({n, e}) to a PEM public key via Node's KeyObject. */
+function jwkToPublicKey(jwk: MpJsonWebKey): crypto.KeyObject {
+  // crypto.createPublicKey accepts a JWK directly since Node 16. We pass
+  // through only the canonical RSA fields to avoid surfacing whatever
+  // extra fields the issuer added (unused params can throw on stricter
+  // backends).
+  return crypto.createPublicKey({
+    key: { kty: jwk.kty, n: jwk.n, e: jwk.e } as unknown as crypto.JsonWebKey,
+    format: 'jwk',
+  });
+}
+
+function findKey(jwks: JsonWebKeySet, kid: string | undefined): MpJsonWebKey | undefined {
+  if (!kid) {
+    // No `kid` advertised — fall back to the first signing key. Spec-wise
+    // this is OK when there's exactly one key, but log a warn so
+    // operators can see when MP elides the kid header.
+    return jwks.keys.find((k) => k.kty === 'RSA');
+  }
+  return jwks.keys.find((k) => k.kid === kid);
+}
+
+/**
+ * Verify a MercadoPago IPN OIDC JWT.
+ *
+ * Inputs:
+ *   • authHeader — the raw `Authorization` header value (e.g.
+ *                  `Bearer eyJhbGc...`). Empty/missing returns valid=false.
+ *
+ * Returns `{valid, payerEmail?, expiresAt?, reason?}`. The route handler
+ * inspects `valid` only; the extra fields are exposed for audit logging
+ * and future routing decisions.
+ *
+ * Env knobs:
+ *   • MP_OIDC_ISSUER  — override the expected `iss` claim.
+ *                       Default: https://api.mercadopago.com
+ *   • MP_OIDC_AUDIENCE — REQUIRED. Our app's MP client id; used to check
+ *                       the `aud` claim. If unset, every JWT is rejected
+ *                       (fail-closed) so a misconfigured deploy can't
+ *                       silently accept everything.
+ *
+ * NOT exported as a default — the route handler imports it by name and
+ * gates the OIDC path on `Authorization: Bearer ...` being present.
+ *
+ * R20 candidate: replace the in-house RS256 verifier with a properly
+ * declared `jose` import once package.json owner adds it.
+ */
+export async function verifyMercadoPagoIpnOidc(
+  authHeader: string | undefined | null,
+): Promise<MpOidcVerifyResult> {
+  if (typeof authHeader !== 'string' || authHeader.length === 0) {
+    return { valid: false, reason: 'missing_auth_header' };
+  }
+  if (!authHeader.startsWith('Bearer ')) {
+    return { valid: false, reason: 'not_bearer_scheme' };
+  }
+  const jwt = authHeader.slice('Bearer '.length).trim();
+  // Defensive caps: a JWT > 8 KB is almost certainly garbage / abuse.
+  if (jwt.length === 0 || jwt.length > 8192) {
+    return { valid: false, reason: 'malformed_jwt' };
+  }
+
+  const parts = jwt.split('.');
+  if (parts.length !== 3) {
+    return { valid: false, reason: 'malformed_jwt' };
+  }
+  const [headerB64, payloadB64, sigB64] = parts;
+
+  let header: { alg?: string; kid?: string; typ?: string };
+  let payload: { iss?: string; aud?: string | string[]; exp?: number; payer?: { email?: string }; email?: string };
+  try {
+    header = JSON.parse(decodeBase64Url(headerB64).toString('utf8'));
+    payload = JSON.parse(decodeBase64Url(payloadB64).toString('utf8'));
+  } catch {
+    return { valid: false, reason: 'malformed_jwt' };
+  }
+
+  if (header.alg !== 'RS256') {
+    // Reject unknown / weak algorithms (alg=none, HS256 attack, etc.). MP's
+    // production webhooks use RS256 — anything else is a red flag.
+    return { valid: false, reason: 'unsupported_alg' };
+  }
+
+  // Resolve the signing key. If the `kid` isn't in the cached JWKS, force
+  // a refresh ONCE and try again — this is the documented refresh-on-401
+  // path from mpJwksCache.ts.
+  let jwks: JsonWebKeySet;
+  try {
+    jwks = await getJwks(false);
+  } catch (err) {
+    return {
+      valid: false,
+      reason: `jwks_fetch_failed:${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  let key = findKey(jwks, header.kid);
+  if (!key) {
+    try {
+      jwks = await getJwks(true);
+      key = findKey(jwks, header.kid);
+    } catch (err) {
+      return {
+        valid: false,
+        reason: `jwks_force_refresh_failed:${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
+  if (!key || !key.n || !key.e) {
+    return { valid: false, reason: 'kid_not_found' };
+  }
+
+  // Verify signature over the signed input `header.payload` (literal bytes).
+  let publicKey: crypto.KeyObject;
+  try {
+    publicKey = jwkToPublicKey(key);
+  } catch {
+    return { valid: false, reason: 'jwk_to_pem_failed' };
+  }
+  const signedInput = Buffer.from(`${headerB64}.${payloadB64}`, 'utf8');
+  const signature = decodeBase64Url(sigB64);
+  let sigOk = false;
+  try {
+    sigOk = crypto.verify('sha256', signedInput, publicKey, signature);
+  } catch {
+    return { valid: false, reason: 'signature_verify_failed' };
+  }
+  if (!sigOk) {
+    return { valid: false, reason: 'signature_mismatch' };
+  }
+
+  // Claims checks — perform AFTER signature so we don't leak which claim
+  // mismatched on an unsigned token.
+  const expectedIssuer = process.env.MP_OIDC_ISSUER || DEFAULT_MP_ISSUER;
+  if (payload.iss !== expectedIssuer) {
+    return { valid: false, reason: 'issuer_mismatch' };
+  }
+
+  const expectedAudience = process.env.MP_OIDC_AUDIENCE;
+  if (!expectedAudience) {
+    // Fail-closed: if operators forgot to set the audience, ALL tokens
+    // would otherwise pass the audience check, which would silently
+    // accept any MP-signed JWT (cross-tenant). Reject and log.
+    logger.warn('mp_oidc_audience_unset', {});
+    return { valid: false, reason: 'audience_not_configured' };
+  }
+  const audOk = Array.isArray(payload.aud)
+    ? payload.aud.includes(expectedAudience)
+    : payload.aud === expectedAudience;
+  if (!audOk) {
+    return { valid: false, reason: 'audience_mismatch' };
+  }
+
+  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+    return { valid: false, reason: 'exp_missing' };
+  }
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (payload.exp <= nowSec) {
+    return { valid: false, reason: 'expired', expiresAt: payload.exp };
+  }
+
+  return {
+    valid: true,
+    payerEmail: payload.payer?.email ?? payload.email,
+    expiresAt: payload.exp,
+  };
 }
 
 // ───────────────────────────────────────────────────────────────────────────

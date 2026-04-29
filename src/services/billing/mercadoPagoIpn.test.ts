@@ -112,9 +112,14 @@ vi.mock('firebase-admin', () => {
 import {
   verifyMercadoPagoIpnSignature,
   verifyMercadoPagoIpnSignatureFromBody,
+  verifyMercadoPagoIpnOidc,
   processMercadoPagoIpn,
 } from './mercadoPagoIpn.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
+import {
+  _resetMpJwksCacheForTests,
+  _setJwksFetcherForTests,
+} from './mpJwksCache.js';
 
 beforeEach(() => {
   mocks.getPaymentMock.mockReset();
@@ -355,5 +360,154 @@ describe('processMercadoPagoIpn', () => {
     await expect(
       processMercadoPagoIpn({ type: 'payment', data: { id: 'pay_err' } }),
     ).rejects.toThrow(/MP/);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Round 19 (A9) — OIDC verify tests
+//
+// Strategy: generate an RSA keypair at module load, install it into the JWKS
+// cache via the test-only fetcher seam, sign a real RS256 JWT against it,
+// and round-trip through `verifyMercadoPagoIpnOidc`. This avoids depending
+// on a transitive `jose` package while still exercising the full crypto
+// path (sign + verify against the same JWK).
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('verifyMercadoPagoIpnOidc', () => {
+  const ISSUER = 'https://api.test.mercadopago.com';
+  const AUDIENCE = 'praeventio-mp-client-id';
+  const KID = 'mp-oidc-test-kid';
+
+  // Generate one keypair for the whole describe block — keygen is slow.
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  });
+  const jwk = publicKey.export({ format: 'jwk' }) as { n: string; e: string; kty: string };
+  const jwks = {
+    keys: [{ kty: 'RSA', kid: KID, alg: 'RS256', use: 'sig', n: jwk.n, e: jwk.e }],
+  };
+
+  function b64url(buf: Buffer | string): string {
+    const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf, 'utf8');
+    return b.toString('base64').replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+  function signJwt(payload: Record<string, unknown>, opts?: { alg?: string; kid?: string | undefined }): string {
+    const header = { alg: opts?.alg ?? 'RS256', typ: 'JWT', ...(opts?.kid !== undefined ? { kid: opts.kid } : { kid: KID }) };
+    const headerB64 = b64url(JSON.stringify(header));
+    const payloadB64 = b64url(JSON.stringify(payload));
+    const signed = `${headerB64}.${payloadB64}`;
+    const sig = crypto.sign('sha256', Buffer.from(signed, 'utf8'), privateKey);
+    return `${signed}.${b64url(sig)}`;
+  }
+
+  beforeEach(() => {
+    _resetMpJwksCacheForTests();
+    _setJwksFetcherForTests(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => jwks,
+    }));
+    process.env.MP_OIDC_ISSUER = ISSUER;
+    process.env.MP_OIDC_AUDIENCE = AUDIENCE;
+  });
+  afterEach(() => {
+    _setJwksFetcherForTests(null);
+    delete process.env.MP_OIDC_ISSUER;
+    delete process.env.MP_OIDC_AUDIENCE;
+  });
+
+  it('rejects a missing or non-Bearer Authorization header', async () => {
+    expect((await verifyMercadoPagoIpnOidc('')).valid).toBe(false);
+    expect((await verifyMercadoPagoIpnOidc(undefined)).valid).toBe(false);
+    expect((await verifyMercadoPagoIpnOidc('Basic abc123')).valid).toBe(false);
+  });
+
+  it('accepts a valid RS256 JWT (signature, iss, aud, exp all OK)', async () => {
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    const jwt = signJwt({ iss: ISSUER, aud: AUDIENCE, exp, payer: { email: 'buyer@example.cl' } });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(true);
+    expect(result.payerEmail).toBe('buyer@example.cl');
+    expect(result.expiresAt).toBe(exp);
+  });
+
+  it('rejects an expired JWT', async () => {
+    const exp = Math.floor(Date.now() / 1000) - 60;
+    const jwt = signJwt({ iss: ISSUER, aud: AUDIENCE, exp });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('expired');
+  });
+
+  it('rejects a JWT with the wrong issuer', async () => {
+    const jwt = signJwt({
+      iss: 'https://evil.example.com',
+      aud: AUDIENCE,
+      exp: Math.floor(Date.now() / 1000) + 600,
+    });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('issuer_mismatch');
+  });
+
+  it('rejects a JWT with the wrong audience', async () => {
+    const jwt = signJwt({ iss: ISSUER, aud: 'someone-else', exp: Math.floor(Date.now() / 1000) + 600 });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('audience_mismatch');
+  });
+
+  it('rejects a JWT with a tampered signature', async () => {
+    const jwt = signJwt({ iss: ISSUER, aud: AUDIENCE, exp: Math.floor(Date.now() / 1000) + 600 });
+    // Flip one byte in the signature segment.
+    const segs = jwt.split('.');
+    const sigBytes = Buffer.from(segs[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    sigBytes[0] = sigBytes[0] ^ 0xff;
+    const tampered = `${segs[0]}.${segs[1]}.${b64url(sigBytes)}`;
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${tampered}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('signature_mismatch');
+  });
+
+  it('rejects an alg=none token even with a real-looking signature', async () => {
+    // Hand-roll a {"alg":"none"} JWT — must NOT pass even if the reduced
+    // signature happens to match anything. Our verifier rejects on alg
+    // before reaching signature checks.
+    const headerB64 = b64url(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+    const payloadB64 = b64url(
+      JSON.stringify({ iss: ISSUER, aud: AUDIENCE, exp: Math.floor(Date.now() / 1000) + 600 }),
+    );
+    const jwt = `${headerB64}.${payloadB64}.`;
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('unsupported_alg');
+  });
+
+  it('refreshes the JWKS once if the kid is unknown, then succeeds', async () => {
+    // Seed the cache with a JWKS that has a different kid, then arrange
+    // the next fetch to return the real jwks. The verifier should call
+    // `getJwks(true)` once after the first miss.
+    const STALE_JWKS = { keys: [{ kty: 'RSA', kid: 'old-kid', n: 'a', e: 'AQAB' }] };
+    let call = 0;
+    _setJwksFetcherForTests(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => (++call === 1 ? STALE_JWKS : jwks),
+    }));
+    _resetMpJwksCacheForTests();
+
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    const jwt = signJwt({ iss: ISSUER, aud: AUDIENCE, exp });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(true);
+    expect(call).toBe(2); // initial + force-refresh
+  });
+
+  it('fails closed when MP_OIDC_AUDIENCE is unset', async () => {
+    delete process.env.MP_OIDC_AUDIENCE;
+    const jwt = signJwt({ iss: ISSUER, aud: AUDIENCE, exp: Math.floor(Date.now() / 1000) + 600 });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${jwt}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('audience_not_configured');
   });
 });

@@ -65,6 +65,7 @@ import {
 } from '../../services/billing/mercadoPagoAdapter.js';
 import {
   verifyMercadoPagoIpnSignatureFromBody,
+  verifyMercadoPagoIpnOidc,
   processMercadoPagoIpn,
 } from '../../services/billing/mercadoPagoIpn.js';
 import {
@@ -852,33 +853,65 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
   }
 });
 
-// POST /api/billing/webhook/mercadopago — Round 18 R2 (deferred from R17).
+// POST /api/billing/webhook/mercadopago — Round 18 R2 (deferred from R17),
+// extended in Round 19 (A9) with OIDC JWT verification.
 //
 // MercadoPago IPN endpoint. Public route (no verifyAuth) — trust comes from
-// the HMAC-SHA256 signature header `x-signature` validated against the
-// MP_IPN_SECRET env var. Body re-fetches the canonical payment state from
-// MP via the adapter, then maps to our invoice outcome and updates the doc.
-// Idempotent on `processed_mp_ipn/{paymentId}` so MP retries don't double-
-// process.
+// signature verification. Two modes are supported in the same handler:
 //
-// Round 18 R6 (R6→R17 MEDIUM #2): the signing input is now the RFC 8785
-// canonical-JSON form of the parsed body (sorted keys, no whitespace,
-// shortest numeric form). Producers MUST canonicalise before HMACing —
-// `verifyMercadoPagoIpnSignatureFromBody` does this internally on the
-// verifier side. `LEGACY_HMAC_FALLBACK=1` env flag opens a one-shot
-// `JSON.stringify` rollback path documented at the helper definition.
+//   Precedence: OIDC > HMAC > LEGACY_HMAC_FALLBACK
+//
+//   1. OIDC (Round 19): if the request carries
+//      `Authorization: Bearer <jwt>`, the JWT is RS256-verified against
+//      MP's JWKS (cached 6h via mpJwksCache.ts). Issuer / audience / exp
+//      are checked. This is MP's go-forward auth scheme.
+//
+//   2. HMAC (Round 18 R6): if no Authorization header is present (or OIDC
+//      verification fails), we fall back to `x-signature` HMAC-SHA256 over
+//      the RFC 8785 canonical-JSON form of the parsed body, validated
+//      against MP_IPN_SECRET.
+//
+//   3. LEGACY_HMAC_FALLBACK=1 (emergency rollback): inside the HMAC path,
+//      `verifyMercadoPagoIpnSignatureFromBody` will additionally accept a
+//      legacy JSON.stringify-signed body. Off by default. Turn back off
+//      ASAP — see the helper definition for the signal we emit on use.
+//
+// All three failure modes return 401. The body still re-fetches canonical
+// payment state from MP via the adapter, idempotent on
+// `processed_mp_ipn/{paymentId}`.
 //
 // MP's production manifest format `ts=<ts>,v1=<hex>` (over
 // id+request-id+ts) remains deferred — see the file-level TODO at the
 // top of mercadoPagoAdapter.ts.
 billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
-  const signature = req.header('x-signature') ?? '';
-  const ok = verifyMercadoPagoIpnSignatureFromBody(
-    req.body ?? {},
-    signature,
-    process.env.MP_IPN_SECRET ?? '',
-  );
-  if (!ok) {
+  const authHeader = req.header('authorization') ?? '';
+  const xSignature = req.header('x-signature') ?? '';
+
+  // Tier 1 (preferred): OIDC JWT in `Authorization: Bearer ...`.
+  let authenticated = false;
+  if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+    const oidc = await verifyMercadoPagoIpnOidc(authHeader);
+    if (oidc.valid) {
+      authenticated = true;
+    } else {
+      // Log the OIDC-side reason for ops, then fall through to HMAC. Note
+      // that we don't outright 401 here — MP could be in the middle of
+      // rolling out OIDC delivery and a sender that legacily sets BOTH
+      // headers should still succeed via HMAC.
+      logger.warn('mp_ipn_oidc_failed', { reason: oidc.reason ?? null });
+    }
+  }
+
+  // Tier 2 (fallback): legacy HMAC over canonical body.
+  if (!authenticated) {
+    authenticated = verifyMercadoPagoIpnSignatureFromBody(
+      req.body ?? {},
+      xSignature,
+      process.env.MP_IPN_SECRET ?? '',
+    );
+  }
+
+  if (!authenticated) {
     return res.status(401).send('Invalid signature');
   }
 

@@ -14,13 +14,20 @@
 //   4. 500 when MP API getPayment() throws
 //   5. 200 ack for non-payment notification types
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import crypto from 'crypto';
 
 import { InMemoryFirestore, fakeFieldValue } from './test-server.js';
-import { verifyMercadoPagoIpnSignatureFromBody } from '../../services/billing/mercadoPagoIpn.js';
+import {
+  verifyMercadoPagoIpnSignatureFromBody,
+  verifyMercadoPagoIpnOidc,
+} from '../../services/billing/mercadoPagoIpn.js';
+import {
+  _resetMpJwksCacheForTests,
+  _setJwksFetcherForTests,
+} from '../../services/billing/mpJwksCache.js';
 import { canonicalize } from '../../server/middleware/canonicalBody.js';
 
 const IPN_SECRET = 'mp-ipn-secret-supertest';
@@ -66,8 +73,22 @@ function buildApp(deps: Deps): Express {
   }
 
   app.post('/api/billing/webhook/mercadopago', async (req, res) => {
-    const signature = req.header('x-signature') ?? '';
-    if (!verifyMercadoPagoIpnSignatureFromBody(req.body ?? {}, signature, IPN_SECRET)) {
+    // Round 19 (A9): mirror production precedence — OIDC > HMAC > LEGACY.
+    const authHeader = req.header('authorization') ?? '';
+    let authenticated = false;
+    if (authHeader && authHeader.toLowerCase().startsWith('bearer ')) {
+      const oidc = await verifyMercadoPagoIpnOidc(authHeader);
+      if (oidc.valid) authenticated = true;
+    }
+    if (!authenticated) {
+      const signature = req.header('x-signature') ?? '';
+      authenticated = verifyMercadoPagoIpnSignatureFromBody(
+        req.body ?? {},
+        signature,
+        IPN_SECRET,
+      );
+    }
+    if (!authenticated) {
       return res.status(401).send('Invalid signature');
     }
 
@@ -246,5 +267,137 @@ describe('POST /api/billing/webhook/mercadopago', () => {
     expect(res.status).toBe(200);
     expect(res.body.outcome).toBe('pending');
     expect(getPayment).not.toHaveBeenCalled();
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// Round 19 (A9) — OIDC supertest cases. Generate an RSA keypair, sign real
+// JWTs, install matching JWKS through the test-only fetcher seam, and
+// exercise the route's OIDC > HMAC fallback precedence.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('POST /api/billing/webhook/mercadopago (OIDC mode)', () => {
+  const ISSUER = 'https://api.test.mercadopago.com';
+  const AUDIENCE = 'praeventio-supertest-client';
+  const KID = 'mp-oidc-supertest-kid';
+
+  // Module-load-time keygen so all tests share the same RSA pair.
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  });
+  const jwk = publicKey.export({ format: 'jwk' }) as { n: string; e: string; kty: string };
+  const jwks = {
+    keys: [{ kty: 'RSA', kid: KID, alg: 'RS256', use: 'sig', n: jwk.n, e: jwk.e }],
+  };
+
+  function b64url(buf: Buffer | string): string {
+    const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf, 'utf8');
+    return b.toString('base64').replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+  function signOidcJwt(payload: Record<string, unknown>): string {
+    const headerB64 = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: KID }));
+    const payloadB64 = b64url(JSON.stringify(payload));
+    const signed = `${headerB64}.${payloadB64}`;
+    const sig = crypto.sign('sha256', Buffer.from(signed, 'utf8'), privateKey);
+    return `${signed}.${b64url(sig)}`;
+  }
+
+  let fs2: InMemoryFirestore;
+
+  beforeEach(() => {
+    fs2 = new InMemoryFirestore();
+    _resetMpJwksCacheForTests();
+    _setJwksFetcherForTests(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => jwks,
+    }));
+    process.env.MP_OIDC_ISSUER = ISSUER;
+    process.env.MP_OIDC_AUDIENCE = AUDIENCE;
+  });
+  afterEach(() => {
+    _setJwksFetcherForTests(null);
+    delete process.env.MP_OIDC_ISSUER;
+    delete process.env.MP_OIDC_AUDIENCE;
+  });
+
+  it('200 + marks invoice paid with a valid OIDC JWT', async () => {
+    const invoiceId = 'inv_mp_oidc_happy';
+    fs2.store.set(`invoices/${invoiceId}`, {
+      id: invoiceId,
+      status: 'pending-payment',
+      paymentMethod: 'mercadopago',
+    });
+    const getPayment = vi.fn(async () => ({
+      status: 'approved',
+      external_reference: invoiceId,
+    }));
+    const app = buildApp({ fs: fs2, getPayment });
+
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    const jwt = signOidcJwt({ iss: ISSUER, aud: AUDIENCE, exp });
+    const body = { type: 'payment', data: { id: 'pay_oidc_happy' } };
+
+    const res = await request(app)
+      .post('/api/billing/webhook/mercadopago')
+      .set('Authorization', `Bearer ${jwt}`)
+      .send(body);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, outcome: 'paid', invoiceId });
+    expect((fs2.store.get(`invoices/${invoiceId}`) as any).status).toBe('paid');
+  });
+
+  it('401 when the OIDC JWT is expired AND no x-signature is present', async () => {
+    const app = buildApp({ fs: fs2, getPayment: vi.fn() });
+    const exp = Math.floor(Date.now() / 1000) - 10;
+    const jwt = signOidcJwt({ iss: ISSUER, aud: AUDIENCE, exp });
+
+    const res = await request(app)
+      .post('/api/billing/webhook/mercadopago')
+      .set('Authorization', `Bearer ${jwt}`)
+      .send({ type: 'payment', data: { id: 'pay_oidc_exp' } });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('401 when the OIDC JWT signature is tampered AND no x-signature is present', async () => {
+    const app = buildApp({ fs: fs2, getPayment: vi.fn() });
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    const jwt = signOidcJwt({ iss: ISSUER, aud: AUDIENCE, exp });
+    const segs = jwt.split('.');
+    const sigBytes = Buffer.from(segs[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    sigBytes[0] = sigBytes[0] ^ 0xff;
+    const tampered = `${segs[0]}.${segs[1]}.${b64url(sigBytes)}`;
+
+    const res = await request(app)
+      .post('/api/billing/webhook/mercadopago')
+      .set('Authorization', `Bearer ${tampered}`)
+      .send({ type: 'payment', data: { id: 'pay_oidc_bad' } });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('200 falling back to HMAC when no Authorization header is present', async () => {
+    const invoiceId = 'inv_mp_hmac_fallback';
+    fs2.store.set(`invoices/${invoiceId}`, {
+      id: invoiceId,
+      status: 'pending-payment',
+      paymentMethod: 'mercadopago',
+    });
+    const getPayment = vi.fn(async () => ({
+      status: 'approved',
+      external_reference: invoiceId,
+    }));
+    const app = buildApp({ fs: fs2, getPayment });
+    const body = { type: 'payment', data: { id: 'pay_hmac_only' } };
+
+    const res = await request(app)
+      .post('/api/billing/webhook/mercadopago')
+      .set('x-signature', signBody(body))
+      .send(body);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, outcome: 'paid', invoiceId });
   });
 });

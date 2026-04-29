@@ -171,6 +171,24 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
   const trainingsCount = aggregated ? aggregated.stats.completedTrainings : null;
   const recentEvents = aggregated ? aggregated.events.slice(0, 5) : [];
 
+  // Round 19 (A9): replace the hardcoded `Insignias = 0` (R6→R18 MEDIUM #3)
+  // with a real count derived from the aggregator's filtered events. We
+  // count audit rows whose `action` starts with `gamification.` — that's
+  // the same prefix `historyAggregator` uses for badge / award / level-up
+  // events emitted by the gamification module. Edge cases:
+  //   • aggregated still null (loading)        → render 0 honestly
+  //                                               (skeleton-equivalent)
+  //   • user genuinely has 0 gamification rows → render 0 honestly
+  //   • aggregated.events caps at 20 entries   → undercount possible for
+  //     a worker with > 20 mixed events. Acceptable for the modal — the
+  //     full curriculum page (PortableCurriculum.tsx) walks the unfiltered
+  //     audit log via the same aggregator and is the authoritative view.
+  //     Round 20 candidate: surface a `gamificationCount` field on
+  //     `AggregatedCurriculumHistory` derived from the FULL `relevant` set
+  //     (not the slice) so this and similar widgets aren't capped.
+  const insigniasCount =
+    aggregated?.events.filter((e) => e.action.startsWith('gamification.')).length ?? 0;
+
   const getRoleClass = (role: string) => {
     switch (role.toLowerCase()) {
       case 'supervisor': return { name: 'Paladín', color: 'from-amber-400 to-orange-600', icon: Shield };
@@ -311,10 +329,13 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
               <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/50 text-center">
                 <Award className="w-5 h-5 text-amber-400 mx-auto mb-1" />
                 {/*
-                  Round 16 (R1) — kept as 0 honestly until awards/badges
-                  collection lands (Round 17+). Previously hardcoded 3.
+                  Round 19 (A9) — Insignias is now a real count derived
+                  from the curriculum aggregator's `gamification.*` audit
+                  events. Was hardcoded `0` since R16. See
+                  `insigniasCount` derivation above for the full filter
+                  + edge-case discussion.
                 */}
-                <div className="text-lg font-black text-white">0</div>
+                <div className="text-lg font-black text-white">{insigniasCount}</div>
                 <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold">Insignias</div>
               </div>
             </div>
