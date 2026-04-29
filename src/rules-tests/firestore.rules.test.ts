@@ -697,4 +697,541 @@ describe('firestore.rules', () => {
       );
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Round 16 R2 — closes the rules gap left by Round 14 R3 + Round 15 R4.
+  //
+  // Six collections were silently default-denied because their `match`
+  // blocks never landed in firestore.rules even though the commit
+  // messages said they had. These tests pin the contract for each:
+  //
+  //   ergonomic_assessments  iper_assessments  gamification_scores
+  //   lighting_audits        uv_exposures      safety_trainings
+  //
+  // Pattern (same 5 cases per collection):
+  //   1. unauthenticated CANNOT create
+  //   2. project member CAN create with valid initial state
+  //   3. non-member CANNOT create
+  //   4. signed doc CANNOT be updated (immutability)
+  //   5. doc CANNOT be deleted
+  //
+  // (gamification_scores swaps "project member" for "same user" since
+  // its envelope is per-user, not per-project; the same 5 shape applies.)
+  // ─────────────────────────────────────────────────────────────────────
+
+  /**
+   * Seed `projects/{projectId}` so isProjectMember() succeeds for `members`.
+   * Bypasses rules because we don't want to assert isValidProject() here —
+   * we just need the membership lookup to resolve. */
+  async function seedProject(projectId: string, members: string[]) {
+    await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects', projectId), {
+        name: 'Project ' + projectId,
+        members,
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        createdBy: members[0] ?? 'creator-uid',
+      });
+    });
+  }
+
+  // ===== ergonomic_assessments ======================================
+  describe('ergonomic_assessments/{id} — append-only post-sign', () => {
+    const PROJECT = 'proj-ergo';
+    const MEMBER = 'ergo-member-uid';
+    const OUTSIDER = 'ergo-outsider-uid';
+
+    function validErgoDoc() {
+      return {
+        workerId: 'w-1',
+        projectId: PROJECT,
+        type: 'REBA',
+        inputs: { neck: 1, trunk: 1 },
+        score: 4,
+        actionLevel: 'medium',
+        computedAt: new Date().toISOString(),
+        metadata: { author: MEMBER, signedAt: null },
+      };
+    }
+
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedProject(PROJECT, [MEMBER]);
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'ergonomic_assessments', 'e1'), validErgoDoc()),
+      );
+    });
+
+    it('allows project member to create with signedAt=null', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'ergonomic_assessments', 'e2'), validErgoDoc()),
+      );
+    });
+
+    it('denies create for non-member', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'ergonomic_assessments', 'e3'), validErgoDoc()),
+      );
+    });
+
+    it('denies update of a signed doc (immutability)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'ergonomic_assessments', 'e4'), {
+          ...validErgoDoc(),
+          metadata: { author: MEMBER, signedAt: new Date().toISOString(), signedBy: MEMBER },
+        });
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'ergonomic_assessments', 'e4'), { score: 99 }),
+      );
+    });
+
+    it('denies delete', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'ergonomic_assessments', 'e5'), validErgoDoc());
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(deleteDoc(doc(w.firestore(), 'ergonomic_assessments', 'e5')));
+    });
+  });
+
+  // ===== iper_assessments ===========================================
+  describe('iper_assessments/{id} — append-only post-sign', () => {
+    const PROJECT = 'proj-iper';
+    const MEMBER = 'iper-member-uid';
+    const OUTSIDER = 'iper-outsider-uid';
+
+    function validIperDoc() {
+      return {
+        description: 'Soldadura altura',
+        projectId: PROJECT,
+        inputs: { probability: 3, severity: 4, controlEffectiveness: 'medium' },
+        probability: 3,
+        severity: 4,
+        level: 'alto',
+        rawScore: 12,
+        controlEffectiveness: 'medium',
+        suggestedControls: ['línea de vida', 'permiso de trabajo'],
+        recommendation: 'Detener actividad y reevaluar.',
+        computedAt: new Date().toISOString(),
+        metadata: { author: MEMBER, signedAt: null },
+      };
+    }
+
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedProject(PROJECT, [MEMBER]);
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'iper_assessments', 'i1'), validIperDoc()),
+      );
+    });
+
+    it('allows project member to create with valid initial state', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'iper_assessments', 'i2'), validIperDoc()),
+      );
+    });
+
+    it('denies create for non-member', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'iper_assessments', 'i3'), validIperDoc()),
+      );
+    });
+
+    it('denies update of a signed doc', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'iper_assessments', 'i4'), {
+          ...validIperDoc(),
+          metadata: { author: MEMBER, signedAt: new Date().toISOString(), signedBy: MEMBER },
+        });
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'iper_assessments', 'i4'), { level: 'bajo' }),
+      );
+    });
+
+    it('denies delete', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'iper_assessments', 'i5'), validIperDoc());
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(deleteDoc(doc(w.firestore(), 'iper_assessments', 'i5')));
+    });
+  });
+
+  // ===== gamification_scores =========================================
+  // Note: deviates from project-member append-only pattern. Per-user; only
+  // the same user can mutate their own score; signedAt is irrelevant here.
+  describe('gamification_scores/{userId_gameId} — per-user mutable', () => {
+    const USER = 'gam-user-uid';
+    const PEER = 'gam-peer-uid';
+
+    function validScore() {
+      return {
+        userId: USER,
+        gameId: 'clawmachine',
+        bestScore: 80,
+        bestTimeSeconds: 30,
+        lastScore: 80,
+        plays: 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: USER,
+      };
+    }
+
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'gamification_scores', `${USER}_clawmachine`), validScore()),
+      );
+    });
+
+    it('allows owner user to create their own row', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      const w = env.authenticatedContext(USER, verifiedToken('worker'));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'gamification_scores', `${USER}_clawmachine`), validScore()),
+      );
+    });
+
+    it('denies create when userId does not match auth.uid', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      await seedUserDoc(PEER, 'worker');
+      const peer = env.authenticatedContext(PEER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(peer.firestore(), 'gamification_scores', `${USER}_clawmachine`), validScore()),
+      );
+    });
+
+    it('denies update of another user\'s score', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      await seedUserDoc(PEER, 'worker');
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'gamification_scores', `${USER}_clawmachine`), validScore());
+      });
+      const peer = env.authenticatedContext(PEER, verifiedToken('worker'));
+      await assertFails(
+        updateDoc(doc(peer.firestore(), 'gamification_scores', `${USER}_clawmachine`), {
+          bestScore: 9999,
+        }),
+      );
+    });
+
+    it('denies delete', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'gamification_scores', `${USER}_clawmachine`), validScore());
+      });
+      const w = env.authenticatedContext(USER, verifiedToken('worker'));
+      await assertFails(
+        deleteDoc(doc(w.firestore(), 'gamification_scores', `${USER}_clawmachine`)),
+      );
+    });
+  });
+
+  // ===== lighting_audits ============================================
+  describe('lighting_audits/{id} — append-only post-sign', () => {
+    const PROJECT = 'proj-light';
+    const MEMBER = 'light-member-uid';
+    const OUTSIDER = 'light-outsider-uid';
+
+    function validAudit() {
+      return {
+        projectId: PROJECT,
+        auditorUid: MEMBER,
+        auditorEmail: `${MEMBER}@example.com`,
+        area: 'Bodega A',
+        taskCategory: 'regular',
+        measurementsLux: [320, 300, 295],
+        averageLux: 305,
+        thresholdLux: 300,
+        compliantAreas: ['Bodega A'],
+        nonCompliantAreas: [],
+        compliant: true,
+        signed: false,
+        metadata: { author: MEMBER, signedAt: null },
+        computedAt: new Date().toISOString(),
+      };
+    }
+
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedProject(PROJECT, [MEMBER]);
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'lighting_audits', 'l1'), validAudit()),
+      );
+    });
+
+    it('allows project member to create', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'lighting_audits', 'l2'), validAudit()),
+      );
+    });
+
+    it('denies create for non-member', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'lighting_audits', 'l3'), validAudit()),
+      );
+    });
+
+    it('denies update of a signed audit', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'l4'), {
+          ...validAudit(),
+          metadata: { author: MEMBER, signedAt: new Date().toISOString(), signedBy: MEMBER },
+          signed: true,
+        });
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'lighting_audits', 'l4'), { averageLux: 999 }),
+      );
+    });
+
+    it('denies delete', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'prevencionista');
+      await seedProject(PROJECT, [MEMBER]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'lighting_audits', 'l5'), validAudit());
+      });
+      const w = env.authenticatedContext(MEMBER, verifiedToken('prevencionista'));
+      await assertFails(deleteDoc(doc(w.firestore(), 'lighting_audits', 'l5')));
+    });
+  });
+
+  // ===== uv_exposures ===============================================
+  describe('uv_exposures/{userId_YYYYMMDD} — per-user-per-day', () => {
+    const USER = 'uv-user-uid';
+    const PEER = 'uv-peer-uid';
+
+    function validExposure() {
+      return {
+        userId: USER,
+        userEmail: `${USER}@example.com`,
+        date: '2026-04-28',
+        projectId: null,
+        peakUv: 7,
+        latitude: -33.45,
+        cloudCover: 20,
+        lastTimeOfDay: 12,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'uv_exposures', `${USER}_2026-04-28`), validExposure()),
+      );
+    });
+
+    it('allows owner to create their own daily doc', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      const w = env.authenticatedContext(USER, verifiedToken('worker'));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'uv_exposures', `${USER}_2026-04-28`), validExposure()),
+      );
+    });
+
+    it('denies create when userId does not match auth.uid', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      await seedUserDoc(PEER, 'worker');
+      const peer = env.authenticatedContext(PEER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(peer.firestore(), 'uv_exposures', `${USER}_2026-04-28`), validExposure()),
+      );
+    });
+
+    it('denies update of another user\'s exposure', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      await seedUserDoc(PEER, 'worker');
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'uv_exposures', `${USER}_2026-04-28`), validExposure());
+      });
+      const peer = env.authenticatedContext(PEER, verifiedToken('worker'));
+      await assertFails(
+        updateDoc(doc(peer.firestore(), 'uv_exposures', `${USER}_2026-04-28`), {
+          peakUv: 11,
+        }),
+      );
+    });
+
+    it('denies delete', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(USER, 'worker');
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'uv_exposures', `${USER}_2026-04-28`), validExposure());
+      });
+      const w = env.authenticatedContext(USER, verifiedToken('worker'));
+      await assertFails(
+        deleteDoc(doc(w.firestore(), 'uv_exposures', `${USER}_2026-04-28`)),
+      );
+    });
+  });
+
+  // ===== safety_trainings ===========================================
+  describe('safety_trainings/{id} — append-only post-sign', () => {
+    const PROJECT = 'proj-train';
+    const TRAINEE = 'train-trainee-uid';
+    const OUTSIDER = 'train-outsider-uid';
+
+    function validTraining() {
+      return {
+        projectId: PROJECT,
+        traineeUid: TRAINEE,
+        traineeEmail: `${TRAINEE}@example.com`,
+        traineeName: 'Trainee',
+        type: 'webxr.height-work',
+        normativa: 'DS 594 Art. 53',
+        verifiedItems: ['arnés', 'línea de vida'],
+        score: 100,
+        completedAt: new Date().toISOString(),
+        metadata: { author: TRAINEE, signedAt: null },
+      };
+    }
+
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedProject(PROJECT, [TRAINEE]);
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'safety_trainings', 't1'), validTraining()),
+      );
+    });
+
+    it('allows trainee to create their own training record', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(TRAINEE, 'worker');
+      await seedProject(PROJECT, [TRAINEE]);
+      const w = env.authenticatedContext(TRAINEE, verifiedToken('worker'));
+      await assertSucceeds(
+        setDoc(doc(w.firestore(), 'safety_trainings', 't2'), validTraining()),
+      );
+    });
+
+    it('denies create when traineeUid does not match auth.uid', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(TRAINEE, 'worker');
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [TRAINEE]);
+      const out = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(out.firestore(), 'safety_trainings', 't3'), validTraining()),
+      );
+    });
+
+    it('denies update of a signed training', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(TRAINEE, 'worker');
+      await seedProject(PROJECT, [TRAINEE]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'safety_trainings', 't4'), {
+          ...validTraining(),
+          metadata: { author: TRAINEE, signedAt: new Date().toISOString(), signedBy: TRAINEE },
+        });
+      });
+      const w = env.authenticatedContext(TRAINEE, verifiedToken('worker'));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'safety_trainings', 't4'), { score: 50 }),
+      );
+    });
+
+    it('denies delete', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(TRAINEE, 'worker');
+      await seedProject(PROJECT, [TRAINEE]);
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(doc(ctx2.firestore(), 'safety_trainings', 't5'), validTraining());
+      });
+      const w = env.authenticatedContext(TRAINEE, verifiedToken('worker'));
+      await assertFails(deleteDoc(doc(w.firestore(), 'safety_trainings', 't5')));
+    });
+  });
 });

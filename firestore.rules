@@ -367,6 +367,167 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ===============================================================
+    // Round 16 R2 — closes Round 14/15 commit-message gaps.
+    //
+    // Round 14 R3 said it added rules for ergonomic_assessments +
+    // iper_assessments and Round 15 R4 added 4 new collections without
+    // any rules at all. ALL of those collections were silently denied
+    // by the default-deny rule below in production. This block restores
+    // the contracts those services rely on.
+    //
+    // Pattern (6 of 7 collections — gamification_scores deviates):
+    //   • create  → project member; metadata.signedAt MUST be null.
+    //   • update  → project member; metadata.signedAt STILL null;
+    //               affectedKeys() restricted to a per-collection
+    //               whitelist. Once signedAt is non-null nothing the
+    //               client can do passes — the doc is append-only per
+    //               Ley 16.744 Art. 76 + ISO 45001 §7.5.3 (Control of
+    //               documented information).
+    //   • delete  → false (immutable; legally-binding history).
+    //   • read    → project member.
+    // ===============================================================
+
+    // Round 16 R2 — closes R14 R3 commit message gap (ergonomic_assessments).
+    // REBA / RULA assessments. Engine: src/services/protocols/ergonomic.ts.
+    // Writer: src/services/safety/ergonomicAssessments.ts.
+    match /ergonomic_assessments/{assessmentId} {
+      allow read: if isValidId(assessmentId) && isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isValidId(assessmentId) && isEmailVerified() &&
+        isProjectMember(incoming().projectId) &&
+        incoming().metadata.signedAt == null &&
+        incoming().type in ['REBA', 'RULA'] &&
+        incoming().score is number &&
+        incoming().workerId is string &&
+        incoming().projectId is string;
+      allow update: if isValidId(assessmentId) && isEmailVerified() &&
+        isProjectMember(resource.data.projectId) &&
+        existing().metadata.signedAt == null &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['metadata', 'inputs', 'score', 'actionLevel']);
+      allow delete: if false; // Ley 16.744 Art. 76 + ISO 45001 §7.5.3
+    }
+
+    // Round 16 R2 — closes R14 R3 commit message gap (iper_assessments).
+    // IPER matrix (P x S). Engine: src/services/protocols/iper.ts.
+    // Writer: src/services/safety/iperAssessments.ts.
+    match /iper_assessments/{assessmentId} {
+      allow read: if isValidId(assessmentId) && isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isValidId(assessmentId) && isEmailVerified() &&
+        isProjectMember(incoming().projectId) &&
+        incoming().metadata.signedAt == null &&
+        incoming().inputs.probability is int &&
+        incoming().inputs.probability >= 1 && incoming().inputs.probability <= 5 &&
+        incoming().inputs.severity is int &&
+        incoming().inputs.severity >= 1 && incoming().inputs.severity <= 5 &&
+        incoming().level is string &&
+        incoming().rawScore is number;
+      allow update: if isValidId(assessmentId) && isEmailVerified() &&
+        isProjectMember(resource.data.projectId) &&
+        existing().metadata.signedAt == null &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'metadata', 'probability', 'severity', 'level',
+          'rawScore', 'controlEffectiveness', 'suggestedControls'
+        ]);
+      allow delete: if false;
+    }
+
+    // Round 16 R2 — closes R15 R4 gap (gamification_scores).
+    // Per-user-per-game best-score doc, id `${uid}_${gameId}` (claw machine,
+    // pool game, etc.). DEVIATES from append-only-after-sign pattern:
+    // gamification scores are mutable — only the same user can write their
+    // own row, and only fields on the whitelist. Source: gameScore.ts.
+    match /gamification_scores/{scoreId} {
+      allow read: if isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
+      allow create: if isEmailVerified() &&
+        incoming().userId == request.auth.uid &&
+        incoming().gameId is string &&
+        incoming().bestScore is number;
+      allow update: if isEmailVerified() &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'bestScore', 'bestTimeSeconds', 'lastScore', 'lastPlayedAt',
+          'plays', 'attempts', 'updatedAt', 'updatedBy'
+        ]);
+      // Per-user historical record — preserve trajectory; do not allow purge.
+      allow delete: if false;
+    }
+
+    // Round 16 R2 — closes R15 R4 gap (lighting_audits).
+    // Lux measurements vs DS 594 Art. 103 thresholds.
+    // Writer: src/pages/LightPollutionAudit.tsx.
+    match /lighting_audits/{auditId} {
+      allow read: if isValidId(auditId) && isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        isProjectMember(resource.data.projectId)
+      );
+      allow create: if isValidId(auditId) && isEmailVerified() &&
+        isProjectMember(incoming().projectId) &&
+        (!('metadata' in incoming()) || incoming().metadata.signedAt == null);
+      allow update: if isValidId(auditId) && isEmailVerified() &&
+        isProjectMember(resource.data.projectId) &&
+        (!('metadata' in existing()) || existing().metadata.signedAt == null) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'metadata', 'measurements', 'measurementsLux', 'averageLux',
+          'compliantAreas', 'nonCompliantAreas', 'compliant', 'signed'
+        ]);
+      allow delete: if false;
+    }
+
+    // Round 16 R2 — closes R15 R4 gap (uv_exposures).
+    // Per-user-per-day UV exposure (DS 594 Art. 110 / Ley 20.096).
+    // Doc id: `${uid}_${YYYY-MM-DD}`. Worker writes their own; merge for
+    // peakUv accumulation. Writer: src/pages/SunTracker.tsx.
+    match /uv_exposures/{exposureId} {
+      allow read: if isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        (resource != null && resource.data.userId == request.auth.uid)
+      );
+      allow create: if isEmailVerified() &&
+        incoming().userId == request.auth.uid &&
+        incoming().date is string;
+      allow update: if isEmailVerified() &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'peakUv', 'cumulativeMinutes', 'alertEmittedAt',
+          'cloudCover', 'latitude', 'lastTimeOfDay', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // Round 16 R2 — closes R15 R4 gap (safety_trainings).
+    // Training-completion record (e.g. webxr.height-work / DS 594 Art. 53).
+    // Writer: src/pages/WebXR.tsx + future training pages.
+    match /safety_trainings/{trainingId} {
+      allow read: if isValidId(trainingId) && isEmailVerified() && (
+        isAdmin() || isSupervisor() ||
+        (resource != null && resource.data.traineeUid == request.auth.uid) ||
+        (resource != null && resource.data.projectId != null &&
+          isProjectMember(resource.data.projectId))
+      );
+      allow create: if isValidId(trainingId) && isEmailVerified() &&
+        incoming().traineeUid == request.auth.uid &&
+        (!('metadata' in incoming()) || incoming().metadata.signedAt == null);
+      allow update: if isValidId(trainingId) && isEmailVerified() &&
+        (existing().traineeUid == request.auth.uid || isAdmin() || isSupervisor()) &&
+        (!('metadata' in existing()) || existing().metadata.signedAt == null) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'metadata', 'completedAt', 'score', 'certificateId',
+          'verifiedItems'
+        ]);
+      allow delete: if false;
+    }
+
     // Round 14 (R5) — Curriculum claims (Experience-Validation System).
     //
     // The flagship anti-fraud feature. A worker creates a claim about
