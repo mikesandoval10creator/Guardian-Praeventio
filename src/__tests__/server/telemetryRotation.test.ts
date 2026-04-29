@@ -28,6 +28,11 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import request from 'supertest';
 import crypto from 'crypto';
 import { InMemoryFirestore, type FakeAuth, fakeFieldValue } from './test-server.js';
+// Round 18 R6: telemetry HMAC input is now RFC 8785 canonical JSON, not
+// JSON.stringify. This test file was updated alongside the production
+// handler so it continues to mirror reality. The handler stub below and
+// the test signers both call `canonicalize`.
+import { canonicalize } from '../../server/middleware/canonicalBody.js';
 
 const ENV_SECRET = 'env-fallback-secret';
 
@@ -116,7 +121,7 @@ function buildApp(deps: Deps): Express {
       const sigHeader = req.header('x-iot-signature') ?? '';
       const expectedHex = crypto
         .createHmac('sha256', perTenantSecret)
-        .update(JSON.stringify(req.body ?? {}))
+        .update(canonicalize(req.body ?? {}))
         .digest('hex');
       const expectedHeader = `sha256=${expectedHex}`;
       if (safeSecretEqual(sigHeader, expectedHeader)) {
@@ -203,7 +208,7 @@ describe('POST /api/telemetry/ingest — per-tenant secret (R17 R1)', () => {
     };
     const sig =
       'sha256=' +
-      crypto.createHmac('sha256', 'tenant-A-secret').update(JSON.stringify(body)).digest('hex');
+      crypto.createHmac('sha256', 'tenant-A-secret').update(canonicalize(body)).digest('hex');
     const res = await request(app)
       .post('/api/telemetry/ingest')
       .set('x-iot-signature', sig)
@@ -342,7 +347,7 @@ describe('POST /api/admin/iot/rotate-secret (R17 R1)', () => {
     };
     const sig =
       'sha256=' +
-      crypto.createHmac('sha256', newSecret).update(JSON.stringify(body)).digest('hex');
+      crypto.createHmac('sha256', newSecret).update(canonicalize(body)).digest('hex');
     const ingestRes = await request(app)
       .post('/api/telemetry/ingest')
       .set('x-iot-signature', sig)

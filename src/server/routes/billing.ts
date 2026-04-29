@@ -64,6 +64,10 @@ import {
   type MercadoPagoCurrencyId,
 } from '../../services/billing/mercadoPagoAdapter.js';
 import {
+  verifyMercadoPagoIpnSignatureFromBody,
+  processMercadoPagoIpn,
+} from '../../services/billing/mercadoPagoIpn.js';
+import {
   MP_CURRENCY_BY_COUNTRY,
   type LatamCurrency,
 } from '../../services/billing/currency.js';
@@ -845,6 +849,47 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
       error: 'MercadoPago checkout failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
     });
+  }
+});
+
+// POST /api/billing/webhook/mercadopago — Round 18 R2 (deferred from R17).
+//
+// MercadoPago IPN endpoint. Public route (no verifyAuth) — trust comes from
+// the HMAC-SHA256 signature header `x-signature` validated against the
+// MP_IPN_SECRET env var. Body re-fetches the canonical payment state from
+// MP via the adapter, then maps to our invoice outcome and updates the doc.
+// Idempotent on `processed_mp_ipn/{paymentId}` so MP retries don't double-
+// process.
+//
+// Round 18 R6 (R6→R17 MEDIUM #2): the signing input is now the RFC 8785
+// canonical-JSON form of the parsed body (sorted keys, no whitespace,
+// shortest numeric form). Producers MUST canonicalise before HMACing —
+// `verifyMercadoPagoIpnSignatureFromBody` does this internally on the
+// verifier side. `LEGACY_HMAC_FALLBACK=1` env flag opens a one-shot
+// `JSON.stringify` rollback path documented at the helper definition.
+//
+// MP's production manifest format `ts=<ts>,v1=<hex>` (over
+// id+request-id+ts) remains deferred — see the file-level TODO at the
+// top of mercadoPagoAdapter.ts.
+billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
+  const signature = req.header('x-signature') ?? '';
+  const ok = verifyMercadoPagoIpnSignatureFromBody(
+    req.body ?? {},
+    signature,
+    process.env.MP_IPN_SECRET ?? '',
+  );
+  if (!ok) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  try {
+    const result = await processMercadoPagoIpn(req.body ?? {});
+    return res.status(200).json({ ok: true, ...result });
+  } catch (err) {
+    logger.error('mp_ipn_processing_failed', err as Error, {
+      paymentId: req.body?.data?.id,
+    });
+    return res.status(500).send('IPN processing failed');
   }
 });
 

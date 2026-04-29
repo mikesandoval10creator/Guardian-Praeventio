@@ -226,3 +226,98 @@ describe('consumeWebAuthnChallenge', () => {
     ).rejects.toThrow(/firestore unreachable/);
   });
 });
+
+// Round 18 R6 — verify-flow integration. These tests exercise the same
+// consume helper as the unit tests above but through a workflow that
+// matches the production POST /webauthn/verify handler:
+//   1. server issues a fresh challenge
+//   2. client base64url-encodes it inside clientDataJSON
+//   3. server decodes the clientDataJSON, recovers the challenge bytes,
+//      and calls consume to atomically mark it used.
+// We don't run the express handler here — that's webauthnVerify.test.ts.
+// We DO check the round-trip survives identity (the bytes the consume
+// helper sees are byte-for-byte the bytes we issued).
+describe('verify-flow round-trip (Round 18 R6)', () => {
+  function encodeClientDataJSON(challenge: Uint8Array): string {
+    const challengeB64u = Buffer.from(challenge)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    const cdj = JSON.stringify({
+      type: 'webauthn.get',
+      challenge: challengeB64u,
+      origin: 'https://app.praeventio.net',
+    });
+    return Buffer.from(cdj, 'utf8').toString('base64');
+  }
+
+  function decodeChallengeFromClientData(clientDataJSON: string): Uint8Array {
+    const cdjStr = Buffer.from(clientDataJSON, 'base64').toString('utf8');
+    const cdj = JSON.parse(cdjStr);
+    const b64 = String(cdj.challenge ?? '').replace(/-/g, '+').replace(/_/g, '/');
+    return new Uint8Array(Buffer.from(b64, 'base64'));
+  }
+
+  it('round-trip: issued challenge → clientDataJSON → recovered bytes are byte-equal', () => {
+    const { challenge } = generateWebAuthnChallenge();
+    const clientDataJSON = encodeClientDataJSON(challenge);
+    const recovered = decodeChallengeFromClientData(clientDataJSON);
+    expect(recovered.byteLength).toBe(32);
+    expect(Array.from(recovered)).toEqual(Array.from(challenge));
+  });
+
+  it('verify happy path: server-issued challenge consumes successfully', async () => {
+    const { db } = makeFakeDb();
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge('uid-V1', challengeId, challenge, db);
+    const clientDataJSON = encodeClientDataJSON(challenge);
+    const recovered = decodeChallengeFromClientData(clientDataJSON);
+    const out = await consumeWebAuthnChallenge('uid-V1', challengeId, recovered, db);
+    expect(out.valid).toBe(true);
+  });
+
+  it('verify replay attempt: second consume of the same clientDataJSON returns reason=consumed', async () => {
+    const { db } = makeFakeDb();
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge('uid-V2', challengeId, challenge, db);
+    const clientDataJSON = encodeClientDataJSON(challenge);
+    const first = await consumeWebAuthnChallenge(
+      'uid-V2',
+      challengeId,
+      decodeChallengeFromClientData(clientDataJSON),
+      db,
+    );
+    expect(first.valid).toBe(true);
+    const second = await consumeWebAuthnChallenge(
+      'uid-V2',
+      challengeId,
+      decodeChallengeFromClientData(clientDataJSON),
+      db,
+    );
+    expect(second).toEqual({ valid: false, reason: 'consumed' });
+  });
+
+  it('verify cross-uid isolation: uid-A challenge cannot be consumed by uid-B', async () => {
+    const { db } = makeFakeDb();
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge('uid-A', challengeId, challenge, db);
+    // uid-B presents the SAME challengeId+challenge bytes — the doc id
+    // is uid-scoped (`{uid}_{challengeId}`) so it lookups under uid-B
+    // returns 'unknown'. Closes the cross-tenant replay vector.
+    const out = await consumeWebAuthnChallenge('uid-B', challengeId, challenge, db);
+    expect(out).toEqual({ valid: false, reason: 'unknown' });
+  });
+
+  it('verify mismatch: clientDataJSON challenge bytes differ from issued → reason=mismatch', async () => {
+    const { db } = makeFakeDb();
+    const { challengeId, challenge: issued } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge('uid-V3', challengeId, issued, db);
+    // Attacker forges a clientDataJSON with a DIFFERENT challenge but
+    // points at the legitimate challengeId.
+    const forged = new Uint8Array(32);
+    crypto.getRandomValues(forged);
+    const out = await consumeWebAuthnChallenge('uid-V3', challengeId, forged, db);
+    expect(out).toEqual({ valid: false, reason: 'mismatch' });
+  });
+});

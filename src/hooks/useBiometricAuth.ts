@@ -1,5 +1,5 @@
 /**
- * Praeventio Guard — useBiometricAuth (Round 16, R3 agent)
+ * Praeventio Guard — useBiometricAuth (Round 18, R6 agent)
  * ─────────────────────────────────────────────────────────────────────
  * 3-tier strategy for biometric / proof-of-presence authentication:
  *
@@ -11,47 +11,54 @@
  *
  *   2. WEB (modern browsers):
  *      Falls back to the WebAuthn `navigator.credentials.get/create`
- *      flow against the local platform authenticator. This is a
- *      proof-of-presence check (challenge generated client-side) — see
- *      ClaimForm.tsx for the reasoning that this is intentional for the
- *      MVP. ISO 27001 server-side challenge is on the Round 17 backlog.
+ *      flow against the local platform authenticator.
  *
  *   3. UNSUPPORTED (older devices / non-secure-context browsers):
- *      Returns `isSupported = false` honestly. Previously the hook had a
- *      `return true` MVP fallback that silently simulated success — that
- *      is now removed. Callers (ClaimForm, RefereeAccept, Settings,
- *      MFASetupModal) already branch on `isSupported` to surface a
- *      "yo declaro" or alternate-method UX.
+ *      Returns `isSupported = false` honestly.
  *
  * Where the user-facing copy lives:
- *   • The `reason` string is supplied by callers (es-CL); see ClaimForm
- *     line ~85 ("Firma tu claim …") and Settings line ~49.
- *   • Native plugin Android dialog title is hard-coded here as
- *     "Verificar identidad". Round 17 TODO — migrate to i18next so
- *     pt-BR / en-US tenants get a localized prompt.
+ *   • The `reason` string is supplied by callers (es-CL).
+ *   • Native plugin prompt copy now goes through i18next (`biometric.*`).
  *
- * Server integration:
- *   • The companion hook `usePushNotifications` posts FCM tokens to
- *     `/api/push/register-token` (server.ts ~line 2843, R5 scope).
- *   • This biometric hook is purely client-side; no server roundtrip
- *     yet. ISO 27001 will require a server-issued challenge — see
- *     Round 17 backlog.
+ * ─────────────────────────────────────────────────────────────────────
+ * THREAT MODEL — Round 18 R6 (closes Round 17 MEDIUM #1)
+ * ─────────────────────────────────────────────────────────────────────
+ * Round 17 R5 shipped the server challenge cache + GET /webauthn/challenge.
+ * The MVP fallback was: if the server is unreachable, use a client-
+ * generated challenge. That left a downgrade vector — an attacker who
+ * could induce a server-unreachable state (DNS poisoning, captive portal,
+ * adversarial proxy) could force the client into the unsafe path and then
+ * replay a captured assertion indefinitely.
  *
- * Round 17 (R5) — server-issued challenges replace client-generated MVP.
- *   Replay-resistant per ISO 27001 §A.9.4.1. The web auth flow now
- *   fetches /api/auth/webauthn/challenge BEFORE invoking WebAuthn; the
- *   server persists the challenge to webauthn_challenges/{uid}_{id}
- *   with a 5-minute TTL and a single-use mark-consumed step. If the
- *   challenge fetch fails (offline, unauthenticated, server down) we
- *   fall back to a client-generated challenge — the MVP behaviour —
- *   and log a warning. This is intentional: a worker on a flaky
- *   construction-site network must still be able to attest a claim;
- *   the auditable replay-safe path is best-effort, not blocking.
+ * Round 18 R6 closes the gap with an explicit `purpose` parameter:
  *
- * TODO Round 18:
- *   • Migrate hard-coded prompt copy to i18next (most strings done).
- *   • POST /api/auth/webauthn/verify endpoint to consume the challenge
- *     server-side after the client returns the signed assertion.
+ *   • `purpose: 'login'` and `purpose: 'claim-signing'` are SENSITIVE
+ *     flows. They MUST use a server-issued challenge AND verify the
+ *     resulting assertion against POST /api/auth/webauthn/verify.
+ *     If the challenge fetch fails OR the verify endpoint rejects the
+ *     assertion, the hook returns `false` IMMEDIATELY. There is no
+ *     client-generated fallback. This closes the downgrade vector.
+ *
+ *   • `purpose: 'enroll-test'` is a low-stakes "check your biometric
+ *     works" flow on the Settings page. It keeps the MVP behavior
+ *     (best-effort server challenge with client-generated fallback)
+ *     because failing the check on a flaky network would otherwise
+ *     gaslight the worker into thinking their fingerprint stopped
+ *     working. The audit trail still records the ceremony.
+ *
+ *   • Default (no `purpose` argument) is treated as `'login'` —
+ *     fail-closed by default so any legacy caller that has not been
+ *     audited yet inherits the safe behavior.
+ *
+ * After WebAuthn assertion succeeds locally (web path), sensitive
+ * flows POST to /api/auth/webauthn/verify with the assertion. The
+ * server consumes the challenge atomically (single-use, TTL-bounded).
+ * Any 401 from /verify maps to `false`.
+ *
+ * TODO Round 19:
+ *   • Integrate @simplewebauthn/server CBOR + signature check on the
+ *     server side (so `auth.webauthn.verified` audit rows attest
+ *     cryptographically, not just challenge-consume).
  *   • Surface BiometryErrorType.biometryLockout to the caller so the UI
  *     can show "intenta nuevamente en X minutos" instead of generic fail.
  */
@@ -66,6 +73,25 @@ import i18n from '../i18n';
 import { auth } from '../services/firebase';
 
 type Platform = 'web' | 'ios' | 'android';
+
+/**
+ * Round 18 R6 — sensitivity classification for the biometric ceremony.
+ *
+ *   • 'login'         — sensitive. Fail-closed if server unreachable.
+ *   • 'claim-signing' — sensitive. Fail-closed (curriculum cosign).
+ *   • 'enroll-test'   — low-stakes. Best-effort (kept for the Settings
+ *                       "verify your biometric works" UX so a flaky
+ *                       construction-site network doesn't fake-fail
+ *                       the worker's fingerprint check).
+ *
+ * The default (no argument) is 'login' — fail-closed by default so
+ * legacy callers inherit the safe behavior.
+ */
+export type BiometricPurpose = 'login' | 'claim-signing' | 'enroll-test';
+
+function isSensitivePurpose(p: BiometricPurpose): boolean {
+  return p === 'login' || p === 'claim-signing';
+}
 
 function detectPlatform(): Platform {
   try {
@@ -87,11 +113,18 @@ function detectWebAuthnSupport(): boolean {
 }
 
 /**
- * Round 17 (R5): fetch a server-issued WebAuthn challenge. Returns null
- * on failure so the caller can fall back to a locally-generated
- * challenge (MVP behaviour). Failures are non-fatal — flaky networks
- * are common on construction-site Wi-Fi and we'd rather degrade to the
- * less-secure local challenge than block the worker entirely.
+ * Round 17 (R5) + Round 18 (R6): fetch a server-issued WebAuthn challenge.
+ *
+ * Returns null on ANY failure (no auth user, network error, non-2xx,
+ * malformed response). Callers MUST decide what to do with null based on
+ * the sensitivity of the flow:
+ *
+ *   • Sensitive flows (login, claim-signing) — return null = abort the
+ *     ceremony. DO NOT fall back to a client-generated challenge; that
+ *     reopens the downgrade attack vector R6 R17 flagged.
+ *   • Low-stakes flows (enroll-test) — null is acceptable and the caller
+ *     may fall back to a client-generated challenge so a flaky network
+ *     doesn't block the worker's fingerprint-check UX.
  */
 async function fetchServerChallenge(): Promise<{ challengeId: string; challenge: Uint8Array } | null> {
   try {
@@ -110,8 +143,55 @@ async function fetchServerChallenge(): Promise<{ challengeId: string; challenge:
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return { challengeId: String(data.challengeId), challenge: bytes };
   } catch (err) {
-    console.warn('[biometric] server challenge fetch failed; falling back to client-generated', err);
+    console.warn('[biometric] server challenge fetch failed', err);
     return null;
+  }
+}
+
+/**
+ * Round 18 (R6): round-trip the WebAuthn assertion through the server-
+ * side /verify endpoint, which atomically consumes the challenge so a
+ * captured assertion cannot be replayed. Returns true if the server
+ * confirms the verification, false on any failure (no user, network
+ * error, non-2xx, malformed response).
+ *
+ * The body shape mirrors the production handler in
+ * src/server/routes/curriculum.ts (POST /api/auth/webauthn/verify).
+ */
+async function verifyAssertionWithServer(
+  challengeId: string,
+  assertion: PublicKeyCredential,
+): Promise<boolean> {
+  try {
+    const user = auth.currentUser;
+    if (!user) return false;
+    const idToken = await user.getIdToken();
+    const response = assertion.response as AuthenticatorAssertionResponse;
+    const toB64 = (buf: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buf);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    };
+    const res = await fetch('/api/auth/webauthn/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        challengeId,
+        clientDataJSON: toB64(response.clientDataJSON),
+        authenticatorData: toB64(response.authenticatorData),
+        signature: toB64(response.signature),
+      }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data?.verified === true;
+  } catch (err) {
+    console.warn('[biometric] /verify roundtrip failed', err);
+    return false;
   }
 }
 
@@ -144,7 +224,10 @@ export const useBiometricAuth = () => {
   }, [isNative]);
 
   const authenticate = useCallback(
-    async (challengeMessage?: string): Promise<boolean> => {
+    async (
+      challengeMessage?: string,
+      purpose: BiometricPurpose = 'login',
+    ): Promise<boolean> => {
       const reason = challengeMessage || i18n.t('biometric.reason_login');
       if (!isSupported) {
         // Honest "unsupported_device" — no silent simulation anymore.
@@ -169,18 +252,30 @@ export const useBiometricAuth = () => {
         }
       }
 
-      // Web — WebAuthn proof-of-presence. Round 17 (R5): prefer the
-      // server-issued challenge (audit-trailed, single-use, 5-min TTL,
-      // ISO 27001 §A.9.4.1). Fall back to a client-generated challenge
-      // when the server is unreachable so the worker can still attest.
+      // Web — WebAuthn proof-of-presence. Round 18 (R6): the
+      // server-issued challenge is MANDATORY for sensitive flows
+      // ('login', 'claim-signing'). On unreachable server we fail-closed
+      // and return false IMMEDIATELY; falling back to a client-generated
+      // challenge would reopen the downgrade attack vector. Low-stakes
+      // 'enroll-test' keeps the MVP best-effort fallback.
+      const sensitive = isSensitivePurpose(purpose);
       try {
         const issued = await fetchServerChallenge();
         let challenge: Uint8Array;
+        let serverIssuedId: string | null = null;
         if (issued) {
           challenge = issued.challenge;
-        } else {
+          serverIssuedId = issued.challengeId;
+        } else if (!sensitive) {
           challenge = new Uint8Array(32);
           crypto.getRandomValues(challenge);
+        } else {
+          // Sensitive + no server challenge → fail-closed.
+          console.warn(
+            '[biometric] sensitive flow aborted: server challenge unreachable (purpose=%s)',
+            purpose,
+          );
+          return false;
         }
 
         const publicKey: PublicKeyCredentialRequestOptions = {
@@ -190,7 +285,22 @@ export const useBiometricAuth = () => {
         };
 
         const credential = await navigator.credentials.get({ publicKey });
-        return !!credential;
+        if (!credential) return false;
+
+        // Sensitive flows MUST round-trip the assertion through /verify
+        // so the server can atomically consume the challenge. A 401
+        // there means replay / expiry / mismatch — fail-closed.
+        if (sensitive && serverIssuedId) {
+          const verified = await verifyAssertionWithServer(
+            serverIssuedId,
+            credential as PublicKeyCredential,
+          );
+          if (!verified) {
+            console.warn('[biometric] /verify rejected — fail-closed');
+            return false;
+          }
+        }
+        return true;
       } catch (error) {
         console.error('Error en autenticación biométrica:', error);
         return false;
