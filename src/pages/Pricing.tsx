@@ -43,6 +43,57 @@ import { logger } from '../utils/logger';
 // Payments are processed exclusively through Google Play Billing on the native app.
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
 
+// LATAM countries we route through MercadoPago. Chile stays on Webpay
+// (existing path); everything else falls back to Stripe (USD). See
+// `src/services/billing/currency.ts` for the currency mapping.
+const MP_COUNTRIES = ['PE', 'AR', 'CO', 'MX', 'BR'] as const;
+type MpCountry = (typeof MP_COUNTRIES)[number];
+const MP_CURRENCY_BY_COUNTRY: Record<MpCountry, 'PEN' | 'ARS' | 'COP' | 'MXN' | 'BRL'> = {
+  PE: 'PEN',
+  AR: 'ARS',
+  CO: 'COP',
+  MX: 'MXN',
+  BR: 'BRL',
+};
+
+/**
+ * Best-effort country detection for the Pricing checkout router.
+ *
+ * Decision matrix (in priority order):
+ *   1. URL override `?country=XX` — explicit, lets QA force a path.
+ *   2. `navigator.language` BCP-47 region tag — fast, no network.
+ *   3. Default to `'CL'` (Chile / Webpay) — our home market.
+ *
+ * We deliberately do NOT use IP geolocation here. The user may be a
+ * Chilean expat traveling abroad; routing by IP would silently switch
+ * them to MP/Stripe and surprise-bill in the wrong currency. The user
+ * can still override via the URL param if they want a different rail.
+ */
+function detectCountry(search: string): string {
+  // 1. URL override.
+  try {
+    const params = new URLSearchParams(search);
+    const override = params.get('country');
+    if (override && /^[A-Z]{2}$/.test(override.toUpperCase())) {
+      return override.toUpperCase();
+    }
+  } catch {
+    // URLSearchParams should never throw on a valid string but defend
+    // against weird `location.search` shapes (e.g., embedded webview).
+  }
+
+  // 2. navigator.language → ISO 3166-1 alpha-2 region.
+  if (typeof navigator !== 'undefined' && typeof navigator.language === 'string') {
+    const match = navigator.language.match(/-([A-Z]{2})/i);
+    if (match) {
+      return match[1].toUpperCase();
+    }
+  }
+
+  // 3. Default Chile.
+  return 'CL';
+}
+
 // Map our canonical TierId → the legacy SubscriptionPlan id used by the existing
 // Google Play Billing handler. Diamante is routed to the B2B sales contact flow
 // (still no Play SKU); titanio is mapped now that the legacy union has been
@@ -697,6 +748,88 @@ function PricingInner() {
     // because the page unloads.
   };
 
+  /**
+   * Web (non-native) MercadoPago checkout for LATAM markets (PE/AR/CO/MX/BR).
+   * Posts to `/api/billing/checkout/mercadopago`; the server creates a
+   * preference and returns the `init_point` URL we redirect the browser
+   * to. The MP-hosted page handles the card form; on success/pending/
+   * failure MP redirects back to `/pricing/success|retry|failed?invoice=`
+   * — same banner UX as Webpay (`WebpayReturnBanner` reads the URL).
+   */
+  const startMercadoPagoCheckout = async (
+    tier: Tier,
+    legacyId: SubscriptionPlan,
+    country: MpCountry,
+  ) => {
+    if (!user) {
+      addNotification({
+        title: 'Inicia sesión primero',
+        message: 'Necesitas iniciar sesión para suscribirte a un plan pago.',
+        type: 'error',
+      });
+      return;
+    }
+
+    setCheckoutError(null);
+    setIsProcessing(legacyId);
+    try {
+      const idToken = await user.getIdToken();
+      const currency = MP_CURRENCY_BY_COUNTRY[country];
+      const response = await fetch('/api/billing/checkout/mercadopago', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          tierKey: tier.id,
+          billingCycle: 'monthly',
+          country,
+          currency,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        throw new Error(
+          (detail as { error?: string }).error ??
+            `Checkout falló con estado ${response.status}`,
+        );
+      }
+
+      const data = (await response.json()) as {
+        preferenceId: string;
+        init_point: string;
+        invoiceId: string;
+      };
+
+      if (!data.init_point) {
+        throw new Error(
+          'MercadoPago no está disponible. Reintentá en unos segundos o contacta a soporte@praeventio.net.',
+        );
+      }
+
+      window.location.href = data.init_point;
+    } catch (err) {
+      logger.error('mercadopago_checkout_start_failed', err, {
+        tierId: tier.id,
+        uid: user.uid,
+        country,
+      });
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No pudimos iniciar el pago. Reintentá en unos segundos.';
+      setCheckoutError(message);
+      addNotification({
+        title: 'Error al iniciar el pago',
+        message: 'No pudimos iniciar el pago. Reintentá en unos segundos.',
+        type: 'error',
+      });
+      setIsProcessing(null);
+    }
+  };
+
   const handlePurchase = async (tier: Tier) => {
     const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
     if (!legacyId) {
@@ -723,9 +856,31 @@ function PricingInner() {
       return;
     }
 
-    // Web (non-native) → Webpay; Native (Capacitor) → Google Play Billing.
+    // Web (non-native) → route by country.
+    //   CL              → Webpay (existing path).
+    //   PE/AR/CO/MX/BR  → MercadoPago.
+    //   else            → Stripe (TODO: wire when international rollout
+    //                     ships; for now show a friendly fallback).
     if (!isNative()) {
-      await startWebpayCheckout(tier, legacyId);
+      const country = detectCountry(window.location.search);
+      if (country === 'CL') {
+        await startWebpayCheckout(tier, legacyId);
+        return;
+      }
+      if ((MP_COUNTRIES as readonly string[]).includes(country)) {
+        await startMercadoPagoCheckout(tier, legacyId, country as MpCountry);
+        return;
+      }
+      // Fallback (Stripe-eligible markets) — Stripe wiring is scaffolded
+      // in `stripeAdapter.ts` but not yet exposed via a public endpoint
+      // for non-CLP currencies. Surface a friendly error pointing to
+      // sales until the international rollout lands.
+      addNotification({
+        title: 'Pagos internacionales',
+        message:
+          'Por el momento sólo procesamos pagos en Chile y mercados LATAM. Escríbenos a ventas@praeventio.cl para tu país.',
+        type: 'info',
+      });
       return;
     }
 
