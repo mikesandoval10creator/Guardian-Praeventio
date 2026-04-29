@@ -1,143 +1,131 @@
-# Impacto — Round 16 (cazar simulaciones + cerrar gaps + foundation refactor)
+# Impacto — Round 17 (push endpoint + billing extract + hardening + cazador R17 + WebAuthn cache)
 
 ## TL;DR
 
-R16 ejecutó cinco frentes en paralelo y cerró todos sin regresiones: (1) un cazador estricto que reemplazó mocks/stubs en código de producción —badges/scores/skills hardcoded, IAP stub, BCN URL falsa, fallback `workerId ?? 'unassigned'`— por estados honestos o lecturas Firestore reales; (2) el gap silencioso de `firestore.rules` que estaba bloqueando los writes append-only declarados en R14/R15, ahora con 7 colecciones reglamentadas y 30 tests nuevos; (3) el cierre del loop mobile con `useBiometricAuth` 3-tier (native/web/unsupported) sobre `@aparajita/capacitor-biometric-auth` y `usePushNotifications` POSTeando al servidor; (4) la fundación documental que el repo no tenía después de 170+ commits (CONTRIBUTING + ARCHITECTURE + RUNBOOK + catálogo de 43 rutas); y (5) un Phase 1 de split de `server.ts` (3242 → 3030 LOC) que extrajo 5 middlewares + 3 routers sin tocar billing/curriculum y sin romper los 79 tests supertest. `tsc -b` exit 0, `npm run build` exit 0, suite 866 → 897 tests (+31).
+R17 ejecutó cinco frentes en paralelo y todos cerraron sin regresiones: (1) `/api/push/register-token` que cierra el gap arrastrado desde R15/R16 más infraestructura Stryker para mutation testing; (2) Phase 2 del split de `server.ts` con extract de billing (-922 LOC en un solo módulo de 1014 LOC con dos routers preservando byte-identical el callback de Webpay); (3) hardening de seguridad que añade `audit_logs` en 6 endpoints, gate de tenant en `/api/coach/chat` y HMAC per-tenant en `/api/telemetry/ingest`; (4) cazador R17 que reemplazó cinco simulaciones de producción heredadas (AQI real, Mifflin-St Jeor, Wearables sin device, DigitalTwin envelope, Calendar single-day fallback) y evolucionó el modal de Ergonomics con selector de trabajador con búsqueda y recientes; (5) `PortableCurriculum.tsx` cableado a Firestore reads reales con su `historyAggregator` cubierto por tests, cache server-side de WebAuthn challenge resistente a replay y backfill de IDs BCN de cuatro normas chilenas. `tsc -b` exit 0, `vitest` 967 tests (901 pass + 66 skipped), build PWA con 219 entradas precache, `server.ts` 3030 → 2377 LOC neto (-653).
 
 ## Cambios por área
 
-### Cazador de simulaciones (R1, commit `934d242`)
+### Push endpoint + Stryker (R3, commit `993d443`)
 
-El reviewer R6 marcó Ergonomics como BLOCKER y el cazador encontró seis simulaciones más en producción:
+R3 cerró el gap que ya había sido reclamado en R15 y no extraído por la Phase 1 de R16:
 
-- `src/pages/PortableCurriculum.tsx`: arrays hardcoded de badges/history/skills/stats reemplazados por `useState<T[]>([])` con paths Firestore documentados (`users/{uid}/awards`, `audit_logs` filtered, `users/{uid}.profile.skills`). Empty-state honesto: "Sin evaluaciones aún". Wireado real diferido a R17 (depende de un aggregator de gamificación que aún no existe).
-- `src/components/workers/UserProfileModal.tsx`: `safetyScore=95` y `trainingsCount=12` reemplazados por `useEffect` con 2 reads Firestore: `ergonomic_assessments` (last 3, score invertido a 0-100 sobre `actionLevel`) y `audit_logs` filtered por `training.*.completed`. Insignias hardcoded `=3` ahora `0` honesto. 2 certificaciones hardcoded ahora `worker.certifications.map`. Cleanup async via flag `cancelled`.
-- `src/pages/Pricing.tsx`: el stub `__pendingPurchaseToken` (Google Play IAP) removido. Path IAP gateado tras `canUseGooglePlayIAP=false` con copy "Google Play IAP no disponible — usá Webpay/MercadoPago".
-- `src/components/shared/KnowledgeGraph.tsx`: deep-link a la BCN era hardcode `bcn.cl/leychile/consulta/busqueda` que no resolvía a la norma. Ahora si el nodo tiene `metadata.bcnNormaId` arma `bcn.cl/leychile/navegar?idNorma=&idParte=` real; fallback a search URL si no. Backfill de `bcnNormaId` en nodos existentes diferido a R17.
-- `src/components/ergonomics/AddErgonomicsModal.tsx:11`: removido silent fallback `workerId ?? 'unassigned'`. Submit bloquea con "Seleccione un trabajador antes de guardar".
-- **BLOCKER fix `src/pages/Ergonomics.tsx`**: el caller único nunca pasaba `workerId` — el hardening de R14 dejaba la save flow muerta. Agregado dropdown selector con state, botón disabled hasta selección, `workerId` pasado al modal.
-- `src/services/protocols/tmert.ts`: el path `enableExposureAmplifier` era dead-code. Eliminado, -5 tests.
-- `src/services/geminiBackend.ts:analyzeRiskWithAI`: prompt ahora explicita "NO devuelvas criticidad — clasificación legal viene de IPER P×S deterministic". Schema response sin `criticidad`. `Diagnostico.tsx` consumer ajustado. Otros call sites (1290, 2200) diferidos a R18.
+- `src/server/routes/push.ts` (NEW, 89 LOC): `POST /register-token` montado en `/api/push`. Cadena `verifyAuth` + body validation (token 1-512 chars, platform `'ios' | 'android' | 'web'`). Persiste con `arrayUnion` en `users/{uid}.fcmTokens` y `lastTokenRegisteredAt: serverTimestamp`. La fila de auditoría `push.token.registered` registra solo `{ platform }`; el token jamás entra al `audit_logs` porque es material sensible (un token FCM permite suplantar push notifications al device).
+- `src/__tests__/server/push.test.ts` (NEW, 253 LOC, 10 supertest tests): cubre 401×2 (sin auth, token expirado), 400×4 (token vacío, token >512, platform inválida, body roto), 200×3 (happy path, idempotente, multi-token append) y 500×1 (firestore down).
+- `server.ts`: 2 ediciones quirúrgicas — import del router y mount line debajo de `auditRouter`.
 
-R1 documentó en el commit las simulaciones NO atacadas (`orchestratorService` airQuality/altitude, NutritionLog metabolic-rate, WearablesIntegration HRV/circadian, DigitalTwin fallback, Calendar Gantt 3-day) para que R17 las recoja.
+Stryker mutation testing wired:
 
-### Firestore rules gap fix (R2, commit `b4a3f57`)
+- `@stryker-mutator/core@^9.6.1` + `@stryker-mutator/vitest-runner@^9.6.1` instalados.
+- `stryker.conf.json` con 7 mutate targets dirigidos al núcleo de seguridad/legal: REBA, RULA, IPER, PREXOR, TMERT, ergonomic assessments, iper assessments. Coverage `perTest`, thresholds `high=80 / low=60 / break=null` (la corrida queda diferida a R18 para capturar baseline antes de subir el break threshold).
+- `npm run mutation` script + sección "Mutation testing" en `README.md`.
 
-E1 verifier de R15 detectó gap CRITICAL: el commit `1079e48` declaró rules para `ergonomic_assessments` e `iper_assessments` pero el archivo no las tenía. Default-deny estaba bloqueando silenciosamente los writes de los wizards REBA/RULA/IPER de R14. R15 sumó 4 colecciones más sin reglas. R2 cerró las 7 con append-only post-sign donde corresponde y mutability per-user donde no:
+### server.ts split Phase 2 — billing (R2, commit `67290e0`)
 
-- `ergonomic_assessments/{id}`: project member create con `signedAt==null`; update con whitelist `[metadata, inputs, score, actionLevel]`; immutable post-sign; delete denied (Ley 16.744 Art. 76 retención de evaluaciones).
-- `iper_assessments/{id}`: mismo pattern, whitelist incluye `P/S/level/rawScore/controlEffectiveness/suggestedControls`.
-- `gamification_scores/{userId_gameId}`: per-user mutability (NO append-only — los scores son acumulativos por sesión); `userId` immutable; update whitelist limita campos.
-- `lighting_audits/{id}`: DS 594 Art. 103 (lux thresholds), append-only post-sign con `metadata.signedAt` o `signed:true` como gates.
-- `uv_exposures/{userId_YYYYMMDD}`: per-user, no requiere `projectId`; el worker puede escribir su propio día; merge whitelist `peakUv/cumulative/alertEmittedAt`.
-- `safety_trainings/{id}`: pattern `traineeUid` (no requiere `projectId` — WebXR self-training); admin/supervisor pueden read/update.
-- `curriculum_claims/{claimId}`: VERIFICADO — ya estaba correcto desde R14 R5. El commit message de `1079e48` mintió sobre ergonomic+iper, no sobre curriculum.
+R2 cumplió la Phase 2 del plan de refactor del R5 R16. `server.ts` quedó en 2097 LOC tras el extract (sumándose luego los +280 LOC del hardening de R1), neto 2377.
 
-7 composite indexes agregados a `firestore.indexes.json`. 30 nuevos rules tests en `src/rules-tests/firestore.rules.test.ts` (5 × 6 nuevas colecciones; curriculum ya tenía 12). Auto-skip pattern preservado cuando emulator no está disponible.
+- `src/server/routes/billing.ts` (NEW, 1014 LOC) usa **dos routers** para preservar el path de Webpay byte-identical (Transbank exige callback en `/billing/webpay/return` sin prefix `/api`):
+  - `billingApiRouter` montado en `/api/billing` con seis rutas: `POST /verify` (Google Play RTDN), `POST /checkout` (Webpay), `POST /checkout/mercadopago` (LATAM), `GET /invoice/:id` (polling), `POST /invoice/:id/mark-paid` (admin) y `POST /webhook` (RTDN).
+  - `billingWebpayRouter` montado en `/billing` con `GET /webpay/return` únicamente.
+- Helpers privados al módulo movidos limpios: `playAuth`/`playDeveloperApi`, `BillingTier`/`resolveBillingTier`, `OVERAGE_CLP_PER_*`, `VALID_PAYMENT_METHODS`, `MP_VALID_TUPLES`, `MP_UNIT_PRICE_USD_MULTIPLIER`, `redirectFor`/`histogramOutcomeFor`. Imports compartidos siguen viviendo en `src/services/billing/*`: `buildInvoice`, familia `webpayAdapter`, `stripeAdapter`, `withIdempotency`, `recordWebpayReturnLatency`, `mercadoPagoAdapter`, `MP_CURRENCY_BY_COUNTRY`. `acquireWebpayIdempotencyLock`/`finalizeWebpayIdempotencyLock` ya vivían en `src/services/billing/webpayAdapter.ts` desde R12, así que no hizo falta crear un shared module.
+- Non-regression crítica: 26/26 tests de billing y 89/89 de supertest preservados.
 
-### Push + biometric client-side wiring (R3, commit `86f8ebb`)
+Phase 3 documentada en commit body: extracts pendientes son curriculum (~400 LOC), projects (~250 LOC) y `oauth/google` (~600 LOC). Phase 4 cierra con gemini, ask-guardian y telemetry/ingest. Target post-Phase 5: `server.ts < 1500 LOC` reducido a bootstrap.
 
-R15 había shippeado el FCM adapter server-side y dos endpoints, pero los hooks React fueron "reverted" mid-work y nunca consumieron los endpoints. R3 cerró el loop:
+### Hardening seguridad (R1, commit `542a338`)
 
-- `src/hooks/useBiometricAuth.ts` (rewrite, 267 LOC) con strategy 3-tier:
-  1. **Native** (`Capacitor.getPlatform() in ['ios','android']`): usa `@aparajita/capacitor-biometric-auth.authenticate({ reason, allowDeviceCredential: true, androidTitle: 'Verificar identidad' })` envuelto en try/catch para preservar el contract `Promise<boolean>`.
-  2. **Web**: WebAuthn flow existente.
-  3. **Unsupported**: `{ available: false, reason: 'unsupported_device' }`. Eliminado el `return true` MVP fallback que era simulación silenciosa (un device sin biometría iba a "autenticar" trivialmente).
-- `src/hooks/usePushNotifications.ts` (+159 LOC): tras `PushNotifications.register()` resolve token, hace `POST /api/push/register-token` con Bearer. Hook expone `hasPermission`, `registerForPushNotifications`, `lastRegisteredAt`, `registrationError`. Failures `console.warn` (no crash). Pure helper `registerTokenToServer` extraído para testing.
-- `src/hooks/usePushNotifications.test.ts` (NEW, 6 tests): no_auth, empty_token, happy path, http_401, network_error, id_token_failed.
-- `capacitor.config.ts`: +8 LOC `BiometricAuth` plugin block con `androidBiometryStrength: 'weak'`.
-- `package.json`: `@aparajita/capacitor-biometric-auth@^10.0.0` instalado y persistido (R15 ran install pero NO persistió `package.json` — el paquete aparecía como "extraneous" en `npm ls`).
+R1 cerró las HIGH abiertas por el reviewer R6 R16:
 
-**KNOWN GAP Round 17**: el endpoint `POST /api/push/register-token` NO está en `server.ts`. R15 I5 declaró shippeado pero no entró, y el R5 split Phase 1 no extrajo esa zona. El hook recibe 404 y silencia con `console.warn` — el mirror Firestore a `users/{uid}.fcmToken` sigue funcionando como fallback. Acceptable para ship, P0 R17.
+- `src/server/middleware/auditLog.ts` (NEW, 94 LOC): helper `auditServerEvent` que envuelve `auditService.logAuditAction` en `try/catch` (jamás rompe el request path) y soporta `actorOverride` para flujos no autenticados como `/auth/google/callback` (se recupera `uid` desde `req.session.oauthInitiator`).
+- Seis endpoints incorporan `audit_logs` vía el helper para cumplir ISO 27001 §A.12.4: `/api/oauth/unlink`, `/auth/google/callback`, `/api/calendar/sync`, `/api/coach/chat`, `/api/gamification/points`, `/api/reports/generate-pdf`.
+- `/api/coach/chat`: `assertProjectMemberFromBody` + 400 si falta `projectId`. Cambio breaking documentado: clientes que omitían el campo ahora reciben 400.
+- `/api/telemetry/ingest` reescrito con HMAC-SHA256 per-tenant. Lee `tenants/{tenantId}.iotSecret` vía Admin SDK, valida header `x-iot-signature: sha256=<hex>`, resuelve tenant desde header `x-tenant-id` o `body.tenantId`, fallback al env `IOT_WEBHOOK_SECRET` y compatibilidad con `body.secretKey` legacy por una release con deprecation warning.
+- `POST /api/admin/iot/rotate-secret` (NEW): admin-role gate, genera secret de 32 bytes hex, escribe `tenants/{id}.iotSecret` + `iotSecretRotatedAt`, audit row `admin.iot.secret_rotated`. El secret va solo en la response — un test asserta que NUNCA aparece en `audit_logs`.
+- 23 tests nuevos en tres archivos: `src/__tests__/server/auditCoverage.test.ts` (9 tests, asserta que cada uno de los seis endpoints emite la fila), `src/__tests__/server/coachChatTenant.test.ts` (4 tests, 403 cross-tenant + 400 missing) y `src/__tests__/server/telemetryRotation.test.ts` (10 tests cubriendo HMAC accept/reject, env fallback, las cuatro branches del rotate y la invariante secret-not-in-audit).
 
-### Documentación foundation (R4, commit `ae4e865`)
+Caveat documentado en el commit y reiterado por R6 review: el HMAC usa `JSON.stringify(req.body)` no canónico. Clientes Node funcionan, pero gateways en otros lenguajes con orden de claves distinto fallarán silenciosamente con 401. Round 18 debe migrar a canonical-JSON o documentar el contrato.
 
-E2 forward scout de R15 calculó el time-to-first-PR para un dev nuevo en >2 semanas sin docs. R4 cerró la fundación:
+### Cazador R17 + UX evolución + i18n (R4, commit `0eeac1b`)
 
-- `CONTRIBUTING.md` (312 LOC): setup local, TDD strict, Spanish-CL register, audit log invariant, default-deny rules + 5 tests minimum, how-to add server route, how-to add Gemini action, how-to add safety calculation engine, PR review checklist.
-- `ARCHITECTURE.md` (477 LOC): high-level diagram, module map (frontend/backend/shared/AI), 3 data flows críticos (Webpay/REBA/curriculum), `server.ts` split strategy (Phase 1 R5 done, Phase 2-5 plan), `geminiBackend.ts` split plan (18 modules R18), inventario 30+ Firestore collections, 8-flag tier-gating matrix.
-- `RUNBOOK.md` (334 LOC): emulator local, Cloud Run deploy + rollback, restore from backup, KMS rotation, FCM test send, Sentry triage, on-call placeholder, diagnostic commands.
-- `docs/api-routes.md` (522 LOC): **43 rutas catalogadas** (cifra real, no las "50" que decía R12 README) con `server.ts:line`, auth, body shape, response, error codes, audit log, rate limit, tenant isolation note. Agrupado por dominio.
-- `public/.well-known/pgp-key.asc`: placeholder con rotation procedure para security lead.
-- `README.md`: nueva sección "Quick start for new contributors" + links a 4 nuevos docs + test count badge a 866 (luego 897 con R5).
+R4 atacó las cinco simulaciones que R1 R16 había dejado documentadas como deferred:
 
-R4 además detectó tres findings a la pasada que entraron al backlog R17 como HIGH:
-1. 6 endpoints sin `audit_logs` (oauth/unlink, google/callback, calendar/sync, coach/chat, gamification/points, reports/generate-pdf — ISO 27001 §A.12.4).
-2. `/api/coach/chat` cross-tenant read leak (sin `assertProjectMember`).
-3. `/api/telemetry/ingest` con `IOT_WEBHOOK_SECRET` único compartido (sin rotación per-tenant).
+1. `orchestratorService.airQuality`: fetch real al endpoint Air Pollution de OpenWeatherMap (1-5 → label es-CL). `null` cuando falta key o falla la red. `PredictiveGuard` renderiza `—` con tooltip.
+2. `orchestratorService.altitude`: `null` honesto (no hay todavía API de elevación cableada — Open-Elevation o Google candidatos a R18).
+3. `NutritionLog.metabolic-rate`: fórmula real Mifflin-St Jeor (BMR Male: `10×weight + 6.25×height − 5×age + 5`; Female: `−161`). `src/services/hygiene/metabolicRate.ts` (68 LOC) + 12 tests. `null` cuando el perfil está incompleto y banner amber con CTA "Complete su perfil…".
+4. `WearablesIntegration.{circadian, hrv}`: arrays vacíos + mensaje per-chart "No hay dispositivo emparejado". Se acabaron los charts mock.
+5. `DigitalTwin`: loading + error envelope reales, sin fabricar datos. Empty state "Sin telemetría disponible".
+6. `Calendar` Gantt 3-day fallback: barra single-day amber + "duración no especificada" cuando el evento no tiene `endDate`. Progress default 0 (sin `Math.random()` en ese codepath).
 
-### server.ts split Phase 1 (R5, commit `db5dc20`)
+Modal de Ergonomics evolucionado:
 
-E2 forward scout flagged `server.ts` 3242 LOC + 50 rutas como touch-cost lineal en 3K LOC. R5 ejecutó Phase 1 sin tocar billing/curriculum (preserva el harness supertest de I3 R15 como contract spec):
+- `AddErgonomicsModal` recibe Step 0 nuevo con `<input>` de búsqueda, sección "Trabajadores recientes" (top 5 derivados de `useRiskEngine.nodes` filtrados por `ergonomics` + `signedAt desc`) y full list scrollable.
+- `Ergonomics.tsx`: el page-level select y el botón disabled del fix BLOCKER de R16 fueron revertidos. La selección ahora la posee el modal, que recibe `workers` por prop.
 
-- 8 nuevos módulos en `src/server/` (507 LOC structured):
-  - `middleware/verifyAuth.ts` (37)
-  - `middleware/safeSecretEqual.ts` (34)
-  - `middleware/limiters.ts` (56) — `geminiLimiter` + `invoiceStatusLimiter` + `refereeLimiter`
-  - `middleware/largeBodyJson.ts` (18)
-  - `middleware/assertProjectMemberMiddleware.ts` (95) — wrappers `FromBody`/`FromParam` listos para Phase 2-3
-  - `routes/admin.ts` (131) — `set-role` + `revoke-access`
-  - `routes/health.ts` (40) — `/api/health`
-  - `routes/audit.ts` (96) — `/api/audit-log`
-- `server.ts`: 3242 → 3030 LOC (-212). `UID_REGEX` movido completamente a `routes/admin.ts` (admin-only).
-- Mount-points byte-identical (`app.use("/api", healthRouter)`, `app.use("/api/admin", adminRouter)`, `app.use("/api", auditRouter)`).
-- **CRITICAL non-regression: 79/79 supertest tests siguen pasando**. La harness `test-server.ts` es una mini-app paralela que no importa `server.ts` — preserved como contract spec.
-- Phase 2-5 plan documentado en `admin.ts` header: billing (~700 LOC, 6 routes), curriculum (~350, 4), projects (~400, 5, usará `assertProjectMemberFromParam`), oauth (~350, 4), gemini (~120, 3). Target post Phase 5: `server.ts` <1500 LOC bootstrap-only.
+i18n biometric: 42 strings nuevos (7 keys × 6 locales) cubriendo `biometric.{verify_identity, reason_login, reason_sign_claim, reason_enroll, enroll_title, cancel, unsupported}` en `es`, `es-MX`, `es-PE`, `es-AR`, `pt-BR` y `en`. `useBiometricAuth.ts` invoca `i18next.t()` directo (es un hook sin component context).
 
-### BLOCKER fix orchestrator (`Ergonomics.tsx` workerId)
+`WeatherData.airQuality` y `.altitude` pasan a nullable. `.gitignore` agrega `tsconfig.tsbuildinfo`.
 
-El BLOCKER del reviewer R6 era que el caller `Ergonomics.tsx` nunca pasaba `workerId` al `AddErgonomicsModal`, lo que dejaba la save flow REBA/RULA muerta tras el hardening del modal. Fix pre-commit: dropdown selector de trabajadores con state, botón "Nueva evaluación" disabled hasta selección, `workerId` pasado por prop. La iteración real (selector dentro del modal con search + recent) queda para R17.
+### PortableCurriculum + WebAuthn cache + KG backfill (R5, commit `dadd5fb`)
+
+R5 cableó la página que en R16 había quedado con empty states honestos esperando aggregator:
+
+- `src/pages/PortableCurriculum.tsx`: cuatro reads Firestore reales con `try/catch` independiente y patrón `cancelled`-flag (espejo del fix de UserProfileModal R16): badges desde `users/{uid}/awards`, history desde `audit_logs` filtered por user, skills desde `users/{uid}.profile.skills`, `gamification_scores` agregado. Una falla NO suprime las otras — los empty states "Sin datos aún" se preservan.
+- `src/services/curriculum/historyAggregator.ts` (NEW, 146 LOC) + 13 tests cubriendo límite de 20 filas, conteo de trainings completados, heurística de evaluación crítica, agregación de XP con fallback a esquema legacy, math y caps de niveles, tolerancia a timestamps inválidos.
+
+WebAuthn challenge cache server-side (cierra MEDIUM de R6 R16):
+
+- `src/services/auth/webauthnChallenge.ts` (NEW, 177 LOC): `generateWebAuthnChallenge` (32 bytes random), `storeWebAuthnChallenge` (Firestore con TTL 5 min y `consumed: false`), `consumeWebAuthnChallenge` (atómico vía `runTransaction` — exactly-one-wins en concurrent consume race).
+- 12 tests TDD: entropy, shape de storage, consume válido, reject de expired/consumed/mismatch/unknown, TTL boundary inclusive, race condition concurrente y propagación de errores.
+- `firestore.rules`: bloque deny para `webauthn_challenges` (server-only via Admin SDK).
+- `server.ts`: nuevo `GET /api/auth/webauthn/challenge` (con `verifyAuth`) que retorna `{ challengeId, challenge: base64 }`.
+- `useBiometricAuth.ts`: helper `fetchServerChallenge()` que prefiere el challenge server-issued y cae al client-generated MVP si la red falla. R6 R17 anota esto como MEDIUM #1: para flujos sensibles (firma de claim, login), Round 18 debe ir fail-closed.
+
+KnowledgeGraph BCN backfill:
+
+- `scripts/backfill_bcn_norma_id.cjs` (NEW, 205 LOC): script Node con Admin SDK que lee nodes con `category='legal'` o `type='NORMATIVE'`, hace regex-match sobre títulos/descripciones, mapea cuatro normas chilenas (DS 594 → idNorma 167766, DS 40 → 1041130, DS 54 → 88536, Ley 16.744 → 28650) y batch-actualiza `metadata.bcnNormaId`. Default dry-run, `--live` opt-in, idempotente (skip si `bcnNormaId` ya existe), regex con word boundaries (DS 594 NO matchea DS 5).
 
 ## Métricas
 
-- **`npx tsc -b`**: exit 0 clean.
-- **`npx vitest run`**: 866 (R15) → **897** (+31). Delta atribuible: +30 firestore.rules tests (R2) + 6 push notifications tests (R3) − 5 tmert dead-code path (R1 cleanup).
-- **`npm run build`**: exit 0. PWA mode `generateSW`, precache entries estables.
-- **server.ts LOC**: 3242 → 3030 (−212, −6.5%).
-- **Files**: 37 modificados/creados (+3957/−888 neto).
-- **Commits R16**: 5 (`934d242`, `b4a3f57`, `86f8ebb`, `ae4e865`, `db5dc20`).
-- **Working tree post-push**: clean salvo `tsconfig.tsbuildinfo` untracked (debe ir al `.gitignore` — NIT R6).
+- `tsc -b`: 0 errors.
+- `vitest`: 967 tests, 901 passed + 66 skipped (R16 baseline 897, +70 netos).
+- `npm run build`: PWA con 219 entradas precache.
+- `server.ts`: 3030 LOC (R16) → 2377 LOC (R17), -653 netos. R2 quitó 922 al extraer billing y R1 sumó 280 con el bloque de hardening.
+- `src/server/routes/billing.ts`: 1014 LOC nuevos.
+- `src/server/routes/push.ts`: 89 LOC nuevos.
+- `src/server/middleware/auditLog.ts`: 94 LOC nuevos.
+- `src/services/auth/webauthnChallenge.ts`: 177 LOC nuevos.
+- `src/services/curriculum/historyAggregator.ts`: 146 LOC nuevos.
 
-## Cumulative metrics rondas 12-16
+## Cumulative R12-R17
 
-- **Tests**: 542 (R12) → 705 (R13) → 866 (R15) → **897 (R16)** = +355 nets en 5 rondas.
-- **Commits totales en `main`**: 171 al cierre R16; 27 commits desde inicio de R12.
-- **server.ts**: ~3200 LOC sostenido durante R12-R15; primera baja real en R16 (Phase 1).
-- **Rutas API documentadas**: 0 → 43 (R16 baseline para split Phase 2-5).
-- **firestore.rules collections con tests**: 4 → 11 (R16 +7 fix).
+- Tests: 542 (baseline R12) → 967 (R17) = **+425 netos**.
+- `server.ts`: 3242 (pre-R16) → 2377 (post-R17) = **-865 LOC, ~36% de reducción**.
+- 7 nuevas colecciones con rules append-only firmadas (R16) + 17 LOC adicionales en `firestore.rules` para WebAuthn (R17).
+- R17 cierra los HIGH de R6 R16 (auditoría faltante en seis endpoints + tenant gate en coach + telemetry HMAC) y prepara el camino del Phase 3 del split.
 
-## Round 17 plan priorizado
+## Round 18 plan priorizado
 
-1. **Ergonomics page worker selector evolución**: mover el selector dentro del modal con search + most-recent. Hoy es un dropdown plano arriba del botón.
-2. **`/api/push/register-token` endpoint** (4h): cierra el GAP R15→R16. El hook ya lo POSTea; falta el handler en `server.ts` o en un nuevo `routes/push.ts`. Audit log + rate limit incluidos.
-3. **`/api/coach/chat` `assertProjectMember`**: cross-tenant read leak detectado por R4. Wrapper `assertProjectMemberFromBody` ya listo en `src/server/middleware/`.
-4. **server.ts split Phase 2 — billing routes** (~700 LOC, 6 routes): el más grande, mayor payoff. La harness supertest existente mantiene la non-regression bar.
-5. **Stryker mutation testing setup** sobre safety calcs (ergonomicAssessments + iperAssessments + tmert).
-6. **`PortableCurriculum` wire Firestore reads**: necesita el gamification writers + audit_logs aggregator first.
-7. **6 endpoints add `audit_logs`** (ISO 27001 §A.12.4): oauth/unlink, google/callback, calendar/sync, coach/chat, gamification/points, reports/generate-pdf.
-8. **`/api/telemetry/ingest` per-tenant secret rotation**: hoy un único `IOT_WEBHOOK_SECRET` global.
-9. **Pages > 700 LOC refactor**: Dashboard 911, Telemetry 924, Training 868, Gamification 794.
-10. **Capacitor android/ios native scaffold**: hoy `capacitor.config.ts` declara plugins pero `npx cap add ios/android` no se ha corrido.
+1. **WebAuthn fail-closed para flujos sensibles** (R6 MEDIUM #1): `useBiometricAuth.ts` actualmente cae al MVP client-generated si `/api/auth/webauthn/challenge` falla, lo que abre downgrade attack. Para `claim-signing` y `login` el fallback debe ser bloqueante.
+2. **HMAC canonicalisation real** (R6 MEDIUM #2): migrar `/api/telemetry/ingest` a canonical-JSON (RFC 8785) o documentar contract sha256-of-`x-iot-canonical-payload` que el cliente debe armar. Mientras esté sin resolver, los gateways non-Node fallan 401 silently.
+3. **Calendar `Math.random()` forecast** (R6 MEDIUM #3): R4 lo missed durante el sweep R17. `src/pages/Calendar.tsx:86,94` siguen mutando `weatherData.temp` con `Math.round(Math.random() * 4 - 2)` y `* 6 - 3`. Cambiar a `getForecast` real (orchestratorService) o renderizar `—` cuando no hay forecast multi-día.
+4. **`orchestratorService.getMockWeatherData` → null + unavailable flag** (R6 MEDIUM #4): el fallback aún tiene números fabricados que pueden caer a la UI sin signaling claro.
+5. **Run Stryker baseline + setear break threshold** (chore deferred R17): primer corrida de los 7 mutate targets, capturar score y ajustar `break` en `stryker.conf.json` para que el CI corte regresiones.
+6. **`server.ts` Phase 3** (R2 plan): extracts curriculum (~400 LOC) → projects (~250 LOC) → `oauth/google` (~600 LOC). Decisión de orquestador requerida: ¿secuencial con tres reviewers cortos o paralelo con file-conflict matrix vigilada?
+7. **`POST /api/auth/webauthn/verify`** (R5 follow-up): el consumer del cache de R5 todavía no existe. Sin verify, el challenge generation queda dormant.
+8. **`/api/billing/webhook/mercadopago`** IPN endpoint con OIDC verification: cierra el último callback faltante del extract de billing.
 
-## Round 18+ deferred
+## Round 19+ deferred
 
-- `geminiBackend.ts` split (2666 LOC, 18 modules per `ARCHITECTURE.md` plan).
-- SOC 2 Type I path kickoff (policy framework, SoA, penetration test).
-- Marketplace assets (screenshots, video demo, Play Store banner, ASO copy es-CL/en) — operativo del usuario.
-- 5 simulaciones documentadas por R1 (orchestrator airQuality, NutritionLog metabolic, WearablesIntegration HRV, DigitalTwin fallback, Calendar 3-day Gantt).
-- KnowledgeGraph BCN deep-link backfill: nodos existentes necesitan `bcnNormaId` metadata.
-- WebAuthn challenge replay-vulnerable MVP (5 MEDIUM R6) — server-side challenge cache.
-
-## Revert pattern incident
-
-3 de 5 implementer agents de R16 (R1, R3, R4) reportaron reverts transitorios durante `Write`/`Edit`: archivo modificado, confirmado con `Read`, pero al volver a `Read` minutos después algunas secciones habían vuelto al estado anterior. R3 explicitó que su `useBiometricAuth.ts` rewrite "fue revertido mid-work" en R15 — exactamente la razón por la que el loop FCM/biometric quedó abierto entre R15 y R16. R4 lo notó al regenerar `README.md`. R6 lo flagged en su review.
-
-Recomendación R17+: cada agente corre `git status` post-`Edit`/`Write` y verifica que el archivo aparezca en el diff antes de declarar done; para escrituras >300 LOC preferir `Write` a `Edit` consecutivos. Entrada sugerida en `AUDIT.md`: "Working-tree revert pattern during multi-agent parallel rounds" con reportes R3/R4/R6 como evidencia. Root cause sin identificar (¿filesystem race en Windows? ¿conflict resolution implícito entre agentes paralelos sobre el mismo tree?). El mitigante operativo (verify post-write) cuesta segundos y elimina la clase de issues.
+- Split de `geminiBackend.ts` (2666 LOC) en los 18 modules planeados en `ARCHITECTURE.md`.
+- SOC 2 Type I path kickoff (gap analysis + auditor selection).
+- Marketplace assets (operativo de la persona, no del agente).
+- HR / Mutual / Regulator dashboard como differentiator B2B.
+- `audit_logs` composite index `(userId, timestamp desc)` cuando la escala lo demande (R5 lo dejó marcado).
 
 ## Por qué importa
 
-**La honestidad del cazador**. Praeventio Guard se vende como herramienta de prevención para empleadores chilenos sujetos a Ley 16.744. Un `safetyScore=95` mockeado en `UserProfileModal` no es un detalle de UX — es información que un Comité Paritario, un fiscalizador SUSESO o un perito en juicio laboral consultarían. El `workerId ?? 'unassigned'` silent fallback significaba que evaluaciones REBA/RULA podían entrar a `ergonomic_assessments` sin trabajador real asignado, rompiendo la trazabilidad que el Art. 76 exige. R16 no agregó features; sacó lo que estaba mintiendo.
+R17 marca un cambio cualitativo en la madurez del repo. El push endpoint cierra un loop que llevaba dos rounds en el roadmap pero que cada round se reclamaba como "done" sin que persistiera el código del servidor — el bug era social tanto como técnico, y dejarlo cerrado con 10 supertest tests detiene esa deuda. El extract de billing es el primer split grande que toca un dominio regulado (Transbank/Webpay con callback path byte-identical) y demuestra que la Phase 3 puede atacarse con confianza: si la zona más sensible salió sin romper 26+89 tests, curriculum y projects son tractables.
 
-**El gap silencioso de firestore.rules**. R14 declaró rules para REBA/RULA/IPER pero los commits no las tenían. Cinco semanas de writes default-denied silenciosamente, con tests verdes (los rules-tests dependían de un emulator que en CI hacía auto-skip). Es la peor clase de bug: pasa toda la suite, falla en producción, y el tipo de daño es exactamente sobre los datos que justifican el producto. R2 cerró el gap con 30 tests nuevos y un patrón append-only post-sign que ahora es la convención del repo para evidencia regulatoria.
+El hardening de seguridad cierra los HIGH que el reviewer R6 venía levantando desde R15. `audit_logs` en seis endpoints saca al sistema de la categoría "promete trazabilidad pero no la tiene en producción" y lo pone dentro del scope ISO 27001 §A.12.4. El gate de tenant en `/api/coach/chat` corta una ruta de cross-tenant data leak que la suite de tests previa no estaba cubriendo. La rotación per-tenant de IOT secret más el rotate endpoint resuelven el escenario de compromiso de secret compartido sin pedirle al operador hacer un deploy global.
 
-**La fundación arquitectónica**. `server.ts` Phase 1 split + 4 docs + catálogo de 43 rutas no resuelven ningún ticket de cliente, pero descongelan los próximos 3-4 sprints. Phase 2 (billing, ~700 LOC) ya tiene el plan escrito en `admin.ts` y los wrappers `assertProjectMemberFromBody`/`FromParam` listos. El catálogo de rutas detectó tres bugs de seguridad (audit_logs faltantes, cross-tenant en coach, secret compartido en telemetry) que ningún code review humano habría agarrado al ritmo actual del repo. Documentar es trabajo de seguridad.
+El cazador R17 elimina cinco simulaciones más del path productivo: lo importante no es solo que `null` reemplace a un número fabricado, sino que la UI ahora hace explícito al usuario el estado "dato no disponible" en vez de presentarlo como si fuera mediación calibrada. En un sistema de prevención de riesgos donde una decisión clínica (BMR, AQI, HRV) puede informar conducta, la diferencia entre "no sé" y "creé un valor plausible" es regulatoria. WebAuthn challenge cache convierte la firma de claims de "criptografía teatral" a replay-resistant real con runTransaction atómico — el `consumed:true` exactly-once-wins es la primera vez que el repo tiene una primitiva de seguridad con ese nivel de garantía. La deuda que queda explícita (fail-closed en R18) es ahora pequeña y específica, no estructural.
