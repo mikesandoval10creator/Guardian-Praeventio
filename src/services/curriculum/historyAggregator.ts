@@ -25,6 +25,12 @@
 //   • criticalAssessments = audit rows whose action matches
 //              /^safety\.(iper|ergonomic)\..+/ AND whose
 //              details.level === 'CRITICO' OR details.score >= 11.
+//   • safeHours = Σ details.durationMin for rows whose action starts with
+//              `safety.`, divided by 60. Rounded to one decimal so the UI
+//              shows e.g. "2.5 h" rather than a 17-digit float artifact.
+//              Rows with missing/non-finite/non-positive `durationMin` are
+//              skipped (defensive — a stray 0 or NaN can't shrink the
+//              total). Round 18 (R5) closes the prior placeholder of 0.
 //
 // DESIGN NOTE
 //   Inputs are typed as `unknown[]`-flavoured records so the caller can
@@ -57,6 +63,13 @@ export interface CurriculumStats {
   xp: number;
   completedTrainings: number;
   criticalAssessments: number;
+  /**
+   * Total prevention/safety hours logged by the worker (Σ durationMin / 60).
+   * Sum is restricted to audit_logs whose action begins with `safety.` so
+   * that ad-hoc training/curriculum events don't inflate the metric. Reported
+   * to one decimal place.
+   */
+  safeHours: number;
 }
 
 export interface AggregatedCurriculumHistory {
@@ -67,6 +80,7 @@ export interface AggregatedCurriculumHistory {
 const RELEVANT_ACTION_PREFIX = /^(safety|training|curriculum|gamification)\./;
 const COMPLETED_TRAINING = /^training\..+\.completed$/;
 const CRITICAL_ASSESSMENT = /^safety\.(iper|ergonomic)\..+/;
+const SAFETY_ACTION = /^safety\./;
 const MAX_EVENTS = 20;
 const XP_PER_LEVEL = 1000;
 const MAX_LEVEL = 99;
@@ -134,13 +148,24 @@ export function aggregateUserHistory(
 
   let completedTrainings = 0;
   let criticalAssessments = 0;
+  // safeHours uses the FULL filtered set (not just the `events` slice cap of
+  // 20) — the user's lifetime total shouldn't silently drop the moment they
+  // hit their 21st safety event.
+  let safeMinutes = 0;
   for (const row of relevant) {
     if (COMPLETED_TRAINING.test(row.action)) completedTrainings += 1;
     if (isCriticalAssessment(row)) criticalAssessments += 1;
+    if (SAFETY_ACTION.test(row.action)) {
+      const dm = Number((row.details as Record<string, unknown> | undefined)?.durationMin);
+      if (Number.isFinite(dm) && dm > 0) safeMinutes += dm;
+    }
   }
+  // Round to 1 decimal — keeps totals like "2.5 h" stable across renders
+  // and avoids floating-point noise (0.30000000000000004 etc.).
+  const safeHours = Math.round((safeMinutes / 60) * 10) / 10;
 
   return {
     events,
-    stats: { level, xp, completedTrainings, criticalAssessments },
+    stats: { level, xp, completedTrainings, criticalAssessments, safeHours },
   };
 }

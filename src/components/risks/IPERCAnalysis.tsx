@@ -77,6 +77,12 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
   const { nodes: allNodes } = useUniversalKnowledge();
   const isOnline = useOnlineStatus();
 
+  // Round 18 (R5): record when this analysis flow first mounted so we can
+  // forward `durationMin` into `recordIperAssessment` and from there into
+  // the `safety.iper.matrix.classified` audit log. The aggregator turns the
+  // sum of these into `stats.safeHours`.
+  const [openedAtMs] = useState<number>(() => Date.now());
+
   // The deterministic IPER classification is computed live from the user's
   // P × S inputs. The button "Generar Matriz IPERC" no longer asks the AI
   // for a criticidad — it only asks for control suggestions.
@@ -188,6 +194,9 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
       //    This is the legally-binding record per Ley 16.744 + ISO 45001
       //    §7.5.3 — the LLM-suggested controls are stored alongside but
       //    flagged as suggestions, not classifications.
+      // Round 18 (R5): minutes since the analysis opened, ceil-rounded.
+      const durationMin = Math.max(1, Math.ceil((Date.now() - openedAtMs) / 60_000));
+
       const persisted = await recordIperAssessment({
         description,
         projectId,
@@ -198,6 +207,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
         suggestedControls: aiControls,
         computedAt: new Date().toISOString(),
         authorUid: user.uid,
+        durationMin,
       });
 
       // 1. Create Risk Node mirror in the knowledge graph.

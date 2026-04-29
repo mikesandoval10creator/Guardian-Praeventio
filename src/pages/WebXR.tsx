@@ -69,10 +69,19 @@ function WebXRInner() {
   const [activeMarker, setActiveMarker] = useState<ChecklistItem | null>(null);
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [trainingId, setTrainingId] = useState<string | null>(null);
+  // Round 18 (R5): track when the AR scan started so we can record
+  // `durationMin` on the `training.webxr.completed` audit log. The
+  // curriculum aggregator's `stats.safeHours` only sums `safety.*`
+  // events, but logging the duration here keeps the schema consistent
+  // for future training-vs-safety dashboards.
+  const [scanStartedAtMs, setScanStartedAtMs] = useState<number | null>(null);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
     if (isScanning) {
+      // Round 18 (R5): mark the start of the AR scan exactly once per
+      // "Iniciar AR" → "Detener" cycle. Re-starting resets the clock.
+      setScanStartedAtMs(Date.now());
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
         .then(s => { stream = s; if (videoRef.current) videoRef.current.srcObject = s; })
         .catch(() => setError('No se pudo acceder a la cámara. Verifique los permisos.'));
@@ -104,10 +113,24 @@ function WebXRInner() {
         completedAt: serverTimestamp(),
       });
       setTrainingId(docRef.id);
+      // Round 18 (R5): forward `durationMin` (scan-start → completion).
+      // We only attach it when the scan timer is set; if the user somehow
+      // bypassed the camera flow we omit the field rather than emitting a 0.
+      const auditDetails: Record<string, unknown> = {
+        trainingId: docRef.id,
+        type: 'webxr.height-work',
+        items: verified.size,
+      };
+      if (scanStartedAtMs) {
+        auditDetails.durationMin = Math.max(
+          1,
+          Math.ceil((Date.now() - scanStartedAtMs) / 60_000),
+        );
+      }
       await logAuditAction(
         'training.webxr.completed',
         'training',
-        { trainingId: docRef.id, type: 'webxr.height-work', items: verified.size },
+        auditDetails,
         selectedProject?.id,
       );
       setSavingState('saved');

@@ -49,6 +49,13 @@ export interface ErgonomicAssessmentPayload {
   actionLevel: string | number;
   computedAt: string;
   authorUid: string;
+  /**
+   * Round 18 (R5): how long the prevencionista spent in the wizard, in
+   * minutes (modal-open → submit). Forwarded into the audit log so the
+   * curriculum aggregator can roll it into `stats.safeHours`. Optional —
+   * legacy callers (and tests that don't track time) can omit it.
+   */
+  durationMin?: number;
 }
 
 const COLLECTION = 'ergonomic_assessments';
@@ -123,16 +130,28 @@ export async function recordErgonomicAssessment(
 
   await setDoc(ref, dbPayload);
 
+  // Round 18 (R5): forward `durationMin` only when the caller provided a
+  // finite positive value — guarantees `historyAggregator.safeHours` is
+  // never poisoned by a stray 0/NaN/negative.
+  const auditDetails: Record<string, unknown> = {
+    assessmentId: id,
+    workerId: payload.workerId,
+    type: payload.type,
+    score: payload.score,
+    actionLevel: payload.actionLevel,
+  };
+  if (
+    typeof payload.durationMin === 'number' &&
+    Number.isFinite(payload.durationMin) &&
+    payload.durationMin > 0
+  ) {
+    auditDetails.durationMin = payload.durationMin;
+  }
+
   await logAuditAction(
     `safety.${payload.type.toLowerCase()}.completed`,
     'safety',
-    {
-      assessmentId: id,
-      workerId: payload.workerId,
-      type: payload.type,
-      score: payload.score,
-      actionLevel: payload.actionLevel,
-    },
+    auditDetails,
     payload.projectId,
   );
 

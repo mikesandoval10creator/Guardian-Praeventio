@@ -171,10 +171,22 @@ export function AddErgonomicsModal({
   // Round 17 (R4): worker selector lives inside the modal as Step 0.
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | undefined>(workerIdProp);
   const [workerSearch, setWorkerSearch] = useState('');
+  // Round 18 (R5): track when the wizard opened so we can forward
+  // `durationMin` (open → submit) into the audit log. Reset every time
+  // the modal toggles open.
+  const [openedAtMs, setOpenedAtMs] = useState<number | null>(null);
 
   useEffect(() => {
     setSelectedWorkerId(workerIdProp);
   }, [workerIdProp]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setOpenedAtMs(Date.now());
+    } else {
+      setOpenedAtMs(null);
+    }
+  }, [isOpen]);
 
   const workerId = selectedWorkerId;
 
@@ -309,6 +321,15 @@ export function AddErgonomicsModal({
       const finalScore = 'finalScore' in result ? result.finalScore : 0;
       const actionLevel = result.actionLevel as string | number;
 
+      // Round 18 (R5): minutes spent in the wizard, ceil-rounded so anything
+      // ≥30 s shows up as 1 min in `stats.safeHours`. We pass `undefined`
+      // when the open timestamp is missing (defensive — the effect above
+      // sets it on `isOpen`, but the service-layer guard accepts only
+      // finite positives anyway).
+      const durationMin = openedAtMs
+        ? Math.max(1, Math.ceil((Date.now() - openedAtMs) / 60_000))
+        : undefined;
+
       const persisted = await recordErgonomicAssessment({
         workerId,
         projectId,
@@ -318,6 +339,7 @@ export function AddErgonomicsModal({
         actionLevel,
         computedAt: new Date().toISOString(),
         authorUid: user.uid,
+        durationMin,
       });
 
       // 2. Mirror the assessment into the knowledge graph as an ERGONOMICS

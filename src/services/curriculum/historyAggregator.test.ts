@@ -36,6 +36,7 @@ describe('aggregateUserHistory', () => {
       xp: 0,
       completedTrainings: 0,
       criticalAssessments: 0,
+      safeHours: 0,
     });
   });
 
@@ -186,5 +187,62 @@ describe('aggregateUserHistory', () => {
     const out = aggregateUserHistory(logs, []);
     expect(out.events.map((e) => e.action).slice(0, 2)).toEqual(['safety.d', 'safety.a']);
     expect(out.events).toHaveLength(4);
+  });
+
+  // Round 18 (R5) — `stats.safeHours` propagation. The aggregator sums
+  // `details.durationMin` across `safety.*` actions and divides by 60.
+  // Training/curriculum/gamification rows MUST NOT inflate the metric;
+  // missing/non-finite/non-positive durationMin MUST be skipped silently.
+
+  it('sums details.durationMin across safety.* events into stats.safeHours', () => {
+    const logs = [
+      { action: 'safety.iper.matrix.classified', details: { durationMin: 45 }, timestamp: '2026-04-01T00:00:00Z' },
+      { action: 'safety.reba.completed',         details: { durationMin: 30 }, timestamp: '2026-04-02T00:00:00Z' },
+      { action: 'safety.rula.completed',         details: { durationMin: 15 }, timestamp: '2026-04-03T00:00:00Z' },
+    ];
+    const out = aggregateUserHistory(logs, []);
+    // 45 + 30 + 15 = 90 min ÷ 60 = 1.5 h
+    expect(out.stats.safeHours).toBe(1.5);
+  });
+
+  it('does NOT count durationMin from non-safety actions toward safeHours', () => {
+    const logs = [
+      { action: 'training.webxr.completed',   details: { durationMin: 60 }, timestamp: '2026-04-01T00:00:00Z' },
+      { action: 'curriculum.claim.created',   details: { durationMin: 90 }, timestamp: '2026-04-02T00:00:00Z' },
+      { action: 'gamification.medal.earned',  details: { durationMin: 30 }, timestamp: '2026-04-03T00:00:00Z' },
+      { action: 'safety.iper.matrix.signed',  details: { durationMin: 30 }, timestamp: '2026-04-04T00:00:00Z' },
+    ];
+    const out = aggregateUserHistory(logs, []);
+    // Only the safety.* row contributes — 30 min ÷ 60 = 0.5 h.
+    expect(out.stats.safeHours).toBe(0.5);
+  });
+
+  it('skips rows whose durationMin is missing, NaN, negative, zero, or non-numeric', () => {
+    const logs = [
+      { action: 'safety.reba.completed', details: {},                          timestamp: '2026-04-01T00:00:00Z' },
+      { action: 'safety.reba.completed', details: { durationMin: -10 },        timestamp: '2026-04-02T00:00:00Z' },
+      { action: 'safety.reba.completed', details: { durationMin: 0 },          timestamp: '2026-04-03T00:00:00Z' },
+      { action: 'safety.reba.completed', details: { durationMin: Number.NaN }, timestamp: '2026-04-04T00:00:00Z' },
+      { action: 'safety.reba.completed', details: { durationMin: 'two hours' as any }, timestamp: '2026-04-05T00:00:00Z' },
+      { action: 'safety.reba.completed', details: { durationMin: 90 },         timestamp: '2026-04-06T00:00:00Z' },
+    ];
+    const out = aggregateUserHistory(logs, []);
+    // Only the last row counts: 90 min ÷ 60 = 1.5 h
+    expect(out.stats.safeHours).toBe(1.5);
+  });
+
+  it('aggregates safeHours across more than 20 safety events (full set, not just the events slice)', () => {
+    // 25 safety rows of 60 min each — the events array is capped at 20, but
+    // safeHours must reflect ALL the worker's safety time so they don't lose
+    // credit when they cross the 20-event cap.
+    const logs = Array.from({ length: 25 }, (_, i) => ({
+      action: 'safety.reba.completed',
+      timestamp: new Date(2026, 0, i + 1).toISOString(),
+      details: { durationMin: 60 },
+    }));
+    const out = aggregateUserHistory(logs, []);
+    expect(out.events).toHaveLength(20);
+    // 25 × 60 = 1500 min ÷ 60 = 25 h
+    expect(out.stats.safeHours).toBe(25);
   });
 });

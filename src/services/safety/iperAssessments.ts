@@ -32,6 +32,12 @@ export interface IperAssessmentPayload {
   suggestedControls: string[];
   computedAt: string;
   authorUid: string;
+  /**
+   * Round 18 (R5): how long the prevencionista spent on the IPER analysis
+   * (modal open → submit), in minutes. Forwarded into the audit log so the
+   * curriculum aggregator can roll it into `stats.safeHours`. Optional.
+   */
+  durationMin?: number;
 }
 
 const COLLECTION = 'iper_assessments';
@@ -102,16 +108,27 @@ export async function recordIperAssessment(
 
   await setDoc(ref, dbPayload);
 
+  // Round 18 (R5): include `durationMin` only when finite & positive so the
+  // aggregator's safeHours sum stays clean.
+  const auditDetails: Record<string, unknown> = {
+    assessmentId: id,
+    level: payload.level,
+    rawScore: payload.rawScore,
+    probability: payload.inputs.probability,
+    severity: payload.inputs.severity,
+  };
+  if (
+    typeof payload.durationMin === 'number' &&
+    Number.isFinite(payload.durationMin) &&
+    payload.durationMin > 0
+  ) {
+    auditDetails.durationMin = payload.durationMin;
+  }
+
   await logAuditAction(
     'safety.iper.matrix.classified',
     'safety',
-    {
-      assessmentId: id,
-      level: payload.level,
-      rawScore: payload.rawScore,
-      probability: payload.inputs.probability,
-      severity: payload.inputs.severity,
-    },
+    auditDetails,
     payload.projectId,
   );
 

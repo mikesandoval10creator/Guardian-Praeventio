@@ -1,42 +1,99 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Worker } from '../../types';
-import { Shield, Sword, Heart, Zap, Download, X, Star, Award, BookOpen, Loader2 } from 'lucide-react';
+import { Shield, Sword, Heart, Zap, Download, X, Star, Award, BookOpen, Loader2, Clock, Activity } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { logger } from '../../utils/logger';
+import {
+  aggregateUserHistory,
+  type AggregatedCurriculumHistory,
+  type AuditLogRow,
+  type CurriculumHistoryEvent,
+  type GamificationScoreRow,
+} from '../../services/curriculum/historyAggregator';
 
 interface UserProfileModalProps {
   worker: Worker;
   onClose: () => void;
 }
 
+// Spanish-CL labels for the action prefixes the aggregator surfaces.
+// Mirrors the projection used in PortableCurriculum.tsx → describeEvent
+// but kept local (and shorter) since the modal only shows 5 rows.
+function describeAction(action: string): string {
+  if (action.startsWith('training.') && action.endsWith('.completed')) return 'Capacitación completada';
+  if (action.startsWith('training.')) return 'Capacitación';
+  if (action.startsWith('safety.iper.')) return 'Evaluación IPER';
+  if (action.startsWith('safety.ergonomic.')) return 'Evaluación ergonómica';
+  if (action.startsWith('safety.report.')) return 'Reporte de seguridad';
+  if (action.startsWith('safety.')) return 'Evento SSOMA';
+  if (action.startsWith('curriculum.')) return 'Claim verificable';
+  if (action.startsWith('gamification.')) return 'Logro / medalla';
+  return action;
+}
+
+function formatEventDate(raw: unknown): string {
+  if (raw == null || raw === '') return 'Sin fecha';
+  const d = new Date(raw as any);
+  if (Number.isNaN(d.getTime())) return 'Sin fecha';
+  return d.toLocaleDateString('es-CL');
+}
+
+function ActivityRow({ event }: { event: CurriculumHistoryEvent }) {
+  return (
+    <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-lg p-2.5 flex items-center gap-3">
+      <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+        <Activity className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold text-zinc-200 truncate">
+          {describeAction(event.action)}
+        </div>
+        <div className="text-[10px] text-zinc-500 flex items-center gap-1.5 mt-0.5">
+          <Clock className="w-3 h-3" />
+          {formatEventDate(event.timestamp)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
 
-  // ── Round 16 (R1): replace `safetyScore = 95` and `trainingsCount = 12`
-  //   mocks with real reads. Strategy:
+  // ── Round 16 (R1) → Round 18 (A10): replace `safetyScore = 95` and
+  //   `trainingsCount = 12` mocks with real reads. Strategy:
   //     * safetyScore  ← computed from the worker's last 3 ergonomic
   //                      assessments (REBA/RULA), inverted to a 0-100
   //                      "defensa" score where higher = safer posture.
-  //     * trainingsCount ← counted from `audit_logs` where
-  //                      `userId == worker.id` and `action` starts with
-  //                      `training.` and ends with `.completed`.
+  //     * trainingsCount, recentEvents ← derived by `historyAggregator`
+  //                      (R5 R17) from `audit_logs` filtered by userId.
+  //                      We reuse the same pure aggregator that drives
+  //                      the PortableCurriculum page so both views stay
+  //                      consistent and the prefix/regex/normalisation
+  //                      rules live in one place
+  //                      (services/curriculum/historyAggregator.ts).
+  //   The modal can render for any worker (not only the current user) —
+  //   supervisors viewing their team — so we always query
+  //   `audit_logs WHERE userId == worker.id`. The aggregator is a pure
+  //   function of those rows so it accepts per-worker input without
+  //   modification.
   //   When neither query returns data we render "Sin evaluaciones aún" /
   //   "0" honestly instead of fabricating a 95 / 12 to look healthy.
   const [safetyScore, setSafetyScore] = useState<number | null>(null);
-  const [trainingsCount, setTrainingsCount] = useState<number | null>(null);
+  const [aggregated, setAggregated] = useState<AggregatedCurriculumHistory | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function loadStats() {
+      // Last 3 ergonomic assessments → average → invert to 0-100.
+      // REBA/RULA scores typically run 1..15. We normalise to /15 and
+      // invert so low fatigue/high posture quality reads as 100.
       try {
-        // Last 3 ergonomic assessments → average → invert to 0-100.
-        // REBA/RULA scores typically run 1..15. We normalise to /15 and
-        // invert so low fatigue/high posture quality reads as 100.
         const ergQ = query(
           collection(db, 'ergonomic_assessments'),
           where('workerId', '==', worker.id),
@@ -60,34 +117,49 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
             }
           }
         }
-
-        // Trainings: audit_logs where userId=worker.id AND action ~
-        // 'training.*.completed'. Firestore can't do regex so we filter
-        // by module='training' and post-filter in memory; the audit log
-        // is small enough to fan-out by user without an index hot-spot.
-        const trnQ = query(
-          collection(db, 'audit_logs'),
-          where('userId', '==', worker.id),
-          where('module', '==', 'training'),
-          limit(500),
-        );
-        const trnSnap = await getDocs(trnQ);
-        if (!cancelled) {
-          const completed = trnSnap.docs.filter((d) => {
-            const action = String(d.data().action ?? '');
-            return action.startsWith('training.') && action.endsWith('.completed');
-          });
-          setTrainingsCount(completed.length);
-        }
       } catch (err) {
-        logger.warn('user_profile_modal_stats_load_failed', {
+        logger.warn('user_profile_modal_safety_load_failed', {
           workerId: worker.id,
           error: err instanceof Error ? err.message : String(err),
         });
-        if (!cancelled) {
-          setSafetyScore(null);
-          setTrainingsCount(null);
-        }
+        if (!cancelled) setSafetyScore(null);
+      }
+
+      // Audit log + gamification → aggregator. Each read degrades
+      // independently so a missing collection / rules denial on one
+      // doesn't blank out the other.
+      let auditRows: AuditLogRow[] = [];
+      let gamRows: GamificationScoreRow[] = [];
+      try {
+        const auditQ = query(
+          collection(db, 'audit_logs'),
+          where('userId', '==', worker.id),
+          limit(200),
+        );
+        const auditSnap = await getDocs(auditQ);
+        auditRows = auditSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      } catch (err) {
+        logger.warn('user_profile_modal_audit_logs_load_failed', {
+          workerId: worker.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      try {
+        const gamQ = query(
+          collection(db, 'gamification_scores'),
+          where('userId', '==', worker.id),
+        );
+        const gamSnap = await getDocs(gamQ);
+        gamRows = gamSnap.docs.map((d) => d.data() as any);
+      } catch (err) {
+        logger.warn('user_profile_modal_gamification_load_failed', {
+          workerId: worker.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      if (!cancelled) {
+        setAggregated(aggregateUserHistory(auditRows, gamRows));
       }
     }
     loadStats();
@@ -95,6 +167,9 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
       cancelled = true;
     };
   }, [worker.id]);
+
+  const trainingsCount = aggregated ? aggregated.stats.completedTrainings : null;
+  const recentEvents = aggregated ? aggregated.events.slice(0, 5) : [];
 
   const getRoleClass = (role: string) => {
     switch (role.toLowerCase()) {
@@ -302,6 +377,34 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
               )}
             </div>
             
+            {/* Últimas actividades — Round 18 (A10): top 5 events from
+                historyAggregator. Same prefix/regex filters as the
+                PortableCurriculum page, so the two views stay aligned. */}
+            <div className="mt-6">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 flex items-center gap-2">
+                <Activity className="w-3 h-3 text-emerald-400" />
+                Últimas actividades
+              </h3>
+              {aggregated === null ? (
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  Cargando registro de actividad...
+                </p>
+              ) : recentEvents.length === 0 ? (
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  Sin actividad registrada aún.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {recentEvents.map((event, i) => (
+                    <ActivityRow
+                      key={`${event.action}-${event.timestamp ?? i}-${i}`}
+                      event={event}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Footer Info */}
             <div className="mt-6 pt-4 border-t border-zinc-800 flex justify-between items-center">
               <div className="text-[9px] text-zinc-600 font-mono">

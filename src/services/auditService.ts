@@ -1,9 +1,30 @@
 import { auth } from './firebase';
 
+/**
+ * Shape of the `details` payload on audit_logs.
+ *
+ * Round 18 (R5): we surface `durationMin` as an optional well-known field so
+ * the curriculum aggregator can compute `stats.safeHours` deterministically
+ * (sum of `durationMin` across `safety.*` events ÷ 60). All other fields stay
+ * free-form to avoid a breaking schema for callers that have legitimate
+ * structured payloads (assessmentId, score, gameId, etc.).
+ */
+export interface AuditLogDetails {
+  /**
+   * Duration of the action in minutes. Set by the caller from a modal open
+   * timestamp + completion timestamp (or from a self-reported value), and
+   * aggregated by `historyAggregator` into `safeHours`. Optional — legacy
+   * callers can omit it without breaking; the aggregator simply skips rows
+   * whose `durationMin` is not a finite positive number.
+   */
+  durationMin?: number;
+  [key: string]: unknown;
+}
+
 export interface AuditLog {
   action: string;
   module: string;
-  details: any;
+  details: AuditLogDetails;
   userId: string;
   userEmail: string | null;
   timestamp: any;
@@ -24,7 +45,7 @@ export interface AuditLog {
 export const logAuditAction = async (
   action: string,
   module: string,
-  details: any,
+  details: AuditLogDetails,
   projectId?: string,
 ) => {
   try {
