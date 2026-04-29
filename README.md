@@ -21,6 +21,33 @@
 
 ---
 
+## Quick start for new contributors
+
+Si vas a contribuir código por primera vez, lee estos cuatro documentos
+antes de tocar nada:
+
+1. **[`CONTRIBUTING.md`](./CONTRIBUTING.md)** — flujo TDD, convenciones,
+   cómo agregar rutas / acciones Gemini / motores de cálculo, checklist
+   de PR.
+2. **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** — mapa de módulos, data
+   flows críticos (Webpay, REBA, curriculum claims), estrategia de split
+   de `server.ts` y `geminiBackend.ts`, inventario de colecciones
+   Firestore, modelo de tier-gating.
+3. **[`RUNBOOK.md`](./RUNBOOK.md)** — procedimientos operacionales:
+   emulador Firestore, deploy a Cloud Run, restore de backup, rotación
+   KMS, FCM de prueba, triage Sentry.
+4. **[`docs/api-routes.md`](./docs/api-routes.md)** — catálogo completo
+   de los 43 endpoints HTTP (auth, body, response, errores, audit log,
+   tenant isolation).
+
+Para emergencias de producción: [`DR_RUNBOOK.md`](./DR_RUNBOOK.md). Para
+reportes de seguridad: [`SECURITY.md`](./SECURITY.md).
+
+Tests al cierre de Round 16: **866 pasando**, `npm run typecheck` con 0
+errores. Mantener verde es invariante de proyecto.
+
+---
+
 ## Características principales
 
 - **El Guardián** — asistente IA con RAG sobre la base normativa chilena (BCN, ISO).
@@ -170,10 +197,14 @@ Este proyecto también puede correrse desde Google AI Studio: `https://ai.studio
 
 ## Contribuir
 
+Guía completa en [`CONTRIBUTING.md`](./CONTRIBUTING.md). Resumen:
+
 1. Crear branch desde `main` con prefijo (`feat/`, `fix/`, `audit/`, `claude/`).
-2. Asegurar `npm run typecheck` pasa antes de PR.
-3. Mantener cobertura de las funciones críticas (REBA, A*, IPER, evaluación legal).
-4. No introducir secretos en commits — usar `.env.local`.
+2. TDD estricto (RED → GREEN → REFACTOR).
+3. `npm run typecheck` y `npm run test` deben pasar antes de PR.
+4. Mantener cobertura de las funciones críticas (REBA, A*, IPER, evaluación legal).
+5. No introducir secretos en commits — usar `.env.local`.
+6. Toda operación de cambio de estado debe escribir en `audit_logs`.
 
 ---
 
