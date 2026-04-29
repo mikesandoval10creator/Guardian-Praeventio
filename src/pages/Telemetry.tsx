@@ -1,82 +1,36 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Activity, 
-  Wind, 
-  ThermometerSun, 
-  AlertTriangle, 
+import {
+  Activity,
+  Wind,
   MapPin,
-  Clock,
-  Zap,
-  ShieldAlert,
-  CloudLightning,
-  Watch,
-  HeartPulse,
-  Truck,
-  Terminal,
-  Copy,
-  CheckCircle2,
-  X,
-  WifiOff,
-  Loader2,
-  Smartphone
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { NodeType } from '../types';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
-import { collection, addDoc, serverTimestamp, query, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, orderBy, limit } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../services/firebase';
-import { DigitalTwin, WorkerData, MachineryData } from '../components/telemetry/DigitalTwin';
+import { DigitalTwin } from '../components/telemetry/DigitalTwin';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { useEmergency } from '../contexts/EmergencyContext';
-
 import { set } from 'idb-keyval';
-
-interface Earthquake {
-  Fecha: string;
-  Profundidad: string;
-  Magnitud: string;
-  RefGeografica: string;
-  FechaUpdate: string;
-}
-
-interface WeatherData {
-  temperature: number;
-  windSpeed: number;
-  humidity: number;
-  weatherCode: number;
-}
-
-interface IoTEvent {
-  id: string;
-  type: 'wearable' | 'machinery';
-  source: string;
-  metric: string;
-  value: number;
-  unit: string;
-  timestamp: any;
-  status: 'normal' | 'warning' | 'critical';
-}
-
-interface FitnessData {
-  heartRate: number | null;
-  steps: number | null;
-  lastSync: Date | null;
-}
 
 import { generateRealisticIoTEvent } from '../services/geminiService';
 import { getHealthAdapter } from '../services/health';
 
-interface StatusEffect {
-  id: string;
-  name: string;
-  type: 'buff' | 'debuff';
-  duration: number; // in seconds
-  icon: React.ReactNode;
-}
+import { GamifiedHUD, type StatusEffect } from '../components/telemetry/GamifiedHUD';
+import { ActiveAlertsList } from '../components/telemetry/ActiveAlertsList';
+import {
+  WeatherAndSeismicPanels,
+  type Earthquake,
+} from '../components/telemetry/WeatherAndSeismicPanels';
+import { IoTEventsFeed, type IoTEvent } from '../components/telemetry/IoTEventsFeed';
+import { WearablesPanel, type FitnessData } from '../components/telemetry/WearablesPanel';
+import { WebhookModal } from '../components/telemetry/WebhookModal';
+import { mapIoTEventsToTwinState } from '../components/telemetry/twinStateMapper';
+import { buildWebhookCurlCommand } from '../components/telemetry/webhookCommand';
 
 export function Telemetry() {
   const { selectedProject } = useProject();
@@ -132,7 +86,7 @@ export function Telemetry() {
       const characteristic = await service.getCharacteristic('heart_rate_measurement');
 
       await characteristic.startNotifications();
-      
+
       characteristic.addEventListener('characteristicvaluechanged', (event: any) => {
         const value = event.target.value;
         // Heart Rate Measurement format:
@@ -360,7 +314,7 @@ export function Telemetry() {
     try {
       const context = `Proyecto: ${selectedProject?.name || 'Global'}. Clima: ${weather?.temp || 20}°C, Viento: ${weather?.windSpeed || 10}km/h.`;
       const eventData = await generateRealisticIoTEvent(context);
-      
+
       // Edge IoT Filter: Only upload anomalous events to Firebase to save bandwidth/storage
       if (eventData.status === 'warning' || eventData.status === 'critical') {
         try {
@@ -396,7 +350,7 @@ export function Telemetry() {
         if (eqResponse.ok) {
           const eqData = await eqResponse.json();
           setEarthquakes(eqData.slice(0, 5)); // Get latest 5
-          
+
           // Check for recent strong earthquakes
           const strongEQ = eqData.find((eq: Earthquake) => parseFloat(eq.Magnitud) >= 5.0);
           if (strongEQ) {
@@ -404,7 +358,7 @@ export function Telemetry() {
               const msg = `Sismo de magnitud ${strongEQ.Magnitud} detectado en ${strongEQ.RefGeografica}. Protocolo de evacuación en evaluación.`;
               return prev.includes(msg) ? prev : [...prev, msg];
             });
-            
+
             // Trigger emergency if magnitude >= 6.0
             if (parseFloat(strongEQ.Magnitud) >= 6.0) {
               triggerEmergency('sismo');
@@ -449,7 +403,7 @@ export function Telemetry() {
       if (latestEvent.status === 'critical') {
         const alertMsg = `Alerta Crítica IoT: ${latestEvent.source} reporta ${latestEvent.metric} = ${latestEvent.value}${latestEvent.unit}`;
         setAlerts(prev => prev.includes(alertMsg) ? prev : [...prev, alertMsg]);
-        
+
         // Trigger global emergency for critical events
         triggerEmergency('iot_critical');
       }
@@ -458,7 +412,7 @@ export function Telemetry() {
 
   const handleSaveAlertToZettelkasten = async (alertMsg: string) => {
     if (!selectedProject) return;
-    
+
     await addNode({
       type: NodeType.INCIDENT,
       title: 'Alerta Telemetría Ambiental',
@@ -468,75 +422,41 @@ export function Telemetry() {
       connections: [],
       projectId: selectedProject.id
     });
-    
+
     // Remove from active alerts after saving
     setAlerts(prev => prev.filter(a => a !== alertMsg));
   };
 
-  // Map IoT events to Digital Twin state
+  // Map IoT events to Digital Twin state (pure helper — see twinStateMapper.ts)
   const twinState = useMemo(() => {
-    const workers: WorkerData[] = [
-      { id: 'W-01', position: [-2, 0, 2], status: 'normal' },
-      { id: 'W-02', position: [3, 0, -1], status: 'normal' },
-      { id: 'W-03', position: [0, 0, 4], status: 'normal' },
-      { id: 'W-04', position: [-4, 0, -3], status: 'normal' },
-    ];
-
-    const machinery: MachineryData[] = [
-      { id: 'M-01', type: 'truck', position: [5, 0, 5], status: 'normal' },
-      { id: 'M-02', type: 'crane', position: [-5, 0, 0], status: 'normal' },
-    ];
-
-    // Apply recent events to update state
-    if (iotEvents) {
-      iotEvents.forEach(event => {
-        if (event.type === 'wearable') {
-          // Find a worker to apply this to (simple mapping based on source name or just pick one)
-          const workerIndex = parseInt(event.source.replace(/\D/g, '')) % workers.length || 0;
-          const worker = workers[workerIndex];
-          
-          // Only update if this event is more critical than current state
-          if (event.status === 'critical' || (event.status === 'warning' && worker.status === 'normal')) {
-            worker.status = event.status;
-            // If it's a fall detection or extreme heart rate, mark as fallen
-            if (String(event.metric || '').toLowerCase().includes('caída') || (String(event.metric || '').toLowerCase().includes('ritmo') && event.value > 160)) {
-              worker.isFallen = true;
-            }
-          }
-        } else if (event.type === 'machinery') {
-          const machIndex = parseInt(event.source.replace(/\D/g, '')) % machinery.length || 0;
-          const mach = machinery[machIndex];
-          if (event.status === 'critical' || (event.status === 'warning' && mach.status === 'normal')) {
-            mach.status = event.status;
-          }
-        }
-      });
-    }
-
+    const next = mapIoTEventsToTwinState(iotEvents);
     // Save to IndexedDB for other components (like Evacuation) to access
-    set('telemetry_state', { workers, machinery });
-
-    return { workers, machinery };
+    set('telemetry_state', next);
+    return next;
   }, [iotEvents]);
 
   const webhookUrl = `${window.location.origin}/api/telemetry/ingest`;
-  const curlCommand = `curl -X POST ${webhookUrl} \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "secretKey": "TU_SECRETO_AQUI",
-    "type": "wearable",
-    "source": "Smartwatch W-01",
-    "metric": "Ritmo Cardíaco",
-    "value": 165,
-    "unit": "bpm",
-    "status": "critical",
-    "projectId": "${selectedProject?.id || 'global'}"
-  }'`;
+  const curlCommand = buildWebhookCurlCommand(webhookUrl, selectedProject?.id || 'global');
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(curlCommand);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSimulateGasLeak = () => {
+    setToxin(prev => Math.min(prev + 20, 100));
+    if (toxin >= 60) setHealth(prev => Math.max(prev - 10, 0));
+    setEffects(prev => [
+      ...prev.filter(e => e.id !== 'gas'),
+      { id: 'gas', name: 'Intoxicación', type: 'debuff', duration: 30, icon: <Wind className="w-3 h-3" /> },
+    ]);
+  };
+
+  const handleHeal = () => {
+    setHealth(100);
+    setToxin(0);
+    setEffects([]);
   };
 
   return (
@@ -552,7 +472,7 @@ export function Telemetry() {
             <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">Monitor Sísmico y Climático en Tiempo Real</p>
           </div>
         </div>
-        
+
         {selectedProject && (
           <div className="flex items-center gap-2 bg-zinc-900/50 border border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl self-start md:self-auto">
             <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />
@@ -561,384 +481,39 @@ export function Telemetry() {
         )}
       </div>
 
-      {/* Gamified HUD */}
-      <div className="bg-zinc-900 rounded-3xl p-6 border border-zinc-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Activity className="w-32 h-32 text-emerald-500" />
-        </div>
-        
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Vitals */}
-          <div className="space-y-6">
-            <div>
-              <div className="flex justify-between items-end mb-2">
-                <div className="flex items-center gap-2">
-                  <HeartPulse className="w-5 h-5 text-emerald-500" />
-                  <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Integridad (HP)</span>
-                </div>
-                <span className="text-2xl font-black text-white">{health}%</span>
-              </div>
-              <div className="h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
-                <motion.div 
-                  className="h-full bg-emerald-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${health}%` }}
-                  transition={{ type: 'spring', bounce: 0.4 }}
-                />
-              </div>
-            </div>
+      <GamifiedHUD
+        health={health}
+        toxin={toxin}
+        effects={effects}
+        onSimulateGasLeak={handleSimulateGasLeak}
+        onHeal={handleHeal}
+      />
 
-            <div>
-              <div className="flex justify-between items-end mb-2">
-                <div className="flex items-center gap-2">
-                  <Wind className="w-5 h-5 text-purple-500" />
-                  <span className="text-xs font-black text-zinc-400 uppercase tracking-widest">Exposición a Gases (CO)</span>
-                </div>
-                <span className="text-2xl font-black text-white">{toxin}%</span>
-              </div>
-              <div className="h-4 bg-zinc-800 rounded-full overflow-hidden border border-zinc-700">
-                <motion.div 
-                  className="h-full bg-purple-500"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${toxin}%` }}
-                  transition={{ type: 'spring', bounce: 0.4 }}
-                />
-              </div>
-            </div>
-          </div>
+      <ActiveAlertsList alerts={alerts} onSaveToZettelkasten={handleSaveAlertToZettelkasten} />
 
-          {/* Status Effects */}
-          <div className="border-t md:border-t-0 md:border-l border-zinc-800 pt-6 md:pt-0 md:pl-8">
-            <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Efectos de Estado</h3>
-            <div className="flex flex-wrap gap-3">
-              <AnimatePresence>
-                {effects.length === 0 ? (
-                  <motion.div 
-                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    className="text-sm text-zinc-600 font-mono"
-                  >
-                    Sin efectos activos.
-                  </motion.div>
-                ) : (
-                  effects.map(effect => (
-                    <motion.div
-                      key={effect.id}
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0, opacity: 0 }}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${
-                        effect.type === 'buff' 
-                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                          : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                      }`}
-                    >
-                      {effect.icon}
-                      <span className="text-xs font-bold uppercase tracking-wider">{effect.name}</span>
-                      <span className="text-[10px] font-mono opacity-70 ml-1">{effect.duration}s</span>
-                    </motion.div>
-                  ))
-                )}
-              </AnimatePresence>
-            </div>
-            
-            {/* Simulation Controls (For Demo) */}
-            <div className="mt-6 flex gap-2">
-              <button 
-                onClick={() => {
-                  setToxin(prev => Math.min(prev + 20, 100));
-                  if (toxin >= 60) setHealth(prev => Math.max(prev - 10, 0));
-                  setEffects(prev => [...prev.filter(e => e.id !== 'gas'), { id: 'gas', name: 'Intoxicación', type: 'debuff', duration: 30, icon: <Wind className="w-3 h-3" /> }]);
-                }}
-                className="px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors"
-              >
-                Simular Fuga CO
-              </button>
-              <button 
-                onClick={() => {
-                  setHealth(100);
-                  setToxin(0);
-                  setEffects([]);
-                }}
-                className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors"
-              >
-                Curar
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {alerts.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-rose-500 flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4" />
-            Alertas Críticas Activas
-          </h2>
-          {alerts.map((alert, idx) => (
-            <motion.div 
-              key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                <p className="text-sm font-medium text-rose-200">{alert}</p>
-              </div>
-              <button 
-                onClick={() => handleSaveAlertToZettelkasten(alert)}
-                className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors shrink-0 flex items-center gap-2"
-              >
-                <Zap className="w-3 h-3" />
-                Registrar en Red Neuronal
-              </button>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Weather Panel */}
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
-                <CloudLightning className="w-4 h-4 text-blue-400" />
-                Condiciones Climáticas
-              </h3>
-              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Open-Meteo API</span>
-            </div>
-
-            {weather ? (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
-                  <ThermometerSun className={`w-8 h-8 ${weather.temp > 30 ? 'text-rose-500' : 'text-amber-500'}`} />
-                  <div>
-                    <p className="text-2xl font-black text-white">{Math.round(weather.temp)}°C</p>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Temperatura</p>
-                  </div>
-                </div>
-                <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
-                  <Wind className={`w-8 h-8 ${weather.windSpeed > 40 ? 'text-rose-500' : 'text-blue-400'}`} />
-                  <div>
-                    <p className="text-2xl font-black text-white">{Math.round(weather.windSpeed)} <span className="text-sm">km/h</span></p>
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Viento</p>
-                  </div>
-                </div>
-              </div>
-            ) : !isOnline ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center bg-zinc-950/50 rounded-2xl border border-white/5">
-                <WifiOff className="w-8 h-8 text-zinc-600 mb-2" />
-                <p className="text-sm font-medium text-zinc-400">Sin conexión</p>
-                <p className="text-xs text-zinc-500">No se pueden obtener datos climáticos en tiempo real.</p>
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-500">No se pudo cargar la información climática.</p>
-            )}
-          </div>
-
-          {/* Earthquakes Panel */}
-          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
-                <Activity className="w-4 h-4 text-rose-500" />
-                Monitor Sísmico (CSN)
-              </h3>
-              <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Últimos 5 eventos</span>
-            </div>
-
-            <div className="space-y-3">
-              {!isOnline ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center bg-zinc-950/50 rounded-2xl border border-white/5">
-                  <WifiOff className="w-8 h-8 text-zinc-600 mb-2" />
-                  <p className="text-sm font-medium text-zinc-400">Sin conexión</p>
-                  <p className="text-xs text-zinc-500">No se pueden obtener datos sísmicos en tiempo real.</p>
-                </div>
-              ) : earthquakes.length > 0 ? (
-                earthquakes.map((eq, i) => (
-                  <div key={i} className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg ${
-                        parseFloat(eq.Magnitud) >= 5.0 ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30' :
-                        parseFloat(eq.Magnitud) >= 4.0 ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' :
-                        'bg-zinc-800 text-zinc-400'
-                      }`}>
-                        {eq.Magnitud}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">{eq.RefGeografica}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Clock className="w-3 h-3 text-zinc-500" />
-                          <span className="text-[10px] font-medium text-zinc-500">{eq.Fecha}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right hidden sm:block">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Profundidad</p>
-                      <p className="text-xs font-medium text-zinc-300">{eq.Profundidad} km</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-zinc-500">No se pudo cargar la información sísmica.</p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <WeatherAndSeismicPanels
+        loading={loading}
+        isOnline={isOnline}
+        weather={weather}
+        earthquakes={earthquakes}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* IoT Telemetry Panel */}
-        <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
-                <Watch className="w-4 h-4 text-emerald-500" />
-                Telemetría IoT (Maquinaria)
-              </h3>
-              <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">
-                En Vivo
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSimulateIoT}
-                disabled={simulatingIoT || !isOnline}
-                className="px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50"
-              >
-                {simulatingIoT ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-                Simular
-              </button>
-              <button
-                onClick={() => setShowWebhookModal(true)}
-                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-2"
-              >
-                <Terminal className="w-3 h-3" />
-                Webhook
-              </button>
-            </div>
-          </div>
+        <IoTEventsFeed
+          events={iotEvents}
+          simulating={simulatingIoT}
+          isOnline={isOnline}
+          onSimulate={handleSimulateIoT}
+          onOpenWebhookModal={() => setShowWebhookModal(true)}
+        />
 
-          <div className="space-y-3">
-            {iotEvents && iotEvents.length > 0 ? (
-              iotEvents.map((event) => (
-                <motion.div 
-                  key={event.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={`bg-zinc-950/50 border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                    event.status === 'critical' ? 'border-rose-500/30' :
-                    event.status === 'warning' ? 'border-amber-500/30' :
-                    'border-white/5'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                      event.status === 'critical' ? 'bg-rose-500/20 text-rose-500' :
-                      event.status === 'warning' ? 'bg-amber-500/20 text-amber-500' :
-                      'bg-emerald-500/20 text-emerald-500'
-                    }`}>
-                      {event.type === 'wearable' ? <HeartPulse className="w-6 h-6" /> : <Truck className="w-6 h-6" />}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-white">{event.source}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${
-                          event.status === 'critical' ? 'bg-rose-500/20 text-rose-500' :
-                          event.status === 'warning' ? 'bg-amber-500/20 text-amber-500' :
-                          'bg-emerald-500/20 text-emerald-500'
-                        }`}>
-                          {event.status === 'critical' ? 'Crítico' : event.status === 'warning' ? 'Advertencia' : 'Normal'}
-                        </span>
-                        <span className="text-[10px] font-medium text-zinc-500">
-                          {event.timestamp?.toDate ? event.timestamp.toDate().toLocaleTimeString() : 'Ahora'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-left sm:text-right bg-zinc-900 rounded-xl px-4 py-2 border border-white/5">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{event.metric}</p>
-                    <p className={`text-lg font-black ${
-                      event.status === 'critical' ? 'text-rose-500' :
-                      event.status === 'warning' ? 'text-amber-500' :
-                      'text-white'
-                    }`}>
-                      {event.value} <span className="text-xs text-zinc-500">{event.unit}</span>
-                    </p>
-                  </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-zinc-950/50 rounded-2xl border border-white/5">
-                <Watch className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-                <p className="text-sm font-medium text-zinc-400">Esperando datos de telemetría IoT...</p>
-                <p className="text-xs text-zinc-600 mt-1">Conecta tus dispositivos usando el Webhook Generator.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Wearables Panel */}
-        <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-2">
-              <Watch className="w-4 h-4 text-emerald-500" />
-              Wearables (BLE / Fit)
-            </h3>
-            {fitTokens && (
-              <span className="px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest border border-emerald-500/20">
-                Conectado
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
-              <HeartPulse className={`w-8 h-8 ${fitnessData.heartRate && fitnessData.heartRate > 100 ? 'text-rose-500 animate-pulse' : 'text-emerald-500'}`} />
-              <div>
-                <p className="text-2xl font-black text-white">{fitnessData.heartRate || '--'} <span className="text-sm">bpm</span></p>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ritmo Cardíaco</p>
-              </div>
-            </div>
-            <div className="bg-zinc-950/50 border border-white/5 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2">
-              <Activity className="w-8 h-8 text-blue-400" />
-              <div>
-                <p className="text-2xl font-black text-white">{fitnessData.steps ? fitnessData.steps.toLocaleString() : '--'}</p>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Pasos</p>
-              </div>
-            </div>
-          </div>
-
-          {!fitTokens && (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={handleConnectBluetooth}
-                disabled={isConnectingFit}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isConnectingFit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
-                Bluetooth
-              </button>
-              <button
-                onClick={handleConnectGoogleFit}
-                disabled={isConnectingFit}
-                className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isConnectingFit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Watch className="w-4 h-4" />}
-                Google Fit
-              </button>
-            </div>
-          )}
-          {fitnessData.lastSync && (
-            <p className="text-[10px] text-zinc-500 text-center">
-              Última sincronización: {fitnessData.lastSync.toLocaleTimeString()}
-            </p>
-          )}
-        </div>
+        <WearablesPanel
+          fitnessData={fitnessData}
+          fitTokens={fitTokens}
+          isConnecting={isConnectingFit}
+          onConnectBluetooth={handleConnectBluetooth}
+          onConnectGoogleFit={handleConnectGoogleFit}
+        />
       </div>
 
       {/* Digital Twin 3D */}
@@ -946,64 +521,13 @@ export function Telemetry() {
         <DigitalTwin workers={twinState.workers} machinery={twinState.machinery} />
       </div>
 
-      {/* Webhook Modal */}
-      <AnimatePresence>
-        {showWebhookModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-zinc-900 border border-white/10 rounded-3xl p-6 max-w-2xl w-full shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                    <Terminal className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-black text-white uppercase tracking-tight">IoT Webhook Generator</h3>
-                    <p className="text-xs text-zinc-400">Conecta hardware real a Praeventio Guard</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowWebhookModal(false)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-                >
-                  <X className="w-5 h-5 text-zinc-400" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <p className="text-sm text-zinc-300">
-                  Usa este comando en la terminal de tu dispositivo IoT (Raspberry Pi, Arduino con WiFi, etc.) para enviar datos reales al sistema. Verás cómo el Digital Twin y las alertas reaccionan instantáneamente.
-                </p>
-
-                <div className="relative group">
-                  <pre className="bg-black border border-white/10 rounded-xl p-4 overflow-x-auto text-xs font-mono text-emerald-400 leading-relaxed">
-                    {curlCommand}
-                  </pre>
-                  <button
-                    onClick={copyToClipboard}
-                    className="absolute top-3 right-3 p-2 bg-white/10 hover:bg-white/20 rounded-lg backdrop-blur-md transition-colors"
-                  >
-                    {copied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-zinc-300" />}
-                  </button>
-                </div>
-
-                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-                  <h4 className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Variables Soportadas</h4>
-                  <ul className="text-xs text-blue-200/70 space-y-1 list-disc list-inside">
-                    <li><strong className="text-blue-300">type:</strong> "wearable" | "machinery"</li>
-                    <li><strong className="text-blue-300">status:</strong> "normal" | "warning" | "critical"</li>
-                    <li><strong className="text-blue-300">metric:</strong> "Ritmo Cardíaco", "Temperatura", "Velocidad", "Detección de Caída"</li>
-                  </ul>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <WebhookModal
+        open={showWebhookModal}
+        curlCommand={curlCommand}
+        copied={copied}
+        onClose={() => setShowWebhookModal(false)}
+        onCopy={copyToClipboard}
+      />
     </div>
     </PremiumFeatureGuard>
   );
