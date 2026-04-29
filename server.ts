@@ -50,6 +50,8 @@ import reportsRouter from "./src/server/routes/reports.js";
 import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
+import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
+import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 // `googleapis` import removed in Round 17 R2 Phase 2 — its sole use was the
@@ -364,157 +366,11 @@ setInterval(() => {
 // Run immediately at startup
 updateGlobalEnvironmentalContext().catch(console.error);
 
-// Setup Realtime Triggers (Simulated Cloud Functions via Firebase Admin)
-const setupBackgroundTriggers = () => {
-  try {
-    const db = admin.firestore();
-    let isInitialLoadIncidents = true;
-    let isInitialLoadRAG = true;
-
-    // Trigger 1: Listen to new critical incidents → real FCM push to supervisors
-    db.collection('nodes')
-      .where('type', 'in', ['Hallazgo', 'Incidente', 'Riesgo'])
-      .onSnapshot((snapshot) => {
-        if (isInitialLoadIncidents) {
-          isInitialLoadIncidents = false;
-          return;
-        }
-        
-        snapshot.docChanges().forEach(async (change) => {
-          if (change.type === 'added') {
-            const data = change.doc.data();
-            const isCritical = data.metadata?.severity === 'Crítica' || data.metadata?.severity === 'Alta';
-            if (!isCritical || !data.projectId) return;
-
-            try {
-              // Gather FCM tokens of supervisors/gerentes in this project
-              const membersSnap = await db.collection(`projects/${data.projectId}/members`).get();
-              const supervisorUids: string[] = [];
-              membersSnap.forEach(d => {
-                const role = d.data().role;
-                if (role === 'supervisor' || role === 'gerente' || role === 'prevencionista') {
-                  supervisorUids.push(d.id);
-                }
-              });
-
-              if (supervisorUids.length === 0) return;
-
-              const tokenDocs = await Promise.all(
-                supervisorUids.map(uid => db.collection('users').doc(uid).get())
-              );
-              const tokens = tokenDocs
-                .map(d => d.data()?.fcmToken as string | undefined)
-                .filter((t): t is string => !!t);
-
-              if (tokens.length === 0) return;
-
-              await admin.messaging().sendEachForMulticast({
-                tokens,
-                notification: {
-                  title: `⚠️ Incidente ${data.metadata?.severity || 'Crítico'}`,
-                  body: `${data.title || 'Nuevo incidente'} — ${data.metadata?.location || 'Ver detalles en la app'}`,
-                },
-                data: { projectId: data.projectId, nodeId: change.doc.id },
-                android: { priority: 'high' },
-              });
-
-              // Also send CPHS alert email to supervisors who have emails registered
-              const emailRecipients = tokenDocs
-                .map(d => d.data()?.email as string | undefined)
-                .filter((e): e is string => !!e && e.includes('@'));
-              if (emailRecipients.length > 0 && process.env.RESEND_API_KEY) {
-                const projectSnap = await db.collection('projects').doc(data.projectId).get();
-                const projectName = projectSnap.data()?.name || 'Proyecto';
-                const severity = data.metadata?.severity || data.metadata?.criticidad || 'Alta';
-                const severityColor: Record<string, string> = { 'Crítica': '#ef4444', 'Alta': '#f97316', 'Media': '#eab308', 'Baja': '#22c55e' };
-                const color = severityColor[severity] || '#6b7280';
-                const date = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
-                const html = `<!DOCTYPE html><html><body style="margin:0;padding:0;font-family:sans-serif;background:#f4f4f5"><div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)"><div style="background:#09090b;padding:24px 32px"><span style="font-size:20px;font-weight:900;color:#10b981">GUARDIAN</span><span style="font-size:20px;font-weight:900;color:#fff"> PRAEVENTIO</span></div><div style="padding:32px"><div style="display:inline-block;padding:4px 12px;background:${color}20;border:1px solid ${color}40;border-radius:8px;margin-bottom:16px"><span style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase">⚠ Alerta CPHS — ${severity}</span></div><h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">${data.title || 'Nuevo incidente crítico'}</h2><p style="margin:0 0 24px;font-size:14px;color:#71717a;line-height:1.6">${data.description || ''}</p><table style="width:100%;border-collapse:collapse"><tr><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Proyecto</td><td style="padding:10px 0;border-bottom:1px solid #f4f4f5;font-size:13px;font-weight:600">${projectName}</td></tr><tr><td style="padding:10px 0;font-size:12px;color:#a1a1aa;font-weight:700;text-transform:uppercase">Detectado</td><td style="padding:10px 0;font-size:13px;font-weight:600">${date}</td></tr></table><p style="margin:24px 0 0;font-size:11px;color:#a1a1aa;text-align:center">Aviso automático generado por Guardian Praeventio para el Comité Paritario.</p></div></div></body></html>`;
-                await resend.emails.send({
-                  from: 'Praeventio Guard <noreply@praeventio.net>',
-                  to: emailRecipients,
-                  subject: `[CPHS ${projectName}] Incidente ${severity}: ${data.title || 'Nuevo incidente'}`,
-                  html,
-                }).catch(e => console.warn('[TRIGGER: CPHS Email] delivery failed:', e));
-              }
-            } catch (err) {
-              console.error('[TRIGGER: FCM Push] Error:', err);
-            }
-          }
-        });
-      }, (error) => {
-        console.error("Error in incidents background trigger listener:", error);
-      });
-
-    // Trigger 2: RAG Continuous Ingestion Pipeline (Auto-Vectorize Knowledge)
-    // Whenever a new normative, PTS, protocol, or document node is created/updated, generate embeddings
-    db.collection('nodes')
-      .where('type', 'in', ['normative', 'pts', 'protocol', 'document'])
-      .onSnapshot(async (snapshot) => {
-        if (isInitialLoadRAG) {
-          isInitialLoadRAG = false;
-          return;
-        }
-
-        for (const change of snapshot.docChanges()) {
-          // Process newly added or modified documents
-          if (change.type === 'added' || change.type === 'modified') {
-            const data = change.doc.data();
-            
-            // Skip processing if it already has an embedding or is currently being processed
-            if (data._ragProcessingStatus === 'completed' || data._ragProcessingStatus === 'processing') {
-              continue;
-            }
-
-            console.log(`[TRIGGER: RAG Pipeline] => Generating embeddings for: ${change.doc.id} (${data.type})`);
-            
-            try {
-              // Mark as processing
-              await change.doc.ref.update({ _ragProcessingStatus: 'processing' });
-              
-              const { GoogleGenAI } = await import('@google/genai');
-              const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-              
-              // Prepare text for vectorization
-              const textToEmbed = `Título: ${data.title || ''}\nDescripción: ${data.description || ''}\nContenido: ${data.content || ''}`;
-              
-              if (textToEmbed.trim().length < 10) {
-                 await change.doc.ref.update({ _ragProcessingStatus: 'skipped_too_short' });
-                 continue;
-              }
-
-              // Assume generic embed call or load the geminiBackend method
-              const { generateEmbeddingsBatch } = await import('./src/services/geminiBackend.js');
-              const [embedding] = await generateEmbeddingsBatch([textToEmbed]);
-
-              if (embedding && embedding.length > 0) {
-                // Save vector to Firestore (requires Enterprise setup ideally or simple array for now)
-                await change.doc.ref.update({
-                  embedding,
-                  _ragProcessingStatus: 'completed',
-                  _ragProcessedAt: admin.firestore.FieldValue.serverTimestamp()
-                });
-                console.log(`[TRIGGER: RAG Pipeline] ✅ Embeddings successfully saved for ${change.doc.id}`);
-              } else {
-                throw new Error("Empty embedding returned");
-              }
-            } catch (error) {
-              console.error(`[TRIGGER: RAG Pipeline] ❌ Error processing ${change.doc.id}:`, error);
-              await change.doc.ref.update({ 
-                 _ragProcessingStatus: 'failed',
-                 _ragError: error instanceof Error ? error.message : 'Unknown error'
-              });
-            }
-          }
-        }
-      }, (error) => {
-        console.error("Error in RAG background trigger listener:", error);
-      });
-
-  } catch (err) {
-    console.error("Failed to setup background triggers:", err);
-  }
-};
+// Round 21 R21 B1 Phase 5 split — `setupBackgroundTriggers` (FCM + RAG
+// onSnapshot listeners) extracted to src/server/triggers/backgroundTriggers.ts.
+// `setupHealthCheckInterval` (the 6h project safety pass) extracted to
+// src/server/triggers/healthCheck.ts. Both expose stop/unsubscribe handles
+// for graceful shutdown — wired into SIGTERM below.
 
 // ─────────────────────────────────────────────────────────────────────
 // Round 18 Phase 3 split — Curriculum claims + WebAuthn challenge.
@@ -572,27 +428,30 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
   }
 });
 
+let triggersHandle: { unsubscribe: () => void } | null = null;
+let healthHandle: { stop: () => void } | null = null;
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
   if (admin.apps.length > 0) {
-    setupBackgroundTriggers();
-  }
+    triggersHandle = setupBackgroundTriggers({
+      db: admin.firestore(),
+      messaging: admin.messaging(),
+      resend,
+      firestoreNamespace: admin.firestore,
+    });
 
-  // Proactive Project Health Checks (Every 6 hours to balance quota)
-  setInterval(async () => {
-    try {
-      const db = admin.firestore();
-      const projects = await db.collection('projects').get();
-      const { performProjectSafetyHealthCheck } = await import('./src/services/safetyEngineBackend.js');
-      
-      for (const project of projects.docs) {
-        await performProjectSafetyHealthCheck(project.id).catch(e => 
-          console.error(`Error in health check for ${project.id}:`, e)
-        );
-      }
-    } catch (error) {
-      console.error("Error in background health checks:", error);
-    }
-  }, 6 * 60 * 60 * 1000);
+    // Proactive Project Health Checks (Every 6 hours to balance quota)
+    healthHandle = setupHealthCheckInterval({ db: admin.firestore() });
+  }
+});
+
+// Graceful shutdown — release the onSnapshot listeners and the 6h
+// interval so the process can exit cleanly on SIGTERM (Cloud Run sends
+// SIGTERM ~10s before SIGKILL on revision rollover).
+process.on('SIGTERM', () => {
+  triggersHandle?.unsubscribe();
+  healthHandle?.stop();
+  process.exit(0);
 });
