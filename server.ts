@@ -12,7 +12,6 @@ import { initializeRAG } from "./src/services/ragService.js";
 import { autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
-import { saveTokens, getValidAccessToken, revokeTokens } from "./src/services/oauthTokenStore.js";
 import { logger } from "./src/utils/logger.js";
 // Billing imports (buildInvoice, webpayAdapter, stripeAdapter, withIdempotency,
 // webpayMetrics, mercadoPagoAdapter, currency, billing/types) moved to
@@ -30,6 +29,7 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 // (oauth/gemini) deferred to Round 17/18.
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 import { safeSecretEqual } from "./src/server/middleware/safeSecretEqual.js";
+import { canonicalize } from "./src/server/middleware/canonicalBody.js";
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { auditServerEvent } from "./src/server/middleware/auditLog.js";
 import { assertProjectMemberFromBody } from "./src/server/middleware/assertProjectMemberMiddleware.js";
@@ -46,6 +46,16 @@ import {
   billingApiRouter,
   billingWebpayRouter,
 } from "./src/server/routes/billing.js";
+import curriculumRouter, {
+  webauthnChallengeRouter,
+} from "./src/server/routes/curriculum.js";
+import projectsRouter, {
+  invitationsRouter,
+} from "./src/server/routes/projects.js";
+import {
+  oauthGoogleApiRouter,
+  oauthGoogleAuthRouter,
+} from "./src/server/routes/oauthGoogle.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { GoogleGenAI } from "@google/genai";
@@ -438,15 +448,11 @@ app.post("/api/reports/generate-pdf", verifyAuth, async (req, res) => {
   }
 });
 
-// OAuth Configuration
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const SCOPES = [
-  'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/fitness.activity.read',
-  'https://www.googleapis.com/auth/fitness.heart_rate.read',
-  'https://www.googleapis.com/auth/fitness.body.read'
-].join(' ');
+// OAuth Configuration (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SCOPES) and
+// the 8 Google OAuth endpoints (calendar, fitness, drive, unlink, /url +
+// /callback for primary + drive + the root-mounted /auth/google/callback)
+// were extracted to src/server/routes/oauthGoogle.ts in Round 18 Phase 3
+// split. Mounts live below alongside the audit/push routers.
 
 // Server-side audit log writer. Replaces direct client `addDoc(collection(db,
 // 'audit_logs'), ...)` calls — those are now denied by firestore.rules
@@ -463,179 +469,13 @@ app.use("/api", auditRouter);
 // into the append-only audit_logs trail.
 app.use("/api/push", pushRouter);
 
-// Server-side OAuth unlink: invoked by client logout flow before signOut.
-// Deletes stored tokens for both Google providers. Idempotent — safe to call
-// when no tokens exist.
-app.post("/api/oauth/unlink", verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
-  try {
-    await Promise.all([
-      revokeTokens({ uid, provider: 'google' }),
-      revokeTokens({ uid, provider: 'google-drive' }),
-    ]);
-    // Round 17 R1 — audit row for revocation. Defensively wrapped so a
-    // stale Firestore handle can't 5xx an otherwise successful unlink.
-    try {
-      await auditServerEvent(req, 'oauth.unlink', 'oauth', {
-        providers: ['google', 'google-drive'],
-      });
-    } catch { /* observability never breaks request path */ }
-    res.json({ success: true });
-  } catch (error: any) {
-    logger.error('oauth_unlink_failed', { uid, message: error?.message });
-    res.status(500).json({
-      error: "Failed to unlink OAuth tokens",
-      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
-    });
-  }
-});
-
-// API Routes
-app.get("/api/auth/google/url", verifyAuth, (req, res) => {
-  const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-  const redirectUri = `${appUrl}/auth/google/callback`;
-
-  const state = crypto.randomBytes(16).toString('hex');
-  const sess = req.session as any;
-  sess.oauthState = state;
-  // Bind this OAuth flow to the authenticated user. The callback runs in a
-  // popup that shares the session cookie, so we recover the UID there
-  // without ever exposing it (or the resulting tokens) to the browser.
-  sess.oauthInitiator = { uid: (req as any).user.uid, provider: 'google' as const };
-
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID || "",
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: SCOPES,
-    access_type: 'offline',
-    prompt: 'consent',
-    state: state
-  });
-
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  res.json({ url: authUrl });
-});
-
-app.get("/auth/google/callback", async (req, res) => {
-  const { code, state } = req.query;
-  const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-  const redirectUri = `${appUrl}/auth/google/callback`;
-
-  const sess = req.session as any;
-  if (!state || state !== sess.oauthState) {
-    return res.status(403).send("Invalid state parameter (CSRF protection)");
-  }
-  const initiator = sess.oauthInitiator;
-  if (!initiator?.uid || initiator.provider !== 'google') {
-    return res.status(403).send("OAuth initiator missing from session");
-  }
-
-  try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code: code as string,
-        client_id: GOOGLE_CLIENT_ID || "",
-        client_secret: GOOGLE_CLIENT_SECRET || "",
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
-    });
-
-    const tokens = await response.json();
-    if (!tokens.access_token) {
-      console.error('Google token exchange returned no access_token:', tokens);
-      return res.status(500).send("Token exchange failed");
-    }
-
-    // Store server-side; never reaches the browser.
-    await saveTokens({ uid: initiator.uid, provider: 'google' }, tokens);
-
-    // Round 17 R1 — audit the link event. The endpoint is intentionally
-    // unauthed (verifyAuth never ran), so we recover the actor uid from the
-    // session oauth-state initiator that /api/auth/google/url stamped before
-    // the redirect. Wrapped so an audit failure can't break the popup
-    // closure flow that the SPA depends on.
-    try {
-      await auditServerEvent(req, 'oauth.link', 'oauth', { provider: 'google' }, {
-        actorOverride: { uid: initiator.uid, email: null },
-      });
-    } catch { /* observability never breaks request path */ }
-
-    delete sess.oauthState;
-    delete sess.oauthInitiator;
-
-    // Tell the popup that linking succeeded — payload contains NO tokens.
-    res.send(`
-      <html>
-        <body>
-          <script>
-            if (window.opener) {
-              window.opener.postMessage({
-                type: 'GOOGLE_AUTH_SUCCESS',
-                linked: true
-              }, '${appUrl}');
-              window.close();
-            } else {
-              window.location.href = '/';
-            }
-          </script>
-          <p>Cuenta vinculada exitosamente. Puedes cerrar esta ventana.</p>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error('Error in Google Auth Callback:', error);
-    res.status(500).send("Error during authentication");
-  }
-});
-
-// Proxy for Google Calendar API to avoid CORS.
-// Uses tokens stored server-side via /auth/google/callback; the client never
-// holds an OAuth access_token or refresh_token.
-// List upcoming Calendar events (next 30 days) for predictive features.
-// Used by useCalendarPredictions to detect already-scheduled CPHS meetings,
-// ODI trainings, etc. and suppress duplicate suggestions.
-app.get("/api/calendar/list", verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
-  const accessToken = await getValidAccessToken(
-    { uid, provider: 'google' },
-    GOOGLE_CLIENT_ID || "",
-    GOOGLE_CLIENT_SECRET || "",
-  );
-  if (!accessToken) {
-    // Caller treats empty list as "no calendar" — return 200 with [] so the
-    // predictions hook doesn't surface a noisy error to the user when they
-    // haven't linked Google Calendar yet.
-    return res.json({ items: [] });
-  }
-  try {
-    const now = new Date();
-    const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const params = new URLSearchParams({
-      timeMin: now.toISOString(),
-      timeMax: in30Days.toISOString(),
-      singleEvents: 'true',
-      orderBy: 'startTime',
-      maxResults: '100',
-    });
-    const response = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!response.ok) {
-      logger.warn('calendar_list_upstream_failed', { uid, status: response.status });
-      return res.json({ items: [] });
-    }
-    const data = await response.json();
-    res.json({ items: data.items ?? [] });
-  } catch (error: any) {
-    logger.error('calendar_list_failed', { uid, message: error?.message });
-    res.json({ items: [] }); // graceful degradation
-  }
-});
+// Round 18 Phase 3 split: 8 Google OAuth endpoints (unlink, /api/auth/google
+// /url, /auth/google/callback, /api/calendar/list, /api/calendar/sync,
+// /api/fitness/sync, /api/drive/auth/url, /api/drive/auth/callback) extracted
+// to src/server/routes/oauthGoogle.ts. Two mounts because /auth/google
+// /callback is registered with Google Cloud Console at a fixed path.
+app.use('/api', oauthGoogleApiRouter);
+app.use('/auth', oauthGoogleAuthRouter);
 
 // 3-day climate forecast endpoint for the Zettelkasten climate-risk coupling.
 // Reads from environmentBackend; returns shape: { forecast: ClimateForecastDay[] }.
@@ -657,221 +497,6 @@ app.get("/api/environment/forecast", async (req, res) => {
   } catch (error: any) {
     logger.warn('environment_forecast_failed', { days, message: error?.message });
     res.json({ forecast: [] });
-  }
-});
-
-app.post("/api/calendar/sync", verifyAuth, async (req, res) => {
-  const { challenges } = req.body;
-  const uid = (req as any).user.uid;
-
-  const accessToken = await getValidAccessToken(
-    { uid, provider: 'google' },
-    GOOGLE_CLIENT_ID || "",
-    GOOGLE_CLIENT_SECRET || "",
-  );
-  if (!accessToken) {
-    return res.status(401).json({ error: "Google account not linked" });
-  }
-
-  try {
-    const results = [];
-    for (const challenge of challenges) {
-      const event = {
-        summary: `Desafío Praeventio: ${challenge}`,
-        description: 'Objetivo de seguridad y salud en el trabajo planificado desde Praeventio Guard.',
-        start: {
-          dateTime: new Date().toISOString(),
-          timeZone: 'UTC',
-        },
-        end: {
-          dateTime: new Date(Date.now() + 3600000).toISOString(), // 1 hour later
-          timeZone: 'UTC',
-        },
-      };
-
-      const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(event),
-      });
-
-      const data = await response.json();
-      results.push(data);
-    }
-
-    // Round 17 R1 — audit the sync. Body shape: { challenges } (no PII
-    // beyond the challenge titles) — we record the count, not the raw text.
-    try {
-      await auditServerEvent(req, 'calendar.sync', 'calendar', {
-        count: Array.isArray(challenges) ? challenges.length : 0,
-      });
-    } catch { /* observability never breaks request path */ }
-
-    res.json({ success: true, results });
-  } catch (error) {
-    console.error('Error syncing with Google Calendar:', error);
-    res.status(500).json({ error: "Failed to sync with Google Calendar" });
-  }
-});
-
-// Proxy for Google Fit API.
-// Uses tokens stored server-side via /auth/google/callback; the client never
-// holds an OAuth access_token or refresh_token.
-//
-// DEPRECATED — Round 3 of HEALTH_CONNECT_MIGRATION.md.
-// Google Fit REST sunsets in 2026; the on-device replacements (Health
-// Connect on Android, HealthKit on iOS) are already wired through
-// `src/services/health/`. This endpoint stays alive as a web/legacy fallback
-// until 2026-12-31, after which the route is removed entirely.
-app.post("/api/fitness/sync", verifyAuth, async (req, res) => {
-  // Sunset / Deprecation signaling per RFC 8594. Clients that honor these
-  // headers can surface their own deprecation UI; we also instrument every
-  // hit so we can quantify residual call volume before the hard cutoff.
-  res.setHeader('Sunset', 'Wed, 31 Dec 2026 23:59:59 GMT');
-  res.setHeader('Deprecation', 'Wed, 31 Dec 2026 23:59:59 GMT');
-  res.setHeader('Link', '</api/health-data>; rel="successor-version"');
-
-  const uid = (req as any).user?.uid;
-
-  // Structured deprecation log so we can quantify residual usage of the
-  // legacy endpoint and confirm Telemetry.tsx truly stopped calling it.
-  logger.warn('fitness_sync_deprecated_called', {
-    uid,
-    userAgent: req.header('user-agent') ?? 'unknown',
-    sunset: '2026-12-31',
-    successor: 'health-connect|healthkit (on-device, no server hop)',
-  });
-
-  const accessToken = await getValidAccessToken(
-    { uid, provider: 'google' },
-    GOOGLE_CLIENT_ID || "",
-    GOOGLE_CLIENT_SECRET || "",
-  );
-  if (!accessToken) {
-    return res.status(401).json({ error: "Google account not linked" });
-  }
-
-  try {
-    const endTime = Date.now();
-    const startTime = endTime - (7 * 24 * 60 * 60 * 1000); // Last 7 days
-
-    const response = await fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        aggregateBy: [
-          { dataTypeName: 'com.google.heart_rate.bpm' },
-          { dataTypeName: 'com.google.step_count.delta' }
-        ],
-        bucketByTime: { durationMillis: 86400000 },
-        startTimeMillis: startTime,
-        endTimeMillis: endTime
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Google Fit API error:', errorText);
-      return res.status(response.status).json({ error: "Failed to fetch Google Fit data" });
-    }
-
-    const data = await response.json();
-    res.json({ success: true, data });
-  } catch (error) {
-    console.error('Error syncing with Google Fit:', error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Google Drive Integration
-app.get("/api/drive/auth/url", verifyAuth, (req, res) => {
-  const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-  const redirectUri = `${appUrl}/api/drive/auth/callback`;
-
-  const state = crypto.randomBytes(16).toString('hex');
-  const sess = req.session as any;
-  sess.driveOauthState = state;
-  sess.driveOauthInitiator = { uid: (req as any).user.uid, provider: 'google-drive' as const };
-
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID || "",
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/drive.file',
-    access_type: 'offline',
-    prompt: 'consent',
-    state: state
-  });
-
-  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  res.json({ url: authUrl });
-});
-
-app.get("/api/drive/auth/callback", async (req, res) => {
-  const { code, state } = req.query;
-  const appUrl = process.env.APP_URL || `http://localhost:${PORT}`;
-  const redirectUri = `${appUrl}/api/drive/auth/callback`;
-
-  const sess = req.session as any;
-  if (!state || state !== sess.driveOauthState) {
-    return res.status(403).send("Invalid state parameter (CSRF protection)");
-  }
-  const initiator = sess.driveOauthInitiator;
-  if (!initiator?.uid || initiator.provider !== 'google-drive') {
-    return res.status(403).send("OAuth initiator missing from session");
-  }
-
-  try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code: code as string,
-        client_id: GOOGLE_CLIENT_ID || "",
-        client_secret: GOOGLE_CLIENT_SECRET || "",
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
-    });
-
-    const tokens = await response.json();
-    if (!tokens.access_token) {
-      console.error('Drive token exchange returned no access_token:', tokens);
-      return res.status(500).send("Token exchange failed");
-    }
-
-    await saveTokens({ uid: initiator.uid, provider: 'google-drive' }, tokens);
-
-    delete sess.driveOauthState;
-    delete sess.driveOauthInitiator;
-
-    res.send(`
-      <html>
-        <body>
-          <script>
-            if (window.opener) {
-              window.opener.postMessage({
-                type: 'DRIVE_AUTH_SUCCESS',
-                linked: true
-              }, '${appUrl}');
-              window.close();
-            } else {
-              window.location.href = '/';
-            }
-          </script>
-          <p>Google Drive vinculado exitosamente. Puedes cerrar esta ventana.</p>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    console.error('Error in Google Drive Auth Callback:', error);
-    res.status(500).send("Error during authentication");
   }
 });
 
@@ -981,19 +606,42 @@ app.post("/api/telemetry/ingest", async (req, res) => {
     }
   }
 
-  // Decide which auth path we're on. Per-tenant: HMAC over canonical JSON
-  // body, header `x-iot-signature: sha256=<hex>`. Env fallback: legacy
-  // x-iot-secret header (or deprecated body.secretKey).
+  // Decide which auth path we're on. Per-tenant: HMAC-SHA256 over the
+  // RFC 8785 canonical-JSON form of the request body, header
+  // `x-iot-signature: sha256=<hex>`. Env fallback: legacy x-iot-secret
+  // header (or deprecated body.secretKey).
+  //
+  // Round 18 R6 (R6→R17 MEDIUM #2): the signing input is now the RFC 8785
+  // canonical-JSON form of the parsed body (sorted keys, no whitespace,
+  // shortest numeric form). Producers in any language MUST canonicalise
+  // before HMACing or signatures will diverge. This is the documented,
+  // intentional break of the prior `JSON.stringify(req.body)` contract —
+  // see src/server/middleware/canonicalBody.ts for the rationale and the
+  // LEGACY_HMAC_FALLBACK flag is honored below for emergency rollback.
   let authenticated = false;
   if (perTenantSecret) {
     const sigHeader = req.header('x-iot-signature') ?? '';
+    const canonicalBody = canonicalize(req.body ?? {});
     const expectedHex = crypto
       .createHmac('sha256', perTenantSecret)
-      .update(JSON.stringify(req.body ?? {}))
+      .update(canonicalBody)
       .digest('hex');
     const expectedHeader = `sha256=${expectedHex}`;
     if (safeSecretEqual(sigHeader, expectedHeader)) {
       authenticated = true;
+    } else if (process.env.LEGACY_HMAC_FALLBACK === '1') {
+      // DEPRECATED — emergency rollback path. Producer is still sending
+      // legacy `JSON.stringify(req.body)` HMACs. Verify under the old
+      // contract; log every match so operators can see who is still on
+      // the legacy path. Remove once telemetry shows zero hits.
+      const legacyHex = crypto
+        .createHmac('sha256', perTenantSecret)
+        .update(JSON.stringify(req.body ?? {}))
+        .digest('hex');
+      if (safeSecretEqual(sigHeader, `sha256=${legacyHex}`)) {
+        logger.warn('telemetry_hmac_legacy_fallback', { tenantId });
+        authenticated = true;
+      }
     }
   }
 
@@ -1147,328 +795,15 @@ app.post("/api/seed-data", verifyAuth, async (req, res) => {
   }
 });
 
-// ─── Project Invitation System ───────────────────────────────────────────────
-
-function buildInviteEmailHtml({ projectName, inviterName, role, token }: { projectName: string; inviterName: string; role: string; token: string }) {
-  const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
-  const acceptUrl = `${appUrl}/invite?token=${token}`;
-  const roleLabels: Record<string, string> = {
-    gerente: 'Gerente de Prevención',
-    prevencionista: 'Prevencionista de Riesgos',
-    supervisor: 'Supervisor',
-    director_obra: 'Director de Obra',
-    medico_ocupacional: 'Médico Ocupacional',
-    operario: 'Operario',
-    contratista: 'Contratista',
-  };
-  const roleLabel = roleLabels[role] || role;
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Invitación a Praeventio</title></head><body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f5;color:#18181b">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0"><tr><td align="center">
-  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-    <tr><td style="background:#09090b;padding:32px 40px;text-align:center">
-      <span style="font-size:24px;font-weight:900;color:#10b981;letter-spacing:-1px">PRAEVENTIO</span>
-      <span style="font-size:10px;font-weight:700;color:#6b7280;display:block;letter-spacing:4px;margin-top:2px">GUARD</span>
-    </td></tr>
-    <tr><td style="padding:40px">
-      <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">Fuiste invitado a un proyecto</h2>
-      <p style="margin:0 0 24px;font-size:14px;color:#71717a"><strong style="color:#09090b">${inviterName}</strong> te invitó a unirte a <strong style="color:#09090b">"${projectName}"</strong> como <strong style="color:#10b981">${roleLabel}</strong>.</p>
-      <div style="text-align:center;margin:32px 0">
-        <a href="${acceptUrl}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Aceptar Invitación</a>
-      </div>
-      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">Si no esperabas esta invitación, puedes ignorar este email.</p>
-      <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${acceptUrl}</p>
-    </td></tr>
-    <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
-    </td></tr>
-  </table></td></tr></table>
-</body></html>`;
-}
-
-// POST /api/projects/:id/invite  — project creator sends an invitation
-app.post("/api/projects/:id/invite", verifyAuth, async (req, res) => {
-  const projectId = req.params.id;
-  const callerUid = (req as any).user.uid;
-  const { invitedEmail, invitedRole } = req.body;
-
-  if (!invitedEmail || !invitedRole) {
-    return res.status(400).json({ error: "invitedEmail and invitedRole are required" });
-  }
-
-  try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
-    if (!projectDoc.exists) return res.status(404).json({ error: "Project not found" });
-
-    const projectData = projectDoc.data()!;
-    if (projectData.createdBy !== callerUid) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (callerRecord.customClaims?.role !== 'gerente' && callerRecord.customClaims?.role !== 'admin') {
-        return res.status(403).json({ error: "Forbidden: Only the project creator can invite members" });
-      }
-    }
-
-    // Check if user is already a member
-    const existingMembers: string[] = projectData.members || [];
-    try {
-      const invitedUser = await admin.auth().getUserByEmail(invitedEmail);
-      if (existingMembers.includes(invitedUser.uid)) {
-        return res.status(409).json({ error: "User is already a member of this project" });
-      }
-    } catch {
-      // User doesn't exist yet — invitation will add them when they register and accept
-    }
-
-    // Check for existing pending invitation
-    const existingInvite = await admin.firestore().collection('invitations')
-      .where('projectId', '==', projectId)
-      .where('invitedEmail', '==', invitedEmail)
-      .where('status', '==', 'pending')
-      .limit(1)
-      .get();
-
-    if (!existingInvite.empty) {
-      return res.status(409).json({ error: "A pending invitation already exists for this email" });
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const inviteRef = await admin.firestore().collection('invitations').add({
-      projectId,
-      projectName: projectData.name || '',
-      invitedEmail,
-      invitedRole,
-      invitedBy: callerUid,
-      token,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      expiresAt,
-    });
-
-    // Send invitation email — failure does NOT block the response
-    try {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      const inviterName = callerRecord.displayName || callerRecord.email || 'Tu equipo';
-      await resend.emails.send({
-        from: 'Praeventio Guard <noreply@praeventio.net>',
-        to: invitedEmail,
-        subject: `${inviterName} te invitó a "${projectData.name || 'un proyecto'}" en Praeventio`,
-        html: buildInviteEmailHtml({ projectName: projectData.name || 'un proyecto', inviterName, role: invitedRole, token }),
-      });
-    } catch (emailErr) {
-      console.warn('Email delivery failed (invitation stored successfully):', emailErr);
-    }
-
-    res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
-  } catch (error: any) {
-    console.error("Error creating invitation:", error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
-// GET /api/invitations/info/:token  — public, returns safe invite preview (no auth required)
-app.get("/api/invitations/info/:token", async (req, res) => {
-  const { token } = req.params;
-  try {
-    const snapshot = await admin.firestore().collection('invitations')
-      .where('token', '==', token)
-      .where('status', '==', 'pending')
-      .limit(1)
-      .get();
-    if (snapshot.empty) return res.status(404).json({ error: "Invitation not found or already used" });
-    const invite = snapshot.docs[0].data();
-    if (new Date(invite.expiresAt) < new Date()) return res.status(410).json({ error: "Invitation has expired" });
-    // Return only safe, non-sensitive fields
-    res.json({
-      projectName: invite.projectName || 'un proyecto',
-      invitedRole: invite.invitedRole,
-      invitedEmail: invite.invitedEmail,
-      expiresAt: invite.expiresAt,
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// POST /api/invitations/:token/accept  — invited user accepts
-app.post("/api/invitations/:token/accept", verifyAuth, async (req, res) => {
-  const { token } = req.params;
-  const callerUid = (req as any).user.uid;
-  const callerEmail = (req as any).user.email;
-
-  try {
-    const snapshot = await admin.firestore().collection('invitations')
-      .where('token', '==', token)
-      .where('status', '==', 'pending')
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      return res.status(404).json({ error: "Invitation not found or already used" });
-    }
-
-    const inviteDoc = snapshot.docs[0];
-    const invite = inviteDoc.data();
-
-    if (invite.invitedEmail !== callerEmail) {
-      return res.status(403).json({ error: "This invitation was sent to a different email address" });
-    }
-
-    if (new Date(invite.expiresAt) < new Date()) {
-      await inviteDoc.ref.update({ status: 'expired' });
-      return res.status(410).json({ error: "Invitation has expired" });
-    }
-
-    const projectRef = admin.firestore().collection('projects').doc(invite.projectId);
-    await projectRef.update({
-      members: admin.firestore.FieldValue.arrayUnion(callerUid),
-      [`memberRoles.${callerUid}`]: invite.invitedRole,
-    });
-
-    await inviteDoc.ref.update({ status: 'accepted', acceptedAt: new Date().toISOString() });
-
-    res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
-  } catch (error: any) {
-    console.error("Error accepting invitation:", error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
-// GET /api/projects/:id/members  — list members with display info and roles
-app.get("/api/projects/:id/members", verifyAuth, async (req, res) => {
-  const projectId = req.params.id;
-  const callerUid = (req as any).user.uid;
-
-  try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
-    if (!projectDoc.exists) return res.status(404).json({ error: "Project not found" });
-
-    const projectData = projectDoc.data()!;
-    const memberUids: string[] = projectData.members || [];
-    const memberRoles: Record<string, string> = projectData.memberRoles || {};
-
-    if (!memberUids.includes(callerUid)) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (callerRecord.customClaims?.role !== 'gerente' && callerRecord.customClaims?.role !== 'admin') {
-        return res.status(403).json({ error: "Forbidden: Not a project member" });
-      }
-    }
-
-    const memberDetails = await Promise.all(
-      memberUids.map(async (uid) => {
-        try {
-          const userRecord = await admin.auth().getUser(uid);
-          return {
-            uid,
-            displayName: userRecord.displayName || userRecord.email || uid,
-            email: userRecord.email || '',
-            photoURL: userRecord.photoURL || null,
-            role: memberRoles[uid] || 'operario',
-            isCreator: uid === projectData.createdBy,
-          };
-        } catch {
-          return { uid, displayName: uid, email: '', photoURL: null, role: memberRoles[uid] || 'operario', isCreator: false };
-        }
-      })
-    );
-
-    // Include pending invitations
-    const pendingInvites = await admin.firestore().collection('invitations')
-      .where('projectId', '==', projectId)
-      .where('status', '==', 'pending')
-      .get();
-
-    const invitations = pendingInvites.docs.map(doc => ({
-      id: doc.id,
-      invitedEmail: doc.data().invitedEmail,
-      invitedRole: doc.data().invitedRole,
-      createdAt: doc.data().createdAt,
-      expiresAt: doc.data().expiresAt,
-    }));
-
-    res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
-  } catch (error: any) {
-    console.error("Error listing project members:", error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
-// DELETE /api/projects/:id/members/:uid  — remove a member
-app.delete("/api/projects/:id/members/:uid", verifyAuth, async (req, res) => {
-  const { id: projectId, uid: targetUid } = req.params;
-  const callerUid = (req as any).user.uid;
-
-  try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
-    if (!projectDoc.exists) return res.status(404).json({ error: "Project not found" });
-
-    const projectData = projectDoc.data()!;
-
-    const isCreator = projectData.createdBy === callerUid;
-    const isSelf = callerUid === targetUid;
-    if (!isCreator && !isSelf) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (callerRecord.customClaims?.role !== 'gerente' && callerRecord.customClaims?.role !== 'admin') {
-        return res.status(403).json({ error: "Forbidden: Only the project creator can remove members" });
-      }
-    }
-
-    if (targetUid === projectData.createdBy) {
-      return res.status(400).json({ error: "Cannot remove the project creator" });
-    }
-
-    await admin.firestore().collection('projects').doc(projectId).update({
-      members: admin.firestore.FieldValue.arrayRemove(targetUid),
-      [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
-    });
-
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("Error removing project member:", error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
-// DELETE /api/projects/:id/invite  — project creator cancels a pending invitation
-app.delete("/api/projects/:id/invite", verifyAuth, async (req, res) => {
-  const projectId = req.params.id;
-  const callerUid = (req as any).user.uid;
-  const { inviteId } = req.body;
-
-  if (!inviteId) {
-    return res.status(400).json({ error: "inviteId is required" });
-  }
-
-  try {
-    const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
-    if (!projectDoc.exists) return res.status(404).json({ error: "Project not found" });
-
-    const projectData = projectDoc.data()!;
-    const isCreator = projectData.createdBy === callerUid;
-    if (!isCreator) {
-      const callerRecord = await admin.auth().getUser(callerUid);
-      if (callerRecord.customClaims?.role !== 'gerente' && callerRecord.customClaims?.role !== 'admin') {
-        return res.status(403).json({ error: "Forbidden: Only the project creator can cancel invitations" });
-      }
-    }
-
-    const inviteDoc = await admin.firestore().collection('invitations').doc(inviteId).get();
-    if (!inviteDoc.exists) return res.status(404).json({ error: "Invitation not found" });
-    if (inviteDoc.data()!.projectId !== projectId) {
-      return res.status(403).json({ error: "Invitation does not belong to this project" });
-    }
-
-    await inviteDoc.ref.delete();
-    res.json({ success: true });
-  } catch (error: any) {
-    console.error("Error canceling invitation:", error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Project Invitation System (Round 18 Phase 3 — moved) ─────────────────
+// 6 endpoints (POST /api/projects/:id/invite, GET /api/projects/:id/members,
+// DELETE /api/projects/:id/members/:uid, DELETE /api/projects/:id/invite,
+// GET /api/invitations/info/:token, POST /api/invitations/:token/accept)
+// plus the `buildInviteEmailHtml` helper extracted to
+// src/server/routes/projects.ts. Two routers because URLs span /api/projects
+// and /api/invitations.
+app.use('/api/projects', projectsRouter);
+app.use('/api/invitations', invitationsRouter);
 
 // Gamification Endpoints
 app.post("/api/gamification/points", verifyAuth, async (req, res) => {
@@ -1874,440 +1209,18 @@ const setupBackgroundTriggers = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// Round 14 — Curriculum claims (R5 agent scope).
+// Round 18 Phase 3 split — Curriculum claims + WebAuthn challenge.
 //
-// Flagship anti-fraud feature: workers create signed claims about their
-// own experience, and 2 named referees co-sign via magic-link emails.
-// Once both co-sign, the claim becomes immutable in Firestore. See
-// `src/services/curriculum/claims.ts` for the engine + invariants.
-//
-// Endpoints below are intentionally placed at the end of server.ts —
-// before the terminal error middleware — so they participate in the
-// global error handler but do NOT interfere with R1's deletion blocks
-// or KMS pre-flight at the top of the file.
+// 5 curriculum endpoints (POST /claim, GET /claims, POST /claim/:id/resend,
+// GET /referee/:token, POST /referee/:token) plus the WebAuthn challenge
+// issuance endpoint extracted to src/server/routes/curriculum.ts. The
+// helpers (`buildCurriculumAuditor`, `buildClaimEmailHtml`, `buildWebAuthnDb`)
+// moved with them — they had no other callers in server.ts. Mounted
+// via TWO routers because the WebAuthn endpoint lives at /api/auth/...
+// not /api/curriculum/...
 // ─────────────────────────────────────────────────────────────────────
-import {
-  createClaim as curriculumCreateClaim,
-  recordRefereeEndorsement as curriculumEndorse,
-  getClaimsByWorker as curriculumGetByWorker,
-  type ClaimCategory,
-  type AuditLogger as CurriculumAuditLogger,
-} from "./src/services/curriculum/claims.js";
-import { hashToken as curriculumHashToken, generateRefereeToken as curriculumGenToken } from "./src/services/curriculum/refereeTokens.js";
-
-/** Server-side audit-log writer for curriculum events. Uses the same
- *  audit_logs collection as /api/audit-log; differences:
- *    • userId is the server (we stamp 'system' if no caller uid is
- *      available — referee endpoint is unauthed).
- *    • timestamp is server-stamped via FieldValue.serverTimestamp().
- *  Failures are logged but never break the main flow.                */
-function buildCurriculumAuditor(callerUid: string | null, callerEmail: string | null, ipMaybe?: string, uaMaybe?: string): CurriculumAuditLogger {
-  return async (action, details) => {
-    try {
-      await admin.firestore().collection('audit_logs').add({
-        action,
-        module: 'curriculum',
-        details: details ?? {},
-        userId: callerUid ?? 'system',
-        userEmail: callerEmail ?? null,
-        projectId: null,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        ip: ipMaybe ?? null,
-        userAgent: uaMaybe ?? null,
-      });
-    } catch (err: any) {
-      logger.error('curriculum_audit_failed', { action, message: err?.message });
-    }
-  };
-}
-
-function buildClaimEmailHtml({ workerName, refereeName, claimText, magicLink }: { workerName: string; refereeName: string; claimText: string; magicLink: string }) {
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Co-firma un claim en Praeventio</title></head><body style="margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f5;color:#18181b">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0"><tr><td align="center">
-  <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-    <tr><td style="background:#09090b;padding:32px 40px;text-align:center">
-      <span style="font-size:24px;font-weight:900;color:#10b981;letter-spacing:-1px">PRAEVENTIO</span>
-      <span style="font-size:10px;font-weight:700;color:#6b7280;display:block;letter-spacing:4px;margin-top:2px">GUARD</span>
-    </td></tr>
-    <tr><td style="padding:40px">
-      <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">Te nombraron como referencia</h2>
-      <p style="margin:0 0 16px;font-size:14px;color:#71717a">Hola <strong style="color:#09090b">${refereeName}</strong>, <strong style="color:#09090b">${workerName}</strong> te nombró referencia en un claim verificable de su currículum profesional.</p>
-      <blockquote style="margin:16px 0;padding:14px 16px;background:#f4f4f5;border-left:4px solid #10b981;border-radius:8px;font-size:13px;color:#27272a;font-style:italic">"${claimText.replace(/"/g, '&quot;')}"</blockquote>
-      <p style="margin:0 0 24px;font-size:13px;color:#71717a">Si confirmas que es verídico, co-fírmalo para incorporarlo a su currículum portátil. Si no lo conoces o crees que es falso, puedes rechazarlo.</p>
-      <div style="text-align:center;margin:32px 0">
-        <a href="${magicLink}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Revisar y Co-firmar</a>
-      </div>
-      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">El enlace expira en 14 días. Si no lo conoces a ${workerName}, ignora este email.</p>
-      <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${magicLink}</p>
-    </td></tr>
-    <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
-    </td></tr>
-  </table></td></tr></table>
-</body></html>`;
-}
-
-// In-memory per-token resend rate limit. The global /api/ limiter applies
-// too; this is the per-claim cooldown so a worker can't spam-resend a
-// magic-link to the same referee. Resets on server restart — fine for
-// MVP volumes (high-traffic abuse would still be caught upstream).
-const curriculumResendCooldown = new Map<string, number>();
-const CURRICULUM_RESEND_COOLDOWN_MS = 30_000;
-
-// POST /api/curriculum/claim — worker creates a claim (signed) and the
-// server fires off the 2 magic-link emails to the referees.
-app.post("/api/curriculum/claim", verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
-  const ipMaybe = req.ip ?? undefined;
-  const uaMaybe = req.header('user-agent') ?? undefined;
-  const { claim, category, referees, signedByWorker } = req.body ?? {};
-
-  if (typeof claim !== 'string' || claim.trim().length === 0 || claim.trim().length > 500) {
-    return res.status(400).json({ error: 'claim text is required and must be ≤500 chars' });
-  }
-  const validCategories: ClaimCategory[] = ['experience', 'certification', 'incident_record', 'other'];
-  if (!validCategories.includes(category)) {
-    return res.status(400).json({ error: 'invalid category' });
-  }
-  if (!Array.isArray(referees) || referees.length !== 2) {
-    return res.status(400).json({ error: 'exactly 2 referees are required' });
-  }
-
-  try {
-    const audit = buildCurriculumAuditor(callerUid, callerEmail, ipMaybe, uaMaybe);
-    const callerRecord = await admin.auth().getUser(callerUid).catch(() => null);
-    const workerName = callerRecord?.displayName || callerEmail || 'Trabajador Praeventio';
-    const result = await curriculumCreateClaim(
-      {
-        workerId: callerUid,
-        workerEmail: callerEmail ?? '',
-        claim,
-        category,
-        signedByWorker: signedByWorker ?? {},
-        referees,
-      },
-      admin.firestore() as any,
-      audit,
-    );
-
-    // Send the 2 magic-link emails. We do NOT block the response on
-    // email delivery — failures are logged and the worker can use
-    // /api/curriculum/claim/:id/resend to retry.
-    const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
-    await Promise.all(result.refereeTokens.map(async (rawToken, idx) => {
-      const ref = referees[idx];
-      const magicLink = `${appUrl}/curriculum/referee/${rawToken}`;
-      try {
-        await resend.emails.send({
-          from: 'Praeventio Guard <noreply@praeventio.net>',
-          to: ref.email,
-          subject: `${workerName} te nombró referencia en un claim — Praeventio`,
-          html: buildClaimEmailHtml({
-            workerName,
-            refereeName: ref.name,
-            claimText: claim,
-            magicLink,
-          }),
-        });
-      } catch (emailErr) {
-        logger.error('curriculum_email_failed', { claimId: result.id, refereeIndex: idx, message: (emailErr as any)?.message });
-      }
-    }));
-
-    res.json({ success: true, claimId: result.id });
-  } catch (error: any) {
-    const message = error?.message || 'Internal server error';
-    // Validation-style errors thrown by the service map to 400.
-    if (/required|invalid|exactly 2|distinct|500/i.test(message)) {
-      return res.status(400).json({ error: message });
-    }
-    logger.error('curriculum_claim_create_failed', { uid: callerUid, message });
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : message });
-  }
-});
-
-// GET /api/curriculum/claims — list claims for the authenticated worker.
-app.get("/api/curriculum/claims", verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  try {
-    const claims = await curriculumGetByWorker(callerUid, admin.firestore() as any);
-    res.json({ success: true, claims });
-  } catch (error: any) {
-    logger.error('curriculum_claims_list_failed', { uid: callerUid, message: error?.message });
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// ─────────────────────────────────────────────────────────────────────
-// Round 17 (R5) — WebAuthn server-issued challenge endpoint.
-//
-// Closes the R6/R16 MEDIUM finding: client-generated WebAuthn challenges
-// are replay-vulnerable. Server-issued, single-use, 5-minute-TTL
-// challenges are now the only acceptable input to navigator.credentials.
-//
-// Round 17 — server-issued challenges replace client-generated MVP.
-// Replay-resistant per ISO 27001 §A.9.4.1.
-//
-// GET /api/auth/webauthn/challenge — issues a fresh challenge for the
-// authenticated user. Returns { challengeId, challenge } where
-// `challenge` is base64-url-safe so the client can decode it back into
-// a Uint8Array for the WebAuthn API. The client subsequently submits
-// (challengeId, signed-assertion) to /api/auth/webauthn/verify (TODO,
-// future round) — the verifier calls consumeWebAuthnChallenge() so the
-// challenge can never be replayed.
-// ─────────────────────────────────────────────────────────────────────
-import {
-  generateWebAuthnChallenge,
-  storeWebAuthnChallenge,
-  type MinimalChallengesDb as WebAuthnChallengesDb,
-} from "./src/services/auth/webauthnChallenge.js";
-
-/** Adapter that bridges the firebase-admin Firestore handle to our
- *  injection-friendly MinimalChallengesDb surface. The `updateIf`
- *  primitive is implemented via a transaction with a precondition
- *  read-then-write so two concurrent consume() calls cannot both win. */
-function buildWebAuthnDb(): WebAuthnChallengesDb {
-  const fs = admin.firestore();
-  return {
-    now: () => Date.now(),
-    collection(name: string) {
-      const col = fs.collection(name);
-      return {
-        doc(id: string) {
-          const ref = col.doc(id);
-          return {
-            async get() {
-              const snap = await ref.get();
-              return {
-                exists: snap.exists,
-                id: snap.id,
-                data: () => (snap.exists ? (snap.data() as Record<string, unknown>) : undefined),
-              };
-            },
-            async set(data: Record<string, unknown>) {
-              await ref.set(data);
-            },
-            async updateIf(
-              precondition: (current: Record<string, unknown> | undefined) => boolean,
-              patch: Record<string, unknown>,
-            ): Promise<boolean> {
-              return fs.runTransaction(async (tx) => {
-                const snap = await tx.get(ref);
-                const current = snap.exists ? (snap.data() as Record<string, unknown>) : undefined;
-                if (!precondition(current)) return false;
-                tx.update(ref, patch);
-                return true;
-              });
-            },
-          };
-        },
-      };
-    },
-  };
-}
-
-app.get("/api/auth/webauthn/challenge", verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  try {
-    const { challengeId, challenge } = generateWebAuthnChallenge();
-    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
-    res.json({
-      challengeId,
-      // base64 — the client decodes via `Uint8Array.from(atob(...), c => c.charCodeAt(0))`
-      challenge: Buffer.from(challenge).toString('base64'),
-      ttlSeconds: 300,
-    });
-  } catch (error: any) {
-    logger.error('webauthn_challenge_issue_failed', { uid: callerUid, message: error?.message });
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/curriculum/claim/:id/resend — re-email the magic link to one
-// of the still-pending referees. Rate-limited per (claimId,refereeIndex).
-app.post("/api/curriculum/claim/:id/resend", verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const claimId = req.params.id;
-  const { refereeIndex } = req.body ?? {};
-  if (refereeIndex !== 0 && refereeIndex !== 1) {
-    return res.status(400).json({ error: 'refereeIndex must be 0 or 1' });
-  }
-  try {
-    const snap = await admin.firestore().collection('curriculum_claims').doc(claimId).get();
-    if (!snap.exists) return res.status(404).json({ error: 'claim not found' });
-    const claim = snap.data() as any;
-    if (claim.workerId !== callerUid) return res.status(403).json({ error: 'not your claim' });
-    if (claim.status !== 'pending_referees') return res.status(409).json({ error: 'claim is not pending' });
-    const slot = claim.referees?.[refereeIndex];
-    if (!slot || slot.signedAt) return res.status(409).json({ error: 'referee already responded' });
-
-    const cdKey = `${claimId}:${refereeIndex}`;
-    const now = Date.now();
-    const last = curriculumResendCooldown.get(cdKey) ?? 0;
-    if (now - last < CURRICULUM_RESEND_COOLDOWN_MS) {
-      return res.status(429).json({ error: 'too many resends — espera unos segundos' });
-    }
-    curriculumResendCooldown.set(cdKey, now);
-
-    // We cannot resend the original raw token (only its hash is stored).
-    // Resend semantics: rotate the token — issue a NEW raw token, replace
-    // the slot's hash, and email that. Old token in flight becomes a
-    // no-op (no slot matches its hash).
-    const newRaw = curriculumGenToken();
-    const newHash = curriculumHashToken(newRaw);
-    const updatedReferees = claim.referees.map((r: any, i: number) => i === refereeIndex ? { ...r, tokenHash: newHash } : r);
-    await snap.ref.update({ referees: updatedReferees });
-
-    const callerRecord = await admin.auth().getUser(callerUid).catch(() => null);
-    const workerName = callerRecord?.displayName || callerRecord?.email || 'Trabajador Praeventio';
-    const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
-    const magicLink = `${appUrl}/curriculum/referee/${newRaw}`;
-    try {
-      await resend.emails.send({
-        from: 'Praeventio Guard <noreply@praeventio.net>',
-        to: slot.email,
-        subject: `Recordatorio: ${workerName} necesita tu co-firma — Praeventio`,
-        html: buildClaimEmailHtml({
-          workerName,
-          refereeName: slot.name,
-          claimText: claim.claim,
-          magicLink,
-        }),
-      });
-    } catch (emailErr) {
-      logger.error('curriculum_resend_email_failed', { claimId, message: (emailErr as any)?.message });
-    }
-    res.json({ success: true });
-  } catch (error: any) {
-    logger.error('curriculum_resend_failed', { uid: callerUid, message: error?.message });
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// `refereeLimiter` extracted to src/server/middleware/limiters.ts in
-// Round 16 R5 Phase 1 split.
-
-// GET /api/curriculum/referee/:token — public preview for the magic-link
-// landing page. Returns minimal claim metadata if the token matches.
-app.get("/api/curriculum/referee/:token", refereeLimiter, async (req, res) => {
-  const rawToken = req.params.token ?? '';
-  if (typeof rawToken !== 'string' || !/^[0-9a-f]{64}$/.test(rawToken)) {
-    return res.status(400).json({ error: 'invalid token format' });
-  }
-  try {
-    const tokenHash = curriculumHashToken(rawToken);
-    // Token-hash lookup. We need a `where` query because the hash lives
-    // inside the `referees` array — we filter client-side after fetching
-    // by status. A scoped indexed approach (referees_index sub-collection)
-    // would scale better; this is fine for MVP volumes.
-    const all = await admin.firestore().collection('curriculum_claims')
-      .where('status', 'in', ['pending_referees', 'verified', 'expired'])
-      .get();
-    let matchedClaim: any = null;
-    let matchedIdx = -1;
-    for (const d of all.docs) {
-      const data = d.data();
-      const idx = (data.referees ?? []).findIndex((r: any) => r.tokenHash === tokenHash);
-      if (idx !== -1) {
-        matchedClaim = { ...data, id: d.id };
-        matchedIdx = idx;
-        break;
-      }
-    }
-    if (!matchedClaim) return res.status(404).json({ error: 'token does not match any claim' });
-    if (new Date(matchedClaim.expiresAt).getTime() < Date.now() && matchedClaim.status === 'pending_referees') {
-      // Lazy expire on read.
-      await admin.firestore().collection('curriculum_claims').doc(matchedClaim.id).update({ status: 'expired' });
-      matchedClaim.status = 'expired';
-    }
-    const slot = matchedClaim.referees[matchedIdx];
-    let workerName = matchedClaim.workerEmail || 'Trabajador Praeventio';
-    try {
-      const wr = await admin.auth().getUser(matchedClaim.workerId);
-      workerName = wr.displayName || wr.email || workerName;
-    } catch { /* worker may have been deleted; fall back to email */ }
-    res.json({
-      claimText: matchedClaim.claim,
-      workerName,
-      workerEmail: matchedClaim.workerEmail,
-      refereeName: slot.name,
-      refereeEmail: slot.email,
-      category: matchedClaim.category,
-      status: matchedClaim.status,
-      alreadySigned: !!slot.signedAt,
-      expiresAt: matchedClaim.expiresAt,
-    });
-  } catch (error: any) {
-    logger.error('curriculum_referee_preview_failed', { message: error?.message });
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// POST /api/curriculum/referee/:token — public co-sign / decline.
-// UNAUTHED: the security barrier is the 256-bit token. The server hashes
-// it and matches against the stored slot. Rate-limited via refereeLimiter.
-app.post("/api/curriculum/referee/:token", refereeLimiter, async (req, res) => {
-  const rawToken = req.params.token ?? '';
-  const { action, method, signature } = req.body ?? {};
-  if (typeof rawToken !== 'string' || !/^[0-9a-f]{64}$/.test(rawToken)) {
-    return res.status(400).json({ error: 'invalid token format' });
-  }
-  if (action !== 'cosign' && action !== 'decline') {
-    return res.status(400).json({ error: 'action must be cosign or decline' });
-  }
-  if (action === 'cosign' && method !== 'webauthn' && method !== 'standard') {
-    return res.status(400).json({ error: 'method must be webauthn or standard' });
-  }
-  if (typeof signature !== 'string' || signature.length === 0 || signature.length > 1024) {
-    return res.status(400).json({ error: 'signature is required (≤1024 chars)' });
-  }
-  try {
-    // Locate the claim id by scanning (same as preview).
-    const tokenHash = curriculumHashToken(rawToken);
-    const all = await admin.firestore().collection('curriculum_claims')
-      .where('status', '==', 'pending_referees')
-      .get();
-    let claimId: string | null = null;
-    for (const d of all.docs) {
-      const data = d.data();
-      const idx = (data.referees ?? []).findIndex((r: any) => r.tokenHash === tokenHash);
-      if (idx !== -1) { claimId = d.id; break; }
-    }
-    if (!claimId) return res.status(404).json({ error: 'token does not match any pending claim' });
-
-    if (action === 'decline') {
-      // Decline path: mark slot.declined = true and flip claim to rejected.
-      const ref = admin.firestore().collection('curriculum_claims').doc(claimId);
-      const snap = await ref.get();
-      const data = snap.data() as any;
-      const idx = data.referees.findIndex((r: any) => r.tokenHash === tokenHash);
-      const updatedReferees = data.referees.map((r: any, i: number) => i === idx ? { ...r, declined: true, signedAt: new Date().toISOString(), signature, method: method ?? 'standard' } : r);
-      await ref.update({ referees: updatedReferees, status: 'rejected' });
-      const audit = buildCurriculumAuditor(null, null, req.ip ?? undefined, req.header('user-agent') ?? undefined);
-      await audit('curriculum.referee.declined', { claimId, refereeEmail: data.referees[idx].email });
-      return res.json({ success: true, verified: false, declined: true });
-    }
-
-    // Cosign path: delegate to the service.
-    const audit = buildCurriculumAuditor(null, null, req.ip ?? undefined, req.header('user-agent') ?? undefined);
-    const result = await curriculumEndorse(
-      claimId,
-      rawToken,
-      { signature, method: method as 'webauthn' | 'standard' },
-      admin.firestore() as any,
-      audit,
-    );
-    res.json({ success: true, verified: result.verified });
-  } catch (error: any) {
-    const message = error?.message || 'Internal server error';
-    if (/expired/i.test(message)) return res.status(410).json({ error: message });
-    if (/already/i.test(message)) return res.status(409).json({ error: message });
-    if (/token|match/i.test(message)) return res.status(404).json({ error: message });
-    logger.error('curriculum_referee_endorse_failed', { message });
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+app.use('/api/curriculum', curriculumRouter);
+app.use('/api/auth', webauthnChallengeRouter);
 
 // Round 13: Express terminal error middleware. MUST be the last `app.use(...)`
 // — Express only treats 4-arg middleware as an error handler, and only
