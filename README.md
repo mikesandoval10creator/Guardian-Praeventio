@@ -127,6 +127,27 @@ Para Firebase Admin local: descargar `firebase-applet-config.json` desde la cons
 | `npm run start` | Servidor en modo producción |
 | `npm run cap:android` | Sincronizar y abrir Android Studio |
 | `npm run cap:ios` | Sincronizar y abrir Xcode |
+| `npm run mutation` | Mutation testing (Stryker) sobre motores de cálculo de seguridad |
+
+---
+
+## Mutation testing
+
+`npm run mutation` corre [Stryker](https://stryker-mutator.io/) sobre los motores
+de cálculo de seguridad — donde una regresión silenciosa puede traducirse en
+mal cálculo de riesgo y daño físico al trabajador. Es por eso que estos
+módulos exigen una cobertura mutacional alta, no sólo line/branch.
+
+- **Ejecución local:** `npm run mutation` (es lento — corrida completa puede
+  tardar 15-30 min según hardware; aún no agregado a CI).
+- **Targets** (`stryker.conf.json`): `services/ergonomics/{reba,rula}.ts`,
+  `services/protocols/{iper,prexor,tmert}.ts`, `services/safety/{ergonomicAssessments,iperAssessments}.ts`.
+- **Umbrales:** `high: 80%`, `low: 60%` (sin `break` — no rompe el build aún).
+- **Reporte HTML:** `reports/mutation/index.html` tras la corrida; abrir en
+  navegador para inspeccionar mutantes sobrevivientes.
+
+Plan: cuando R18 establezca la línea base, agregar el badge de score al
+README e incluir la corrida en el pipeline de PR (con cache).
 
 ---
 

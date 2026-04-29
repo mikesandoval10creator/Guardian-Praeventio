@@ -50,6 +50,7 @@ import {
 import adminRouter from "./src/server/routes/admin.js";
 import healthRouter from "./src/server/routes/health.js";
 import auditRouter from "./src/server/routes/audit.js";
+import pushRouter from "./src/server/routes/push.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { performance } from 'node:perf_hooks';
@@ -461,6 +462,14 @@ const SCOPES = [
 // Handler extracted to src/server/routes/audit.ts in Round 16 R5 Phase 1
 // split. Final path preserved: POST /api/audit-log.
 app.use("/api", auditRouter);
+
+// Round 17 R3 — FCM push token registration. Closes the R15/R16 mobile
+// loop: the Capacitor push plugin acquires a device token at runtime and
+// calls POST /api/push/register-token so the server can `arrayUnion` it
+// onto users/{uid}.fcmTokens for targeted notifications. Audit row logs
+// `{ platform }` only — the raw token is a credential and MUST NOT leak
+// into the append-only audit_logs trail.
+app.use("/api/push", pushRouter);
 
 // Server-side OAuth unlink: invoked by client logout flow before signOut.
 // Deletes stored tokens for both Google providers. Idempotent — safe to call

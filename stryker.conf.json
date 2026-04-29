@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "reporters": ["progress", "clear-text", "html"],
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.config.ts" },
+  "mutate": [
+    "src/services/safety/ergonomicAssessments.ts",
+    "src/services/safety/iperAssessments.ts",
+    "src/services/protocols/tmert.ts",
+    "src/services/protocols/iper.ts",
+    "src/services/protocols/prexor.ts",
+    "src/services/ergonomics/reba.ts",
+    "src/services/ergonomics/rula.ts"
+  ],
+  "coverageAnalysis": "perTest",
+  "thresholds": { "high": 80, "low": 60, "break": null },
+  "timeoutMS": 60000
+}
