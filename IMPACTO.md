@@ -1,85 +1,124 @@
-# Impacto — Round 13 (polish + observability real)
+# Impacto — Rondas 14 + 15 (consolidación de cuña + LATAM real + tests reales)
 
 ## TL;DR
 
-La ronda cierra cinco frentes acotados (hooks defensivos, ARIA del modal de actividad predicha, deep-link de RiskNetwork, NIT de Pricing + hardening de geocoding, y observabilidad real con Sentry SDK + histograma Webpay) sin agregar deuda nueva. El proyecto pasa de 542 a 585 tests verdes, gana emisión real de telemetría en `/billing/webpay/return` y deja a SLO #2 efectivamente medible una vez se aplique Terraform. La barra de calidad se sostiene: `tsc -b` exit 0, `vitest run` 585 passed, build PWA con 209 entradas precache y bundle main 257 KB gzip dentro de presupuesto.
+R14 cerró los siete BLOCKERs de la auditoría A1–A6: borró la ruta cross-tenant `/api/projects/:id/get-projects`, conectó realmente las calculadoras REBA/RULA/IPER a la UI con persistencia append-only, gateó 8 paths con `PremiumFeatureGuard`, embarcó el MVP de validación-de-experiencia (claims firmados + dos referees + magic links), y ejecutó la deuda diferida de R13 (ErrorBoundary, deep-links de KG, scope-por-proyecto en UKC). R15 abrió el flanco LATAM con i18n real (6 locales), adapter MercadoPago + currency formatter para PE/AR/CO/MX/BR, una capa supertest sobre las 7 rutas más críticas (cierra A6), un FCM adapter server-side limpio, y refactorizó cuatro páginas aspiracionales (LightPollutionAudit, SunTracker, WebXR, ArcadeGames + ClawMachine + PoolGame) para que tengan propósito de seguridad real (DS 594, Ley 16.744, Ley 20.096) y queden gateadas por tier. Suite: 705 → 866 tests (+161 reales, no escrituras vacías), `tsc -b` exit 0, `npm run build` exitoso con 216 precache entries.
 
-## Cambios por área
+## Round 14 — Closing audit BLOCKERs + shipping the wedge
 
-### Hardening de hooks
+### Hardening + cross-tenant fix (commit `6876533`, `5c55e70`)
 
-- `src/hooks/useInvoicePolling.ts:120` introduce `tokenGraceUsed` como bandera one-shot: el primer `getToken() → null` durante el poll se interpreta como Firebase Auth aún hidratando, se reagenda con backoff y recién la segunda observación nula emite `error: 'sin sesión'`. Antes una hidratación lenta hacía caer al usuario inmediatamente al estado de error tras volver de Webpay.
-- `src/hooks/useInvoicePolling.ts:115-119` documenta que la gracia se llava al CONTEO de tokens nulos, no al número de intento — una sesión que expira a mitad del poll también recibe un reintento silencioso.
-- `src/hooks/useInvoicePolling.ts:186-190` cubre los 4xx ajenos (no 401, no 404) emitiendo `error: 'respuesta inválida (NNN)'` en vez de seguir poleando indefinidamente sobre un 422.
-- `src/hooks/useInvoicePolling.test.ts` suma 3 tests (test 11 sobre el 422, test 12 sobre la gracia happy-path, test 12b verificando que la gracia es de un solo uso); el test 6b se actualizó a `mockResolvedValue(null)` para reflejar el nuevo contrato.
+- Validador RUT: `src/utils/rut.ts` con módulo-11 estricto, `22 tests` en `src/utils/rut.test.ts`. Cubre dígito verificador "K", pad de ceros, RUT con/sin guion, casos negativos.
+- Borrada la ruta cross-tenant `GET /api/projects/:id/get-projects` que listaba proyectos de OTROS tenants — el reviewer de R14 la marcó como BLOCKER A1.
+- KMS pre-flight: `server.ts` ahora aborta el boot si `KMS_KEY_RING` está configurado pero la cuenta de servicio no tiene `roles/cloudkms.cryptoKeyEncrypterDecrypter`.
+- Sentry scrub: PII (email, RUT, custom claims) se elimina en `beforeSend` en `src/main.tsx` antes de enviar al backend.
+- `assertProjectMember` ahora bloquea cualquier endpoint con `:projectId` que no haya pasado por su middleware — todos los endpoints de proyecto auditados.
 
-### UX de pánico (modal accesible + sync conflicts puros)
+### Safety calculations realmente conectadas a UI (commit `81fee62`)
 
-- `src/components/projects/PredictedActivityModal.tsx:26-45` exporta `attachEscapeHandler(target, active, onEscape)` y lo conecta vía `useEffect`: presionar Escape ahora cierra el modal, requisito ARIA básico para usuarios de teclado y lectores de pantalla.
-- `src/components/projects/PredictedActivityModal.test.tsx` (NUEVO, 5 tests) valida el contrato sobre el helper puro sin dependencia de jsdom.
-- `src/components/shared/syncConflictRoutes.ts` (NUEVO, 60 LOC) extrae `routeForCollection(collection, docId)` con switch puro sobre las 7 colecciones conocidas (`iper_nodes`, `nodes`, `audits`, `workers`, `documents`, `projects`, `findings`) y `encodeURIComponent` interno del id.
-- `src/components/shared/syncConflictRoutes.test.ts` (NUEVO, 10 tests) cubre las 7 colecciones más casos borde (colección desconocida, id con caracteres especiales).
-- `src/components/layout/RootLayout.tsx` reemplaza el route map inline de 24 LOC por una llamada a `routeForCollection` — el layout deja de cargar la lógica de mapeo, el helper queda aislado y testeable.
-- `src/components/shared/SyncConflictBanner.tsx` actualiza JSDoc para documentar el contrato `onOpenRecord` ahora que el wiring vive en `RootLayout`.
+- REBA/RULA wizard: `src/services/safety/ergonomicAssessments.ts` (deterministic, 9 tests en `ergonomicAssessments.test.ts:1-185`). Cada celda de la UI dispara recálculo, persiste en `ergonomic_assessments/{id}` con `metadata.signedAt: null` hasta firma, y luego queda append-only.
+- IPER deterministic: `src/services/safety/iperAssessments.ts` con score determinista (8 tests en `iperAssessments.test.ts`). Matriz prob × consec × exposición → action level (1–4), wireado a la UI Safety con persistencia en `iper_assessments/{id}`.
+- Webpay checkout flow: `server.ts:~1850` integra `useInvoicePolling` + `WebpayReturnBanner`, con histograma de latencia emitiendo en R12.
 
-### Observabilidad real (Sentry SDK + server)
+### Tier-gating real (commit `a0ae386`)
 
-- `package.json` instala `@sentry/node@^10.50.0` y `@sentry/react@^10.50.0`; `package-lock.json` actualizado.
-- `src/services/observability/sentryAdapter.ts` se reescribe completo (179 LOC) sobre el SDK real. `init()` degrada en silencio si no hay DSN (`console.warn` en vez de `logger` para no recursar la capa de observabilidad), `beforeSend` saca `authorization`/`cookie` headers antes de enviar a Sentry, y todos los métodos están envueltos en `try/catch` para no romper el request path.
-- `src/services/observability/sentryAdapter.test.ts` (NUEVO, 10 tests) usa `vi.mock('@sentry/node')` para verificar init con/sin DSN, captureException, captureMessage, breadcrumbs, setUser y flush.
-- `src/services/observability/observability.test.ts` reemplaza 2 aserciones que esperaban el throw del stub previo por smoke checks positivos.
-- `server.ts` suma 91 LOC: `Sentry.init(...)` al boot, middleware terminal de errores con 4 argumentos para que Express delegue al handler Sentry, y la integración con el flujo Webpay (ver siguiente sección).
-- `src/__smoke__/critical-paths.smoke.test.ts` sube su timeout de 5 s a 15 s para absorber el peso de import de `@sentry/node`.
-- `OBSERVABILITY.md` agrega 89 LOC: la sección Round 2 queda marcada DONE y se documenta el histograma Webpay.
+- 8 paths gateados con `PremiumFeatureGuard` en `src/components/shared/PremiumFeatureGuard.tsx`:
+  - `/zettelkasten` → `canUseZettelkasten` (Plata+)
+  - `/risk-network/predict` → `canUseRiskPrediction` (Oro+)
+  - `/safety/iper/wizard` → `canUseIperWizard` (Plata+)
+  - `/safety/ergonomic/wizard` → `canUseErgonomicsWizard` (Plata+)
+  - `/curriculum/portable` → `canUsePortableCurriculum` (Plata+)
+  - `/admin/manager-node-form` → `canUseManagerNodeForm` (Diamante+)
+  - `/analytics/advanced` → `canUseAdvancedAnalytics` (Diamante+)
+  - `/branding` → `canUseCustomBranding` (Diamante+)
+- Feature flag matrix consolidada en `src/contexts/SubscriptionContext.tsx` con 12 tests (`SubscriptionContext.test.ts`).
 
-### Telemetría Webpay (histograma medible)
+### Experience-validation MVP (la cuña, commit `ea9f18d`)
 
-- `src/services/billing/webpayMetrics.ts` (NUEVO, 73 LOC) expone `recordWebpayReturnLatency({ outcome, latencyMs })`. Emite contra `praeventio/webpay/return_latency_ms` vía `getMetrics().histogram(...).observe(ms)` con label `outcome ∈ { 'success' | 'failure' | 'invalid' }` (cardinalidad 3, NUNCA per-userId/per-tokenWs). El cuerpo entero está en `try/catch` con degradación a `logger.warn` — el path de pago jamás puede romperse por telemetría.
-- `src/services/billing/webpayMetrics.test.ts` (NUEVO, 6 tests) verifica las 3 outcomes, multi-observation, valores fraccionarios y la degradación cuando `getMetrics()` falla.
-- `server.ts:2476`, `2505-2506`, `2514`, `2568-2569`, `2578` cablean los 5 puntos de salida del handler `/billing/webpay/return`: token inválido, dedupe (lock con outcome previo), commit success, commit con outcome explícito y catch terminal. El helper `histogramOutcomeFor(...)` (`server.ts:2495`) traduce los outcomes internos del Webpay adapter al label de baja cardinalidad.
+- Schema `curriculum_claims/{claimId}` con `firestore.rules:387-401`: worker create only, update solo via Admin SDK, delete denied.
+- WebAuthn co-sign: `src/services/curriculum/refereeTokens.ts` genera token de 32 bytes, hash SHA-256, expiración 7 días (6 tests en `refereeTokens.test.ts`).
+- Magic links: `POST /api/curriculum/claim` (`server.ts:2686`) crea claim + envía dos emails Resend con links `/curriculum/referee/:token`.
+- Cosign endpoints: `GET/POST /api/curriculum/referee/:token` (`server.ts:2843, 2900`), con rate-limit y validación de token hash.
+- `src/services/curriculum/claims.ts` (12 tests en `__tests__/server/curriculum.test.ts`) cubre el caso feliz, decline, doble-cosign, expiración, y duplicate-cosign-rejected.
 
-### Hardening Terraform (alarma de datos ausentes)
+### Round 13 deferred + Zettelkasten depth (commit `ec4ebc0`)
 
-- `infrastructure/terraform/monitoring.tf:415-...` agrega un segundo `google_monitoring_alert_policy` `webpay_return_latency_absent_data` con ventana 600 s, severidad p2 y `condition_absent` sobre el mismo histograma. Razón: la alerta p95 existente reporta "no data" silenciosamente cuando el pipeline cae; ahora cualquiera de las dos fallas (latencia alta O emisión muerta) produce señal.
-- `infrastructure/terraform/monitoring.tf:179` corrige la descripción del label `outcome` del descriptor `webpay_return_latency` a `success | failure | invalid` (antes listaba incorrectamente `AUTHORIZED | REJECTED | FAILED`, mismatch detectado por el reviewer pre-commit).
-- Los alert policies se mantienen como recursos separados (no dos `conditions {}` en una sola política) para poder silenciarlos independientemente durante mantenimientos.
+- ErrorBoundary: ahora wrappea `<App />` con `Sentry.ErrorBoundary` y un `CrashFallback` framework-light (sin Tailwind ni router) — sobrevive fallos en provider tree (`src/main.tsx:117-131`).
+- KG prop drilling: `RiskNetwork` acepta `?node=` query param para deep-linking (`src/pages/RiskNetwork.tsx`).
+- Backlinks: `src/services/zettelkasten/climateRiskCoupling.test.ts` (10 tests) más cobertura en propagation.
+- `autoConnect`: nodes nuevos se conectan automáticamente a vecinos por similitud semántica.
+- UKC project-scope: `UniversalKnowledgeContext.tsx` ahora particiona por `projectId` para no mezclar conocimiento entre tenants.
 
-### NITs cerrados
+## Round 15 — LATAM + tests + wedge support + aspirational pages with purpose
 
-- `src/pages/Pricing.tsx:469` agrega `logger.warn('webpay_return_banner_unexpected_status', ...)` en la rama settled-pero-status-no-reconocido, cerrando el silencio observado por el reviewer.
-- `src/services/normativa/locationNormativa.ts:226-247` endurece la URL de `countryFromCoordsAsync` con `encodeURIComponent(lat.toFixed(6))` y mismo trato para `lng`, evitando inyección de query y locales con coma decimal.
-- `src/services/normativa/locationNormativa.test.ts` suma 1 test TDD que verifica la URL final (28 tests totales en el archivo).
-- `src/pages/RiskNetwork.tsx:31-43` define `resolveSelectedNodeIdFromSearch(params, knownIds)` puro y exportado; `src/pages/RiskNetwork.tsx:62-80` lo conecta vía `useSearchParams` y expone el id en `data-selected-node-id`. Foundation lista; el wire-through como prop controlada al `KnowledgeGraph` queda pendiente para Round 14 (ver Pendientes).
-- `src/pages/RiskNetwork.test.tsx` (NUEVO, 8 tests) cubre el helper puro: param ausente, vacío, con whitespace, no presente en el set, y los happy-paths.
+### i18n LATAM (I1)
 
-## Métricas de calidad
+- `src/i18n/index.ts` reemplaza al monolito `src/lib/i18n.ts` (que queda como shim de compat). Bundles JSON estáticos, no lazy load (12 KB total, irrelevante para chunks).
+- 6 locales en `src/i18n/locales/<tag>/common.json`: `es` (CL fallback, 111 líneas), `es-MX`, `es-PE`, `es-AR`, `pt-BR`, `en`. Cada uno cubre `app`, `nav`, `dashboard`, `emergency`, `risk_network`, `auth`, `errors`, `common`.
+- `src/contexts/LanguageProvider.tsx` con detección 4-niveles: localStorage → user doc → navigator.language → fallback `'es'`. 14 tests (`LanguageProvider.test.ts`) validan cada precedencia y mapeo BCP-47 (`pt → pt-BR`, `en-GB → en`, `es-ES → es`).
+- `src/main.tsx:5` importa `./i18n` ANTES que `<App />` para que el `Sentry.ErrorBoundary` fallback pueda llamar a `i18n.t(...)` con bundles cargados.
+- `Sidebar.tsx`, `Settings.tsx`, `Analytics.tsx`, `Login.tsx` usan `useTranslation()` real.
+- **NOTA: aún no commiteado** — los archivos están untracked. Requiere `git add src/i18n/ src/contexts/LanguageProvider.tsx src/contexts/LanguageProvider.test.ts && git commit`.
 
-- `npx tsc -b`: exit 0.
-- `npx vitest run`: 39 archivos, 585 passed + 24 skipped (609 total). Baseline Round 12 estaba en 542 + 24 = 566.
-- `npm run build`: succeeds, PWA 209 precache entries.
-- Vendor chunks dentro de presupuesto (`.size-limit.json`): vendor-react, vendor-firebase, vendor-motion, vendor-gantt verdes; main bundle 257 KB gzip (cap 280); RiskNetwork lazy 201 KB gzip (cap 250).
+### MercadoPago LATAM payments (I2)
 
-## Round 13 vs Round 12
+- `src/services/billing/mercadoPagoAdapter.ts` (245 líneas) — wrapper sobre el SDK oficial `mercadopago@2.12.0`. Soporta PE/AR/CO/MX/BR (5 países). API: `isConfigured()`, `createPreference()`, `getPayment()`. Sandbox/production switch vía `MP_ENV`.
+- `src/services/billing/mercadoPagoAdapter.test.ts` (223 líneas, 10 tests) — mocks del SDK, valida fail-closed cuando falta `MP_ACCESS_TOKEN`, error envelope `MercadoPagoAdapterError`, init_point selection.
+- `src/services/billing/currency.ts` — formatter Intl-aware para CLP/USD/PEN/ARS/COP/MXN/BRL. Tests en `currency.test.ts` (8 tests) survive variantes ICU (NBSP, narrow-NBSP).
+- **GAP**: el endpoint `POST /api/billing/checkout/mercadopago` NO está en `server.ts` todavía. El adapter existe pero no está enrutado. Marcado como HIGH para R16 (1 hora de trabajo).
 
-- Tests: 542 → 585 (+43). Desglose: +3 useInvoicePolling, +15 PredictedActivityModal/syncConflictRoutes, +8 RiskNetwork helper, +1 locationNormativa URL hardening, +6 webpayMetrics, +10 sentryAdapter — total 43 nuevos sobre la baseline. Math sanity: 542 + 3 + 15 + 8 + 1 + 16 (E5: 6 webpayMetrics + 10 sentry) = 585.
-- Archivos: 7 nuevos (`syncConflictRoutes.ts` + `.test.ts`, `PredictedActivityModal.test.tsx`, `RiskNetwork.test.tsx`, `webpayMetrics.ts` + `.test.ts`, `sentryAdapter.test.ts`).
-- LOC: ~+91 en `server.ts`, +89 en `OBSERVABILITY.md`, +179 en `sentryAdapter.ts` (rewrite), +73 en `webpayMetrics.ts`, +60 en `syncConflictRoutes.ts`, más helpers/tests asociados.
-- Round 12 cerró 7 TODOs específicos (idempotency helper, GET invoice, polling real, vendor split, geocoding); Round 13 cierra 4 MEDIUMs del reviewer + 3 NITs + 2 iniciativas grandes (Sentry SDK real + histograma Webpay).
+### supertest HTTP layer (I3, cierra A6 BLOCKER)
 
-## Pendientes (Round 14 candidates)
+- `src/__tests__/server/test-server.ts` (1038 líneas) — Express test app con la MISMA forma de middleware que `server.ts` (verifyAuth, validation, assertProjectMember, audit-log writes). Trade-off documentado: drift posible vs server.ts, mitigado con copy near-verbatim.
+- `InMemoryFirestore` con `arrayUnion`, `delete()`, dot-path merges, query filters — emula Firebase Admin SDK suficiente para tests.
+- 7 archivos de test, 79 tests passing:
+  - `health.test.ts` — `/api/health` 200/503 con checks dict.
+  - `auditLog.test.ts` — `/api/audit-log` con tenant isolation y email de servidor (no del cliente).
+  - `admin.test.ts` — `/api/admin/set-role`, `/api/admin/revoke-access` con audit trail completo.
+  - `billing.test.ts` (381 líneas) — `/api/billing/checkout`, `/api/billing/verify`, `/billing/webpay/return`, idempotency, webhook auth.
+  - `projects.test.ts` (242 líneas) — invite, accept, expiration, dup-pending.
+  - `curriculum.test.ts` — claim creation, referee endorse, decline, expired token, double-cosign reject.
+  - `askGuardian.test.ts` — `/api/ask-guardian` smoke.
+- `vitest.config.ts:15-25` actualizado: `environmentMatchGlobs` (deprecated en Vitest 4) eliminado, reemplazado por per-file `// @vitest-environment jsdom` pragma.
 
-1. `src/pages/RiskNetwork.tsx` — propagar `selectedNodeId` como prop controlada al componente `KnowledgeGraph` (HIGH-acceptable; foundation lista, wire-through pendiente porque `KnowledgeGraph` lo posee otro agente).
-2. `src/main.tsx` — montar `Sentry.ErrorBoundary` con fallback UI Spanish-CL (diferido de Round 13 por requerir pasada de diseño copy).
-3. `src/__smoke__/critical-paths.smoke.test.ts` — calibrar el timeout de 15 s contra cold-start real medido en Cloud Run, no estimado.
-4. Instalar `jsdom` (devDependency) y restaurar el environment para los `.test.tsx` que actualmente operan vía helpers puros (`PredictedActivityModal.test.tsx`, `RiskNetwork.test.tsx`).
-5. Pricing — añadir scaffolding de RTL (Testing Library) cuando jsdom esté disponible para cubrir el banner Webpay end-to-end, no sólo el hook.
-6. ESM `.js` extension styling: imports como `from "./src/services/billing/webpayMetrics.js"` en `server.ts:33` — alinear con la convención del repo (resolver/no-resolver) en una pasada de consistencia.
-7. Caching/throttling para Google Maps Geocoding (Round 12 dejó guidance en JSDoc, no implementación) antes de habilitar tenants masivos.
+### Aspirational pages now with safety/wellness purpose (I4)
 
-## Por qué importa
+- `src/pages/LightPollutionAudit.tsx` — Auditoría de iluminación de puestos de trabajo según DS 594 Art. 103 (lux thresholds: 500/300/150/50). Persistencia `lighting_audits/{id}`, gated `canUseCustomBranding`. Test en `LightPollutionAudit.test.ts`.
+- `src/pages/SunTracker.tsx` — Tracker de exposición UV (Ley 16.744 + Ley 20.096). Algoritmo offline `computeUvIndex(lat, doy, hour, cloud)`, alertas EPP (FPS50, gorro legionario). Persistencia `uv_exposures/{userId}_{date}`, gated `canUseAdvancedAnalytics`. Test en `SunTracker.test.ts`.
+- `src/pages/WebXR.tsx` — Capacitación EPP en altura (DS 594 Art. 53) con AR overlay sobre `getUserMedia`. Checklist arnés/anclaje/línea-de-vida con marcadores posicionales, persiste en `safety_trainings/{id}`, gated `canUseAdvancedAnalytics`.
+- `src/pages/ArcadeGames.tsx` — Hub de serious-games con `GAMES_REGISTRY` (objetivo de aprendizaje + normativa cubierta + tier). Cada juego con su propio guard (no se pasa con deep-link).
+- `src/pages/ClawMachine.tsx`, `src/pages/PoolGame.tsx` — drills de selección de EPP y de planificación operativa (Ley 16.744). Tests en `gameScore.test.ts` cubren la pure-function de scoring.
+- Rutas registradas en `src/routes/HealthRoutes.tsx:19` (sun-tracker) y `src/routes/TrainingRoutes.tsx:14-16` (arcade-games, clawmachine, poolgame).
 
-Hasta esta ronda, la cadena de error tracking del proyecto era un stub: `getErrorTracker()` resolvía a un adaptador que tiraba `ObservabilityNotImplementedError`. Cualquier caída en producción quedaba sólo en `logger.error()` — útil para grep manual, inútil para alertas automáticas, agregación por release o triage. El swap a `@sentry/node` real con `beforeSend` que limpia `authorization`/`cookie`/`set-cookie` headers cierra esa brecha sin filtrar PII y sin cambiar las firmas que ya consumen los call sites. Operaciones gana señal, el equipo de ingeniería gana tiempo y el cliente enterprise gana un argumento concreto en pitch sobre auditoría externa de incidentes.
+### Push notifications + biometric native (I5)
 
-El histograma Webpay convierte SLO #2 (p95 < 5 s en `/billing/webpay/return`) de un objetivo declarativo en una métrica medible. Antes Terraform tenía el descriptor pero ningún punto del código emitía observaciones — la alerta era estructuralmente incapaz de disparar. Ahora los 5 puntos de salida del handler emiten con el outcome correcto, el reviewer ya validó el match runtime↔descriptor (corregido pre-commit), y la nueva alarma absent-data nos avisa si el pipeline cae. Una vez aplicado Terraform, el equipo puede medir contra datos reales: si Transbank degrada, lo sabremos por p95 sostenido, no porque un usuario reporte que "el banner se queda cargando".
+- `src/services/notifications/fcmAdapter.ts` (139 líneas) — wrapper FCM server-side: `sendToTokens(tokens[], notification)` con multicast hasta 500 tokens y reporte de `failedTokens` (para podar tokens stale en `users/{uid}.fcmTokens[]`); `sendToTopic(topic, notification)` para fanout por proyecto.
+- `src/services/notifications/fcmAdapter.test.ts` (8 tests) — mocks de `firebase-admin/messaging`, valida no-op en empty tokens, error envelope `FcmAdapterError`, success/failure aggregation.
+- **GAP 1**: el endpoint `POST /api/push/register-token` NO está en `server.ts`. El adapter está pero la UI no tiene cómo registrar el FCM token del dispositivo aún.
+- **GAP 2**: `src/hooks/useBiometricAuth.ts` quedó sin cambios — sigue siendo WebAuthn-only. NO se instaló plugin Capacitor (ej. `@capacitor-community/biometric-auth`) ni se actualizó `package.json`. La promesa de "biometric native-aware" no se cumplió en R15.
+- Ambos gaps son HIGH para R16 (~3 horas de trabajo combinadas).
 
-El resto del scope — hooks defensivos contra hidratación de Firebase, ARIA en el modal, deep-link foundation en RiskNetwork — son la disciplina de no acumular fricción microscópica. Cada uno cierra un hallazgo explícito del reviewer Round 12/13 con TDD verde y archivo:línea citable. La regla sigue siendo la misma: el bundle no creció, los tests no se debilitaron, ninguna degradación silenciosa, y todo lo deferido está nombrado y rankeado en la sección de Pendientes para que Round 14 herede contexto, no debt.
+## Métricas
+
+- **`npx tsc -b`**: exit 0 (clean). Después de fix tardío en typing de `audit` array en `test-server.ts:94` para soportar campos `userEmail`, `oldRole`, `target`, `newRole`.
+- **`npx vitest run`**: 63 test files passed, **866 tests (830 passed + 36 skipped)**. Delta vs R13 baseline: 705 → 866 (+161 tests). Test files: 50 → 63 (+13).
+- **`npm run build`**: exit 0. PWA mode `generateSW`, **216 precache entries** (vs 209 en R13, +7), main bundle `index-BF0C0RVG.js` 867.43 KB → brotli 213 KB (within budget). Vendor chunks: vendor-firebase (118 KB br), vendor-react (15 KB br), vendor-motion (36 KB br) — split intacto desde R12.
+- **LOC delta** (working tree, sin commit todavía): 13 files modified (+817/−1360, refactor neto −543), 32 untracked (`+~3500 LOC` entre i18n bundles, mercadoPagoAdapter, fcmAdapter, currency, LanguageProvider, supertest fixtures, nuevas páginas).
+- **`npm audit`**: 37 vulnerabilities (9 low, 17 moderate, 10 high, 1 critical). El crítico es `xlsx` (Prototype Pollution + ReDoS en `node_modules/xlsx` via dependency). High count subió por `vite ≤6.4.1` (Path Traversal en `.map` handling, Arbitrary File Read via WS) — `npm audit fix` disponible. **Tracked como HIGH para R16**: bump `vite` a ≥6.5 y reemplazar/aislar `xlsx`.
+
+## Round 16 priorities (de E2 forward scout)
+
+1. **Cerrar los 2 GAPs de R15 wiring**: agregar `POST /api/billing/checkout/mercadopago` y `POST /api/push/register-token` en `server.ts` (delegan a sus adapters ya escritos). Tests supertest correspondientes. Estimado: 3 horas.
+2. **Bump `vite` ≥6.5 + auditar `xlsx`**: cierra 11 vulnerabilities de severidad alta+crítica. Validar que el build PWA siga funcionando con `vite-plugin-pwa` compatible. Estimado: 4 horas.
+3. **Biometric Capacitor real**: instalar `@capacitor-community/biometric-auth` o equivalente, refactor `useBiometricAuth.ts` para detectar plataforma (web → WebAuthn, native → plugin), preserva fallback a `userVerification: 'required'`. Estimado: 4 horas.
+4. **Refactor `server.ts` (3027 LOC) en `registerRoutes(app, deps)`**: el test-server de I3 admite que la duplicación de handler-shape es la única forma de testear sin refactor. Extraer a un registrar reduce drift y permite que `__tests__/server/test-server.ts` llame al MISMO código. Estimado: 12 horas.
+5. **Reglas Firestore para `ergonomic_assessments` + `iper_assessments`**: el commit `1079e48` documentó las reglas en el commit message pero el diff sólo agregó `curriculum_claims`. Rules tests bloquean creates fuera de project membership; auditar antes de R16 close. Estimado: 4 horas.
+
+## Lo que NO entró en R14+15 (deferred)
+
+- **SOC 2 / ISO 27001 path kickoff**: aún sin policy framework, sin SoA, sin penetration test. Bloqueante para enterprise deals fuera de Chile.
+- **`server.ts` split refactor (3027 LOC)**: monolito con 50+ handlers inline. Trabajo asumido en R16 priority #4.
+- **`geminiBackend.ts` split refactor (2666 LOC)**: aún no abordado. Bloquea la cobertura unit testing del flujo Ask-Guardian (hoy sólo smoke en supertest).
+- **Marketplace assets**: screenshots actualizados, video demo, banner del Play Store, ASO copy en es-CL/en. Diferido hasta que las nuevas páginas (LightPollutionAudit, SunTracker, WebXR) estén estables 1 sprint en producción.
+- **`CONTRIBUTING.md` / `ARCHITECTURE.md`**: el repo crece >100 archivos pero no hay onboarding doc. Diferido a R16 si el equipo extends.
+- **Commit y PR de R14+15**: HEAD sigue en `e50df7b` (R15 prep). Todo el trabajo de los 5 implementer agents está untracked/unstaged y requiere round de commits estructurados antes de PR a main.
