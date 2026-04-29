@@ -17,14 +17,20 @@
 // (oauth/gemini) deferred to Round 17/18 — these limiters are also imported
 // by routes that remain inline in server.ts for now.
 
-import rateLimit from 'express-rate-limit';
+// Round 21 B4 (R20 R6 MEDIUM #2): pull in `ipKeyGenerator` so our custom
+// keyGenerators can fall back to a properly normalized IP key for IPv6
+// peers. Without it, express-rate-limit ≥7.5 fires its `ERR_ERL_KEY_GEN_IPV6`
+// validation error (a bare `req.ip` lets IPv6 users bypass per-IP buckets
+// because each /128 looks unique). After this change a server restart no
+// longer logs the `ERR_ERL_KEY_GEN_IPV6` warning.
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 
 // Stricter per-user rate limit for expensive AI calls
 export const geminiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  keyGenerator: (req: Request) => (req as any).user?.uid || req.ip || 'anonymous',
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos.' },
@@ -38,7 +44,7 @@ export const geminiLimiter = rateLimit({
 export const invoiceStatusLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 600,
-  keyGenerator: (req: Request) => (req as any).user?.uid || req.ip || 'anonymous',
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Polling muy frecuente. Intenta de nuevo en unos segundos.' },
@@ -75,7 +81,7 @@ export const refereeLimiter = rateLimit({
 export const webauthnVerifyLimiter = rateLimit({
   windowMs: 60 * 1000, // 1-minute sliding window
   max: 5, // 5 verify attempts per uid per window
-  keyGenerator: (req: Request) => (req as any).user?.uid || req.ip || 'anonymous',
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },
@@ -100,7 +106,7 @@ export const webauthnVerifyLimiter = rateLimit({
 export const webauthnRegisterLimiter = rateLimit({
   windowMs: 60 * 1000, // 1-minute sliding window
   max: 3, // 3 register attempts per uid per window — tighter than verify
-  keyGenerator: (req: Request) => (req as any).user?.uid || req.ip || 'anonymous',
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'too_many_register_attempts', retryAfterMs: 60_000 },
