@@ -12,7 +12,7 @@ import { initializeRAG } from "./src/services/ragService.js";
 import { autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
 import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
-import { isValidRole, isAdminRole } from "./src/types/roles.js";
+import { isAdminRole } from "./src/types/roles.js";
 import { saveTokens, getValidAccessToken, revokeTokens } from "./src/services/oauthTokenStore.js";
 import { logger } from "./src/utils/logger.js";
 import { buildInvoice } from "./src/services/billing/invoice.js";
@@ -33,7 +33,23 @@ import { withIdempotency } from "./src/services/billing/idempotency.js";
 import { recordWebpayReturnLatency } from "./src/services/billing/webpayMetrics.js";
 import { sentryAdapter } from "./src/services/observability/sentryAdapter.js";
 import { getErrorTracker } from "./src/services/observability/index.js";
-import { assertProjectMember, ProjectMembershipError } from "./src/services/auth/projectMembership.js";
+// `assertProjectMember`/`ProjectMembershipError` formerly used inline by
+// /api/audit-log; moved with the route into src/server/routes/audit.ts in
+// Round 16 R5 Phase 1 split.
+// Round 16 R5 Phase 1 split: middleware + small route modules extracted from
+// server.ts. Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
+// (oauth/gemini) deferred to Round 17/18.
+import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
+import { safeSecretEqual } from "./src/server/middleware/safeSecretEqual.js";
+import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
+import {
+  geminiLimiter,
+  invoiceStatusLimiter,
+  refereeLimiter,
+} from "./src/server/middleware/limiters.js";
+import adminRouter from "./src/server/routes/admin.js";
+import healthRouter from "./src/server/routes/health.js";
+import auditRouter from "./src/server/routes/audit.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 import { performance } from 'node:perf_hooks';
@@ -153,33 +169,8 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
 const app = express();
 const PORT = 3000;
 
-/**
- * Constant-time comparison of a client-supplied secret against an expected secret.
- *
- * Both inputs are padded to the expected length before invoking
- * `crypto.timingSafeEqual`, so the running time does not branch on either
- * the provided or the expected length. A naive `if (a.length !== b.length)`
- * guard leaks the expected secret length via wall-clock timing — minor in
- * practice but trivial to avoid. The length check is folded into the final
- * boolean *after* the constant-time compare so both branches do equal work.
- *
- * Use this for shared-secret webhook authentication where the secret is
- * a compile-time/env-derived constant. Returns `false` if `provided` is
- * undefined (caller doesn't need a separate guard).
- */
-function safeSecretEqual(provided: string | undefined, expected: string): boolean {
-  if (typeof provided !== 'string') return false;
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const providedBuf = Buffer.from(provided, 'utf8');
-  // Pad provided to expected length so timingSafeEqual sees equal-size buffers
-  // and does not throw. Padding bytes (zeros) don't matter — a different
-  // length forces lengthOk=false regardless of the bytewise compare.
-  const padded = Buffer.alloc(expectedBuf.length);
-  providedBuf.copy(padded);
-  const lengthOk = providedBuf.length === expectedBuf.length;
-  const valueOk = crypto.timingSafeEqual(padded, expectedBuf);
-  return lengthOk && valueOk;
-}
+// `safeSecretEqual` extracted to src/server/middleware/safeSecretEqual.ts in
+// Round 16 R5 Phase 1 split.
 
 // Security Middleware
 // CSP directives shared by prod (enforce) and dev (report-only). Reasonable for a
@@ -212,32 +203,12 @@ app.use(helmet({
 }));
 
 // Public health probe for Cloud Run / Marketplace listing health checks.
-// Returns 200 + minimal payload when the server can talk to Firestore.
-// Returns 503 when a critical dependency is unreachable.
-//
 // Mounted AFTER helmet (so CSP headers apply) but BEFORE the /api/ rate
 // limiter and verifyAuth — Cloud Run probes hit this endpoint frequently
 // and without an auth token, so it must remain unauthenticated and
-// unthrottled.
-app.get("/api/health", async (req, res) => {
-  const checks: Record<string, 'ok' | 'fail' | 'skipped'> = {};
-  let allOk = true;
-  // Firestore reachability:
-  try {
-    await admin.firestore().listCollections();  // cheap admin op
-    checks.firestore = 'ok';
-  } catch {
-    checks.firestore = 'fail';
-    allOk = false;
-  }
-  // Add more checks as the deployment grows (Resend, Gemini, Webpay).
-  res.status(allOk ? 200 : 503).json({
-    status: allOk ? 'ok' : 'degraded',
-    timestamp: new Date().toISOString(),
-    version: process.env.APP_VERSION ?? 'dev',
-    checks,
-  });
-});
+// unthrottled. Handler extracted to src/server/routes/health.ts in
+// Round 16 R5 Phase 1 split. Final path is preserved: GET /api/health.
+app.use("/api", healthRouter);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -249,15 +220,8 @@ const limiter = rateLimit({
 
 app.use("/api/", limiter);
 
-// Stricter per-user rate limit for expensive AI calls
-const geminiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  keyGenerator: (req) => (req as any).user?.uid || req.ip || 'anonymous',
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Límite de consultas IA alcanzado. Intenta de nuevo en 15 minutos." }
-});
+// `geminiLimiter` extracted to src/server/middleware/limiters.ts in
+// Round 16 R5 Phase 1 split.
 
 const sessionSecret = (() => {
   const fromEnv = process.env.SESSION_SECRET;
@@ -276,7 +240,8 @@ const sessionSecret = (() => {
 // Default 64kb body limit. Routes that legitimately need larger bodies (e.g.,
 // PDF generation with embedded report content) opt-in with a per-route limit
 // applied before the global parser short-circuits on req.body presence.
-const largeBodyJson = express.json({ limit: '2mb' });
+// `largeBodyJson` extracted to src/server/middleware/largeBodyJson.ts in
+// Round 16 R5 Phase 1 split.
 app.use((req, res, next) => {
   // Per-route override for endpoints that legitimately need >64kb payloads.
   if (req.path === '/api/reports/generate-pdf') {
@@ -297,120 +262,16 @@ app.use(session({
   }
 }));
 
-// Firebase Auth Middleware
-const verifyAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: "Unauthorized: No token provided" });
-  }
+// `verifyAuth` extracted to src/server/middleware/verifyAuth.ts in
+// Round 16 R5 Phase 1 split. Imported at the top of this file.
 
-  const token = authHeader.split('Bearer ')[1];
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    (req as any).user = decodedToken;
-    next();
-  } catch (error) {
-    console.error("Error verifying auth token:", error);
-    return res.status(401).json({ error: "Unauthorized: Invalid token" });
-  }
-};
+// `UID_REGEX` moved with the admin endpoints into
+// src/server/routes/admin.ts in Round 16 R5 Phase 1 split.
 
-// Firebase Auth uid format constraint shared by privileged admin endpoints.
-const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
-
-// Desconexión Forzada (Revoke Tokens - El Haki del Rey / Security)
-app.post("/api/admin/revoke-access", verifyAuth, async (req, res) => {
-  const { targetUid } = req.body;
-  const callerUid = (req as any).user.uid;
-
-  if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
-    return res.status(400).json({ error: 'Invalid uid' });
-  }
-
-  try {
-    const callerRecord = await admin.auth().getUser(callerUid);
-    if (!isAdminRole(callerRecord.customClaims?.role)) {
-      return res.status(403).json({ error: "Forbidden: Requires admin role to revoke access" });
-    }
-
-    // Revoca los refresh tokens. El usuario será desconectado cuando su token a corto plazo expire (o si es validado estrictamente)
-    await admin.auth().revokeRefreshTokens(targetUid);
-
-    // Opcional: Escribir en base de datos para que el cliente detecte el baneo inmediatamente
-    await admin.firestore().collection('user_sessions').doc(targetUid).set({
-      revokedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    // Audit trail — see audit_logs schema at the top of this file.
-    await admin.firestore().collection('audit_logs').add({
-      actor: callerUid,
-      action: 'revoke_access',
-      target: targetUid,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
-      ip: req.ip,
-      ua: req.header('user-agent') || null,
-    });
-
-    res.json({ success: true, message: `Access revoked for user ${targetUid}` });
-  } catch (error) {
-    logger.error("admin_revoke_access_failed", error, { callerUid, targetUid });
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Custom Claims Endpoint (El Haki del Rey)
-app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
-  const { uid, role } = req.body;
-  const callerUid = (req as any).user.uid;
-
-  if (typeof uid !== 'string' || !UID_REGEX.test(uid)) {
-    return res.status(400).json({ error: 'Invalid uid' });
-  }
-
-  try {
-    // Verify caller is admin/gerente (matches firestore.rules' isAdmin())
-    const callerRecord = await admin.auth().getUser(callerUid);
-    if (!isAdminRole(callerRecord.customClaims?.role)) {
-      return res.status(403).json({ error: "Forbidden: Requires admin role" });
-    }
-
-    if (!isValidRole(role)) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
-
-    // Capture the existing role before mutation for audit_logs.
-    let oldRole: string | null = null;
-    try {
-      const targetRecord = await admin.auth().getUser(uid);
-      oldRole = (targetRecord.customClaims?.role as string | undefined) ?? null;
-    } catch {
-      // Target may not exist yet; setCustomUserClaims will surface the error.
-    }
-
-    await admin.auth().setCustomUserClaims(uid, { role });
-
-    // Force re-auth so the client picks up the new claim immediately rather
-    // than continuing with a stale ID token until natural expiry.
-    await admin.auth().revokeRefreshTokens(uid);
-
-    // Audit trail — see audit_logs schema notes at the top of this file.
-    await admin.firestore().collection('audit_logs').add({
-      actor: callerUid,
-      action: 'set_role',
-      target: uid,
-      oldRole,
-      newRole: role,
-      ts: admin.firestore.FieldValue.serverTimestamp(),
-      ip: req.ip,
-      ua: req.header('user-agent') || null,
-    });
-
-    res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
-  } catch (error) {
-    logger.error("admin_set_role_failed", error, { callerUid, targetUid: uid });
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+// Privileged admin endpoints extracted to src/server/routes/admin.ts in
+// Round 16 R5 Phase 1 split. Final paths preserved: POST /api/admin/set-role
+// and POST /api/admin/revoke-access.
+app.use("/api/admin", adminRouter);
 
 // Ask Guardian Endpoint (El Cerebro Externo)
 app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
@@ -597,63 +458,9 @@ const SCOPES = [
 // Server-side audit log writer. Replaces direct client `addDoc(collection(db,
 // 'audit_logs'), ...)` calls — those are now denied by firestore.rules
 // (audit_logs:create:false) to prevent self-fabrication of audit entries.
-//
-// The endpoint stamps the actor uid + email from the verified token (NOT from
-// req.body), so a worker cannot impersonate someone else. action/module are
-// validated; `details` is opaque (callers responsible for not putting secrets
-// in there).
-app.post("/api/audit-log", verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
-  const { action, module: mod, details, projectId } = req.body ?? {};
-
-  if (typeof action !== 'string' || action.length === 0 || action.length > 64) {
-    return res.status(400).json({ error: "Invalid action" });
-  }
-  if (typeof mod !== 'string' || mod.length === 0 || mod.length > 64) {
-    return res.status(400).json({ error: "Invalid module" });
-  }
-  if (projectId !== undefined && projectId !== null && (typeof projectId !== 'string' || projectId.length > 128)) {
-    return res.status(400).json({ error: "Invalid projectId" });
-  }
-
-  // Round 14 — A5 audit found projectId-from-body without membership check.
-  // Without this guard a worker on project A could write an audit entry
-  // tagged to project B, polluting B's compliance trail. assertProjectMember
-  // throws ProjectMembershipError(403) when uid is neither in members[] nor
-  // is the project's createdBy.
-  if (typeof projectId === 'string' && projectId.length > 0) {
-    try {
-      await assertProjectMember(callerUid, projectId, admin.firestore());
-    } catch (err) {
-      if (err instanceof ProjectMembershipError) {
-        return res.status(err.httpStatus).json({ error: 'forbidden' });
-      }
-      throw err;
-    }
-  }
-
-  try {
-    await admin.firestore().collection('audit_logs').add({
-      action,
-      module: mod,
-      details: details ?? {},
-      userId: callerUid,
-      userEmail: callerEmail,
-      projectId: projectId ?? null,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      ip: req.ip ?? null,
-      userAgent: req.header('user-agent') ?? null,
-    });
-    res.json({ success: true });
-  } catch (error: any) {
-    logger.error('audit_log_write_failed', { uid: callerUid, action, message: error?.message });
-    res.status(500).json({
-      error: "Audit log write failed",
-      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
-    });
-  }
-});
+// Handler extracted to src/server/routes/audit.ts in Round 16 R5 Phase 1
+// split. Final path preserved: POST /api/audit-log.
+app.use("/api", auditRouter);
 
 // Server-side OAuth unlink: invoked by client logout flow before signOut.
 // Deletes stored tokens for both Google providers. Idempotent — safe to call
@@ -2178,19 +1985,8 @@ app.post("/api/billing/invoice/:id/mark-paid", verifyAuth, async (req, res) => {
   }
 });
 
-// Per-user invoice-status polling rate limit. Pricing.tsx polls this
-// endpoint at ~1Hz while waiting for a payment to settle, which would blow
-// past the global /api/* limit (100 req / 15 min) in seconds. We bump to 600
-// req / 15 min keyed on uid (≈1 req/sec sustained) to support polling
-// without inviting abuse. Pattern mirrors `geminiLimiter` above.
-const invoiceStatusLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 600,
-  keyGenerator: (req) => (req as any).user?.uid || req.ip || 'anonymous',
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Polling muy frecuente. Intenta de nuevo en unos segundos." },
-});
+// `invoiceStatusLimiter` extracted to src/server/middleware/limiters.ts in
+// Round 16 R5 Phase 1 split.
 
 // GET /api/billing/invoice/:id — read-only status poll for the SPA's
 // post-checkout waiting screen. Returns ONLY safe fields (no purchaseToken,
@@ -3042,16 +2838,8 @@ app.post("/api/curriculum/claim/:id/resend", verifyAuth, async (req, res) => {
   }
 });
 
-// Stricter rate limit for the public referee endpoints — they are
-// unauthenticated and the magic-link tokens, while 256 bits of entropy,
-// should not be enumerable at unbounded rates.
-const refereeLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' },
-});
+// `refereeLimiter` extracted to src/server/middleware/limiters.ts in
+// Round 16 R5 Phase 1 split.
 
 // GET /api/curriculum/referee/:token — public preview for the magic-link
 // landing page. Returns minimal claim metadata if the token matches.
