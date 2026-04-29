@@ -36,6 +36,7 @@
 
 import crypto from 'crypto';
 import admin from 'firebase-admin';
+import { jwtVerify, importJWK, errors as joseErrors, type JWTPayload } from 'jose';
 
 import { mercadoPagoAdapter } from './mercadoPagoAdapter.js';
 import { withIdempotency } from './idempotency.js';
@@ -44,7 +45,6 @@ import { logger } from '../../utils/logger.js';
 import {
   getJwks,
   type JsonWebKey as MpJsonWebKey,
-  type JsonWebKeySet,
 } from './mpJwksCache.js';
 
 /** Outcome of processing a MercadoPago IPN — maps to invoice statuses. */
@@ -158,7 +158,7 @@ export function verifyMercadoPagoIpnSignatureFromBody(
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Round 19 (A9) — OIDC JWT verification.
+// Round 19 (A9) → Round 20 (A5) — OIDC JWT verification.
 //
 // MercadoPago is migrating IPN authentication from `x-signature` HMAC over
 // the canonical body (Round 18 R6) to an OIDC scheme: each delivery carries
@@ -166,22 +166,23 @@ export function verifyMercadoPagoIpnSignatureFromBody(
 // published at MP's JWKS endpoint. The HMAC mode is preserved as a fallback
 // (see route handler — precedence: OIDC > HMAC > LEGACY_HMAC_FALLBACK).
 //
-// Implementation: a minimal in-house RS256 verifier that
-//   1. splits the compact JWS,
-//   2. base64url-decodes the protected header to find `kid` + `alg`,
-//   3. resolves the matching JWK from `getJwks()` (refreshes once if `kid`
-//      isn't present in the cached set — keys may have rotated),
-//   4. converts the JWK to a Node KeyObject via `crypto.createPublicKey`
-//      (no third-party dep), and
-//   5. verifies the RS256 signature over `header.payload` and the
-//      iss/aud/exp claims.
+// R19 A9 shipped a ~120 LOC in-house RS256 verifier (split compact JWS →
+// decode header/payload → crypto.createPublicKey + crypto.verify) explicitly
+// to avoid a transitive coupling to an undeclared `jose` package.
 //
-// We deliberately do NOT take a runtime dependency on `jose` here even
-// though the package is present in node_modules transitively. Adding an
-// undeclared import would couple us to whatever hoisting npm does today;
-// R20 is the right round to either declare `jose` in package.json or move
-// to it intentionally. For now, RS256 + JWKS is enough scope to verify
-// MP's signature and surface a clean public API the route can call.
+// R20 A5 declares `jose` as a direct dependency in package.json and swaps
+// the in-house verifier for `jose.jwtVerify` + `jose.importJWK`. Rationale:
+//   • Library-grade timing-safe verification, audited surface for alg/exp/aud.
+//   • Removes ~120 LOC of crypto plumbing we own and must maintain.
+//   • Smaller attack surface — no risk of subtle bugs in our base64url
+//     padding or JWK→PEM coercion.
+//
+// Pattern A is preserved (we still call `getJwks()` from `mpJwksCache.ts`
+// then import the matching JWK into a CryptoKey via `importJWK`). This is
+// intentional: the cache exposes test seams (`_setJwksFetcherForTests`,
+// `_resetMpJwksCacheForTests`) the existing test suite relies on. jose's
+// `createRemoteJWKSet` would be one line shorter but would re-fetch over
+// the network on every test run, removing those seams.
 // ───────────────────────────────────────────────────────────────────────────
 
 /** Outcome of an MP OIDC JWT verification. */
@@ -199,33 +200,60 @@ export interface MpOidcVerifyResult {
 /** Default MP OIDC issuer. Override with MP_OIDC_ISSUER env var. */
 const DEFAULT_MP_ISSUER = 'https://api.mercadopago.com';
 
-/** Decode a base64url string (JWT segments use base64url, not base64). */
+/**
+ * Decode a base64url string (JWT segments use base64url, not base64).
+ * Used only to peek at the protected header so we can resolve `kid` from
+ * `mpJwksCache` before handing the full token to `jose.jwtVerify`.
+ * jose itself exposes `decodeProtectedHeader`, but inlining a 3-line
+ * decoder here keeps the per-failure `reason` codes (`malformed_jwt`)
+ * stable for callers that already log them.
+ */
 function decodeBase64Url(input: string): Buffer {
-  // Pad to a multiple of 4 and translate URL-safe alphabet to standard.
   const pad = input.length % 4 === 0 ? '' : '='.repeat(4 - (input.length % 4));
   return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/') + pad, 'base64');
 }
 
-/** Convert an RSA JWK ({n, e}) to a PEM public key via Node's KeyObject. */
-function jwkToPublicKey(jwk: MpJsonWebKey): crypto.KeyObject {
-  // crypto.createPublicKey accepts a JWK directly since Node 16. We pass
-  // through only the canonical RSA fields to avoid surfacing whatever
-  // extra fields the issuer added (unused params can throw on stricter
-  // backends).
-  return crypto.createPublicKey({
-    key: { kty: jwk.kty, n: jwk.n, e: jwk.e } as unknown as crypto.JsonWebKey,
-    format: 'jwk',
-  });
+/**
+ * Pick the matching signing key from a JWKS by `kid`. If the JWT advertises
+ * no `kid`, fall back to the first RSA signing key — same shape as before
+ * the jose swap so MP-signed tokens without a `kid` continue to verify.
+ */
+function findKey(
+  keys: MpJsonWebKey[],
+  kid: string | undefined,
+): MpJsonWebKey | undefined {
+  if (!kid) {
+    return keys.find((k) => k.kty === 'RSA');
+  }
+  return keys.find((k) => k.kid === kid);
 }
 
-function findKey(jwks: JsonWebKeySet, kid: string | undefined): MpJsonWebKey | undefined {
-  if (!kid) {
-    // No `kid` advertised — fall back to the first signing key. Spec-wise
-    // this is OK when there's exactly one key, but log a warn so
-    // operators can see when MP elides the kid header.
-    return jwks.keys.find((k) => k.kty === 'RSA');
+/**
+ * Map a `jose` error onto our short-form reason vocabulary so callers
+ * logging `reason` see no behaviour drift on the swap from the in-house
+ * verifier. Anything we don't recognise collapses to `verify_failed:<msg>`.
+ */
+function joseErrorToReason(err: unknown): string {
+  if (err instanceof joseErrors.JWSSignatureVerificationFailed) {
+    return 'signature_mismatch';
   }
-  return jwks.keys.find((k) => k.kid === kid);
+  if (err instanceof joseErrors.JWTExpired) {
+    return 'expired';
+  }
+  if (err instanceof joseErrors.JWTClaimValidationFailed) {
+    const claim = (err as { claim?: string }).claim;
+    if (claim === 'iss') return 'issuer_mismatch';
+    if (claim === 'aud') return 'audience_mismatch';
+    if (claim === 'exp') return 'expired';
+    return 'claim_invalid';
+  }
+  if (err instanceof joseErrors.JOSEAlgNotAllowed) {
+    return 'unsupported_alg';
+  }
+  if (err instanceof joseErrors.JWSInvalid || err instanceof joseErrors.JWTInvalid) {
+    return 'malformed_jwt';
+  }
+  return `verify_failed:${err instanceof Error ? err.message : String(err)}`;
 }
 
 /**
@@ -246,12 +274,17 @@ function findKey(jwks: JsonWebKeySet, kid: string | undefined): MpJsonWebKey | u
  *                       the `aud` claim. If unset, every JWT is rejected
  *                       (fail-closed) so a misconfigured deploy can't
  *                       silently accept everything.
+ *   • MP_OIDC_CLOCK_TOLERANCE_SEC — optional clock-skew tolerance in
+ *                       seconds passed through to `jose.jwtVerify`.
+ *                       Default: 0 (strict).
+ *
+ * R20 A5: implemented via `jose.jwtVerify` + `jose.importJWK`. The JWKS
+ * cache (`mpJwksCache.getJwks`) is preserved so test seams keep working;
+ * jose only handles signature + claim validation against the resolved key,
+ * not network fetch.
  *
  * NOT exported as a default — the route handler imports it by name and
  * gates the OIDC path on `Authorization: Bearer ...` being present.
- *
- * R20 candidate: replace the in-house RS256 verifier with a properly
- * declared `jose` import once package.json owner adds it.
  */
 export async function verifyMercadoPagoIpnOidc(
   authHeader: string | undefined | null,
@@ -262,50 +295,56 @@ export async function verifyMercadoPagoIpnOidc(
   if (!authHeader.startsWith('Bearer ')) {
     return { valid: false, reason: 'not_bearer_scheme' };
   }
-  const jwt = authHeader.slice('Bearer '.length).trim();
+  const token = authHeader.slice('Bearer '.length).trim();
   // Defensive caps: a JWT > 8 KB is almost certainly garbage / abuse.
-  if (jwt.length === 0 || jwt.length > 8192) {
+  if (token.length === 0 || token.length > 8192) {
     return { valid: false, reason: 'malformed_jwt' };
   }
 
-  const parts = jwt.split('.');
+  // Peek at the header so we can resolve `kid` against our cache before
+  // jose consumes the token. We do NOT trust the parsed `alg` here —
+  // jose enforces it via `algorithms: ['RS256']` and rejects alg=none /
+  // alg-confusion attacks at verify time.
+  const parts = token.split('.');
   if (parts.length !== 3) {
     return { valid: false, reason: 'malformed_jwt' };
   }
-  const [headerB64, payloadB64, sigB64] = parts;
-
   let header: { alg?: string; kid?: string; typ?: string };
-  let payload: { iss?: string; aud?: string | string[]; exp?: number; payer?: { email?: string }; email?: string };
   try {
-    header = JSON.parse(decodeBase64Url(headerB64).toString('utf8'));
-    payload = JSON.parse(decodeBase64Url(payloadB64).toString('utf8'));
+    header = JSON.parse(decodeBase64Url(parts[0]).toString('utf8'));
   } catch {
     return { valid: false, reason: 'malformed_jwt' };
   }
 
-  if (header.alg !== 'RS256') {
-    // Reject unknown / weak algorithms (alg=none, HS256 attack, etc.). MP's
-    // production webhooks use RS256 — anything else is a red flag.
-    return { valid: false, reason: 'unsupported_alg' };
+  // Fail-closed on the audience BEFORE any jose work — same behaviour as
+  // R19. If operators forgot to set the audience, ALL tokens would
+  // otherwise pass the audience check, silently accepting any MP-signed
+  // JWT (cross-tenant). Reject and log.
+  const expectedAudience = process.env.MP_OIDC_AUDIENCE;
+  if (!expectedAudience) {
+    logger.warn('mp_oidc_audience_unset', {});
+    return { valid: false, reason: 'audience_not_configured' };
   }
+  const expectedIssuer = process.env.MP_OIDC_ISSUER || DEFAULT_MP_ISSUER;
 
   // Resolve the signing key. If the `kid` isn't in the cached JWKS, force
   // a refresh ONCE and try again — this is the documented refresh-on-401
-  // path from mpJwksCache.ts.
-  let jwks: JsonWebKeySet;
+  // path from mpJwksCache.ts. We still own this loop (rather than handing
+  // it to jose.createRemoteJWKSet) so the cache's test seams stay live.
+  let keys: MpJsonWebKey[];
   try {
-    jwks = await getJwks(false);
+    keys = (await getJwks(false)).keys;
   } catch (err) {
     return {
       valid: false,
       reason: `jwks_fetch_failed:${err instanceof Error ? err.message : String(err)}`,
     };
   }
-  let key = findKey(jwks, header.kid);
-  if (!key) {
+  let jwk = findKey(keys, header.kid);
+  if (!jwk) {
     try {
-      jwks = await getJwks(true);
-      key = findKey(jwks, header.kid);
+      keys = (await getJwks(true)).keys;
+      jwk = findKey(keys, header.kid);
     } catch (err) {
       return {
         valid: false,
@@ -313,63 +352,66 @@ export async function verifyMercadoPagoIpnOidc(
       };
     }
   }
-  if (!key || !key.n || !key.e) {
+  if (!jwk || !jwk.n || !jwk.e) {
     return { valid: false, reason: 'kid_not_found' };
   }
 
-  // Verify signature over the signed input `header.payload` (literal bytes).
-  let publicKey: crypto.KeyObject;
+  // Import the JWK and run the full verify (signature + iss/aud/exp +
+  // alg allow-list) through jose. Optional clock-skew tolerance is read
+  // at call time so tests can flip it without module re-init.
+  let publicKey: Awaited<ReturnType<typeof importJWK>>;
   try {
-    publicKey = jwkToPublicKey(key);
+    publicKey = await importJWK({ kty: jwk.kty, n: jwk.n, e: jwk.e }, 'RS256');
   } catch {
-    return { valid: false, reason: 'jwk_to_pem_failed' };
+    return { valid: false, reason: 'jwk_to_key_failed' };
   }
-  const signedInput = Buffer.from(`${headerB64}.${payloadB64}`, 'utf8');
-  const signature = decodeBase64Url(sigB64);
-  let sigOk = false;
+
+  const clockToleranceRaw = process.env.MP_OIDC_CLOCK_TOLERANCE_SEC;
+  const clockTolerance =
+    typeof clockToleranceRaw === 'string' && /^\d+$/.test(clockToleranceRaw)
+      ? Number(clockToleranceRaw)
+      : 0;
+
+  let payload: JWTPayload;
   try {
-    sigOk = crypto.verify('sha256', signedInput, publicKey, signature);
-  } catch {
-    return { valid: false, reason: 'signature_verify_failed' };
-  }
-  if (!sigOk) {
-    return { valid: false, reason: 'signature_mismatch' };
-  }
-
-  // Claims checks — perform AFTER signature so we don't leak which claim
-  // mismatched on an unsigned token.
-  const expectedIssuer = process.env.MP_OIDC_ISSUER || DEFAULT_MP_ISSUER;
-  if (payload.iss !== expectedIssuer) {
-    return { valid: false, reason: 'issuer_mismatch' };
-  }
-
-  const expectedAudience = process.env.MP_OIDC_AUDIENCE;
-  if (!expectedAudience) {
-    // Fail-closed: if operators forgot to set the audience, ALL tokens
-    // would otherwise pass the audience check, which would silently
-    // accept any MP-signed JWT (cross-tenant). Reject and log.
-    logger.warn('mp_oidc_audience_unset', {});
-    return { valid: false, reason: 'audience_not_configured' };
-  }
-  const audOk = Array.isArray(payload.aud)
-    ? payload.aud.includes(expectedAudience)
-    : payload.aud === expectedAudience;
-  if (!audOk) {
-    return { valid: false, reason: 'audience_mismatch' };
+    const result = await jwtVerify(token, publicKey, {
+      issuer: expectedIssuer,
+      audience: expectedAudience,
+      algorithms: ['RS256'],
+      clockTolerance,
+    });
+    payload = result.payload;
+  } catch (err) {
+    const reason = joseErrorToReason(err);
+    if (reason === 'expired') {
+      // jose attaches the parsed payload on JWTExpired so we can echo
+      // `expiresAt` back for audit. Best-effort — fall through to undefined
+      // if the version we ship doesn't populate it.
+      const exp = (err as { payload?: { exp?: number } }).payload?.exp;
+      return {
+        valid: false,
+        reason,
+        expiresAt: typeof exp === 'number' ? exp : undefined,
+      };
+    }
+    return { valid: false, reason };
   }
 
-  if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) {
+  const exp = typeof payload.exp === 'number' ? payload.exp : undefined;
+  if (typeof exp !== 'number' || !Number.isFinite(exp)) {
+    // jose's default behaviour does not require `exp`. We do — preserve
+    // the R19 contract and reject tokens missing exp explicitly.
     return { valid: false, reason: 'exp_missing' };
   }
-  const nowSec = Math.floor(Date.now() / 1000);
-  if (payload.exp <= nowSec) {
-    return { valid: false, reason: 'expired', expiresAt: payload.exp };
-  }
+
+  const payerEmail =
+    (payload as { payer?: { email?: string } }).payer?.email ??
+    (payload as { email?: string }).email;
 
   return {
     valid: true,
-    payerEmail: payload.payer?.email ?? payload.email,
-    expiresAt: payload.exp,
+    payerEmail,
+    expiresAt: exp,
   };
 }
 

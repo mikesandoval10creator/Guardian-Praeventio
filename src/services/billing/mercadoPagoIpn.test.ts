@@ -511,3 +511,114 @@ describe('verifyMercadoPagoIpnOidc', () => {
     expect(result.reason).toBe('audience_not_configured');
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Round 20 (A5) — jose-backed verifier behavioural tests.
+//
+// Mirrors the R19 OIDC harness (in-process keypair + injected JWKS fetcher)
+// but asserts behaviours specific to the jose swap: alg=none rejection
+// goes through jose's `algorithms: ['RS256']` allow-list, signature
+// verification uses jose's timing-safe RSASSA-PKCS1-v1_5, exp is enforced
+// by jose's `JWTExpired`, and the `MP_OIDC_CLOCK_TOLERANCE_SEC` env knob
+// is plumbed through to jose's `clockTolerance` option.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe('verifyMercadoPagoIpnOidc — jose-backed (R20 A5)', () => {
+  const ISSUER = 'https://api.test.mercadopago.com';
+  const AUDIENCE = 'praeventio-mp-r20-client';
+  const KID = 'mp-oidc-r20-kid';
+
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+  });
+  const jwk = publicKey.export({ format: 'jwk' }) as { n: string; e: string; kty: string };
+  const jwks = {
+    keys: [{ kty: 'RSA', kid: KID, alg: 'RS256', use: 'sig', n: jwk.n, e: jwk.e }],
+  };
+
+  function b64url(buf: Buffer | string): string {
+    const b = Buffer.isBuffer(buf) ? buf : Buffer.from(buf, 'utf8');
+    return b.toString('base64').replace(/=+$/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  }
+  function signRs256(payload: Record<string, unknown>): string {
+    const headerB64 = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: KID }));
+    const payloadB64 = b64url(JSON.stringify(payload));
+    const signed = `${headerB64}.${payloadB64}`;
+    const sig = crypto.sign('sha256', Buffer.from(signed, 'utf8'), privateKey);
+    return `${signed}.${b64url(sig)}`;
+  }
+
+  beforeEach(() => {
+    _resetMpJwksCacheForTests();
+    _setJwksFetcherForTests(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => jwks,
+    }));
+    process.env.MP_OIDC_ISSUER = ISSUER;
+    process.env.MP_OIDC_AUDIENCE = AUDIENCE;
+  });
+  afterEach(() => {
+    _setJwksFetcherForTests(null);
+    delete process.env.MP_OIDC_ISSUER;
+    delete process.env.MP_OIDC_AUDIENCE;
+    delete process.env.MP_OIDC_CLOCK_TOLERANCE_SEC;
+  });
+
+  it('jose.jwtVerify rejects alg=none even when no signature is provided', async () => {
+    // Hand-roll a {"alg":"none"} JWT with an empty signature segment. Under
+    // the in-house verifier we early-rejected on the alg check; under jose
+    // it's the `algorithms: ['RS256']` allow-list inside jwtVerify that
+    // surfaces JOSEAlgNotAllowed → 'unsupported_alg'.
+    const headerB64 = b64url(JSON.stringify({ alg: 'none', typ: 'JWT', kid: KID }));
+    const payloadB64 = b64url(
+      JSON.stringify({ iss: ISSUER, aud: AUDIENCE, exp: Math.floor(Date.now() / 1000) + 600 }),
+    );
+    const token = `${headerB64}.${payloadB64}.`;
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${token}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('unsupported_alg');
+  });
+
+  it('jose.jwtVerify rejects a token with a tampered signature', async () => {
+    // Sign legitimately, then flip every byte of the signature so the
+    // tampered token still parses but fails RSASSA-PKCS1-v1_5 verification.
+    const exp = Math.floor(Date.now() / 1000) + 600;
+    const token = signRs256({ iss: ISSUER, aud: AUDIENCE, exp });
+    const segs = token.split('.');
+    const sigBytes = Buffer.from(segs[2].replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+    for (let i = 0; i < sigBytes.length; i++) sigBytes[i] = sigBytes[i] ^ 0xff;
+    const tampered = `${segs[0]}.${segs[1]}.${b64url(sigBytes)}`;
+
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${tampered}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('signature_mismatch');
+  });
+
+  it('jose.jwtVerify rejects an expired exp claim (no clock tolerance)', async () => {
+    // Sign a token with exp 60s in the past. With strict clockTolerance=0
+    // (the default), jose's JWTExpired must fire → 'expired' reason.
+    const exp = Math.floor(Date.now() / 1000) - 60;
+    const token = signRs256({ iss: ISSUER, aud: AUDIENCE, exp });
+    const result = await verifyMercadoPagoIpnOidc(`Bearer ${token}`);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toBe('expired');
+    expect(result.expiresAt).toBe(exp);
+  });
+
+  it('respects MP_OIDC_CLOCK_TOLERANCE_SEC for borderline-expired tokens', async () => {
+    // exp 30s in the past, tolerance=120s → jose accepts; tolerance=10s → rejects.
+    const exp = Math.floor(Date.now() / 1000) - 30;
+    const token = signRs256({ iss: ISSUER, aud: AUDIENCE, exp });
+
+    process.env.MP_OIDC_CLOCK_TOLERANCE_SEC = '120';
+    const accepted = await verifyMercadoPagoIpnOidc(`Bearer ${token}`);
+    expect(accepted.valid).toBe(true);
+    expect(accepted.expiresAt).toBe(exp);
+
+    process.env.MP_OIDC_CLOCK_TOLERANCE_SEC = '10';
+    const rejected = await verifyMercadoPagoIpnOidc(`Bearer ${token}`);
+    expect(rejected.valid).toBe(false);
+    expect(rejected.reason).toBe('expired');
+  });
+});

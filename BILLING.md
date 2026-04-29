@@ -184,6 +184,22 @@ Why three states, not two:
 
 ---
 
+## MercadoPago IPN — OIDC verification (R20 A5)
+
+R19 A9 shipped MP IPN OIDC support with a ~120 LOC in-house RS256
+verifier (split JWS → `crypto.createPublicKey({format:'jwk'})` →
+`crypto.verify`) explicitly to avoid coupling to an undeclared transitive
+`jose` package. R20 A5 declares `jose@^5` as a direct dependency in
+`package.json` and swaps the in-house verifier for `jose.jwtVerify` +
+`jose.importJWK` (Pattern A — JWKS still resolved via `mpJwksCache` to
+preserve the `_setJwksFetcherForTests` test seam). Rationale:
+library-grade timing-safe verification, ~120 LOC of crypto plumbing
+removed, smaller attack surface (no in-house base64url padding or
+JWK→PEM coercion), and a new `MP_OIDC_CLOCK_TOLERANCE_SEC` env knob
+plumbed straight through to jose's `clockTolerance`.
+
+---
+
 ## Stripe setup (international USD path)
 
 ### Setup checklist
