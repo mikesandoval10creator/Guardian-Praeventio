@@ -14,7 +14,7 @@
     "src/services/ergonomics/rula.ts"
   ],
   "coverageAnalysis": "perTest",
-  "_thresholds_comment": "R18 baseline (2026-04-28) — score más bajo observado: ergonomicAssessments.ts = 54.61%. Fórmula 'lowest - 5%' = 49.61%; redondeado a 50% como floor. Buffer de 4.6 pp absorbe variación stochastic sin permitir regresiones grandes. Subir progresivamente en R19+ tras cubrir validación en *Assessments.ts (esperado +10-15 pp) y boundaries en rula.ts (+3-5 pp). Ver STRYKER_BASELINE.md para análisis completo.",
-  "thresholds": { "high": 80, "low": 60, "break": 50 },
+  "_thresholds_comment": "R19 ratchet (2026-04-29) — global score subió 67.32 → 76.95 (+9.63 pp) tras 107 tests nuevos. Score más bajo: rula.ts = 65.78% (antes 59.63). ergonomicAssessments.ts = 87.58 (+33 pp), iperAssessments.ts = 87.50 (+31 pp). Threshold 'break' subido 50 → 60: deja ~5.78 pp de buffer sobre rula.ts (lowest), absorbe variación stochastic. Próximo objetivo R20: snapshot canónico de TABLE_A/B/C en rula.ts (esperado rula 65→75%) y mover break → 65. Ver STRYKER_BASELINE.md sección 'R19 Ratchet'.",
+  "thresholds": { "high": 80, "low": 60, "break": 60 },
   "timeoutMS": 60000
 }

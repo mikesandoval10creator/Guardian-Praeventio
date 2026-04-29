@@ -397,3 +397,174 @@ describe('RULA — input validation (test 14)', () => {
     ).toThrow(RangeError);
   });
 });
+
+describe('RULA — angle boundary mutations (test 15)', () => {
+  it('upperArm exactly ANGLE_MAX (180°) is accepted (no throw)', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), upperArm: { flexionDeg: 180 } }),
+    ).not.toThrow();
+  });
+  it('upperArm exactly ANGLE_MIN (-180°) is accepted (no throw)', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), upperArm: { flexionDeg: -180 } }),
+    ).not.toThrow();
+  });
+  it('upperArm just above ANGLE_MAX (180.0001°) throws RangeError', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), upperArm: { flexionDeg: 180.0001 } }),
+    ).toThrow(RangeError);
+  });
+  it('upperArm just below ANGLE_MIN (-180.0001°) throws RangeError', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), upperArm: { flexionDeg: -180.0001 } }),
+    ).toThrow(RangeError);
+  });
+  it('error message names the offending segment ("upperArm")', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), upperArm: { flexionDeg: 200 } }),
+    ).toThrow(/upperArm/);
+  });
+  it('error message names the offending segment ("lowerArm")', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), lowerArm: { flexionDeg: 200 } }),
+    ).toThrow(/lowerArm/);
+  });
+  it('error message names the offending segment ("wrist")', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), wrist: { flexionDeg: -300 } }),
+    ).toThrow(/wrist/);
+  });
+  it('error message names the offending segment ("neck")', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), neck: { flexionDeg: 300 } }),
+    ).toThrow(/neck/);
+  });
+  it('error message names the offending segment ("trunk")', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), trunk: { flexionDeg: 300 } }),
+    ).toThrow(/trunk/);
+  });
+  it('non-finite angle error mentions the offending value', () => {
+    expect(() =>
+      calculateRula({ ...baseInput(), neck: { flexionDeg: Number.NaN } }),
+    ).toThrow(/finite/);
+  });
+});
+
+describe('RULA — kg=0 and lower-arm boundary mutations (test 16)', () => {
+  it('force.kg = 0 exact does not throw (>= 0 boundary)', () => {
+    expect(() =>
+      calculateRula({
+        ...baseInput(),
+        force: { kg: 0, pattern: 'intermittent' },
+      }),
+    ).not.toThrow();
+  });
+  it('force.kg = 0 intermittent → forceA = 0 (boundary kg<2 path)', () => {
+    const r = calculateRula({
+      ...baseInput(),
+      force: { kg: 0, pattern: 'intermittent' },
+    });
+    expect(r.details.forceA).toBe(0);
+  });
+  it('force.kg slightly negative (-0.0001) throws', () => {
+    expect(() =>
+      calculateRula({
+        ...baseInput(),
+        force: { kg: -0.0001, pattern: 'intermittent' },
+      }),
+    ).toThrow(RangeError);
+  });
+  it('lowerArm exactly 60° → score 1 (>=60 boundary)', () => {
+    const r = calculateRula({ ...baseInput(), lowerArm: { flexionDeg: 60 } });
+    expect(r.details.lowerArmScore).toBe(1);
+  });
+  it('lowerArm exactly 100° → score 1 (<=100 boundary)', () => {
+    const r = calculateRula({ ...baseInput(), lowerArm: { flexionDeg: 100 } });
+    expect(r.details.lowerArmScore).toBe(1);
+  });
+  it('lowerArm 59° → score 2 (just below window)', () => {
+    const r = calculateRula({ ...baseInput(), lowerArm: { flexionDeg: 59 } });
+    expect(r.details.lowerArmScore).toBe(2);
+  });
+  it('lowerArm 101° → score 2 (just above window)', () => {
+    const r = calculateRula({ ...baseInput(), lowerArm: { flexionDeg: 101 } });
+    expect(r.details.lowerArmScore).toBe(2);
+  });
+  it('wrist exactly 15° → score 2 (<=15 boundary)', () => {
+    const r = calculateRula({ ...baseInput(), wrist: { flexionDeg: 15 } });
+    expect(r.details.wristScore).toBe(2);
+  });
+  it('wrist 16° → score 3 (>15)', () => {
+    const r = calculateRula({ ...baseInput(), wrist: { flexionDeg: 16 } });
+    expect(r.details.wristScore).toBe(3);
+  });
+  it('wrist -15° (negative) → score 2 (abs ≤15 boundary)', () => {
+    const r = calculateRula({ ...baseInput(), wrist: { flexionDeg: -15 } });
+    expect(r.details.wristScore).toBe(2);
+  });
+  it('neck exactly 10° → score 1 (<=10 boundary)', () => {
+    const r = calculateRula({ ...baseInput(), neck: { flexionDeg: 10 } });
+    expect(r.details.neckScore).toBe(1);
+  });
+  it('neck 11° → score 2 (>10)', () => {
+    const r = calculateRula({ ...baseInput(), neck: { flexionDeg: 11 } });
+    expect(r.details.neckScore).toBe(2);
+  });
+  it('neck exactly 20° → score 2 (<=20 boundary)', () => {
+    const r = calculateRula({ ...baseInput(), neck: { flexionDeg: 20 } });
+    expect(r.details.neckScore).toBe(2);
+  });
+  it('neck 21° → score 3', () => {
+    const r = calculateRula({ ...baseInput(), neck: { flexionDeg: 21 } });
+    expect(r.details.neckScore).toBe(3);
+  });
+  it('neck negative flexion (extension via angle) → score 4', () => {
+    const r = calculateRula({ ...baseInput(), neck: { flexionDeg: -5 } });
+    expect(r.details.neckScore).toBe(4);
+  });
+  it('trunk exactly 20° → score 2', () => {
+    const r = calculateRula({ ...baseInput(), trunk: { flexionDeg: 20 } });
+    expect(r.details.trunkScore).toBe(2);
+  });
+  it('trunk 21° → score 3', () => {
+    const r = calculateRula({ ...baseInput(), trunk: { flexionDeg: 21 } });
+    expect(r.details.trunkScore).toBe(3);
+  });
+  it('trunk exactly 60° → score 3', () => {
+    const r = calculateRula({ ...baseInput(), trunk: { flexionDeg: 60 } });
+    expect(r.details.trunkScore).toBe(3);
+  });
+  it('trunk 61° → score 4', () => {
+    const r = calculateRula({ ...baseInput(), trunk: { flexionDeg: 61 } });
+    expect(r.details.trunkScore).toBe(4);
+  });
+  it('force.kg exactly 2 with intermittent → +1 (not 0)', () => {
+    const r = calculateRula({
+      ...baseInput(),
+      force: { kg: 2, pattern: 'intermittent' },
+    });
+    expect(r.details.forceA).toBe(1);
+  });
+  it('force.kg exactly 10 with intermittent → +1 (not +3)', () => {
+    const r = calculateRula({
+      ...baseInput(),
+      force: { kg: 10, pattern: 'intermittent' },
+    });
+    expect(r.details.forceA).toBe(1);
+  });
+  it('force.kg = 10.0001 with intermittent → +3 (boundary >10)', () => {
+    const r = calculateRula({
+      ...baseInput(),
+      force: { kg: 10.0001, pattern: 'intermittent' },
+    });
+    expect(r.details.forceA).toBe(3);
+  });
+  it('force.kg = 1.999 with static → +1 (<2 path)', () => {
+    const r = calculateRula({
+      ...baseInput(),
+      force: { kg: 1.999, pattern: 'static' },
+    });
+    expect(r.details.forceA).toBe(1);
+  });
+});

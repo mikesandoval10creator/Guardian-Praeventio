@@ -159,6 +159,189 @@ describe('recordErgonomicAssessment', () => {
     ).rejects.toThrow(/score/i);
     expect(setDocMock).not.toHaveBeenCalled();
   });
+
+  it('rejects null payloads with the canonical "payload required" message', async () => {
+    await expect(
+      recordErgonomicAssessment(null as unknown as typeof baseRebaPayload),
+    ).rejects.toThrow(/ergonomic_assessments: payload required/);
+    expect(setDocMock).not.toHaveBeenCalled();
+    expect(logAuditActionMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-object payloads (string)', async () => {
+    await expect(
+      recordErgonomicAssessment('not-an-object' as unknown as typeof baseRebaPayload),
+    ).rejects.toThrow(/payload required/);
+  });
+
+  it('mentions the offending type in the unsupported-type error message', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        type: 'NIOSH' as unknown as 'REBA',
+      }),
+    ).rejects.toThrow(/NIOSH/);
+  });
+
+  it('rejects non-finite scores (NaN)', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        score: Number.NaN,
+      }),
+    ).rejects.toThrow(/score must be a finite number/);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-finite scores (Infinity)', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        score: Number.POSITIVE_INFINITY,
+      }),
+    ).rejects.toThrow(/score must be a finite number/);
+  });
+
+  it('rejects payloads where actionLevel is neither string nor number', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        actionLevel: { bad: true } as unknown as string,
+      }),
+    ).rejects.toThrow(/actionLevel must be string\|number/);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty workerId (string of length 0)', async () => {
+    await expect(
+      recordErgonomicAssessment({ ...baseRebaPayload, workerId: '' }),
+    ).rejects.toThrow(/workerId required/);
+    expect(setDocMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing workerId (non-string)', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        workerId: undefined as unknown as string,
+      }),
+    ).rejects.toThrow(/workerId required/);
+  });
+
+  it('rejects empty projectId', async () => {
+    await expect(
+      recordErgonomicAssessment({ ...baseRebaPayload, projectId: '' }),
+    ).rejects.toThrow(/projectId required/);
+  });
+
+  it('rejects missing projectId (non-string)', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        projectId: 42 as unknown as string,
+      }),
+    ).rejects.toThrow(/projectId required/);
+  });
+
+  it('rejects empty computedAt', async () => {
+    await expect(
+      recordErgonomicAssessment({ ...baseRebaPayload, computedAt: '' }),
+    ).rejects.toThrow(/computedAt required/);
+  });
+
+  it('rejects missing computedAt', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        computedAt: undefined as unknown as string,
+      }),
+    ).rejects.toThrow(/computedAt required/);
+  });
+
+  it('rejects empty authorUid', async () => {
+    await expect(
+      recordErgonomicAssessment({ ...baseRebaPayload, authorUid: '' }),
+    ).rejects.toThrow(/authorUid required/);
+  });
+
+  it('rejects missing authorUid', async () => {
+    await expect(
+      recordErgonomicAssessment({
+        ...baseRebaPayload,
+        authorUid: null as unknown as string,
+      }),
+    ).rejects.toThrow(/authorUid required/);
+  });
+
+  it('forwards durationMin into audit details when finite and positive', async () => {
+    await recordErgonomicAssessment({ ...baseRebaPayload, durationMin: 12 });
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as { durationMin?: number }).durationMin).toBe(12);
+  });
+
+  it('omits durationMin from audit details when zero', async () => {
+    await recordErgonomicAssessment({ ...baseRebaPayload, durationMin: 0 });
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as Record<string, unknown>)).not.toHaveProperty('durationMin');
+  });
+
+  it('omits durationMin from audit details when negative', async () => {
+    await recordErgonomicAssessment({ ...baseRebaPayload, durationMin: -5 });
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as Record<string, unknown>)).not.toHaveProperty('durationMin');
+  });
+
+  it('omits durationMin from audit details when NaN', async () => {
+    await recordErgonomicAssessment({ ...baseRebaPayload, durationMin: Number.NaN });
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as Record<string, unknown>)).not.toHaveProperty('durationMin');
+  });
+
+  it('omits durationMin from audit details when omitted entirely', async () => {
+    await recordErgonomicAssessment(baseRebaPayload);
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as Record<string, unknown>)).not.toHaveProperty('durationMin');
+  });
+
+  it('audit details include assessmentId matching the returned id', async () => {
+    const result = await recordErgonomicAssessment(baseRebaPayload);
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as { assessmentId: string }).assessmentId).toBe(result.id);
+  });
+
+  it('audit details include the type ("REBA") and full score', async () => {
+    await recordErgonomicAssessment(baseRebaPayload);
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as { type: string }).type).toBe('REBA');
+    expect((details as { score: number }).score).toBe(7);
+  });
+
+  it('passes an explicit projectId (not undefined) to logAuditAction', async () => {
+    await recordErgonomicAssessment(baseRebaPayload);
+    const call = logAuditActionMock.mock.calls[0];
+    expect(call[3]).toBe('proj-1');
+    expect(call.length).toBe(4);
+  });
+
+  it('writes setDoc before invoking logAuditAction (Firestore-first ordering)', async () => {
+    const order: string[] = [];
+    setDocMock.mockImplementation(() => {
+      order.push('setDoc');
+      return Promise.resolve(undefined);
+    });
+    logAuditActionMock.mockImplementation(() => {
+      order.push('audit');
+      return Promise.resolve(undefined);
+    });
+    await recordErgonomicAssessment(baseRebaPayload);
+    expect(order).toEqual(['setDoc', 'audit']);
+  });
+
+  it('does not emit an audit log when setDoc rejects', async () => {
+    setDocMock.mockImplementation(() => Promise.reject(new Error('firestore offline')));
+    await expect(recordErgonomicAssessment(baseRebaPayload)).rejects.toThrow(/firestore offline/);
+    expect(logAuditActionMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('signErgonomicAssessment', () => {
@@ -218,5 +401,116 @@ describe('signErgonomicAssessment', () => {
       signErgonomicAssessment('missing-id', 'gerente-uid'),
     ).rejects.toThrow(/not found/i);
     expect(updateDocMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty id', async () => {
+    await expect(signErgonomicAssessment('', 'gerente-uid')).rejects.toThrow(/id required/);
+    expect(getDocMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-string id', async () => {
+    await expect(
+      signErgonomicAssessment(undefined as unknown as string, 'gerente-uid'),
+    ).rejects.toThrow(/id required/);
+  });
+
+  it('rejects empty signerUid', async () => {
+    await expect(signErgonomicAssessment('asmt-1', '')).rejects.toThrow(/signerUid required/);
+    expect(getDocMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-string signerUid', async () => {
+    await expect(
+      signErgonomicAssessment('asmt-1', null as unknown as string),
+    ).rejects.toThrow(/signerUid required/);
+  });
+
+  it('quotes the offending id in the not-found error', async () => {
+    getDocMock.mockResolvedValue({ exists: () => false, data: () => undefined });
+    await expect(
+      signErgonomicAssessment('asmt-xyz', 'gerente-uid'),
+    ).rejects.toThrow(/asmt-xyz/);
+  });
+
+  it('quotes the offending id in the already-signed error', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        type: 'REBA',
+        projectId: 'proj-1',
+        metadata: { signedAt: '2026-04-27T10:00:00.000Z' },
+      }),
+    });
+    await expect(
+      signErgonomicAssessment('asmt-already', 'gerente-uid'),
+    ).rejects.toThrow(/asmt-already/);
+  });
+
+  it('uses the stored type to compose the audit action key (RULA)', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({
+        type: 'RULA',
+        projectId: 'proj-2',
+        metadata: { signedAt: null },
+      }),
+    });
+    await signErgonomicAssessment('asmt-rula', 'gerente-uid');
+    const [action] = logAuditActionMock.mock.calls[0];
+    expect(action).toBe('safety.rula.signed');
+  });
+
+  it('falls back to "reba" when the stored type is missing', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ projectId: 'proj-3', metadata: { signedAt: null } }),
+    });
+    await signErgonomicAssessment('asmt-untyped', 'gerente-uid');
+    const [action] = logAuditActionMock.mock.calls[0];
+    expect(action).toBe('safety.reba.signed');
+  });
+
+  it('treats a missing metadata block as not-yet-signed', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ type: 'REBA', projectId: 'proj-1' }),
+    });
+    await signErgonomicAssessment('asmt-no-meta', 'gerente-uid');
+    expect(updateDocMock).toHaveBeenCalledTimes(1);
+    expect(logAuditActionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats metadata.signedAt === null as not-yet-signed', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ type: 'REBA', projectId: 'proj-1', metadata: { signedAt: null } }),
+    });
+    await signErgonomicAssessment('asmt-null-signed', 'gerente-uid');
+    expect(updateDocMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('audit details include the freshly-set signedAt ISO string', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ type: 'REBA', projectId: 'proj-1', metadata: { signedAt: null } }),
+    });
+    await signErgonomicAssessment('asmt-iso', 'gerente-uid');
+    const [, patch] = updateDocMock.mock.calls[0];
+    const [, , details] = logAuditActionMock.mock.calls[0];
+    expect((details as { signedAt: string }).signedAt).toBe(
+      (patch as Record<string, string>)['metadata.signedAt'],
+    );
+  });
+
+  it('does not emit an audit log when updateDoc rejects', async () => {
+    getDocMock.mockResolvedValue({
+      exists: () => true,
+      data: () => ({ type: 'REBA', projectId: 'proj-1', metadata: { signedAt: null } }),
+    });
+    updateDocMock.mockImplementation(() => Promise.reject(new Error('write denied')));
+    await expect(
+      signErgonomicAssessment('asmt-fail', 'gerente-uid'),
+    ).rejects.toThrow(/write denied/);
+    expect(logAuditActionMock).not.toHaveBeenCalled();
   });
 });

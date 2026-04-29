@@ -1,7 +1,9 @@
-# Stryker mutation baseline — Round 18
+# Stryker mutation baseline — Round 18 + R19 Ratchet
 
-**Fecha de baseline:** 2026-04-28 (ronda 18)
-**HEAD evaluado:** `67cf513`
+**Fecha de baseline R18:** 2026-04-28 (ronda 18)
+**HEAD evaluado R18:** `67cf513`
+**Fecha de ratchet R19:** 2026-04-29 (ronda 19, A8)
+**HEAD evaluado R19:** `87a4c78` + R19 A8 test additions
 
 ## Versiones del runtime
 
@@ -246,3 +248,166 @@ informativa, no bloqueantes.
   `continue-on-error: true` mientras `break` sea informativo, luego
   `required: true` cuando el threshold esté estabilizado.
 - Cachear `node_modules` y `.stryker-tmp` reduce el cold-start ~30%.
+
+---
+
+## R19 Ratchet — 2026-04-29 (A8)
+
+**HEAD evaluado:** `87a4c78` + R19 A8 test additions (no commit local).
+**Duración del run:** **3 min 10 s** (vs. 5 min 1 s en R18 — runner más
+rápido al matarse más mutantes temprano y reducir survivors lentos).
+**Tests cubiertos en initial run:** 285 (vs. 178 en R18) — los 107 tests
+nuevos compilan y corren bajo `coverageAnalysis: perTest`.
+
+### Resultados por archivo (R19)
+
+| Archivo | R18 score | R19 score | Δ pp | # killed | # survived | # no-cov |
+|---|---:|---:|---:|---:|---:|---:|
+| `services/protocols/iper.ts` | 89.58 | **89.58** | 0.00 | 43 | 5 | 0 |
+| `services/protocols/tmert.ts` | 85.29 | **85.29** | 0.00 | 58 | 10 | 0 |
+| `services/protocols/prexor.ts` | 81.71 | **81.71** | 0.00 | 67 | 15 | 0 |
+| `services/ergonomics/reba.ts` | 75.07 | **75.07** | 0.00 | 277 | 84 | 8 |
+| `services/ergonomics/rula.ts` | 59.63 | **65.78** | **+6.15** | 246 | 127 | 1 |
+| `services/safety/iperAssessments.ts` | 56.08 | **87.50** | **+31.42** | 140 | 18 | 2 |
+| `services/safety/ergonomicAssessments.ts` | 54.61 | **87.58** | **+32.97** | 134 | 17 | 2 |
+| **All files** | **67.32** | **76.95** | **+9.63** | **965** | **276** | **13** |
+
+Subtotales por carpeta:
+- `protocols/`: 84.85% → **84.85%** (sin cambios — fuera de scope R19).
+- `ergonomics/`: 67.29% → **70.39%** (+3.10 pp; sólo `rula.ts` mejoró).
+- `safety/`: 55.36% → **87.54%** (+32.18 pp; ambos `*Assessments.ts`
+  saltaron del lowest a estar entre los más sanos). El refactor de
+  helper compartido (deferral arquitectónico R18) ya **no es
+  necesario** — la cobertura paralela es trivial de mantener.
+
+### Tests añadidos en R19 A8
+
+- `src/services/safety/ergonomicAssessments.test.ts`: **30** tests
+  (de 11 → 41). Cubre: payload null/non-object, score NaN/Infinity,
+  actionLevel object-rejection, workerId/projectId/computedAt/authorUid
+  empty + missing, durationMin paths (zero/negative/NaN/Infinity/
+  positive), audit details verification (assessmentId, type, score,
+  4-arg ordering, projectId pass-through), Firestore-first ordering
+  invariant, sin-audit-en-error path. Sign: empty/non-string id +
+  signerUid, error-string includes id, RULA type used in audit key,
+  `reba` fallback when type missing, missing-metadata path,
+  signedAt-null path, signedAt audit/patch consistency, updateDoc
+  rejection no-audit path.
+- `src/services/safety/iperAssessments.test.ts`: **31** tests
+  (de 9 → 40). Patrón paralelo: payload guards, level/rawScore
+  validations (NaN/-Infinity/string), projectId/authorUid
+  empty/missing, inputs missing, P/S non-integer (3.5 / 2.7),
+  P/S boundary (0/6 above-below; 1 y 5 happy-path lower/upper),
+  suggestedControls non-array, durationMin variants, audit field
+  verification, Firestore-first ordering, no-audit-on-error. Sign:
+  empty/non-string id+signerUid, error-string id quote, missing
+  metadata block, null signedAt, audit/patch signedAt consistency,
+  projectId pass-through, updateDoc rejection no-audit.
+- `src/services/ergonomics/rula.test.ts`: **34** tests (de 49 → 83).
+  Boundary tests: `ANGLE_MIN/MAX` exactos (-180, 180) + just-outside
+  (±180.0001), error-message segment names para upperArm/lowerArm/
+  wrist/neck/trunk, `force.kg = 0` exact path, `kg = -0.0001` throw,
+  lowerArm 60/100/59/101 boundaries, wrist 15/16/-15, neck 10/11/20/
+  21/-5, trunk 20/21/60/61, force kg=2/10/10.0001/1.999 boundaries.
+- **Total nuevos tests:** **95** (de 69 → 164 en estos 3 archivos).
+  La suite global pasó de 1003 → **1118 passing | 66 skipped**
+  (R18 base era ~1003 según R18 A6).
+
+### Top survived restantes (R19 → R20 backlog)
+
+#### `rula.ts` (65.78% — lowest del set, sigue siendo el bottleneck)
+
+1. **Tablas TABLE_A/B/C — 127 survivors, mayoritariamente
+   `ArrayDeclaration` y `NumberLiteral` en celdas internas.** Las
+   boundaries de los sub-scores ya están cubiertas (los tests R19
+   eliminaron los survivors de validación y de scoreUpperArm/
+   scoreLowerArm/scoreNeck/scoreTrunk). Lo que queda son los valores
+   numéricos de las tablas (3D × 6×3×4×2 = 144 celdas en TABLE_A
+   sola) que ningún test exhaustivo toca. Trade-off para R20:
+   *   (a) Reproducir tabla canónica McAtamney 1993 como snapshot
+       (eg. `expect(TABLE_A).toMatchSnapshot()`) — barato pero
+       sólo mata `ArrayDeclaration`, no los `NumberLiteral` por
+       celda (Stryker no cubre snapshot internals).
+   *   (b) Tests parametrizados enumerando 144 + 72 + 56 = 272
+       inputs canónicos. Mata todo, pero +5 s al test runtime.
+   *   (c) `excludedMutations: ['ArrayDeclaration']` en stryker —
+       evade el problema. Aceptable porque las celdas son
+       canónicas (no nuestra autoría) y un mutante que cambia
+       `[1,2,3]` → `[]` no representa un bug real.
+   Recomendado: (a) + (c) en R20.
+2. `rula.ts:120` — `input.force.kg < 0` con `<` → `<=` aún sobrevive
+   en algunos sub-paths (cubierto por kg=0 exact en R19, pero el
+   mutante de `kg = -0` específico podría seguir vivo).
+
+#### `ergonomicAssessments.ts` (87.58%) y `iperAssessments.ts` (87.50%)
+
+1. **`newId()` randomUUID-fallback path — 7 survivors compartidos
+   entre ambos archivos.** El branch `crypto === undefined` (cuando
+   `crypto.randomUUID` no existe) sólo se ejercita si los tests
+   simulan el fallback. Test gap R20 (low priority): mockear
+   `globalThis.crypto = undefined` en un test específico para matar
+   estos 7 mutantes. Esperado +1-2 pp por archivo.
+2. **`durationMin` ConditionalExpression `true` mutant** — sobrevive
+   porque hay 1 test que pasa `durationMin: 12` pero ningún test
+   afirma que el `Number.isFinite` específicamente es `true` (vs.
+   `&& true` que también pasa). Bajo valor — el resto del payload
+   se afirma.
+3. **`existing?.metadata?.signedAt` OptionalChaining** — el mutante
+   `existing.metadata?.signedAt` (sin `?` en el primer access)
+   sobrevive cuando `existing` es definido (los mocks que retornan
+   data() siempre están definidos). Test gap: simular
+   `data() => undefined` con `exists() => true`. Esperado +1 pp.
+4. **`StringLiteral` de "safety"** — el módulo en
+   `logAuditAction(_, 'safety', _, _)` tiene mutantes que cambian
+   `'safety' → ""` survivor. Test gap: cualquier test que afirme
+   `expect(call[1]).toBe('safety')` (mucha variación entre los
+   `it` blocks; algunos lo afirman, otros no). Cobertura parcial.
+
+### Threshold `break` en R19
+
+**Score más bajo:** `rula.ts` = **65.78%**.
+
+Aplicando la convención `lowest - 5%` ≈ 60.78 → redondeado a **60**.
+Justificación:
+
+- 60 deja un buffer de 5.78 pp sobre el lowest (rula.ts).
+- 60 también queda alineado con `low: 60` (mismo número en `low` y
+  `break` significa "violación de `low` rompe el build" — buena
+  política una vez que el baseline lo permite).
+- No saltar a 65 todavía: las celdas de TABLE_A/B/C son
+  estocásticamente survivor (Stryker selecciona orden de mutantes;
+  un run con 1-2 timeouts en celdas de borde podría empujar
+  rula.ts a 64.x). 60 absorbe esa varianza.
+
+Nuevo `_thresholds_comment` registra el ratchet 50 → 60.
+
+### Plan R20 (deferrals priorizados)
+
+1. **rula.ts: snapshot tabla canónica + parametrize-by-cell.**
+   Esperado rula.ts 65.78 → ~75-80 (+10-15 pp). Es el único archivo
+   bajo 80% y arrastra el global. **Highest priority.**
+2. **`*Assessments.ts`: cubrir branch `crypto === undefined` en
+   `newId()` y `existing?.metadata?` con data() undefined.**
+   Esperado +2-3 pp por archivo. Trivial: 4-6 tests.
+3. **reba.ts: cubrir trunk-extension boundary (R18 deferral
+   pendiente).** Score actual 75.07 — bumping a 80+ requiere los
+   mismos tests que R18 anotó (flex=0 exacto, flex=-1 en rama
+   negative-flex). Esperado +5 pp.
+4. **`excludedMutations: ['StringLiteral']` y/o `['ArrayDeclaration']`
+   condicional.** Stryker tiene una ergonomía mediocre para tablas
+   canónicas. Si R20 logra rula.ts ≥ 75 con tests parametrizados,
+   considerar `ArrayDeclaration` excluido para mantener runtime <5min
+   en CI.
+5. **Mover threshold `break` a 65** una vez que el lowest esté ≥70%.
+
+### Verificación R19
+
+- `npx vitest run src/services/safety/ src/services/ergonomics/rula.test.ts`:
+  **3 files, 166 tests passing** (de 59 antes).
+- `npx vitest run` (full suite): **81 files, 1118 passing | 66
+  skipped (1184 total)**, 17.8 s.
+- `npx tsc -b`: exit 0, 0 errors.
+- `npm run mutation`: **76.95% global** (vs. 67.32 en R18, +9.63 pp);
+  `Final mutation score of 76.95 is greater than or equal to break threshold 50`
+  (sigue verde con threshold antiguo, antes de subirlo a 60 in-place).
+  Reporte HTML en `reports/mutation/mutation.html`.
