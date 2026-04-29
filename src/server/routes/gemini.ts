@@ -113,10 +113,15 @@ const ALLOWED_GEMINI_ACTIONS = [
 const router = Router();
 
 // Ask Guardian Endpoint (El Cerebro Externo).
-// NOTE: original server.ts wired this without `geminiLimiter` — the global
-// /api/* limiter is the only rate cap here. Preserving that behavior verbatim
-// in the split. Adding `geminiLimiter` would be an unrelated security tweak.
-router.post('/ask-guardian', verifyAuth, async (req, res) => {
+// Round 20 R6 R19 MEDIUM #1: gated by `geminiLimiter` (30 req / 15 min keyed
+// on uid) — same per-user bucket as /api/gemini. Without it, an authed user
+// could spend the global 100/15min /api/* budget entirely on SSE Gemini
+// streams, which is real cost exposure. The limiter is mounted AFTER
+// verifyAuth so the keyGenerator can read req.user.uid (per-uid keying); a
+// pre-auth flood from missing/invalid Bearer headers is rejected by
+// verifyAuth before it reaches the limiter, so 401 traffic does not
+// consume any uid's quota.
+router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
   const { query, stream = false } = req.body;
 
   if (!process.env.GEMINI_API_KEY) {
