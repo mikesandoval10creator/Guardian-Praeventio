@@ -568,3 +568,336 @@ describe('RULA — kg=0 and lower-arm boundary mutations (test 16)', () => {
     expect(r.details.forceA).toBe(1);
   });
 });
+
+// ===========================================================================
+// R20 — Parametric snapshot tests of TABLE_A / TABLE_B / TABLE_C
+//
+// These tests drive the calculator with inputs that produce each (ua, la, wr,
+// wt), (neck, trunk, legs), and (wristArm, neckTrunkLeg) combination, and
+// assert the canonical RULA value from McAtamney & Corlett (1993). The
+// expected values are reproduced verbatim from the original paper. Any
+// mutation that flips a single cell of any table will fail at least one
+// parametric test in this block.
+// ===========================================================================
+
+// --- Expected canonical tables (McAtamney 1993, verbatim) -----------------
+
+// TABLE_A_EXPECTED[ua-1][la-1][wr-1][wt-1] — ua 1-6, la 1-3, wr 1-4, wt 1-2.
+const TABLE_A_EXPECTED: readonly (readonly (readonly (readonly number[])[])[])[] = [
+  // ua = 1
+  [
+    [[1, 2], [2, 2], [2, 3], [3, 3]],
+    [[2, 2], [2, 2], [3, 3], [3, 3]],
+    [[2, 3], [3, 3], [3, 3], [4, 4]],
+  ],
+  // ua = 2
+  [
+    [[2, 3], [3, 3], [3, 4], [4, 4]],
+    [[3, 3], [3, 3], [3, 4], [4, 4]],
+    [[3, 4], [4, 4], [4, 4], [5, 5]],
+  ],
+  // ua = 3
+  [
+    [[3, 3], [4, 4], [4, 4], [5, 5]],
+    [[3, 4], [4, 4], [4, 4], [5, 5]],
+    [[4, 4], [4, 4], [4, 5], [5, 5]],
+  ],
+  // ua = 4
+  [
+    [[4, 4], [4, 4], [4, 5], [5, 5]],
+    [[4, 4], [4, 4], [4, 5], [5, 5]],
+    [[4, 4], [4, 5], [5, 5], [6, 6]],
+  ],
+  // ua = 5
+  [
+    [[5, 5], [5, 5], [5, 6], [6, 7]],
+    [[5, 6], [6, 6], [6, 7], [7, 7]],
+    [[6, 6], [6, 7], [7, 7], [7, 8]],
+  ],
+  // ua = 6
+  [
+    [[7, 7], [7, 7], [7, 8], [8, 9]],
+    [[8, 8], [8, 8], [8, 9], [9, 9]],
+    [[9, 9], [9, 9], [9, 9], [9, 9]],
+  ],
+];
+
+// TABLE_B_EXPECTED[neck-1][trunk-1][legs-1] — neck 1-6, trunk 1-6, legs 1-2.
+const TABLE_B_EXPECTED: readonly (readonly (readonly number[])[])[] = [
+  [[1, 3], [2, 3], [3, 4], [5, 5], [6, 6], [7, 7]],
+  [[2, 3], [2, 3], [4, 5], [5, 5], [6, 7], [7, 7]],
+  [[3, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 7]],
+  [[5, 5], [5, 6], [6, 7], [7, 7], [7, 7], [8, 8]],
+  [[7, 7], [7, 7], [7, 8], [8, 8], [8, 8], [8, 8]],
+  [[8, 8], [8, 8], [8, 8], [8, 9], [9, 9], [9, 9]],
+];
+
+// TABLE_C_EXPECTED[wristArm-1][neckTrunk-1] — wa 1-8, nt 1-7.
+const TABLE_C_EXPECTED: readonly (readonly number[])[] = [
+  [1, 2, 3, 3, 4, 5, 5],
+  [2, 2, 3, 4, 4, 5, 5],
+  [3, 3, 3, 4, 4, 5, 6],
+  [3, 3, 3, 4, 5, 6, 6],
+  [4, 4, 4, 5, 6, 7, 7],
+  [4, 4, 5, 6, 6, 7, 7],
+  [5, 5, 6, 6, 7, 7, 7],
+  [5, 5, 6, 7, 7, 7, 7],
+];
+
+// --- Input drivers --------------------------------------------------------
+
+/** Drive upperArmScore to target (1-6). Uses flexionDeg + flags only. */
+function driveUpperArm(target: number): RulaInput['upperArm'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0 };                                              // [-20, 20] → 1
+    case 2: return { flexionDeg: 30 };                                             // (20, 45] → 2
+    case 3: return { flexionDeg: 60 };                                             // (45, 90] → 3
+    case 4: return { flexionDeg: 100 };                                            // > 90 → 4
+    case 5: return { flexionDeg: 100, shoulderRaised: true };                      // 4 + 1 = 5
+    case 6: return { flexionDeg: 100, shoulderRaised: true, abducted: true };      // 4 + 1 + 1 = 6
+    default: throw new Error(`driveUpperArm: target ${target} out of range`);
+  }
+}
+
+/** Drive lowerArmScore to target (1-3). */
+function driveLowerArm(target: number): RulaInput['lowerArm'] {
+  switch (target) {
+    case 1: return { flexionDeg: 80 };                                             // [60, 100] → 1
+    case 2: return { flexionDeg: 50 };                                             // <60 → 2
+    case 3: return { flexionDeg: 50, acrossMidlineOrOut: true };                   // 2 + 1 = 3
+    default: throw new Error(`driveLowerArm: target ${target} out of range`);
+  }
+}
+
+/** Drive wristScore to target (1-4). */
+function driveWrist(target: number): RulaInput['wrist'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0 };                                              // 0 → 1
+    case 2: return { flexionDeg: 5 };                                              // (0, 15] → 2
+    case 3: return { flexionDeg: 20 };                                             // >15 → 3
+    case 4: return { flexionDeg: 20, deviated: true };                             // 3 + 1 = 4
+    default: throw new Error(`driveWrist: target ${target} out of range`);
+  }
+}
+
+/** Drive neckScore to target (1-6). */
+function driveNeck(target: number): RulaInput['neck'] {
+  switch (target) {
+    case 1: return { flexionDeg: 5 };                                              // [0, 10] → 1
+    case 2: return { flexionDeg: 15 };                                             // (10, 20] → 2
+    case 3: return { flexionDeg: 25 };                                             // >20 → 3
+    case 4: return { flexionDeg: 0, inExtension: true };                           // ext → 4
+    case 5: return { flexionDeg: 0, inExtension: true, twisted: true };            // 4 + 1 = 5
+    case 6: return { flexionDeg: 0, inExtension: true, twisted: true, sideBent: true }; // 4 + 1 + 1 = 6
+    default: throw new Error(`driveNeck: target ${target} out of range`);
+  }
+}
+
+/** Drive trunkScore to target (1-6). */
+function driveTrunk(target: number): RulaInput['trunk'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0, wellSupported: true };                         // seated supported → 1
+    case 2: return { flexionDeg: 10 };                                             // (0, 20] → 2
+    case 3: return { flexionDeg: 30 };                                             // (20, 60] → 3
+    case 4: return { flexionDeg: 70 };                                             // >60 → 4
+    case 5: return { flexionDeg: 70, twisted: true };                              // 4 + 1 = 5
+    case 6: return { flexionDeg: 70, twisted: true, sideBent: true };              // 4 + 1 + 1 = 6
+    default: throw new Error(`driveTrunk: target ${target} out of range`);
+  }
+}
+
+/**
+ * Build a RulaInput pinned to (uaTarget, laTarget, wrTarget, wtTarget).
+ * Group B kept neutral so postureA reflects only TABLE_A. Muscle/force = 0.
+ */
+function inputForA(ua: number, la: number, wr: number, wt: 1 | 2): RulaInput {
+  return {
+    upperArm: driveUpperArm(ua),
+    lowerArm: driveLowerArm(la),
+    wrist: driveWrist(wr),
+    wristTwist: wt === 2 ? 'end' : 'mid',
+    neck: { flexionDeg: 5 },
+    trunk: { flexionDeg: 0, wellSupported: true },
+    legs: { supportedAndBalanced: true },
+    muscleUse: {},
+    force: { kg: 0, pattern: 'intermittent' },
+  };
+}
+
+/**
+ * Build a RulaInput pinned to (neck, trunk, legs). Group A kept neutral so
+ * postureB reflects only TABLE_B. Muscle/force = 0.
+ */
+function inputForB(neck: number, trunk: number, legs: 1 | 2): RulaInput {
+  return {
+    upperArm: { flexionDeg: 0 },
+    lowerArm: { flexionDeg: 80 },
+    wrist: { flexionDeg: 0 },
+    wristTwist: 'mid',
+    neck: driveNeck(neck),
+    trunk: driveTrunk(trunk),
+    legs: { supportedAndBalanced: legs === 1 },
+    muscleUse: {},
+    force: { kg: 0, pattern: 'intermittent' },
+  };
+}
+
+// --- TABLE_A parametric tests --------------------------------------------
+
+const tableACells: Array<[string, RulaInput, number]> = [];
+for (let ua = 1; ua <= 6; ua++) {
+  for (let la = 1; la <= 3; la++) {
+    for (let wr = 1; wr <= 4; wr++) {
+      for (let wt = 1; wt <= 2; wt++) {
+        const expected = TABLE_A_EXPECTED[ua - 1]![la - 1]![wr - 1]![wt - 1]!;
+        tableACells.push([
+          `TABLE_A[ua=${ua}][la=${la}][wr=${wr}][wt=${wt}] = ${expected}`,
+          inputForA(ua, la, wr, wt as 1 | 2),
+          expected,
+        ]);
+      }
+    }
+  }
+}
+
+describe('RULA — TABLE_A canonical cell snapshots (test 17)', () => {
+  it.each(tableACells)('%s', (_label, input, expected) => {
+    const r = calculateRula(input);
+    expect(r.details.postureA).toBe(expected);
+  });
+});
+
+// --- TABLE_B parametric tests --------------------------------------------
+
+const tableBCells: Array<[string, RulaInput, number]> = [];
+for (let neck = 1; neck <= 6; neck++) {
+  for (let trunk = 1; trunk <= 6; trunk++) {
+    for (let legs = 1; legs <= 2; legs++) {
+      const expected = TABLE_B_EXPECTED[neck - 1]![trunk - 1]![legs - 1]!;
+      tableBCells.push([
+        `TABLE_B[neck=${neck}][trunk=${trunk}][legs=${legs}] = ${expected}`,
+        inputForB(neck, trunk, legs as 1 | 2),
+        expected,
+      ]);
+    }
+  }
+}
+
+describe('RULA — TABLE_B canonical cell snapshots (test 18)', () => {
+  it.each(tableBCells)('%s', (_label, input, expected) => {
+    const r = calculateRula(input);
+    expect(r.details.postureB).toBe(expected);
+  });
+});
+
+// --- TABLE_C parametric tests --------------------------------------------
+//
+// TABLE_C is indexed by (wristArmScore, neckTrunkLegScore) where
+//   wristArmScore     = postureA + muscleA + forceA
+//   neckTrunkLegScore = postureB + muscleA + forceA      // muscleB === muscleA
+// To exercise cell (wa, nt) directly we set muscle/force to 0 and pick a
+// TABLE_A cell whose value equals wa and a TABLE_B cell whose value equals nt.
+// Both TABLE_A (range 1..9) and TABLE_B (range 1..9) cover values 1..9, and
+// TABLE_C is indexed by wa∈[1,8] and nt∈[1,7] — all reachable.
+
+function findTableACellWithValue(value: number): { ua: number; la: number; wr: number; wt: 1 | 2 } {
+  for (let ua = 1; ua <= 6; ua++) {
+    for (let la = 1; la <= 3; la++) {
+      for (let wr = 1; wr <= 4; wr++) {
+        for (let wt = 1; wt <= 2; wt++) {
+          if (TABLE_A_EXPECTED[ua - 1]![la - 1]![wr - 1]![wt - 1]! === value) {
+            return { ua, la, wr, wt: wt as 1 | 2 };
+          }
+        }
+      }
+    }
+  }
+  throw new Error(`No TABLE_A cell with value ${value}`);
+}
+
+function findTableBCellWithValue(value: number): { neck: number; trunk: number; legs: 1 | 2 } {
+  for (let neck = 1; neck <= 6; neck++) {
+    for (let trunk = 1; trunk <= 6; trunk++) {
+      for (let legs = 1; legs <= 2; legs++) {
+        if (TABLE_B_EXPECTED[neck - 1]![trunk - 1]![legs - 1]! === value) {
+          return { neck, trunk, legs: legs as 1 | 2 };
+        }
+      }
+    }
+  }
+  throw new Error(`No TABLE_B cell with value ${value}`);
+}
+
+function inputForC(wa: number, nt: number): RulaInput {
+  const aCell = findTableACellWithValue(wa);
+  const bCell = findTableBCellWithValue(nt);
+  return {
+    upperArm: driveUpperArm(aCell.ua),
+    lowerArm: driveLowerArm(aCell.la),
+    wrist: driveWrist(aCell.wr),
+    wristTwist: aCell.wt === 2 ? 'end' : 'mid',
+    neck: driveNeck(bCell.neck),
+    trunk: driveTrunk(bCell.trunk),
+    legs: { supportedAndBalanced: bCell.legs === 1 },
+    muscleUse: {},
+    force: { kg: 0, pattern: 'intermittent' },
+  };
+}
+
+const tableCCells: Array<[string, RulaInput, number, number, number]> = [];
+for (let wa = 1; wa <= 8; wa++) {
+  for (let nt = 1; nt <= 7; nt++) {
+    const expected = TABLE_C_EXPECTED[wa - 1]![nt - 1]!;
+    tableCCells.push([
+      `TABLE_C[wa=${wa}][nt=${nt}] = ${expected}`,
+      inputForC(wa, nt),
+      wa,
+      nt,
+      expected,
+    ]);
+  }
+}
+
+describe('RULA — TABLE_C canonical cell snapshots (test 19)', () => {
+  // We assert finalScore (= TABLE_C lookup) AND that wristArmScore /
+  // neckTrunkLegScore match the targeted indices, so the test fails on
+  // *any* TABLE_C cell mutation OR any miscompute of wa/nt aggregation.
+  it.each(tableCCells)('%s', (_label, input, wa, nt, expected) => {
+    const r = calculateRula(input);
+    expect(r.wristArmScore).toBe(wa);
+    expect(r.neckTrunkLegScore).toBe(nt);
+    expect(r.finalScore).toBe(expected);
+  });
+});
+
+// --- Identity check: TABLE_A / TABLE_B / TABLE_C structure snapshot ------
+
+describe('RULA — canonical table structural identity (test 20)', () => {
+  it('TABLE_A_EXPECTED is the canonical 6×3×4×2 lookup (McAtamney 1993)', () => {
+    expect(TABLE_A_EXPECTED).toHaveLength(6);
+    for (const ua of TABLE_A_EXPECTED) {
+      expect(ua).toHaveLength(3);
+      for (const la of ua) {
+        expect(la).toHaveLength(4);
+        for (const wr of la) {
+          expect(wr).toHaveLength(2);
+        }
+      }
+    }
+  });
+  it('TABLE_B_EXPECTED is the canonical 6×6×2 lookup', () => {
+    expect(TABLE_B_EXPECTED).toHaveLength(6);
+    for (const neck of TABLE_B_EXPECTED) {
+      expect(neck).toHaveLength(6);
+      for (const trunk of neck) {
+        expect(trunk).toHaveLength(2);
+      }
+    }
+  });
+  it('TABLE_C_EXPECTED is the canonical 8×7 lookup', () => {
+    expect(TABLE_C_EXPECTED).toHaveLength(8);
+    for (const wa of TABLE_C_EXPECTED) {
+      expect(wa).toHaveLength(7);
+    }
+  });
+});
