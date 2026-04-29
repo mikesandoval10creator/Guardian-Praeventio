@@ -80,6 +80,11 @@ export function SafetyFeed() {
 
       if (analysis.isRelevant) {
         // 2. Create Risk Node
+        // R16/R19 doctrine — the AI signal triages (isRelevant, type, title,
+        // description, tags); the deterministic IPER engine (`calculateIper()`)
+        // classifies. Default `criticidad` to 'Baja' until the prevencionista
+        // runs P×S; Ley 16.744 / DS 40 require the legal classification to
+        // come from the deterministic matrix, not from Gemini.
         const node = await addNode({
           type: analysis.type === 'INCIDENT' ? NodeType.INCIDENT : NodeType.RISK,
           title: analysis.title,
@@ -88,7 +93,7 @@ export function SafetyFeed() {
           projectId: selectedProject.id,
           connections: [],
           metadata: {
-            criticidad: analysis.criticidad,
+            criticidad: 'Baja',
             source: 'SafetyFeed',
             author: user.displayName
           }

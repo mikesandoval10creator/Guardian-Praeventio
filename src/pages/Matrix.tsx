@@ -181,6 +181,11 @@ export function Matrix() {
       const suggestions = await suggestRisksWithAI(selectedProject.industry || 'General', context);
       
       for (const suggestion of suggestions) {
+        // R16/R19 doctrine: AI no longer returns `criticidad`. Derive it
+        // deterministically from P×S so the legal classification stays in
+        // the IPER engine, not the LLM. Mirrors the handleSeedMatrix ladder.
+        const score = suggestion.probabilidad * suggestion.severidad;
+        const criticidad = score >= 16 ? 'Crítica' : score >= 9 ? 'Alta' : score >= 4 ? 'Media' : 'Baja';
         await addNode({
           title: suggestion.title,
           description: suggestion.description,
@@ -192,7 +197,7 @@ export function Matrix() {
             status: 'pending_approval',
             probabilidad: suggestion.probabilidad,
             severidad: suggestion.severidad,
-            criticidad: suggestion.criticidad,
+            criticidad,
             recomendaciones: suggestion.recomendaciones,
             controles: suggestion.controles.join(', '),
             normativa: suggestion.normativa,
