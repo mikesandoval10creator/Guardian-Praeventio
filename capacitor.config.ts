@@ -34,6 +34,14 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
     },
+    // Biometric (TouchID / FaceID / Android fingerprint) — see
+    // src/hooks/useBiometricAuth.ts for the 3-tier strategy. The plugin
+    // auto-registers via @capacitor/cli; this empty block is here to
+    // make the dependency intent explicit and to leave a hook for
+    // future Android allowDeviceCredential tuning.
+    BiometricAuth: {
+      androidBiometryStrength: 'weak',
+    },
     CapacitorSQLite: {
       iosDatabaseLocation: 'Library/CapacitorDatabase',
       iosIsEncryption: true,
