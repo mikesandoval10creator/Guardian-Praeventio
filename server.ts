@@ -2437,6 +2437,221 @@ app.get("/billing/webpay/return", async (req, res) => {
   }
 });
 
+// ───────────────────────────────────────────────────────────────────────────
+// Round 15 — MercadoPago checkout (LATAM: PE/AR/CO/MX/BR).
+//
+// Mirrors `/api/billing/checkout` for Webpay but routes Latin American
+// markets to MercadoPago via the SDK adapter. Each preference creates an
+// invoice in `invoices/{id}` (same shape as the Webpay path) and returns
+// the MP `init_point` URL the SPA will redirect to. Currency is enforced
+// per-country to prevent a Peruvian user from accidentally paying in
+// COP. Auth-gated; idempotent at the invoice layer (each call writes a
+// new invoice — clients should NOT retry on 5xx without checking).
+//
+// Round 16 will add the matching IPN webhook (`POST /api/billing/webhook/
+// mercadopago`) with OIDC verification similar to RTDN. Until then, MP
+// payments will land in MP's own dashboard but won't auto-mark the
+// invoice as paid — admin uses `/api/billing/invoice/:id/mark-paid` as
+// the manual fallback (same as transferencia bancaria).
+// ───────────────────────────────────────────────────────────────────────────
+import {
+  mercadoPagoAdapter,
+  MercadoPagoAdapterError,
+  type MercadoPagoCurrencyId,
+} from "./src/services/billing/mercadoPagoAdapter.js";
+import {
+  MP_CURRENCY_BY_COUNTRY,
+  type LatamCurrency,
+} from "./src/services/billing/currency.js";
+
+/** Per-country expected currency. The (country, currency) tuple must match
+ *  before we'll create a preference — prevents accidental cross-currency
+ *  invoicing. */
+const MP_VALID_TUPLES: ReadonlySet<string> = new Set(
+  Object.entries(MP_CURRENCY_BY_COUNTRY).map(([c, cur]) => `${c}:${cur}`),
+);
+
+/** Convert a CLP amount to a per-country MP unit_price using the same
+ *  fallback ratios as `BILLING_TIER_FALLBACK`. We use the tier's USD
+ *  price as a stable anchor, then apply a rough country multiplier so
+ *  the displayed price is a sensible local-currency number. This is
+ *  intentionally simple — Round 16 will swap it for per-country pricing
+ *  rows on the tier definition. */
+const MP_UNIT_PRICE_USD_MULTIPLIER: Record<string, number> = {
+  PEN: 3.8, // 1 USD ≈ 3.8 PEN
+  ARS: 870, // 1 USD ≈ 870 ARS (volatile — review monthly)
+  COP: 4100, // 1 USD ≈ 4100 COP
+  MXN: 17.5, // 1 USD ≈ 17.5 MXN
+  BRL: 5.0, // 1 USD ≈ 5 BRL
+};
+
+app.post("/api/billing/checkout/mercadopago", verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const callerEmail: string | null = (req as any).user.email ?? null;
+
+  try {
+    const body = req.body ?? {};
+
+    // Input validation — fail closed. Never trust currency/country pair
+    // from the client; mismatches reject with 400.
+    if (typeof body.tierKey !== 'string' || body.tierKey.length === 0 || body.tierKey.length > 64) {
+      return res.status(400).json({ error: "Invalid tierKey" });
+    }
+    if (body.billingCycle !== 'monthly' && body.billingCycle !== 'annual') {
+      return res.status(400).json({ error: "Invalid billingCycle" });
+    }
+    if (typeof body.country !== 'string' || !(body.country in MP_CURRENCY_BY_COUNTRY)) {
+      return res.status(400).json({
+        error: "Invalid country (must be one of PE, AR, CO, MX, BR)",
+      });
+    }
+    const country = body.country as keyof typeof MP_CURRENCY_BY_COUNTRY;
+    const expectedCurrency = MP_CURRENCY_BY_COUNTRY[country];
+    if (body.currency !== expectedCurrency) {
+      return res.status(400).json({
+        error: `Country ${country} requires currency ${expectedCurrency}`,
+      });
+    }
+    if (!MP_VALID_TUPLES.has(`${country}:${body.currency}`)) {
+      return res.status(400).json({ error: "Invalid country/currency combination" });
+    }
+
+    if (!mercadoPagoAdapter.isConfigured()) {
+      return res.status(503).json({
+        error: "MercadoPago is not configured on this environment",
+      });
+    }
+
+    // Load tier from the existing fallback table — same source of
+    // truth as the Webpay path.
+    const tier = resolveBillingTier(body.tierKey);
+    if (!tier) {
+      return res.status(400).json({ error: "Unknown tierKey" });
+    }
+
+    // Compute MP unit_price from the tier's USD anchor. Annual cycles
+    // get the 12x annual figure (MP supports preference-level recurrence
+    // via PreApproval, which is a Round 16 concern — for now we charge
+    // the annual lump sum).
+    const usdAmount = body.billingCycle === 'annual' ? tier.usdAnual : tier.usdRegular;
+    const multiplier = MP_UNIT_PRICE_USD_MULTIPLIER[expectedCurrency] ?? 1;
+    // Round to 2 decimals so MP doesn't reject odd float precision.
+    const unitPrice = Math.round(usdAmount * multiplier * 100) / 100;
+
+    // Build a minimal invoice doc. We deliberately DO NOT call the
+    // shared `buildInvoice()` here — that path is Chile-specific (CLP /
+    // IVA / RUT). MP invoices live in the same Firestore collection
+    // but with a `paymentMethod: 'mercadopago'` tag and the local-
+    // currency totals. Round 16 will refactor `buildInvoice` to be
+    // multi-currency aware.
+    const db = admin.firestore();
+    const invoiceId = `inv_mp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+    const baseUrl = process.env.APP_BASE_URL ?? '';
+    const backUrls = {
+      success: `${baseUrl}/pricing/success?invoice=${encodeURIComponent(invoiceId)}`,
+      pending: `${baseUrl}/pricing/retry?invoice=${encodeURIComponent(invoiceId)}`,
+      failure: `${baseUrl}/pricing/failed?invoice=${encodeURIComponent(invoiceId)}`,
+    };
+    const notificationUrl = `${baseUrl}/api/billing/webhook/mercadopago`;
+
+    let preference: { id: string; init_point: string };
+    try {
+      preference = await mercadoPagoAdapter.createPreference({
+        items: [
+          {
+            title: `Praeventio Guard — ${body.tierKey} (${body.billingCycle})`,
+            quantity: 1,
+            unit_price: unitPrice,
+            currency_id: expectedCurrency as MercadoPagoCurrencyId,
+          },
+        ],
+        payer: { email: callerEmail ?? '' },
+        back_urls: backUrls,
+        notification_url: notificationUrl,
+        external_reference: invoiceId,
+      });
+    } catch (err) {
+      logger.error('mercadopago_create_failed', err, { invoiceId, country });
+      if (err instanceof MercadoPagoAdapterError) {
+        return res.status(502).json({ error: "MercadoPago preference creation failed" });
+      }
+      throw err;
+    }
+
+    await db.collection('invoices').doc(invoiceId).set({
+      id: invoiceId,
+      status: 'pending-payment',
+      paymentMethod: 'mercadopago',
+      mercadoPagoPreferenceId: preference.id,
+      country,
+      cliente: {
+        nombre: callerEmail ?? 'Cliente Praeventio',
+        email: callerEmail ?? '',
+      },
+      lineItems: [
+        {
+          tierId: body.tierKey,
+          description: `Praeventio Guard — ${body.tierKey} (${body.billingCycle})`,
+          quantity: 1,
+          unitAmount: unitPrice,
+          currency: expectedCurrency,
+        },
+      ],
+      totals: {
+        subtotal: unitPrice,
+        iva: 0, // Local sales tax handled by MP itself per country.
+        total: unitPrice,
+        currency: expectedCurrency,
+      },
+      issuedAt: new Date().toISOString(),
+      createdBy: callerUid,
+      createdByEmail: callerEmail,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Audit log — mirror the /api/billing/checkout pattern but with the
+    // mercadopago.preference.created action so dashboards can split the
+    // funnel by payment rail.
+    await db.collection('audit_logs').add({
+      action: 'billing.mercadopago.preference.created',
+      module: 'billing',
+      details: {
+        invoiceId,
+        preferenceId: preference.id,
+        tierKey: body.tierKey,
+        billingCycle: body.billingCycle,
+        country,
+        currency: expectedCurrency,
+        amount: unitPrice,
+      },
+      userId: callerUid,
+      userEmail: callerEmail,
+      projectId: null,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip ?? null,
+      userAgent: req.header('user-agent') ?? null,
+    });
+
+    return res.json({
+      preferenceId: preference.id,
+      init_point: preference.init_point,
+      invoiceId,
+    });
+  } catch (error: any) {
+    logger.error('billing_mercadopago_checkout_failed', error, { uid: callerUid });
+    return res.status(500).json({
+      error: "MercadoPago checkout failed",
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
+
+// Suppress "unused" warning for the LatamCurrency type re-export above —
+// kept in scope so future endpoints in this round can narrow on it
+// without re-importing from the currency module.
+void (null as unknown as LatamCurrency | null);
+
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
 
