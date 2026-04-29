@@ -226,20 +226,33 @@ export const predictGlobalIncidents = async (context: string, envContext: string
 export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
+  // Round 16 (R1) — `criticidad` is intentionally OMITTED from the prompt
+  // and the response schema. Risk level / criticidad classification is a
+  // legal output of the deterministic IPER P×S matrix (`src/services/
+  // protocols/iper.ts`) and Ley 16.744 attaches liability to that
+  // classification. The LLM is restricted to suggesting controls and
+  // citing normativa — it cannot produce a class that downstream auditors
+  // could mistake for a deterministic figure. IPERCAnalysis.tsx already
+  // discards the AI's classification today; we now harden that contract
+  // by removing it from both the prompt and the JSON schema so the model
+  // can't slip it in via Gemini's structured-output mode.
   const prompt = `Analiza el siguiente riesgo reportado en el contexto de la industria ${industry || 'general'}.
-    
+
     Riesgo Reportado:
     "${description}"
-    
+
     Contexto de la Red de Riesgos:
     ${nodesContext}
-    
+
     Proporciona un análisis IPERC (Identificación de Peligros, Evaluación de Riesgos y Controles).
-    Incluye:
-    1. Nivel de criticidad (Alta, Media, Baja).
-    2. Lista de recomendaciones inmediatas.
-    3. Lista de controles a implementar (Jerarquía de Controles).
-    4. Normativa aplicable (ej. DS 594, Ley 16.744).`;
+
+    IMPORTANTE: NO devuelvas un nivel de criticidad ni una clasificación P×S.
+    La clasificación legal del riesgo viene de la matriz IPER deterministic (P×S)
+    operada por el prevencionista. Tu rol se limita a:
+    1. Lista de recomendaciones inmediatas.
+    2. Lista de controles a implementar siguiendo la Jerarquía de Controles
+       (eliminación → sustitución → ingeniería → administrativo → EPP).
+    3. Normativa aplicable (ej. DS 594, DS 40, DS 54, Ley 16.744, NCh ISO 45001).`;
 
   const fallback = async () => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -251,12 +264,11 @@ export const analyzeRiskWithAI = async (description: string, nodesContext: strin
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
             recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
             controles: { type: Type.ARRAY, items: { type: Type.STRING } },
             normativa: { type: Type.STRING }
           },
-          required: ["criticidad", "recomendaciones", "controles", "normativa"]
+          required: ["recomendaciones", "controles", "normativa"]
         }
       }
     });

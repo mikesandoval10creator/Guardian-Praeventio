@@ -137,18 +137,19 @@ export function Diagnostico() {
         connections: []
       });
 
-      // Create risk nodes for the generated base risks
-      // In a real app, we would parse the specific risks from the AI response.
-      // Here we just create one general risk node based on the analysis result.
+      // Create risk nodes for the generated base risks. Round 16 (R1):
+      // we no longer let the LLM emit `criticidad` (the legal P×S
+      // classification belongs to the deterministic IPER engine), so the
+      // node is created without a level — the prevencionista classifies
+      // it later from the IPER matrix UI.
       await addNode({
         type: NodeType.RISK,
         title: `Riesgos Base: ${formData.industry}`,
-        description: `Riesgos identificados en diagnóstico inicial.\n\nCriticidad General: ${result.criticidad}\nNormativa: ${result.normativa}`,
-        tags: ['IPER Base', result.criticidad],
+        description: `Riesgos identificados en diagnóstico inicial.\n\nNormativa: ${result.normativa}`,
+        tags: ['IPER Base', 'Pendiente clasificación'],
         metadata: {
-          criticidad: result.criticidad,
           controles: result.controles,
-          recomendaciones: result.recomendaciones
+          recomendaciones: result.recomendaciones,
         },
         connections: [diagnosisNode.id]
       });
@@ -315,10 +316,12 @@ export function Diagnostico() {
               </h3>
               
               <div className="space-y-3">
-                <div>
-                  <span className="text-xs text-zinc-500 uppercase font-bold">Criticidad General Estimada:</span>
-                  <span className="ml-2 text-sm text-white font-medium">{result.criticidad}</span>
-                </div>
+                {/*
+                  Round 16 (R1) — la "Criticidad General" la calcula la
+                  matriz IPER P×S, no el LLM. Ya no se muestra acá; la
+                  evaluación cuantitativa la hace el prevencionista en
+                  /risks una vez creado el nodo.
+                */}
                 <div>
                   <span className="text-xs text-zinc-500 uppercase font-bold block mb-1">Controles Críticos Sugeridos:</span>
                   <ul className="list-disc list-inside text-sm text-zinc-300 space-y-1">

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Award, Star, Clock, FileText, CheckCircle2, TrendingUp, Briefcase, AlertTriangle, FolderOpen, Zap, Target, Heart, Plus, BadgeCheck } from 'lucide-react';
+import { ShieldCheck, Award, Star, Clock, FileText, Briefcase, AlertTriangle, FolderOpen, Target, Plus, BadgeCheck } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { ClaimForm } from '../components/curriculum/ClaimForm';
@@ -8,17 +8,82 @@ import { ClaimStatus } from '../components/curriculum/ClaimStatus';
 import { auth } from '../services/firebase';
 import type { CurriculumClaim } from '../services/curriculum/claims';
 
+// ── Round 16 (R1) — replace hardcoded mock data with honest empty states ──
+//
+// The previous implementation rendered four pre-canned `badges`, four
+// `history` projects, and five `skills` rows so the page would always
+// look "alive" in a demo. A7 flagged this as fake data; the data is
+// neither owned by Firestore nor verifiable. We replaced the inline
+// literals with empty arrays loaded from documented Firestore paths
+// (see below).
+//
+// Schema is intentionally NOT defined here — the corresponding writers
+// (gamification, audit, profile.skills) belong to other agents/rounds.
+// Until those land we surface "Sin datos aún" copy and keep the layout.
+//
+// Firestore paths (read-only here; writers are deferred to Round 17+):
+//   badges  → users/{uid}/awards   (gamification_scores write events)
+//   history → audit_logs filtered by userId + module='safety'
+//   skills  → users/{uid}.profile.skills (manual or training-derived)
+//
+// `stats` is also no longer mocked — we expose 0/1 baselines that stay
+// honest until a derived view lands.
+
+interface CurriculumBadge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+interface CurriculumHistoryEntry {
+  id: string;
+  project: string;
+  role: string;
+  duration: string;
+  incidentFree: boolean;
+  date: string;
+}
+
+interface CurriculumSkill {
+  id: string;
+  name: string;
+  level: number;
+  max: number;
+  icon: typeof ShieldCheck;
+  color: string;
+}
+
 export function PortableCurriculum() {
   const { user } = useFirebase();
 
   // ── Round 14 (R5): worker's verifiable claims (anti-fraud experience). ──
-  // The hardcoded `badges`/`history`/`skills` below are pre-Round-14 mock
-  // data flagged by A7 — we intentionally do NOT touch them here; only
-  // wire the new claims section.
   const [claims, setClaims] = useState<CurriculumClaim[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
   const [claimsError, setClaimsError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+
+  // ── Round 16 (R1): real-data placeholders. The Firestore reads are
+  // intentionally TODO until R2 publishes the rules + R5 lands the
+  // writers. For now we render empty arrays so the page is honest about
+  // having no history yet rather than fabricating a CV.
+  const [badges] = useState<CurriculumBadge[]>([]);
+  const [history] = useState<CurriculumHistoryEntry[]>([]);
+  const [skills] = useState<CurriculumSkill[]>([]);
+
+  // Stats derived from the (currently empty) collections. Once the
+  // writers land we can compute level from XP, safeHours from audit
+  // logs filtered by `safety.*.completed`, and perfectChecks from
+  // fast-check submissions.
+  const stats = {
+    level: 1,
+    xp: 0,
+    nextLevelXp: 1000,
+    safeHours: 0,
+    coursesCompleted: 0,
+    perfectChecks: 0,
+  };
 
   async function fetchClaims() {
     if (!auth.currentUser) return;
@@ -43,38 +108,6 @@ export function PortableCurriculum() {
     if (user) fetchClaims();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
-
-  // Simulated data for the curriculum
-  const stats = {
-    level: 12,
-    xp: 4500,
-    nextLevelXp: 5000,
-    safeHours: 1240,
-    coursesCompleted: 8,
-    perfectChecks: 45
-  };
-
-  const badges = [
-    { id: 1, name: 'Maestro del Fuego', description: 'Simulador P.A.S.S. completado sin errores', icon: '🔥', color: 'bg-orange-500/20 text-orange-500' },
-    { id: 2, name: 'Ojo de Águila', description: '10 Fast Checks perfectos consecutivos', icon: '🦅', color: 'bg-blue-500/20 text-blue-500' },
-    { id: 3, name: 'Guardián Hazmat', description: 'Curso de Materiales Peligrosos Nivel 1', icon: '☣️', color: 'bg-emerald-500/20 text-emerald-500' },
-    { id: 4, name: 'Rescatista', description: 'Protocolo de Hombre Caído ejecutado con éxito', icon: '⛑️', color: 'bg-rose-500/20 text-rose-500' },
-  ];
-
-  const history = [
-    { id: 1, project: 'Mina Subterránea El Cobre', role: 'Operador de Maquinaria Pesada', duration: '14 meses', incidentFree: true, date: '2023 - 2024' },
-    { id: 2, project: 'Construcción Torre Central', role: 'Soldador Especialista', duration: '8 meses', incidentFree: true, date: '2022 - 2023' },
-    { id: 3, project: 'Planta Química Sur', role: 'Técnico de Mantenimiento', duration: '24 meses', incidentFree: false, date: '2020 - 2022' },
-    { id: 4, project: 'Parque Eólico Norte', role: 'Supervisor de Montaje', duration: '12 meses', incidentFree: true, date: '2019 - 2020' },
-  ];
-
-  const skills = [
-    { id: '1', name: 'Primeros Auxilios', level: 3, max: 5, icon: Heart, color: 'text-rose-500' },
-    { id: '2', name: 'Combate Incendios', level: 4, max: 5, icon: Zap, color: 'text-orange-500' },
-    { id: '3', name: 'Trabajo en Altura', level: 2, max: 5, icon: TrendingUp, color: 'text-blue-500' },
-    { id: '4', name: 'Riesgo Químico', level: 5, max: 5, icon: ShieldCheck, color: 'text-emerald-500' },
-    { id: '5', name: 'Liderazgo', level: 3, max: 5, icon: Target, color: 'text-indigo-500' },
-  ];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -102,14 +135,14 @@ export function PortableCurriculum() {
           <p className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center justify-center md:justify-start gap-2">
             <Briefcase className="w-4 h-4" /> Especialista en Prevención
           </p>
-          
+
           <div className="mt-4 max-w-md">
             <div className="flex justify-between text-xs font-bold text-zinc-500 mb-1">
               <span>PROGRESO XP</span>
               <span>{stats.xp} / {stats.nextLevelXp}</span>
             </div>
             <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-blue-500"
                 style={{ width: `${(stats.xp / stats.nextLevelXp) * 100}%` }}
               />
@@ -138,27 +171,33 @@ export function PortableCurriculum() {
               Árbol de Habilidades
             </h2>
             <div className="space-y-4">
-              {skills.map(skill => (
-                <div key={skill.id} className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <skill.icon className={`w-3.5 h-3.5 ${skill.color}`} />
-                      <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{skill.name}</span>
+              {skills.length === 0 ? (
+                <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  Aún no tenés habilidades registradas. Tu perfil se irá completando a medida que rindas capacitaciones y tus referencias firmen claims.
+                </p>
+              ) : (
+                skills.map(skill => (
+                  <div key={skill.id} className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <skill.icon className={`w-3.5 h-3.5 ${skill.color}`} />
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{skill.name}</span>
+                      </div>
+                      <span className="text-[10px] font-black text-zinc-900 dark:text-white">Lvl {skill.level}</span>
                     </div>
-                    <span className="text-[10px] font-black text-zinc-900 dark:text-white">Lvl {skill.level}</span>
+                    <div className="flex gap-1">
+                      {Array.from({ length: skill.max }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 flex-1 rounded-full ${
+                            i < skill.level ? 'bg-indigo-500' : 'bg-zinc-100 dark:bg-zinc-800'
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    {Array.from({ length: skill.max }).map((_, i) => (
-                      <div 
-                        key={i} 
-                        className={`h-1.5 flex-1 rounded-full ${
-                          i < skill.level ? 'bg-indigo-500' : 'bg-zinc-100 dark:bg-zinc-800'
-                        }`} 
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </Card>
 
@@ -167,19 +206,25 @@ export function PortableCurriculum() {
               <Award className="w-5 h-5 text-amber-500" />
               Medallas Obtenidas
             </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {badges.map(badge => (
-                <div key={badge.id} className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 text-center group hover:border-amber-500/50 transition-colors cursor-default">
-                  <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-xl mb-2 ${badge.color}`}>
-                    {badge.icon}
+            {badges.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Todavía no obtuviste medallas. Las medallas se otorgan al completar simuladores, capacitaciones y rachas de Fast Checks sin error.
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {badges.map(badge => (
+                  <div key={badge.id} className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 text-center group hover:border-amber-500/50 transition-colors cursor-default">
+                    <div className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center text-xl mb-2 ${badge.color}`}>
+                      {badge.icon}
+                    </div>
+                    <p className="text-xs font-bold text-zinc-900 dark:text-white mb-1">{badge.name}</p>
+                    <p className="text-[9px] text-zinc-500 leading-tight opacity-0 group-hover:opacity-100 transition-opacity absolute bg-white dark:bg-zinc-900 p-2 rounded shadow-xl z-10 w-40 -ml-10">
+                      {badge.description}
+                    </p>
                   </div>
-                  <p className="text-xs font-bold text-zinc-900 dark:text-white mb-1">{badge.name}</p>
-                  <p className="text-[9px] text-zinc-500 leading-tight opacity-0 group-hover:opacity-100 transition-opacity absolute bg-white dark:bg-zinc-900 p-2 rounded shadow-xl z-10 w-40 -ml-10">
-                    {badge.description}
-                  </p>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </Card>
 
           <Card className="p-6 space-y-4">
@@ -187,17 +232,24 @@ export function PortableCurriculum() {
               <FileText className="w-5 h-5 text-blue-500" />
               Capacitaciones ({stats.coursesCompleted})
             </h2>
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-zinc-900 dark:text-white">Uso de Extintores Nivel {i}</p>
-                    <p className="text-[10px] text-zinc-500">Completado hace {i} meses</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {stats.coursesCompleted === 0 ? (
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Aún no completaste capacitaciones registradas en el sistema.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {/*
+                  Round 16 (R1) — once `audit_logs` filtered by
+                  action='training.*.completed' lands as a Firestore
+                  reader hook (deferred), this list will render real
+                  rows. Until then we only show the count, not
+                  fabricated rows.
+                */}
+                <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  Tenés {stats.coursesCompleted} capacitaciones registradas. El detalle aparecerá acá próximamente.
+                </p>
+              </div>
+            )}
           </Card>
         </div>
 
@@ -214,51 +266,57 @@ export function PortableCurriculum() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {history.map((item, index) => (
-                <motion.div 
-                  key={item.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="relative group cursor-pointer"
-                >
-                  {/* Folder Tab */}
-                  <div className="w-1/3 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-t-lg ml-3 transition-colors group-hover:bg-emerald-500/20" />
-                  
-                  {/* Folder Body */}
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl rounded-tl-none p-5 shadow-sm hover:shadow-md transition-all group-hover:border-emerald-500/30 min-h-[160px] flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2.5 rounded-xl ${item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                            <FolderOpen className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <h3 className="font-black text-zinc-900 dark:text-white text-sm leading-tight">{item.project}</h3>
-                            <p className="text-xs text-zinc-500 font-medium mt-0.5">{item.role}</p>
+            {history.length === 0 ? (
+              <p className="text-[11px] text-zinc-500 leading-relaxed">
+                Sin proyectos verificados aún. Tu CV portable se construye automáticamente al registrarte en proyectos y al recibir co-firmas de tus referencias.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {history.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="relative group cursor-pointer"
+                  >
+                    {/* Folder Tab */}
+                    <div className="w-1/3 h-4 bg-zinc-200 dark:bg-zinc-800 rounded-t-lg ml-3 transition-colors group-hover:bg-emerald-500/20" />
+
+                    {/* Folder Body */}
+                    <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-2xl rounded-tl-none p-5 shadow-sm hover:shadow-md transition-all group-hover:border-emerald-500/30 min-h-[160px] flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2.5 rounded-xl ${item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                              <FolderOpen className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <h3 className="font-black text-zinc-900 dark:text-white text-sm leading-tight">{item.project}</h3>
+                              <p className="text-xs text-zinc-500 font-medium mt-0.5">{item.role}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
-                          <Clock className="w-3.5 h-3.5" /> {item.duration} ({item.date})
-                        </span>
+
+                      <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" /> {item.duration} ({item.date})
+                          </span>
+                        </div>
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider w-fit ${
+                          item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                        }`}>
+                          {item.incidentFree ? <Star className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                          {item.incidentFree ? 'Cero Incidentes' : 'Incidente Menor'}
+                        </div>
                       </div>
-                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider w-fit ${
-                        item.incidentFree ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
-                      }`}>
-                        {item.incidentFree ? <Star className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                        {item.incidentFree ? 'Cero Incidentes' : 'Incidente Menor'}
-                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </div>

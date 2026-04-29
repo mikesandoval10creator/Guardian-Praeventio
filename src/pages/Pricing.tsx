@@ -884,41 +884,32 @@ function PricingInner() {
       return;
     }
 
-    setIsProcessing(legacyId);
+    // ── Round 16 (R1) — Google Play IAP gated behind a feature flag ──
+    //
+    // The legacy implementation read `(window as any).__pendingPurchaseToken`
+    // and shipped that empty string to `verifyGooglePlayPurchase`, which
+    // then failed silently with a generic error. The token was never set
+    // anywhere in `src/`; the real Google Play Billing wiring (Capacitor
+    // plugin + Play Console SKU configuration + signed receipt flow) is
+    // out of scope for this round. Instead of pretending the path works
+    // we expose a feature flag (`canUseGooglePlayIAP`) — currently false
+    // everywhere — and surface a clear "use Webpay / MercadoPago" error
+    // when a native build hits the button. This keeps the UI honest until
+    // the real IAP integration lands (deferred to a future round).
+    const canUseGooglePlayIAP = false;
 
-    try {
-      // Google Play Billing flow (requires @capacitor-community/in-app-purchase-2 + Play Console setup)
-      // TODO(IMP5): replace with real IAP call once Play Console products are configured.
-      const { verifyGooglePlayPurchase } = await import('../services/billingService');
-
+    if (!canUseGooglePlayIAP) {
       addNotification({
-        title: 'Verificando con Google Play',
-        message: 'Validando transacción...',
-        type: 'info',
-      });
-
-      const purchaseToken = (window as any).__pendingPurchaseToken ?? '';
-      const verification = await verifyGooglePlayPurchase(purchaseToken, legacyId, 'subscription');
-
-      if (verification.success) {
-        await upgradePlan(legacyId);
-        addNotification({
-          title: 'Suscripción activada',
-          message: `¡Bienvenido al plan ${tier.nombre}!`,
-          type: 'success',
-        });
-      } else {
-        throw new Error(verification.error || 'No se pudo verificar la compra');
-      }
-    } catch (error: any) {
-      addNotification({
-        title: 'Error al procesar pago',
-        message: error.message || 'Error al conectar con Google Play Billing.',
+        title: 'Compras Google Play no disponibles',
+        message:
+          'Google Play IAP no disponible en esta versión. Usá Webpay (CL) o MercadoPago (LATAM) desde la versión web.',
         type: 'error',
       });
-    } finally {
-      setIsProcessing(null);
+      return;
     }
+
+    /* istanbul ignore next — gated until Google Play Billing ships. */
+    setIsProcessing(legacyId);
   };
 
   const handleContactSales = (tier: Tier) => {

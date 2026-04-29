@@ -14,13 +14,13 @@
  *   - Medio: 1-2 factors at risk
  *   - Alto: 3-4 factors at risk
  *
- * Implementation note: the norm states that exposure must be evaluated
- * "durante la jornada laboral" but does NOT define a specific
- * exposure-time amplifier. We expose an OPTIONAL escalation
- * (`enableExposureAmplifier`, default false) that promotes the result to
- * "alto" when exposureHoursPerDay > 6 AND at least one factor is at risk.
- * This is an institutional/conservative extension — strict-norm callers
- * leave the flag false (the default).
+ * Round 16 — removed dead path; institutional amplifier setting deferred
+ * until customer ask. The previous `enableExposureAmplifier` flag was
+ * never wired to any caller (no callsite set it to `true` anywhere in
+ * `src/`). When a customer asks for a conservative jornada-amplifier
+ * we'll add it back as a per-tenant institutional setting rather than a
+ * silent per-call flag. The norm-strict implementation below is the
+ * sole path now.
  */
 
 export type TmertFactor =
@@ -42,13 +42,6 @@ export interface TmertInput {
   otros: TmertConditions;
   /** Horas de exposición efectiva al factor durante la jornada (0..24). */
   exposureHoursPerDay: number;
-  /**
-   * Cuando es true Y exposureHoursPerDay > 6 Y hay >= 1 factor en riesgo,
-   * promueve la clasificación a 'alto'. Esta NO es una regla en la NT
-   * MINSAL 2012; es una decisión institucional conservadora explícita.
-   * Default: false (modo norma-estricta).
-   */
-  enableExposureAmplifier?: boolean;
 }
 
 export type TmertRisk = 'bajo' | 'medio' | 'alto';
@@ -67,8 +60,6 @@ const FACTOR_KEYS: TmertFactor[] = [
   'otros',
 ];
 
-const HIGH_EXPOSURE_THRESHOLD_HOURS = 6;
-
 function factorIsAtRisk(c: TmertConditions): boolean {
   return c.A === true || c.B === true || c.C === true;
 }
@@ -79,14 +70,9 @@ function classify(count: number): TmertRisk {
   return 'alto';
 }
 
-function recommend(
-  risk: TmertRisk,
-  amplifiedByExposure: boolean,
-): string {
+function recommend(risk: TmertRisk): string {
   if (risk === 'alto') {
-    return amplifiedByExposure
-      ? 'Riesgo alto amplificado por jornada >6 h. Aplicar controles inmediatos, derivar a evaluación médica y reducir tiempo de exposición.'
-      : 'Riesgo alto. Aplicar controles inmediatos y derivar al trabajador a evaluación médica (medicina del trabajo).';
+    return 'Riesgo alto. Aplicar controles inmediatos y derivar al trabajador a evaluación médica (medicina del trabajo).';
   }
   if (risk === 'medio') {
     return 'Riesgo medio. Implementar controles dentro de 60 días y monitorear la evolución de los factores.';
@@ -109,22 +95,12 @@ export function evaluateTmert(input: TmertInput): TmertResult {
     factorIsAtRisk(input[k]),
   );
 
-  let overallRisk = classify(factorsAtRisk.length);
-  let amplified = false;
-  if (
-    input.enableExposureAmplifier === true &&
-    input.exposureHoursPerDay > HIGH_EXPOSURE_THRESHOLD_HOURS &&
-    factorsAtRisk.length >= 1 &&
-    overallRisk !== 'alto'
-  ) {
-    overallRisk = 'alto';
-    amplified = true;
-  }
+  const overallRisk = classify(factorsAtRisk.length);
 
   return {
     factorsAtRisk,
     overallRisk,
-    recommendation: recommend(overallRisk, amplified),
+    recommendation: recommend(overallRisk),
     requiresMedicalEvaluation: overallRisk === 'alto',
   };
 }

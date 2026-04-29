@@ -27,6 +27,7 @@ export function Ergonomics() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
 
   const { data: workers } = useFirestoreCollection<Worker>(
     selectedProject ? `projects/${selectedProject.id}/workers` : 'workers'
@@ -68,9 +69,24 @@ export function Ergonomics() {
             <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Bio-Análisis IA</span>
           </button>
-          <button 
+          <select
+            value={selectedWorkerId}
+            onChange={(e) => setSelectedWorkerId(e.target.value)}
+            className="w-full sm:w-auto bg-zinc-800 text-zinc-200 border border-zinc-700 rounded-xl px-4 py-4 sm:py-3 text-xs uppercase tracking-widest font-bold focus:outline-none focus:ring-2 focus:ring-orange-500"
+            aria-label="Seleccionar trabajador para evaluación"
+          >
+            <option value="">— Seleccionar trabajador —</option>
+            {workers.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name ?? w.id}
+              </option>
+            ))}
+          </select>
+          <button
             onClick={() => setIsModalOpen(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-500/20 active:scale-95"
+            disabled={!selectedWorkerId}
+            title={!selectedWorkerId ? 'Seleccione un trabajador primero' : undefined}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-500/20 active:scale-95"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Nueva Evaluación</span>
@@ -211,10 +227,11 @@ export function Ergonomics() {
         </div>
       </div>
 
-      <AddErgonomicsModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <AddErgonomicsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         projectId={selectedProject?.id}
+        workerId={selectedWorkerId || undefined}
       />
       {isAIModalOpen && (
         <Suspense fallback={null}>

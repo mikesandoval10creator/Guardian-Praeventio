@@ -1,9 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Worker } from '../../types';
 import { Shield, Sword, Heart, Zap, Download, X, Star, Award, BookOpen, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
+import { db } from '../../services/firebase';
+import { logger } from '../../utils/logger';
 
 interface UserProfileModalProps {
   worker: Worker;
@@ -13,6 +16,85 @@ interface UserProfileModalProps {
 export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+
+  // ── Round 16 (R1): replace `safetyScore = 95` and `trainingsCount = 12`
+  //   mocks with real reads. Strategy:
+  //     * safetyScore  ← computed from the worker's last 3 ergonomic
+  //                      assessments (REBA/RULA), inverted to a 0-100
+  //                      "defensa" score where higher = safer posture.
+  //     * trainingsCount ← counted from `audit_logs` where
+  //                      `userId == worker.id` and `action` starts with
+  //                      `training.` and ends with `.completed`.
+  //   When neither query returns data we render "Sin evaluaciones aún" /
+  //   "0" honestly instead of fabricating a 95 / 12 to look healthy.
+  const [safetyScore, setSafetyScore] = useState<number | null>(null);
+  const [trainingsCount, setTrainingsCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      try {
+        // Last 3 ergonomic assessments → average → invert to 0-100.
+        // REBA/RULA scores typically run 1..15. We normalise to /15 and
+        // invert so low fatigue/high posture quality reads as 100.
+        const ergQ = query(
+          collection(db, 'ergonomic_assessments'),
+          where('workerId', '==', worker.id),
+          orderBy('computedAt', 'desc'),
+          limit(3),
+        );
+        const ergSnap = await getDocs(ergQ);
+        if (!cancelled) {
+          if (ergSnap.empty) {
+            setSafetyScore(null);
+          } else {
+            const scores = ergSnap.docs
+              .map((d) => Number(d.data().score))
+              .filter((n) => Number.isFinite(n));
+            if (scores.length === 0) {
+              setSafetyScore(null);
+            } else {
+              const avg = scores.reduce((s, n) => s + n, 0) / scores.length;
+              const normalised = Math.min(15, Math.max(1, avg)) / 15;
+              setSafetyScore(Math.round((1 - normalised) * 100));
+            }
+          }
+        }
+
+        // Trainings: audit_logs where userId=worker.id AND action ~
+        // 'training.*.completed'. Firestore can't do regex so we filter
+        // by module='training' and post-filter in memory; the audit log
+        // is small enough to fan-out by user without an index hot-spot.
+        const trnQ = query(
+          collection(db, 'audit_logs'),
+          where('userId', '==', worker.id),
+          where('module', '==', 'training'),
+          limit(500),
+        );
+        const trnSnap = await getDocs(trnQ);
+        if (!cancelled) {
+          const completed = trnSnap.docs.filter((d) => {
+            const action = String(d.data().action ?? '');
+            return action.startsWith('training.') && action.endsWith('.completed');
+          });
+          setTrainingsCount(completed.length);
+        }
+      } catch (err) {
+        logger.warn('user_profile_modal_stats_load_failed', {
+          workerId: worker.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) {
+          setSafetyScore(null);
+          setTrainingsCount(null);
+        }
+      }
+    }
+    loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [worker.id]);
 
   const getRoleClass = (role: string) => {
     switch (role.toLowerCase()) {
@@ -27,10 +109,11 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
   const roleInfo = getRoleClass(worker.role);
   const RoleIcon = roleInfo.icon;
 
-  // Calculate some mock stats based on worker data
-  const level = Math.max(1, Math.floor((Date.now() - new Date(worker.joinedAt || Date.now()).getTime()) / (1000 * 60 * 60 * 24 * 30))); // 1 level per month
-  const safetyScore = 95; // Mock score
-  const trainingsCount = 12; // Mock count
+  // Antigüedad en la plataforma (no es un "nivel" gamificado — es el tiempo
+  // real desde la incorporación). Lo dejamos como número crudo: 1 unidad
+  // por mes en la plataforma. Cuando R5 implemente el sistema de XP esto
+  // se reemplaza por la consulta real a `gamification_scores`.
+  const level = Math.max(1, Math.floor((Date.now() - new Date(worker.joinedAt || Date.now()).getTime()) / (1000 * 60 * 60 * 24 * 30)));
 
   // Calculate acclimatization progress (7 days)
   const joinedDate = new Date(worker.joinedAt || Date.now());
@@ -133,17 +216,30 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/50 text-center">
                 <Shield className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
-                <div className="text-lg font-black text-white">{safetyScore}%</div>
-                <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold">Defensa (SSOMA)</div>
+                {safetyScore === null ? (
+                  <>
+                    <div className="text-[10px] font-bold text-zinc-400 leading-tight">Sin evaluaciones aún</div>
+                    <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold mt-1">Defensa (SSOMA)</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-lg font-black text-white">{safetyScore}%</div>
+                    <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold">Defensa (SSOMA)</div>
+                  </>
+                )}
               </div>
               <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/50 text-center">
                 <BookOpen className="w-5 h-5 text-blue-400 mx-auto mb-1" />
-                <div className="text-lg font-black text-white">{trainingsCount}</div>
+                <div className="text-lg font-black text-white">{trainingsCount ?? 0}</div>
                 <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold">Sabiduría (Cursos)</div>
               </div>
               <div className="bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/50 text-center">
                 <Award className="w-5 h-5 text-amber-400 mx-auto mb-1" />
-                <div className="text-lg font-black text-white">3</div>
+                {/*
+                  Round 16 (R1) — kept as 0 honestly until awards/badges
+                  collection lands (Round 17+). Previously hardcoded 3.
+                */}
+                <div className="text-lg font-black text-white">0</div>
                 <div className="text-[8px] uppercase tracking-widest text-zinc-500 font-bold">Insignias</div>
               </div>
             </div>
@@ -172,32 +268,38 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
               </p>
             </div>
 
-            {/* Active Buffs (Certifications) */}
+            {/* Active Buffs (Certifications) — Round 16 (R1): driven by
+                `worker.certifications`. The previous fixture rendered
+                "Trabajo en Altura Física hasta 2027" + "Primeros
+                Auxilios (RCP) hasta 2026" for every worker even when
+                they had no real certifications. We now render the real
+                array (which may be empty). */}
             <div>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-3 flex items-center gap-2">
                 <Zap className="w-3 h-3 text-amber-400" />
                 Buffs Activos (Certificaciones)
               </h3>
-              <div className="space-y-2">
-                <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-lg p-2.5 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
-                    <Shield className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-zinc-200">Trabajo en Altura Física</div>
-                    <div className="text-[9px] text-emerald-400 font-medium">Vigente hasta 2027</div>
-                  </div>
+              {!worker.certifications || worker.certifications.length === 0 ? (
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  Sin certificaciones registradas.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {worker.certifications.map((cert, i) => (
+                    <div
+                      key={`${cert}-${i}`}
+                      className="bg-zinc-800/30 border border-zinc-700/30 rounded-lg p-2.5 flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center text-emerald-400 shrink-0">
+                        <Shield className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-zinc-200">{cert}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="bg-zinc-800/30 border border-zinc-700/30 rounded-lg p-2.5 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-md bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
-                    <Heart className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-zinc-200">Primeros Auxilios (RCP)</div>
-                    <div className="text-[9px] text-blue-400 font-medium">Vigente hasta 2026</div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
             
             {/* Footer Info */}

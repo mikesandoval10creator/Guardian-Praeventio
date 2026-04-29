@@ -90,61 +90,14 @@ describe('evaluateTmert — per-factor "Sí" rule', () => {
   });
 });
 
-describe('evaluateTmert — exposure hours amplifier (opt-in)', () => {
-  // Default mode (norm-strict): no flag set → exposure does NOT escalate.
-  it('default (flag absent) — exposure > 6h with 2 factors stays medio', () => {
-    const r = evaluateTmert({
-      ...baseInput,
-      repetitividad: { A: true, B: false, C: false },
-      fuerza: { A: false, B: true, C: false },
-      exposureHoursPerDay: 7,
-    });
-    expect(r.overallRisk).toBe('medio');
-  });
-
-  // Opt-in: flag true → escalation activates.
-  it('flag enabled — exposure > 6h with 2 factors → escalates to alto', () => {
-    const r = evaluateTmert({
-      ...baseInput,
-      repetitividad: { A: true, B: false, C: false },
-      fuerza: { A: false, B: true, C: false },
-      exposureHoursPerDay: 7,
-      enableExposureAmplifier: true,
-    });
-    expect(r.overallRisk).toBe('alto');
-    expect(r.recommendation.toLowerCase()).toMatch(/jornada|6 ?h|exposici/);
-  });
-
-  it('flag enabled — exposure > 6h with 0 factors stays bajo', () => {
-    const r = evaluateTmert({
-      ...baseInput,
-      exposureHoursPerDay: 8,
-      enableExposureAmplifier: true,
-    });
-    expect(r.overallRisk).toBe('bajo');
-  });
-
-  it('flag enabled — exposure exactly 6h is NOT amplified', () => {
-    const r = evaluateTmert({
-      ...baseInput,
-      repetitividad: { A: true, B: false, C: false },
-      exposureHoursPerDay: 6,
-      enableExposureAmplifier: true,
-    });
-    expect(r.overallRisk).toBe('medio');
-  });
-
-  it('flag explicitly false — same as absent (norm-strict)', () => {
-    const r = evaluateTmert({
-      ...baseInput,
-      repetitividad: { A: true, B: false, C: false },
-      fuerza: { A: false, B: true, C: false },
-      exposureHoursPerDay: 7,
-      enableExposureAmplifier: false,
-    });
-    expect(r.overallRisk).toBe('medio');
-  });
-});
+// Round 16 — the `enableExposureAmplifier` opt-in flag was removed from
+// `tmert.ts` because no callsite ever set it. The 5 tests that exercised
+// the amplifier path (default-flag-absent + 4 amplifier branches) were
+// deleted with it. The norm-strict classification (the only path now)
+// remains covered by the suites above. When/if a customer asks for a
+// conservative jornada-amplifier the cleanest re-introduction is via a
+// per-tenant institutional setting, with a fresh suite that documents
+// the policy explicitly.
 
 describe('evaluateTmert — invalid inputs', () => {
   it('throws on negative exposureHoursPerDay', () => {

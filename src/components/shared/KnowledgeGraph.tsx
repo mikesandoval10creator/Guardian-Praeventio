@@ -781,8 +781,34 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
                 )}
 
                 {selectedNode.type === NodeType.NORMATIVE && (
-                  <button 
-                    onClick={() => window.open(`https://www.bcn.cl/leychile/consulta/busqueda?texto=${encodeURIComponent(selectedNode.title)}`, '_blank')}
+                  <button
+                    onClick={() => {
+                      // ── Round 16 (R1): prefer a deep-link to the
+                      // specific BCN Norma/Parte when the node carries
+                      // those identifiers. Falls back to the search
+                      // results page when the metadata is missing —
+                      // existing nodes need to be enriched with
+                      // `bcnNormaId` (and optionally `bcnIdParte`)
+                      // before this fallback can be removed (deferred
+                      // to a future round; track via the A2 NIT).
+                      const meta = (selectedNode.metadata ?? {}) as {
+                        bcnNormaId?: string | number;
+                        bcnIdParte?: string | number;
+                      };
+                      let url: string;
+                      if (meta.bcnNormaId) {
+                        const params = new URLSearchParams({
+                          idNorma: String(meta.bcnNormaId),
+                        });
+                        if (meta.bcnIdParte) {
+                          params.set('idParte', String(meta.bcnIdParte));
+                        }
+                        url = `https://www.bcn.cl/leychile/navegar?${params.toString()}`;
+                      } else {
+                        url = `https://www.bcn.cl/leychile/consulta/busqueda?texto=${encodeURIComponent(selectedNode.title)}`;
+                      }
+                      window.open(url, '_blank');
+                    }}
                     className="w-full py-3 sm:py-4 bg-violet-500/10 hover:bg-violet-500/20 text-violet-600 dark:text-violet-400 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <FileText className="w-4 h-4" /> Leer Ley Completa (BCN)

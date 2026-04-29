@@ -209,6 +209,15 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
       setError('Seleccioná un proyecto antes de guardar la evaluación.');
       return;
     }
+    // Round 16 (R1): refuse to save without a real worker. The previous
+    // fallback wrote `workerId: 'unassigned'` so we don't lose the form
+    // submission, but it dirtied the analytics with rows that couldn't
+    // be linked back to anyone. Better to block submit and tell the
+    // prevencionista to pick a worker first.
+    if (!workerId) {
+      setError('Seleccione un trabajador antes de guardar la evaluación.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -219,7 +228,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
       const actionLevel = result.actionLevel as string | number;
 
       const persisted = await recordErgonomicAssessment({
-        workerId: workerId ?? 'unassigned',
+        workerId,
         projectId,
         type: kind,
         inputs,
