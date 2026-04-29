@@ -379,5 +379,145 @@ export const useBiometricAuth = () => {
     [isSupported, isNative],
   );
 
-  return { isSupported, authenticate, register, platform };
+  /**
+   * Round 20 R5 — full WebAuthn registration ceremony, end-to-end with
+   * the new server endpoints (/api/auth/webauthn/register/options +
+   * /api/auth/webauthn/register/verify). Unlike the legacy `register()`
+   * above (which only invokes navigator.credentials.create() locally
+   * and discards the attestation), this method:
+   *
+   *   1. Fetches the registration options from the server (which also
+   *      persists the challenge in webauthn_challenges).
+   *   2. Calls navigator.credentials.create() with those options.
+   *   3. POSTs the attestation back so the server can verify it via
+   *      @simplewebauthn/server and persist the public key for future
+   *      authentications.
+   *
+   * Returns `{ success, credentialId? }`. On any failure (no auth user,
+   * unreachable server, user cancellation, attestation rejected) returns
+   * `{ success: false }`. The reason intentionally is NOT propagated —
+   * a localized UX label is the caller's job.
+   */
+  const registerCredential = useCallback(
+    async (
+      reason?: string,
+    ): Promise<{ success: boolean; credentialId?: string }> => {
+      // Suppress unused-arg lint when reason isn't applicable on web.
+      void reason;
+      if (!isSupported) return { success: false };
+      if (isNative) {
+        // Native registration is the OS-level enroll handled by `register()`
+        // above. The Capacitor plugin doesn't surface a WebAuthn
+        // attestation we could relay, so callers wanting the cross-device
+        // server-side credential MUST run this path inside the web view.
+        return { success: false };
+      }
+
+      try {
+        const user = auth.currentUser;
+        if (!user) return { success: false };
+        const idToken = await user.getIdToken();
+
+        // Step 1: ask the server for the registration options.
+        const optionsRes = await fetch('/api/auth/webauthn/register/options', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({}),
+        });
+        if (!optionsRes.ok) return { success: false };
+        const optionsData = await optionsRes.json();
+        if (!optionsData?.challengeId || !optionsData?.options) {
+          return { success: false };
+        }
+
+        // Convert the JSON options the server returned into the
+        // PublicKeyCredentialCreationOptions WebAuthn expects (challenge
+        // + user.id need to be ArrayBuffers, not base64url strings).
+        const opts = optionsData.options as any;
+        const b64urlToBytes = (s: string): Uint8Array => {
+          const padded =
+            s.replace(/-/g, '+').replace(/_/g, '/') +
+            '='.repeat((4 - (s.length % 4)) % 4);
+          const bin = atob(padded);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return bytes;
+        };
+        const publicKey: PublicKeyCredentialCreationOptions = {
+          ...opts,
+          challenge: b64urlToBytes(opts.challenge),
+          user: {
+            ...opts.user,
+            id: b64urlToBytes(opts.user.id),
+          },
+          excludeCredentials: (opts.excludeCredentials || []).map(
+            (c: any) => ({
+              ...c,
+              id: b64urlToBytes(c.id),
+            }),
+          ),
+        };
+
+        // Step 2: invoke the platform authenticator.
+        const credential = (await navigator.credentials.create({
+          publicKey,
+        })) as PublicKeyCredential | null;
+        if (!credential) return { success: false };
+
+        // Step 3: pack the attestation response into the JSON shape
+        // @simplewebauthn/server's `verifyRegistrationResponse` expects.
+        const attestation =
+          credential.response as AuthenticatorAttestationResponse;
+        const bytesToB64u = (buf: ArrayBuffer): string => {
+          const bytes = new Uint8Array(buf);
+          let bin = '';
+          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          return btoa(bin)
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+        };
+        const attestationResponse = {
+          id: credential.id,
+          rawId: bytesToB64u(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: bytesToB64u(attestation.clientDataJSON),
+            attestationObject: bytesToB64u(attestation.attestationObject),
+          },
+          clientExtensionResults: credential.getClientExtensionResults
+            ? credential.getClientExtensionResults()
+            : {},
+        };
+
+        const verifyRes = await fetch('/api/auth/webauthn/register/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            challengeId: optionsData.challengeId,
+            attestationResponse,
+          }),
+        });
+        if (!verifyRes.ok) return { success: false };
+        const verifyData = await verifyRes.json();
+        if (verifyData?.verified !== true) return { success: false };
+        return {
+          success: true,
+          credentialId: verifyData.credentialId as string | undefined,
+        };
+      } catch (error) {
+        console.warn('[biometric] registerCredential failed', error);
+        return { success: false };
+      }
+    },
+    [isSupported, isNative],
+  );
+
+  return { isSupported, authenticate, register, registerCredential, platform };
 };

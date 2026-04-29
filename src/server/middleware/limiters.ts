@@ -80,3 +80,28 @@ export const webauthnVerifyLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },
 });
+
+// Round 20 R5 — per-uid rate limiter for the WebAuthn registration
+// ceremony (POST /api/auth/webauthn/register/options + /verify). Tighter
+// than `webauthnVerifyLimiter` (5/min) because registration is a rare
+// event — a worker enrolls a security key once on a device, not 5 times
+// per minute. 3/min keyed on the authenticated uid puts a hard ceiling
+// on credential-storage thrash even if a Bearer token is compromised.
+//
+// The single-use challenge layer + idempotent `registerCredential()` keep
+// the cryptographic line of defense; this limiter is just a request-rate
+// ceiling that protects Firestore writes + spammy CBOR-decode CPU.
+//
+// IMPORTANT: mounted AFTER `verifyAuth` so the keyGenerator can read
+// `req.user.uid` (set by verifyAuth). Falls back to req.ip then
+// 'anonymous' purely as a defensive default — under normal control flow
+// `req.user.uid` is always set because verifyAuth would have rejected
+// the request otherwise.
+export const webauthnRegisterLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1-minute sliding window
+  max: 3, // 3 register attempts per uid per window — tighter than verify
+  keyGenerator: (req: Request) => (req as any).user?.uid || req.ip || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_register_attempts', retryAfterMs: 60_000 },
+});

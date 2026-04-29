@@ -28,7 +28,11 @@ import admin from 'firebase-admin';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
-import { refereeLimiter, webauthnVerifyLimiter } from '../middleware/limiters.js';
+import {
+  refereeLimiter,
+  webauthnVerifyLimiter,
+  webauthnRegisterLimiter,
+} from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 
 import {
@@ -50,11 +54,66 @@ import {
 } from '../../services/auth/webauthnChallenge.js';
 import {
   findByCredentialId,
+  registerCredential,
   updateCounter as updateCredentialCounter,
   decodePublicKey,
   type MinimalCredentialsDb,
 } from '../../services/auth/webauthnCredentialStore.js';
-import { verifyAuthenticationResponse } from '@simplewebauthn/server';
+import {
+  verifyAuthenticationResponse,
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+} from '@simplewebauthn/server';
+
+// ───────────────────────────────────────────────────────────────────────────
+// Round 20 R6 MEDIUM #2 — expectedOrigin prod fail-fast guard.
+//
+// In production we MUST know where the WebAuthn ceremony originates so the
+// signature-verification step can reject assertions that came from a
+// different origin (origin-binding is the entire point of WebAuthn). If
+// neither APP_BASE_URL nor APP_URL is set at module-load time, refusing
+// to start is safer than silently falling back to `http://localhost:3000`
+// — that fallback would make every production verify call fail with
+// `signature_invalid` and burn through user trust before anyone notices.
+//
+// In development the localhost fallback is fine and is preserved.
+//
+// We run this once at module-load, NOT per-request:
+//   • Single source of truth — every /verify and /register handler reads
+//     the SAME resolved origin.
+//   • Process-level fail-fast — Cloud Run / PM2 / systemd see a hard
+//     boot failure and surface the misconfig in the deploy log instead
+//     of silently shipping a broken auth surface.
+// ───────────────────────────────────────────────────────────────────────────
+function resolveExpectedOriginAtBoot(): string {
+  if (process.env.NODE_ENV === 'production') {
+    const origin = process.env.APP_BASE_URL ?? process.env.APP_URL;
+    if (!origin) {
+      throw new Error(
+        '[boot] FATAL: NODE_ENV=production but APP_BASE_URL/APP_URL unset. ' +
+          'WebAuthn cannot determine expectedOrigin. Refusing to load.',
+      );
+    }
+    if (origin.startsWith('http://')) {
+      // Boot-time warning rather than a hard failure — some self-hosted
+      // deployments terminate TLS at a sidecar and set APP_BASE_URL to
+      // the upstream http URL on purpose. The signature verify path
+      // still rejects mixed-scheme origins via @simplewebauthn/server.
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[webauthn] WARNING: expectedOrigin is http:// in production — verify TLS terminates upstream',
+      );
+    }
+    return origin;
+  }
+  // Dev / test: localhost is fine. Tests can still override per-call by
+  // mocking process.env.APP_BASE_URL before importing.
+  return process.env.APP_BASE_URL ?? process.env.APP_URL ?? 'http://localhost:3000';
+}
+
+const EXPECTED_ORIGIN = resolveExpectedOriginAtBoot();
+const EXPECTED_RP_ID = process.env.WEBAUTHN_RP_ID ?? 'localhost';
+const RP_NAME = process.env.WEBAUTHN_RP_NAME ?? 'Praeventio Guard';
 
 // Resend client — lazily reuses RESEND_API_KEY at module-load. The same
 // key powers all transactional email surfaces; constructing one client per
@@ -712,9 +771,11 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
         return res.status(401).json({ verified: false, reason: 'unknown_credential' });
       }
 
-      const expectedOrigin =
-        process.env.APP_BASE_URL ?? process.env.APP_URL ?? 'http://localhost:3000';
-      const expectedRPID = process.env.WEBAUTHN_RP_ID ?? 'localhost';
+      // R20 R6 MEDIUM #2: read the boot-resolved values. Per-request
+      // env reads are a footgun — a midnight env rotation could leave
+      // partial requests pointing at a stale origin.
+      const expectedOrigin = EXPECTED_ORIGIN;
+      const expectedRPID = EXPECTED_RP_ID;
 
       let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
       try {
@@ -790,3 +851,201 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// Round 20 R5 — WebAuthn registration ceremony.
+//
+// Closes the TODO left in R19 (`webauthnCredentialStore.ts`): until now
+// credentials had to be seeded manually via the Firebase Admin SDK. The
+// two endpoints below let an authenticated worker enroll a new
+// authenticator (Touch ID / Face ID / security key) in-app.
+//
+//   POST /api/auth/webauthn/register/options
+//     verifyAuth + webauthnRegisterLimiter (3/min/uid).
+//     Issues a registration challenge via @simplewebauthn/server's
+//     `generateRegistrationOptions()` and persists it in the same
+//     `webauthn_challenges` cache as the authentication ceremony so the
+//     /verify counterpart can atomically consume it.
+//
+//   POST /api/auth/webauthn/register/verify
+//     verifyAuth + webauthnRegisterLimiter (3/min/uid).
+//     Validates the attestation via `verifyRegistrationResponse()` and
+//     persists the resulting public key + counter via the
+//     R19-shipped `registerCredential()` service. Idempotent: a
+//     re-registration of the same credentialId replaces the prior row
+//     (matches the registerCredential contract).
+//
+// Audit shape (auth.webauthn.registered): uid + credentialId only. NEVER
+// the public-key bytes — they're public, but the audit collection is
+// append-only and we keep it minimal as a hygiene baseline.
+// ───────────────────────────────────────────────────────────────────────────
+
+webauthnChallengeRouter.post(
+  '/webauthn/register/options',
+  verifyAuth,
+  webauthnRegisterLimiter,
+  async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const callerEmail: string | null = (req as any).user.email ?? null;
+    try {
+      const options = await generateRegistrationOptions({
+        rpName: RP_NAME,
+        rpID: EXPECTED_RP_ID,
+        userName: callerEmail ?? callerUid,
+        userDisplayName: callerEmail ?? 'Praeventio Worker',
+        attestationType: 'none',
+        authenticatorSelection: {
+          residentKey: 'preferred',
+          userVerification: 'required',
+        },
+      });
+
+      // Persist the challenge so /register/verify can atomically consume it.
+      // `options.challenge` is a base64url string. We round-trip through
+      // bytes to match the existing storage shape and re-use the
+      // base64url challenge as the challengeId so the verify endpoint
+      // can recover the bytes without a side table.
+      const challengeBytes = new Uint8Array(
+        Buffer.from(
+          options.challenge.replace(/-/g, '+').replace(/_/g, '/'),
+          'base64',
+        ),
+      );
+      const challengeId = options.challenge;
+      await storeWebAuthnChallenge(
+        callerUid,
+        challengeId,
+        challengeBytes,
+        buildWebAuthnDb(),
+      );
+
+      return res.json({ challengeId, options });
+    } catch (error: any) {
+      logger.error('webauthn_register_options_failed', {
+        uid: callerUid,
+        message: error?.message,
+      });
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+webauthnChallengeRouter.post(
+  '/webauthn/register/verify',
+  verifyAuth,
+  webauthnRegisterLimiter,
+  async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const { challengeId, attestationResponse } = req.body ?? {};
+
+    if (typeof challengeId !== 'string' || challengeId.length === 0 || challengeId.length > 1024) {
+      return res.status(400).json({ error: 'challengeId is required' });
+    }
+    if (
+      !attestationResponse ||
+      typeof attestationResponse !== 'object' ||
+      typeof (attestationResponse as any).id !== 'string'
+    ) {
+      return res.status(400).json({ error: 'attestationResponse is required' });
+    }
+
+    // Decode the original challenge bytes from the stored challenge id
+    // (which IS the base64url challenge string written at /options).
+    let providedChallenge: Uint8Array;
+    try {
+      const b64 = challengeId.replace(/-/g, '+').replace(/_/g, '/');
+      providedChallenge = new Uint8Array(Buffer.from(b64, 'base64'));
+    } catch {
+      return res.status(400).json({ error: 'malformed challengeId' });
+    }
+
+    try {
+      // Atomically consume the challenge BEFORE running the expensive
+      // CBOR-decode. A captured /register/verify body cannot be replayed
+      // — the second submission will hit reason='consumed'.
+      const consumeResult = await consumeWebAuthnChallenge(
+        callerUid,
+        challengeId,
+        providedChallenge,
+        buildWebAuthnDb(),
+      );
+      if (consumeResult.valid === false) {
+        return res
+          .status(401)
+          .json({ verified: false, reason: consumeResult.reason });
+      }
+
+      let verification: Awaited<ReturnType<typeof verifyRegistrationResponse>>;
+      try {
+        verification = await verifyRegistrationResponse({
+          response: attestationResponse,
+          expectedChallenge: challengeId,
+          expectedOrigin: EXPECTED_ORIGIN,
+          expectedRPID: EXPECTED_RP_ID,
+          requireUserVerification: true,
+        });
+      } catch (verErr: any) {
+        logger.warn('webauthn_register_attestation_failed', {
+          uid: callerUid,
+          message: verErr?.message,
+        });
+        return res
+          .status(401)
+          .json({ verified: false, reason: 'attestation_invalid' });
+      }
+
+      if (!verification.verified || !verification.registrationInfo) {
+        return res
+          .status(401)
+          .json({ verified: false, reason: 'attestation_invalid' });
+      }
+
+      const { credential, credentialDeviceType, credentialBackedUp } =
+        verification.registrationInfo;
+      const credentialIdStr = credential.id;
+      const publicKeyBytes =
+        credential.publicKey instanceof Uint8Array
+          ? credential.publicKey
+          : new Uint8Array(credential.publicKey as ArrayBuffer);
+
+      await registerCredential(
+        callerUid,
+        {
+          credentialId: credentialIdStr,
+          publicKey: publicKeyBytes,
+          counter: credential.counter,
+          transports: credential.transports as string[] | undefined,
+        },
+        buildWebAuthnCredentialsDb(),
+      );
+
+      const audit = buildCurriculumAuditor(
+        callerUid,
+        (req as any).user.email ?? null,
+        req.ip ?? undefined,
+        req.header('user-agent') ?? undefined,
+      );
+      // Audit: uid + credentialId only. NEVER the public-key bytes.
+      await audit('auth.webauthn.registered', {
+        uid: callerUid,
+        credentialId: credentialIdStr,
+      });
+
+      return res.json({
+        verified: true,
+        credentialId: credentialIdStr,
+        // Surface the device-type metadata so the UI can show "this
+        // is a passkey synced across your iCloud/Google account" vs
+        // "this lives only on this hardware key".
+        credentialDeviceType,
+        credentialBackedUp,
+      });
+    } catch (error: any) {
+      logger.error('webauthn_register_verify_failed', {
+        uid: callerUid,
+        message: error?.message,
+      });
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
