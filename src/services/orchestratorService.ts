@@ -32,8 +32,14 @@ export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = 
       condition: data.weather[0]?.description || 'Despejado',
       humidity: data.main.humidity,
       uv: 5, // OpenWeather free tier doesn't include UV in this endpoint, mocking it
-      airQuality: 'Buena', // Mocking AQI
-      altitude: 500, // Mocking altitude
+      // ── Round 17 (R4): honest empty state ──────────────────────
+      // Try OpenWeatherMap's Air Pollution endpoint when the key is
+      // present; otherwise return null so the UI renders an honest
+      // "Datos no disponibles" placeholder instead of the previous
+      // hard-coded 'Buena'/500. Altitude requires a separate
+      // elevation API which is not wired yet — null is the truth.
+      airQuality: await fetchAirQualityLabel(lat, lon),
+      altitude: null, // requires elevation API (Open-Elevation/Google) — not wired
       location: data.name,
       windSpeed: data.wind.speed * 3.6, // Convert m/s to km/h
       recommendations: generateWeatherRecommendations(data.main.temp, data.wind.speed * 3.6),
@@ -111,6 +117,36 @@ export const fetchEnvironmentContext = async (lat?: number, lon?: number): Promi
 };
 
 // --- Helpers & Mocks ---
+
+/**
+ * Fetch AQI from OpenWeatherMap Air Pollution endpoint and map the
+ * 1–5 scale to a human-readable es-CL label. Returns `null` if the
+ * key is missing or the request fails — callers surface the honest
+ * empty state.
+ */
+const AQI_LABELS: Record<number, string> = {
+  1: 'Buena',
+  2: 'Aceptable',
+  3: 'Moderada',
+  4: 'Mala',
+  5: 'Muy mala',
+};
+
+const fetchAirQualityLabel = async (lat: number, lon: number): Promise<string | null> => {
+  if (!OPENWEATHER_API_KEY) return null;
+  try {
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}`
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    const aqi = data?.list?.[0]?.main?.aqi;
+    if (typeof aqi !== 'number') return null;
+    return AQI_LABELS[aqi] ?? null;
+  } catch {
+    return null;
+  }
+};
 
 const getMockWeatherData = (): WeatherData => {
   const now = new Date();

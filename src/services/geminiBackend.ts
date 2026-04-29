@@ -896,7 +896,7 @@ export const getSafetyAdvice = async (weather: any) => {
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:
-    Temperatura: ${weather.temp}°C, UV: ${weather.uv}, Calidad Aire: ${weather.airQuality}`,
+    Temperatura: ${weather.temp}°C, UV: ${weather.uv}, Calidad Aire: ${weather.airQuality ?? 'no disponible'}`,
     config: {
       systemInstruction: "Eres un experto en prevención de riesgos laborales con un tono profesional y motivador."
     }

@@ -107,5 +107,14 @@
     "yesterday": "Ontem",
     "minutes_ago": "Há {{count}} minutos",
     "hours_ago": "Há {{count}} horas"
+  },
+  "biometric": {
+    "verify_identity": "Verificar sua identidade",
+    "reason_login": "Faça login com sua impressão digital ou reconhecimento facial",
+    "reason_sign_claim": "Assine seu registro de experiência",
+    "reason_enroll": "Ativar autenticação biométrica para {{username}}",
+    "enroll_title": "Ativar biometria",
+    "cancel": "Cancelar",
+    "unsupported": "Seu dispositivo não suporta autenticação biométrica"
   }
 }

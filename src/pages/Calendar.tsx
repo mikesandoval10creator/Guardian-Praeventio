@@ -156,12 +156,22 @@ export function Calendar() {
     return allEvents.filter(event => isSameDay(new Date(event.date), day));
   };
 
-  // Mock data for Gantt if events don't have endDate
-  const ganttEvents = allEvents.map(e => ({
-    ...e,
-    endDate: e.endDate || new Date(new Date(e.date).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // Mock 3 days duration
-    progress: e.progress || Math.floor(Math.random() * 100)
-  }));
+  // ── Round 17 (R4): honest empty duration ─────────────────────────
+  // Events without an `endDate` were previously inflated to a 3-day
+  // span AND given a random progress 0-99 % so the Gantt always
+  // looked busy. Prevencionistas can't trust a chart that fabricates
+  // work spans. We now flag those events explicitly and render them
+  // as a single-day bar with a "duración no especificada" label.
+  // Progress defaults to 0 instead of Math.random().
+  const ganttEvents = allEvents.map(e => {
+    const hasEnd = !!e.endDate;
+    return {
+      ...e,
+      endDate: hasEnd ? e.endDate : e.date,
+      durationUnspecified: !hasEnd,
+      progress: typeof e.progress === 'number' ? e.progress : 0,
+    };
+  });
 
   const forecast = getForecast();
 
@@ -338,7 +348,14 @@ export function Calendar() {
                   <div key={event.id} className="flex items-center group">
                     <div className="w-1/4 pr-4">
                       <div className="text-xs font-bold text-zinc-900 dark:text-white truncate">{event.title}</div>
-                      <div className="text-[9px] text-zinc-500 uppercase tracking-wider">{event.type}</div>
+                      <div className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                        {event.type}
+                        {event.durationUnspecified && (
+                          <span className="ml-1 text-amber-500" title="Duración no especificada — registrá una fecha de término en el evento.">
+                            · duración no especificada
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="w-3/4 relative h-8 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-white/5">
                       {/* Grid lines */}
@@ -347,22 +364,27 @@ export function Calendar() {
                           <div key={i} className="flex-1 border-l border-zinc-100 dark:border-white/5 h-full" />
                         ))}
                       </div>
-                      
+
                       {/* Gantt Bar */}
                       {startOffset < totalDays && (
-                        <motion.div 
+                        <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min(widthPercent, 100 - leftPercent)}%` }}
-                          className="absolute top-1.5 bottom-1.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 overflow-hidden cursor-pointer hover:bg-emerald-500/30 transition-colors"
+                          className={`absolute top-1.5 bottom-1.5 rounded-md overflow-hidden cursor-pointer transition-colors ${
+                            event.durationUnspecified
+                              ? 'bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30'
+                              : 'bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/30'
+                          }`}
                           style={{ left: `${leftPercent}%` }}
                           onClick={() => setSelectedEvent(event)}
+                          title={event.durationUnspecified ? 'Duración no especificada' : undefined}
                         >
-                          <div 
-                            className="h-full bg-emerald-500" 
+                          <div
+                            className={`h-full ${event.durationUnspecified ? 'bg-amber-500' : 'bg-emerald-500'}`}
                             style={{ width: `${event.progress}%` }}
                           />
                           <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-emerald-900 dark:text-emerald-100">
-                            {event.progress}%
+                            {event.durationUnspecified ? '—' : `${event.progress}%`}
                           </span>
                         </motion.div>
                       )}

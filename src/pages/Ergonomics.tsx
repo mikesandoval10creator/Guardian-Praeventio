@@ -27,8 +27,11 @@ export function Ergonomics() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
 
+  // Round 17 (R4): worker selector lives INSIDE the modal as Step 0
+  // (search + 5 most recent + full list). The R16 BLOCKER page-level
+  // <select> + disabled "Nueva Evaluación" button has been reverted —
+  // we just pass the workers list down as a prop.
   const { data: workers } = useFirestoreCollection<Worker>(
     selectedProject ? `projects/${selectedProject.id}/workers` : 'workers'
   );
@@ -62,31 +65,16 @@ export function Ergonomics() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button 
+          <button
             onClick={() => setIsAIModalOpen(true)}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
           >
             <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Bio-Análisis IA</span>
           </button>
-          <select
-            value={selectedWorkerId}
-            onChange={(e) => setSelectedWorkerId(e.target.value)}
-            className="w-full sm:w-auto bg-zinc-800 text-zinc-200 border border-zinc-700 rounded-xl px-4 py-4 sm:py-3 text-xs uppercase tracking-widest font-bold focus:outline-none focus:ring-2 focus:ring-orange-500"
-            aria-label="Seleccionar trabajador para evaluación"
-          >
-            <option value="">— Seleccionar trabajador —</option>
-            {workers.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name ?? w.id}
-              </option>
-            ))}
-          </select>
           <button
             onClick={() => setIsModalOpen(true)}
-            disabled={!selectedWorkerId}
-            title={!selectedWorkerId ? 'Seleccione un trabajador primero' : undefined}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 disabled:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-500/20 active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-500/20 active:scale-95"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Nueva Evaluación</span>
@@ -231,7 +219,7 @@ export function Ergonomics() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         projectId={selectedProject?.id}
-        workerId={selectedWorkerId || undefined}
+        workers={workers}
       />
       {isAIModalOpen && (
         <Suspense fallback={null}>

@@ -193,24 +193,29 @@ export interface MachineryData {
 interface DigitalTwinProps {
   workers?: WorkerData[];
   machinery?: MachineryData[];
+  /** Parent-owned loading flag — Round 17 (R4) replaces the silent
+   *  "mock data fallback" with a proper loading state. */
+  isLoading?: boolean;
+  /** Honest error envelope. When set, renders an error panel instead
+   *  of fabricating workers and machinery. */
+  error?: Error | string | null;
 }
 
-export function DigitalTwin({ workers: propWorkers, machinery: propMachinery }: DigitalTwinProps) {
-  // Mock data fallback
-  const fallbackWorkers: WorkerData[] = [
-    { id: 'W-01', position: [-2, 0, 2], status: 'normal' },
-    { id: 'W-02', position: [3, 0, -1], status: 'warning' },
-    { id: 'W-03', position: [0, 0, 4], status: 'normal' },
-    { id: 'W-04', position: [-4, 0, -3], status: 'critical' },
-  ];
-
-  const fallbackMachinery: MachineryData[] = [
-    { id: 'M-01', type: 'truck', position: [5, 0, 5], status: 'normal' },
-    { id: 'M-02', type: 'crane', position: [-5, 0, 0], status: 'warning' },
-  ];
-
-  const workers = propWorkers || fallbackWorkers;
-  const machinery = propMachinery || fallbackMachinery;
+export function DigitalTwin({
+  workers: propWorkers,
+  machinery: propMachinery,
+  isLoading,
+  error,
+}: DigitalTwinProps) {
+  // Round 17 (R4): no more "mock data fallback". When the parent
+  // hasn't supplied data, show the empty/loading/error state instead
+  // of synthesizing four fake workers + two fake machines that
+  // previously made the scene look populated and masked subscription
+  // failures from the prevencionista.
+  const workers = propWorkers ?? [];
+  const machinery = propMachinery ?? [];
+  const hasData = workers.length > 0 || machinery.length > 0;
+  const errorMessage = error ? (typeof error === 'string' ? error : error.message) : null;
 
   return (
     <div className="bg-zinc-900/50 border border-white/10 rounded-3xl overflow-hidden flex flex-col h-[500px]">
@@ -226,34 +231,58 @@ export function DigitalTwin({ workers: propWorkers, machinery: propMachinery }: 
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Live</span>
+            <div className={`w-2 h-2 rounded-full ${errorMessage ? 'bg-rose-500' : isLoading ? 'bg-amber-500 animate-pulse' : hasData ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500'}`} />
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+              {errorMessage ? 'Error' : isLoading ? 'Cargando' : hasData ? 'Live' : 'Sin datos'}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="flex-1 relative">
-        {/* Legend Overlay */}
-        <div className="absolute top-4 left-4 z-10 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl p-3 space-y-2">
-          <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">Estado</h4>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-            <span className="text-[10px] font-medium text-zinc-300">Normal</span>
+        {errorMessage ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 gap-3">
+            <AlertTriangle className="w-10 h-10 text-rose-500" />
+            <p className="text-sm font-bold text-rose-300">No se pudo cargar el digital twin</p>
+            <p className="text-xs text-zinc-500 max-w-md">{errorMessage}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-3 h-3 text-amber-500" />
-            <span className="text-[10px] font-medium text-zinc-300">Advertencia</span>
+        ) : isLoading ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 gap-3">
+            <div className="w-10 h-10 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" />
+            <p className="text-xs text-zinc-400 uppercase tracking-widest font-bold">Cargando telemetría…</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Activity className="w-3 h-3 text-rose-500" />
-            <span className="text-[10px] font-medium text-zinc-300">Crítico</span>
+        ) : !hasData ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 gap-3">
+            <MapPin className="w-10 h-10 text-zinc-600" />
+            <p className="text-xs text-zinc-500 max-w-md leading-relaxed">
+              Sin telemetría disponible. Conectá una fuente de datos (BLE/IoT) para visualizar trabajadores y maquinaria en 3D.
+            </p>
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Legend Overlay */}
+            <div className="absolute top-4 left-4 z-10 bg-black/50 backdrop-blur-md border border-white/10 rounded-xl p-3 space-y-2">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">Estado</h4>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                <span className="text-[10px] font-medium text-zinc-300">Normal</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-3 h-3 text-amber-500" />
+                <span className="text-[10px] font-medium text-zinc-300">Advertencia</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-3 h-3 text-rose-500" />
+                <span className="text-[10px] font-medium text-zinc-300">Crítico</span>
+              </div>
+            </div>
 
-        <Canvas camera={{ position: [10, 10, 10], fov: 50 }} gl={{ powerPreference: 'low-power' }}>
-          <SceneCleanup />
-          <Scene workers={workers} machinery={machinery} />
-        </Canvas>
+            <Canvas camera={{ position: [10, 10, 10], fov: 50 }} gl={{ powerPreference: 'low-power' }}>
+              <SceneCleanup />
+              <Scene workers={workers} machinery={machinery} />
+            </Canvas>
+          </>
+        )}
       </div>
     </div>
   );

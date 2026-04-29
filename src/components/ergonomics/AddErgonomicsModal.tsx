@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -8,10 +8,13 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  Search,
+  User as UserIcon,
+  Clock,
 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useFirebase } from '../../contexts/FirebaseContext';
-import { NodeType } from '../../types';
+import { NodeType, type Worker } from '../../types';
 import { calculateReba, type RebaInput, type RebaResult } from '../../services/ergonomics/reba';
 import { calculateRula, type RulaInput, type RulaResult } from '../../services/ergonomics/rula';
 import { recordErgonomicAssessment } from '../../services/safety/ergonomicAssessments';
@@ -21,7 +24,17 @@ interface AddErgonomicsModalProps {
   isOpen: boolean;
   onClose: () => void;
   projectId?: string;
+  /**
+   * Optional pre-selected worker (e.g. deep-link). When omitted, the
+   * modal's Step 0 lets the prevencionista pick one. Round 17 (R4)
+   * UX evolution: search + 5 most recent + full list.
+   */
   workerId?: string;
+  /**
+   * Workers in scope (filtered by current project). Passed in by the
+   * parent so the modal doesn't open its own Firestore subscription.
+   */
+  workers?: Worker[];
 }
 
 type WizardKind = 'REBA' | 'RULA';
@@ -138,8 +151,14 @@ function CheckboxRow({ label, checked, onChange }: CheckboxRowProps) {
   );
 }
 
-export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: AddErgonomicsModalProps) {
-  const { addNode } = useRiskEngine();
+export function AddErgonomicsModal({
+  isOpen,
+  onClose,
+  projectId,
+  workerId: workerIdProp,
+  workers = [],
+}: AddErgonomicsModalProps) {
+  const { addNode, nodes } = useRiskEngine();
   const { user } = useFirebase();
   const [loading, setLoading] = useState(false);
   const [workstation, setWorkstation] = useState('');
@@ -149,10 +168,69 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
   const [reba, setReba] = useState<RebaInput>(DEFAULT_REBA_INPUT);
   const [rula, setRula] = useState<RulaInput>(DEFAULT_RULA_INPUT);
   const [error, setError] = useState<string | null>(null);
+  // Round 17 (R4): worker selector lives inside the modal as Step 0.
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | undefined>(workerIdProp);
+  const [workerSearch, setWorkerSearch] = useState('');
 
+  useEffect(() => {
+    setSelectedWorkerId(workerIdProp);
+  }, [workerIdProp]);
+
+  const workerId = selectedWorkerId;
+
+  // The wizard now has Step 0 = worker selector. Subsequent steps use
+  // `wizardStepIndex = step - 1` so the existing renderRebaStep /
+  // renderRulaStep cases (0..N) still match.
   const REBA_STEPS = 7;
   const RULA_STEPS = 6;
-  const totalSteps = kind === 'REBA' ? REBA_STEPS : RULA_STEPS;
+  const wizardSteps = kind === 'REBA' ? REBA_STEPS : RULA_STEPS;
+  const totalSteps = wizardSteps + 1; // +1 for worker selector
+  const wizardStepIndex = step - 1;
+
+  // Recently assessed workers — derived from the in-memory risk graph
+  // (NodeType.ERGONOMICS) sorted by metadata.signedAt desc. Reusing
+  // `useRiskEngine` keeps a single source of truth and avoids opening
+  // a second Firestore subscription inside the modal.
+  const recentWorkers = useMemo<Worker[]>(() => {
+    const ergoForProject = nodes
+      .filter(
+        (n) =>
+          n.type === NodeType.ERGONOMICS &&
+          (projectId ? n.projectId === projectId : true) &&
+          n.metadata?.workerId,
+      )
+      .sort((a, b) => {
+        const ta = String(a.metadata?.signedAt || a.metadata?.date || a.updatedAt || '');
+        const tb = String(b.metadata?.signedAt || b.metadata?.date || b.updatedAt || '');
+        return tb.localeCompare(ta);
+      });
+    const seen = new Set<string>();
+    const ordered: Worker[] = [];
+    for (const n of ergoForProject) {
+      const id = String(n.metadata.workerId);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const w = workers.find((wk) => wk.id === id);
+      if (w) ordered.push(w);
+      if (ordered.length >= 5) break;
+    }
+    return ordered;
+  }, [nodes, projectId, workers]);
+
+  const filteredWorkers = useMemo<Worker[]>(() => {
+    const q = workerSearch.trim().toLowerCase();
+    if (!q) return workers;
+    return workers.filter((w) =>
+      [w.name, w.role, w.email, w.id]
+        .filter((v): v is string => typeof v === 'string')
+        .some((v) => v.toLowerCase().includes(q)),
+    );
+  }, [workers, workerSearch]);
+
+  const selectedWorker = useMemo(
+    () => workers.find((w) => w.id === selectedWorkerId),
+    [workers, selectedWorkerId],
+  );
 
   const result: RebaResult | RulaResult | null = useMemo(() => {
     try {
@@ -185,6 +263,10 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
     setWorkstation('');
     setObservations('');
     setError(null);
+    // Round 17 (R4): also clear the in-modal worker selection unless
+    // the parent supplied a fixed `workerIdProp` (deep-link case).
+    setSelectedWorkerId(workerIdProp);
+    setWorkerSearch('');
   };
 
   const close = () => {
@@ -276,7 +358,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
   // ── Wizard step renderers ──────────────────────────────────────────
 
   function renderRebaStep(): React.ReactNode {
-    switch (step) {
+    switch (wizardStepIndex) {
       case 0:
         return (
           <div className="space-y-4">
@@ -455,7 +537,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
   }
 
   function renderRulaStep(): React.ReactNode {
-    switch (step) {
+    switch (wizardStepIndex) {
       case 0:
         return (
           <div className="space-y-4">
@@ -658,7 +740,11 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Nueva Evaluación Ergonómica</h2>
-                  <p className="text-sm text-zinc-400">{kind} — Paso {step + 1} de {totalSteps}</p>
+                  <p className="text-sm text-zinc-400">
+                    {step === 0
+                      ? `Paso 1 de ${totalSteps} — Seleccionar trabajador`
+                      : `${kind} — Paso ${step + 1} de ${totalSteps}`}
+                  </p>
                 </div>
               </div>
               <button
@@ -670,36 +756,6 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
             </div>
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-5">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Método</label>
-                  <select
-                    value={kind}
-                    onChange={(e) => {
-                      setKind(e.target.value as WizardKind);
-                      setStep(0);
-                    }}
-                    className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
-                  >
-                    <option value="REBA">REBA (cuerpo entero)</option>
-                    <option value="RULA">RULA (extremidades superiores)</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Puesto de trabajo</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input
-                      type="text"
-                      value={workstation}
-                      onChange={(e) => setWorkstation(e.target.value)}
-                      placeholder="Ej: Línea de soldadura 02"
-                      className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
               <div className="h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-orange-500 transition-all"
@@ -707,22 +763,163 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
                 />
               </div>
 
-              {kind === 'REBA' ? renderRebaStep() : renderRulaStep()}
+              {step === 0 ? (
+                /* ── Step 0: Worker selector (Round 17 R4) ─────────── */
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">
+                      Buscar trabajador
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                      <input
+                        type="text"
+                        value={workerSearch}
+                        onChange={(e) => setWorkerSearch(e.target.value)}
+                        placeholder="Buscar por nombre, rol, email o id…"
+                        aria-label="Buscar trabajador"
+                        className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">
-                  Observaciones (opcional)
-                </label>
-                <textarea
-                  value={observations}
-                  onChange={(e) => setObservations(e.target.value)}
-                  placeholder="Detalles adicionales del puesto observado..."
-                  rows={2}
-                  className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm resize-none"
-                />
-              </div>
+                  {recentWorkers.length > 0 && !workerSearch && (
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                        <Clock className="w-3 h-3" />
+                        Trabajadores recientes
+                      </h4>
+                      <div className="grid grid-cols-1 gap-2">
+                        {recentWorkers.map((w) => (
+                          <button
+                            key={`recent-${w.id}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedWorkerId(w.id);
+                              setStep(1);
+                            }}
+                            className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
+                              selectedWorkerId === w.id
+                                ? 'border-orange-500/50 bg-orange-500/10'
+                                : 'border-zinc-200 dark:border-white/10 hover:border-orange-500/40 bg-white dark:bg-zinc-800/40'
+                            }`}
+                          >
+                            <div className="w-8 h-8 rounded-lg bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-500">
+                              <UserIcon className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{w.name || w.id}</p>
+                              <p className="text-[10px] text-zinc-500 truncate">{w.role || w.email || w.id}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {result && actionLevelLabel && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">
+                      Todos los trabajadores ({filteredWorkers.length})
+                    </h4>
+                    <div className="max-h-64 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                      {filteredWorkers.length === 0 ? (
+                        <p className="text-xs text-zinc-500 italic p-3">
+                          No se encontraron trabajadores. Asegurate de tener un proyecto seleccionado y trabajadores cargados.
+                        </p>
+                      ) : (
+                        filteredWorkers.map((w) => (
+                          <button
+                            key={`all-${w.id}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedWorkerId(w.id);
+                              setStep(1);
+                            }}
+                            className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
+                              selectedWorkerId === w.id
+                                ? 'border-orange-500/50 bg-orange-500/10'
+                                : 'border-zinc-200 dark:border-white/10 hover:border-orange-500/40 bg-white dark:bg-zinc-800/40'
+                            }`}
+                          >
+                            <div className="w-7 h-7 rounded-md bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-zinc-500 shrink-0">
+                              <UserIcon className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-zinc-900 dark:text-white truncate">{w.name || w.id}</p>
+                              <p className="text-[10px] text-zinc-500 truncate">{w.role || w.email || w.id}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* ── Steps 1..N: Wizard with method/workstation header ─ */
+                <>
+                  {selectedWorker && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800/40 border border-zinc-200 dark:border-white/5 text-xs">
+                      <UserIcon className="w-3.5 h-3.5 text-zinc-500" />
+                      <span className="text-zinc-700 dark:text-zinc-300 font-bold">{selectedWorker.name || selectedWorker.id}</span>
+                      <span className="text-zinc-500">— {selectedWorker.role || selectedWorker.email || selectedWorker.id}</span>
+                      <button
+                        type="button"
+                        onClick={() => setStep(0)}
+                        className="ml-auto text-orange-500 hover:text-orange-400 underline underline-offset-2"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Método</label>
+                      <select
+                        value={kind}
+                        onChange={(e) => {
+                          setKind(e.target.value as WizardKind);
+                          setStep(1); // restart wizard at first wizard step
+                        }}
+                        className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
+                      >
+                        <option value="REBA">REBA (cuerpo entero)</option>
+                        <option value="RULA">RULA (extremidades superiores)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Puesto de trabajo</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+                        <input
+                          type="text"
+                          value={workstation}
+                          onChange={(e) => setWorkstation(e.target.value)}
+                          placeholder="Ej: Línea de soldadura 02"
+                          className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-10 pr-3 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {kind === 'REBA' ? renderRebaStep() : renderRulaStep()}
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">
+                      Observaciones (opcional)
+                    </label>
+                    <textarea
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      placeholder="Detalles adicionales del puesto observado..."
+                      rows={2}
+                      className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-orange-500/50 transition-all text-sm resize-none"
+                    />
+                  </div>
+                </>
+              )}
+
+              {step !== 0 && result && actionLevelLabel && (
                 <div
                   className={`flex items-center justify-between p-4 rounded-xl border ${ACTION_LEVEL_TONE[actionLevelLabel] ?? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border-zinc-200 dark:border-zinc-700'}`}
                 >
@@ -759,7 +956,9 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId, workerId }: Add
                 <button
                   type="button"
                   onClick={() => setStep((s) => Math.min(totalSteps - 1, s + 1))}
-                  className="px-4 py-2 rounded-xl bg-orange-500 text-white font-medium text-sm hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2"
+                  disabled={step === 0 && !selectedWorkerId}
+                  title={step === 0 && !selectedWorkerId ? 'Seleccione un trabajador para continuar' : undefined}
+                  className="px-4 py-2 rounded-xl bg-orange-500 text-white font-medium text-sm hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-500 flex items-center gap-2"
                 >
                   Siguiente
                   <ChevronRight className="w-4 h-4" />

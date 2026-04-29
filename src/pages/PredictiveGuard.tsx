@@ -199,7 +199,11 @@ export function PredictiveGuard() {
                       <Thermometer className="w-5 h-5 text-rose-400" />
                       <div>
                         <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Calidad Aire</p>
-                        <p className="text-sm font-black text-white">{environment.weather.airQuality}</p>
+                        <p className="text-sm font-black text-white">
+                          {environment.weather.airQuality ?? (
+                            <span className="text-zinc-500" title="Datos no disponibles, requiere API geocoding+AQI">—</span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </div>

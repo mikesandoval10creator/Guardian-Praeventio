@@ -2,6 +2,7 @@ node_modules/
 build/
 dist/
 coverage/
+tsconfig.tsbuildinfo
 .DS_Store
 *.log
 .env*

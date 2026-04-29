@@ -107,5 +107,14 @@
     "yesterday": "Yesterday",
     "minutes_ago": "{{count}} minutes ago",
     "hours_ago": "{{count}} hours ago"
+  },
+  "biometric": {
+    "verify_identity": "Verify your identity",
+    "reason_login": "Sign in with your fingerprint or face",
+    "reason_sign_claim": "Sign your experience claim",
+    "reason_enroll": "Enable biometric authentication for {{username}}",
+    "enroll_title": "Enable biometrics",
+    "cancel": "Cancel",
+    "unsupported": "Your device does not support biometric authentication"
   }
 }

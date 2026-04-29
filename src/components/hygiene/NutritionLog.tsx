@@ -1,15 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Droplet, Apple, Coffee, Flame, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  calculateMifflinStJeor,
+  estimateCurrentBurn,
+  type Sex,
+} from '../../services/hygiene/metabolicRate';
 
-export function NutritionLog() {
+interface NutritionLogProps {
+  /**
+   * Optional worker profile used to compute basal metabolic rate via
+   * Mifflin-St Jeor (Round 17 R4). When any field is missing the
+   * component shows "Complete su perfil…" instead of the previous
+   * hard-coded 2400 kcal placeholder.
+   */
+  workerProfile?: {
+    weightKg?: number;
+    heightCm?: number;
+    ageYears?: number;
+    sex?: Sex;
+  };
+}
+
+export function NutritionLog({ workerProfile }: NutritionLogProps = {}) {
   const [hydration, setHydration] = useState(0);
   const [calories, setCalories] = useState(0);
   const [lastMeal, setLastMeal] = useState<string | null>(null);
-  
-  // Mock data for metabolic rate based on current time and activity
-  const metabolicRate = 2400; // Base daily calories
-  const currentBurn = Math.floor((new Date().getHours() / 24) * metabolicRate);
+
+  // Real BMR via Mifflin-St Jeor — null when profile is incomplete.
+  const metabolicRate = calculateMifflinStJeor(workerProfile);
+  const currentBurn = estimateCurrentBurn(metabolicRate, new Date().getHours());
   
   const hydrationGoal = 3000; // 3 liters
   const hydrationPercent = Math.min(100, (hydration / hydrationGoal) * 100);
@@ -62,22 +82,31 @@ export function NutritionLog() {
       </div>
 
       {/* Metabolic Rate & Calories */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-zinc-800/50 rounded-2xl p-3 border border-white/5">
-          <div className="flex items-center gap-2 mb-1">
-            <Flame className="w-3 h-3 text-orange-500" />
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Gasto Est.</span>
-          </div>
-          <div className="text-lg font-black text-white">{currentBurn} <span className="text-[10px] text-zinc-500 font-normal">kcal</span></div>
+      {metabolicRate == null ? (
+        <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-200 leading-relaxed">
+            Complete su perfil para calcular metabolismo basal (peso, estatura, edad y sexo).
+          </p>
         </div>
-        <div className="bg-zinc-800/50 rounded-2xl p-3 border border-white/5">
-          <div className="flex items-center gap-2 mb-1">
-            <Apple className="w-3 h-3 text-emerald-500" />
-            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ingesta</span>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-zinc-800/50 rounded-2xl p-3 border border-white/5">
+            <div className="flex items-center gap-2 mb-1">
+              <Flame className="w-3 h-3 text-orange-500" />
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Gasto Est.</span>
+            </div>
+            <div className="text-lg font-black text-white">{currentBurn ?? 0} <span className="text-[10px] text-zinc-500 font-normal">kcal</span></div>
           </div>
-          <div className="text-lg font-black text-white">{calories} <span className="text-[10px] text-zinc-500 font-normal">kcal</span></div>
+          <div className="bg-zinc-800/50 rounded-2xl p-3 border border-white/5">
+            <div className="flex items-center gap-2 mb-1">
+              <Apple className="w-3 h-3 text-emerald-500" />
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Ingesta</span>
+            </div>
+            <div className="text-lg font-black text-white">{calories} <span className="text-[10px] text-zinc-500 font-normal">kcal</span></div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Quick Add Meals */}
       <div>
