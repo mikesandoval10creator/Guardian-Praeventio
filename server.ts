@@ -9,35 +9,24 @@ import crypto from "crypto";
 import dotenv from "dotenv";
 import { Resend } from "resend";
 import { initializeRAG } from "./src/services/ragService.js";
-import { autoValidateTelemetry } from "./src/services/safetyEngineBackend.js";
-import { awardPoints, getLeaderboard, checkMedalEligibility } from "./src/services/gamificationBackend.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
 import { logger } from "./src/utils/logger.js";
 // Billing imports (buildInvoice, webpayAdapter, stripeAdapter, withIdempotency,
 // webpayMetrics, mercadoPagoAdapter, currency, billing/types) moved to
 // src/server/routes/billing.ts in Round 17 R2 Phase 2 split. `isAdminRole`
-// went with them but is RE-IMPORTED here in Round 17 R1 because the new
-// /api/admin/iot/rotate-secret endpoint also gates on admin-or-gerente.
+// went with them; in Round 17 R1 it was re-imported here for the IoT
+// rotate-secret endpoint, and in Round 19 R2 Phase 4 it moved AGAIN — this
+// time into telemetry.ts. server.ts no longer imports it.
 // Webpay-specific `performance` import + googleapis Play client also moved.
 import { sentryAdapter } from "./src/services/observability/sentryAdapter.js";
 import { getErrorTracker } from "./src/services/observability/index.js";
 // `assertProjectMember`/`ProjectMembershipError` formerly used inline by
 // /api/audit-log; moved with the route into src/server/routes/audit.ts in
 // Round 16 R5 Phase 1 split.
-// Round 16 R5 Phase 1 split: middleware + small route modules extracted from
-// server.ts. Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
-// (oauth/gemini) deferred to Round 17/18.
-import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
-import { safeSecretEqual } from "./src/server/middleware/safeSecretEqual.js";
-import { canonicalize } from "./src/server/middleware/canonicalBody.js";
+// Round 19 R2 Phase 4 split: gemini, reports, telemetry, gamification, misc
+// extracted from server.ts. Earlier phases moved admin/health/audit/push,
+// billing, curriculum/projects/oauth.
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
-import { auditServerEvent } from "./src/server/middleware/auditLog.js";
-import { assertProjectMemberFromBody } from "./src/server/middleware/assertProjectMemberMiddleware.js";
-import { isAdminRole } from "./src/types/roles.js";
-import {
-  geminiLimiter,
-  refereeLimiter,
-} from "./src/server/middleware/limiters.js";
 import adminRouter from "./src/server/routes/admin.js";
 import healthRouter from "./src/server/routes/health.js";
 import auditRouter from "./src/server/routes/audit.js";
@@ -56,11 +45,17 @@ import {
   oauthGoogleApiRouter,
   oauthGoogleAuthRouter,
 } from "./src/server/routes/oauthGoogle.js";
+import geminiRouter from "./src/server/routes/gemini.js";
+import reportsRouter from "./src/server/routes/reports.js";
+import telemetryRouter from "./src/server/routes/telemetry.js";
+import gamificationRouter from "./src/server/routes/gamification.js";
+import miscRouter from "./src/server/routes/misc.js";
 import admin from "firebase-admin";
 import fs from 'fs';
-import { GoogleGenAI } from "@google/genai";
 // `googleapis` import removed in Round 17 R2 Phase 2 — its sole use was the
 // Google Play Developer API client, which moved to billing.ts.
+// `GoogleGenAI` import removed in Round 19 R2 Phase 4 — only /api/ask-guardian
+// and /api/gemini consumed it, both now in src/server/routes/gemini.ts.
 
 dotenv.config();
 
@@ -267,186 +262,17 @@ app.use(session({
 // and POST /api/admin/revoke-access.
 app.use("/api/admin", adminRouter);
 
-// Ask Guardian Endpoint (El Cerebro Externo)
-app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
-  const { query, stream = false } = req.body;
-  
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
-  }
+// Round 19 R2 Phase 4 split — POST /api/ask-guardian + POST /api/gemini
+// extracted to src/server/routes/gemini.ts. The whitelisted action set
+// lives with the route. Mounted at /api so the router can declare both
+// sibling paths verbatim.
+app.use('/api', geminiRouter);
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    
-    // Unified context search using Firestore Vector Search
-    const { searchRelevantContext } = await import('./src/services/ragService.js');
-    const context = await searchRelevantContext(query);
-
-    // Generate response using Gemini
-    const prompt = `
-      Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
-      Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
-      Responde de forma profesional, vigilante y altamente técnica pero accionable.
-
-      REGLA DE ORO: Si el usuario te pregunta por procedimientos específicos o leyes, prioritiza la información en el CONTEXTO LEGAL proporcionado.
-      Si no hay información específica en el contexto, usa tu base de conocimientos pero aclara que es una recomendación general.
-
-      CONTEXTO LEGAL RELEVANTE:
-      ${context}
-
-      PREGUNTA DEL USUARIO:
-      ${query}
-    `;
-
-    if (stream) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-
-      const responseStream = await ai.models.generateContentStream({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-      });
-
-      for await (const chunk of responseStream) {
-        if (chunk.text) {
-          res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
-        }
-      }
-      res.write('data: [DONE]\n\n');
-      res.end();
-    } else {
-      const result = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-      });
-
-      res.json({ 
-        response: result.text,
-        contextUsed: context !== "No se encontró contexto legal relevante."
-      });
-    }
-
-  } catch (error) {
-    console.error("Error in /api/ask-guardian:", error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Internal server error" });
-    } else {
-      res.write(`data: ${JSON.stringify({ error: "Internal server error" })}\n\n`);
-      res.end();
-    }
-  }
-});
-
-// PDF Generation Endpoint (El Cuarto de Máquinas - Reportes Ocupacionales)
-app.post("/api/reports/generate-pdf", verifyAuth, async (req, res) => {
-  const { incidentId, title, content, type = 'general', metadata = {} } = req.body;
-  
-  try {
-    const PDFDocument = (await import('pdfkit')).default;
-    
-    // Create a document with styling and margins appropriate for legal/occupational reports
-    const doc = new PDFDocument({
-      size: 'A4',
-      margins: { top: 50, bottom: 50, left: 50, right: 50 },
-      info: {
-        Title: title || 'Reporte de Seguridad',
-        Author: 'Praeventio Guard AI',
-      }
-    });
-
-    const buffers: Buffer[] = [];
-    doc.on('data', buffers.push.bind(buffers));
-    doc.on('end', () => {
-      const pdfData = Buffer.concat(buffers);
-
-      // We could optionally save this buffer to Firebase Storage here before sending it down
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=Reporte_SUSESO_${incidentId || Date.now()}.pdf`);
-      res.setHeader('Content-Length', pdfData.length.toString());
-      res.end(pdfData);
-      // Round 17 R1 — emit audit row on successful generation. Wrapped so an
-      // audit-write failure can't taint a response we already sent.
-      try {
-        void auditServerEvent(req, 'reports.pdf_generated', 'reports', {
-          type,
-          incidentId: incidentId ?? null,
-          bytes: pdfData.length,
-        });
-      } catch { /* observability never breaks request path */ }
-    });
-
-    // --- PDF Construction ---
-
-    // 1. Header (Logo/Brand Placeholder)
-    doc.rect(0, 0, doc.page.width, 100).fill('#0f172a'); // Slate 900 background header
-    doc.fill('#ffffff').fontSize(24).font('Helvetica-Bold').text('Praeventio Guard', 50, 35);
-    doc.fontSize(10).font('Helvetica').text('Sistema Integrado de Gestión de Riesgos', 50, 65);
-    doc.text(`Doc ID: ${incidentId || `REQ-${Date.now()}`}`, 400, 35, { align: 'right' });
-    doc.text(`Fecha: ${new Date().toLocaleDateString('es-CL')}`, 400, 50, { align: 'right' });
-    doc.text(`Tipo: ${type.toUpperCase()}`, 400, 65, { align: 'right' });
-
-    doc.moveDown(5); // Move below header
-
-    // 2. Title Section
-    doc.fillColor('#000000').fontSize(18).font('Helvetica-Bold').text(title || 'Documento Oficial de Seguridad Ocupacional', { align: 'center' });
-    doc.moveDown(1);
-    
-    // 3. Divider Line
-    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#e2e8f0');
-    doc.moveDown(1);
-
-    // 4. Metadata Box (If any, e.g., location, severity, supervisor)
-    if (Object.keys(metadata).length > 0) {
-      doc.rect(50, doc.y, 495, (Object.keys(metadata).length * 20) + 10).fill('#f8fafc');
-      doc.fillColor('#334155').fontSize(10).font('Helvetica');
-      let currentY = doc.y + 5;
-      for (const [key, value] of Object.entries(metadata)) {
-        doc.font('Helvetica-Bold').text(`${key.toUpperCase()}: `, 60, currentY, { continued: true })
-           .font('Helvetica').text(String(value));
-        currentY += 20;
-      }
-      doc.y = currentY + 15;
-    }
-
-    // 5. Main Content (Markdown roughly converted or plain text)
-    doc.fillColor('#1e293b').fontSize(11).font('Helvetica');
-    
-    // Simple pseudo-markdown parsing for the PDF
-    const lines = content ? content.split('\n') : ['Sin contenido registrado.'];
-    lines.forEach(line => {
-      if (line.startsWith('# ')) {
-        doc.moveDown().font('Helvetica-Bold').fontSize(14).text(line.replace('# ', '')).font('Helvetica').fontSize(11);
-      } else if (line.startsWith('## ')) {
-        doc.moveDown().font('Helvetica-Bold').fontSize(12).text(line.replace('## ', '')).font('Helvetica').fontSize(11);
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        doc.text(`  • ${line.substring(2)}`, { indent: 10 });
-      } else if (line.trim() === '') {
-        doc.moveDown(0.5);
-      } else {
-        doc.text(line, { align: 'justify' });
-      }
-    });
-
-    // 6. Footer (Page numbers and legal disclaimer)
-    const totalPages = doc.bufferedPageRange().count;
-    for (let i = 0; i < totalPages; i++) {
-        doc.switchToPage(i);
-        doc.rect(0, doc.page.height - 50, doc.page.width, 50).fill('#f1f5f9');
-        doc.fillColor('#94a3b8').fontSize(8).font('Helvetica').text(
-          'Documento generado por Praeventio AI. Válido como registro interno conforme a directrices Minsal.',
-          50, doc.page.height - 35
-        );
-        doc.text(`Página ${i + 1} de ${totalPages}`, 450, doc.page.height - 35, { align: 'right' });
-    }
-
-    doc.end();
-  } catch (error) {
-    console.error("Error generating PDF:", error);
-    res.status(500).json({ error: "Internal server error during PDF generation" });
-  }
-});
+// Round 19 R2 Phase 4 split — POST /api/reports/generate-pdf extracted to
+// src/server/routes/reports.ts. The per-route 1MB body limit short-circuit
+// stays in this file (above) because it MUST run before the global
+// `express.json({ limit: '64kb' })` parser.
+app.use('/api', reportsRouter);
 
 // OAuth Configuration (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SCOPES) and
 // the 8 Google OAuth endpoints (calendar, fitness, drive, unlink, /url +
@@ -477,323 +303,18 @@ app.use("/api/push", pushRouter);
 app.use('/api', oauthGoogleApiRouter);
 app.use('/auth', oauthGoogleAuthRouter);
 
-// 3-day climate forecast endpoint for the Zettelkasten climate-risk coupling.
-// Reads from environmentBackend; returns shape: { forecast: ClimateForecastDay[] }.
-// Best-effort: if upstream OpenWeather is unavailable, returns empty forecast.
-app.get("/api/environment/forecast", async (req, res) => {
-  const days = Math.min(7, Math.max(1, parseInt(String(req.query.days ?? '3'), 10) || 3));
-  try {
-    // environmentBackend currently exposes updateGlobalEnvironmentalContext
-    // for current weather. A dedicated multi-day getForecast helper is a
-    // follow-up; for now we degrade gracefully so useCalendarPredictions
-    // doesn't crash and just skips climate-risk node generation.
-    const mod = (await import('./src/services/environmentBackend.js')) as Record<string, unknown>;
-    const getForecast = mod.getForecast as ((d: number) => Promise<unknown[]>) | undefined;
-    if (typeof getForecast === 'function') {
-      const forecast = await getForecast(days);
-      return res.json({ forecast });
-    }
-    res.json({ forecast: [] });
-  } catch (error: any) {
-    logger.warn('environment_forecast_failed', { days, message: error?.message });
-    res.json({ forecast: [] });
-  }
-});
+// Round 19 R2 Phase 4 split — IoT telemetry ingestion + per-tenant secret
+// rotation extracted to src/server/routes/telemetry.ts. Final paths
+// preserved: POST /api/telemetry/ingest, POST /api/admin/iot/rotate-secret.
+// The `IOT_TYPE_ALLOWLIST` and `lookupTenantIotSecret` helper moved with
+// the route.
+app.use('/api', telemetryRouter);
 
-// ERP Integration (SAP/Defontana Mock)
-app.post("/api/erp/sync", verifyAuth, async (req, res) => {
-  const { erpType, action, payload } = req.body;
-  const uid = (req as any).user.uid;
-  
-  try {
-    console.log(`[ERP Sync] Type: ${erpType}, Action: ${action}`);
-    
-    // Simulate real backend activity by logging the sync attempt
-    const db = admin.firestore();
-    await db.collection('erp_sync_logs').add({
-      uid,
-      erpType,
-      action,
-      payload,
-      status: 'success',
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-    
-    // Simulate network latency
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    res.json({ 
-      success: true, 
-      message: `Sincronización con ${erpType} exitosa`,
-      data: {
-        syncId: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        status: 'completed'
-      }
-    });
-  } catch (error) {
-    console.error(`Error syncing with ERP (${erpType}):`, error);
-    res.status(500).json({ error: "Error de sincronización con ERP" });
-  }
-});
-
-// IoT Webhook Ingestion Endpoint.
-// Authentication (Round 17 R1 — per-tenant secret rotation):
-//   1. The client may declare a tenant via `x-tenant-id` header or
-//      `tenantId` body field. When supplied, the server looks up
-//      `tenants/{tenantId}.iotSecret` (Admin SDK Firestore read) and uses
-//      that as the expected secret for THIS request, comparing via
-//      HMAC-SHA256 over the canonical body (`x-iot-signature: sha256=<hex>`
-//      header). HMAC over the body — instead of a bare shared-secret header
-//      — means a captured signature can't be replayed against a modified
-//      payload.
-//   2. If no per-tenant secret is found (or rotation flag missing), the
-//      endpoint falls back to the legacy shared `IOT_WEBHOOK_SECRET` env
-//      and logs `telemetry_no_per_tenant_secret`. The fallback path keeps
-//      the old `x-iot-secret` header (timing-safe equality) and the
-//      deprecated body `secretKey` field working for one more release.
-//   3. If `IOT_WEBHOOK_SECRET` is also missing, the endpoint refuses.
-//
-// Operators rotate a tenant's secret via POST /api/admin/iot/rotate-secret
-// (gated by `isAdminRole`); the rotation endpoint is the ONLY opportunity
-// for the operator to read the raw secret — we never echo it back.
-//
-// Aligned with the frontend type union in src/pages/Telemetry.tsx +
-// Evacuation.tsx ('wearable' | 'machinery'). 'iot', 'environmental',
-// 'machine' are reserved for gateway-originated telemetry. Keep this in
-// sync if the frontend union changes.
-const IOT_TYPE_ALLOWLIST = new Set(['iot', 'wearable', 'machinery', 'environmental', 'machine']);
-
-/**
- * Round 17 R1 — Look up a tenant's per-tenant IoT secret. Returns null when
- * the tenant doc is missing, the field is absent, or anything throws —
- * never crashes the request path. Caller falls back to env secret.
- */
-async function lookupTenantIotSecret(tenantId: string): Promise<string | null> {
-  try {
-    const snap = await admin.firestore().collection('tenants').doc(tenantId).get();
-    if (!snap.exists) return null;
-    const data = snap.data() ?? {};
-    const secret = data.iotSecret;
-    if (typeof secret !== 'string' || secret.length === 0) return null;
-    return secret;
-  } catch (err: any) {
-    logger.warn('telemetry_tenant_lookup_failed', { tenantId, message: err?.message });
-    return null;
-  }
-}
-
-app.post("/api/telemetry/ingest", async (req, res) => {
-  const { type, source, metric, value, unit, status, projectId } = req.body ?? {};
-
-  // Per-tenant scope: header takes precedence over body (header is set by
-  // gateways; body is set by mobile-edge devices that can't override hdrs).
-  const headerTenantId = req.header('x-tenant-id');
-  const bodyTenantId = (req.body ?? {}).tenantId;
-  const tenantId =
-    typeof headerTenantId === 'string' && headerTenantId.length > 0
-      ? headerTenantId
-      : typeof bodyTenantId === 'string' && bodyTenantId.length > 0
-        ? bodyTenantId
-        : null;
-
-  const envSecret = process.env.IOT_WEBHOOK_SECRET;
-  let perTenantSecret: string | null = null;
-  if (tenantId) {
-    perTenantSecret = await lookupTenantIotSecret(tenantId);
-    if (!perTenantSecret) {
-      logger.warn('telemetry_no_per_tenant_secret', { tenantId });
-    }
-  }
-
-  // Decide which auth path we're on. Per-tenant: HMAC-SHA256 over the
-  // RFC 8785 canonical-JSON form of the request body, header
-  // `x-iot-signature: sha256=<hex>`. Env fallback: legacy x-iot-secret
-  // header (or deprecated body.secretKey).
-  //
-  // Round 18 R6 (R6→R17 MEDIUM #2): the signing input is now the RFC 8785
-  // canonical-JSON form of the parsed body (sorted keys, no whitespace,
-  // shortest numeric form). Producers in any language MUST canonicalise
-  // before HMACing or signatures will diverge. This is the documented,
-  // intentional break of the prior `JSON.stringify(req.body)` contract —
-  // see src/server/middleware/canonicalBody.ts for the rationale and the
-  // LEGACY_HMAC_FALLBACK flag is honored below for emergency rollback.
-  let authenticated = false;
-  if (perTenantSecret) {
-    const sigHeader = req.header('x-iot-signature') ?? '';
-    const canonicalBody = canonicalize(req.body ?? {});
-    const expectedHex = crypto
-      .createHmac('sha256', perTenantSecret)
-      .update(canonicalBody)
-      .digest('hex');
-    const expectedHeader = `sha256=${expectedHex}`;
-    if (safeSecretEqual(sigHeader, expectedHeader)) {
-      authenticated = true;
-    } else if (process.env.LEGACY_HMAC_FALLBACK === '1') {
-      // DEPRECATED — emergency rollback path. Producer is still sending
-      // legacy `JSON.stringify(req.body)` HMACs. Verify under the old
-      // contract; log every match so operators can see who is still on
-      // the legacy path. Remove once telemetry shows zero hits.
-      const legacyHex = crypto
-        .createHmac('sha256', perTenantSecret)
-        .update(JSON.stringify(req.body ?? {}))
-        .digest('hex');
-      if (safeSecretEqual(sigHeader, `sha256=${legacyHex}`)) {
-        logger.warn('telemetry_hmac_legacy_fallback', { tenantId });
-        authenticated = true;
-      }
-    }
-  }
-
-  if (!authenticated) {
-    if (!envSecret) {
-      logger.error("iot_webhook_misconfigured", undefined, {
-        reason: "IOT_WEBHOOK_SECRET not set and no per-tenant secret matched",
-      });
-      return res.status(500).json({ error: "Server configuration error" });
-    }
-    let secretKey: unknown = req.header('x-iot-secret');
-    if (typeof secretKey !== 'string' || secretKey.length === 0) {
-      // Backwards-compat: accept body field for one release. DEPRECATED.
-      if (typeof req.body?.secretKey === 'string' && req.body.secretKey.length > 0) {
-        secretKey = req.body.secretKey;
-        logger.warn('iot_webhook_secret_in_body_deprecated', {
-          source: typeof source === 'string' ? source : 'unknown',
-          hint: 'Move shared secret to X-IoT-Secret header; body field removed next release.',
-        });
-      } else {
-        return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
-      }
-    }
-    if (!safeSecretEqual(secretKey as string, envSecret)) {
-      return res.status(401).json({ error: "Unauthorized: Invalid secret key" });
-    }
-    authenticated = true;
-  }
-
-  if (!type || !source || !metric || value === undefined) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
-  // Conservative input validation before any DB write.
-  if (typeof type !== 'string' || !IOT_TYPE_ALLOWLIST.has(type)) {
-    return res.status(400).json({ error: "Invalid type" });
-  }
-  if (typeof source !== 'string' || source.length === 0 || source.length > 64) {
-    return res.status(400).json({ error: "Invalid source" });
-  }
-  if (typeof metric !== 'string' || metric.length === 0 || metric.length > 64) {
-    return res.status(400).json({ error: "Invalid metric" });
-  }
-
-  try {
-    const db = admin.firestore();
-
-    // Auto-validate with AI backend
-    const validation = await autoValidateTelemetry({ type, source, metric, value, unit, status });
-    const finalStatus = validation?.isAnomalous ? "alert" : (status || "normal");
-    const threatLevel = validation?.threatLevel || "None";
-
-    await db.collection('telemetry_events').add({
-      type,
-      source,
-      metric,
-      value: Number(value),
-      unit: unit || "",
-      status: finalStatus,
-      threatLevel,
-      aiValidation: validation,
-      projectId: projectId || "global",
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-
-    res.json({
-      success: true,
-      message: "Telemetry event ingested successfully",
-      aiValidation: validation
-    });
-  } catch (error) {
-    logger.error('iot_ingest_failed', error, { type, source, metric });
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Round 17 R1 — IoT secret rotation. Admin-only. Generates a new 32-byte
-// hex secret, stores it on `tenants/{tenantId}.iotSecret` along with a
-// `iotSecretRotatedAt` server timestamp, audits the rotation, and returns
-// the raw secret in the response body. THIS IS THE ONLY OPPORTUNITY for the
-// operator to see the raw secret — subsequent reads of the tenant doc never
-// echo it back through any user-facing surface.
-//
-// Note: this endpoint is intentionally not under /api/admin (which is the
-// pre-existing `adminRouter` mount with its own surface). It lives at
-// /api/admin/iot/rotate-secret directly so that mounting order is
-// preserved and the body parser/limits already on /api/ apply.
-app.post("/api/admin/iot/rotate-secret", verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const { tenantId } = req.body ?? {};
-  if (typeof tenantId !== 'string' || tenantId.length === 0 || tenantId.length > 128) {
-    return res.status(400).json({ error: 'Invalid tenantId' });
-  }
-  try {
-    const callerRecord = await admin.auth().getUser(callerUid);
-    if (!isAdminRole(callerRecord.customClaims?.role)) {
-      return res.status(403).json({ error: 'Forbidden: Requires admin role' });
-    }
-    const newSecret = crypto.randomBytes(32).toString('hex');
-    await admin.firestore().collection('tenants').doc(tenantId).set(
-      {
-        iotSecret: newSecret,
-        iotSecretRotatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      },
-      { merge: true },
-    );
-    try {
-      await auditServerEvent(req, 'admin.iot.secret_rotated', 'admin', {
-        tenantId,
-      });
-    } catch { /* observability never breaks request path */ }
-    // ONLY response surface that ever exposes the raw secret. Caller MUST
-    // copy it now — it cannot be read back from Firestore via any non-admin
-    // path, and even admin reads should be discouraged.
-    return res.json({ secret: newSecret });
-  } catch (error: any) {
-    logger.error('admin_iot_rotate_failed', { callerUid, tenantId, message: error?.message });
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Seed Glossary Endpoint (gerente-only — prevents public abuse)
-app.post("/api/seed-glossary", verifyAuth, async (req, res) => {
-  try {
-    const callerRecord = await admin.auth().getUser((req as any).user.uid);
-    if (callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
-    }
-    const { runSeed } = await import('./src/services/seedBackend.js');
-    await runSeed();
-    res.json({ success: true, message: "Community glossary seeded successfully" });
-  } catch (error: any) {
-    console.error('Error seeding glossary:', error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
-
-// Seed Data Endpoint (gerente-only — prevents public abuse)
-app.post("/api/seed-data", verifyAuth, async (req, res) => {
-  try {
-    const callerRecord = await admin.auth().getUser((req as any).user.uid);
-    if (callerRecord.customClaims?.role !== 'gerente') {
-      return res.status(403).json({ error: "Forbidden: Requires gerente role" });
-    }
-    const { seedInitialData } = await import('./src/services/dataSeedService.js');
-    await seedInitialData();
-    res.json({ success: true, message: "Initial project data seeded successfully" });
-  } catch (error: any) {
-    console.error('Error seeding data:', error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
+// Round 19 R2 Phase 4 split — long-tail handlers (legal/check-updates,
+// erp/sync, seed-glossary, seed-data, environment/forecast) extracted to
+// src/server/routes/misc.ts. Mounted here so the global /api/* limiter
+// and JSON parser still gate them.
+app.use('/api', miscRouter);
 
 // ─── Project Invitation System (Round 18 Phase 3 — moved) ─────────────────
 // 6 endpoints (POST /api/projects/:id/invite, GET /api/projects/:id/members,
@@ -805,223 +326,10 @@ app.post("/api/seed-data", verifyAuth, async (req, res) => {
 app.use('/api/projects', projectsRouter);
 app.use('/api/invitations', invitationsRouter);
 
-// Gamification Endpoints
-app.post("/api/gamification/points", verifyAuth, async (req, res) => {
-  const { amount, reason } = req.body;
-  const uid = (req as any).user.uid;
-  try {
-    await awardPoints(uid, amount, reason);
-    // Round 17 R1 — audit row for awarded points (compliance trail per
-    // Ley 16.744 — gamification tied to safety behaviors must be auditable).
-    try {
-      await auditServerEvent(req, 'gamification.points_awarded', 'gamification', {
-        amount: typeof amount === 'number' ? amount : null,
-        reason: typeof reason === 'string' ? reason : null,
-      });
-    } catch { /* observability never breaks request path */ }
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get("/api/gamification/leaderboard", verifyAuth, async (req, res) => {
-  try {
-    const leaderboard = await getLeaderboard();
-    res.json({ success: true, leaderboard });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post("/api/gamification/check-medals", verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
-  try {
-    const newMedals = await checkMedalEligibility(uid);
-    // Round 17 R1 — audit row for medal checks. Records the count of new
-    // medals awarded; the medal IDs themselves are NOT secrets but live in
-    // user_stats so we keep the audit row lightweight.
-    try {
-      await auditServerEvent(req, 'gamification.medals_checked', 'gamification', {
-        newMedalCount: Array.isArray(newMedals) ? newMedals.length : 0,
-      });
-    } catch { /* observability never breaks request path */ }
-    res.json({ success: true, newMedals });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// AI Safety Coach Endpoint
-//
-// Round 17 R1 — was unverified-projectId. Clients NOT sending projectId in
-// body now get 400; clients sending wrong-tenant projectId now get 403.
-// The endpoint reads RAG context (incidents) scoped by projectId, so a
-// missing membership check would let a token from tenant A pull tenant B
-// context. `assertProjectMemberFromBody` enforces this; we additionally
-// require a non-empty projectId here (the middleware is no-op when absent
-// to keep audit-log-style optional callers working, but coach/chat MUST
-// have a tenant scope).
-app.post(
-  "/api/coach/chat",
-  verifyAuth,
-  assertProjectMemberFromBody(),
-  async (req, res) => {
-    const { message, projectId } = req.body ?? {};
-    const uid = (req as any).user.uid;
-    if (typeof projectId !== 'string' || projectId.length === 0) {
-      return res.status(400).json({ error: 'projectId is required' });
-    }
-    try {
-      const { getSafetyCoachResponse } = await import('./src/services/coachBackend.js');
-      const db = admin.firestore();
-      const userStats = (await db.collection('user_stats').doc(uid).get()).data() || { points: 0, medals: [], loginStreak: 0 };
-      const recentIncidents = (await db.collection('incidents').where('projectId', '==', projectId).limit(5).get()).docs.map(d => d.data());
-
-      const response = await getSafetyCoachResponse(uid, userStats, recentIncidents, message);
-
-      // Round 17 R1 — audit row tagged with projectId for tenant trail.
-      try {
-        await auditServerEvent(req, 'coach.chat', 'coach', {
-          projectId,
-          messageLength: typeof message === 'string' ? message.length : 0,
-        }, { projectId });
-      } catch { /* observability never breaks request path */ }
-
-      res.json({ success: true, response });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  },
-);
-
-// Legal Monitor: scan BCN knowledge base for normative impact on system modules
-app.get("/api/legal/check-updates", verifyAuth, async (req, res) => {
-  try {
-    const { bcnKnowledgeBase } = await import('./src/data/bcnKnowledgeBase.js');
-    const geminiBackend = await import('./src/services/geminiBackend.js');
-    const modulesSummary = "Riesgos, Trabajadores, EPP, Hallazgos, Incidentes, Capacitación, Salud Ocupacional, Comité Paritario, Normativas, Proyectos, Emergencia";
-    const results = await Promise.all(
-      bcnKnowledgeBase.map(async (law: any) => {
-        const analysis = await (geminiBackend.scanLegalUpdates as Function)(law.title, law.content, modulesSummary);
-        return { lawId: law.id, title: law.title, lastUpdated: law.lastUpdated, relevantModules: law.relevantModules, ...analysis };
-      })
-    );
-    res.json({ results });
-  } catch (error: any) {
-    console.error("Error in legal check-updates:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Gemini API Proxy
-const ALLOWED_GEMINI_ACTIONS = [
-  'generateEmbeddingsBatch',
-  'autoConnectNodes',
-  'semanticSearch',
-  'analyzeFastCheck',
-  'predictGlobalIncidents',
-  'analyzeRiskWithAI',
-  'analyzePostureWithAI',
-  'generateEmergencyPlan',
-  'analyzeSafetyImage',
-  'generateISOAuditChecklist',
-  'generatePTS',
-  'generatePTSWithManufacturerData',
-  'generateEmergencyScenario',
-  'generateRealisticIoTEvent',
-  'processDocumentToNodes',
-  'simulateRiskPropagation',
-  'enrichNodeData',
-  'analyzeRootCauses',
-  'queryBCN',
-  'getChatResponse',
-  'getSafetyAdvice',
-  'generateActionPlan',
-  'generateSafetyReport',
-  'auditAISuggestion',
-  'generatePersonalizedSafetyPlan',
-  'analyzeDocumentCompliance',
-  'generateTrainingRecommendations',
-  'investigateIncidentWithAI',
-  'auditProjectComplianceWithAI',
-  'analyzeAttendancePatterns',
-  'generateSafetyCapsule',
-  'suggestRisksWithAI',
-  'suggestNormativesWithAI',
-  'syncNodeToNetwork',
-  'syncBatchToNetwork',
-  'generateCompensatoryExercises',
-  'analyzeBioImage',
-  'generatePredictiveForecast',
-  'generateOperationalTasks',
-  'generateEmergencyPlanJSON',
-  'forecastSafetyEvents',
-  'analyzeRiskNetwork',
-  'predictAccidents',
-  'analyzeSiteMapDensity',
-  'generateTrainingQuiz',
-  'validateRiskImageClick',
-  'calculateDynamicEvacuationRoute',
-  'processAudioWithAI',
-  'analyzeVisionImage',
-  'verifyEPPWithAI',
-  'analyzeRiskNetworkHealth',
-  'analyzeFeedPostForRiskNetwork',
-  'analyzePsychosocialRisks',
-  'auditLegalGap',
-  'evaluateNormativeImpact',
-  'analyzeChemicalRisk',
-  'suggestChemicalSubstitution',
-  'generateStressPreventionTips',
-  'generateShiftHandoverInsights',
-  'analyzeShiftFatiguePatterns',
-  'generateCustomSafetyTraining',
-  'optimizePPEInventory',
-  'calculateStructuralLoad',
-  'designHazmatStorage',
-  'evaluateMinsalCompliance',
-  'generateModuleRecommendations',
-  'generateExecutiveSummary',
-  'analyzeFaenaRiskWithAI',
-  'extractAcademicSummary',
-  'calculateComplianceSummary',
-  'processGlobalSafetyAudit',
-  'calculatePreventionROI',
-  'generateSusesoFormMetadata',
-  'predictEPPReplacement',
-  'auditEPPCompliance',
-  'suggestMeetingAgenda',
-  'summarizeAgreements',
-  'mapRisksToSurveillance',
-  'analyzeHealthPatterns',
-  'analyzeRiskCorrelations',
-  'downloadSpecificNormative',
-  'searchRelevantContext',
-  'getNutritionSuggestion',
-  'scanLegalUpdates'
-];
-
-app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {
-  const { action, args } = req.body;
-  
-  if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
-    return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
-  }
-
-  try {
-    const geminiBackend = await import('./src/services/geminiBackend.js');
-    if (typeof geminiBackend[action as keyof typeof geminiBackend] === 'function') {
-      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args);
-      res.json({ result });
-    } else {
-      res.status(400).json({ error: `Action ${action} not found` });
-    }
-  } catch (error: any) {
-    console.error(`Error in Gemini API Proxy for ${action}:`, error);
-    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? "Internal server error" : (error.message || "Internal server error") });
-  }
-});
+// Round 19 R2 Phase 4 split — gamification (points/leaderboard/check-medals)
+// + AI Safety Coach (coach/chat with assertProjectMemberFromBody guard)
+// extracted to src/server/routes/gamification.ts. Final paths preserved.
+app.use('/api', gamificationRouter);
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
