@@ -28,7 +28,7 @@ import admin from 'firebase-admin';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
-import { refereeLimiter } from '../middleware/limiters.js';
+import { refereeLimiter, webauthnVerifyLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 
 import {
@@ -48,6 +48,13 @@ import {
   consumeWebAuthnChallenge,
   type MinimalChallengesDb as WebAuthnChallengesDb,
 } from '../../services/auth/webauthnChallenge.js';
+import {
+  findByCredentialId,
+  updateCounter as updateCredentialCounter,
+  decodePublicKey,
+  type MinimalCredentialsDb,
+} from '../../services/auth/webauthnCredentialStore.js';
+import { verifyAuthenticationResponse } from '@simplewebauthn/server';
 
 // Resend client — lazily reuses RESEND_API_KEY at module-load. The same
 // key powers all transactional email surfaces; constructing one client per
@@ -172,6 +179,59 @@ export function buildWebAuthnDb(): WebAuthnChallengesDb {
                 tx.update(ref, patch);
                 return true;
               });
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+/**
+ * Round 19: adapter that bridges firebase-admin Firestore to the
+ * `MinimalCredentialsDb` surface for the registered-credential store.
+ * Mirrors `buildWebAuthnDb` but for the `webauthn_credentials/...`
+ * collection used by the @simplewebauthn/server signature-verify path.
+ */
+export function buildWebAuthnCredentialsDb(): MinimalCredentialsDb {
+  const fs = admin.firestore();
+  return {
+    now: () => Date.now(),
+    collection(name: string) {
+      const col = fs.collection(name);
+      return {
+        doc(id: string) {
+          const ref = col.doc(id);
+          return {
+            async get() {
+              const snap = await ref.get();
+              return {
+                exists: snap.exists,
+                id: snap.id,
+                data: () =>
+                  snap.exists ? (snap.data() as Record<string, unknown>) : undefined,
+              };
+            },
+            async set(data: Record<string, unknown>) {
+              await ref.set(data);
+            },
+            async update(patch: Record<string, unknown>) {
+              await ref.update(patch);
+            },
+          };
+        },
+        where(field: string, op: '==', value: unknown) {
+          const q = col.where(field, op, value);
+          return {
+            async get() {
+              const snap = await q.get();
+              return {
+                empty: snap.empty,
+                docs: snap.docs.map((d) => ({
+                  id: d.id,
+                  data: () => d.data() as Record<string, unknown>,
+                })),
+              };
             },
           };
         },
@@ -532,30 +592,59 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
 });
 
 // POST /api/auth/webauthn/verify — consume the server-issued challenge
-// after the client returns a WebAuthn assertion. Closes Round 17 R6
-// MEDIUM #1 (replay attack via client-generated challenge): if this
-// endpoint cannot atomically mark the challenge consumed, we reject with
-// 401. There is NO fallback / best-effort path — fail-closed by design.
+// AND verify the WebAuthn assertion's signature against the user's
+// registered public key.
 //
-// Body: { challengeId, clientDataJSON, authenticatorData, signature }
-//   • All four are base64-encoded strings (the client base64s the bytes
-//     before posting; clientDataJSON is the WebAuthn-spec JSON, signature
-//     and authenticatorData are the assertion bytes).
+// History:
+//   • R17 R5  — server-issued challenge cache + consume helper.
+//   • R18 R6  — the /verify endpoint (consume-only, fail-closed).
+//   • R19 A5  — @simplewebauthn/server signature verification +
+//               replay-prevention via authenticator counter.
 //
-// Threat model: an attacker who steals a single assertion can replay it
-// AT MOST ONCE before the challenge cache rejects it (the first replay
-// races the legitimate request via Firestore-transactional updateIf).
-// After successful consume, any further replays observe consumed:true
-// and fail with 401 reason='consumed'.
+// Body shape:
+//   • Legacy MVP (R18 backwards-compat):
+//       { challengeId, clientDataJSON, authenticatorData, signature }
+//     Consume-only path. Kept so already-deployed clients keep working
+//     during the rollout window. Will be removed once all clients send
+//     the credential id field.
+//   • R19 full WebAuthn path:
+//       { challengeId, id, rawId?, clientDataJSON, authenticatorData,
+//         signature, type? }
+//     `id` is the WebAuthn credential id (base64url) the authenticator
+//     returned. Triggers full @simplewebauthn/server verification +
+//     monotonic-counter replay-prevention.
 //
-// TODO Round 19: integrate `@simplewebauthn/server` to CBOR-decode
-// authenticatorData and verify the signature against the user's stored
-// public key. For MVP, the challenge consume already prevents replay;
-// adding the signature check upgrades us from "replay-resistant" to
-// "fully WebAuthn-spec-compliant".
-webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, async (req, res) => {
+// Replay-prevention layers (defense-in-depth):
+//   1. The server-issued challenge is single-use (R17/R18). A captured
+//      assertion replays AT MOST ONCE before the challenge cache rejects
+//      it.
+//   2. The authenticator counter (R19) — every successful assertion
+//      includes a monotonic counter. If the new counter is ≤ stored, the
+//      assertion is treated as a clone/replay attempt and rejected.
+//
+// TODO Round 20+: implement POST /api/auth/webauthn/register which
+// finalizes a WebAuthn create() ceremony and stores the public key via
+// `registerCredential()`. For MVP the credentials are seeded manually
+// via the Firebase Admin SDK / a one-shot script. The /verify endpoint
+// fails 401 with reason='unknown_credential' until a credential is
+// registered for the asserting `id`.
+//
+// R19 R6 hardening: `webauthnVerifyLimiter` (5/min/uid) is mounted AFTER
+// verifyAuth so its keyGenerator can read `req.user.uid`. Caps brute-force
+// churn even if a Bearer token is compromised — the single-use challenge
+// + counter-replay layers stay the cryptographic line of defense, this is
+// just a request-rate ceiling.
+webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimiter, async (req, res) => {
   const callerUid = (req as any).user.uid;
-  const { challengeId, clientDataJSON, authenticatorData, signature } = req.body ?? {};
+  const {
+    challengeId,
+    id: credentialId,
+    rawId,
+    clientDataJSON,
+    authenticatorData,
+    signature,
+    type: assertionType,
+  } = req.body ?? {};
 
   if (typeof challengeId !== 'string' || challengeId.length === 0 || challengeId.length > 256) {
     return res.status(400).json({ error: 'challengeId is required' });
@@ -576,17 +665,21 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, async (req, res) =>
   // blob. We round-trip through base64 → JSON → base64url-decode to
   // recover the raw bytes for the consume helper.
   let providedChallenge: Uint8Array;
+  let challengeB64u: string;
   try {
     const cdjStr = Buffer.from(clientDataJSON, 'base64').toString('utf8');
     const cdj = JSON.parse(cdjStr);
-    const chB64u = String(cdj.challenge ?? '');
-    const b64 = chB64u.replace(/-/g, '+').replace(/_/g, '/');
+    challengeB64u = String(cdj.challenge ?? '');
+    const b64 = challengeB64u.replace(/-/g, '+').replace(/_/g, '/');
     providedChallenge = new Uint8Array(Buffer.from(b64, 'base64'));
   } catch {
     return res.status(400).json({ error: 'malformed clientDataJSON' });
   }
 
   try {
+    // Layer 1: atomically consume the server-issued challenge. This
+    // alone closes the replay vector even before signature checking,
+    // because the challenge cache is single-use.
     const result = await consumeWebAuthnChallenge(
       callerUid,
       challengeId,
@@ -597,17 +690,97 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, async (req, res) =>
       return res.status(401).json({ verified: false, reason: result.reason });
     }
 
-    // Audit: uid ONLY. Never the assertion bytes — clientDataJSON,
-    // authenticatorData, and signature are credentials and must not
-    // land in the append-only audit_logs collection.
     const audit = buildCurriculumAuditor(
       callerUid,
       (req as any).user.email ?? null,
       req.ip ?? undefined,
       req.header('user-agent') ?? undefined,
     );
-    await audit('auth.webauthn.verified', { uid: callerUid });
 
+    // R19 full crypto path: only triggered when the client supplies the
+    // credential `id` (base64url). Without it we fall back to R18 R6
+    // consume-only for backward compatibility — see body-shape comment.
+    if (typeof credentialId === 'string' && credentialId.length > 0) {
+      const credsDb = buildWebAuthnCredentialsDb();
+      const stored = await findByCredentialId(credentialId, credsDb);
+      if (!stored) {
+        return res.status(401).json({ verified: false, reason: 'unknown_credential' });
+      }
+      if (stored.uid !== callerUid) {
+        // The credential is registered, but to a different uid. Treat
+        // the same as unknown to avoid leaking enumeration data.
+        return res.status(401).json({ verified: false, reason: 'unknown_credential' });
+      }
+
+      const expectedOrigin =
+        process.env.APP_BASE_URL ?? process.env.APP_URL ?? 'http://localhost:3000';
+      const expectedRPID = process.env.WEBAUTHN_RP_ID ?? 'localhost';
+
+      let verification: Awaited<ReturnType<typeof verifyAuthenticationResponse>>;
+      try {
+        verification = await verifyAuthenticationResponse({
+          response: {
+            id: credentialId,
+            rawId: typeof rawId === 'string' && rawId.length > 0 ? rawId : credentialId,
+            response: {
+              clientDataJSON,
+              authenticatorData,
+              signature,
+            },
+            clientExtensionResults: {},
+            type: (assertionType as 'public-key') ?? 'public-key',
+          },
+          expectedChallenge: challengeB64u,
+          expectedOrigin,
+          expectedRPID,
+          credential: {
+            id: stored.credential.credentialId,
+            publicKey: decodePublicKey(stored.credential.publicKey),
+            counter: stored.credential.counter,
+            transports: stored.credential.transports as
+              | ('ble' | 'cable' | 'hybrid' | 'internal' | 'nfc' | 'smart-card' | 'usb')[]
+              | undefined,
+          },
+          requireUserVerification: true,
+        });
+      } catch (verErr: any) {
+        logger.warn('webauthn_verify_signature_failed', {
+          uid: callerUid,
+          credentialId,
+          message: verErr?.message,
+        });
+        return res.status(401).json({ verified: false, reason: 'signature_invalid' });
+      }
+
+      if (!verification.verified) {
+        return res.status(401).json({ verified: false, reason: 'signature_invalid' });
+      }
+
+      const newCounter = verification.authenticationInfo.newCounter;
+      // Replay-prevention: the authenticator counter MUST monotonically
+      // increase. A non-increase indicates the assertion was cloned,
+      // even if the signature checks out. (Counter==0 is allowed for
+      // authenticators that don't track it — we only enforce the rule
+      // when the stored counter is > 0.)
+      if (stored.credential.counter > 0 && newCounter <= stored.credential.counter) {
+        return res.status(401).json({ verified: false, reason: 'counter_replay' });
+      }
+      await updateCredentialCounter(credentialId, newCounter, credsDb);
+
+      // Audit: uid + counter only. Never the assertion bytes —
+      // clientDataJSON, authenticatorData, and signature are credentials
+      // and must not land in the append-only audit_logs collection.
+      await audit('auth.webauthn.verified', {
+        uid: callerUid,
+        credentialId,
+        newCounter,
+      });
+
+      return res.json({ verified: true, uid: callerUid, newCounter });
+    }
+
+    // Legacy R18 R6 consume-only path. Same audit shape (uid only).
+    await audit('auth.webauthn.verified', { uid: callerUid });
     return res.json({ verified: true, uid: callerUid });
   } catch (error: any) {
     logger.error('webauthn_verify_failed', {

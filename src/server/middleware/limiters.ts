@@ -54,3 +54,29 @@ export const refereeLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo más tarde.' },
 });
+
+// Round 19 R6 (close-out of R18 R6 MEDIUM #1): per-uid rate limiter for
+// POST /api/auth/webauthn/verify. The /verify endpoint already enforces
+// single-use challenges + monotonic-counter replay prevention, but a
+// flooding attacker who somehow obtained a valid Bearer token could still
+// burn through challenges in a tight loop. A 5/min ceiling keyed on the
+// authenticated uid (NOT the IP — many corporate users sit behind NAT)
+// caps brute-force replay churn while leaving plenty of headroom for the
+// legitimate ceremony, which sends one /verify per /challenge round-trip
+// and is gated by user gesture (Touch ID / Face ID / security key tap).
+//
+// IMPORTANT: this limiter is mounted AFTER `verifyAuth` so the
+// keyGenerator can read `req.user.uid` (set by verifyAuth). If routed
+// before verifyAuth, every unauthenticated caller would share the same
+// keyGenerator branch (req.ip), which would conflate honest 401-due-to-no-token
+// traffic with abuse. Falls back to req.ip then 'anonymous' purely as a
+// defensive default — under normal control flow `req.user.uid` is set
+// because verifyAuth would have rejected the request otherwise.
+export const webauthnVerifyLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1-minute sliding window
+  max: 5, // 5 verify attempts per uid per window
+  keyGenerator: (req: Request) => (req as any).user?.uid || req.ip || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_verify_attempts', retryAfterMs: 60_000 },
+});
