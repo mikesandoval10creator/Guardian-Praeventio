@@ -1,150 +1,141 @@
-# Impacto — Round 20 (WebAuthn register ceremony + ask-guardian limiter + Stryker rula snapshot + jose swap)
+# Impacto — Round 21 (Phase 5 server.ts triggers + reba snapshot + IPv6 keyGen + docs sweep + gemini split plan)
 
 ## TL;DR
 
-Round 20 ejecutó cuatro implementadores en paralelo y consolidó la postura defense-in-depth: A2 cerró la ceremonia de registro WebAuthn con dos endpoints nuevos y un guard de `expectedOrigin` que falla al cargar el módulo en producción; A3 cerró el bypass de `geminiLimiter` en `/api/ask-guardian` (R6 R19 MEDIUM #1); A4 ratchetó Stryker con 275 tests parametricos sobre `rula.ts` (65.78% → 94.22%, global 76.95% → 84.95%, break 60 → 65); y A5 hizo swap del verificador in-house RS256 por `jose.jwtVerify` + `jose.importJWK` con `jose@5.10.0` declarada como dep directa. La suite vitest pasó de 1224 a 1522 tests (+298 R20), `tsc` se mantiene en cero errores y el A6 Reviewer firmó SHIP IT con 0 BLOCKERs y 0 HIGHs. El A1 Phase 5 — extracción de triggers de `server.ts` — se atascó en watchdog 600s y se difiere a R21 con pre-pass arquitectónico obligatorio. R20 también marcó la 4ta y 5ta ocurrencia del revert pattern del harness, pidiendo nota formal en `AUDIT.md`.
+Round 21 desplegó cinco implementadores en paralelo y todos fueron firmados SHIP IT por el B6 Reviewer (0 BLOCKERs, 0 HIGHs). B1 cerró el deferred A1 R20 — Phase 5 split de `server.ts` extrayendo triggers vía worktree isolation, eliminando 141 LOC y dejando el bootstrap en 457 LOC (cumulative R12-R21: 3242 → 457, -86%). B2 ratchetó Stryker con 243 tests parametricos de `reba.ts` (75.81% → 77.74%, global 84.95% → 85.52%, break 65 mantenido). B3 entregó el inventario completo de `geminiBackend.ts` con plan phased R22-R26 (60 exports directos + 12 barrel + 84 acciones whitelist en 18 módulos). B4 cerró el R6 R20 MEDIUM #2 con 4 keyGenerators IPv6-safe vía `ipKeyGenerator` y 6 tests nuevos. B5 documentó la `MP_OIDC_CLOCK_TOLERANCE_SEC`, agregó la sección "revert pattern" a AUDIT.md con un playbook de 6 pasos, y anotó la baseline de Stryker. La suite vitest pasó de 1522 a 1719 tests (+197 R21 contando 66 skipped llega a 1785 totales, lo cual entrega +263 sobre el universo previo); `tsc` se mantiene en cero errores. Mid-round un incidente de pwd drift del orchestrator generó falsa alarma de pérdida de datos — verificado y descartado vía `git diff` por B6 — resolución captured como mejora de proceso.
 
 ## Cambios por área
 
-### WebAuthn /register ceremony + expectedOrigin guard (A2)
+### Phase 5 server.ts triggers extract (B1, vía worktree)
 
-Commit `3443095`. Cierra dos pendientes acumulados: R5 R19 (registration ceremony) y R6 R19 MEDIUM #2 (`expectedOrigin` resolver runtime sin guard de boot).
+Commit `7721816`. Cierra el A1 R20 que se atascó en watchdog 600s en main-tree. La estrategia de aislamiento `EnterWorktree` evitó el stall: pre-pass de 75s (bajo el budget de 300s), no triggereó ningún criterio de HARD ABORT, y la rama mergea limpia.
 
-Dos endpoints nuevos en `src/server/routes/curriculum.ts` (montados en `webauthnChallengeRouter`):
+`server.ts` pasó de 598 a **457 LOC** (-141, -23.6%). Cumulative R12-R21: 3242 → 457 LOC (**-86%**, -2785 LOC). Cerca de bootstrap-only.
 
-- `POST /api/auth/webauthn/register/options`: corre `verifyAuth` + `webauthnRegisterLimiter`, llama `generateRegistrationOptions()` de `@simplewebauthn/server@11.0.0`, almacena el challenge vía `storeWebAuthnChallenge` (reuse del store R19) y retorna `{ challengeId, options }`.
-- `POST /api/auth/webauthn/register/verify`: body `{ challengeId, attestationResponse }`. El handler hace consume atómico del challenge (single-use replay block antes de cualquier CBOR-decode), invoca `verifyRegistrationResponse`, persiste vía `registerCredential()` (API que A5 R19 ya había shipped) y es idempotente sobre `credentialId` duplicado. La fila de auditoría `auth.webauthn.registered` contiene `{ uid, credentialId }` solamente — un test enforce que `publicKey` NO aparece nunca en la fila.
+Nuevos módulos en `src/server/triggers/`:
 
-`resolveExpectedOriginAtBoot` (`src/server/routes/curriculum.ts:88`) corre al cargar el módulo: en producción, si `APP_BASE_URL` y `APP_URL` ambos están unset, lanza un FATAL que aborta el bootstrap; `http://` en producción emite `console.warn` (TLS-sidecar deployments siguen siendo válidos); en dev se preserva el fallback a `http://localhost`. La constante resultante (`EXPECTED_ORIGIN`, línea 114) se reutiliza por `/verify` y por la nueva ceremonia. La consecuencia operacional es que un misconfig en Cloud Run/PM2 surfacea al deploy, no al primer request.
+- `backgroundTriggers.ts` (275 LOC, `src/server/triggers/backgroundTriggers.ts`): `setupBackgroundTriggers(deps)` registra los listeners FCM más la ingestión RAG. Retorna `{ unsubscribe() }` para graceful shutdown / test seam. La forma del DI es `BackgroundTriggersDeps { db, messaging, resend, firestoreNamespace, ...overrides }` — `firestoreNamespace` está separado del `db` porque `FieldValue.serverTimestamp()` vive en el namespace.
+- `backgroundTriggers.test.ts` (341 LOC): 7 tests con `vi.mock` de `firebase-admin` + Resend.
+- `healthCheck.ts` (71 LOC, `src/server/triggers/healthCheck.ts`): `setupHealthCheckInterval(deps)` con default de 6h, override custom, retorna `{ stop() }`.
+- `healthCheck.test.ts` (127 LOC): 7 tests para registración del intervalo.
 
-`webauthnRegisterLimiter` en `src/server/middleware/limiters.ts:100`: ventana 60s, máximo 3 requests, key `uid > IP > anonymous`. Es más estricto que `webauthnVerifyLimiter` (5/60s) porque el registro es una ceremonia rara — un cap de 3 cubre re-intentos legítimos sin abrir vector de polling.
+`server.ts` ahora almacena los handles en module-level vars y el handler `SIGTERM` invoca `triggersHandle.unsubscribe()` + `healthHandle.stop()` antes de `process.exit(0)`. Cloud Run envía SIGTERM ~10s antes del SIGKILL, así que las suscripciones `onSnapshot` liberan limpiamente. Removida también una `import { GoogleGenAI }` y un `const ai = new GoogleGenAI(...)` muertos en el trigger RAG (la variable se construía pero nunca se leía).
 
-`src/hooks/useBiometricAuth.ts` ganó +142 LOC: el flujo client-side `registerCredential(reason)` ejecuta `navigator.credentials.create()` con un POST a `/options` y otro a `/verify`. 13 tests nuevos en `src/__tests__/server/webauthnRegister.test.ts` (879 LOC): 12 cubren la ceremonia (happy path, replay del challenge, idempotencia sobre credentialId duplicado, audit row sin publicKey, etc.) y 1 ejercita el fail-fast vía `vi.resetModules()` + dynamic import.
+Pre-pass arch findings (sin ABORT): `setupBackgroundTriggers` ya estaba dentro del callback `app.listen()` (`server.ts:579`) — preservado post-extract; `admin.firestore()` resuelve lazy dentro del setup, mientras que `admin` init completa top-level (líneas 119-152) antes del listen; sin module-load side effects, sin cyclic deps, sin module-level state mutations. `process.env` checked at handler-call time, preserved vía optional override hooks.
 
-### ask-guardian geminiLimiter (A3)
+Issues adyacentes fuera de scope (M1/M2 R22 backlog del Reviewer): el `setInterval` de 10 minutos `updateGlobalEnvironmentalContext` es estructuralmente similar y debería migrar a un trigger module con su propio cleanup en SIGTERM (asimetría con el contrato B1); el field `geminiApiKey` de `BackgroundTriggersDeps` quedó unused pero se preservó por simetría de API.
 
-Commit `0566644`. Cierra R6 R19 MEDIUM #1: `/api/ask-guardian` quedó autenticado pero sin `geminiLimiter` durante el split Phase 4 R19 — la consecuencia era que un user autenticado podía gastar tokens de Gemini SSE bajo el cap global laxo de 100/15min.
+### reba TABLE_A/B/C parametric snapshot (B2)
 
-`src/server/routes/gemini.ts:124`:
+Commit `188adce`. Mirror de la estrategia A4 R20 aplicada a `reba.ts`.
 
-```ts
-router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => { ... });
-```
+243 tests nuevos vía `vitest test.each` en `src/services/ergonomics/reba.test.ts` (51 → 294, +425 LOC):
 
-Orden correcto: el limiter ve `req.user.uid` (poblado por `verifyAuth`) para keying per-uid, no per-IP. `/api/gemini` (línea 194) ya tenía el patrón aplicado antes — ahora ambos endpoints quedan parejos.
+- `TABLE_A`: 60 cells (5 trunk × 3 neck × 4 legs).
+- `TABLE_B`: 36 cells (6 upperArm × 2 lowerArm × 3 wrist).
+- `TABLE_C`: 144 cells (12 A × 12 B).
+- Structural identity tests: 3.
 
-6 tests nuevos en `src/__tests__/server/askGuardian.test.ts` (10 totales): 4ta request mismo uid → 429; per-uid isolation (uid A no throttea uid B); 401 pre-auth NO consumen slot; shape del 429 con copy Spanish-CL más headers `ratelimit-*`; audit log preservado para passing requests y NO emitido para blocked; cada request consume exactamente un slot. Window-reset skipped (`vi.useFakeTimers` frágil vs `express-rate-limit`). Helper `buildLimitedAskGuardianApp` crea fresh app por test (mismo patrón que `webauthnVerifyLimiter` R19).
+Resultados Stryker R21:
 
-### Stryker rula TABLE snapshot (A4)
+- `reba.ts`: 75.81% → **77.74%** (+1.93pp). Killed 235 → 241 (+6); survivors 67 → 61 (-6).
+- `rula.ts`: 94.22% (unchanged).
+- Global: 84.95% → **85.52%** (+0.57pp).
 
-Commit `0b5a9fd`. R19 dejó `src/services/ergonomics/rula.ts` en 65.78% mutation score con 127 mutantes ArrayDeclaration sobreviviendo en `TABLE_A`/`B`/`C`. R20 cierra el gap con parametric snapshot strategy.
+**Break threshold mantenido en 65** (no bumped a 70): `reba.ts` quedó en banda 75-79 — la spec dice keep break en 65. No se alcanzó el target ≥80% porque los survivors restantes son boundary checks en `trunkScore`/`neckScore` más validation `NoCoverage` (5 throws) — diferidos a R22 con concrete test list.
 
-275 tests nuevos vía `vitest test.each` en `rula.test.ts` (75 → 350):
+Key finding: la mejora modesta de +1.93pp (vs +28.44pp en `rula.ts` R20) es porque la `excludedMutations: ['ArrayDeclaration']` global de R20 ya suprimía los ArrayDeclaration mutants en las tablas de reba. Las cell-snapshot tests killed mostly mutants que ya estaban excluded. Net win: defense-in-depth si el `ArrayDeclaration` global exclusion se narrowea futuro.
 
-- `TABLE_A`: 144 cells (6 upperArm × 3 lowerArm × 4 wrist × 2 twist).
-- `TABLE_B`: 72 cells (6 neck × 6 trunk × 2 legs).
-- `TABLE_C`: 56 cells (8 wristArm × 7 neckTrunkLeg).
-- Tests de identidad estructural: 3.
+`STRYKER_BASELINE.md` actualizado con sección Ratchet R21 + tabla per-file delta + R22 deferrals (boundary tests trunk/neck/upperArm extension paths + validation NoCoverage 5 throws).
 
-Cada cell tiene un test que llama `calculateRula` con inputs que ejercen SOLO esa cell, y assertea el output esperado. Si cualquier cell muta, al menos un test falla — eso mata los ArrayDeclaration mutants.
+### geminiBackend.ts scope discovery (B3, inventory only)
 
-`stryker.conf.json:17` ganó `mutator.excludedMutations: ['ArrayDeclaration']`. Limitación: el schema 9.6.1 no soporta per-file, así que `reba.ts` también pierde la mutator (side effect documentado en `STRYKER_BASELINE.md`). `thresholds.break` pasó de 60 a 65 (línea 21).
+Commit `383d1e7`. Inventario only — cero cambios `.ts`. Drives la extracción phased R22-R26.
 
-Resultados Stryker R20 por archivo:
+`docs/gemini-split-plan.md` (NEW, 581 LOC):
 
-- `rula.ts`: 65.78% → 94.22% (+28.44pp; survivors 127 → 13).
-- `reba.ts`: 75.07% → 75.81% (+0.74pp side-effect).
-- `iper.ts`: 89.58% → 89.36% (-0.22pp ruido).
-- `tmert.ts`: 85.29% → 85.07% (-0.22pp ruido).
-- `prexor.ts`: 81.71% (unchanged).
-- `iperAssessments.ts`: 87.50% (unchanged).
-- `ergonomicAssessments.ts`: 87.58% → 87.50% (-0.08pp ruido).
-- GLOBAL: 76.95% → 84.95% (+8.00pp).
+- Inventory: 60 exports directos + 12 sibling re-exports = **72 surface names**.
+- `ALLOWED_GEMINI_ACTIONS` whitelist: **84 acciones** (61 propias + 23 de siblings).
+- File size real: 2701 LOC (35 más que la estimación inicial).
+- Por dominio: embeddings 2, classify 9, vision 6, audio 1, pts 3, evacuation 4, bcn-rag 2, compliance 9, engineering 2, chat 1, recommendations 20, ergonomic 2.
+- Shared internals: `API_KEY`, `sleep`, `withExponentialBackoff` + `GoogleGenAI` factory + 7 model-ID constants + base64 prefix stripper.
 
-`STRYKER_BASELINE.md` recibió la sección R20 con tabla delta por archivo y el deferral list para R21 (snapshot strategy a `reba.ts`, doc del ArrayDeclaration global side-effect).
+Asignación de módulos (12 dominio + `_shared` + `index` barrel): `recommendations.ts` excede el budget de ~860 LOC (20 funciones) — recomendado sub-split en R26 a `recommendations/{predict,incidents,personal}`. El `geminiBackend.ts` existente queda como barrel ~30 LOC backward-compat.
 
-### jose@5.10.0 direct dep + swap (A5)
+Recomendación de migración: **PHASED 5 rondas (R22-R26)**, 4-18 funciones por round. Big-bang rejected — 3000-LOC churn unreviewable + amplifies dynamic-import risk.
 
-Commit `9001c65`. R19 A9 había shipped el OIDC del IPN MercadoPago con un verificador RS256 in-house (~120 LOC) para evitar coupling transitivo con `jose`. R20 declara `jose@^5.10.0` como dep directa y hace el swap a verificación library-grade.
+Top 3 riesgos identificados para R22:
 
-`package.json` ganó la entrada directa. `npm ls` confirma top-level `jose@5.10.0` más transitivos `jose@6.2.3` (mcp-sdk) y `jose@4.15.9` (firebase-admin/jwks-rsa) sin conflictos ni peer warnings.
+1. **Dynamic-import barrel surface drift**: `gemini.ts:202` hace `await import` y `ALLOWED_GEMINI_ACTIONS` actúa como allowlist — mitigación es un test CI que assertea que las 84 acciones permanecen en el barrel post-cada-round.
+2. **networkBackend.ts ↔ geminiBackend.ts cycle**: `networkBackend.ts:3` importa `autoConnectNodes` y `geminiBackend.ts:2699` re-exporta `networkBackend.js` — fix atómico R22 cambiando el import a `./gemini/classify.js` y el `vi.mock` en `networkBackend.test.ts:131`.
+3. **IPER doctrine drift**: `criticidad` MUST estar ausente de prompts/schemas (Ley 16.744 / DS 40 / DS 54). Comments en L229, L714, L1289, L2197 enforcean hoy; archivos más chicos abren surface a accidental reintroduction. Mitigación: regression test per-módulo + JSDoc top-of-file.
 
-`src/services/billing/mercadoPagoIpn.ts` (+242/-103 net): el verificador in-house se reemplaza por `jose.jwtVerify` + `jose.importJWK` (líneas 174, 206, 281). Pattern A elegido sobre Pattern B (`createRemoteJWKSet`) para preservar los test seams `_setJwksFetcherForTests` y `_resetMpJwksCacheForTests` del cache `mpJwksCache` — Pattern B habría requerido network plumbing per-test.
+### IPv6 keyGenerator fix (B4)
 
-`joseErrorToReason` (línea 236) preserva el reason vocabulary R19 verbatim: `signature_mismatch`, `expired` (con `expiresAt` echo), `issuer_mismatch`, `audience_mismatch`, `claim_invalid`, `unsupported_alg`, `malformed_jwt`, `audience_not_configured`, `kid_not_found`, `exp_missing`. Eso preserva los 25 tests existentes sin tocar strings.
+Commit `123d698`. Cierra R6 R20 MEDIUM #2.
 
-Knob nuevo: `MP_OIDC_CLOCK_TOLERANCE_SEC` (default 0, strict). 4 tests nuevos jose-backed en `mercadoPagoIpn.test.ts`: `alg=none` rechazado, signature tampered (XOR per-byte flip), exp claim expirada (`clockTolerance` respetado), borderline exp con tolerance=120s vs =10s.
+`src/server/middleware/limiters.ts`: `import rateLimit, { ipKeyGenerator } from 'express-rate-limit'` reemplaza el bare `req.ip`. Cuatro keyGenerators rewired — `geminiLimiter`, `invoiceStatusLimiter`, `webauthnVerifyLimiter`, `webauthnRegisterLimiter` — todos con el patrón `(req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous'`. `refereeLimiter` usa default keyGenerator (ya IPv6-safe).
 
-Reducción de audit-surface: el hand-off de signature math pasa de ~50 LOC hand-rolled crypto (R19) a ~20 LOC de jose call. `BILLING.md` ganó nota de 5 líneas con el rationale del swap.
+Suprime el warning `ERR_ERL_KEY_GEN_IPV6` introducido por `express-rate-limit ≥7.5`. El bare `req.ip` era unsafe — un IPv6 `/128` se veía único al limiter, peers podían bypass per-IP buckets. La sanity test de IPv6 verifica que las nuevas keys son strings válidos (no throw, no undefined).
 
-R21 candidates documentados por A5: jose 6.x major bump prep (verificar que `JWTClaimValidationFailed.claim` field sobrevive el bump) y documentar `MP_OIDC_CLOCK_TOLERANCE_SEC` en `.env.example`.
+`src/__tests__/server/limiters.test.ts` (NEW, 116 LOC, 6 tests): `ipKeyGenerator` IPv6 `::1` + `2001:db8::1` → string válido; IPv4 fallback works; ANY de los 5 limiters mount sin `ERR_ERL_KEY_GEN_IPV6`; per-uid override prefiere `req.user.uid`.
+
+### Docs sweep (B5)
+
+Commit `123d698` (mismo que B4). Tres deltas docs sin cambios runtime.
+
+- `.env.example` (+5 LOC): `MP_OIDC_CLOCK_TOLERANCE_SEC` documentada con bloque de 3 líneas (default 0 strict, 30-120 NTP-drift, replay window warning), ubicada adyacente a `MP_IPN_SECRET`.
+- `AUDIT.md` (+42 LOC): nueva sección "Known harness behaviour: working-tree revert pattern (R14-R20)" — symptom (Edit/Write success pero file reverts mid-session), incidence log (R14 R3, R15 I5, R16 R1/R3/R4, R17 R3, R18, R20 A3+A5), hipótesis (sandbox/checkpoint behaviour, Windows FS caching, race), playbook de 6 pasos: `git status` post-Edit, `git diff --stat` en report, Read tool re-verify, NEVER `git stash`, `EnterWorktree` para high-stakes, re-apply on revert detection. Confirmed safe patterns: 4-step verification 100% recovery rate.
+- `STRYKER_BASELINE.md`: nota de side-effect del `ArrayDeclaration` global exclusion sobre las tables reba (B2 finding).
 
 ## Métricas
 
 - `tsc`: 0 errors.
-- vitest: 1456 + 66 = **1522** tests pasando (1224 R19 → 1522 R20 = **+298 R20**).
-- Stryker: 76.95% → 84.95% global (+8.00pp); break threshold 60 → 65; rula 65.78% → 94.22%.
-- Direct deps añadidas R20: `jose@^5.10.0`. Cumulative R12-R20: 5 (incluyendo `@simplewebauthn/server@11.0.0`, Sentry, jose, etc.).
-- WebAuthn defense layers: 5 (challenge cache + register ceremony + verify ceremony + counter monotonic + dual rate limiters per-uid).
+- `vitest`: **1719 passed + 66 skipped = 1785 total** (+263 sobre R20 en universo total). Skips son flaky `vi.useFakeTimers` window-resets.
+- Stryker global: **85.52%** (+0.57pp). Break threshold: **65** mantenido.
+- `server.ts`: **457 LOC** (-141 R21; cumulative R12-R21: -86%, -2785 LOC).
+- Test files: 86.
 
-## Cumulative R12-R20
+## Cumulative R12-R21
 
-- Tests: ~600 → 1456 (+143%).
-- `server.ts`: 3242 → 598 LOC (-82%; Phase 5 deferred R21).
-- 13 route modules en `src/server/routes/` (4111 LOC) sin cambios netos R20: `admin`, `audit`, `billing`, `curriculum`, `gamification`, `gemini`, `health`, `misc`, `oauthGoogle`, `projects`, `push`, `reports`, `telemetry`.
-- Stryker global 84.95% (best yet R12-R20).
-- 5 direct deps cumulative.
+- Tests: ~600 → 1719 passed (+186%).
+- `server.ts`: 3242 → 457 LOC (-86%).
+- 14 route modules + 2 trigger modules extraídos.
+- Stryker global 85.52%, break 65.
+- 86 test files.
 
-## Round 20 deferrals
+## Round 21 incidents
 
-- **A1 Phase 5 stalled**: la extracción de `setupBackgroundTriggers` (FCM listeners + RAG ingestion) más el `setInterval` de health-check de 6 horas hacia `src/server/triggers/` golpeó el watchdog de 600s. La hipótesis: side-effects de startup-order que no se identificaron antes del slicing. R21 retry obligatorio con pre-pass arquitectónico ANTES de tocar slices.
-- **M1**: `excludedMutations: ['ArrayDeclaration']` global side-effect — pendiente nota formal en `STRYKER_BASELINE.md` con limitación schema 9.6.1.
-- **M2**: warning `ERR_ERL_KEY_GEN_IPV6` de `express-rate-limit` en 4 instancias de `keyGenerator` que usan `req.ip` directo en vez de `ipKeyGenerator(req)`.
-- **M3**: jose 6.x major bump prep — confirmar que `JWTClaimValidationFailed.claim` field sobrevive el bump.
+- **B1 worktree isolation**: la extracción Phase 5 logró completar sin watchdog stall, lección aprendida del A1 R20 aplicada exitosamente (`EnterWorktree` para refactors estructurales high-stakes).
+- **Orchestrator pwd confusion mid-round**: el orchestrator quedó dentro del worktree dir post-B1 y por un momento creyó (falsamente) que el work de B2/B3/B4/B5 se había perdido. Recovery: `cd` al main, `git log` confirmó los 4 commits intactos. ALL R21 work survived. B6 documentó como process improvement: orchestrator MUST `cd <project-root>` después de que un worktree-isolated agent termina, antes de evaluar status.
 
-## Revert pattern: 4ta + 5ta vez
+## Round 22 plan priorizado
 
-R20 produjo dos nuevas ocurrencias del revert pattern del harness, llevando el contador acumulado a 5:
+1. **Reba boundary tests** trunk/neck/upperArm extension paths + validation `NoCoverage` 5 throws → target ≥80% para break ratchet 65→70.
+2. **B1 Phase 5 cleanup** (M1 Reviewer): `setInterval` de 10 min `updateGlobalEnvironmentalContext` → trigger module + cleanup en SIGTERM (asymmetry vs B1 contract).
+3. **B3 execution kickoff**: gemini split start (3-5 modules per round, R22-R26) — empezar por `_shared` + `embeddings` + `classify` (resuelve cycle networkBackend en el mismo round).
+4. `.gitignore` `.claude/` (N1 Reviewer).
+5. `BackgroundTriggersDeps.geminiApiKey` unused field cleanup (M2 Reviewer).
+6. `jose` 6.x major bump prep (currently 5.10.0 direct dep desde A5 R20).
+7. `rula.ts` remaining 4 EqualityOperator + 7 BooleanLiteral mutants.
+8. `*Assessments` crypto + metadata coverage.
 
-- **A5**: detectó que `package.json` estaba reverted a mitad de sesión y tuvo que re-añadir la entrada de `jose@^5.10.0`. Diagnóstico vía `git diff --stat` post-Edit antes de declarar complete.
-- **A3**: usó `git stash` + `git checkout stash@{0}` para resolver un conflicto interno — eso violó la regla del harness "no git stash". Mitigación post-hoc: re-validó la diff y los tests, pero queda el footprint del workflow.
-- **A2**: navegó alrededor del pattern sin trigger.
-- **A4**: unaffected.
+## Round 23+ deferred
 
-A6 Reviewer recomienda formalizar la nota en `AUDIT.md` como "known harness behaviour" con un mitigation playbook explícito: implementadores deben (1) `git diff --stat` post-Edit obligatorio antes de "complete" report, (2) NUNCA `git stash`, (3) re-leer archivos críticos antes de declarar persistencia.
-
-## Round 21 plan priorizado
-
-1. **A1 retry — Phase 5 server.ts triggers extract** (598 → target ~250 LOC). Pre-pass arquitectónico ANTES del slicing para identificar startup-order side effects en `setupBackgroundTriggers`. Considerar `EnterWorktree` isolation por watchdog stall risk. ABORT explícito si se detecta side effect no documentado.
-2. **express-rate-limit IPv6 keyGenerator (M2)**: 4 instancias de `req.ip` → `ipKeyGenerator(req)` en `src/server/middleware/limiters.ts`.
-3. **`reba.ts` TABLE_A snapshot** (mirror A4 strategy): expected +5pp toward 80% per-file.
-4. **Doc**: `MP_OIDC_CLOCK_TOLERANCE_SEC` en `.env.example` + ArrayDeclaration global side-effect en `STRYKER_BASELINE.md`.
-5. **`geminiBackend.ts` split kickoff** (2666 LOC, 18 modules según plan en `ARCHITECTURE.md`): scope discovery agent — inventario solamente, no extract. Bigger chunk para R22.
-6. **AUDIT.md revert pattern note**: documentar como "known harness behaviour" con playbook.
-
-## Round 22+ deferred
-
-- `geminiBackend.ts` split (R22 grande).
-- SOC 2 Type I path kickoff.
-- Marketplace assets (Apple/Google).
-- HR/Mutual/Regulator dashboard differentiator.
-- Real production deploy via Cloud Run (`terraform apply` pendiente del operador).
+- gemini split completion (R23-R26 — 4 rondas restantes per phased plan).
+- SOC 2 Type I path kickoff (compliance/* docs only, sin código).
+- Marketplace assets.
+- HR / Mutual / Regulator dashboard differentiator.
+- Real production deploy vía Cloud Run (`terraform apply` pendiente vos).
 
 ## Por qué importa
 
-R20 cerró cuatro vectores abiertos desde R18-R19 sin tocar la safety-critical surface (IPER/RULA/REBA/PREXOR/TMERT). El cambio más estructural es la ceremonia de registro WebAuthn: el sistema de credenciales passkey vive ahora end-to-end en el backend (issue, store, verify, replay-block, rate-limit), y la única pieza externa es el authenticator del usuario. El `expectedOrigin` boot guard cierra una clase entera de misconfigs silenciosos — el módulo crashea al deploy, no al primer login.
+R21 marca el momento en que `server.ts` se acerca a su forma final como bootstrap-only: 457 LOC, una caída acumulada de **-86%** desde R12 (3242 LOC). Lo que queda son imports, app bootstrap, route mounting y graceful shutdown — la lógica de dominio vive en 14 route modules + 2 trigger modules. La consecuencia operacional es directa: cada nuevo endpoint o trigger entra por una superficie chica y testeable, no por mutación del entrypoint. El handler `SIGTERM` con `unsubscribe()` + `stop()` cierra una clase de bug que en Cloud Run habría manifestado como subscriptions colgadas durante deploys.
 
-El Stryker ratchet a 84.95% global con break 65 da otra vuelta de tuerca al confidence-of-life en safety calcs. Los 275 tests parametricos de `rula.ts` no son coverage cosmético: cada cell de `TABLE_A`/`B`/`C` ejercita una entry específica de la matriz oficial RULA, así que cualquier mutación accidental rompe build. Esa es la garantía que un sistema de prevención de riesgos legítimo necesita — la matriz RULA publicada es law-of-physics, no un parámetro tunable. El swap a `jose.jwtVerify` reduce ~30 LOC de crypto hand-rolled en el path de revenue (MP IPN) por una llamada library-grade; preservar verbatim el reason vocabulary R19 mantuvo los 25 tests existentes intactos.
+La extracción Phase 5 vía `EnterWorktree` validó un patrón operativo. El intento R20 main-tree colgó el watchdog a los 600s; el R21 worktree completó pre-pass en 75s y mergea limpio. Es el primer refactor estructural que probó el isolation pattern, y el trade-off (un nuevo failure mode: orchestrator pwd drift) ya quedó capturado en AUDIT.md y resuelto con disciplina post-worktree.
 
-El cierre del bypass de `geminiLimiter` en `/api/ask-guardian` cierra un cost-control vector real: en SSE streaming de Gemini el budget se gasta por token, así que un user autenticado sin per-uid limiter podía sangrar tokens dentro del cap global. Combinado con WebAuthn 5-layer defense y el jose swap, R20 movió la postura defense-in-depth sin regresiones. El A1 stall en Phase 5 fue el único capítulo no-shipped y A6 prefirió diferirlo a R21 con pre-pass arch sweep — decisión correcta dado que `setupBackgroundTriggers` toca FCM + RAG ingestion y un order-of-init bug ahí se manifiesta como silent data drop.
+`docs/gemini-split-plan.md` es el último gran refactor estructural antes del production deploy. Con `geminiBackend.ts` partido en 18 módulos (R22-R26) y los riesgos de cycle / dynamic-import / IPER doctrine drift mitigados por test antes de cada round, el repo entra a R22 con: (i) entrypoint chico, (ii) Stryker 85.52% global con break 65, (iii) suite vitest cerca de 1800 tests, y (iv) plan operativo para los siguientes cinco rounds. Es la madurez que se necesita antes de `terraform apply`.
 
-## Revert pattern lesson v3
+## Revert pattern lesson v4
 
-La 4ta y 5ta ocurrencia consolidan el patrón como real (no es coincidencia ni caso aislado) y sugiere que el harness tiene una behaviour reproducible bajo ciertas condiciones de carga concurrent-Edit. La mitigación operacional acumulada es:
-
-- `git diff --stat` post-Edit OBLIGATORIO antes de "complete" report en cualquier implementador.
-- NUNCA usar `git stash` — el A3 incident de R20 mostró que el flow funciona pero rompe la regla del harness sobre estado limpio entre rounds.
-- Re-leer archivos críticos (especialmente `package.json`, archivos de configuración, módulos de boot) antes de declarar persistencia.
-- Documentar en `AUDIT.md` con sección "Known harness behaviour" + playbook explícito de mitigación.
-
-A1 Phase 5 stall + revert pattern v3 son las dos lecciones operacionales que R20 deja para R21 — la primera pide pre-pass arquitectónico, la segunda pide nota formal y disciplina de verification-before-completion.
+Worktree isolation (B1) sirvió perfectamente — pero introdujo una nueva clase de error: orchestrator pwd drift. La falsa alarma R21 se atrapó rápido porque el B6 Reviewer corrió `git diff` directo sobre el HEAD verdadero (`123d698`) y vio los 4 commits + las 12 files con +2204 inserciones. Mitigación operativa: el orchestrator SIEMPRE `cd <project-root>` después de que un worktree-isolated agent termina, y antes de cualquier comando de status. El playbook AUDIT.md a extender en R22 con esta lección — la sección "revert pattern" agrega un séptimo paso "post-worktree pwd-reset" sobre los 6 actuales.
