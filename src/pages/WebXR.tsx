@@ -1,370 +1,229 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Camera, AlertTriangle, Thermometer, Lock, Zap, Info, X, Network, Loader2, BookOpen, ShieldAlert } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db } from '../services/firebase';
-import { useProject } from '../contexts/ProjectContext';
-import { NodeType } from '../types';
+// Round 15 / I4 — Capacitación EPP en altura con WebXR / AR.
+//
+// Propósito de seguridad: entrenamiento inmersivo de trabajo en altura
+// (>1.8 m, DS 594 Art. 53). El operario activa la cámara/headset y revisa una
+// checklist de fall-arrest (arnés, anclaje, línea de vida, casco con barbiquejo)
+// con marcadores AR sobre el equipamiento. Al completar, persiste en
+// `safety_trainings/{id}` y emite audit `training.webxr.completed`.
+//
+// La parte técnica de WebXR full (immersive-vr / immersive-ar) queda para
+// Round 16 — esta versión usa getUserMedia + overlays HTML que funciona en
+// cualquier navegador moderno (incluido Cardboard via stereo CSS si fuera
+// necesario más adelante).
+//
+// - Tier: canUseAdvancedAnalytics (Diamante+).
 
-interface ARMarker {
+import React, { useEffect, useRef, useState } from 'react';
+import { Camera, AlertTriangle, CheckCircle2, X, Loader2, ShieldCheck, Award } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { useProject } from '../contexts/ProjectContext';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+import { logAuditAction } from '../services/auditService';
+
+interface ChecklistItem {
   id: string;
+  title: string;
+  description: string;
+  /** % overlay position (relative to camera frame) */
   x: number;
   y: number;
-  type: 'loto' | 'temp' | 'iperc';
-  title: string;
-  value?: string;
-  status?: 'safe' | 'warning' | 'danger';
-  details: string;
 }
 
+const HEIGHT_WORK_CHECKLIST: ChecklistItem[] = [
+  { id: 'harness', title: 'Arnés cuerpo completo',
+    description: 'Verificar fechas de inspección, costuras, hebillas y argollas dorsal/torácica/lateral.',
+    x: 50, y: 50 },
+  { id: 'anchor', title: 'Punto de anclaje 22 kN',
+    description: 'Anclaje certificado para fuerza mínima de detención de 22 kN según NCh 1258.',
+    x: 30, y: 25 },
+  { id: 'lifeline', title: 'Línea de vida + absorbedor',
+    description: 'Línea con absorbedor de energía, longitud máxima que evita golpe contra estructura inferior.',
+    x: 70, y: 30 },
+  { id: 'helmet', title: 'Casco clase E con barbiquejo',
+    description: 'Casco dieléctrico clase E (20 kV) con barbiquejo de 4 puntos para retención en caída.',
+    x: 50, y: 15 },
+];
+
 export default function WebXR() {
+  return (
+    <PremiumFeatureGuard
+      featureName="Capacitación AR — Trabajo en Altura (Diamante+)"
+      feature="canUseAdvancedAnalytics"
+      description="Entrenamiento inmersivo de fall-arrest según DS 594 Art. 53. Marca cada elemento del EPP usando la cámara del dispositivo."
+    >
+      <WebXRInner />
+    </PremiumFeatureGuard>
+  );
+}
+
+function WebXRInner() {
+  const { user } = useFirebase();
+  const { selectedProject } = useProject();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [markers, setMarkers] = useState<ARMarker[]>([]);
-  const [selectedMarker, setSelectedMarker] = useState<ARMarker | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [zkNodes, setZkNodes] = useState<any[]>([]);
-  const [zkLoading, setZkLoading] = useState(false);
-  const [capsules, setCapsules] = useState<any[]>([]);
-  const { selectedProject } = useProject();
+  const [verified, setVerified] = useState<Set<string>>(new Set());
+  const [activeMarker, setActiveMarker] = useState<ChecklistItem | null>(null);
+  const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [trainingId, setTrainingId] = useState<string | null>(null);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-
-    const startCamera = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'environment' } 
-        });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.error("Error accessing camera:", err);
-        setError("No se pudo acceder a la cámara. Verifique los permisos.");
-      }
-    };
-
     if (isScanning) {
-      startCamera();
-      
-      // Simulate detecting markers after a short delay
-      const timer = setTimeout(() => {
-        setMarkers([
-          {
-            id: 'm1',
-            x: 30,
-            y: 40,
-            type: 'loto',
-            title: 'Punto LOTO Principal',
-            status: 'danger',
-            details: 'Válvula de aislamiento de energía principal. Requiere candado rojo y tarjeta de bloqueo antes de intervenir.'
-          },
-          {
-            id: 'm2',
-            x: 70,
-            y: 20,
-            type: 'temp',
-            title: 'Motor de Perforación',
-            value: '85°C',
-            status: 'warning',
-            details: 'Temperatura elevada detectada. Límite operativo: 90°C. Monitoreo continuo requerido.'
-          },
-          {
-            id: 'm3',
-            x: 50,
-            y: 60,
-            type: 'iperc',
-            title: 'IPERC: Atrapamiento',
-            status: 'danger',
-            details: 'Riesgo crítico de atrapamiento por partes móviles. Mantener distancia de seguridad de 2 metros.'
-          }
-        ]);
-      }, 2000);
-
-      return () => clearTimeout(timer);
-    } else {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      setMarkers([]);
-      setSelectedMarker(null);
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(s => { stream = s; if (videoRef.current) videoRef.current.srcObject = s; })
+        .catch(() => setError('No se pudo acceder a la cámara. Verifique los permisos.'));
     }
-
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
+    return () => { stream?.getTracks().forEach(t => t.stop()); };
   }, [isScanning]);
 
-  // Load ZK nodes + wisdom capsules for the selected marker
-  useEffect(() => {
-    if (!selectedMarker || !selectedProject) { setZkNodes([]); setCapsules([]); return; }
-    setZkLoading(true);
-
-    const nodesPromise = getDocs(
-      query(
-        collection(db, 'nodes'),
-        where('projectId', '==', selectedProject.id),
-        where('tags', 'array-contains', selectedMarker.title)
-      )
-    ).then(snap => snap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-    const capsulesPromise = getDocs(
-      query(
-        collection(db, 'wisdomCapsules'),
-        where('projectId', '==', selectedProject.id),
-        where('machineId', '==', selectedMarker.id)
-      )
-    ).then(snap => snap.docs.map(d => ({ id: d.id, ...d.data() }))).catch(() => []);
-
-    Promise.all([nodesPromise, capsulesPromise])
-      .then(([nodes, caps]) => { setZkNodes(nodes); setCapsules(caps); })
-      .catch(() => { setZkNodes([]); setCapsules([]); })
-      .finally(() => setZkLoading(false));
-  }, [selectedMarker, selectedProject]);
-
-  const getMarkerIcon = (type: string) => {
-    switch (type) {
-      case 'loto': return <Lock className="w-6 h-6 text-white" />;
-      case 'temp': return <Thermometer className="w-6 h-6 text-white" />;
-      case 'iperc': return <AlertTriangle className="w-6 h-6 text-white" />;
-      default: return <Info className="w-6 h-6 text-white" />;
-    }
+  const verifyItem = (id: string) => {
+    setVerified(prev => {
+      const n = new Set(prev); n.add(id); return n;
+    });
+    setActiveMarker(null);
   };
 
-  const getStatusColor = (status?: string) => {
-    switch (status) {
-      case 'safe': return 'bg-emerald-500';
-      case 'warning': return 'bg-amber-500';
-      case 'danger': return 'bg-rose-500';
-      default: return 'bg-blue-500';
+  const allVerified = verified.size === HEIGHT_WORK_CHECKLIST.length;
+
+  const completeTraining = async () => {
+    if (!user || !allVerified) return;
+    setSavingState('saving');
+    try {
+      const docRef = await addDoc(collection(db, 'safety_trainings'), {
+        projectId: selectedProject?.id ?? null,
+        traineeUid: user.uid,
+        traineeEmail: user.email,
+        traineeName: user.displayName ?? null,
+        type: 'webxr.height-work',
+        normativa: 'DS 594 Art. 53',
+        verifiedItems: Array.from(verified),
+        completedAt: serverTimestamp(),
+      });
+      setTrainingId(docRef.id);
+      await logAuditAction(
+        'training.webxr.completed',
+        'training',
+        { trainingId: docRef.id, type: 'webxr.height-work', items: verified.size },
+        selectedProject?.id,
+      );
+      setSavingState('saved');
+    } catch (err) {
+      console.error('WebXR training save failed', err);
+      setSavingState('idle');
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Visión Aumentada (WebXR)</h1>
-          <p className="text-gray-500">Escaneo de maquinaria y puntos críticos en tiempo real</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Capacitación AR — Trabajo en Altura</h1>
+          <p className="text-sm text-gray-500">DS 594 Art. 53 · Marca cada elemento de EPP</p>
         </div>
         <button
           onClick={() => setIsScanning(!isScanning)}
-          className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${
-            isScanning 
-              ? 'bg-rose-100 text-rose-700 hover:bg-rose-200' 
-              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+          className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+            isScanning ? 'bg-rose-100 text-rose-700' : 'bg-indigo-600 text-white'
           }`}
         >
           <Camera className="w-5 h-5" />
-          {isScanning ? 'Detener Escaneo' : 'Iniciar Escaneo AR'}
+          {isScanning ? 'Detener' : 'Iniciar AR'}
         </button>
+      </div>
+
+      <div className="flex items-center gap-3 text-xs">
+        <div className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(verified.size / HEIGHT_WORK_CHECKLIST.length) * 100}%` }} />
+        </div>
+        <span className="font-bold text-zinc-600 dark:text-zinc-300">
+          {verified.size}/{HEIGHT_WORK_CHECKLIST.length} verificados
+        </span>
       </div>
 
       {error && (
         <div className="bg-rose-50 border border-rose-200 text-rose-700 p-4 rounded-lg flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5" />
-          <p>{error}</p>
+          <AlertTriangle className="w-5 h-5" /> {error}
         </div>
       )}
 
-      <div className="relative bg-gray-900 rounded-xl overflow-hidden aspect-video shadow-xl border border-gray-800">
+      <div className="relative bg-gray-900 rounded-xl overflow-hidden aspect-video shadow-xl">
         {!isScanning ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
             <Camera className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg">Cámara inactiva</p>
-            <p className="text-sm">Inicie el escaneo para activar la Realidad Aumentada</p>
+            <p>Inicie AR para activar marcadores</p>
           </div>
         ) : (
           <>
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted 
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            
-            {/* AR Overlay Grid */}
-            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30 pointer-events-none" />
-
-            {/* Scanning Animation */}
-            {markers.length === 0 && (
-              <motion.div 
-                className="absolute inset-0 border-b-2 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
-                animate={{ top: ['0%', '100%', '0%'] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-              />
-            )}
-
-            {/* AR Markers */}
+            <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
             <AnimatePresence>
-              {markers.map((marker) => (
-                <motion.div
-                  key={marker.id}
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
-                  style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                  onClick={() => setSelectedMarker(marker)}
-                >
-                  <div className="relative">
-                    {/* Pulse effect */}
-                    <div className={`absolute inset-0 rounded-full animate-ping opacity-75 ${getStatusColor(marker.status)}`} />
-                    
-                    {/* Marker Icon */}
-                    <div className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2 border-white ${getStatusColor(marker.status)}`}>
-                      {getMarkerIcon(marker.type)}
-                    </div>
-                    
-                    {/* Label */}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-gray-900/90 backdrop-blur-sm text-white text-xs font-medium px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
-                      {marker.title}
-                      {marker.value && <span className="ml-1 font-bold">{marker.value}</span>}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+              {HEIGHT_WORK_CHECKLIST.map(item => {
+                const ok = verified.has(item.id);
+                return (
+                  <motion.button
+                    key={item.id}
+                    initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}
+                    onClick={() => setActiveMarker(item)}
+                    style={{ left: `${item.x}%`, top: `${item.y}%` }}
+                    aria-label={`Verificar ${item.title}`}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full flex items-center justify-center border-2 border-white shadow-lg ${
+                      ok ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                    }`}>
+                    {ok ? <CheckCircle2 className="w-6 h-6 text-white" /> : <ShieldCheck className="w-6 h-6 text-white" />}
+                  </motion.button>
+                );
+              })}
             </AnimatePresence>
           </>
         )}
       </div>
 
-      {/* Marker Details Modal */}
       <AnimatePresence>
-        {selectedMarker && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="bg-white rounded-xl shadow-lg border border-gray-200 p-6"
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-3 rounded-lg text-white ${getStatusColor(selectedMarker.status)}`}>
-                  {getMarkerIcon(selectedMarker.type)}
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">{selectedMarker.title}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium text-white ${getStatusColor(selectedMarker.status)}`}>
-                      {selectedMarker.status === 'danger' ? 'Crítico' : selectedMarker.status === 'warning' ? 'Advertencia' : 'Seguro'}
-                    </span>
-                    {selectedMarker.value && (
-                      <span className="text-sm font-medium text-gray-600">
-                        Valor actual: {selectedMarker.value}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <button 
-                onClick={() => setSelectedMarker(null)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
+        {activeMarker && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-gray-200 dark:border-zinc-800 p-6">
+            <div className="flex justify-between items-start mb-3">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">{activeMarker.title}</h3>
+              <button onClick={() => setActiveMarker(null)} aria-label="Cerrar"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-full">
                 <X className="w-5 h-5 text-gray-500" />
               </button>
             </div>
-            
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-              <p className="text-gray-700 leading-relaxed">
-                {selectedMarker.details}
-              </p>
-            </div>
-            
-            {/* Zettelkasten AR Overlay — 3 sections */}
-            <div className="mt-4 border-t border-gray-100 pt-4 space-y-4">
-              {zkLoading && <div className="flex items-center gap-2 text-xs text-gray-400"><Loader2 className="w-3 h-3 animate-spin" /> Cargando Red de Conocimiento...</div>}
-
-              {/* Section 1: Incidents */}
-              {!zkLoading && (() => {
-                const incidents = zkNodes.filter(n => n.type === NodeType.INCIDENT).slice(0, 3);
-                return incidents.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <ShieldAlert className="w-4 h-4 text-rose-500" />
-                      <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Incidentes Recientes</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      {incidents.map(node => (
-                        <div key={node.id} className="flex items-start gap-2 p-2 bg-rose-50 rounded-lg border border-rose-100">
-                          <div className="w-2 h-2 rounded-full bg-rose-400 mt-1.5 shrink-0" />
-                          <div>
-                            <p className="text-xs font-semibold text-rose-800">{node.title}</p>
-                            {node.description && <p className="text-[10px] text-rose-600 mt-0.5 line-clamp-2">{node.description}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
-              {/* Section 2: LOTO / Controls */}
-              {!zkLoading && (() => {
-                const controls = zkNodes.filter(n => n.type === NodeType.CONTROL || (n.tags && n.tags.includes('LOTO'))).slice(0, 3);
-                return controls.length > 0 ? (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Lock className="w-4 h-4 text-amber-500" />
-                      <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Protocolo LOTO / Controles</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      {controls.map(node => (
-                        <div key={node.id} className="flex items-start gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
-                          <div className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-                          <div>
-                            <p className="text-xs font-semibold text-amber-800">{node.title}</p>
-                            {node.description && <p className="text-[10px] text-amber-600 mt-0.5 line-clamp-2">{node.description}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null;
-              })()}
-
-              {/* Section 3: Wisdom Capsules */}
-              {!zkLoading && capsules.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <BookOpen className="w-4 h-4 text-indigo-500" />
-                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Cápsulas de Sabiduría</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    {capsules.slice(0, 3).map(cap => (
-                      <div key={cap.id} className="flex items-start gap-2 p-2 bg-indigo-50 rounded-lg border border-indigo-100">
-                        <div className="w-2 h-2 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
-                        <div>
-                          <p className="text-xs font-semibold text-indigo-800">{cap.title || 'Cápsula'}</p>
-                          {cap.content && <p className="text-[10px] text-indigo-600 mt-0.5 line-clamp-2">{cap.content}</p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Fallback when no data */}
-              {!zkLoading && zkNodes.length === 0 && capsules.length === 0 && (
-                <p className="text-xs text-gray-400">Sin datos registrados para este equipo en la Red de Conocimiento.</p>
-              )}
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button className="px-4 py-2 text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg transition-colors">
-                Ver Historial
-              </button>
-              <button className="px-4 py-2 bg-indigo-600 text-white font-medium hover:bg-indigo-700 rounded-lg transition-colors">
-                Reportar Anomalía
-              </button>
-            </div>
+            <p className="text-sm text-gray-600 dark:text-zinc-400 mb-4">{activeMarker.description}</p>
+            <button onClick={() => verifyItem(activeMarker.id)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Marcar como verificado
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {allVerified && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center gap-3">
+          <Award className="w-6 h-6 text-emerald-500" />
+          <div className="flex-1 min-w-[200px]">
+            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Checklist completa</p>
+            <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+              Registra esta capacitación en tu historial.
+            </p>
+          </div>
+          <button onClick={completeTraining} disabled={savingState !== 'idle'}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50">
+            {savingState === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</> :
+             savingState === 'saved' ? <><CheckCircle2 className="w-4 h-4" /> Capacitación registrada</> :
+             'Registrar capacitación'}
+          </button>
+          {trainingId && (
+            <p className="w-full text-[10px] text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-widest">
+              ID: {trainingId}
+            </p>
+          )}
+        </motion.div>
+      )}
     </div>
   );
 }

@@ -1,196 +1,238 @@
-import React, { useState, useRef, useEffect } from 'react';
+// Round 15 / I4 — Auditoría de iluminación de puestos de trabajo (DS 594 Art. 103).
+//
+// Propósito de seguridad: el DS 594 (Reglamento sobre Condiciones Sanitarias y
+// Ambientales Básicas en los Lugares de Trabajo) establece niveles mínimos de
+// iluminación según el tipo de tarea. Este módulo permite al auditor medir
+// con sensor del teléfono o ingreso manual y validar contra los thresholds.
+//
+// Thresholds resumidos (Tabla 1 DS 594 Art. 103):
+//   • Trabajo de precisión (pequeñas piezas, escritorio):   500 lux
+//   • Trabajo regular (taller, oficinas estándar):          300 lux
+//   • Trabajo basto (bodegas, pasillos amplios):            150 lux
+//   • Pasillos y zonas de tránsito:                          50 lux
+//
+// - Persistencia: lighting_audits/{id} (NUEVA colección — schema documentado abajo).
+// - Audit log: audit.lighting.completed.
+// - Tier: canUseCustomBranding (Diamante+ B2B audit tooling).
+//
+// Schema de lighting_audits (para R6 reviewer / R16 firestore.rules follow-up):
+//   {
+//     id: string,
+//     projectId?: string,
+//     auditorUid: string,
+//     auditorEmail: string | null,
+//     area: string,
+//     taskCategory: 'precision' | 'regular' | 'basto' | 'transito',
+//     measurementsLux: number[],
+//     averageLux: number,
+//     thresholdLux: number,
+//     compliant: boolean,
+//     createdAt: ISO string,
+//     signed: boolean,                  // append-only post-sign (mismo patrón
+//                                       // que ergonomic_assessments).
+//   }
+
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sun, Camera, ShieldAlert, AlertTriangle, CheckCircle2, Info, Loader2, Activity } from 'lucide-react';
+import { Lightbulb, AlertTriangle, CheckCircle2, Plus, Loader2, FileCheck } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../services/firebase';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { useProject } from '../contexts/ProjectContext';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { Card, Button } from '../components/shared/Card';
+import { logAuditAction } from '../services/auditService';
+
+type TaskCat = 'precision' | 'regular' | 'basto' | 'transito';
+
+interface CatMeta { label: string; threshold: number; description: string }
+
+export const TASK_THRESHOLDS: Record<TaskCat, CatMeta> = {
+  precision: { label: 'Precisión', threshold: 500, description: 'Piezas pequeñas, lectura técnica, escritorio.' },
+  regular:   { label: 'Regular',   threshold: 300, description: 'Oficinas, talleres, líneas estándar.' },
+  basto:     { label: 'Basto',     threshold: 150, description: 'Bodegas, pasillos amplios, andenes.' },
+  transito:  { label: 'Tránsito',  threshold: 50,  description: 'Pasillos secundarios, escaleras.' },
+};
+
+/** Pure helper — average of valid lux readings. Returns 0 for empty input. */
+export function averageLux(values: number[]): number {
+  const valid = values.filter(v => Number.isFinite(v) && v >= 0);
+  if (valid.length === 0) return 0;
+  return Math.round(valid.reduce((s, v) => s + v, 0) / valid.length);
+}
+
+/** Pure helper — DS 594 Art. 103 compliance. */
+export function isCompliant(avgLux: number, category: TaskCat): boolean {
+  return avgLux >= TASK_THRESHOLDS[category].threshold;
+}
 
 export function LightPollutionAudit() {
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanComplete, setScanComplete] = useState(false);
-  const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  return (
+    <PremiumFeatureGuard
+      featureName="Auditoría de Iluminación (Diamante+)"
+      feature="canUseCustomBranding"
+      description="Herramienta B2B de auditoría DS 594 Art. 103 — mide y certifica niveles lumínicos en puestos de trabajo."
+    >
+      <LightPollutionAuditInner />
+    </PremiumFeatureGuard>
+  );
+}
 
-  useEffect(() => {
-    // Simulate accessing the camera
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(stream => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            setCameraPermissionDenied(false);
-          }
-        })
-        .catch(err => {
-          console.error("Error accessing camera:", err);
-          setCameraPermissionDenied(true);
-        });
-    } else {
-      setCameraPermissionDenied(true);
+function LightPollutionAuditInner() {
+  const { user } = useFirebase();
+  const { selectedProject } = useProject();
+  const [area, setArea] = useState('');
+  const [category, setCategory] = useState<TaskCat>('regular');
+  const [readings, setReadings] = useState<number[]>([]);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+
+  const meta = TASK_THRESHOLDS[category];
+  const avg = averageLux(readings);
+  const compliant = readings.length > 0 && isCompliant(avg, category);
+
+  const addReading = () => {
+    const n = Number(draft);
+    if (!Number.isFinite(n) || n < 0) return;
+    setReadings(prev => [...prev, Math.round(n)]);
+    setDraft('');
+  };
+
+  const reset = () => {
+    setReadings([]); setDraft(''); setSavedId(null);
+  };
+
+  const save = async () => {
+    if (!user || readings.length === 0 || !area.trim()) return;
+    setSaving(true);
+    try {
+      const docRef = await addDoc(collection(db, 'lighting_audits'), {
+        projectId: selectedProject?.id ?? null,
+        auditorUid: user.uid,
+        auditorEmail: user.email,
+        area: area.trim(),
+        taskCategory: category,
+        measurementsLux: readings,
+        averageLux: avg,
+        thresholdLux: meta.threshold,
+        compliant,
+        signed: false,
+        createdAt: serverTimestamp(),
+      });
+      await logAuditAction(
+        'audit.lighting.completed',
+        'audit',
+        {
+          auditId: docRef.id,
+          area: area.trim(),
+          category,
+          averageLux: avg,
+          thresholdLux: meta.threshold,
+          compliant,
+          measurements: readings.length,
+        },
+        selectedProject?.id,
+      );
+      setSavedId(docRef.id);
+    } catch (err) {
+      console.error('LightPollutionAudit save failed', err);
+    } finally {
+      setSaving(false);
     }
-    
-    return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  const handleScan = () => {
-    setIsScanning(true);
-    setScanComplete(false);
-
-    // Simulate Vision AI processing
-    setTimeout(() => {
-      setIsScanning(false);
-      setScanComplete(true);
-    }, 3000);
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
-            <Sun className="w-8 h-8 text-amber-500" />
-            Auditoría Lumínica (DS 43)
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
+            <Lightbulb className="w-7 h-7 text-amber-400" /> Auditoría de Iluminación
           </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Visión Computacional para Cumplimiento Ambiental
-          </p>
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">DS 594 Art. 103</p>
         </div>
-        <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-amber-500 bg-amber-500/10 border-amber-500/20">
-          <ShieldAlert className="w-5 h-5" />
-          <span className="font-bold uppercase tracking-wider text-sm">
-            Fiscalización IA
-          </span>
+        <div className={`px-4 py-2 rounded-xl border font-bold uppercase text-xs tracking-widest flex items-center gap-2 ${
+          readings.length === 0 ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400' :
+          compliant ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                      'bg-rose-500/10 border-rose-500/20 text-rose-400'
+        }`}>
+          {readings.length === 0 ? 'Sin mediciones' : compliant ? 'Cumple' : 'No cumple'}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Camera View */}
-        <Card className="p-0 border-white/5 overflow-hidden relative min-h-[400px] bg-black flex items-center justify-center">
-          {cameraPermissionDenied ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 p-6 text-center z-20 bg-zinc-900">
-              <AlertTriangle className="w-16 h-16 mb-4 text-amber-500 opacity-80" />
-              <p className="text-sm font-bold uppercase tracking-widest text-white mb-2">Acceso a Cámara Denegado</p>
-              <p className="text-xs text-zinc-400 max-w-md">
-                El sistema no puede acceder a la cámara. Para utilizar la Auditoría Lumínica, por favor permite el acceso a la cámara en la configuración de tu navegador y recarga la página.
-              </p>
+      <Card className="p-6 space-y-4 border-white/5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Área auditada</label>
+            <input value={area} onChange={e => setArea(e.target.value)}
+              placeholder="Ej: Bodega A — pasillo central"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Categoría de tarea</label>
+            <select value={category} onChange={e => setCategory(e.target.value as TaskCat)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500">
+              {(Object.keys(TASK_THRESHOLDS) as TaskCat[]).map(k => (
+                <option key={k} value={k}>{TASK_THRESHOLDS[k].label} (≥{TASK_THRESHOLDS[k].threshold} lux)</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-zinc-500 mt-1">{meta.description}</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <input type="number" value={draft} onChange={e => setDraft(e.target.value)} min={0}
+            placeholder="Lectura en lux (sensor o luxómetro)"
+            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
+            onKeyDown={e => { if (e.key === 'Enter') addReading(); }} />
+          <Button onClick={addReading} disabled={!draft}><Plus className="w-4 h-4 mr-1" /> Agregar</Button>
+        </div>
+
+        {readings.length > 0 && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="Mediciones" value={readings.length} cls="text-zinc-300" />
+              <Stat label="Promedio" value={`${avg} lux`} cls="text-amber-400" />
+              <Stat label="Umbral" value={`${meta.threshold} lux`} cls="text-zinc-500" />
             </div>
-          ) : (
-            <>
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                className="absolute inset-0 w-full h-full object-cover opacity-60"
-              />
-              
-              {/* Simulated AR Overlay */}
-              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                <div className={`w-64 h-64 border-2 border-dashed rounded-3xl transition-colors duration-500 ${isScanning ? 'border-amber-500' : scanComplete ? 'border-rose-500' : 'border-white/30'}`}>
-                  {isScanning && (
-                    <motion.div 
-                      className="w-full h-1 bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.8)]"
-                      animate={{ y: [0, 256, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="absolute bottom-6 left-0 right-0 flex justify-center z-10">
-                <Button 
-                  onClick={handleScan} 
-                  disabled={isScanning}
-                  className="px-8 py-4 rounded-full shadow-2xl"
-                >
-                  {isScanning ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                      Analizando Espectro...
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-5 h-5 mr-2" />
-                      Escanear Torre de Iluminación
-                    </>
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
-        </Card>
-
-        {/* Results Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            Resultados del Análisis
-          </h2>
-
-          {!scanComplete && !isScanning && (
-            <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
-              <Sun className="w-10 h-10 text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-500 max-w-xs">Apunta la cámara hacia la fuente de luz para evaluar su cumplimiento con la norma DS 43.</p>
+            <div className="flex flex-wrap gap-1">
+              {readings.map((r, i) => (
+                <span key={i} className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                  r >= meta.threshold ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-rose-500/30 text-rose-400 bg-rose-500/10'
+                }`}>{r} lux</span>
+              ))}
             </div>
-          )}
-
-          {isScanning && (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-              >
-                <Activity className="w-16 h-16 text-amber-500 mb-4" />
-              </motion.div>
-              <p className="text-sm font-bold text-amber-400 animate-pulse">Calculando ángulo de inclinación y temperatura de color...</p>
-            </div>
-          )}
-
-          {scanComplete && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-6"
-            >
-              <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-start gap-3">
-                <AlertTriangle className="w-6 h-6 text-rose-500 shrink-0" />
-                <div>
-                  <h3 className="text-sm font-bold text-rose-400">Incumplimiento Detectado (DS 43)</h3>
-                  <p className="text-xs text-rose-500/70">La luminaria excede los límites permitidos para zonas astronómicas.</p>
-                </div>
+            {!compliant && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>Promedio ({avg} lux) por debajo del mínimo DS 594 Art. 103 ({meta.threshold} lux). Recomendación: aumentar densidad de luminarias o cambiar a tecnología LED de mayor flujo lumínico.</span>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Ángulo de Inclinación</p>
-                  <p className="text-2xl font-black text-rose-500">15°</p>
-                  <p className="text-xs text-zinc-500 mt-1">Límite: 0° (Horizontal)</p>
-                </div>
-                <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Temperatura Color</p>
-                  <p className="text-2xl font-black text-amber-500">4000K</p>
-                  <p className="text-xs text-zinc-500 mt-1">Límite: 3000K</p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Acción Correctiva Recomendada</p>
-                <p className="text-sm text-zinc-300">
-                  Ajustar la carcasa de la luminaria para que el cristal quede paralelo al suelo (0°). Reemplazar la ampolleta por una de luz cálida (≤ 3000K) o instalar filtro ámbar.
-                </p>
-              </div>
-
-              <Button className="w-full" variant="danger">
-                Generar Reporte de Infracción
+            )}
+            <div className="flex gap-2">
+              <Button onClick={save} disabled={saving || !area.trim() || !!savedId}>
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando…</> :
+                 savedId ? <><CheckCircle2 className="w-4 h-4 mr-2" />Auditoría guardada</> :
+                 <><FileCheck className="w-4 h-4 mr-2" />Cerrar auditoría</>}
               </Button>
-            </motion.div>
-          )}
-        </Card>
-      </div>
+              <Button variant="secondary" onClick={reset}>Nueva auditoría</Button>
+            </div>
+            {savedId && (
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest">ID: {savedId}</p>
+            )}
+          </motion.div>
+        )}
+      </Card>
     </div>
   );
 }
+
+function Stat({ label, value, cls }: { label: string; value: React.ReactNode; cls: string }) {
+  return (
+    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5 text-center">
+      <p className={`text-xl font-black ${cls}`}>{value}</p>
+      <p className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</p>
+    </div>
+  );
+}
+
+export default LightPollutionAudit;
