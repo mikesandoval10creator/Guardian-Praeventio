@@ -557,6 +557,431 @@ describe('twist and side-bend are independent (+1 each)', () => {
   });
 });
 
+// ===========================================================================
+// R21 — Parametric snapshot tests of TABLE_A / TABLE_B / TABLE_C (REBA)
+//
+// Mirror del A4 R20 sobre rula.ts. Los valores expected son verbatim del
+// Hignett & McAtamney 2000 worksheet (las 3 lookup tables canónicas que
+// también están reproducidas en reba.ts). Cualquier mutación que altere
+// una celda individual hace fallar al menos un test parametrico.
+//
+// Para evitar interacción con load/coupling/activity, los inputs del
+// bloque TABLE_A fijan load=0 + coupling=good ⇒ scoreA = tableA,
+// scoreB = tableB. Para TABLE_C se busca un par (A, B) input tal que
+// los valores de tableA y tableB lleguen al índice deseado tras sumar
+// load/coupling según el caso.
+// ===========================================================================
+
+// --- Expected canonical tables (Hignett 2000 worksheet, verbatim) ---------
+
+// TABLE_A_EXPECTED[trunk-1][neck-1][legs-1] — trunk 1-5, neck 1-3, legs 1-4
+const TABLE_A_EXPECTED: readonly (readonly (readonly number[])[])[] = [
+  // trunk = 1
+  [
+    [1, 2, 3, 4],
+    [1, 2, 3, 4],
+    [3, 3, 5, 6],
+  ],
+  // trunk = 2
+  [
+    [2, 3, 4, 5],
+    [3, 4, 5, 6],
+    [4, 5, 6, 7],
+  ],
+  // trunk = 3
+  [
+    [2, 4, 5, 6],
+    [4, 5, 6, 7],
+    [5, 6, 7, 8],
+  ],
+  // trunk = 4
+  [
+    [3, 5, 6, 7],
+    [5, 6, 7, 8],
+    [6, 7, 8, 9],
+  ],
+  // trunk = 5
+  [
+    [4, 6, 7, 8],
+    [6, 7, 8, 9],
+    [7, 8, 9, 9],
+  ],
+];
+
+// TABLE_B_EXPECTED[upperArm-1][lowerArm-1][wrist-1] — UA 1-6, LA 1-2, wrist 1-3
+const TABLE_B_EXPECTED: readonly (readonly (readonly number[])[])[] = [
+  // upperArm = 1
+  [
+    [1, 2, 2],
+    [1, 2, 3],
+  ],
+  // upperArm = 2
+  [
+    [1, 2, 3],
+    [2, 3, 4],
+  ],
+  // upperArm = 3
+  [
+    [3, 4, 5],
+    [4, 5, 5],
+  ],
+  // upperArm = 4
+  [
+    [4, 5, 5],
+    [5, 6, 7],
+  ],
+  // upperArm = 5
+  [
+    [6, 7, 8],
+    [7, 8, 8],
+  ],
+  // upperArm = 6
+  [
+    [7, 8, 8],
+    [8, 9, 9],
+  ],
+];
+
+// TABLE_C_EXPECTED[A-1][B-1] — A 1-12, B 1-12
+const TABLE_C_EXPECTED: readonly (readonly number[])[] = [
+  [1, 1, 1, 2, 3, 3, 4, 5, 6, 7, 7, 7],
+  [1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 7, 8],
+  [2, 3, 3, 3, 4, 5, 6, 7, 7, 8, 8, 8],
+  [3, 4, 4, 4, 5, 6, 7, 8, 8, 9, 9, 9],
+  [4, 4, 4, 5, 6, 7, 8, 8, 9, 9, 9, 9],
+  [6, 6, 6, 7, 8, 8, 9, 9, 10, 10, 10, 10],
+  [7, 7, 7, 8, 9, 9, 9, 10, 10, 11, 11, 11],
+  [8, 8, 8, 9, 10, 10, 10, 10, 10, 11, 11, 11],
+  [9, 9, 9, 10, 10, 10, 11, 11, 11, 12, 12, 12],
+  [10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12, 12],
+  [11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12],
+  [12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12],
+];
+
+// --- Input drivers --------------------------------------------------------
+
+/** Drive trunkScore to target (1-5). */
+function driveTrunk(target: number): RebaInput['trunk'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0 };                               // abs===0 → 1
+    case 2: return { flexionDeg: 1 };                               // 0<flex<=20 → 2
+    case 3: return { flexionDeg: 21 };                              // 20<flex<=60 → 3
+    case 4: return { flexionDeg: 61 };                              // >60 → 4
+    case 5: return { flexionDeg: 61, twisted: true };               // 4 + 1 = 5
+    default: throw new Error(`driveTrunk: target ${target} out of range`);
+  }
+}
+
+/** Drive neckScore to target (1-3). */
+function driveNeck(target: number): RebaInput['neck'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0 };                               // 0..20 → 1
+    case 2: return { flexionDeg: 25 };                              // >20 → 2
+    case 3: return { flexionDeg: 25, twisted: true };               // 2 + 1 = 3
+    default: throw new Error(`driveNeck: target ${target} out of range`);
+  }
+}
+
+/** Drive legsScore to target (1-4). */
+function driveLegs(target: number): RebaInput['legs'] {
+  switch (target) {
+    case 1: return { bilateralSupport: true, kneeFlexionDeg: 0 };           // 1
+    case 2: return { bilateralSupport: false, kneeFlexionDeg: 0 };          // 2
+    case 3: return { bilateralSupport: false, kneeFlexionDeg: 30 };         // 2+1 = 3
+    case 4: return { bilateralSupport: false, kneeFlexionDeg: 70 };         // 2+2 = 4
+    default: throw new Error(`driveLegs: target ${target} out of range`);
+  }
+}
+
+/** Drive upperArmScore to target (1-6). */
+function driveUpperArm(target: number): RebaInput['upperArm'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0 };                                                  // [-20,20] → 1
+    case 2: return { flexionDeg: 30 };                                                 // (20,45] → 2
+    case 3: return { flexionDeg: 60 };                                                 // (45,90] → 3
+    case 4: return { flexionDeg: 100 };                                                // >90 → 4
+    case 5: return { flexionDeg: 100, shoulderRaised: true };                          // 4+1 = 5
+    case 6: return { flexionDeg: 100, shoulderRaised: true, abducted: true };          // 4+1+1 = 6
+    default: throw new Error(`driveUpperArm: target ${target} out of range`);
+  }
+}
+
+/** Drive lowerArmScore to target (1-2). */
+function driveLowerArm(target: number): RebaInput['lowerArm'] {
+  switch (target) {
+    case 1: return { flexionDeg: 70 };  // 60..100 → 1
+    case 2: return { flexionDeg: 50 };  // <60 → 2
+    default: throw new Error(`driveLowerArm: target ${target} out of range`);
+  }
+}
+
+/** Drive wristScore to target (1-3). */
+function driveWrist(target: number): RebaInput['wrist'] {
+  switch (target) {
+    case 1: return { flexionDeg: 0 };                              // |f|<=15 → 1
+    case 2: return { flexionDeg: 16 };                             // |f|>15 → 2
+    case 3: return { flexionDeg: 16, twistedOrDeviated: true };    // 2+1 = 3
+    default: throw new Error(`driveWrist: target ${target} out of range`);
+  }
+}
+
+/**
+ * Build a RebaInput pinned to (trunk, neck, legs). Group B kept neutral so
+ * tableB=1 and scoreB=1, and load=0/coupling=good so scoreA = TABLE_A cell.
+ */
+function inputForA(trunk: number, neck: number, legs: number): RebaInput {
+  return {
+    trunk: driveTrunk(trunk),
+    neck: driveNeck(neck),
+    legs: driveLegs(legs),
+    upperArm: { flexionDeg: 0 },
+    lowerArm: { flexionDeg: 70 },
+    wrist: { flexionDeg: 0 },
+    load: { kg: 0 },
+    coupling: 'good',
+    activity: {},
+  };
+}
+
+/**
+ * Build a RebaInput pinned to (upperArm, lowerArm, wrist). Group A kept
+ * neutral so tableA=1, load=0 ⇒ scoreA=1; coupling=good ⇒ scoreB = tableB.
+ */
+function inputForB(upperArm: number, lowerArm: number, wrist: number): RebaInput {
+  return {
+    trunk: { flexionDeg: 0 },
+    neck: { flexionDeg: 0 },
+    legs: { bilateralSupport: true, kneeFlexionDeg: 0 },
+    upperArm: driveUpperArm(upperArm),
+    lowerArm: driveLowerArm(lowerArm),
+    wrist: driveWrist(wrist),
+    load: { kg: 0 },
+    coupling: 'good',
+    activity: {},
+  };
+}
+
+// --- TABLE_A parametric tests --------------------------------------------
+
+const tableACells: Array<[string, RebaInput, number]> = [];
+for (let trunk = 1; trunk <= 5; trunk++) {
+  for (let neck = 1; neck <= 3; neck++) {
+    for (let legs = 1; legs <= 4; legs++) {
+      const expected = TABLE_A_EXPECTED[trunk - 1]![neck - 1]![legs - 1]!;
+      tableACells.push([
+        `TABLE_A[trunk=${trunk}][neck=${neck}][legs=${legs}] = ${expected}`,
+        inputForA(trunk, neck, legs),
+        expected,
+      ]);
+    }
+  }
+}
+
+describe('REBA — TABLE_A canonical cell snapshots (R21)', () => {
+  it.each(tableACells)('%s', (_label, input, expected) => {
+    const r = calculateReba(input);
+    // load=0 ⇒ scoreA === tableA
+    expect(r.scoreA).toBe(expected);
+  });
+});
+
+// --- TABLE_B parametric tests --------------------------------------------
+
+const tableBCells: Array<[string, RebaInput, number]> = [];
+for (let ua = 1; ua <= 6; ua++) {
+  for (let la = 1; la <= 2; la++) {
+    for (let wr = 1; wr <= 3; wr++) {
+      const expected = TABLE_B_EXPECTED[ua - 1]![la - 1]![wr - 1]!;
+      tableBCells.push([
+        `TABLE_B[upperArm=${ua}][lowerArm=${la}][wrist=${wr}] = ${expected}`,
+        inputForB(ua, la, wr),
+        expected,
+      ]);
+    }
+  }
+}
+
+describe('REBA — TABLE_B canonical cell snapshots (R21)', () => {
+  it.each(tableBCells)('%s', (_label, input, expected) => {
+    const r = calculateReba(input);
+    // coupling=good ⇒ scoreB === tableB
+    expect(r.scoreB).toBe(expected);
+  });
+});
+
+// --- TABLE_C parametric tests --------------------------------------------
+//
+// TABLE_C is indexed by (scoreA, scoreB) ∈ [1..12] × [1..12]. To exercise
+// cell (a, b) directly we set load=0 and coupling=good, then find a
+// TABLE_A cell whose value equals a and a TABLE_B cell whose value equals b.
+// scoreA range from TABLE_A is 1..9 and from load 0..3 ⇒ up to 12.
+// scoreB range from TABLE_B is 1..9 and from coupling 0..3 ⇒ up to 12.
+//
+// For values 1..9 we can hit the cell directly via TABLE_A/B (no load/coupling).
+// For values 10..12 we need to compose: TABLE_A=9 + load 1..3, or
+// TABLE_B=9 + coupling 1..3 (poor=2, unacceptable=3, plus shock for load).
+
+interface ABuild {
+  trunk: number;
+  neck: number;
+  legs: number;
+  load: RebaInput['load'];
+}
+interface BBuild {
+  upperArm: number;
+  lowerArm: number;
+  wrist: number;
+  coupling: RebaInput['coupling'];
+}
+
+function findATableForScoreA(target: number): ABuild {
+  // First try direct (load=0, tableA = target). Range tableA: 1..9.
+  if (target >= 1 && target <= 9) {
+    for (let t = 1; t <= 5; t++) {
+      for (let n = 1; n <= 3; n++) {
+        for (let l = 1; l <= 4; l++) {
+          if (TABLE_A_EXPECTED[t - 1]![n - 1]![l - 1] === target) {
+            return { trunk: t, neck: n, legs: l, load: { kg: 0 } };
+          }
+        }
+      }
+    }
+  }
+  // 10..12 → tableA=9 + extra load. load: 1 (5-10kg), 2 (>10), +1 shock.
+  // 9 + 1 (5kg) = 10; 9 + 2 (12kg) = 11; 9 + 3 (12kg + shock) = 12.
+  if (target === 10) {
+    return findCellWithLoad(9, { kg: 6 });
+  }
+  if (target === 11) {
+    return findCellWithLoad(9, { kg: 12 });
+  }
+  if (target === 12) {
+    return findCellWithLoad(9, { kg: 12, shockOrRapid: true });
+  }
+  throw new Error(`findATableForScoreA: target ${target} out of range`);
+}
+
+function findCellWithLoad(tableAValue: number, load: RebaInput['load']): ABuild {
+  for (let t = 1; t <= 5; t++) {
+    for (let n = 1; n <= 3; n++) {
+      for (let l = 1; l <= 4; l++) {
+        if (TABLE_A_EXPECTED[t - 1]![n - 1]![l - 1] === tableAValue) {
+          return { trunk: t, neck: n, legs: l, load };
+        }
+      }
+    }
+  }
+  throw new Error(`No TABLE_A cell with value ${tableAValue}`);
+}
+
+function findBTableForScoreB(target: number): BBuild {
+  if (target >= 1 && target <= 9) {
+    for (let u = 1; u <= 6; u++) {
+      for (let la = 1; la <= 2; la++) {
+        for (let w = 1; w <= 3; w++) {
+          if (TABLE_B_EXPECTED[u - 1]![la - 1]![w - 1] === target) {
+            return { upperArm: u, lowerArm: la, wrist: w, coupling: 'good' };
+          }
+        }
+      }
+    }
+  }
+  // 10..12 → tableB=9 + extra coupling. fair=1, poor=2, unacceptable=3.
+  if (target === 10) {
+    return findBCellWithCoupling(9, 'fair');
+  }
+  if (target === 11) {
+    return findBCellWithCoupling(9, 'poor');
+  }
+  if (target === 12) {
+    return findBCellWithCoupling(9, 'unacceptable');
+  }
+  throw new Error(`findBTableForScoreB: target ${target} out of range`);
+}
+
+function findBCellWithCoupling(tableBValue: number, coupling: RebaInput['coupling']): BBuild {
+  for (let u = 1; u <= 6; u++) {
+    for (let la = 1; la <= 2; la++) {
+      for (let w = 1; w <= 3; w++) {
+        if (TABLE_B_EXPECTED[u - 1]![la - 1]![w - 1] === tableBValue) {
+          return { upperArm: u, lowerArm: la, wrist: w, coupling };
+        }
+      }
+    }
+  }
+  throw new Error(`No TABLE_B cell with value ${tableBValue}`);
+}
+
+function inputForC(a: number, b: number): RebaInput {
+  const aBuild = findATableForScoreA(a);
+  const bBuild = findBTableForScoreB(b);
+  return {
+    trunk: driveTrunk(aBuild.trunk),
+    neck: driveNeck(aBuild.neck),
+    legs: driveLegs(aBuild.legs),
+    upperArm: driveUpperArm(bBuild.upperArm),
+    lowerArm: driveLowerArm(bBuild.lowerArm),
+    wrist: driveWrist(bBuild.wrist),
+    load: aBuild.load,
+    coupling: bBuild.coupling,
+    activity: {},
+  };
+}
+
+const tableCCells: Array<[string, RebaInput, number, number, number]> = [];
+for (let a = 1; a <= 12; a++) {
+  for (let b = 1; b <= 12; b++) {
+    const expected = TABLE_C_EXPECTED[a - 1]![b - 1]!;
+    tableCCells.push([
+      `TABLE_C[A=${a}][B=${b}] = ${expected}`,
+      inputForC(a, b),
+      a,
+      b,
+      expected,
+    ]);
+  }
+}
+
+describe('REBA — TABLE_C canonical cell snapshots (R21)', () => {
+  // Assert scoreA, scoreB and scoreC together so any mutation in TABLE_C
+  // OR in the A/B aggregation triggers a kill.
+  it.each(tableCCells)('%s', (_label, input, a, b, expected) => {
+    const r = calculateReba(input);
+    expect(r.scoreA).toBe(a);
+    expect(r.scoreB).toBe(b);
+    expect(r.scoreC).toBe(expected);
+  });
+});
+
+// --- Identity check: TABLE_A / TABLE_B / TABLE_C structural snapshot -----
+
+describe('REBA — canonical table structural identity (R21)', () => {
+  it('TABLE_A_EXPECTED is the canonical 5×3×4 lookup (Hignett 2000)', () => {
+    expect(TABLE_A_EXPECTED).toHaveLength(5);
+    for (const tr of TABLE_A_EXPECTED) {
+      expect(tr).toHaveLength(3);
+      for (const nk of tr) {
+        expect(nk).toHaveLength(4);
+      }
+    }
+  });
+  it('TABLE_B_EXPECTED is the canonical 6×2×3 lookup', () => {
+    expect(TABLE_B_EXPECTED).toHaveLength(6);
+    for (const ua of TABLE_B_EXPECTED) {
+      expect(ua).toHaveLength(2);
+      for (const la of ua) {
+        expect(la).toHaveLength(3);
+      }
+    }
+  });
+  it('TABLE_C_EXPECTED is the canonical 12×12 lookup', () => {
+    expect(TABLE_C_EXPECTED).toHaveLength(12);
+    for (const a of TABLE_C_EXPECTED) {
+      expect(a).toHaveLength(12);
+    }
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────
 // 14. Final-score is always 1..15 and result has all required fields
 // ─────────────────────────────────────────────────────────────────────

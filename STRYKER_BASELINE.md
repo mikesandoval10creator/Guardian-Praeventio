@@ -566,3 +566,186 @@ Mantener `high: 80, low: 60`.
   threshold 60` (verde con threshold antiguo). Tras el bump 60 → 65:
   todavía verde con buffer de 19.95 pp global y 10.81 pp en lowest.
   Reporte HTML en `reports/mutation/mutation.html`.
+
+### Nota R21 B5 — `ArrayDeclaration` global side-effect (R20 A4)
+
+La exclusión `mutator.excludedMutations: ['ArrayDeclaration']` que se
+añadió en R20 A4 es **global** porque Stryker schema 9.6.1 no soporta
+`excludedMutations` por archivo: el array `mutate` acepta sólo strings
+(globs de path), y el descriptor `mutator.excludedMutations` se aplica a
+todos los archivos bajo mutación. Consecuencias documentadas:
+
+- **Origen de la exclusión:** las 144 + 72 + 56 celdas canónicas de
+  `TABLE_A/B/C` en `rula.ts` (verbatim McAtamney 1993). Los mutantes
+  `[1,2,3] → []` no representan defectos accionables — los tests
+  parametricos por celda los matarían vía índice fuera de rango, pero
+  inflan el runtime sin valor de regresión real.
+- **Side-effect en `reba.ts`:** este archivo también tiene tablas
+  canónicas (Hignett & McAtamney 2000) con el mismo patrón
+  `ArrayDeclaration`. La exclusión global aplica también ahí — y aunque
+  el efecto no se planeó explícitamente, es **benéfico** porque alinea
+  con el deferral R19 #4 ("evaluar `excludedMutations` para tablas
+  canónicas en R20+").
+- **Cualquier otro archivo bajo `mutate`** que use literales array
+  (eg. defaults, lookup constants) también pierde la cobertura
+  `ArrayDeclaration`. En la lista actual (`iper.ts`, `tmert.ts`,
+  `prexor.ts`, ambos `*Assessments.ts`) el impacto es marginal: los
+  small Δ negativos R19→R20 (`-0.22`, `-0.22`, `-0.08`) reflejan
+  exactamente esto y son aceptables.
+- **Mitigación R21 B2:** cuando `reba.ts` reciba el mismo tratamiento
+  parametric-snapshot que `rula.ts` (deferral activo), la exclusión
+  global pasa a ser **moot** — los tests parametricos cubren cada
+  celda individualmente y los mutantes `ArrayDeclaration` que sigan
+  surviendo (si la exclusión se quita) caerían bajo la misma regla
+  "canónico, no accionable". Mantener la exclusión es la opción
+  conservadora.
+- **Future work:** si Stryker schema gana soporte per-file (issue
+  upstream rastreable), narrow la exclusión a algo como:
+  ```jsonc
+  "mutate": {
+    "src/services/ergonomics/rula.ts": { "excludedMutations": ["ArrayDeclaration"] },
+    "src/services/ergonomics/reba.ts": { "excludedMutations": ["ArrayDeclaration"] }
+  }
+  ```
+  Esto recuperaría la cobertura `ArrayDeclaration` en `iper.ts`,
+  `tmert.ts`, `prexor.ts`, y los `*Assessments.ts` sin regresar al
+  problema original.
+
+---
+
+## R21 Ratchet — 2026-04-28 (B2)
+
+**HEAD evaluado:** `377150a` + R21 B2 test additions (no commit local).
+**Duración del run:** **3 min 1 s** (vs. 3 min 50 s en R20 — el `mutator.excludedMutations: ['ArrayDeclaration']` global mantiene el set instrumentado en ~1031 mutantes; el aumento de tests por mutante a 18.73 indica suite más densa).
+**Tests cubiertos en initial run:** 1705 passing | 66 skipped (1771 total) en 84 archivos — el suite global subió de 1443 → 1705 tras los 243 tests parametricos extra para REBA.
+
+### Estrategia R21: TABLE_A/B/C parametric snapshot en reba.ts
+
+R20 dejó `reba.ts` en **75.81%** como nuevo lowest tras el salto de
+`rula.ts` a 94.22%. Los 67 survivors de `reba.ts` se distribuían entre
+celdas canónicas de `TABLE_A/B/C` y boundary checks. R21 mirror el A4
+R20 sobre `reba.ts`:
+
+1. **`src/services/ergonomics/reba.test.ts`** — añadidos **243 tests
+   parametricos** (`it.each`) sobre 3 nuevos `describe` blocks (R21)
+   más 3 structural identity:
+   - **TABLE_A**: 5 (trunk) × 3 (neck) × 4 (legs) = **60 cells**, cada
+     test conduce inputs (`driveTrunk`, `driveNeck`, `driveLegs`) a la
+     celda objetivo con load=0/coupling=good ⇒ `r.scoreA = expected`.
+   - **TABLE_B**: 6 (upperArm) × 2 (lowerArm) × 3 (wrist) = **36 cells**,
+     mismo patrón con `r.scoreB`.
+   - **TABLE_C**: 12 (A) × 12 (B) = **144 cells**, busca un (trunk, neck,
+     legs) tal que `tableA = a` (con load opcional 1..3 para a∈[10,12])
+     y un (upperArm, lowerArm, wrist) tal que `tableB = b` (con coupling
+     fair/poor/unacceptable para b∈[10,12]). Asserta scoreA, scoreB, scoreC.
+   - **3 structural tests** verifican dimensiones de los `TABLE_*_EXPECTED`
+     declarados en el test (canonicidad Hignett 2000).
+   - Total nuevos: **243 tests** (reba 51 → 294); duración reba.test.ts
+     ~553 ms (parametricos rápidos por re-uso del calculator).
+
+### Resultados por archivo (R21)
+
+| Archivo | R19 | R20 | R21 | Δ R20→R21 | # killed | # survived | # no-cov |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `services/protocols/iper.ts` | 89.58 | 89.36 | **89.36** | 0.00 | 42 | 5 | 0 |
+| `services/protocols/tmert.ts` | 85.29 | 85.07 | **85.07** | 0.00 | 57 | 10 | 0 |
+| `services/protocols/prexor.ts` | 81.71 | 81.71 | **81.71** | 0.00 | 67 | 15 | 0 |
+| `services/ergonomics/reba.ts` | 75.07 | 75.81 | **77.74** | **+1.93** | 241 | 61 | 8 |
+| `services/ergonomics/rula.ts` | 65.78 | 94.22 | **94.22** | 0.00 | 212 | 13 | 0 |
+| `services/safety/iperAssessments.ts` | 87.50 | 87.50 | **87.50** | 0.00 | 140 | 18 | 2 |
+| `services/safety/ergonomicAssessments.ts` | 87.58 | 87.50 | **87.50** | 0.00 | 133 | 17 | 2 |
+| **All files** | **76.95** | **84.95** | **85.52** | **+0.57** | **892** | **139** | **12** |
+
+Subtotales por carpeta:
+- `protocols/`: 84.69% → **84.69%** (sin cambios — fuera de scope R21).
+- `ergonomics/`: 83.55% → **84.67%** (+1.12 pp; reba.ts mejora marginal,
+  rula.ts inalterado).
+- `safety/`: 87.50% → **87.50%** (sin cambios — fuera de scope R21).
+
+### reba.ts: 75.81 → 77.74 (+1.93 pp) — short of ≥80% target
+
+Killed: 235 → 241 (+6); survivors: 67 → 61 (-6). El delta es **menor
+al esperado** porque los survivors restantes de R20 ya estaban
+concentrados en *boundary checks* (no en celdas de tabla canónica), y
+la exclusión global de `ArrayDeclaration` (R20 A4) previno killing
+adicional de los mutantes que **estaban suprimidos por diseño**. Los
+243 tests parametricos cubren las identidades por celda
+(`TABLE_A/B/C`) pero los mutantes survivors restantes son:
+
+- **EqualityOperator/RelationalOperator** en `trunkScore`/`neckScore`
+  boundaries (eg. `flex >= 0 && flex <= 20` → `flex > 0 ...`,
+  `flex < 0 && abs <= 20` → `flex < 0 && abs < 20`). Los tests
+  parametricos de `TABLE_A` no exploran exactamente estos límites
+  porque `driveTrunk(2)` usa `flexionDeg: 1` (no 0 ni 20 exacto).
+- **NoCoverage** en validación: 8 mutantes en los 5 throws de
+  `validate()` que ramifican según secciones missing — el test suite
+  base sólo cubre algunos throws.
+- **ConditionalExpression** en `upperArmScore` con ramas que no se
+  ejecutan exactamente en los inputs parametricos.
+- **StringLiteral** en mensajes de `recommendation` por `actionLevel`.
+
+El gap principal son **boundary tests + validation NoCoverage** —
+exactamente el deferral R18 #1, R18 #3, R19 #3 que sigue pendiente.
+Los parametric snapshots cubren las identidades **dentro** de las
+tablas; las boundaries **entre** sub-scores (trunk extension, neck
+extension, etc.) requieren tests adicionales.
+
+### Tests añadidos en R21 B2
+
+- `src/services/ergonomics/reba.test.ts`: **243** tests
+  (de 51 → 294). 60 + 36 + 144 + 3. El bloque de TABLE_C usa los
+  helpers `findATableForScoreA(target)` y `findBTableForScoreB(target)`
+  que linealizan la búsqueda hasta el primer match; para `target`∈[10,12]
+  componen tableA/B=9 + load (kg=6/12/12+shock) o coupling
+  (fair/poor/unacceptable).
+
+### Threshold `break` en R21
+
+**Score más bajo:** `reba.ts` = **77.74%**. Aplicando `lowest - 5%`:
+77.74 - 5 = **72.74%**.
+
+**Decisión:** **mantener `break: 65`** (no bump a 70).
+
+Justificación según spec R21:
+- Spec: "If reba 75-79%: keep break 65". reba.ts cae en **77.74**
+  (banda 75-79) ⇒ keep break 65.
+- 65 deja un buffer de **12.74 pp** sobre lowest (reba.ts) — amplio.
+- Para bumpear a 70 se requería `reba.ts ≥ 80%`. Los survivors
+  restantes son boundary checks no cubiertos por el snapshot — bumpear
+  ahora rompería un futuro run con flake stochastic (e.g. -1pp
+  random).
+- Global 85.52 mantiene buffer de **20.52 pp** sobre threshold 65.
+
+Mantener `high: 80, low: 60`.
+
+### Plan R22 (deferrals priorizados)
+
+1. **reba.ts boundary + validation tests** (R18 + R19 deferral
+   pendiente). Tests específicos:
+   - `flex === 0` exacto en `trunkScore` (mata `>= 0` → `> 0`).
+   - `flex === -1` en rama negative (mata `abs <= 20` → `abs < 20`).
+   - `flex === -20` exacto (boundary entre extension > 20° y ≤ 20°).
+   - `flex === 20`/`60`/`90` exactos en `upperArmScore`.
+   - 5 tests para los 5 throws de `validate()` (input null, missing
+     trunk, upperArm, load, coupling, activity).
+   Esperado: reba.ts 77.74 → 83+ (+5-7 pp).
+2. **rula.ts: matar los 4 EqualityOperator y 7 BooleanLiteral
+   restantes** (low-value). Esperado: 94.22 → 96+.
+3. **`*Assessments.ts`: cubrir branch `crypto === undefined` y
+   `existing?.metadata?` con `data() => undefined`.** R19 deferral
+   #1 sin cambiar; +2-3 pp por archivo, ~6 tests.
+4. **Bump `break` 65 → 70** una vez `reba.ts ≥80%` y se verifique
+   un run estable.
+
+### Verificación R21
+
+- `npx vitest run src/services/ergonomics/reba.test.ts`:
+  **294 passing** (de 51) en 553 ms.
+- `npx vitest run` (full suite): **84 files, 1705 passing | 66
+  skipped (1771 total)**, 25.7 s.
+- `npx tsc -b`: 0 errores.
+- `npm run mutation`: **85.52% global** (vs. 84.95 en R20, +0.57 pp);
+  `Final mutation score of 85.52 is greater than or equal to break
+  threshold 65` (verde con threshold actual). Sin bump (reba 77.74 <
+  80%): break se mantiene en 65, buffer de 12.74 pp sobre lowest.
+  Reporte HTML en `reports/mutation/mutation.html`.
