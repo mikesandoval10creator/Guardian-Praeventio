@@ -14,6 +14,7 @@
     "src/services/ergonomics/rula.ts"
   ],
   "coverageAnalysis": "perTest",
-  "thresholds": { "high": 80, "low": 60, "break": null },
+  "_thresholds_comment": "R18 baseline (2026-04-28) — score más bajo observado: ergonomicAssessments.ts = 54.61%. Fórmula 'lowest - 5%' = 49.61%; redondeado a 50% como floor. Buffer de 4.6 pp absorbe variación stochastic sin permitir regresiones grandes. Subir progresivamente en R19+ tras cubrir validación en *Assessments.ts (esperado +10-15 pp) y boundaries en rula.ts (+3-5 pp). Ver STRYKER_BASELINE.md para análisis completo.",
+  "thresholds": { "high": 80, "low": 60, "break": 50 },
   "timeoutMS": 60000
 }

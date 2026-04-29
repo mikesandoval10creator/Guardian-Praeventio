@@ -138,16 +138,19 @@ de cálculo de seguridad — donde una regresión silenciosa puede traducirse en
 mal cálculo de riesgo y daño físico al trabajador. Es por eso que estos
 módulos exigen una cobertura mutacional alta, no sólo line/branch.
 
-- **Ejecución local:** `npm run mutation` (es lento — corrida completa puede
-  tardar 15-30 min según hardware; aún no agregado a CI).
+- **Ejecución local:** `npm run mutation` (~5 min en hardware moderno;
+  hasta 15-30 min en hardware más lento; aún no agregado a CI).
 - **Targets** (`stryker.conf.json`): `services/ergonomics/{reba,rula}.ts`,
   `services/protocols/{iper,prexor,tmert}.ts`, `services/safety/{ergonomicAssessments,iperAssessments}.ts`.
-- **Umbrales:** `high: 80%`, `low: 60%` (sin `break` — no rompe el build aún).
-- **Reporte HTML:** `reports/mutation/index.html` tras la corrida; abrir en
+- **Umbrales:** `high: 80%`, `low: 60%`, `break: 50%` (R18 baseline —
+  ver [`STRYKER_BASELINE.md`](./STRYKER_BASELINE.md)).
+- **Reporte HTML:** `reports/mutation/mutation.html` tras la corrida; abrir en
   navegador para inspeccionar mutantes sobrevivientes.
 
-Plan: cuando R18 establezca la línea base, agregar el badge de score al
-README e incluir la corrida en el pipeline de PR (con cache).
+**Línea base R18 (2026-04-28):** score global **67.32%** (828 killed,
+356 survived, 46 no-coverage, 0 errors, 0 timeouts sobre 1230 mutantes).
+Detalle por archivo y plan de mejora R19 documentado en
+[`STRYKER_BASELINE.md`](./STRYKER_BASELINE.md).
 
 ---
 

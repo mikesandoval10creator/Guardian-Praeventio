@@ -2,6 +2,7 @@ node_modules/
 build/
 dist/
 coverage/
+reports/
 tsconfig.tsbuildinfo
 .DS_Store
 *.log
