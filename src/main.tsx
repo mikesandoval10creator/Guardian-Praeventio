@@ -1,9 +1,15 @@
+// Initialise i18next BEFORE any component imports below — the
+// `useTranslation` hook in `App.tsx` and downstream components needs the
+// resource bundles registered, and Sentry's ErrorBoundary fallback
+// (rendered if `<App>` throws) also reads `i18n.t(...)`.
+import './i18n';
+
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import * as Sentry from '@sentry/react';
+import i18n from './i18n';
 import App from './App.tsx';
 import './index.css';
-import './lib/i18n';
 import { registerSW } from 'virtual:pwa-register';
 
 const updateSW = registerSW({
@@ -68,10 +74,10 @@ function CrashFallback({
     >
       <div style={{ maxWidth: '480px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '1rem', letterSpacing: '-0.02em' }}>
-          Algo salió mal.
+          {i18n.t('errors.something_went_wrong', 'Algo salió mal.')}
         </h1>
         <p style={{ fontSize: '0.875rem', lineHeight: 1.6, color: '#a1a1aa', marginBottom: '1.5rem' }}>
-          Nuestro equipo fue notificado. Por favor recargá la página.
+          {i18n.t('errors.team_notified', 'Nuestro equipo fue notificado. Por favor recargá la página.')}
         </p>
         {eventId && (
           <p
@@ -82,7 +88,7 @@ function CrashFallback({
               fontFamily: 'monospace',
             }}
           >
-            ID del evento: <span style={{ color: '#a1a1aa' }}>{eventId}</span>
+            {i18n.t('errors.event_id', 'ID del evento')}: <span style={{ color: '#a1a1aa' }}>{eventId}</span>
           </p>
         )}
         <button
@@ -101,7 +107,7 @@ function CrashFallback({
             cursor: 'pointer',
           }}
         >
-          Reintentar
+          {i18n.t('common.retry', 'Reintentar')}
         </button>
       </div>
     </div>

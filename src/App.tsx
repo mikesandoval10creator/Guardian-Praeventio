@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
+import { LanguageProvider } from "./contexts/LanguageProvider";
 import { AppProviders } from "./providers/AppProviders";
 import { NormativaProvider } from "./components/normativa/NormativaSwitch";
 import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
@@ -168,15 +169,17 @@ export default function App() {
   return (
     <ErrorBoundary>
       <FirebaseProvider>
-        <NormativaProvider>
-          <BrowserRouter>
-            <OfflineIndicator />
-            <OfflineSyncManager />
-            <SurvivalPing />
-            <PWAUpdateToast />
-            <AppRoutes />
-          </BrowserRouter>
-        </NormativaProvider>
+        <LanguageProvider>
+          <NormativaProvider>
+            <BrowserRouter>
+              <OfflineIndicator />
+              <OfflineSyncManager />
+              <SurvivalPing />
+              <PWAUpdateToast />
+              <AppRoutes />
+            </BrowserRouter>
+          </NormativaProvider>
+        </LanguageProvider>
       </FirebaseProvider>
     </ErrorBoundary>
   );
