@@ -83,9 +83,21 @@ export const evaluateNormativeImpact = async (newNormativeText: string, currentO
   `;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt
+    model: "gemini-2.0-flash",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          procesosAfectados: { type: Type.ARRAY, items: { type: Type.STRING } },
+          nivelEsfuerzo: { type: Type.STRING },
+          recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
+          resumen: { type: Type.STRING },
+        },
+      },
+    },
   });
 
-  return response.text;
+  return JSON.parse(response.text ?? '{}');
 };
