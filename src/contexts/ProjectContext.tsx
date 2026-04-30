@@ -109,6 +109,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Seed initial data for the new project
       await seedGlobalData(docRef.id, projectData.industry);
 
+      // Seed Zettelkasten template nodes (Blocks I-VIII)
+      const { seedProjectNodes } = await import('../services/nodeSeedService');
+      seedProjectNodes(docRef.id, user?.uid ?? 'system').catch(() => {});
+
       return docRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'projects');
