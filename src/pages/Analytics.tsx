@@ -42,6 +42,7 @@ import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
+import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -232,6 +233,9 @@ export function Analytics() {
           </button>
         </div>
       </div>
+
+      {/* Project Health Check */}
+      <ProjectHealthCheck />
 
       {/* Report Container (for PDF export) */}
       <div id="executive-report" className="space-y-6 bg-zinc-50 p-4 rounded-2xl">
