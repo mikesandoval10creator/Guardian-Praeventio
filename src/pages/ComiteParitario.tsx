@@ -22,7 +22,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../services/geminiService';
 import { db } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 interface Acta {
   id: string;
@@ -54,6 +54,10 @@ export function ComiteParitario() {
     asistentesRaw: '',
   });
 
+  const [addAcuerdoActaId, setAddAcuerdoActaId] = useState<string | null>(null);
+  const [acuerdoSaving, setAcuerdoSaving] = useState(false);
+  const [acuerdoForm, setAcuerdoForm] = useState({ descripcion: '', responsable: '', fechaPlazo: '' });
+
   const handleAddActa = async () => {
     if (!selectedProject) return;
     const asistentes = actaForm.asistentesRaw
@@ -79,6 +83,41 @@ export function ComiteParitario() {
     }
   };
 
+  const handleAddAcuerdo = async (actaId: string) => {
+    if (!selectedProject || !acuerdoForm.descripcion.trim() || !acuerdoForm.responsable.trim() || !acuerdoForm.fechaPlazo) return;
+    setAcuerdoSaving(true);
+    try {
+      const newAcuerdo: Acuerdo = {
+        id: crypto.randomUUID(),
+        descripcion: acuerdoForm.descripcion.trim(),
+        responsable: acuerdoForm.responsable.trim(),
+        fechaPlazo: acuerdoForm.fechaPlazo,
+        estado: 'Pendiente',
+      };
+      await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
+        acuerdos: arrayUnion(newAcuerdo),
+      });
+      setAddAcuerdoActaId(null);
+      setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' });
+    } catch {
+      // silent — form stays open so user can retry
+    } finally {
+      setAcuerdoSaving(false);
+    }
+  };
+
+  const handleUpdateAcuerdoEstado = async (actaId: string, acuerdoId: string, newEstado: Acuerdo['estado']) => {
+    if (!selectedProject) return;
+    const acta = actas?.find(a => a.id === actaId);
+    if (!acta) return;
+    const updatedAcuerdos = acta.acuerdos.map(a =>
+      a.id === acuerdoId ? { ...a, estado: newEstado } : a
+    );
+    await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
+      acuerdos: updatedAcuerdos,
+    });
+  };
+
   const [agendaResult, setAgendaResult] = useState<any>(null);
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [meetingNotes, setMeetingNotes] = useState('');
@@ -89,7 +128,9 @@ export function ComiteParitario() {
     selectedProject ? `projects/${selectedProject.id}/comite_actas` : null
   );
 
-  const todosLosAcuerdos = actas?.flatMap(acta => acta.acuerdos) || [];
+  const todosLosAcuerdos = actas?.flatMap(acta =>
+    acta.acuerdos.map(a => ({ ...a, actaId: acta.id }))
+  ) || [];
 
   const runLegalScan = async () => {
     setLegalScanning(true);
@@ -240,6 +281,55 @@ export function ComiteParitario() {
                       </div>
                     </div>
                   </div>
+
+                  {addAcuerdoActaId === acta.id ? (
+                    <div className="space-y-2 pt-3 border-t border-zinc-100 dark:border-white/5 mt-3">
+                      <input
+                        type="text"
+                        placeholder="Descripción del acuerdo"
+                        value={acuerdoForm.descripcion}
+                        onChange={e => setAcuerdoForm(f => ({ ...f, descripcion: e.target.value }))}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Responsable"
+                        value={acuerdoForm.responsable}
+                        onChange={e => setAcuerdoForm(f => ({ ...f, responsable: e.target.value }))}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        type="date"
+                        value={acuerdoForm.fechaPlazo}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={e => setAcuerdoForm(f => ({ ...f, fechaPlazo: e.target.value }))}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAddAcuerdo(acta.id)}
+                          disabled={acuerdoSaving}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {acuerdoSaving ? 'Guardando...' : 'Guardar'}
+                        </button>
+                        <button
+                          onClick={() => { setAddAcuerdoActaId(null); setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' }); }}
+                          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setAddAcuerdoActaId(acta.id); setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' }); }}
+                      className="mt-3 w-full flex items-center justify-center gap-1 px-3 py-1.5 border border-dashed border-zinc-300 dark:border-white/10 rounded-xl text-[10px] font-black text-zinc-500 hover:text-emerald-500 hover:border-emerald-500 transition-colors uppercase tracking-widest"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Añadir Acuerdo
+                    </button>
+                  )}
                 </motion.div>
               ))
             )}
@@ -279,13 +369,19 @@ export function ComiteParitario() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            acuerdo.estado === 'Completado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                            acuerdo.estado === 'En Progreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
-                            'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                          }`}>
-                            {acuerdo.estado}
-                          </span>
+                          <select
+                            value={acuerdo.estado}
+                            onChange={e => handleUpdateAcuerdoEstado(acuerdo.actaId, acuerdo.id, e.target.value as Acuerdo['estado'])}
+                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border-0 cursor-pointer focus:outline-none appearance-none ${
+                              acuerdo.estado === 'Completado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                              acuerdo.estado === 'En Progreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                              'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                            }`}
+                          >
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="En Progreso">En Progreso</option>
+                            <option value="Completado">Completado</option>
+                          </select>
                         </td>
                       </tr>
                     ))

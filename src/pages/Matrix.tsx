@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { logger } from '../utils/logger';
 import { 
   Zap, 
   Shield, 
@@ -74,6 +75,7 @@ export function Matrix() {
   const [isSeeding, setIsSeeding] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isPresenting, setIsPresenting] = useState(false);
+  const [aiErrorToast, setAiErrorToast] = useState(false);
   const [editingNode, setEditingNode] = useState<string | null>(null);
   const [manualRisk, setManualRisk] = useState({
     title: '',
@@ -203,8 +205,9 @@ export function Matrix() {
         });
       }
     } catch (error) {
-      console.error('Error suggesting risks:', error);
-      alert('Error al sugerir riesgos con IA.');
+      logger.error('Error suggesting risks with AI', { error });
+      setAiErrorToast(true);
+      setTimeout(() => setAiErrorToast(false), 5000);
     } finally {
       setIsSuggesting(false);
     }
@@ -421,6 +424,20 @@ export function Matrix() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
+      <AnimatePresence>
+        {aiErrorToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl bg-rose-600 text-white text-sm font-bold flex items-center gap-3"
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            Error al sugerir riesgos con IA. Verifica tu conexión e inténtalo nuevamente.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">Matriz IPERC IA</h1>

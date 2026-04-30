@@ -1,14 +1,37 @@
 import React, { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Car, AlertTriangle, Phone, MapPin, Mic, ShieldAlert, MicOff } from 'lucide-react';
+import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 
 export function SafeDrivingMode() {
   const navigate = useNavigate();
+  const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const [isEmergency, setIsEmergency] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [dictatedText, setDictatedText] = useState('');
+  const [reportSaved, setReportSaved] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const dictatedTextRef = useRef('');
+
+  const saveReport = async (text: string) => {
+    if (!text.trim() || !selectedProject) return;
+    try {
+      await addDoc(collection(db, `projects/${selectedProject.id}/driving_reports`), {
+        content: text.trim(),
+        userId: user?.uid || null,
+        createdAt: new Date().toISOString(),
+        type: 'DrivingReport',
+      });
+      setReportSaved(true);
+      setTimeout(() => setReportSaved(false), 3000);
+    } catch {
+      // silent — text remains visible so user can copy it manually
+    }
+  };
 
   const handleDictate = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -18,15 +41,22 @@ export function SafeDrivingMode() {
       setIsListening(false);
       return;
     }
+    dictatedTextRef.current = '';
+    setDictatedText('');
+    setReportSaved(false);
     const recognition = new SpeechRecognition();
     recognition.lang = 'es-CL';
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.onresult = (e: any) => {
       const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
+      dictatedTextRef.current = transcript;
       setDictatedText(transcript);
     };
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      setIsListening(false);
+      saveReport(dictatedTextRef.current);
+    };
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
@@ -76,6 +106,12 @@ export function SafeDrivingMode() {
           </span>
           {dictatedText && !isListening && (
             <span className="text-sm text-zinc-400 px-6 text-center max-w-xs">{dictatedText}</span>
+          )}
+          {reportSaved && (
+            <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold">
+              <CheckCircle2 className="w-4 h-4" />
+              Reporte guardado
+            </div>
           )}
         </button>
 

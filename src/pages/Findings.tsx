@@ -30,6 +30,12 @@ export function Findings() {
   const [showFilters, setShowFilters] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [planToast, setPlanToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showPlanToast = (msg: string, ok: boolean) => {
+    setPlanToast({ msg, ok });
+    setTimeout(() => setPlanToast(null), 5000);
+  };
   const { nodes, loading, addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
 
@@ -74,15 +80,15 @@ export function Findings() {
       );
 
       if (created === total) {
-        alert(`Se han generado ${created} tareas de acción correctiva vinculadas a este hallazgo.`);
+        showPlanToast(`${created} tareas de acción correctiva generadas y vinculadas.`, true);
       } else {
-        alert(`Se crearon ${created}/${total} tareas. Reintenta para crear las restantes (puede ser problema de conexión).`);
+        showPlanToast(`Se crearon ${created}/${total} tareas. Reintenta para crear las restantes.`, false);
       }
-    } catch (error) {
+    } catch {
       if (created > 0) {
-        alert(`Se crearon ${created}/${total} tareas antes del error. Reintenta para completar el plan.`);
+        showPlanToast(`Se crearon ${created}/${total} tareas antes del error. Reintenta para completar.`, false);
       } else {
-        alert('Error al generar el plan de acción con IA. Verifica tu conexión e inténtalo nuevamente.');
+        showPlanToast('Error al generar el plan con IA. Verifica tu conexión e inténtalo nuevamente.', false);
       }
     } finally {
       setProcessingId(null);
@@ -124,6 +130,25 @@ export function Findings() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border space-y-6">
+      {/* Plan toast */}
+      <AnimatePresence>
+        {planToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-3 ${
+              planToast.ok
+                ? 'bg-emerald-600 text-white'
+                : 'bg-amber-500 text-white'
+            }`}
+          >
+            {planToast.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            {planToast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

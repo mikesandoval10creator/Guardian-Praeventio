@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
   Upload, 
@@ -54,6 +54,12 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
   const [uploading, setUploading] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; url: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [uploadToast, setUploadToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showUploadToast = (msg: string, ok: boolean) => {
+    setUploadToast({ msg, ok });
+    setTimeout(() => setUploadToast(null), 4000);
+  };
   const { user } = useFirebase();
   const isOnline = useOnlineStatus();
 
@@ -86,7 +92,7 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
             }
           }
         });
-        alert('Archivo guardado para sincronización. Se subirá cuando recuperes la conexión.');
+        showUploadToast('Archivo guardado. Se subirá cuando recuperes la conexión.', true);
       } else {
         const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
         const snapshot = await uploadBytes(storageRef, file);
@@ -102,9 +108,8 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
           createdAt: new Date().toISOString()
         });
       }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Error al subir el archivo. Verifica los permisos de almacenamiento.');
+    } catch {
+      showUploadToast('Error al subir el archivo. Verifica los permisos de almacenamiento.', false);
     } finally {
       setUploading(false);
     }
@@ -138,6 +143,22 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
 
   return (
     <div className="space-y-6">
+      <AnimatePresence>
+        {uploadToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-3 ${
+              uploadToast.ok ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}
+          >
+            {uploadToast.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            {uploadToast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">

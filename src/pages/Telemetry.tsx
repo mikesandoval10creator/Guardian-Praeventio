@@ -115,7 +115,7 @@ export function Telemetry() {
     try {
       const nav = navigator as any;
       if (!nav.bluetooth) {
-        alert('Web Bluetooth API no está soportada en este navegador. Usa Chrome o Edge.');
+        setAlerts(prev => [...prev, 'Web Bluetooth API no está soportada en este navegador. Usa Chrome o Edge.']);
         return;
       }
 
@@ -162,7 +162,7 @@ export function Telemetry() {
 
       setFitTokens({ connected: true, deviceName: device.name });
       setIsConnectingFit(false);
-      alert(`Conectado a ${device.name}`);
+      setAlerts(prev => [...prev, `Conectado a ${device.name} vía Bluetooth.`]);
     } catch (error) {
       logger.error('Error connecting to Bluetooth device', { error });
       setIsConnectingFit(false);
@@ -188,7 +188,7 @@ export function Telemetry() {
       );
 
       if (!authWindow) {
-        alert('Por favor, permite las ventanas emergentes (popups) para conectar Google Fit.');
+        setAlerts(prev => [...prev, 'Permite las ventanas emergentes (popups) en el navegador para conectar Google Fit.']);
         setIsConnectingFit(false);
       }
     } catch (error) {

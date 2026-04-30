@@ -160,7 +160,17 @@ export function RootLayout() {
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
         <PendingInvitesBanner />
-        <SyncConflictBanner />
+        <SyncConflictBanner
+          onOpenRecord={(col, _docId) => {
+            // Route to the most relevant page for each Firestore collection
+            if (col.includes('nodes')) navigate('/map');
+            else if (col.includes('safety_posts')) navigate('/safety-feed');
+            else if (col.includes('comite_actas')) navigate('/comite-paritario');
+            else if (col.includes('training')) navigate('/training');
+            else if (col.includes('findings')) navigate('/findings');
+            else navigate('/');
+          }}
+        />
       </div>
       <ReloadPrompt />
 

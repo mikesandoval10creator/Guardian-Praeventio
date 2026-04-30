@@ -63,6 +63,7 @@ export function Training() {
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
   const [capsule, setCapsule] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
   const [activeVideoSession, setActiveVideoSession] = useState<TrainingSession | null>(null);
   const [isQuizActive, setIsQuizActive] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
@@ -116,7 +117,8 @@ export function Training() {
           collection: 'training',
           data: sessionData
         });
-        alert('Sesión guardada para sincronización cuando haya conexión.');
+        setSyncToast('Sesión guardada — se sincronizará cuando haya conexión.');
+        setTimeout(() => setSyncToast(null), 4000);
       } else {
         const collectionRef = collection(db, 'training');
         await addDoc(collectionRef, sessionData);
@@ -279,6 +281,20 @@ export function Training() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+      <AnimatePresence>
+        {syncToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl bg-emerald-600 text-white text-sm font-bold flex items-center gap-3"
+          >
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            {syncToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
