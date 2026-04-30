@@ -137,7 +137,7 @@ export function Matrix() {
         });
       }
     } catch (error) {
-      console.error('Error seeding matrix:', error);
+      logger.error('Error seeding matrix:', error);
     } finally {
       setIsSeeding(false);
     }
@@ -173,7 +173,7 @@ export function Matrix() {
 
       setEditingNode(null);
     } catch (error) {
-      console.error('Error assigning control:', error);
+      logger.error('Error assigning control:', error);
     }
   };
 
@@ -248,7 +248,7 @@ export function Matrix() {
       setIsManualModalOpen(false);
       setManualRisk({ title: '', description: '', probabilidad: 3, severidad: 3, controles: '' });
     } catch (error) {
-      console.error('Error adding manual risk:', error);
+      logger.error('Error adding manual risk:', error);
     }
   };
 

@@ -196,7 +196,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
             resolve(`${position.coords.latitude}, ${position.coords.longitude}`);
           },
           (error) => {
-            console.warn('Error fetching geolocation:', error);
+            logger.warn('Error fetching geolocation:', { code: error.code, message: error.message });
             resolve('Error al obtener ubicación GPS');
           },
           { timeout: 5000 }
@@ -261,7 +261,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         timestamp: impactTimestamp,
       });
     } catch (error) {
-      console.error('Error triggering man down alert:', error);
+      logger.error('Error triggering man down alert:', error);
     }
   };
 

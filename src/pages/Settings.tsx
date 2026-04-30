@@ -27,6 +27,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { BunkerManager } from '../components/BunkerManager';
 import { get, set } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 export function Settings() {
   const { t, i18n } = useTranslation();
@@ -96,7 +97,7 @@ export function Settings() {
           updateDoc(doc(db, 'users', user.uid), {
             notificationPreferences: newPrefs
           }).catch(err => {
-            console.error("Error updating notification preferences", err);
+            logger.error("Error updating notification preferences", err);
             addNotification({title: 'Error', message: 'No se pudieron guardar las preferencias', type: 'error'});
           });
         });
@@ -137,7 +138,7 @@ export function Settings() {
       await logOut();
       navigate('/');
     } catch (error) {
-      console.error('Error logging out:', error);
+      logger.error('Error logging out:', error);
     }
   };
 

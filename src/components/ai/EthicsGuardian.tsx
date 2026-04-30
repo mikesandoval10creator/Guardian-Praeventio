@@ -16,6 +16,7 @@ import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext'
 import { auditAISuggestion } from '../../services/geminiService';
 import { NodeType } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 export function EthicsGuardian() {
   const { nodes } = useUniversalKnowledge();
@@ -38,7 +39,7 @@ export function EthicsGuardian() {
       const auditResult = await auditAISuggestion(input, normativesContext);
       setResult(auditResult);
     } catch (error) {
-      console.error('Error auditing:', error);
+      logger.error('Error auditing:', error);
     } finally {
       setLoading(false);
     }

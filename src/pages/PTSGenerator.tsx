@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { logger } from '../utils/logger';
 
 export function PTSGenerator() {
   const [searchParams] = useSearchParams();
@@ -127,7 +128,7 @@ export function PTSGenerator() {
       setSuspensionReason(dangerousWeather);
       setGeneratedPTS(null); // Clear any generated PTS
     } catch (error) {
-      console.error('Error suspending task:', error);
+      logger.error('Error suspending task:', error);
     } finally {
       setIsSuspending(false);
     }
@@ -195,7 +196,7 @@ export function PTSGenerator() {
       }
       setGeneratedPTS(result);
     } catch (error) {
-      console.error('Error generating PTS:', error);
+      logger.error('Error generating PTS:', error);
     } finally {
       setIsGenerating(false);
     }

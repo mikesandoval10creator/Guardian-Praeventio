@@ -34,6 +34,7 @@ import { where } from 'firebase/firestore';
 import { analyzeSiteMapDensity } from '../services/geminiService';
 import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
 import { getNodeBgClass } from '../utils/nodeTypeUtils';
+import { logger } from '../utils/logger';
 
 const containerStyle = {
   width: '100%',
@@ -162,7 +163,7 @@ export function SiteMap() {
         const result = await analyzeSiteMapDensity(nodesCtx, workersCtx, assetsCtx);
         setAiInsight(result);
       } catch (error) {
-        console.error('Error analyzing density:', error);
+        logger.error('Error analyzing density:', error);
       } finally {
         setIsAnalyzing(false);
       }

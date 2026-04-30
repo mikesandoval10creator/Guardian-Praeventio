@@ -31,6 +31,7 @@ import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 export function Projects() {
   const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
@@ -107,7 +108,7 @@ export function Projects() {
         trackCommute: true
       });
     } catch (error) {
-      console.error('Error creating project:', error);
+      logger.error('Error creating project:', error);
     } finally {
       setIsCreating(false);
     }

@@ -38,6 +38,7 @@ const LaborManagementModal = lazy(() => import('../components/workers/LaborManag
 import { UserProfileModal } from '../components/workers/UserProfileModal';
 import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { logger } from '../utils/logger';
 
 export function Workers() {
   const { selectedProject } = useProject();
@@ -74,7 +75,7 @@ export function Workers() {
     try {
       await deleteDoc(doc(db, collectionPath, deleteWorkerId));
     } catch (error) {
-      console.error('Error deleting worker:', error);
+      logger.error('Error deleting worker:', error);
     } finally {
       setDeleteWorkerId(null);
     }

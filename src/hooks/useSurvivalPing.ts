@@ -4,6 +4,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useOnlineStatus } from './useOnlineStatus';
 import { saveBreadcrumb } from '../utils/offlineStorage';
+import { logger } from '../utils/logger';
 
 export const useSurvivalPing = () => {
   const { user } = useFirebase();
@@ -33,7 +34,7 @@ export const useSurvivalPing = () => {
                 timestamp: serverTimestamp(),
                 status: 'alive'
               }, { merge: true }).catch(err => {
-                console.warn("Survival ping failed (silent):", err);
+                logger.warn("Survival ping failed (silent):", err);
               });
 
               // Save local breadcrumb for offline rescue trail

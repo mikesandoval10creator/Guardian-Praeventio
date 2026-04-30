@@ -41,6 +41,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { logger } from '../utils/logger';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -155,7 +156,7 @@ export function Analytics() {
       setExecutiveSummary(summary);
       await cacheAIResponse('analytics-summary', summary);
     } catch (error) {
-      console.error("Error generating summary:", error);
+      logger.error("Error generating summary:", error);
       const cached = await getCachedAIResponse('analytics-summary');
       if (cached) {
         setExecutiveSummary(cached);
@@ -185,7 +186,7 @@ export function Analytics() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Reporte_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
-      console.error("Error exporting PDF:", error);
+      logger.error("Error exporting PDF:", error);
     } finally {
       setIsExporting(false);
     }

@@ -5,6 +5,7 @@ import { useFirebase } from './FirebaseContext';
 import { fetchEnvironmentContext } from '../services/orchestratorService';
 
 import { get, set } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 interface UniversalKnowledgeContextType {
   nodes: RiskNode[];
@@ -42,7 +43,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
           setEnvironment(envData);
         }
       } catch (error) {
-        console.error('Error loading environment context:', error);
+        logger.error('Error loading environment context:', error);
       }
     };
 
@@ -99,7 +100,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
         // Save to IndexedDB for offline access
         set(`community_glossary_${userIndustry}`, glossary);
       }).catch(async (error) => {
-        console.error("Error fetching community glossary:", error);
+        logger.error("Error fetching community glossary:", error);
         // Try to load from IndexedDB if offline
         const cached = await get(`community_glossary_${userIndustry}`);
         if (cached) {

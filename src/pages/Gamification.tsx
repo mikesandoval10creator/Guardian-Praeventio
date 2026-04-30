@@ -12,6 +12,7 @@ import { db } from '../services/firebase';
 import { ExtinguisherSimulator } from '../components/gamification/ExtinguisherSimulator';
 import { NormativeQuiz } from '../components/gamification/NormativeQuiz';
 import { ReflexBuzzer } from '../components/gamification/ReflexBuzzer';
+import { logger } from '../utils/logger';
 
 interface LeaderboardUser {
   id: string;
@@ -149,7 +150,7 @@ export function Gamification() {
         }
       }
     } catch (error) {
-      console.error("Error validating click:", error);
+      logger.error("Error validating click:", error);
     } finally {
       setValidatingClick(false);
     }

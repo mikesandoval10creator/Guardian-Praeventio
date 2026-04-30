@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useRiskEngine } from './useRiskEngine';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 // Diccionarios de Conocimiento Base (Risk Network Estático)
 const INDUSTRY_NORMATIVES: Record<string, string[]> = {
@@ -103,7 +104,7 @@ export function useIndustryIntegration() {
         data: { normatives, training } 
       };
     } catch (error) {
-      console.error("Error bootstrapping project knowledge:", error);
+      logger.error("Error bootstrapping project knowledge:", error);
       return { success: false, error };
     }
   }, [getNormatives, getTraining, addNode]);

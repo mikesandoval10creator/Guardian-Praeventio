@@ -1,3 +1,4 @@
+import { logger } from '../utils/logger';
 /**
  * Utilidades para Autenticación Biométrica usando WebAuthn.
  * WebAuthn activa FaceID, TouchID o Windows Hello en dispositivos compatibles.
@@ -60,7 +61,7 @@ export const registerBiometric = async (userId: string, userEmail: string): Prom
     }
     throw new Error("No credential returned");
   } catch (error) {
-    console.error("Error en registro biométrico:", error);
+    logger.error("Error en registro biométrico:", error);
     throw error;
   }
 };
@@ -91,7 +92,7 @@ export const verifyBiometric = async (credentialIdBase64: string): Promise<boole
     }
     return false;
   } catch (error) {
-    console.error("Error en verificación biométrica:", error);
+    logger.error("Error en verificación biométrica:", error);
     return false; // Cancelado o fallido
   }
 };

@@ -5,6 +5,7 @@ import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { RiskNode, Worker, TrainingSession, NodeType } from '../types';
 import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 export type SmartActionType =
   | 'link_risk_to_control'
@@ -233,7 +234,7 @@ export function useZettelkastenIntelligence() {
         }
 
       } catch (error) {
-        console.error("Error analyzing Zettelkasten orphans:", error);
+        logger.error("Error analyzing Zettelkasten orphans:", error);
       } finally {
         setIsAnalyzing(false);
       }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BleClient, BleDevice } from '@capacitor-community/bluetooth-le';
 import { Capacitor } from '@capacitor/core';
 import { saveBreadcrumb, getBreadcrumbs } from '../utils/offlineStorage';
+import { logger } from '../utils/logger';
 
 interface BluetoothDevice {
   id: string;
@@ -60,7 +61,7 @@ export function useBluetoothMesh() {
         await BleClient.initialize();
         setIsSupported(true);
       } catch (e) {
-        console.error("BLE Initialization failed", e);
+        logger.error("BLE Initialization failed", e);
         setIsSupported(false);
       }
     };

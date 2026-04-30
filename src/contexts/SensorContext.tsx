@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Motion } from '@capacitor/motion';
 import { Capacitor } from '@capacitor/core';
+import { logger } from '../utils/logger';
 
 interface SensorData {
   acceleration: { x: number | null; y: number | null; z: number | null };
@@ -61,7 +62,7 @@ export function SensorProvider({ children }: { children: React.ReactNode }) {
             }));
           });
         } catch (e) {
-          console.error("Error starting native motion sensors", e);
+          logger.error("Error starting native motion sensors", e);
         }
       } else {
         const handleMotion = (event: DeviceMotionEvent) => {

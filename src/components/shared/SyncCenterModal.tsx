@@ -4,6 +4,7 @@ import { X, CloudOff, RefreshCw, Trash2, CheckCircle2, AlertCircle, Plus, Edit2,
 import { ConfirmDialog } from './ConfirmDialog';
 import { getPendingActions, removeSyncedAction, SyncAction, syncWithFirebase } from '../../utils/pwa-offline';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 interface SyncCenterModalProps {
   isOpen: boolean;
@@ -76,7 +77,7 @@ export function SyncCenterModal({ isOpen, onClose }: SyncCenterModalProps) {
         setSyncProgress({ current: 0, total: 0 });
       }, 2000);
     } catch (error) {
-      console.error("Error during manual sync:", error);
+      logger.error("Error during manual sync:", error);
       setIsSyncing(false);
       setSyncProgress({ current: 0, total: 0 });
     }

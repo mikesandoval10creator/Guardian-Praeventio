@@ -14,6 +14,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get } from 'idb-keyval';
 
 import { ErrorBoundary } from '../components/shared/ErrorBoundary';
+import { logger } from '../utils/logger';
 
 export function RiskNetwork() {
   const { nodes, loading } = useRiskEngine();
@@ -32,7 +33,7 @@ export function RiskNetwork() {
       const result = await analyzeRiskNetwork(context);
       setAiInsight(result);
     } catch (error) {
-      console.error("Error analyzing nodes:", error);
+      logger.error("Error analyzing nodes:", error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -58,7 +59,7 @@ export function RiskNetwork() {
       const result = await predictAccidents(context, telemetryContext);
       setPredictions(result.predictions || []);
     } catch (error) {
-      console.error("Error predicting accidents:", error);
+      logger.error("Error predicting accidents:", error);
     } finally {
       setIsPredicting(false);
     }

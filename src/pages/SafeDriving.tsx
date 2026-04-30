@@ -19,6 +19,7 @@ import { NodeType } from '../types';
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 const containerStyle = {
   width: '100%',
@@ -81,7 +82,7 @@ export function SafeDriving() {
         });
         locationString = `Lat: ${position.coords.latitude.toFixed(4)}, Lng: ${position.coords.longitude.toFixed(4)}`;
       } catch (geoError) {
-        console.warn("No se pudo obtener la ubicación:", geoError);
+        logger.warn("No se pudo obtener la ubicación:", geoError);
         locationString = 'Ubicación no disponible (Permiso denegado o error)';
       }
 
@@ -125,7 +126,7 @@ export function SafeDriving() {
       setDescription('');
       setIncidentType(null);
     } catch (error) {
-      console.error('Error sending report:', error);
+      logger.error('Error sending report:', error);
     } finally {
       setLoading(false);
     }

@@ -1,4 +1,5 @@
 import admin from "firebase-admin";
+import { logger } from '../utils/logger';
 
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 
@@ -61,8 +62,8 @@ export const updateGlobalEnvironmentalContext = async () => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 
-    console.log("[EnvironmentBackend] Global environmental context updated.");
+    logger.debug("[EnvironmentBackend] Global environmental context updated.");
   } catch (error) {
-    console.error("[EnvironmentBackend] Error updating context:", error);
+    logger.error("[EnvironmentBackend] Error updating context:", error);
   }
 };

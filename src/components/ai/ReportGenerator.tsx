@@ -8,6 +8,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { jsPDF } from 'jspdf';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 export function ReportGenerator() {
   const [reportType, setReportType] = useState<'PTS' | 'PE' | 'AST'>('PTS');
@@ -39,7 +40,7 @@ export function ReportGenerator() {
         connections: []
       });
     } catch (error) {
-      console.error('Error generating report:', error);
+      logger.error('Error generating report:', error);
     } finally {
       setLoading(false);
     }

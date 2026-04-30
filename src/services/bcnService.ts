@@ -4,6 +4,7 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
+import { logger } from '../utils/logger';
 
 export interface BCNLaw {
   idNorma: string;
@@ -67,7 +68,7 @@ export const fetchLawFromBCN = async (idNorma: string): Promise<BCNLaw | null> =
       texto: textoCompleto.trim() || "Texto no disponible en este formato."
     };
   } catch (error) {
-    console.error("Error fetching from BCN:", error);
+    logger.error("Error fetching from BCN:", error);
     return null;
   }
 };

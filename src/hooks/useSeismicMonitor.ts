@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 
 export interface Earthquake {
   id: string;
@@ -47,7 +48,7 @@ export function useSeismicMonitor(projectLat: number = -33.4489, projectLng: num
 
       } catch (e) {
         // Silently fail to avoid console clutter on network errors
-        // console.error("Error fetching seismic data", e);
+        // logger.error("Error fetching seismic data", e);
       }
     };
 

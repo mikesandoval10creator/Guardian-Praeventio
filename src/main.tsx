@@ -5,6 +5,7 @@ import './index.css';
 import './lib/i18n';
 import { initSentry } from './lib/sentry';
 import { registerSW } from 'virtual:pwa-register';
+import { logger } from './utils/logger';
 
 // Init error monitoring before anything else so startup errors are captured
 initSentry();
@@ -19,7 +20,7 @@ const updateSW = registerSW({
     }));
   },
   onOfflineReady() {
-    console.log('Praeventio Guard está listo para operar sin conexión.');
+    logger.debug('Praeventio Guard está listo para operar sin conexión.');
   },
 });
 

@@ -16,6 +16,7 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, handleFirestoreError, OperationType, storage } from '../../services/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { logger } from '../../utils/logger';
 
 interface Message {
   id: string;
@@ -135,7 +136,7 @@ export function CrisisChat() {
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) {
-      console.error("Error accessing microphone:", err);
+      logger.error("Error accessing microphone:", err);
       alert("No se pudo acceder al micrófono.");
     }
   };
@@ -169,7 +170,7 @@ export function CrisisChat() {
         timestamp: serverTimestamp()
       });
     } catch (error) {
-      console.error("Error uploading audio:", error);
+      logger.error("Error uploading audio:", error);
       alert("Error al enviar el mensaje de voz.");
     }
   };

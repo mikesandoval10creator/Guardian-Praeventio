@@ -39,7 +39,7 @@ export function EmergencyPlanGenerator() {
       const result = await generateEmergencyPlan(selectedProject.name, fullContext);
       setPlan(result);
     } catch (error) {
-      console.error('Error generating emergency plan:', error);
+      logger.error('Error generating emergency plan:', error);
     } finally {
       setLoading(false);
     }
@@ -192,7 +192,7 @@ export function EmergencyPlanGenerator() {
       setSavedToCloud(true);
       setTimeout(() => setSavedToCloud(false), 3000);
     } catch (error) {
-      console.error("Error saving to cloud:", error);
+      logger.error("Error saving to cloud:", error);
       alert('Error al guardar en la nube.');
     } finally {
       setIsSavingToCloud(false);

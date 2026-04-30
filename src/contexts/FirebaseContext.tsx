@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db, User, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, testConnection } from '../services/firebase';
 import { risks } from '../data/risks';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 interface FirebaseContextType {
   user: User | null;
@@ -60,7 +61,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
           // Seed initial nodes if collection is empty
           const nodesSnapshot = await getDocs(collection(db, 'nodes'));
           if (nodesSnapshot.empty) {
-            console.log('Seeding initial nodes...');
+            logger.debug('Seeding initial nodes...');
             for (const risk of risks) {
               const now = new Date().toISOString();
               await setDoc(doc(db, 'nodes', risk.id), {
@@ -77,7 +78,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch (error) {
-          console.error("Error during auth state change handling:", error);
+          logger.error("Error during auth state change handling:", error);
           // Fallback to safe defaults if Firestore fails
           setIsAdmin(false);
           setUserRole('worker');

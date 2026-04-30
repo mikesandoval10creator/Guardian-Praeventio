@@ -1,9 +1,10 @@
 import admin from "firebase-admin";
+import { logger } from '../utils/logger';
 
 export const seedInitialData = async (projectId: string = "default-project") => {
   const db = admin.firestore();
 
-  console.log(`Seeding initial data for project: ${projectId}`);
+  logger.debug(`Seeding initial data for project: ${projectId}`);
 
   // 1. Projects
   const projectRef = db.collection('projects').doc(projectId);
@@ -108,5 +109,5 @@ export const seedInitialData = async (projectId: string = "default-project") => 
     }
   }
 
-  console.log("Seeding finished.");
+  logger.debug("Seeding finished.");
 };

@@ -7,6 +7,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 export function IncidentInvestigation() {
   const [incidentTitle, setIncidentTitle] = useState('');
@@ -33,7 +34,7 @@ export function IncidentInvestigation() {
       const result = await investigateIncidentWithAI(incidentTitle, incidentDescription, context);
       setAnalysis(result);
     } catch (error) {
-      console.error('Error investigating incident:', error);
+      logger.error('Error investigating incident:', error);
     } finally {
       setLoading(false);
     }
@@ -95,7 +96,7 @@ export function IncidentInvestigation() {
 
       setSaved(true);
     } catch (error) {
-      console.error('Error saving investigation:', error);
+      logger.error('Error saving investigation:', error);
     } finally {
       setLoading(false);
     }

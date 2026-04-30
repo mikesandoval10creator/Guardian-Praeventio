@@ -1,4 +1,5 @@
 import { auth } from './firebase';
+import { logger } from '../utils/logger';
 
 const callGeminiAPI = async (action: string, args: any[]) => {
   try {
@@ -24,7 +25,7 @@ const callGeminiAPI = async (action: string, args: any[]) => {
     }
     return data.result;
   } catch (error) {
-    console.error(`Error calling Gemini API for ${action}:`, error);
+    logger.error(`Error calling Gemini API for ${action}:`, error);
     throw error;
   }
 };

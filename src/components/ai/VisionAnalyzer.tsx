@@ -7,6 +7,7 @@ import { NodeType } from '../../types';
 import { analyzeVisionImage } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { logger } from '../../utils/logger';
 
 interface AnalysisResult {
   eppDetected: string[];
@@ -88,7 +89,7 @@ export function VisionAnalyzer() {
         type: 'success'
       });
     } catch (err) {
-      console.error('Error analyzing image:', err);
+      logger.error('Error analyzing image:', err);
       addNotification({
         title: 'Error de Conexión',
         message: 'Hubo una interferencia al analizar la imagen. Por favor, intenta de nuevo.',
@@ -118,7 +119,7 @@ export function VisionAnalyzer() {
       });
       setSaved(true);
     } catch (error) {
-      console.error('Error saving vision finding:', error);
+      logger.error('Error saving vision finding:', error);
     } finally {
       setIsSaving(false);
     }

@@ -2,6 +2,7 @@ import Fuse from 'fuse.js';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
 
 import { get, set, del } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 export interface OfflineTopic {
   id: string;
@@ -107,7 +108,7 @@ export const savePendingOfflineQuery = async (query: string) => {
       await set('pendingOfflineQueries', queries);
     }
   } catch (e) {
-    console.error('Error saving pending query', e);
+    logger.error('Error saving pending query', e);
   }
 };
 

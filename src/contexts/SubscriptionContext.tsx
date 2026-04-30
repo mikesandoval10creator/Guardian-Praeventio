@@ -3,6 +3,7 @@ import { useFirebase } from './FirebaseContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from './ProjectContext';
+import { logger } from '../utils/logger';
 
 export type SubscriptionPlan = 'free' | 'comite' | 'departamento' | 'plata' | 'oro' | 'platino' | 'empresarial' | 'corporativo' | 'ilimitado';
 
@@ -88,7 +89,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           setPlan('free');
         }
       } catch (error) {
-        console.error('Error fetching subscription:', error);
+        logger.error('Error fetching subscription:', error);
         setPlan('free');
       } finally {
         setLoading(false);
@@ -117,7 +118,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       await setDoc(docRef, updateData, { merge: true });
       setPlan(newPlan);
     } catch (error) {
-      console.error('Error upgrading subscription:', error);
+      logger.error('Error upgrading subscription:', error);
     }
   };
 
