@@ -6,6 +6,7 @@ import { NotificationProvider } from "../contexts/NotificationContext";
 import { EmergencyProvider } from "../contexts/EmergencyContext";
 import { SensorProvider } from "../contexts/SensorContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
+import { NormativeProvider } from "../contexts/NormativeContext";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ interface AppProvidersProps {
 export function AppProviders({ children }: AppProvidersProps) {
   return (
     <ThemeProvider>
+      <NormativeProvider>
       <UniversalKnowledgeProvider>
         <ProjectProvider>
           <SubscriptionProvider>
@@ -27,6 +29,7 @@ export function AppProviders({ children }: AppProvidersProps) {
           </SubscriptionProvider>
         </ProjectProvider>
       </UniversalKnowledgeProvider>
+      </NormativeProvider>
     </ThemeProvider>
   );
 }

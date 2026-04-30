@@ -351,34 +351,37 @@ app.post("/api/admin/set-role", verifyAuth, async (req, res) => {
 
 // Ask Guardian Endpoint (El Cerebro Externo)
 app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
-  const { query, stream = false } = req.body;
-  
+  const { query, stream = false, normativeContext, environmentContext } = req.body;
+
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: "GEMINI_API_KEY not configured" });
   }
 
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    
+
     // Unified context search using Firestore Vector Search
     const { searchRelevantContext } = await import('./src/services/ragService.js');
-    const context = await searchRelevantContext(query);
+    const ragContext = await searchRelevantContext(query);
 
-    // Generate response using Gemini
+    // Build enriched prompt with normative + environment + RAG context
     const prompt = `
-      Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
-      Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
-      Responde de forma profesional, vigilante y altamente técnica pero accionable.
+Eres "El Guardián", el núcleo de inteligencia artificial de Guardian Praeventio.
+Eres un experto en seguridad y salud ocupacional con 30 años de experiencia en Chile.
+Tu propósito es proteger la vida humana, analizar normativas chilenas y gestionar riesgos laborales.
+Responde de forma profesional, vigilante y altamente técnica pero accionable.
 
-      REGLA DE ORO: Si el usuario te pregunta por procedimientos específicos o leyes, prioritiza la información en el CONTEXTO LEGAL proporcionado.
-      Si no hay información específica en el contexto, usa tu base de conocimientos pero aclara que es una recomendación general.
+REGLA DE ORO: Prioriza siempre la normativa chilena vigente. Si la pregunta involucra leyes o procedimientos,
+cita el código normativo exacto (ej: DS 594 Art. 28). Si no hay norma específica, indica que es recomendación general.
 
-      CONTEXTO LEGAL RELEVANTE:
-      ${context}
+${normativeContext ? `${normativeContext}\n` : ''}
+${environmentContext ? `CONDICIONES AMBIENTALES ACTUALES DEL SITIO:\n${environmentContext}\n` : ''}
+CONTEXTO RAG (documentos relevantes de la organización):
+${ragContext}
 
-      PREGUNTA DEL USUARIO:
-      ${query}
-    `;
+PREGUNTA DEL USUARIO:
+${query}
+    `.trim();
 
     if (stream) {
       res.setHeader('Content-Type', 'text/event-stream');
@@ -405,7 +408,7 @@ app.post("/api/ask-guardian", verifyAuth, async (req, res) => {
 
       res.json({ 
         response: result.text,
-        contextUsed: context !== "No se encontró contexto legal relevante."
+        contextUsed: ragContext !== "No se encontró contexto legal relevante."
       });
     }
 

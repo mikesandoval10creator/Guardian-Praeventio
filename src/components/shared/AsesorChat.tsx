@@ -8,6 +8,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import ReactMarkdown from 'react-markdown';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { getComprehensiveNormativeContext } from '../../contexts/NormativeContext';
+import { fetchWeatherData, fetchSeismicData } from '../../services/orchestratorService';
 import { auth } from '../../services/firebase';
 
 interface Message {
@@ -174,6 +176,22 @@ export function AsesorChat() {
       const searchQuery = isContinuation ? `${lastTopic} ${currentInput}` : currentInput;
 
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+
+      // Enrich with normative + live environment context in parallel
+      const lat = (selectedProject as any)?.coordinates?.lat ?? -33.4489;
+      const lon = (selectedProject as any)?.coordinates?.lng ?? -70.6693;
+      const [weatherData, seismicData] = await Promise.allSettled([
+        fetchWeatherData(lat, lon),
+        fetchSeismicData(lat, lon),
+      ]);
+      const weather = weatherData.status === 'fulfilled' ? weatherData.value : null;
+      const seismic = seismicData.status === 'fulfilled' ? seismicData.value : null;
+
+      const environmentContext = [
+        weather ? `Clima actual: ${weather.temp}°C, ${weather.condition}, Viento: ${Math.round(weather.windSpeed)} km/h, Humedad: ${weather.humidity}%, Calidad del aire: ${weather.airQuality}.` : '',
+        seismic ? `Sismo reciente: Magnitud ${seismic.magnitude} — Nivel de alerta: ${seismic.alertLevel}.` : '',
+      ].filter(Boolean).join(' ');
+
       const response = await fetch('/api/ask-guardian', {
         method: 'POST',
         headers: {
@@ -183,7 +201,9 @@ export function AsesorChat() {
         body: JSON.stringify({
           query: searchQuery,
           projectId: selectedProject?.id,
-          stream: true
+          stream: true,
+          normativeContext: getComprehensiveNormativeContext(),
+          environmentContext: environmentContext || undefined,
         })
       });
 
