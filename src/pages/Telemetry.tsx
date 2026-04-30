@@ -287,20 +287,27 @@ export function Telemetry() {
       const context = `Proyecto: ${selectedProject?.name || 'Global'}. Clima: ${weather?.temp || 20}°C, Viento: ${weather?.windSpeed || 10}km/h.`;
       const eventData = await generateRealisticIoTEvent(context);
       
-      // Edge IoT Filter: Only upload anomalous events to Firebase to save bandwidth/storage
+      // Edge IoT Filter: Only upload anomalous events to save bandwidth/storage
+      // Route through /api/telemetry/ingest so autoValidateTelemetry runs on the backend
       if (eventData.status === 'warning' || eventData.status === 'critical') {
         try {
-          await addDoc(collection(db, 'telemetry_events'), {
-            ...eventData,
-            timestamp: serverTimestamp(),
-            projectId: selectedProject?.id || 'global'
+          const token = await auth.currentUser?.getIdToken();
+          await fetch('/api/telemetry/ingest', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              ...eventData,
+              projectId: selectedProject?.id || 'global',
+            }),
           });
         } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, 'telemetry_events');
+          logger.error('Error ingesting telemetry event', { error });
         }
       } else {
-        logger.debug('Edge IoT filter: normal event filtered locally', { eventData });
-        // Optionally update local state for the UI without hitting Firebase
+        logger.debug('Edge IoT filter: normal event filtered locally', { status: eventData.status });
       }
     } catch (error) {
       logger.error('Error simulating IoT event', { error });
