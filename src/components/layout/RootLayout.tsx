@@ -13,6 +13,7 @@ import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
+import { SmartConnectionsPanel } from '../knowledge/SmartConnectionsPanel';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
 import { MFASetupModal } from '../auth/MFASetupModal';
@@ -316,6 +317,7 @@ export function RootLayout() {
       </main>
       <AsesorChat />
       <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
+      <SmartConnectionsPanel />
     </div>
   );
 }
