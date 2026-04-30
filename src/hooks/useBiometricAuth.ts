@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { logger } from '../utils/logger';
 
 export const useBiometricAuth = () => {
   const [isSupported, setIsSupported] = useState<boolean>(
@@ -7,7 +8,7 @@ export const useBiometricAuth = () => {
 
   const authenticate = useCallback(async (challengeMessage: string = 'Autenticación requerida'): Promise<boolean> => {
     if (!isSupported) {
-      console.warn('WebAuthn no está soportado en este dispositivo.');
+      logger.warn('WebAuthn no está soportado en este dispositivo.');
       return true; // Fallback to true if not supported for MVP
     }
 
@@ -26,7 +27,7 @@ export const useBiometricAuth = () => {
       const credential = await navigator.credentials.get({ publicKey });
       return !!credential;
     } catch (error) {
-      console.error('Error en autenticación biométrica:', error);
+      logger.error('Error en autenticación biométrica:', error);
       return false;
     }
   }, [isSupported]);
@@ -64,7 +65,7 @@ export const useBiometricAuth = () => {
       const credential = await navigator.credentials.create({ publicKey });
       return !!credential;
     } catch (error) {
-      console.error('Error en registro biométrico:', error);
+      logger.error('Error en registro biométrico:', error);
       return false;
     }
   }, [isSupported]);

@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { openDB, IDBPDatabase } from 'idb';
+import { logger } from './logger';
 
 const DB_NAME = 'praeventio-offline';
 const STORE_NAME = 'pending-sync';
@@ -86,10 +87,10 @@ const initSQLite = async () => {
         // Cannot reliably distinguish "duplicate column" from other ALTER
         // failures across SQLite drivers, so we log at debug level and move on.
         // The CREATE TABLE above guarantees the column exists for fresh installs.
-        console.debug('SQLite migration (localUpdatedAt) skipped', migrationErr);
+        logger.debug('SQLite migration (localUpdatedAt) skipped', migrationErr);
       }
     } catch (err) {
-      console.error("SQLite Init Error", err);
+      logger.error("SQLite Init Error", err);
     }
   }
   return sqliteDB;
@@ -219,7 +220,7 @@ export const syncWithFirebase = async (callback: (action: SyncAction) => Promise
       await callback(action);
       if (action.id) await removeSyncedAction(action.id);
     } catch (err) {
-      console.error('Failed to sync action:', action, err);
+      logger.error('Failed to sync action:', action, err);
       window.dispatchEvent(new CustomEvent('sync-action-failed', { detail: { action, error: err } }));
     }
   }

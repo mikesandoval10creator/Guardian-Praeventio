@@ -22,6 +22,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { logger } from '../utils/logger';
 
 export function SusesoReports() {
   const { nodes } = useRiskEngine();
@@ -60,7 +61,7 @@ export function SusesoReports() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`${activeTab}_${selectedIncident.title.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
-      console.error("Error exporting PDF:", error);
+      logger.error("Error exporting PDF:", error);
     } finally {
       setIsGenerating(false);
     }
@@ -122,8 +123,8 @@ export function SusesoReports() {
       }, 3000);
       
     } catch (error) {
-      console.error("Error sharing PDF:", error);
-      console.error('Error saving to cloud storage.');
+      logger.error("Error sharing PDF:", error);
+      logger.error('Error saving to cloud storage.');
     } finally {
       setIsSavingToDrive(false);
     }

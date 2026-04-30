@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { logger } from '../utils/logger';
 
 // Ad unit IDs come exclusively from env vars — no test-ID fallback in production builds.
 // Required vars: VITE_ADMOB_ANDROID_INTERSTITIAL, VITE_ADMOB_IOS_INTERSTITIAL
@@ -18,7 +19,7 @@ export async function initAdMob(): Promise<void> {
     const { AdMob } = await import('@capacitor-community/admob');
     await AdMob.initialize({ testingDevices: [], initializeForTesting: false });
   } catch (err) {
-    console.warn('[AdService] initialize failed:', err);
+    logger.warn('[AdService] initialize failed:', err);
   }
 }
 
@@ -32,7 +33,7 @@ export async function prepareInterstitial(): Promise<void> {
     const { AdMob, InterstitialAdPluginEvents } = await import('@capacitor-community/admob');
     await AdMob.prepareInterstitial({ adId });
   } catch (err) {
-    console.warn('[AdService] prepareInterstitial failed:', err);
+    logger.warn('[AdService] prepareInterstitial failed:', err);
   }
 }
 
@@ -42,7 +43,7 @@ export async function showInterstitial(): Promise<void> {
     const { AdMob } = await import('@capacitor-community/admob');
     await AdMob.showInterstitial();
   } catch (err) {
-    console.warn('[AdService] showInterstitial failed:', err);
+    logger.warn('[AdService] showInterstitial failed:', err);
   }
 }
 

@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection } from '@capacitor-community/sqlite';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { logger } from './logger';
 
 // Keep IDB as fallback for web
 interface PraeventioDB extends DBSchema {
@@ -82,7 +83,7 @@ const initSQLite = async () => {
       `;
       await sqliteDB.execute(schema);
     } catch (err) {
-      console.error("SQLite Init Error", err);
+      logger.error("SQLite Init Error", err);
     }
   }
   return sqliteDB;
@@ -100,7 +101,7 @@ const encryptData = (data: any): string => {
   try {
     return btoa(encodeURIComponent(JSON.stringify(data)));
   } catch (e) {
-    console.error('Encryption error', e);
+    logger.error('Encryption error', e);
     return '';
   }
 };
@@ -109,7 +110,7 @@ const decryptData = (encryptedStr: string): any => {
   try {
     return JSON.parse(decodeURIComponent(atob(encryptedStr)));
   } catch (e) {
-    console.error('Decryption error', e);
+    logger.error('Decryption error', e);
     return null;
   }
 };

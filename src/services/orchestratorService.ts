@@ -1,4 +1,5 @@
 import { WeatherData, SeismicData, EnvironmentContext } from '../types';
+import { logger } from '../utils/logger';
 
 const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
 
@@ -12,7 +13,7 @@ const DEFAULT_LON = -70.6693;
  */
 export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = DEFAULT_LON): Promise<WeatherData> => {
   if (!OPENWEATHER_API_KEY) {
-    console.warn('VITE_OPENWEATHER_API_KEY not found. Using mock weather data.');
+    logger.warn('VITE_OPENWEATHER_API_KEY not found. Using mock weather data.');
     return getMockWeatherData();
   }
 
@@ -42,7 +43,7 @@ export const fetchWeatherData = async (lat: number = DEFAULT_LAT, lon: number = 
     };
   } catch (error) {
     // Silently fail to avoid console clutter on network errors
-    // console.error('Failed to fetch weather data, falling back to mock:', error);
+    // logger.error('Failed to fetch weather data, falling back to mock:', error);
     return getMockWeatherData();
   }
 };
@@ -89,7 +90,7 @@ export const fetchSeismicData = async (lat: number = DEFAULT_LAT, lon: number = 
     return null; // No significant earthquakes
   } catch (error) {
     // Silently fail to avoid console clutter on network errors
-    // console.error('Failed to fetch seismic data:', error);
+    // logger.error('Failed to fetch seismic data:', error);
     return null; // Fail gracefully
   }
 };

@@ -5,6 +5,7 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'fire
 import { db } from '../services/firebase';
 import { Geolocation } from '@capacitor/geolocation';
 import { Capacitor } from '@capacitor/core';
+import { logger } from '../utils/logger';
 
 export const useGeolocationTracking = () => {
   const { selectedProject } = useProject();
@@ -29,7 +30,7 @@ export const useGeolocationTracking = () => {
           setHasArt22(false);
         }
       } catch (error) {
-        console.error('Error checking worker status:', error);
+        logger.error('Error checking worker status:', error);
       }
     };
 
@@ -104,7 +105,7 @@ export const useGeolocationTracking = () => {
               timestamp: serverTimestamp(),
             });
           } catch (error) {
-            console.error('Error saving location:', error);
+            logger.error('Error saving location:', error);
           }
         }
       };
@@ -115,7 +116,7 @@ export const useGeolocationTracking = () => {
           if (permissions.location !== 'granted') {
             const request = await Geolocation.requestPermissions();
             if (request.location !== 'granted') {
-              console.warn('Geolocation permissions denied.');
+              logger.warn('Geolocation permissions denied.');
               setIsTracking(false);
               return;
             }
@@ -125,19 +126,19 @@ export const useGeolocationTracking = () => {
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
             (position, err) => {
               if (err) {
-                console.error('Native Geolocation error:', err);
+                logger.error('Native Geolocation error:', err);
                 return;
               }
               handlePosition(position);
             }
           );
         } catch (error) {
-          console.error("Error starting native geolocation:", error);
+          logger.error("Error starting native geolocation:", error);
           setIsTracking(false);
         }
       } else {
         if (!navigator.geolocation) {
-          console.warn('Geolocation is not supported by this browser.');
+          logger.warn('Geolocation is not supported by this browser.');
           setIsTracking(false);
           return;
         }
@@ -145,7 +146,7 @@ export const useGeolocationTracking = () => {
         watchId = navigator.geolocation.watchPosition(
           handlePosition,
           (error) => {
-            console.error('Web Geolocation error:', error);
+            logger.error('Web Geolocation error:', error);
             setIsTracking(false);
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }

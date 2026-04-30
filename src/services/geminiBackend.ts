@@ -2,6 +2,7 @@ import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai"
 import { RiskNode } from '../types';
 import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
 import { calculateDeterministicSafeRoute } from './routingBackend.js';
+import { logger } from '../utils/logger';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -21,7 +22,7 @@ const withExponentialBackoff = async <T>(
         throw error;
       }
       const delay = baseDelay * Math.pow(2, retries);
-      console.warn(`Rate limited. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
+      logger.warn(`Rate limited. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
       await sleep(delay);
       retries++;
     }
@@ -45,7 +46,7 @@ export const generateEmbeddingsBatch = async (texts: string[]): Promise<number[]
       );
       embeddings.push(response.embeddings?.[0]?.values || []);
     } catch (e) {
-      console.error("Error generating embedding for text:", text, e);
+      logger.error("Error generating embedding for text:", text, e);
       embeddings.push([]);
     }
   }
@@ -92,7 +93,7 @@ export const autoConnectNodes = async (newNode: Partial<RiskNode>, existingNodes
     }
     return [];
   } catch (error) {
-    console.error("Error auto-connecting nodes:", error);
+    logger.error("Error auto-connecting nodes:", error);
     return [];
   }
 };
@@ -134,7 +135,7 @@ export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], 
     nodesWithScores.sort((a, b) => b.score - a.score);
     return nodesWithScores.slice(0, topK).map(n => n.node);
   } catch (error) {
-    console.error("Error in semantic search:", error);
+    logger.error("Error in semantic search:", error);
     return candidates.slice(0, topK);
   }
 };
@@ -654,7 +655,7 @@ export const processDocumentToNodes = async (text: string) => {
       const nodes = JSON.parse(response.text);
       allNodes.push(...nodes);
     } catch (e) {
-      console.error("Error processing chunk for document nodes:", e);
+      logger.error("Error processing chunk for document nodes:", e);
     }
   }
 
@@ -742,7 +743,7 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
       }
     };
   } catch (error) {
-    console.error("Error enriching node data:", error);
+    logger.error("Error enriching node data:", error);
     return nodeData;
   }
 };
@@ -787,7 +788,7 @@ export const analyzeRootCauses = async (riskTitle: string, riskDescription: stri
     
     return JSON.parse(response.text || '{}');
   } catch (error) {
-    console.error("Error analyzing root causes:", error);
+    logger.error("Error analyzing root causes:", error);
     throw error;
   }
 };
@@ -824,7 +825,7 @@ export const queryBCN = async (query: string) => {
     });
     return response.text;
   } catch (error) {
-    console.error("Error querying BCN:", error);
+    logger.error("Error querying BCN:", error);
     throw error;
   }
 };
@@ -1928,7 +1929,7 @@ export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], 
       routePoints: safeRoutePoints // Return the deterministically calculated points
     };
   } catch (e) {
-    console.error("Error parsing Gemini response for evacuation route:", e);
+    logger.error("Error parsing Gemini response for evacuation route:", e);
     return {
       rutaSegura: "Ruta de Evacuación Predeterminada",
       rutasBloqueadas: userBlockedAreas,
@@ -2240,7 +2241,7 @@ export const calculateStructuralLoad = async (element: string, specs: string) =>
     });
     return result.text || 'No se pudo generar el cálculo.';
   } catch (error) {
-    console.error('Error calculating structural load:', error);
+    logger.error('Error calculating structural load:', error);
     return 'Error al calcular la capacidad estructural. Por favor, intente nuevamente.';
   }
 };
@@ -2274,7 +2275,7 @@ export const designHazmatStorage = async (storageType: string, volume: number, m
     });
     return result.text || 'No se pudo generar el diseño.';
   } catch (error) {
-    console.error('Error designing hazmat storage:', error);
+    logger.error('Error designing hazmat storage:', error);
     return 'Error al generar el diseño de la instalación. Por favor, intente nuevamente.';
   }
 };
@@ -2313,7 +2314,7 @@ export const evaluateMinsalCompliance = async (protocolTitle: string, context: s
     });
     return result.text || 'No se pudo generar la evaluación.';
   } catch (error) {
-    console.error('Error evaluating MINSAL compliance:', error);
+    logger.error('Error evaluating MINSAL compliance:', error);
     return 'Error al evaluar el cumplimiento del protocolo. Por favor, intente nuevamente.';
   }
 };
@@ -2355,7 +2356,7 @@ Devuelve la respuesta en formato JSON con la siguiente estructura:
     });
     return JSON.parse(result.text || '{}');
   } catch (error) {
-    console.error("Error generating module recommendations:", error);
+    logger.error("Error generating module recommendations:", error);
     return null;
   }
 };
@@ -2448,7 +2449,7 @@ export async function analyzeFaenaRiskWithAI(industry: string, context: string, 
 
     return response.text || 'No se pudo generar el análisis de riesgos de faena.';
   } catch (error) {
-    console.error('Error in analyzeFaenaRiskWithAI:', error);
+    logger.error('Error in analyzeFaenaRiskWithAI:', error);
     throw error;
   }
 }
@@ -2486,7 +2487,7 @@ export async function extractAcademicSummary(text: string) {
 
     return response.text || 'No se pudo generar el resumen académico.';
   } catch (error) {
-    console.error('Error in extractAcademicSummary:', error);
+    logger.error('Error in extractAcademicSummary:', error);
     throw error;
   }
 }

@@ -1,5 +1,6 @@
 import admin from "firebase-admin";
 import { GoogleGenAI } from "@google/genai";
+import { logger } from '../utils/logger';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -56,9 +57,9 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
       projectId: nodeData.projectId || 'global',
       indexedAt: admin.firestore.FieldValue.serverTimestamp()
     });
-    console.log(`[NetworkBackend] Node ${nodeId} synced to Firestore Vector Store.`);
+    logger.debug(`[NetworkBackend] Node ${nodeId} synced to Firestore Vector Store.`);
   } catch (e) {
-    console.error(`[NetworkBackend] Failed to sync to Firestore Vector Store:`, e);
+    logger.error(`[NetworkBackend] Failed to sync to Firestore Vector Store:`, e);
   }
 
   // 4. Handle Bidirectional Connections
@@ -106,7 +107,7 @@ export const syncBatchToNetwork = async (operations: any[], authorUid: string) =
         results.push({ id: nodeId, status: 'deleted' });
       }
     } catch (e: any) {
-      console.error(`[NetworkBackend] Error in batch op for ${op.id}:`, e);
+      logger.error(`[NetworkBackend] Error in batch op for ${op.id}:`, e);
       results.push({ id: op.id, status: 'error', error: e.message });
     }
   }

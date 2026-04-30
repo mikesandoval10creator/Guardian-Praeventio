@@ -11,6 +11,7 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { getComprehensiveNormativeContext } from '../../contexts/NormativeContext';
 import { fetchWeatherData, fetchSeismicData } from '../../services/orchestratorService';
 import { auth } from '../../services/firebase';
+import { logger } from '../../utils/logger';
 
 interface Message {
   id: string;
@@ -75,7 +76,7 @@ export function AsesorChat() {
       setSavedNodeId(newNode.id);
       setTimeout(() => setSavedNodeId(null), 3000);
     } catch (error) {
-      console.error('Error saving to Risk Network:', error);
+      logger.error('Error saving to Risk Network:', error);
     }
   };
 
@@ -246,14 +247,14 @@ export function AsesorChat() {
                     : m
                 ));
               } catch (e) {
-                console.error("Error parsing SSE data", e);
+                logger.error("Error parsing SSE data", e);
               }
             }
           }
         }
       }
     } catch (error) {
-      console.error('Error in chat:', error);
+      logger.error('Error in chat:', error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',

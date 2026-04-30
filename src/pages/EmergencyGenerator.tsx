@@ -17,6 +17,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { logger } from '../utils/logger';
 
 export function EmergencyGenerator() {
   const { selectedProject } = useProject();
@@ -74,7 +75,7 @@ export function EmergencyGenerator() {
         setGeneratedPlan(data);
       }
     } catch (error) {
-      console.error('Error generating Emergency Plan:', error);
+      logger.error('Error generating Emergency Plan:', error);
     } finally {
       setIsGenerating(false);
     }
@@ -164,7 +165,7 @@ export function EmergencyGenerator() {
 
       alert('Plan de Emergencia guardado exitosamente en Documentos, Protocolos y Red Neuronal');
     } catch (error) {
-      console.error('Error saving Emergency Plan:', error);
+      logger.error('Error saving Emergency Plan:', error);
       alert('Error al guardar el Plan de Emergencia');
     } finally {
       setIsSaving(false);
@@ -203,7 +204,7 @@ export function EmergencyGenerator() {
       
       pdf.save(`PE_${scenario.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
-      console.error('Error downloading PDF:', error);
+      logger.error('Error downloading PDF:', error);
       alert('Error al descargar el PDF');
     } finally {
       setIsDownloading(false);

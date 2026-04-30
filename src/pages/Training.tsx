@@ -39,6 +39,7 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import { PostTrainingAdModal } from '../components/shared/PostTrainingAdModal';
 import { prepareInterstitial, canShowAd, recordAdShown } from '../services/adService';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { logger } from '../utils/logger';
 
 interface QuizQuestion {
   question: string;
@@ -138,7 +139,7 @@ export function Training() {
       setIsCreatingSession(false);
       setNewSessionForm({ title: '', description: '', youtubeUrl: '', duration: 15, points: 100, isCurated: false });
     } catch (error) {
-      console.error('Error creating session:', error);
+      logger.error('Error creating session:', error);
     }
   };
 
@@ -157,7 +158,7 @@ export function Training() {
       });
       setActiveTab('all');
     } catch (error) {
-      console.error('Error assigning session:', error);
+      logger.error('Error assigning session:', error);
     }
   };
 
@@ -200,7 +201,7 @@ export function Training() {
         setTimeout(() => setAdTrainingTitle(session.title), 400);
       }
     } catch (error) {
-      console.error('Error completing video:', error);
+      logger.error('Error completing video:', error);
     }
   };
 
@@ -215,7 +216,7 @@ export function Training() {
       setQuizAnswers([]);
       setIsQuizFinished(false);
     } catch (error) {
-      console.error('Error generating quiz:', error);
+      logger.error('Error generating quiz:', error);
     } finally {
       setIsGeneratingQuiz(false);
     }
@@ -286,7 +287,7 @@ export function Training() {
         });
       }
     } catch (error) {
-      console.error('Error generating capsule:', error);
+      logger.error('Error generating capsule:', error);
     } finally {
       setGeneratingCapsule(false);
     }

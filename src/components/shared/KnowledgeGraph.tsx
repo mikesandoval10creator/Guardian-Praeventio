@@ -26,6 +26,7 @@ import * as THREE from 'three';
 import { analyzeRootCauses } from '../../services/geminiService';
 import jsPDF from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
+import { logger } from '../../utils/logger';
 
 export function KnowledgeGraph() {
   const { getGraphData, loading } = useRiskEngine();
@@ -80,7 +81,7 @@ export function KnowledgeGraph() {
             renderer.forceContextLoss();
           }
         } catch (e) {
-          console.warn("Could not dispose WebGL context", e);
+          logger.warn("Could not dispose WebGL context", e);
         }
       }
     };
@@ -180,7 +181,7 @@ export function KnowledgeGraph() {
       const result = await simulateRiskPropagation(node.title, context);
       setPropagationResult(result);
     } catch (error) {
-      console.error('Error simulating propagation:', error);
+      logger.error('Error simulating propagation:', error);
     } finally {
       setIsSimulatingPropagation(false);
     }
@@ -239,7 +240,7 @@ export function KnowledgeGraph() {
       const result = await analyzeRootCauses(node.title, node.description, contextString);
       setCauseAnalysisResult(result);
     } catch (error) {
-      console.error("Error analyzing causes:", error);
+      logger.error("Error analyzing causes:", error);
     } finally {
       setIsAnalyzingCauses(false);
     }
