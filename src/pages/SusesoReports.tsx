@@ -326,19 +326,40 @@ export function SusesoReports() {
                     {/* Section A: Empleador */}
                     <div className="border border-zinc-300 rounded-lg p-4">
                       <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">A. Identificación del Empleador</h3>
+                      {!(selectedProject as any)?.companyName && (
+                        <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-[9px] text-amber-700 font-medium">
+                          ⚠️ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Razón Social</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">Praeventio Guard S.A.</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${!(selectedProject as any)?.companyName ? 'text-amber-600 italic' : ''}`}>
+                            {(selectedProject as any)?.companyName || 'Sin configurar'}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-bold uppercase text-zinc-500">RUT</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">76.123.456-7</p>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">RUT Empresa</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${!(selectedProject as any)?.companyRut ? 'text-amber-600 italic' : ''}`}>
+                            {(selectedProject as any)?.companyRut || 'Sin configurar'}
+                          </p>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Proyecto / Sucursal</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject?.name || 'Casa Matriz'}</p>
+                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject?.name || '—'}</p>
                         </div>
+                        <div>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">Organismo Administrador</p>
+                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">
+                            {(selectedProject as any)?.mutualidad || 'Sin configurar'}
+                          </p>
+                        </div>
+                        {(selectedProject as any)?.companyAddress && (
+                          <div className="col-span-2">
+                            <p className="text-[8px] font-bold uppercase text-zinc-500">Dirección</p>
+                            <p className="text-sm font-medium border-b border-zinc-200 pb-1">{(selectedProject as any).companyAddress}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

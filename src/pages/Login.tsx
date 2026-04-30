@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { logger } from '../utils/logger';
 import { signInWithGoogle, auth, db } from '../services/firebase';
 import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/shared/Card';
@@ -32,7 +33,7 @@ export default function Login() {
         biometricKeys: arrayUnion(credId)
       });
     } catch (e) {
-      console.log("No se pudo sincronizar BD, pero la llave local existe", e);
+      logger.warn('Could not sync DB but local key exists', { error: e });
     }
   };
 
@@ -54,14 +55,14 @@ export default function Login() {
              await syncBiometricToCloud(user.uid, credId);
           }
         } catch(e) {
-           console.log("Biometric registration skipped", e);
+           logger.debug('Biometric registration skipped', { error: e });
         }
       } else if (user && hasBiometric && biometricCredential) {
          // Already registered, just make sure cloud knows about this device's key
          await syncBiometricToCloud(user.uid, biometricCredential);
       }
     } catch (error) {
-      console.error('Error logging in:', error);
+      logger.error('Error logging in', { error });
     }
   };
 
@@ -75,7 +76,7 @@ export default function Login() {
         await signInWithGoogle();
       }
     } catch(error) {
-      console.error("Biometric verification failed", error);
+      logger.error('Biometric verification failed', { error });
     }
   }
 

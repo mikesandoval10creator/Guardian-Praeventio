@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, OverlayView, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
 import { 
@@ -120,7 +121,7 @@ export function Evacuation() {
       // Clear previous directions
       setDirectionsResponse(null);
     } catch (error) {
-      console.error('Error calculating dynamic route:', error);
+      logger.error('Error calculating dynamic route', { error });
     } finally {
       setCalculating(false);
     }
@@ -134,7 +135,7 @@ export function Evacuation() {
         // Only recalculate if it's been at least 30 seconds since the last one to avoid spamming
         const now = new Date();
         if (!lastRecalculation || (now.getTime() - lastRecalculation.getTime() > 30000)) {
-          console.log('Triggering automatic route recalculation due to critical IoT event:', latestEvent);
+          logger.info('Triggering automatic route recalculation due to critical IoT event', { latestEvent });
           runDynamicCalculation(`Evento Crítico IoT: ${latestEvent.source} - ${latestEvent.metric}`);
         }
       }
@@ -149,7 +150,7 @@ export function Evacuation() {
       const plan = await generateEmergencyPlan(selectedProject?.name || 'Proyecto Actual', context, selectedProject?.industry);
       setEmergencyPlan(plan);
     } catch (error) {
-      console.error('Error generating emergency plan:', error);
+      logger.error('Error generating emergency plan', { error });
     } finally {
       setGeneratingPlan(false);
     }
@@ -186,7 +187,7 @@ export function Evacuation() {
 
       setEmergencyPlan(null);
     } catch (error) {
-      console.error('Error saving emergency plan:', error);
+      logger.error('Error saving emergency plan', { error });
     } finally {
       setSavingPlan(false);
     }
@@ -216,7 +217,7 @@ export function Evacuation() {
     if (status === 'OK' && result) {
       setDirectionsResponse(result);
     } else {
-      console.error(`Directions request failed: ${status}`);
+      logger.error('Directions request failed', { status });
     }
   }, []);
 

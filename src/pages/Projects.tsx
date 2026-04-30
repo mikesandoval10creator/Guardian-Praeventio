@@ -6,8 +6,9 @@ import {
   MapPin, 
   Calendar, 
   Building2, 
-  ShieldAlert, 
-  ChevronRight, 
+  ShieldAlert,
+  Shield,
+  ChevronRight,
   X, 
   Loader2, 
   CheckCircle2, 
@@ -46,6 +47,10 @@ export function Projects() {
     location: '',
     industry: INDUSTRIES[0],
     clientName: '',
+    companyName: '',
+    companyRut: '',
+    companyAddress: '',
+    mutualidad: 'ACHS' as 'ACHS' | 'IST' | 'Mutual de Seguridad' | 'SUSESO' | 'Otra',
     startDate: new Date().toISOString().split('T')[0],
     riskLevel: 'Medio' as any,
     status: 'active' as const,
@@ -90,6 +95,10 @@ export function Projects() {
         location: '',
         industry: INDUSTRIES[0],
         clientName: '',
+        companyName: '',
+        companyRut: '',
+        companyAddress: '',
+        mutualidad: 'ACHS' as any,
         startDate: new Date().toISOString().split('T')[0],
         riskLevel: 'Medio',
         status: 'active',
@@ -199,6 +208,16 @@ export function Projects() {
                         <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.clientName || 'N/A'}</p>
                       </div>
                     </div>
+                    {(selectedProject as any).companyName && (
+                      <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
+                        <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Empleador (SUSESO)</p>
+                          <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{(selectedProject as any).companyName}</p>
+                          <p className="text-[10px] text-zinc-500">{(selectedProject as any).companyRut} · {(selectedProject as any).mutualidad}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -479,6 +498,57 @@ export function Projects() {
                       placeholder="Nombre de la empresa mandante"
                       className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                     />
+                  </div>
+                </div>
+
+                {/* Legal employer data for SUSESO/DIAT compliance */}
+                <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">Datos del Empleador (Ley 16.744 / SUSESO)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Razón Social</label>
+                      <input
+                        type="text"
+                        value={formData.companyName}
+                        onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                        placeholder="Nombre legal de la empresa"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">RUT Empresa</label>
+                      <input
+                        type="text"
+                        value={formData.companyRut}
+                        onChange={e => setFormData({ ...formData, companyRut: e.target.value })}
+                        placeholder="Ej: 76.123.456-7"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Dirección</label>
+                      <input
+                        type="text"
+                        value={formData.companyAddress}
+                        onChange={e => setFormData({ ...formData, companyAddress: e.target.value })}
+                        placeholder="Calle, Número, Ciudad"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Organismo Administrador</label>
+                      <select
+                        value={formData.mutualidad}
+                        onChange={e => setFormData({ ...formData, mutualidad: e.target.value as any })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      >
+                        <option value="ACHS">ACHS</option>
+                        <option value="IST">IST</option>
+                        <option value="Mutual de Seguridad">Mutual de Seguridad</option>
+                        <option value="SUSESO">SUSESO (Administración Delegada)</option>
+                        <option value="Otra">Otra</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 

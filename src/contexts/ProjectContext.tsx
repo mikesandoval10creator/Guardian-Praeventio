@@ -15,13 +15,18 @@ interface Project {
   endDate?: string;
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
-  workersCount?: number; // Added for subscription and legal compliance
+  workersCount?: number;
   updatedAt?: string;
   isPendingSync?: boolean;
+  // Legal / SUSESO fields
+  companyName?: string;   // Razón social del empleador
+  companyRut?: string;    // RUT empresa (ej: 76.123.456-7)
+  companyAddress?: string;
+  mutualidad?: 'ACHS' | 'IST' | 'Mutual de Seguridad' | 'SUSESO' | 'Otra';
   // Tracking & Shifts
-  shiftStart?: string; // e.g., "08:00"
-  shiftEnd?: string;   // e.g., "18:00"
-  trackCommute?: boolean; // Track 1 hour before/after
+  shiftStart?: string;
+  shiftEnd?: string;
+  trackCommute?: boolean;
   settings?: {
     geofences?: any[];
     manDownInactivityThreshold?: number;

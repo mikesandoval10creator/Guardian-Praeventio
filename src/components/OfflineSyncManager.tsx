@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { syncWithFirebase, SyncAction, getPendingActions, removeSyncedAction } from '../utils/pwa-offline';
 import { db, storage, handleFirestoreError, OperationType } from '../services/firebase';
@@ -126,7 +127,7 @@ export function OfflineSyncManager() {
 
           try {
             await setDoc(doc(db, 'nodes', nodeId), newNode);
-            console.log(`Created Risk node ${nodeId} for synced action`);
+            logger.info('Created Risk node for synced action', { nodeId });
 
             // If it was a create action, update the document with the nodeId
             if (action.type === 'create') {
@@ -137,9 +138,9 @@ export function OfflineSyncManager() {
           }
         }
 
-        console.log(`Successfully synced offline action: ${action.type} on ${action.collection}`);
+        logger.info('Synced offline action', { type: action.type, collection: action.collection });
       } catch (error) {
-        console.error('Error syncing offline action:', error);
+        logger.error('Error syncing offline action', { error });
         throw error; // Rethrow to keep it in the queue if it failed
       }
     };
@@ -160,7 +161,7 @@ export function OfflineSyncManager() {
           current++;
           window.dispatchEvent(new CustomEvent('sync-progress', { detail: { current, total: actions.length } }));
         } catch (err) {
-          console.error('Failed to sync action:', action, err);
+          logger.error('Failed to sync action', { action, error: err });
           window.dispatchEvent(new CustomEvent('sync-action-failed', { detail: { action, error: err } }));
         }
       }
@@ -173,7 +174,7 @@ export function OfflineSyncManager() {
         await handleSync(action);
         if (action.id) await removeSyncedAction(action.id);
       } catch (err) {
-        console.error('Failed to sync single action:', action, err);
+        logger.error('Failed to sync single action', { action, error: err });
         window.dispatchEvent(new CustomEvent('sync-action-failed', { detail: { action, error: err } }));
       }
     };

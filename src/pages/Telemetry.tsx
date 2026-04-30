@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Activity, 
@@ -163,7 +164,7 @@ export function Telemetry() {
       setIsConnectingFit(false);
       alert(`Conectado a ${device.name}`);
     } catch (error) {
-      console.error('Error connecting to Bluetooth device:', error);
+      logger.error('Error connecting to Bluetooth device', { error });
       setIsConnectingFit(false);
       // alert('Error al conectar con el dispositivo Bluetooth.');
     }
@@ -191,7 +192,7 @@ export function Telemetry() {
         setIsConnectingFit(false);
       }
     } catch (error) {
-      console.error('Error connecting to Google Fit:', error);
+      logger.error('Error connecting to Google Fit', { error });
       setIsConnectingFit(false);
     }
   };
@@ -251,7 +252,7 @@ export function Telemetry() {
       }
 
     } catch (error) {
-      console.error('Error fetching fitness data:', error);
+      logger.error('Error fetching fitness data', { error });
     }
   }, []);
 
@@ -298,11 +299,11 @@ export function Telemetry() {
           handleFirestoreError(error, OperationType.CREATE, 'telemetry_events');
         }
       } else {
-        console.log('[Edge IoT Filter] Normal event filtered out locally:', eventData);
+        logger.debug('Edge IoT filter: normal event filtered locally', { eventData });
         // Optionally update local state for the UI without hitting Firebase
       }
     } catch (error) {
-      console.error('Error simulating IoT event:', error);
+      logger.error('Error simulating IoT event', { error });
     } finally {
       setSimulatingIoT(false);
     }
@@ -337,7 +338,7 @@ export function Telemetry() {
           }
         }
       } catch (error) {
-        console.error('Error fetching telemetry:', error);
+        logger.error('Error fetching telemetry', { error });
       } finally {
         setLoading(false);
       }

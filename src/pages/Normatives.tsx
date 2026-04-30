@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { motion } from 'framer-motion';
 import { 
   Book, 
@@ -60,7 +61,7 @@ export function Normatives() {
       const suggestions = await suggestNormativesWithAI(selectedProject.industry);
       setIndustryProtocols(suggestions);
     } catch (error) {
-      console.error('Error loading industry protocols:', error);
+      logger.error('Error loading industry protocols', { error });
     } finally {
       setLoadingProtocols(false);
     }
@@ -83,7 +84,7 @@ export function Normatives() {
       ];
 
       for (const law of criticalLaws) {
-        console.log(`Syncing ${law.name}...`);
+        logger.info('Syncing normative', { name: law.name });
         await downloadSpecificNormative(law.id);
       }
 
@@ -160,7 +161,7 @@ export function Normatives() {
       }
       alert('Biblioteca sincronizada con éxito (Vectores + Metadata)');
     } catch (error) {
-      console.error('Error seeding normatives:', error);
+      logger.error('Error seeding normatives', { error });
     } finally {
       setIsSeeding(false);
     }
