@@ -65,6 +65,7 @@ import { ComplianceModal } from '../components/dashboard/ComplianceModal';
 import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidget';
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
+import { SunTrackerContainer } from '../components/SunTrackerContainer';
 import { Skeleton } from '../components/shared/Skeleton';
 import { useGamification } from '../hooks/useGamification';
 import { NodeType } from '../types';
@@ -686,6 +687,12 @@ export function Dashboard() {
           </div>
         </section>
       </div>
+
+      {/* Solar tracker widget — cross-inversion day/night */}
+      <SunTrackerContainer
+        lat={selectedProject?.coordinates?.lat}
+        className="mx-1 sm:mx-0 mt-1 sm:mt-0"
+      />
 
       {/* 3. Quick Actions - Smaller */}
       <section className="grid grid-cols-4 gap-1 sm:gap-3 w-full mt-1 sm:mt-0">
