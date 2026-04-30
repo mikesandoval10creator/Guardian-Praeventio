@@ -50,6 +50,7 @@ import reportsRouter from "./src/server/routes/reports.js";
 import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
+import subscriptionRouter from "./src/server/routes/subscription.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -353,6 +354,8 @@ if (process.env.NODE_ENV !== "production") {
 // root (Transbank commerce config has the exact path) while the rest of the
 // billing surface stays under /api/billing/.
 app.use("/api/billing", billingApiRouter);
+// Round 22 — audit fix CRITICAL #1: subscription upgrade with payment verify
+app.use("/api/subscription", subscriptionRouter);
 app.use("/billing", billingWebpayRouter);
 
 // Initialize RAG system asynchronously

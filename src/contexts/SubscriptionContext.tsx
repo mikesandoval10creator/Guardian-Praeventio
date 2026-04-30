@@ -171,27 +171,35 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     fetchSubscription();
   }, [user]);
 
-  const upgradePlan = async (newPlan: SubscriptionPlan, purchaseToken?: string) => {
-    if (!user) return;
-    try {
-      const docRef = doc(db, 'users', user.uid);
+  // Round 22 — audit fix CRITICAL #1 (DT-01): NO escribir directo via cliente.
+  // El audit detectó que cualquier user autenticado podía auto-asignarse
+  // Ilimitado sin pagar. El endpoint /api/subscription/upgrade verifica
+  // la existencia de un invoice paid con tierId==planId antes de actualizar.
+  // Webpay y MP IPN actualizan el plan automáticamente al confirmar pago
+  // (billing.ts AUTHORIZED branch + mercadoPagoIpn.ts approved branch).
+  // Este método queda como fallback para refresh post-payment desde la UI.
+  const upgradePlan = async (newPlan: SubscriptionPlan) => {
+    if (!user) throw new Error('not_authenticated');
 
-      const updateData: any = {
-        subscriptionPlan: newPlan,
-        'subscription.planId': newPlan,
-        'subscription.status': 'active',
-        'subscription.updatedAt': new Date().toISOString()
-      };
+    const token = await user.getIdToken();
+    const res = await fetch('/api/subscription/upgrade', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ planId: newPlan }),
+    });
 
-      if (purchaseToken) {
-        updateData['subscription.purchaseToken'] = purchaseToken;
-      }
-
-      await setDoc(docRef, updateData, { merge: true });
-      setPlan(newPlan);
-    } catch (error) {
-      console.error('Error upgrading subscription:', error);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const msg = errData?.error ?? `upgrade_failed_${res.status}`;
+      console.error('Error upgrading subscription:', msg);
+      throw new Error(msg);
     }
+
+    // Optimistic update local state — backend ya validó el pago
+    setPlan(newPlan);
   };
 
   const isPremium = plan !== 'free';

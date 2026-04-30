@@ -154,7 +154,17 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isValidId(userId) && (isOwner(userId) || isAdmin() || isSupervisor());
       allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (isWorkerRole(incoming().role) || isAdmin());
-      allow update: if isValidId(userId) && isOwner(userId) && isValidUser(incoming()) && (incoming().role == existing().role || isAdmin());
+      // Round 22 audit fix CRITICAL #5 (DT-05): deny client write of
+      // subscription.* fields. Plan upgrades MUST go through
+      // /api/subscription/upgrade (verified payment) or via Webpay/MP
+      // IPN handlers (Admin SDK bypasses these rules). Without this
+      // check any authenticated user could self-promote to Ilimitado.
+      allow update: if isValidId(userId) && isOwner(userId) && isValidUser(incoming())
+                    && (incoming().role == existing().role || isAdmin())
+                    && !incoming().diff(existing()).affectedKeys().hasAny([
+                         'subscriptionPlan',
+                         'subscription',
+                       ]);
       allow delete: if isAdmin();
       
       // Strict privacy envelope for user's medical exams (Excludes Admin/Supervisor by default unless they are the Doctor)

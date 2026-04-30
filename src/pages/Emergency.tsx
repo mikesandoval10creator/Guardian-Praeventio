@@ -40,6 +40,8 @@ export function Emergency() {
   const { selectedProject } = useProject();
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
+  const [isContactsOpen, setIsContactsOpen] = useState(false);
+  const [isDownloadingPlan, setIsDownloadingPlan] = useState(false);
   const { isActive, isAlerting, countdown, startDetection, stopDetection, cancelCountdown, acknowledgeAlert } = useManDownDetection();
   const isOnline = useOnlineStatus();
   const { isSupported: isWakeLockSupported, isLocked: isWakeLocked, requestWakeLock, releaseWakeLock } = useWakeLock();
@@ -99,10 +101,46 @@ export function Emergency() {
 
   const protocols = protocolsData && protocolsData.length > 0 ? protocolsData : defaultProtocols;
 
-  const filteredProtocols = protocols.filter(p => 
+  const filteredProtocols = protocols.filter(p =>
     (p.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
     (p.category || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
   );
+
+  // Round 22 audit fix DT-11: handler para Descargar Plan Completo. Genera
+  // un PDF con la lista de protocolos vigentes usando jsPDF + autoTable
+  // (deps ya presentes via Pricing/Reports). Best-effort: si falla,
+  // log + noop, no rompe la UI.
+  const handleDownloadPlan = async () => {
+    if (!selectedProject || protocols.length === 0) return;
+    setIsDownloadingPlan(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const autoTableModule = await import('jspdf-autotable');
+      const autoTable = (autoTableModule as any).default ?? (autoTableModule as any).autoTable;
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text(`Plan de Emergencia — ${selectedProject.name}`, 14, 22);
+      doc.setFontSize(11);
+      doc.text(`Generado: ${new Date().toLocaleDateString('es-CL')}`, 14, 32);
+      autoTable(doc, {
+        startY: 40,
+        head: [['#', 'Protocolo', 'Categoría', 'Última Revisión', 'Estado']],
+        body: protocols.map((p, i) => [
+          String(i + 1),
+          p.title ?? '—',
+          p.category ?? '—',
+          p.lastReview ?? '—',
+          p.status === 'active' ? 'Vigente' : 'En Revisión',
+        ]),
+      });
+      const safeName = selectedProject.name.replace(/[^a-zA-Z0-9_-]+/g, '_');
+      doc.save(`Plan_Emergencia_${safeName}.pdf`);
+    } catch (err) {
+      console.error('Error generando PDF plan emergencia:', err);
+    } finally {
+      setIsDownloadingPlan(false);
+    }
+  };
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
@@ -213,16 +251,48 @@ export function Emergency() {
               <span>{!isOnline ? 'Requiere Conexión' : isCrisisMode ? 'Crisis Activa' : 'Modo Crisis'}</span>
             </button>
           </div>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm">
-            <Download className="w-4 h-4" />
-            <span>Descargar Plan Completo</span>
+          {/* Round 22 audit fix DT-11: 3 botones sin onClick wired */}
+          <button
+            onClick={handleDownloadPlan}
+            disabled={isDownloadingPlan || protocols.length === 0}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
+          >
+            {isDownloadingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            <span>{isDownloadingPlan ? 'Generando...' : 'Descargar Plan Completo'}</span>
           </button>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95">
+          <button
+            onClick={() => setIsContactsOpen(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+          >
             <Phone className="w-4 h-4" />
             <span>Contactos de Emergencia</span>
           </button>
         </div>
       </div>
+
+      {/* Modal contactos de emergencia */}
+      {isContactsOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setIsContactsOpen(false)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-black uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Phone className="w-5 h-5 text-emerald-500" />
+              Contactos de Emergencia
+            </h3>
+            <ul className="space-y-3 text-sm">
+              <li className="flex justify-between items-center"><span>SAMU</span><a href="tel:131" className="font-mono font-black text-emerald-500">131</a></li>
+              <li className="flex justify-between items-center"><span>Bomberos</span><a href="tel:132" className="font-mono font-black text-emerald-500">132</a></li>
+              <li className="flex justify-between items-center"><span>Carabineros</span><a href="tel:133" className="font-mono font-black text-emerald-500">133</a></li>
+              <li className="flex justify-between items-center"><span>ONEMI</span><a href="tel:1349" className="font-mono font-black text-emerald-500">1349</a></li>
+              <li className="flex justify-between items-center"><span>Mutual de Seguridad</span><a href="tel:6006002247" className="font-mono font-black text-emerald-500">600 600 2247</a></li>
+              <li className="flex justify-between items-center"><span>ACHS</span><a href="tel:6006002247" className="font-mono font-black text-emerald-500">600 600 2247</a></li>
+              <li className="flex justify-between items-center"><span>Información Toxicológica (CITUC)</span><a href="tel:226353800" className="font-mono font-black text-emerald-500">22 635 3800</a></li>
+            </ul>
+            <button onClick={() => setIsContactsOpen(false)} className="mt-6 w-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2 rounded-xl font-bold text-sm">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {isCrisisMode ? (

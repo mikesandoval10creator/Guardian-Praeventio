@@ -1041,6 +1041,40 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         webpayToken: tokenWs,
         webpayAuthCode: commit.authorizationCode ?? null,
       }, { merge: true });
+
+      // Round 22 — audit fix CRITICAL #2 (DT-02): activar suscripción
+      // del usuario tras pago confirmado. Sin esto el invoice quedaba
+      // 'paid' pero users/{uid}.subscription.planId nunca cambiaba.
+      // Best-effort: no rompe el redirect si la actualización falla
+      // (admin tiene /api/billing/invoice/:id/mark-paid como fallback).
+      try {
+        const invoiceSnap = await invoiceRef.get();
+        const invoiceData = invoiceSnap.data();
+        const lineItems = Array.isArray(invoiceData?.lineItems) ? invoiceData!.lineItems : [];
+        const tierId = lineItems[0]?.tierId ?? invoiceData?.tierId ?? null;
+        const ownerUid = invoiceData?.createdBy ?? null;
+        if (ownerUid && tierId) {
+          await db.collection('users').doc(ownerUid).set(
+            {
+              subscriptionPlan: tierId,
+              subscription: {
+                planId: tierId,
+                status: 'active',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastInvoiceId: invoiceId,
+                paymentMethod: 'webpay',
+              },
+            },
+            { merge: true },
+          );
+          logger.info('webpay_subscription_activated', { uid: ownerUid, tierId, invoiceId });
+        } else {
+          logger.warn('webpay_subscription_missing_data', { ownerUid, tierId, invoiceId });
+        }
+      } catch (subErr) {
+        logger.error('webpay_subscription_update_failed', subErr as Error, { invoiceId });
+      }
+
       await db.collection('audit_logs').add({
         action: 'billing.webpay-return.authorized',
         module: 'billing',

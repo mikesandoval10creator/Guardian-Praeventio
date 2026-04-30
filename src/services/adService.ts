@@ -66,11 +66,56 @@ export function loadAdSenseScript(): Promise<void> {
 const AD_COOLDOWN_MS = 60 * 60 * 1000; // 1 hora
 const AD_LAST_SHOWN_KEY = 'pg_last_ad_ts';
 
-export function canShowAd(): boolean {
-  const last = Number(localStorage.getItem(AD_LAST_SHOWN_KEY) ?? 0);
+// Round 22 — audit fix DT-10: en Capacitor nativo `localStorage` no
+// está disponible (puede crashear o silently devolver null) — usar
+// `@capacitor/preferences`. Web sigue usando localStorage. Los métodos
+// son async ahora; callers que esperaban sync deben await o aceptar
+// promise.
+
+function isNativeRuntime(): boolean {
+  try {
+    // @ts-ignore - Capacitor global may not exist in pure web
+    return typeof (globalThis as any).Capacitor?.isNativePlatform === 'function'
+      && (globalThis as any).Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+async function getLastAdTs(): Promise<number> {
+  if (isNativeRuntime()) {
+    try {
+      const { Preferences } = await import('@capacitor/preferences');
+      const { value } = await Preferences.get({ key: AD_LAST_SHOWN_KEY });
+      return Number(value ?? 0);
+    } catch {
+      return 0;
+    }
+  }
+  if (typeof localStorage === 'undefined') return 0;
+  return Number(localStorage.getItem(AD_LAST_SHOWN_KEY) ?? 0);
+}
+
+async function setLastAdTs(): Promise<void> {
+  const now = String(Date.now());
+  if (isNativeRuntime()) {
+    try {
+      const { Preferences } = await import('@capacitor/preferences');
+      await Preferences.set({ key: AD_LAST_SHOWN_KEY, value: now });
+    } catch {
+      /* silent — ad cooldown is best-effort UX, not security */
+    }
+    return;
+  }
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(AD_LAST_SHOWN_KEY, now);
+}
+
+export async function canShowAd(): Promise<boolean> {
+  const last = await getLastAdTs();
   return Date.now() - last > AD_COOLDOWN_MS;
 }
 
-export function recordAdShown(): void {
-  localStorage.setItem(AD_LAST_SHOWN_KEY, String(Date.now()));
+export async function recordAdShown(): Promise<void> {
+  await setLastAdTs();
 }

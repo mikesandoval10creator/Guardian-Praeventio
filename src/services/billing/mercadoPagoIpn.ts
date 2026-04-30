@@ -516,6 +516,38 @@ export async function processMercadoPagoIpn(
           },
           { merge: true },
         );
+
+        // Round 22 — audit fix CRITICAL #3 (DT-03): activar suscripción
+        // del usuario tras MP IPN approved. Mismo patrón que webpay
+        // AUTHORIZED en billing.ts. Best-effort — no rompe el flow del IPN
+        // (response a MP debe ser 200 ack); admin tiene mark-paid fallback.
+        try {
+          const invoiceSnap = await invoiceRef.get();
+          const invoiceData = invoiceSnap.data();
+          const lineItems = Array.isArray(invoiceData?.lineItems) ? invoiceData!.lineItems : [];
+          const tierId = lineItems[0]?.tierId ?? invoiceData?.tierId ?? null;
+          const ownerUid = invoiceData?.createdBy ?? null;
+          if (ownerUid && tierId) {
+            await db.collection('users').doc(ownerUid).set(
+              {
+                subscriptionPlan: tierId,
+                subscription: {
+                  planId: tierId,
+                  status: 'active',
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  lastInvoiceId: invoiceId,
+                  paymentMethod: 'mercadopago',
+                },
+              },
+              { merge: true },
+            );
+            logger.info('mp_ipn_subscription_activated', { uid: ownerUid, tierId, invoiceId });
+          } else {
+            logger.warn('mp_ipn_subscription_missing_data', { ownerUid, tierId, invoiceId });
+          }
+        } catch (subErr) {
+          logger.error('mp_ipn_subscription_update_failed', subErr as Error, { invoiceId });
+        }
       } else if (outcome === 'rejected') {
         await invoiceRef.set(
           {
