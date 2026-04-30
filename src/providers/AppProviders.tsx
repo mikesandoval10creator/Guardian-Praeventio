@@ -5,6 +5,7 @@ import { SubscriptionProvider } from "../contexts/SubscriptionContext";
 import { NotificationProvider } from "../contexts/NotificationContext";
 import { EmergencyProvider } from "../contexts/EmergencyContext";
 import { SensorProvider } from "../contexts/SensorContext";
+import { ThemeProvider } from "../contexts/ThemeContext";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -12,18 +13,20 @@ interface AppProvidersProps {
 
 export function AppProviders({ children }: AppProvidersProps) {
   return (
-    <UniversalKnowledgeProvider>
-      <ProjectProvider>
-        <SubscriptionProvider>
-          <NotificationProvider>
-            <EmergencyProvider>
-              <SensorProvider>
-                {children}
-              </SensorProvider>
-            </EmergencyProvider>
-          </NotificationProvider>
-        </SubscriptionProvider>
-      </ProjectProvider>
-    </UniversalKnowledgeProvider>
+    <ThemeProvider>
+      <UniversalKnowledgeProvider>
+        <ProjectProvider>
+          <SubscriptionProvider>
+            <NotificationProvider>
+              <EmergencyProvider>
+                <SensorProvider>
+                  {children}
+                </SensorProvider>
+              </EmergencyProvider>
+            </NotificationProvider>
+          </SubscriptionProvider>
+        </ProjectProvider>
+      </UniversalKnowledgeProvider>
+    </ThemeProvider>
   );
 }

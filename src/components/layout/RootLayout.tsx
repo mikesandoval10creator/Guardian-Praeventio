@@ -19,6 +19,7 @@ import { MFASetupModal } from '../auth/MFASetupModal';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -45,8 +46,7 @@ export function RootLayout() {
       const mfa = await get('mfa_setup_completed');
       setMfaSetupCompleted(mfa === 'true');
       
-      const themePref = await get('theme_preference');
-      if (themePref) setThemeMode(themePref as any);
+      // theme preference is managed by ThemeContext
     };
     loadMfaStatus();
   }, []);
@@ -92,67 +92,7 @@ export function RootLayout() {
     };
   }, []);
 
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system' | 'auto'>('system');
-
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const applyTheme = () => {
-      let shouldBeDark = false;
-      if (themeMode === 'dark') {
-        shouldBeDark = true;
-      } else if (themeMode === 'light') {
-        shouldBeDark = false;
-      } else if (themeMode === 'auto') {
-        const hour = new Date().getHours();
-        shouldBeDark = hour < 6 || hour >= 18; // Night is 6 PM to 6 AM
-      } else {
-        // system
-        shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      }
-
-      setIsDarkMode(shouldBeDark);
-      const root = window.document.documentElement;
-      if (shouldBeDark) {
-        root.classList.add('dark');
-        set('theme', 'dark');
-      } else {
-        root.classList.remove('dark');
-        set('theme', 'light');
-      }
-    };
-
-    applyTheme();
-
-    const handleThemePrefChange = async () => {
-      const pref = await get('theme_preference');
-      setThemeMode((pref as any) || 'system');
-    };
-    window.addEventListener('theme_preference_changed', handleThemePrefChange);
-
-    let mediaQuery: MediaQueryList | null = null;
-    let interval: NodeJS.Timeout | null = null;
-
-    if (themeMode === 'system') {
-      mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', applyTheme);
-    } else if (themeMode === 'auto') {
-      interval = setInterval(applyTheme, 60000);
-    }
-
-    return () => {
-      window.removeEventListener('theme_preference_changed', handleThemePrefChange);
-      if (mediaQuery) mediaQuery.removeEventListener('change', applyTheme);
-      if (interval) clearInterval(interval);
-    };
-  }, [themeMode]);
-
-  const toggleTheme = async () => {
-    const newMode = isDarkMode ? 'light' : 'dark';
-    setThemeMode(newMode);
-    await set('theme_preference', newMode);
-    window.dispatchEvent(new Event('theme_preference_changed'));
-  };
+  const { isDarkMode, toggleTheme } = useTheme();
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#4eb5ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-emerald-500/30 flex flex-col transition-colors duration-300">

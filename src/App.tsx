@@ -53,6 +53,7 @@ const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ default: module.SunTracker })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -130,6 +131,7 @@ function AppRoutes() {
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
+                    <Route path="sun-tracker" element={<SunTracker />} />
                     <Route
                       path="profile"
                       element={user ? <Profile /> : <Navigate to="/login" />}
