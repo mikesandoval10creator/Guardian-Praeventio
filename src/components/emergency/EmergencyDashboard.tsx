@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { 
   AlertTriangle, 
   Users, 
@@ -36,6 +37,8 @@ export function EmergencyDashboard() {
   const { isSupported: isBluetoothSupported, isScanning, nearbyDevices, startScanning } = useBluetoothMesh();
 
   const isWorker = userRole === 'worker' && !isAdmin;
+  const [showLotoConfirm, setShowLotoConfirm] = useState(false);
+  const [lotoActivated, setLotoActivated] = useState(false);
 
   useEffect(() => {
     if (!selectedProject?.id) return;
@@ -130,16 +133,12 @@ export function EmergencyDashboard() {
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
             {isAdmin && (
-              <button 
-                onClick={() => {
-                  if (window.confirm('¿ESTÁ SEGURO DE ACTIVAR EL PROTOCOLO LOTO? Esto apagará remotamente toda la maquinaria crítica en la zona de emergencia.')) {
-                    alert('Protocolo LOTO activado. Maquinaria desconectada.');
-                  }
-                }}
-                className="px-6 sm:px-8 py-3 sm:py-4 bg-black text-rose-500 border-2 border-rose-500 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-950 transition-all active:scale-95 flex items-center justify-center gap-2"
+              <button
+                onClick={() => setShowLotoConfirm(true)}
+                className={`px-6 sm:px-8 py-3 sm:py-4 border-2 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 ${lotoActivated ? 'bg-rose-900 border-rose-300 text-rose-300' : 'bg-black text-rose-500 border-rose-500 hover:bg-rose-950'}`}
               >
                 <Power className="w-4 h-4" />
-                Desconexión LOTO
+                {lotoActivated ? 'LOTO Activo' : 'Desconexión LOTO'}
               </button>
             )}
             <button className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-rose-600 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-50 transition-all active:scale-95">
@@ -265,6 +264,15 @@ export function EmergencyDashboard() {
           {activeTab === 'map' && <DynamicEvacuationMap />}
         </motion.div>
       </AnimatePresence>
+      <ConfirmDialog
+        isOpen={showLotoConfirm}
+        title="Activar Protocolo LOTO"
+        message="Esto desconectará remotamente toda la maquinaria crítica en la zona de emergencia. ¿Está seguro?"
+        confirmLabel="Activar LOTO"
+        danger
+        onConfirm={() => { setLotoActivated(true); setShowLotoConfirm(false); }}
+        onCancel={() => setShowLotoConfirm(false)}
+      />
     </div>
   );
 }

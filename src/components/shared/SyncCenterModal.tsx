@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CloudOff, RefreshCw, Trash2, CheckCircle2, AlertCircle, Plus, Edit2, Upload, FileText } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
 import { getPendingActions, removeSyncedAction, SyncAction, syncWithFirebase } from '../../utils/pwa-offline';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
@@ -98,20 +99,26 @@ export function SyncCenterModal({ isOpen, onClose }: SyncCenterModalProps) {
     }, 1500);
   };
 
-  const handleDelete = async (id: number) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar esta acción pendiente? Los datos no se guardarán en la nube.')) {
-      await removeSyncedAction(id);
-      await loadPendingActions();
-    }
+  const [deleteActionId, setDeleteActionId] = useState<number | null>(null);
+  const [showClearAll, setShowClearAll] = useState(false);
+
+  const handleDelete = (id: number) => setDeleteActionId(id);
+
+  const doDeleteAction = async () => {
+    if (deleteActionId === null) return;
+    await removeSyncedAction(deleteActionId);
+    await loadPendingActions();
+    setDeleteActionId(null);
   };
 
-  const handleClearAll = async () => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar TODAS las acciones pendientes? Perderás todos los cambios realizados sin conexión.')) {
-      for (const action of pendingActions) {
-        if (action.id) await removeSyncedAction(action.id);
-      }
-      await loadPendingActions();
+  const handleClearAll = () => setShowClearAll(true);
+
+  const doClearAll = async () => {
+    for (const action of pendingActions) {
+      if (action.id) await removeSyncedAction(action.id);
     }
+    await loadPendingActions();
+    setShowClearAll(false);
   };
 
   const getActionIcon = (type: string) => {
@@ -303,6 +310,24 @@ export function SyncCenterModal({ isOpen, onClose }: SyncCenterModalProps) {
         </motion.div>
       </motion.div>
       )}
+      <ConfirmDialog
+        isOpen={deleteActionId !== null}
+        title="Eliminar acción pendiente"
+        message="Los datos no se guardarán en la nube. ¿Continuar?"
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteAction}
+        onCancel={() => setDeleteActionId(null)}
+      />
+      <ConfirmDialog
+        isOpen={showClearAll}
+        title="Eliminar todas las acciones"
+        message="Perderás todos los cambios realizados sin conexión. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar todo"
+        danger
+        onConfirm={doClearAll}
+        onCancel={() => setShowClearAll(false)}
+      />
     </AnimatePresence>
   );
 }

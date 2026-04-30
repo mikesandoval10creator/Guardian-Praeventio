@@ -24,6 +24,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { AddDocumentModal } from '../components/documents/AddDocumentModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 
 interface Document {
   id: string;
@@ -62,16 +63,18 @@ export function Documents() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [activeDropdown]);
 
-  const handleDelete = async (docId: string) => {
-    if (!selectedProject) return;
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este documento?')) return;
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
 
+  const handleDelete = (docId: string) => setDeleteDocId(docId);
+
+  const doDeleteDoc = async () => {
+    if (!selectedProject || !deleteDocId) return;
     try {
-      const docRef = doc(db, `projects/${selectedProject.id}/documents`, docId);
-      await deleteDoc(docRef);
+      await deleteDoc(doc(db, `projects/${selectedProject.id}/documents`, deleteDocId));
     } catch (error) {
       console.error('Error deleting document:', error);
-      alert('Error al eliminar el documento');
+    } finally {
+      setDeleteDocId(null);
     }
   };
 
@@ -331,6 +334,15 @@ export function Documents() {
           />
         </>
       )}
+      <ConfirmDialog
+        isOpen={!!deleteDocId}
+        title="Eliminar documento"
+        message="¿Estás seguro? El documento se eliminará permanentemente."
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteDoc}
+        onCancel={() => setDeleteDocId(null)}
+      />
     </div>
   );
 }

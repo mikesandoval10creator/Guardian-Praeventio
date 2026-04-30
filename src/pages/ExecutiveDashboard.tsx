@@ -173,11 +173,13 @@ export function ExecutiveDashboard() {
     { subject: 'Incidentes', A: Math.max(0, 100 - recentIncidents.length * 15) },
   ];
 
-  // ISO 45001 radar
+  // ISO 45001 radar — all values derived from real node counts
+  const normativeNodes = nodes.filter(n => n.type === NodeType.NORMATIVE);
+  const auditNodes = nodes.filter(n => n.type === NodeType.AUDIT);
   const isoData = [
-    { subject: 'EPP',      A: Math.min(100, nodes.filter(n => n.type === NodeType.EPP).length * 10 || 70) },
-    { subject: 'Normativa', A: 78 },
-    { subject: 'Conducta',  A: 88 },
+    { subject: 'EPP',       A: Math.min(100, nodes.filter(n => n.type === NodeType.EPP).length * 10 || 70) },
+    { subject: 'Normativa', A: normativeNodes.length > 0 ? Math.min(100, 50 + normativeNodes.length * 5) : avgCompliance },
+    { subject: 'Conducta',  A: auditNodes.length > 0 ? Math.min(100, Math.round(auditNodes.reduce((s, a) => s + (a.metadata?.score ?? 70), 0) / auditNodes.length)) : avgCompliance },
     { subject: 'Procesos',  A: Math.min(100, nodes.filter(n => n.type === NodeType.TASK).length * 5 || 70) },
     { subject: 'Entorno',   A: Math.min(100, 60 + nodes.filter(n => n.type === NodeType.INSPECTION).length * 2) },
   ];

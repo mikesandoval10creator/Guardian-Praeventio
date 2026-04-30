@@ -28,6 +28,7 @@ import { Worker } from '../types';
 import { AddWorkerModal } from '../components/workers/AddWorkerModal';
 import { EditWorkerModal } from '../components/workers/EditWorkerModal';
 import { EPPModal } from '../components/workers/EPPModal';
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { DocsModal } from '../components/workers/DocsModal';
 import { QRCodeModal } from '../components/workers/QRCodeModal';
 import { MassImportModal } from '../components/workers/MassImportModal';
@@ -64,15 +65,18 @@ export function Workers() {
   
   const collectionPath = selectedProject ? `projects/${selectedProject.id}/workers` : 'workers';
   
-  const handleDelete = async (workerId: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este trabajador?')) return;
+  const [deleteWorkerId, setDeleteWorkerId] = useState<string | null>(null);
 
+  const handleDelete = (workerId: string) => setDeleteWorkerId(workerId);
+
+  const doDeleteWorker = async () => {
+    if (!deleteWorkerId) return;
     try {
-      const workerRef = doc(db, collectionPath, workerId);
-      await deleteDoc(workerRef);
+      await deleteDoc(doc(db, collectionPath, deleteWorkerId));
     } catch (error) {
       console.error('Error deleting worker:', error);
-      alert('Error al eliminar el trabajador');
+    } finally {
+      setDeleteWorkerId(null);
     }
   };
 
@@ -515,6 +519,15 @@ export function Workers() {
           onClose={() => setActiveModal(null)}
         />
       )}
+      <ConfirmDialog
+        isOpen={!!deleteWorkerId}
+        title="Eliminar trabajador"
+        message="¿Estás seguro? Esta acción eliminará al trabajador y todos sus datos asociados."
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteWorker}
+        onCancel={() => setDeleteWorkerId(null)}
+      />
     </div>
   );
 }

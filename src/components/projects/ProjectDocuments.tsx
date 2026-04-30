@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { motion } from 'framer-motion';
 import { 
   FileText, 
@@ -51,6 +52,7 @@ interface ProjectDocumentsProps {
 
 export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
   const [uploading, setUploading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; url: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { user } = useFirebase();
   const isOnline = useOnlineStatus();
@@ -108,21 +110,18 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
     }
   };
 
-  const handleDelete = async (docId: string, url: string) => {
-    if (!window.confirm('¿Estás seguro de eliminar este documento?')) return;
+  const handleDelete = (docId: string, url: string) => setDeleteTarget({ id: docId, url });
 
+  const doDeleteDocument = async () => {
+    if (!deleteTarget) return;
+    const { id: docId, url } = deleteTarget;
+    setDeleteTarget(null);
     try {
-      // Delete from Storage
-      const storageRef = ref(storage, url);
-      await deleteObject(storageRef);
-
-      // Delete from Firestore
-      await deleteDoc(doc(db, 'project_documents', docId));
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      // Even if storage delete fails (e.g. file already gone), try to clean up firestore
-      await deleteDoc(doc(db, 'project_documents', docId));
+      await deleteObject(ref(storage, url));
+    } catch {
+      // file may already be gone — continue to Firestore cleanup
     }
+    await deleteDoc(doc(db, 'project_documents', docId));
   };
 
   const formatSize = (bytes: number) => {
@@ -251,6 +250,15 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
             <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">No hay documentos cargados</p>
           </div>
         )}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Eliminar documento"
+        message="El archivo se eliminará de Storage y Firestore permanentemente."
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteDocument}
+        onCancel={() => setDeleteTarget(null)}
+      />
       </div>
     </div>
   );

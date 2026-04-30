@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileSignature, CheckCircle2, AlertTriangle, Clock, FileText, Upload, ShieldCheck, Download } from 'lucide-react';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { Worker } from '../../types';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../../services/firebase';
@@ -23,6 +24,9 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
   const [digitalSignatureStatus, setDigitalSignatureStatus] = useState(worker.digitalSignatureStatus || 'Pendiente');
   const [shiftStart, setShiftStart] = useState(worker.shiftStart || '08:00');
   const [shiftEnd, setShiftEnd] = useState(worker.shiftEnd || '18:00');
+  const [showOverlapConfirm, setShowOverlapConfirm] = useState(false);
+  const [overlapMessage, setOverlapMessage] = useState('');
+  const pendingSaveRef = useRef<(() => Promise<void>) | null>(null);
 
   if (!isOpen) return null;
 
@@ -65,60 +69,47 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
     return results.filter(Boolean) as string[];
   };
 
+  const doSave = async () => {
+    setIsUpdating(true);
+    setShowOverlapConfirm(false);
+    const workerPath = worker.projectId ? `projects/${worker.projectId}/workers` : 'workers';
+    const workerRef = doc(db, workerPath, worker.id);
+    try {
+      await updateDoc(workerRef, { contractStatus, odiSigned, digitalSignatureStatus, shiftStart, shiftEnd });
+      addNotification({ title: 'Gestión Laboral Actualizada', message: `Los datos de ${worker.name} guardados.`, type: 'success' });
+      onClose();
+    } catch (error) {
+      console.error('Error updating labor data:', error);
+      addNotification({ title: 'Error', message: 'No se pudieron actualizar los datos laborales.', type: 'error' });
+      handleFirestoreError(error, OperationType.UPDATE, `workers/${worker.id}`);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleSave = async () => {
     setIsUpdating(true);
     try {
       if (shiftStart >= shiftEnd) {
-        addNotification({
-          title: 'Error de Turno',
-          message: 'La hora de inicio debe ser anterior a la hora de fin.',
-          type: 'error'
-        });
+        addNotification({ title: 'Error de Turno', message: 'La hora de inicio debe ser anterior a la hora de fin.', type: 'error' });
         setIsUpdating(false);
         return;
       }
 
-      // Check overlaps
       const overlaps = await checkWorkerShiftOverlaps();
       if (overlaps.length > 0) {
-        addNotification({
-          title: 'Colisión de Turnos',
-          message: `El trabajador tiene turnos superpuestos en: ${overlaps.join(', ')}.`,
-          type: 'warning' // As required, we might just warn, or block. Let's warn but allow save or block. The requirement implies detection is critical. Let's block it for safety.
-        });
-        
-        const confirmSave = window.confirm(`El trabajador tiene turnos superpuestos en: ${overlaps.join(', ')}.\n\n¿Guardar de todos modos (doble turno/excepción)?`);
-        if (!confirmSave) {
-          setIsUpdating(false);
-          return;
-        }
+        addNotification({ title: 'Colisión de Turnos', message: `Turnos superpuestos en: ${overlaps.join(', ')}.`, type: 'warning' });
+        setOverlapMessage(`El trabajador tiene turnos superpuestos en: ${overlaps.join(', ')}. ¿Guardar de todos modos (doble turno / excepción)?`);
+        pendingSaveRef.current = doSave;
+        setShowOverlapConfirm(true);
+        setIsUpdating(false);
+        return;
       }
 
-      const workerPath = worker.projectId ? `projects/${worker.projectId}/workers` : 'workers';
-      const workerRef = doc(db, workerPath, worker.id);
-      await updateDoc(workerRef, {
-        contractStatus,
-        odiSigned,
-        digitalSignatureStatus,
-        shiftStart,
-        shiftEnd
-      });
-      
-      addNotification({
-        title: 'Gestión Laboral Actualizada',
-        message: `Los datos laborales de ${worker.name} han sido guardados correctamente.`,
-        type: 'success'
-      });
-      onClose();
+      await doSave();
+      return;
     } catch (error) {
-      console.error('Error updating labor data:', error);
-      addNotification({
-        title: 'Error',
-        message: 'No se pudieron actualizar los datos laborales.',
-        type: 'error'
-      });
-      handleFirestoreError(error, OperationType.UPDATE, `workers/${worker.id}`);
-    } finally {
+      console.error('Error:', error);
       setIsUpdating(false);
     }
   };
@@ -303,6 +294,14 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
           </motion.div>
         </motion.div>
       )}
+      <ConfirmDialog
+        isOpen={showOverlapConfirm}
+        title="Colisión de turnos detectada"
+        message={overlapMessage}
+        confirmLabel="Guardar igual"
+        onConfirm={() => pendingSaveRef.current?.()}
+        onCancel={() => { setShowOverlapConfirm(false); pendingSaveRef.current = null; }}
+      />
     </AnimatePresence>
   );
 }
