@@ -3,23 +3,22 @@ import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import ForceGraph3D from 'react-force-graph-3d';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../../types';
-import { 
-  Shield, 
-  User, 
-  Cpu, 
-  FileText, 
-  AlertTriangle, 
-  X, 
-  Maximize2, 
+import {
+  X,
+  Maximize2,
   Minimize2,
   Filter,
   Info,
-  Search,
-  Zap,
   WifiOff,
+  Moon,
+  Search,
   Box,
-  Moon
+  AlertTriangle,
+  FileText,
+  User,
+  Zap
 } from 'lucide-react';
+import { getNodeColor, getNodeIcon } from '../../utils/nodeTypeUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import * as THREE from 'three';
@@ -278,32 +277,9 @@ export function KnowledgeGraph() {
     pdf.save(`Charla_5_Min_${selectedNode.title.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const getNodeColor = (type: NodeType, node?: RiskNode) => {
-    if (node && isCriticalNormative(node)) return '#ef4444'; // red-500
-    switch (type) {
-      case NodeType.WORKER: return '#10b981'; // emerald-500
-      case NodeType.RISK: return '#f43f5e'; // rose-500
-      case NodeType.EPP: return '#3b82f6'; // blue-500
-      case NodeType.MACHINE: return '#f59e0b'; // amber-500
-      case NodeType.NORMATIVE: return '#8b5cf6'; // violet-500
-      case NodeType.FINDING: return '#f59e0b'; // amber-500
-      case NodeType.AUDIT: return '#06b6d4'; // cyan-500
-      case NodeType.PROJECT: return '#10b981'; // emerald-500
-      default: return '#71717a'; // zinc-500
-    }
-  };
-
-  const getNodeIcon = (type: NodeType) => {
-    switch (type) {
-      case NodeType.WORKER: return User;
-      case NodeType.RISK: return AlertTriangle;
-      case NodeType.EPP: return Shield;
-      case NodeType.MACHINE: return Cpu;
-      case NodeType.NORMATIVE: return FileText;
-      case NodeType.FINDING: return AlertTriangle;
-      case NodeType.AUDIT: return Shield;
-      default: return Info;
-    }
+  const getNodeColorWithCritical = (type: NodeType, node?: RiskNode) => {
+    if (node && isCriticalNormative(node)) return '#ef4444';
+    return getNodeColor(type);
   };
 
   const handleNodeClick = useCallback((node: any) => {
@@ -401,7 +377,7 @@ export function KnowledgeGraph() {
           ref={graph3DRef}
           graphData={graphData}
           nodeLabel="title"
-          nodeColor={node => getNodeColor((node as any).type, node as RiskNode)}
+          nodeColor={node => getNodeColorWithCritical((node as any).type, node as RiskNode)}
           nodeRelSize={6}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
@@ -409,7 +385,7 @@ export function KnowledgeGraph() {
           onNodeClick={handleNodeClick}
           backgroundColor={isZenMode ? '#000000' : '#09090b'}
           nodeThreeObject={(node: any) => {
-            const color = getNodeColor(node.type, node);
+            const color = getNodeColorWithCritical(node.type, node);
             const isAffected = affectedNodes.has(node.id);
             
             // Get or create geometry
@@ -474,7 +450,7 @@ export function KnowledgeGraph() {
           ref={graphRef}
           graphData={graphData}
           nodeLabel="title"
-          nodeColor={node => getNodeColor((node as any).type, node as RiskNode)}
+          nodeColor={node => getNodeColorWithCritical((node as any).type, node as RiskNode)}
           nodeRelSize={6}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
@@ -484,7 +460,7 @@ export function KnowledgeGraph() {
           nodeCanvasObject={(node: any, ctx, globalScale) => {
             const label = node.title;
             const fontSize = 12 / globalScale;
-            const color = getNodeColor(node.type, node);
+            const color = getNodeColorWithCritical(node.type, node);
             
             // Draw node glow
             const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, 10);

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { NodeType, RiskNode } from '../../types';
+import { getNodeColor } from '../../utils/nodeTypeUtils';
 import { 
   Search, 
   Filter, 
@@ -75,20 +76,6 @@ export function RiskNetworkExplorer() {
     }, 3000);
     return () => clearTimeout(timer);
   }, [graphData]);
-
-  function getNodeColor(type: NodeType) {
-    switch (type) {
-      case NodeType.WORKER: return '#10B981'; // Emerald
-      case NodeType.RISK: return '#EF4444'; // Red
-      case NodeType.MACHINE: return '#3B82F6'; // Blue
-      case NodeType.NORMATIVE: return '#F59E0B'; // Amber
-      case NodeType.INSPECTION: return '#8B5CF6'; // Purple
-      case NodeType.INCIDENT: return '#F43F5E'; // Rose
-      case NodeType.TASK: return '#06B6D4'; // Cyan
-      case NodeType.AUDIT: return '#6366F1'; // Indigo
-      default: return '#94A3B8'; // Slate
-    }
-  }
 
   const handleNodeClick = (node: any) => {
     setSelectedNode(node);

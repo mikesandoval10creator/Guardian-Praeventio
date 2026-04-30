@@ -33,6 +33,7 @@ import { NodeType, RiskNode, Worker, Asset } from '../types';
 import { where } from 'firebase/firestore';
 import { analyzeSiteMapDensity } from '../services/geminiService';
 import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
+import { getNodeBgClass } from '../utils/nodeTypeUtils';
 
 const containerStyle = {
   width: '100%',
@@ -195,16 +196,6 @@ export function SiteMap() {
 
     setIsPlacing(false);
     setNodeToPlace(null);
-  };
-
-  const getNodeColor = (type: NodeType) => {
-    switch (type) {
-      case NodeType.RISK: return 'bg-red-500';
-      case NodeType.INCIDENT: return 'bg-rose-500';
-      case NodeType.ASSET: return 'bg-blue-500';
-      case NodeType.WORKER: return 'bg-emerald-500';
-      default: return 'bg-zinc-500';
-    }
   };
 
   const toggleLayer = (layer: keyof typeof activeLayers) => {
@@ -416,14 +407,14 @@ export function SiteMap() {
                         animate={{ scale: 1 }}
                         whileHover={{ scale: 1.2 }}
                         onClick={(e) => { e.stopPropagation(); setSelectedHotspot(spot); }}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-lg z-10 text-white ${getNodeColor(spot.type)}`}
+                        className={`absolute -translate-x-1/2 -translate-y-1/2 w-10 h-10 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-lg z-10 text-white ${getNodeBgClass(spot.type)}`}
                       >
                         {spot.type === NodeType.RISK ? <AlertTriangle className="w-5 h-5 sm:w-4 sm:h-4" /> : 
                          spot.type === NodeType.INCIDENT ? <ShieldAlert className="w-5 h-5 sm:w-4 sm:h-4" /> : 
                          <Activity className="w-5 h-5 sm:w-4 sm:h-4" />}
                         
                         {(spot.type === NodeType.RISK || spot.type === NodeType.INCIDENT) && (
-                          <span className={`absolute inset-0 rounded-full animate-ping opacity-40 ${getNodeColor(spot.type)}`} />
+                          <span className={`absolute inset-0 rounded-full animate-ping opacity-40 ${getNodeBgClass(spot.type)}`} />
                         )}
                       </motion.button>
                     </OverlayView>
@@ -582,7 +573,7 @@ export function SiteMap() {
                       onClick={() => setNodeToPlace(node)}
                       className="flex-shrink-0 p-1.5 sm:p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-lg sm:rounded-2xl hover:border-indigo-500/50 transition-all text-left w-24 sm:w-48"
                     >
-                      <div className={`w-1 h-1 sm:w-2 sm:h-2 rounded-full mb-1 sm:mb-2 ${getNodeColor(node.type)}`} />
+                      <div className={`w-1 h-1 sm:w-2 sm:h-2 rounded-full mb-1 sm:mb-2 ${getNodeBgClass(node.type)}`} />
                       <p className="text-[8px] sm:text-xs font-black text-zinc-900 dark:text-white uppercase truncate">{node.title}</p>
                       <p className="text-[7px] sm:text-[10px] font-bold text-zinc-500 uppercase mt-0.5 sm:mt-1">{node.type}</p>
                     </button>
@@ -615,7 +606,7 @@ export function SiteMap() {
                 exit={{ opacity: 0, y: 20 }}
                 className="absolute bottom-2 sm:bottom-6 left-2 sm:left-6 right-2 sm:right-auto sm:w-80 z-30 bg-white dark:bg-zinc-950 rounded-xl sm:rounded-[2rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden"
               >
-                <div className={`p-1.5 sm:p-4 flex items-center justify-between text-white ${getNodeColor(selectedHotspot.type)}`}>
+                <div className={`p-1.5 sm:p-4 flex items-center justify-between text-white ${getNodeBgClass(selectedHotspot.type)}`}>
                   <h4 className="text-[9px] sm:text-xs font-black uppercase tracking-widest truncate pr-2">{selectedHotspot.title}</h4>
                   <button onClick={() => setSelectedHotspot(null)} className="p-1 sm:p-1.5 hover:bg-white/20 rounded-lg transition-colors shrink-0">
                     <X className="w-3 h-3 sm:w-4 sm:h-4" />
