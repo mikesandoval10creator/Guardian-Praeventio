@@ -7,6 +7,7 @@ import {
   CheckCircle,
   Clock,
   Plus,
+  X,
   Calendar as CalendarIcon,
   AlertTriangle,
   ShieldCheck,
@@ -20,6 +21,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../services/geminiService';
+import { db } from '../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 interface Acta {
   id: string;
@@ -43,6 +46,38 @@ export function ComiteParitario() {
   useAutoCalendarEvents();
   const [legalScanResult, setLegalScanResult] = useState<any>(null);
   const [legalScanning, setLegalScanning] = useState(false);
+  const [showAddActa, setShowAddActa] = useState(false);
+  const [actaSaving, setActaSaving] = useState(false);
+  const [actaForm, setActaForm] = useState({
+    fecha: new Date().toISOString().split('T')[0],
+    tipo: 'Ordinaria' as 'Ordinaria' | 'Extraordinaria',
+    asistentesRaw: '',
+  });
+
+  const handleAddActa = async () => {
+    if (!selectedProject) return;
+    const asistentes = actaForm.asistentesRaw
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (!actaForm.fecha || asistentes.length === 0) return;
+    setActaSaving(true);
+    try {
+      await addDoc(collection(db, `projects/${selectedProject.id}/comite_actas`), {
+        fecha: actaForm.fecha,
+        tipo: actaForm.tipo,
+        asistentes,
+        acuerdos: [],
+        createdAt: new Date().toISOString(),
+      });
+      setShowAddActa(false);
+      setActaForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'Ordinaria', asistentesRaw: '' });
+    } catch {
+      // error handled silently — optimistic UI stays open
+    } finally {
+      setActaSaving(false);
+    }
+  };
 
   const [agendaResult, setAgendaResult] = useState<any>(null);
   const [agendaLoading, setAgendaLoading] = useState(false);
@@ -111,7 +146,10 @@ export function ComiteParitario() {
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="bg-zinc-900 dark:bg-white text-white dark:text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xl flex items-center gap-2">
+          <button
+            onClick={() => setShowAddActa(true)}
+            className="bg-zinc-900 dark:bg-white text-white dark:text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xl flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             <span>Nueva Acta</span>
           </button>
@@ -396,6 +434,87 @@ export function ComiteParitario() {
       </div>
 
     </div>
+
+      {/* Nueva Acta Modal */}
+      <AnimatePresence>
+        {showAddActa && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowAddActa(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-zinc-900 rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-white/10 space-y-5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">Nueva Acta</h2>
+                <button onClick={() => setShowAddActa(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1.5">Fecha de reunión</label>
+                  <input
+                    type="date"
+                    value={actaForm.fecha}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={e => setActaForm(f => ({ ...f, fecha: e.target.value }))}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1.5">Tipo de reunión</label>
+                  <select
+                    value={actaForm.tipo}
+                    onChange={e => setActaForm(f => ({ ...f, tipo: e.target.value as 'Ordinaria' | 'Extraordinaria' }))}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="Ordinaria">Ordinaria</option>
+                    <option value="Extraordinaria">Extraordinaria</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1.5">Asistentes (uno por línea)</label>
+                  <textarea
+                    value={actaForm.asistentesRaw}
+                    onChange={e => setActaForm(f => ({ ...f, asistentesRaw: e.target.value }))}
+                    placeholder={"Juan Pérez — Supervisor\nMaría González — Delegada Trabajadores"}
+                    rows={4}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setShowAddActa(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white text-xs font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAddActa}
+                  disabled={actaSaving || !actaForm.fecha || !actaForm.asistentesRaw.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actaSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Guardar Acta
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
