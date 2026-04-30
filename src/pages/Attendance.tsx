@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Clock, 
@@ -49,6 +50,31 @@ export function Attendance() {
   const [accessState, setAccessState] = useState<'idle' | 'scanning' | 'granted' | 'missing_skill'>('idle');
   const [activeWorker, setActiveWorker] = useState<Worker | null>(null);
   const isOnline = useOnlineStatus();
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  const handleDailyReport = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const todayNodes = attendanceNodes.filter(n => (n.metadata?.timestamp || '').startsWith(today));
+    const rows = [['Trabajador', 'Rol', 'Evento', 'Hora']];
+    todayNodes.forEach(n => {
+      const worker = workers?.find(w => w.id === n.metadata?.workerId);
+      rows.push([
+        worker?.name || n.title || 'Desconocido',
+        worker?.role || '',
+        n.metadata?.type || n.metadata?.eventType || '',
+        new Date(n.metadata?.timestamp || '').toLocaleTimeString('es-CL'),
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Asistencia_${today}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Fetch workers for the current project
   const { data: workers, loading: loadingWorkers } = useFirestoreCollection<Worker>(
@@ -76,16 +102,18 @@ export function Attendance() {
       const result = await analyzeAttendancePatterns(selectedProject.name, context);
       setAnalysis(result);
     } catch (error) {
-      console.error('Error analyzing attendance:', error);
+      logger.error('Error analyzing attendance', { error });
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const filteredWorkers = workers.filter(w => 
-    (w.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
-    (w.role || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
-  );
+  const filteredWorkers = workers.filter(w => {
+    const matchesSearch = (w.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
+      (w.role || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
+    const matchesStatus = statusFilter === 'all' || w.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const evaluateWorkerAccess = (worker: Worker) => {
     const reasons: string[] = [];
@@ -227,7 +255,7 @@ export function Attendance() {
         await addConnection(worker.nodeId, attendanceNode.id);
       }
     } catch (error) {
-      console.error('Error in check-in:', error);
+      logger.error('Error in check-in', { error });
     } finally {
       setLoadingAction(null);
     }
@@ -281,7 +309,7 @@ export function Attendance() {
         await addConnection(worker.nodeId, attendanceNode.id);
       }
     } catch (error) {
-      console.error('Error in check-out:', error);
+      logger.error('Error in check-out', { error });
     } finally {
       setLoadingAction(null);
     }
@@ -328,7 +356,10 @@ export function Attendance() {
               <QrCode className="w-4 h-4" />
               <span>Escanear QR</span>
             </button>
-            <button className="flex items-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs shadow-sm active:scale-95 transition-all flex-1 sm:flex-none justify-center">
+            <button
+              onClick={handleDailyReport}
+              className="flex items-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs shadow-sm active:scale-95 transition-all flex-1 sm:flex-none justify-center"
+            >
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">Reporte Diario</span>
               <span className="sm:hidden">Reporte</span>
@@ -464,11 +495,37 @@ export function Attendance() {
             className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-2.5 sm:py-3 pl-10 sm:pl-11 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all placeholder:text-zinc-500"
           />
         </div>
-        <button className="flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white rounded-xl sm:rounded-2xl px-4 py-2.5 sm:py-3 transition-all text-xs font-bold w-full sm:w-auto">
+        <button
+          onClick={() => setShowAdvancedFilters(f => !f)}
+          className={`flex items-center justify-center gap-2 border rounded-xl sm:rounded-2xl px-4 py-2.5 sm:py-3 transition-all text-xs font-bold w-full sm:w-auto ${
+            showAdvancedFilters || statusFilter !== 'all'
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+          }`}
+        >
           <Filter className="w-4 h-4" />
-          <span>Filtros Avanzados</span>
+          <span>Filtros{statusFilter !== 'all' ? ' •' : ''}</span>
         </button>
       </div>
+
+      {showAdvancedFilters && (
+        <div className="flex flex-wrap gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Estado del trabajador</span>
+            <div className="flex gap-2">
+              {[{ v: 'all', label: 'Todos' }, { v: 'active', label: 'Activos' }, { v: 'inactive', label: 'Inactivos' }].map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setStatusFilter(opt.v as any)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                    statusFilter === opt.v ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Gamified HUD for Active Worker */}
       <AnimatePresence>

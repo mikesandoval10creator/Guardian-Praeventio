@@ -1,11 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Car, AlertTriangle, Phone, MapPin, Mic, ShieldAlert } from 'lucide-react';
+import { Car, AlertTriangle, Phone, MapPin, Mic, ShieldAlert, MicOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function SafeDrivingMode() {
   const navigate = useNavigate();
   const [isEmergency, setIsEmergency] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [dictatedText, setDictatedText] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  const handleDictate = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'es-CL';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.onresult = (e: any) => {
+      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join(' ');
+      setDictatedText(transcript);
+    };
+    recognition.onend = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   const handleEmergency = () => {
     setIsEmergency(true);
@@ -37,23 +62,39 @@ export function SafeDrivingMode() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col p-6 gap-6">
         {/* Voice Assistant Button (Huge) */}
-        <button className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-6 transition-all active:scale-95">
-          <div className="w-32 h-32 bg-indigo-500/20 rounded-full flex items-center justify-center">
-            <Mic className="w-16 h-16 text-indigo-500" />
+        <button
+          onClick={handleDictate}
+          className={`flex-1 rounded-[3rem] border-4 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 ${
+            isListening ? 'bg-indigo-900 border-indigo-500 animate-pulse' : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-800'
+          }`}
+        >
+          <div className={`w-32 h-32 rounded-full flex items-center justify-center ${isListening ? 'bg-indigo-500/40' : 'bg-indigo-500/20'}`}>
+            {isListening ? <MicOff className="w-16 h-16 text-indigo-300" /> : <Mic className="w-16 h-16 text-indigo-500" />}
           </div>
-          <span className="text-3xl font-black text-white uppercase tracking-widest">Dictar Reporte</span>
+          <span className="text-3xl font-black text-white uppercase tracking-widest">
+            {isListening ? 'Detener' : 'Dictar Reporte'}
+          </span>
+          {dictatedText && !isListening && (
+            <span className="text-sm text-zinc-400 px-6 text-center max-w-xs">{dictatedText}</span>
+          )}
         </button>
 
         {/* Two large action buttons */}
         <div className="flex gap-6 h-64">
-          <button className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95">
+          <button
+            onClick={() => navigate('/evacuation')}
+            className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95"
+          >
             <MapPin className="w-12 h-12 text-blue-500" />
             <span className="text-xl font-black text-white uppercase tracking-widest">Ruta</span>
           </button>
-          <button className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95">
+          <a
+            href="tel:"
+            className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95"
+          >
             <Phone className="w-12 h-12 text-emerald-500" />
             <span className="text-xl font-black text-white uppercase tracking-widest">Base</span>
-          </button>
+          </a>
         </div>
 
         {/* Emergency Button (Massive) */}

@@ -26,6 +26,29 @@ export function AIHub() {
   const { nodes, stats, loading: nodesLoading } = useUniversalKnowledge();
   const isOnline = useOnlineStatus();
 
+  const handleExportGraph = () => {
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      nodeCount: nodes.length,
+      nodes: nodes.map(n => ({
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        description: n.description,
+        tags: n.tags,
+        metadata: n.metadata,
+        projectId: n.projectId,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `grafo_conocimiento_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
       <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8 sm:space-y-12">
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
@@ -129,7 +152,11 @@ export function AIHub() {
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Visualización de Inteligencia Colectiva</p>
             </div>
           </div>
-          <button className="flex items-center gap-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-zinc-200 dark:border-white/5">
+          <button
+            onClick={handleExportGraph}
+            disabled={nodesLoading || nodes.length === 0}
+            className="flex items-center gap-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-zinc-200 dark:border-white/5 disabled:opacity-40"
+          >
             <Share2 className="w-4 h-4" />
             Exportar Grafo
           </button>

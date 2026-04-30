@@ -41,6 +41,18 @@ export function SafeDriving() {
   const [loading, setLoading] = useState(false);
   const [reported, setReported] = useState(false);
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [showChecklistDetail, setShowChecklistDetail] = useState(false);
+
+  const preDriverChecklist = [
+    'Luces delanteras y traseras funcionando',
+    'Nivel de aceite y agua verificado',
+    'Neumáticos en buen estado y presión correcta',
+    'Frenos revisados',
+    'Cinturones de seguridad operativos',
+    'Extintor vigente a bordo',
+    'Botiquín de primeros auxilios',
+    'Triángulos de emergencia',
+  ];
   
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
@@ -288,8 +300,21 @@ export function SafeDriving() {
                       <p className="text-sm font-black text-zinc-900 dark:text-white">Completado</p>
                     </div>
                   </div>
-                  <button className="text-[10px] font-bold text-blue-500 hover:underline">Ver</button>
+                  <button
+                    onClick={() => setShowChecklistDetail(v => !v)}
+                    className="text-[10px] font-bold text-blue-500 hover:underline"
+                  >{showChecklistDetail ? 'Ocultar' : 'Ver'}</button>
                 </div>
+                {showChecklistDetail && (
+                  <div className="mt-3 space-y-1.5 pl-2 border-l-2 border-emerald-500/30">
+                    {preDriverChecklist.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button className="w-full mt-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors">

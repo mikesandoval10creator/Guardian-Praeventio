@@ -146,7 +146,7 @@ export function Profile() {
       <div className="space-y-4">
         <div className="flex items-center justify-between px-4">
           <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Logros</h2>
-          <button className="text-[10px] font-black text-emerald-500 uppercase tracking-widest hover:underline">Ver todos</button>
+          <button onClick={() => navigate('/gamification')} className="text-[10px] font-black text-emerald-500 uppercase tracking-widest hover:underline">Ver todos</button>
         </div>
         <div className="grid grid-cols-1 gap-3 px-2">
           {achievements.map((achievement) => (

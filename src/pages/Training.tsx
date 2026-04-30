@@ -836,7 +836,10 @@ export function Training() {
                     </button>
                   </div>
                 ) : (
-                  <button className="w-full sm:w-auto justify-center text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-emerald-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none">
+                  <button
+                    onClick={() => setActiveVideoSession(session)}
+                    className="w-full sm:w-auto justify-center text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-emerald-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
+                  >
                     <span>Ver Detalles</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>

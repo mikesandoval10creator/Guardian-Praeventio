@@ -214,15 +214,27 @@ export function SafetyFeed() {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-white/5">
-              <button className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">
+              <button
+                disabled={!isOnline}
+                onClick={() => { setNewPost(p => ({ ...p, type: 'SafetyMoment' })); setIsPosting(true); }}
+                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+              >
                 <ImageIcon className="w-4 h-4 text-blue-500" />
                 <span>Imagen</span>
               </button>
-              <button className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">
+              <button
+                disabled={!isOnline}
+                onClick={() => { setNewPost(p => ({ ...p, type: 'SafetyMoment' })); setIsPosting(true); }}
+                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+              >
                 <Zap className="w-4 h-4 text-yellow-500" />
                 <span>Momento</span>
               </button>
-              <button className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">
+              <button
+                disabled={!isOnline}
+                onClick={() => { setNewPost(p => ({ ...p, type: 'Tip' })); setIsPosting(true); }}
+                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+              >
                 <Lightbulb className="w-4 h-4 text-emerald-500" />
                 <span>Tip</span>
               </button>
@@ -376,7 +388,16 @@ export function SafetyFeed() {
                         <span>{post.comments.length}</span>
                       </button>
                     </div>
-                    <button className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors">
+                    <button
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({ title: 'Praeventio Guard', text: post.content, url: window.location.href }).catch(() => {});
+                        } else {
+                          navigator.clipboard?.writeText(`${post.content}\n${window.location.href}`);
+                        }
+                      }}
+                      className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors"
+                    >
                       <Share2 className="w-4 h-4" />
                       <span>Compartir</span>
                     </button>

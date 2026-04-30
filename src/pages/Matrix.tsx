@@ -69,6 +69,8 @@ export function Matrix() {
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [criticidadFilter, setCriticidadFilter] = useState<string>('all');
   const [isSeeding, setIsSeeding] = useState(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [isPresenting, setIsPresenting] = useState(false);
@@ -255,7 +257,14 @@ export function Matrix() {
      (node.description || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()))
   );
 
-  const approvedRisks = ipercNodes.filter(node => node.metadata?.status !== 'pending_approval');
+  const approvedRisks = ipercNodes.filter(node => {
+    if (node.metadata?.status === 'pending_approval') return false;
+    if (criticidadFilter !== 'all') {
+      const crit = (node.metadata?.criticidad || '').toLowerCase();
+      if (crit !== criticidadFilter.toLowerCase()) return false;
+    }
+    return true;
+  });
   const pendingRisks = ipercNodes.filter(node => node.metadata?.status === 'pending_approval');
 
   const isTransversal = (node: RiskNode) => {
@@ -565,11 +574,37 @@ export function Matrix() {
             className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2 sm:py-2.5 pl-9 sm:pl-10 pr-4 text-[10px] sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           />
         </div>
-        <button className="flex items-center justify-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl px-4 py-2 sm:py-2.5 transition-all text-[10px] sm:text-sm w-full sm:w-auto">
+        <button
+          onClick={() => setShowFilters(f => !f)}
+          className={`flex items-center justify-center gap-2 border rounded-xl px-4 py-2 sm:py-2.5 transition-all text-[10px] sm:text-sm w-full sm:w-auto ${
+            showFilters || criticidadFilter !== 'all'
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800'
+          }`}
+        >
           <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Filtros</span>
+          <span>Filtros{criticidadFilter !== 'all' ? ' •' : ''}</span>
         </button>
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap gap-4 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Criticidad</span>
+            <div className="flex gap-2 flex-wrap">
+              {[{ v: 'all', label: 'Todas' }, { v: 'crítica', label: 'Crítica' }, { v: 'alta', label: 'Alta' }, { v: 'media', label: 'Media' }, { v: 'baja', label: 'Baja' }].map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setCriticidadFilter(opt.v)}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                    criticidadFilter === opt.v ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Matrix Table/List */}
       {loading ? (

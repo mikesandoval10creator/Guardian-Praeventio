@@ -7,6 +7,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { db, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
+import { updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
 
 interface Post {
   id: string;
@@ -16,6 +17,7 @@ interface Post {
   content: string;
   type: 'SafetyMoment' | 'Tip' | 'SuccessStory' | 'Warning';
   likes: string[];
+  acknowledged?: string[];
   imageUrl?: string;
   createdAt: any;
   projectId: string;
@@ -43,6 +45,7 @@ export function MuralDinamico() {
   const [newPostContent, setNewPostContent] = useState('');
   const [postType, setPostType] = useState<string>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openComments, setOpenComments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!selectedProject) return;
@@ -88,6 +91,21 @@ export function MuralDinamico() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleToggleLike = async (postId: string, field: 'likes' | 'acknowledged', hasReacted: boolean) => {
+    if (!selectedProject || !user) return;
+    const ref = doc(db, `projects/${selectedProject.id}/safety_posts`, postId);
+    await updateDoc(ref, { [field]: hasReacted ? arrayRemove(user.uid) : arrayUnion(user.uid) }).catch(() => {});
+  };
+
+  const toggleComments = (postId: string) => {
+    setOpenComments(prev => {
+      const next = new Set(prev);
+      if (next.has(postId)) next.delete(postId);
+      else next.add(postId);
+      return next;
+    });
   };
 
   const getPostIcon = (type: string) => {
@@ -217,25 +235,40 @@ export function MuralDinamico() {
               )}
 
               <div className="flex items-center gap-4 pt-4 border-t border-white/5">
-                <button className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-amber-400 transition-colors group">
-                  <div className="p-1.5 rounded-md bg-zinc-800 group-hover:bg-amber-500/20 transition-colors">
-                    <Award className="w-4 h-4 group-hover:text-amber-400" />
+                <button
+                  onClick={() => handleToggleLike(post.id, 'likes', post.likes?.includes(user?.uid || '') ?? false)}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${post.likes?.includes(user?.uid || '') ? 'text-amber-400' : 'text-zinc-400 hover:text-amber-400'}`}
+                >
+                  <div className={`p-1.5 rounded-md transition-colors ${post.likes?.includes(user?.uid || '') ? 'bg-amber-500/20' : 'bg-zinc-800 group-hover:bg-amber-500/20'}`}>
+                    <Award className="w-4 h-4" />
                   </div>
                   <span>Kudos ({post.likes?.length || 0})</span>
                 </button>
-                <button className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-emerald-400 transition-colors group">
-                  <div className="p-1.5 rounded-md bg-zinc-800 group-hover:bg-emerald-500/20 transition-colors">
-                    <CheckCircle2 className="w-4 h-4 group-hover:text-emerald-400" />
+                <button
+                  onClick={() => handleToggleLike(post.id, 'acknowledged', post.acknowledged?.includes(user?.uid || '') ?? false)}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${post.acknowledged?.includes(user?.uid || '') ? 'text-emerald-400' : 'text-zinc-400 hover:text-emerald-400'}`}
+                >
+                  <div className={`p-1.5 rounded-md transition-colors ${post.acknowledged?.includes(user?.uid || '') ? 'bg-emerald-500/20' : 'bg-zinc-800 group-hover:bg-emerald-500/20'}`}>
+                    <CheckCircle2 className="w-4 h-4" />
                   </div>
-                  <span>Enterado y Aplicando</span>
+                  <span>Enterado {post.acknowledged?.length ? `(${post.acknowledged.length})` : ''}</span>
                 </button>
-                <button className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-blue-400 transition-colors group">
-                  <div className="p-1.5 rounded-md bg-zinc-800 group-hover:bg-blue-500/20 transition-colors">
-                    <MessageSquare className="w-4 h-4 group-hover:text-blue-400" />
+                <button
+                  onClick={() => toggleComments(post.id)}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${openComments.has(post.id) ? 'text-blue-400' : 'text-zinc-400 hover:text-blue-400'}`}
+                >
+                  <div className={`p-1.5 rounded-md transition-colors ${openComments.has(post.id) ? 'bg-blue-500/20' : 'bg-zinc-800 group-hover:bg-blue-500/20'}`}>
+                    <MessageSquare className="w-4 h-4" />
                   </div>
                   <span>Comentar</span>
                 </button>
               </div>
+
+              {openComments.has(post.id) && (
+                <div className="mt-4 pt-4 border-t border-white/5">
+                  <p className="text-xs text-zinc-500 italic">Los comentarios se mostrarán aquí. Próximamente.</p>
+                </div>
+              )}
             </Card>
           </motion.div>
         ))}
