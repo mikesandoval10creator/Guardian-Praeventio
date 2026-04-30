@@ -1,3 +1,22 @@
+import * as Sentry from "@sentry/node";
+
+// Init Sentry before anything else — captures startup errors too
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: 0.1,
+    beforeSend(event) {
+      // Strip user PII before sending
+      if (event.user) {
+        delete event.user.email;
+        delete event.user.ip_address;
+      }
+      return event;
+    },
+  });
+}
+
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -1970,6 +1989,11 @@ const setupBackgroundTriggers = () => {
   }
 };
 
+// Sentry error handler must be registered before any other error middleware
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
+
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
 
@@ -2031,6 +2055,7 @@ app.listen(PORT, "0.0.0.0", () => {
       }
     } catch (err) {
       console.error('[TRIGGER: ManDown Escalation] Error:', err);
+      if (process.env.SENTRY_DSN) Sentry.captureException(err, { tags: { domain: 'safety_critical', trigger: 'mandown_escalation' } });
     }
   }, 5 * 60 * 1000);
 

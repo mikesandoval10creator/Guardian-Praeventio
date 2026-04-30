@@ -3,7 +3,11 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
+import { initSentry } from './lib/sentry';
 import { registerSW } from 'virtual:pwa-register';
+
+// Init error monitoring before anything else so startup errors are captured
+initSentry();
 
 const updateSW = registerSW({
   onNeedRefresh() {

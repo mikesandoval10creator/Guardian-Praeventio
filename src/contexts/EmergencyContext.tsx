@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef } from 'react';
 import { db, auth, serverTimestamp } from '../services/firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { logger } from '../utils/logger';
+import { captureEmergencyError } from '../lib/sentry';
 
 interface EmergencyContextType {
   isEmergencyActive: boolean;
@@ -38,6 +39,7 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
       activeEventRef.current = { projectId, docId: docRef.id };
     } catch (err) {
       logger.error('EmergencyContext: failed to persist emergency event', { err });
+      captureEmergencyError(err, { trigger: type, projectId: projectId ?? 'unknown' });
     }
   };
 
