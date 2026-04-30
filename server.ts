@@ -1977,6 +1977,63 @@ app.listen(PORT, "0.0.0.0", () => {
     setupBackgroundTriggers();
   }
 
+  // ManDown Re-Escalation: check for unacknowledged events older than 10 minutes (every 5 min)
+  setInterval(async () => {
+    try {
+      const db = admin.firestore();
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      const projectsSnap = await db.collection('projects').get();
+
+      for (const projectDoc of projectsSnap.docs) {
+        const eventsSnap = await db
+          .collection(`projects/${projectDoc.id}/mandown_events`)
+          .where('status', '==', 'active')
+          .where('triggeredAt', '<', tenMinutesAgo)
+          .get();
+
+        for (const eventDoc of eventsSnap.docs) {
+          const data = eventDoc.data();
+          // Mark as escalated so we only fire once per event
+          if (data.escalated) continue;
+          await eventDoc.ref.update({ escalated: true });
+
+          // Gather FCM tokens of all supervisors + gerentes in this project
+          const membersSnap = await db.collection(`projects/${projectDoc.id}/members`).get();
+          const supervisorUids: string[] = [];
+          membersSnap.forEach(d => {
+            const role = d.data().role;
+            if (['supervisor', 'gerente', 'prevencionista', 'director_obra'].includes(role)) {
+              supervisorUids.push(d.id);
+            }
+          });
+
+          if (supervisorUids.length === 0) continue;
+
+          const tokenDocs = await Promise.all(
+            supervisorUids.map(uid => db.collection('users').doc(uid).get())
+          );
+          const tokens = tokenDocs
+            .map(d => d.data()?.fcmToken as string | undefined)
+            .filter((t): t is string => !!t);
+
+          if (tokens.length > 0) {
+            await admin.messaging().sendEachForMulticast({
+              tokens,
+              notification: {
+                title: '🚨 ESCALACIÓN Man Down — Sin respuesta',
+                body: `Trabajador ${data.workerName || 'desconocido'} no ha sido atendido en >10 min. Proyecto: ${projectDoc.data().name || projectDoc.id}`,
+              },
+              data: { projectId: projectDoc.id, eventId: eventDoc.id, type: 'mandown_escalation' },
+              android: { priority: 'high' },
+            }).catch(e => console.error('[TRIGGER: ManDown Escalation] FCM error:', e));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[TRIGGER: ManDown Escalation] Error:', err);
+    }
+  }, 5 * 60 * 1000);
+
   // Proactive Project Health Checks (Every 6 hours to balance quota)
   setInterval(async () => {
     try {

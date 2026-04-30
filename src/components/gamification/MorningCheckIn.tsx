@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, ShieldCheck, HeartPulse, Brain, CheckCircle2, Award, X, Salad, Droplets, Zap } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
-import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
+import { useProject } from '../../contexts/ProjectContext';
+import { db, collection, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 import { getNutritionSuggestion } from '../../services/geminiService';
 
 interface MorningCheckInProps {
@@ -12,6 +13,7 @@ interface MorningCheckInProps {
 
 export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
   const { user } = useFirebase();
+  const { selectedProject } = useProject();
   const [step, setStep] = useState(1);
   const [eppChecked, setEppChecked] = useState<Record<string, boolean>>({
     casco: false,
@@ -34,7 +36,15 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
     
     setIsSaving(true);
     try {
-      // Save affidavit to immutable audit logs
+      const checkInData = {
+        userId: user.uid,
+        userName: user.displayName ?? null,
+        eppChecked,
+        psychosocialMood: mood,
+        checkedAt: serverTimestamp(),
+      };
+
+      // Save affidavit to immutable audit logs (global)
       await addDoc(collection(db, 'audit_logs'), {
         userId: user.uid,
         action: 'MORNING_CHECKIN_AFFIDAVIT',
@@ -47,6 +57,14 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
           legalStatus: "Declaración Jurada Simple"
         }
       });
+
+      // Also save to project-level collection for supervisor visibility
+      if (selectedProject) {
+        addDoc(
+          collection(db, `projects/${selectedProject.id}/morning_checkins`),
+          checkInData
+        ).catch(() => {}); // non-blocking, audit_log already saved
+      }
       setShowReward(true);
       // Fetch nutrition suggestion in background; auto-close after 6s if suggestion loads
       getNutritionSuggestion(mood ?? 3, user.displayName ?? 'Trabajador')

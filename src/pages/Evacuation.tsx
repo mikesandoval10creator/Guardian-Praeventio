@@ -75,6 +75,7 @@ export function Evacuation() {
   const [aiRoute, setAiRoute] = useState<any>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [lastRecalculation, setLastRecalculation] = useState<Date | null>(null);
+  const [alarmActivatedAt, setAlarmActivatedAt] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
 
@@ -237,11 +238,14 @@ export function Evacuation() {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <button 
-            onClick={() => triggerEmergency('sismo')}
-            className="flex items-center justify-center gap-2 bg-red-600/20 border border-red-500/50 text-red-500 px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-red-600/30 active:scale-95 w-full sm:w-auto"
+            onClick={async () => {
+              await triggerEmergency('sismo', selectedProject?.id);
+              setAlarmActivatedAt(new Date().toLocaleTimeString('es-CL'));
+            }}
+            className={`flex items-center justify-center gap-2 border px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 w-full sm:w-auto ${alarmActivatedAt ? 'bg-red-600/40 border-red-500 text-red-300' : 'bg-red-600/20 border-red-500/50 text-red-500 hover:bg-red-600/30'}`}
           >
             <AlertCircle className="w-4 h-4" />
-            <span>Activar Alarma Manual</span>
+            <span>{alarmActivatedAt ? `Alarma Activa ${alarmActivatedAt}` : 'Activar Alarma Manual'}</span>
           </button>
           <button 
             onClick={handleGenerateEmergencyPlan}
