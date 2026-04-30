@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { generateTrainingCertificate } from '../utils/trainingCertificate';
+import { awardPoints } from '../services/gamificationService';
 import { db } from '../services/firebase';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
@@ -70,6 +71,7 @@ export function Training() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState<number[]>([]);
   const [isQuizFinished, setIsQuizFinished] = useState(false);
+  const [quizPointsAwarded, setQuizPointsAwarded] = useState(false);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [newSessionForm, setNewSessionForm] = useState({
     title: '',
@@ -83,6 +85,15 @@ export function Training() {
   const { data: allSessions, loading } = useFirestoreCollection<TrainingSession>('training');
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+
+  // Award quiz_passed points exactly once per quiz attempt with score >= 70
+  useEffect(() => {
+    if (isQuizFinished && !quizPointsAwarded && calculateQuizScore() >= 70) {
+      setQuizPointsAwarded(true);
+      awardPoints('quiz_passed');
+    }
+    if (!isQuizFinished) setQuizPointsAwarded(false);
+  }, [isQuizFinished]);
 
   // Preload native AdMob interstitial so it's ready when training completes (free plan only)
   useEffect(() => {
@@ -181,6 +192,8 @@ export function Training() {
       setQuizQuestions([]);
       setQuizAnswers([]);
       setCurrentQuestionIndex(0);
+
+      awardPoints('training_completed');
 
       if (!isPremium && canShowAd() && !isEmergencyActive) {
         recordAdShown();

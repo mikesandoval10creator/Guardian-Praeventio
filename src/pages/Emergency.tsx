@@ -31,6 +31,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { Worker } from '../types';
 import { logger } from '../utils/logger';
+import { awardPoints } from '../services/gamificationService';
 
 interface EmergencyProtocol {
   id: string;
@@ -182,7 +183,7 @@ export function Emergency() {
               {/* B9: Supervisor acknowledgement — secondary, only while the alarm is sounding (countdown finished). */}
               {countdown === 0 && (
                 <button
-                  onClick={acknowledgeAlert}
+                  onClick={() => { awardPoints('mandown_acknowledged'); acknowledgeAlert(); }}
                   aria-label="Detener alarma — rescate en camino"
                   className="w-full bg-white/10 border border-white/40 text-white py-4 rounded-2xl font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs sm:text-sm"
                 >

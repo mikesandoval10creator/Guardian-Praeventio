@@ -6,6 +6,7 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, collection, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 import { getNutritionSuggestion } from '../../services/geminiService';
+import { awardPoints } from '../../services/gamificationService';
 
 interface MorningCheckInProps {
   onComplete: () => void;
@@ -66,6 +67,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
         ).catch(() => {}); // non-blocking, audit_log already saved
       }
       setShowReward(true);
+      awardPoints('morning_checkin');
       // Fetch nutrition suggestion in background; auto-close after 6s if suggestion loads
       getNutritionSuggestion(mood ?? 3, user.displayName ?? 'Trabajador')
         .then(setNutrition)
