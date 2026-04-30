@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Award, Star, Zap, Shield, Trophy, Target, Flame, Crown, Play, CheckCircle2, Lock, Eye, BookOpen, X, Loader2, AlertCircle, LucideIcon } from 'lucide-react';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { validateRiskImageClick } from '../services/geminiService';
+import { getLeaderboard } from '../services/gamificationService';
 import { useGamification } from '../hooks/useGamification';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import confetti from 'canvas-confetti';
@@ -60,23 +61,18 @@ export function Gamification() {
     if (activeTab === 'ranking') {
       const fetchLeaderboard = async () => {
         try {
-          const q = query(collection(db, 'user_stats'), orderBy('points', 'desc'), limit(10));
-          const querySnapshot = await getDocs(q);
-          const users: LeaderboardUser[] = [];
-          querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            users.push({
-              id: doc.id,
-              name: data.displayName || 'Usuario Anónimo',
-              role: data.role || 'Usuario',
-              points: data.points || 0,
-              medals: data.medals?.length || 0,
-              isCurrentUser: doc.id === user?.uid
-            });
-          });
+          const data = await getLeaderboard();
+          const users: LeaderboardUser[] = data.map((entry: any) => ({
+            id: entry.uid ?? entry.id ?? '',
+            name: entry.displayName || 'Usuario Anónimo',
+            role: entry.role || 'Usuario',
+            points: entry.points || 0,
+            medals: Array.isArray(entry.medals) ? entry.medals.length : (entry.medals || 0),
+            isCurrentUser: (entry.uid ?? entry.id) === user?.uid,
+          }));
           setLeaderboard(users);
-        } catch (error) {
-          console.error("Error fetching leaderboard:", error);
+        } catch {
+          // silently keep existing state
         }
       };
       fetchLeaderboard();
