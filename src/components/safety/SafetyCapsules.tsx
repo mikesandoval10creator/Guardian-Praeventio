@@ -15,6 +15,7 @@ import {
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { generateSafetyCapsule } from '../../services/geminiService';
+import { logger } from '../../utils/logger';
 
 export function SafetyCapsules() {
   const { nodes } = useUniversalKnowledge();
@@ -43,7 +44,7 @@ export function SafetyCapsules() {
       );
       setCapsule(result);
     } catch (error) {
-      console.error('Error generating capsule:', error);
+      logger.error('Error generating capsule:', error);
     } finally {
       setLoading(false);
     }

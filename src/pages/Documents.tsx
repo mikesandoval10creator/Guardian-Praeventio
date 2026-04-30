@@ -40,6 +40,7 @@ interface Document {
 }
 
 import { useNavigate } from 'react-router-dom';
+import { logger } from '../utils/logger';
 
 export function Documents() {
   const { selectedProject } = useProject();
@@ -72,7 +73,7 @@ export function Documents() {
     try {
       await deleteDoc(doc(db, `projects/${selectedProject.id}/documents`, deleteDocId));
     } catch (error) {
-      console.error('Error deleting document:', error);
+      logger.error('Error deleting document:', error);
     } finally {
       setDeleteDocId(null);
     }

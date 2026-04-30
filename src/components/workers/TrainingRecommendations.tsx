@@ -8,6 +8,7 @@ import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 interface TrainingRecommendationsProps {
   worker: RiskNode;
@@ -48,7 +49,7 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
       );
       setRecommendations(result);
     } catch (error) {
-      console.error('Error fetching training recommendations:', error);
+      logger.error('Error fetching training recommendations:', error);
     } finally {
       setLoading(false);
     }
@@ -128,7 +129,7 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
         setRecommendations(prev => prev.filter((_, i) => i !== index));
       }
     } catch (error) {
-      console.error('Error assigning training:', error);
+      logger.error('Error assigning training:', error);
     } finally {
       setAssigningIndex(null);
     }

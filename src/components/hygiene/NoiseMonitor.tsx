@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, AlertTriangle, Mic, MicOff, Activity } from 'lucide-react';
 import { Card } from '../shared/Card';
 import { motion } from 'framer-motion';
+import { logger } from '../../utils/logger';
 
 export function NoiseMonitor() {
   const [isListening, setIsListening] = useState(false);
@@ -48,7 +49,7 @@ export function NoiseMonitor() {
       setIsListening(true);
       setError(null);
     } catch (err) {
-      console.error("Error accessing microphone:", err);
+      logger.error("Error accessing microphone:", err);
       setError("No se pudo acceder al micrófono. Verifique los permisos.");
     }
   };

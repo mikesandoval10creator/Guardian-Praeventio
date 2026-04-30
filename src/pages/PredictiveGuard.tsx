@@ -30,6 +30,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePredictiveForecast } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { logger } from '../utils/logger';
 
 export function PredictiveGuard() {
   const { selectedProject } = useProject();
@@ -56,7 +57,7 @@ export function PredictiveGuard() {
       setForecast(data);
       setLastUpdated(new Date());
     } catch (error) {
-      console.error('Error generating forecast:', error);
+      logger.error('Error generating forecast:', error);
     } finally {
       setIsAnalyzing(false);
     }

@@ -70,6 +70,7 @@ import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { useSubscription } from "../../contexts/SubscriptionContext";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
+import { logger } from '../../utils/logger';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -176,7 +177,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       onClose(); // Close sidebar on mobile
       navigate("/");
     } catch (error) {
-      console.error("Error logging out:", error);
+      logger.error("Error logging out:", error);
     }
   };
 

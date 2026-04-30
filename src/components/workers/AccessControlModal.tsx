@@ -4,6 +4,7 @@ import { X, ShieldCheck, Loader2, Calendar, ShieldAlert } from 'lucide-react';
 import { Worker } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { logger } from '../../utils/logger';
 
 interface AccessControlModalProps {
   isOpen: boolean;
@@ -44,7 +45,7 @@ export function AccessControlModal({ isOpen, onClose, worker, projectId }: Acces
 
       onClose();
     } catch (error) {
-      console.error('Error updating access control:', error);
+      logger.error('Error updating access control:', error);
       alert('Error al actualizar los datos de control de acceso.');
     } finally {
       setLoading(false);

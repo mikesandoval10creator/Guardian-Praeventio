@@ -12,6 +12,7 @@ import {
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { generateModuleRecommendations } from '../services/geminiService';
+import { logger } from '../utils/logger';
 
 // Define the hub configurations focusing on conditions, equipment, and responsibilities
 const hubsData: Record<string, any> = {
@@ -314,7 +315,7 @@ export function ModuleHub() {
         );
         setAiRecommendations(result);
       } catch (error) {
-        console.error("Error fetching AI recommendations:", error);
+        logger.error("Error fetching AI recommendations:", error);
       } finally {
         setLoadingAi(false);
       }

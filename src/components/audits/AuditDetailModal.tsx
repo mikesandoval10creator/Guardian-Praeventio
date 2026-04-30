@@ -7,6 +7,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { generateISOAuditChecklist, generateActionPlan } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import confetti from 'canvas-confetti';
+import { logger } from '../../utils/logger';
 
 interface AuditDetailModalProps {
   audit: RiskNode | null;
@@ -88,7 +89,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
         items: itemsWithStatus
       });
     } catch (error) {
-      console.error('Error generating ISO checklist:', error);
+      logger.error('Error generating ISO checklist:', error);
     } finally {
       setGenerating(false);
     }
@@ -165,7 +166,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
 
       setSaved(true);
     } catch (error) {
-      console.error('Error saving ISO audit:', error);
+      logger.error('Error saving ISO audit:', error);
     } finally {
       setLoading(false);
     }

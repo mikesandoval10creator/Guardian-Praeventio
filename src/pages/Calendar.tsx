@@ -26,6 +26,7 @@ import { fetchWeatherData } from '../services/orchestratorService';
 
 import { AddEventModal } from '../components/calendar/AddEventModal';
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
+import { logger } from '../utils/logger';
 
 interface Event {
   id: string;
@@ -55,7 +56,7 @@ export function Calendar() {
         const data = await fetchWeatherData();
         setWeatherData(data);
       } catch (error) {
-        console.error("Failed to load weather:", error);
+        logger.error("Failed to load weather:", error);
       }
     };
     loadWeather();

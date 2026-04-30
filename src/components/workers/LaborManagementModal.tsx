@@ -7,6 +7,7 @@ import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/fire
 import { db, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useProject } from '../../contexts/ProjectContext';
+import { logger } from '../../utils/logger';
 
 interface LaborManagementModalProps {
   isOpen: boolean;
@@ -79,7 +80,7 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
       addNotification({ title: 'Gestión Laboral Actualizada', message: `Los datos de ${worker.name} guardados.`, type: 'success' });
       onClose();
     } catch (error) {
-      console.error('Error updating labor data:', error);
+      logger.error('Error updating labor data:', error);
       addNotification({ title: 'Error', message: 'No se pudieron actualizar los datos laborales.', type: 'error' });
       handleFirestoreError(error, OperationType.UPDATE, `workers/${worker.id}`);
     } finally {
@@ -109,7 +110,7 @@ export function LaborManagementModal({ isOpen, onClose, worker }: LaborManagemen
       await doSave();
       return;
     } catch (error) {
-      console.error('Error:', error);
+      logger.error('Error:', error);
       setIsUpdating(false);
     }
   };

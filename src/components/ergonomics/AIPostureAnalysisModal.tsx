@@ -5,6 +5,7 @@ import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { analyzePostureWithAI } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 interface AIPostureAnalysisModalProps {
   isOpen: boolean;
@@ -52,7 +53,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
       const result = await analyzePostureWithAI(imageBase64, imageMimeType);
       setAnalysisResult(result);
     } catch (error) {
-      console.error('Error analyzing posture:', error);
+      logger.error('Error analyzing posture:', error);
       alert('Hubo un error al analizar la imagen. Por favor, intenta de nuevo.');
     } finally {
       setLoading(false);
@@ -86,7 +87,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
 
       handleClose();
     } catch (error) {
-      console.error('Error saving AI ergonomics node:', error);
+      logger.error('Error saving AI ergonomics node:', error);
     } finally {
       setSaving(false);
     }

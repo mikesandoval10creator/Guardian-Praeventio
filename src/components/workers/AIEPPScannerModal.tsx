@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, Upload, Loader2, ShieldAlert, CheckCircle2, AlertTriangle, ScanFace } from 'lucide-react';
 import { verifyEPPWithAI } from '../../services/geminiService';
 import { eppCatalog } from '../../data/epp';
+import { logger } from '../../utils/logger';
 
 interface AIEPPScannerModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export function AIEPPScannerModal({ isOpen, onClose, workerName, onApply }: AIEP
 
       setResult({ ...analysis, detectedIds });
     } catch (error) {
-      console.error("Error analyzing image:", error);
+      logger.error("Error analyzing image:", error);
       // Handle error (could show a toast)
     } finally {
       setLoading(false);

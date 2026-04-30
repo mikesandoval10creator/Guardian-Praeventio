@@ -5,6 +5,7 @@ import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { logger } from '../../utils/logger';
 
 interface Event {
   id: string;
@@ -94,7 +95,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       });
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating event:', error);
+      logger.error('Error updating event:', error);
       alert('Error al actualizar el evento');
     } finally {
       setLoading(false);
@@ -111,7 +112,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       await deleteDoc(doc(db, `projects/${selectedProject.id}/events`, event.id));
       onClose();
     } catch (error) {
-      console.error('Error deleting event:', error);
+      logger.error('Error deleting event:', error);
     } finally {
       setLoading(false);
     }

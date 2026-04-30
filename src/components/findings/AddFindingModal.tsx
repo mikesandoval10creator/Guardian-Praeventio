@@ -6,6 +6,7 @@ import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 import { generateActionPlan, analyzeSafetyImage } from '../../services/geminiService';
 import { logAuditAction } from '../../services/auditService';
+import { logger } from '../../utils/logger';
 
 interface AddFindingModalProps {
   isOpen: boolean;
@@ -65,7 +66,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Error analyzing image:', error);
+      logger.error('Error analyzing image:', error);
       alert('Error al analizar la imagen con IA.');
     } finally {
       setIsAnalyzingImage(false);
@@ -149,7 +150,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
         tags: ''
       });
     } catch (error) {
-      console.error('Error adding finding:', error);
+      logger.error('Error adding finding:', error);
     } finally {
       setLoading(false);
     }

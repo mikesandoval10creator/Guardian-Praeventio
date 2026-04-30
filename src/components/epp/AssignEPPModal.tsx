@@ -7,6 +7,7 @@ import { EPPItem, Worker, NodeType } from '../../types';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { jsPDF } from 'jspdf';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { logger } from '../../utils/logger';
 
 interface AssignEPPModalProps {
   isOpen: boolean;
@@ -144,7 +145,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
       setSelectedItem('');
       setExpiresAt('');
     } catch (error) {
-      console.error('Error assigning EPP:', error);
+      logger.error('Error assigning EPP:', error);
     } finally {
       setIsSubmitting(false);
     }

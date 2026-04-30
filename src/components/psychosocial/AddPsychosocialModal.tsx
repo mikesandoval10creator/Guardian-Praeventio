@@ -4,6 +4,7 @@ import { X, Brain, Calendar, User, Loader2, Shield, ChevronRight, ChevronLeft, B
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
+import { logger } from '../../utils/logger';
 
 interface AddPsychosocialModalProps {
   isOpen: boolean;
@@ -161,7 +162,7 @@ export function AddPsychosocialModal({ isOpen, onClose }: AddPsychosocialModalPr
       });
       handleClose();
     } catch (error) {
-      console.error('Error saving ISTAS21 evaluation:', error);
+      logger.error('Error saving ISTAS21 evaluation:', error);
     } finally {
       setLoading(false);
     }

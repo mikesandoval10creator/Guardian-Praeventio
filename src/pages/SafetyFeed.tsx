@@ -31,6 +31,7 @@ import { SafetyPost, SafetySolution, NodeType } from '../types';
 import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { SkeletonCard } from '../components/shared/Skeleton';
+import { logger } from '../utils/logger';
 
 export function SafetyFeed() {
   const { user } = useFirebase();
@@ -140,7 +141,7 @@ export function SafetyFeed() {
       setNewPost({ content: '', type: 'SafetyMoment', imageBase64: null });
       setIsPosting(false);
     } catch (error) {
-      console.error('Error creating post:', error);
+      logger.error('Error creating post:', error);
       alert('Hubo un error al publicar. Inténtalo de nuevo.');
     } finally {
       setIsAnalyzing(false);

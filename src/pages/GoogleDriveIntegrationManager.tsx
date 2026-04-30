@@ -5,6 +5,7 @@ import { Card, Button } from '../components/shared/Card';
 import { getPendingActions, SyncAction } from '../utils/pwa-offline';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { auth } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 export function GoogleDriveIntegrationManager() {
   const [isLinked, setIsLinked] = useState(false);
@@ -62,7 +63,7 @@ export function GoogleDriveIntegrationManager() {
         setIsSyncing(false);
       }
     } catch (error) {
-      console.error('Error connecting to Google Drive:', error);
+      logger.error('Error connecting to Google Drive:', error);
       setIsSyncing(false);
       alert('Error al iniciar la conexión con Google Drive.');
     }

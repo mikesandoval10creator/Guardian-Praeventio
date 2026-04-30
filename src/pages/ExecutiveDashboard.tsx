@@ -46,6 +46,7 @@ import { generateExecutiveSummary } from '../services/geminiService';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { logger } from '../utils/logger';
 
 // Compliance calculation reused from Dashboard.tsx
 function calculateCompliance(project: any, allNodes: any[]): number {
@@ -223,7 +224,7 @@ export function ExecutiveDashboard() {
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Dashboard_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err) {
-      console.error('PDF export error:', err);
+      logger.error('PDF export error:', err);
     } finally {
       setIsExporting(false);
     }

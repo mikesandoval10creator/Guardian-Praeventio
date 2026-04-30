@@ -7,6 +7,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { db, collection, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 import { getNutritionSuggestion } from '../../services/geminiService';
 import { awardPoints } from '../../services/gamificationService';
+import { logger } from '../../utils/logger';
 
 interface MorningCheckInProps {
   onComplete: () => void;
@@ -76,7 +77,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
         onComplete();
       }, 6000);
     } catch (error) {
-      console.error("Error saving checkin affidavit:", error);
+      logger.error("Error saving checkin affidavit:", error);
       handleFirestoreError(error, OperationType.CREATE, 'audit_logs');
       // Even on failure in saving, complete so they aren't stuck, but maybe alert
       onComplete();

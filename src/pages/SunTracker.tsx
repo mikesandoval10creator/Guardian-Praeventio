@@ -6,6 +6,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 export function SunTracker() {
   const [uvIndex, setUvIndex] = useState(0);
@@ -98,7 +99,7 @@ export function SunTracker() {
       setAlertSuccess(true);
       setTimeout(() => setAlertSuccess(false), 3000);
     } catch (error) {
-      console.error('Error emitting UV alert:', error);
+      logger.error('Error emitting UV alert:', error);
     } finally {
       setIsAlerting(false);
     }
@@ -111,7 +112,7 @@ export function SunTracker() {
           setLatitude(position.coords.latitude);
         },
         (error) => {
-          console.error("Error getting location:", error);
+          logger.error("Error getting location:", error);
           alert("No se pudo obtener la ubicación. Ingrese la latitud manualmente.");
         }
       );

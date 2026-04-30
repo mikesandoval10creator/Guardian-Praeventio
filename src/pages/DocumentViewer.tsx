@@ -5,6 +5,7 @@ import { FileText, ArrowLeft, Download, Loader2, AlertTriangle } from 'lucide-re
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
+import { logger } from '../utils/logger';
 
 export function DocumentViewer() {
   const { id } = useParams<{ id: string }>();
@@ -28,7 +29,7 @@ export function DocumentViewer() {
           setError('Documento no encontrado');
         }
       } catch (err) {
-        console.error('Error fetching document:', err);
+        logger.error('Error fetching document:', err);
         setError('Error al cargar el documento');
       } finally {
         setLoading(false);

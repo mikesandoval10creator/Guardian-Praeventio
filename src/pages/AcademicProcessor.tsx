@@ -4,6 +4,7 @@ import { BookOpen, Upload, FileText, Loader2, Brain, CheckCircle2, AlertTriangle
 import { Card, Button } from '../components/shared/Card';
 import { extractAcademicSummary } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
+import { logger } from '../utils/logger';
 
 export function AcademicProcessor() {
   const [textInput, setTextInput] = useState('');
@@ -20,7 +21,7 @@ export function AcademicProcessor() {
       const summary = await extractAcademicSummary(textInput);
       setResult(summary);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       setError('Error al procesar el texto. Por favor, intenta de nuevo.');
     } finally {
       setIsProcessing(false);

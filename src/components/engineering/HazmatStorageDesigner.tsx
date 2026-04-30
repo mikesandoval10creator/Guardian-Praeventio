@@ -3,6 +3,7 @@ import { designHazmatStorage } from '../../services/geminiService';
 import { Building2, ShieldAlert, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import { logger } from '../../utils/logger';
 
 export const HazmatStorageDesigner: React.FC = () => {
   const [storageType, setStorageType] = useState('Bodega Exclusiva');
@@ -20,7 +21,7 @@ export const HazmatStorageDesigner: React.FC = () => {
       const response = await designHazmatStorage(storageType, Number(volume), materialClass);
       setResult(response);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       setResult('Error al diseñar la instalación. Intente nuevamente.');
     } finally {
       setIsLoading(false);

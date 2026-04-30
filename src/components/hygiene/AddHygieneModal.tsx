@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Shield, Volume2, Activity, Thermometer, Wind, Loader2 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface AddHygieneModalProps {
   isOpen: boolean;
@@ -55,7 +56,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
       onClose();
       setFormData({ parameter: parameters[0].name, value: '', location: '' });
     } catch (error) {
-      console.error('Error adding hygiene node:', error);
+      logger.error('Error adding hygiene node:', error);
     } finally {
       setLoading(false);
     }

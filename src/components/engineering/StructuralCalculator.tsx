@@ -3,6 +3,7 @@ import { calculateStructuralLoad } from '../../services/geminiService';
 import { Calculator, Wrench, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import { logger } from '../../utils/logger';
 
 export const StructuralCalculator: React.FC = () => {
   const [element, setElement] = useState('Perno (Ej: ASTM A325)');
@@ -19,7 +20,7 @@ export const StructuralCalculator: React.FC = () => {
       const response = await calculateStructuralLoad(element, specs);
       setResult(response);
     } catch (error) {
-      console.error(error);
+      logger.error(error);
       setResult('Error al calcular. Intente nuevamente.');
     } finally {
       setIsLoading(false);

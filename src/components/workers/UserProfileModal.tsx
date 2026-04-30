@@ -4,6 +4,7 @@ import { Worker } from '../../types';
 import { Shield, Sword, Heart, Zap, Download, X, Star, Award, BookOpen, Loader2 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { logger } from '../../utils/logger';
 
 interface UserProfileModalProps {
   worker: Worker;
@@ -62,7 +63,7 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Curriculum_Preventivo_${worker.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
-      console.error('Error exporting PDF:', error);
+      logger.error('Error exporting PDF:', error);
       alert('Error al exportar el currículum a PDF.');
     } finally {
       setIsExporting(false);

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Layout, Activity, Shield, AlertTriangle, Loader2, MapPin } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface AddErgonomicsModalProps {
   isOpen: boolean;
@@ -64,7 +65,7 @@ export function AddErgonomicsModal({ isOpen, onClose, projectId }: AddErgonomics
         observations: '',
       });
     } catch (error) {
-      console.error('Error adding ergonomics node:', error);
+      logger.error('Error adding ergonomics node:', error);
     } finally {
       setLoading(false);
     }

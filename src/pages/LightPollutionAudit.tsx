@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Sun, Camera, ShieldAlert, AlertTriangle, CheckCircle2, Info, Loader2, Activity } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { logger } from '../utils/logger';
 
 export function LightPollutionAudit() {
   const [isScanning, setIsScanning] = useState(false);
@@ -21,7 +22,7 @@ export function LightPollutionAudit() {
           }
         })
         .catch(err => {
-          console.error("Error accessing camera:", err);
+          logger.error("Error accessing camera:", err);
           setCameraPermissionDenied(true);
         });
     } else {

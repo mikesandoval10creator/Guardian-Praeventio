@@ -18,6 +18,7 @@ import {
 import { db, doc, getDoc, collection, query, where, getDocs } from '../services/firebase';
 import { RiskNode, NodeType } from '../types';
 import { getNodeIcon, getNodeBadgeClass } from '../utils/nodeTypeUtils';
+import { logger } from '../utils/logger';
 
 export function PublicNodeView() {
   const { nodeId } = useParams<{ nodeId: string }>();
@@ -57,7 +58,7 @@ export function PublicNodeView() {
           setError('Nodo no encontrado o no es público.');
         }
       } catch (err) {
-        console.error('Error fetching public node:', err);
+        logger.error('Error fetching public node:', err);
         setError('Error al cargar la información.');
       } finally {
         setLoading(false);

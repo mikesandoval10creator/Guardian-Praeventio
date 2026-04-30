@@ -7,6 +7,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { analyzeRiskWithAI } from '../services/geminiService';
 import { z } from 'zod';
+import { logger } from '../utils/logger';
 
 const diagnosticSchema = z.object({
   industry: z.string().min(2, "La industria es requerida"),
@@ -117,7 +118,7 @@ export function Diagnostico() {
       setResult(data);
       setStep(3);
     } catch (error) {
-      console.error('Error generating base matrix:', error);
+      logger.error('Error generating base matrix:', error);
     } finally {
       setLoading(false);
     }
@@ -155,7 +156,7 @@ export function Diagnostico() {
 
       setSaved(true);
     } catch (error) {
-      console.error('Error saving diagnosis:', error);
+      logger.error('Error saving diagnosis:', error);
     } finally {
       setLoading(false);
     }

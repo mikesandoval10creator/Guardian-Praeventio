@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { generateTrainingQuiz } from '../../services/geminiService';
+import { logger } from '../../utils/logger';
 
 interface NormativeQuizProps {
   onComplete: (points: number) => void;
@@ -35,7 +36,7 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
         );
         setQuestions(quizData);
       } catch (error) {
-        console.error("Error fetching quiz:", error);
+        logger.error("Error fetching quiz:", error);
       } finally {
         setIsLoading(false);
       }

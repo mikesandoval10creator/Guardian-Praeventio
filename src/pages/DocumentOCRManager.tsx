@@ -7,6 +7,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
+import { logger } from '../utils/logger';
 
 export function DocumentOCRManager() {
   const [file, setFile] = useState<File | null>(null);
@@ -95,7 +96,7 @@ export function DocumentOCRManager() {
       setScanResult(structured);
       
     } catch (error) {
-      console.error("Error scanning document:", error);
+      logger.error("Error scanning document:", error);
       alert("Error al procesar el documento. Intente con una imagen más clara.");
     } finally {
       setIsScanning(false);
@@ -124,7 +125,7 @@ export function DocumentOCRManager() {
       setPreviewUrl(null);
       setScanResult(null);
     } catch (error) {
-      console.error("Error saving node:", error);
+      logger.error("Error saving node:", error);
       alert("Error al guardar en la red de riesgos.");
     } finally {
       setIsSaving(false);

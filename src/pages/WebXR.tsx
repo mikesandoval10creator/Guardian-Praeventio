@@ -5,6 +5,7 @@ import { collection, query, where, getDocs, orderBy, limit } from 'firebase/fire
 import { db } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 interface ARMarker {
   id: string;
@@ -40,7 +41,7 @@ export default function WebXR() {
           videoRef.current.srcObject = stream;
         }
       } catch (err) {
-        console.error("Error accessing camera:", err);
+        logger.error("Error accessing camera:", err);
         setError("No se pudo acceder a la cámara. Verifique los permisos.");
       }
     };
