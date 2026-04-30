@@ -6,6 +6,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { WeatherBulletin } from '../components/WeatherBulletin';
 
 export function SafeDrivingMode() {
   const navigate = useNavigate();
@@ -85,12 +86,15 @@ export function SafeDrivingMode() {
             <p className="text-emerald-500 font-bold uppercase tracking-widest text-xs">Modo Activo</p>
           </div>
         </div>
-        <button 
-          onClick={() => navigate(-1)}
-          className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-white font-black uppercase tracking-widest text-sm transition-colors"
-        >
-          Salir
-        </button>
+        <div className="flex items-center gap-3">
+          <WeatherBulletin compact className="w-48" />
+          <button
+            onClick={() => navigate(-1)}
+            className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-white font-black uppercase tracking-widest text-sm transition-colors"
+          >
+            Salir
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
