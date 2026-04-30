@@ -94,9 +94,14 @@ async function playZoneAlarm() {
   }
 }
 
-export function useGeofence(zones: GeofenceZone[]) {
+export function useGeofence(
+  zones: GeofenceZone[],
+  onZoneEntry?: (zones: GeofenceZone[]) => void,
+) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeZones, setActiveZones] = useState<GeofenceZone[]>([]);
+  const onZoneEntryRef = useRef(onZoneEntry);
+  onZoneEntryRef.current = onZoneEntry;
   // Track which zone IDs the worker is currently inside to avoid repeated alarms
   const insideZoneIdsRef = useRef<Set<string>>(new Set());
   // Latest `zones` value so the watchPosition callback always sees fresh polygons
@@ -158,6 +163,7 @@ export function useGeofence(zones: GeofenceZone[]) {
 
         if (justEntered.length > 0) {
           void playZoneAlarm();
+          onZoneEntryRef.current?.(justEntered);
         }
       },
       () => {

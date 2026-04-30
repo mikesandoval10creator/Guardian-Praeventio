@@ -1,8 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, MapPin } from 'lucide-react';
 import { useGeofence, GeofenceZone } from '../../hooks/useGeofence';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
+import { db, serverTimestamp } from '../../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { logger } from '../../utils/logger';
 
 // Fallback zones if none provided by project
 const FALLBACK_ZONES: GeofenceZone[] = [
@@ -22,7 +26,8 @@ const FALLBACK_ZONES: GeofenceZone[] = [
 
 export function GeofenceAlert() {
   const { selectedProject } = useProject();
-  
+  const { user } = useFirebase();
+
   const activeProjectZones = useMemo(() => {
     if (selectedProject?.settings?.geofences && Array.isArray(selectedProject.settings.geofences)) {
       return selectedProject.settings.geofences as GeofenceZone[];
@@ -30,7 +35,17 @@ export function GeofenceAlert() {
     return FALLBACK_ZONES;
   }, [selectedProject]);
 
-  const { activeZones } = useGeofence(activeProjectZones);
+  const handleZoneEntry = useCallback((enteredZones: GeofenceZone[]) => {
+    if (!selectedProject) return;
+    addDoc(collection(db, `projects/${selectedProject.id}/zone_violations`), {
+      workerId: user?.uid ?? null,
+      workerName: user?.displayName ?? null,
+      zones: enteredZones.map((z) => ({ id: z.id, name: z.name, type: z.type })),
+      timestamp: serverTimestamp(),
+    }).catch((err) => logger.error('GeofenceAlert: failed to log zone violation', { err }));
+  }, [selectedProject, user]);
+
+  const { activeZones } = useGeofence(activeProjectZones, handleZoneEntry);
 
   return (
     <AnimatePresence>

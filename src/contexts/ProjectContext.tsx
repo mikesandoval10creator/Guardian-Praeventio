@@ -23,6 +23,8 @@ interface Project {
   companyRut?: string;    // RUT empresa (ej: 76.123.456-7)
   companyAddress?: string;
   mutualidad?: 'ACHS' | 'IST' | 'Mutual de Seguridad' | 'SUSESO' | 'Otra';
+  // Emergency contact for SafeDrivingMode "Base" button
+  phone?: string;
   // Tracking & Shifts
   shiftStart?: string;
   shiftEnd?: string;

@@ -5,12 +5,15 @@ import { db } from '../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { useEmergency } from '../contexts/EmergencyContext';
 
 export function SafeDrivingMode() {
   const navigate = useNavigate();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
+  const { triggerEmergency } = useEmergency();
   const [isEmergency, setIsEmergency] = useState(false);
+  const [sosConfirmedAt, setSosConfirmedAt] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [dictatedText, setDictatedText] = useState('');
   const [reportSaved, setReportSaved] = useState(false);
@@ -62,12 +65,13 @@ export function SafeDrivingMode() {
     setIsListening(true);
   };
 
-  const handleEmergency = () => {
+  const handleEmergency = async () => {
     setIsEmergency(true);
-    // Vibrate if supported
     if ('vibrate' in navigator) {
       navigator.vibrate([200, 100, 200, 100, 500]);
     }
+    await triggerEmergency('driving_sos', selectedProject?.id);
+    setSosConfirmedAt(new Date().toLocaleTimeString('es-CL'));
   };
 
   return (
@@ -124,13 +128,23 @@ export function SafeDrivingMode() {
             <MapPin className="w-12 h-12 text-blue-500" />
             <span className="text-xl font-black text-white uppercase tracking-widest">Ruta</span>
           </button>
-          <a
-            href="tel:"
-            className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95"
-          >
-            <Phone className="w-12 h-12 text-emerald-500" />
-            <span className="text-xl font-black text-white uppercase tracking-widest">Base</span>
-          </a>
+          {selectedProject?.phone ? (
+            <a
+              href={`tel:${selectedProject.phone}`}
+              className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95"
+            >
+              <Phone className="w-12 h-12 text-emerald-500" />
+              <span className="text-xl font-black text-white uppercase tracking-widest">Base</span>
+            </a>
+          ) : (
+            <div
+              title="Configure el número de base en los ajustes del proyecto"
+              className="flex-1 bg-zinc-900 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 opacity-40 cursor-not-allowed"
+            >
+              <Phone className="w-12 h-12 text-zinc-600" />
+              <span className="text-xl font-black text-zinc-600 uppercase tracking-widest">Base</span>
+            </div>
+          )}
         </div>
 
         {/* Emergency Button (Massive) */}
@@ -144,7 +158,7 @@ export function SafeDrivingMode() {
         >
           <ShieldAlert className={`w-16 h-16 ${isEmergency ? 'text-white' : 'text-rose-500'}`} />
           <span className={`text-3xl font-black uppercase tracking-widest ${isEmergency ? 'text-white' : 'text-rose-500'}`}>
-            {isEmergency ? 'S.O.S. Enviado' : 'Emergencia'}
+            {isEmergency ? (sosConfirmedAt ? `S.O.S. ${sosConfirmedAt}` : 'Enviando...') : 'Emergencia'}
           </span>
         </button>
       </div>
