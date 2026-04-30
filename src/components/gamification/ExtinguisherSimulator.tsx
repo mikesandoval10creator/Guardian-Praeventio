@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Shield, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Smartphone } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { logger } from '../../utils/logger';
 
 interface ExtinguisherSimulatorProps {
   onComplete: (points: number) => void;
@@ -60,7 +61,7 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
               setHasGyro(false);
             }
           })
-          .catch(console.error);
+          .catch(err => logger.error('DeviceMotionEvent.requestPermission failed', { message: (err as Error).message }));
       } else {
         window.addEventListener('deviceorientation', handleOrientation);
       }

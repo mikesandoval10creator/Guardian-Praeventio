@@ -86,7 +86,7 @@ export function EvacuationRoutes() {
                   emittedAt: new Date().toISOString(),
                   emittedBy: 'API Sismológica'
                 }
-              }).catch(console.error);
+              }).catch(err => logger.error('Failed to write seismic emergency node', { message: (err as Error).message }));
             }
           }
         }
