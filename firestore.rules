@@ -235,6 +235,41 @@ service cloud.firestore {
       match /materials/{materialId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /assets/{assetId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
       match /workers/{workerId} { allow write: if isAdmin() || isSupervisor() || isProjectCreator(projectId); }
+
+      // Emergency events — members create, supervisors/admins update status
+      match /emergency_events/{eventId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().status in ['active', 'pending']
+          && incoming().triggeredBy == request.auth.uid;
+        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor())
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'resolvedAt', 'resolvedBy', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      // Brigade config — supervisors/admins write assignment docs
+      match /brigade_config/{docId} {
+        allow write: if isValidId(projectId) && (isAdmin() || isSupervisor() || isProjectCreator(projectId));
+      }
+
+      // ISO management sub-collections — supervisors/admins/creator write
+      match /iso_documents/{docId} {
+        allow create: if isValidId(projectId) && (isAdmin() || isSupervisor() || isProjectCreator(projectId));
+        allow update, delete: if isValidId(projectId) && (isAdmin() || isSupervisor() || isProjectCreator(projectId));
+      }
+      match /iso_improvements/{docId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId);
+        allow update: if isValidId(projectId) && (isAdmin() || isSupervisor() || existing().createdBy == request.auth.uid);
+        allow delete: if isAdmin() || isSupervisor();
+      }
+
+      // Morning check-ins — each member creates/updates their own record
+      match /morning_checkins/{checkinId} {
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().userId == request.auth.uid;
+        allow update: if isValidId(projectId) && existing().userId == request.auth.uid
+          && incoming().diff(existing()).affectedKeys().hasOnly(['updatedAt', 'answers', 'completed']);
+        allow delete: if false;
+      }
     }
 
     match /nodes/{nodeId} {
@@ -360,6 +395,17 @@ service cloud.firestore {
       );
       allow create: if isEmailVerified() && isProjectMember(incoming().projectId);
       allow delete: if isAdmin() || isSupervisor() || isProjectCreator(resource.data.projectId);
+    }
+
+    // Driving reports — SafeDrivingMode writes; own user reads; supervisors/admins see all
+    match /driving_reports/{reportId} {
+      allow read: if isEmailVerified() && (
+        isAdmin() || isSupervisor() || resource.data.userId == request.auth.uid
+      );
+      allow create: if isEmailVerified()
+        && incoming().userId == request.auth.uid
+        && incoming().userId is string;
+      allow update, delete: if false;
     }
 
     // AI feedback — users can submit vote on their own session; admins can read all

@@ -15,17 +15,18 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
-import { 
-  storage, 
-  db, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
+import { compressImage } from '../../utils/imageCompression';
+import {
+  storage,
+  db,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+  collection,
+  addDoc,
+  query,
+  where,
   onSnapshot,
   deleteDoc,
   doc
@@ -94,8 +95,9 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
         });
         showUploadToast('Archivo guardado. Se subirá cuando recuperes la conexión.', true);
       } else {
+        const uploadFile = await compressImage(file);
         const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
+        const snapshot = await uploadBytes(storageRef, uploadFile);
         const url = await getDownloadURL(snapshot.ref);
 
         await addDoc(collection(db, 'project_documents'), {
