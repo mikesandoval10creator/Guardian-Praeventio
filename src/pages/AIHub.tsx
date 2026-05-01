@@ -54,7 +54,7 @@ export function AIHub() {
       <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 sm:gap-6">
         <div className="space-y-1.5 sm:space-y-2">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center text-[#4db6ac] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 shrink-0">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <h1 className="text-xl sm:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">AI Hub: El Guardián</h1>
@@ -68,7 +68,7 @@ export function AIHub() {
             className={`px-4 py-2.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
               !isOnline 
                 ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' 
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                : 'bg-[#4db6ac] hover:bg-[#3a9e95] text-white'
             }`}
             title={!isOnline ? 'Requiere conexión a internet' : ''}
           >
@@ -76,7 +76,7 @@ export function AIHub() {
             {!isOnline ? 'Requiere Conexión' : 'Entrenar IA'}
           </Link>
           <div className="flex items-center justify-center gap-3 sm:gap-4 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4">
-            <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500'} shrink-0`} />
+            <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(77,182,172,0.5)]' : 'bg-rose-500'} shrink-0`} />
             <span className={`text-[8px] sm:text-[10px] font-black ${isOnline ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'} uppercase tracking-widest truncate`}>
               Guardian Praeventio: {isOnline ? 'Online' : 'Offline'}
             </span>
@@ -88,7 +88,7 @@ export function AIHub() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
         {[
           { label: 'Nodos Globales', value: nodes.length, icon: Database, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-          { label: 'Conexiones (Sinapsis)', value: stats.totalConnections, icon: Network, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Conexiones (Sinapsis)', value: stats.totalConnections, icon: Network, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
           { label: 'Proyectos Conectados', value: stats.projectCount, icon: Cpu, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
           { label: 'Densidad de Red', value: `${stats.avgConnections}/n`, icon: TrendingUp, color: 'text-amber-500', bg: 'bg-amber-500/10' },
         ].map((stat, i) => (
@@ -233,7 +233,7 @@ export function AIHub() {
             <div className="space-y-4">
               {[
                 { title: 'Red Neuronal Semántica', desc: 'Conexión automática de riesgos y normas.', icon: Brain, color: 'text-blue-500' },
-                { title: 'Visión Artificial', desc: 'Detección de EPP en tiempo real.', icon: Shield, color: 'text-emerald-500' },
+                { title: 'Visión Artificial', desc: 'Detección de EPP en tiempo real.', icon: Shield, color: 'text-[#4db6ac] dark:text-[#d4af37]' },
                 { title: 'Análisis Predictivo', desc: 'Predicción de incidentes a 48h.', icon: Zap, color: 'text-yellow-500' },
                 { title: 'Asistente de Voz', desc: 'Interacción manos libres en terreno.', icon: Brain, color: 'text-purple-500' },
               ].map((cap, i) => (

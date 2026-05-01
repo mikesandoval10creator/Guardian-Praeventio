@@ -302,7 +302,7 @@ export function Training() {
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -16 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl bg-emerald-600 text-white text-sm font-bold flex items-center gap-3"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl bg-[#4db6ac] text-white text-sm font-bold flex items-center gap-3"
           >
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             {syncToast}
@@ -313,7 +313,7 @@ export function Training() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
+            <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-[#4db6ac] dark:text-[#d4af37]" />
             Capacitaciones & Formación
           </h1>
           <p className="text-zinc-400 mt-1 font-medium italic text-xs sm:text-base">"El conocimiento es la primera línea de defensa"</p>
@@ -379,7 +379,7 @@ export function Training() {
 
               <div className="p-8 border-t border-white/5 bg-zinc-900/50 flex justify-between items-center">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <div className="w-10 h-10 rounded-full bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center text-[#4db6ac] dark:text-[#d4af37]">
                     <Shield className="w-5 h-5" />
                   </div>
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest max-w-[200px]">
@@ -388,7 +388,7 @@ export function Training() {
                 </div>
                 <button 
                   onClick={() => setCapsule(null)}
-                  className="px-8 py-4 rounded-2xl bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+                  className="px-8 py-4 rounded-2xl bg-[#4db6ac] text-white font-black text-[10px] uppercase tracking-widest hover:bg-[#3a9e95] transition-all flex items-center gap-2 shadow-lg shadow-[#4db6ac]/20"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Entendido, Guardián
@@ -425,7 +425,7 @@ export function Training() {
                     required
                     value={newSessionForm.title}
                     onChange={e => setNewSessionForm({...newSessionForm, title: e.target.value})}
-                    className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-[#4db6ac] transition-colors"
                     placeholder="Ej. Uso correcto de arnés"
                   />
                 </div>
@@ -435,7 +435,7 @@ export function Training() {
                     required
                     value={newSessionForm.description}
                     onChange={e => setNewSessionForm({...newSessionForm, description: e.target.value})}
-                    className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-emerald-500 transition-colors resize-none h-24"
+                    className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-[#4db6ac] transition-colors resize-none h-24"
                     placeholder="Detalles de la capacitación..."
                   />
                 </div>
@@ -447,7 +447,7 @@ export function Training() {
                       type="url"
                       value={newSessionForm.youtubeUrl}
                       onChange={e => setNewSessionForm({...newSessionForm, youtubeUrl: e.target.value})}
-                      className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:outline-none focus:border-[#4db6ac] transition-colors"
                       placeholder="https://youtube.com/watch?v=..."
                     />
                   </div>
@@ -461,7 +461,7 @@ export function Training() {
                       min="1"
                       value={newSessionForm.duration}
                       onChange={e => setNewSessionForm({...newSessionForm, duration: parseInt(e.target.value)})}
-                      className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-[#4db6ac] transition-colors"
                     />
                   </div>
                   <div>
@@ -472,7 +472,7 @@ export function Training() {
                       min="0"
                       value={newSessionForm.points}
                       onChange={e => setNewSessionForm({...newSessionForm, points: parseInt(e.target.value)})}
-                      className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                      className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-[#4db6ac] transition-colors"
                     />
                   </div>
                 </div>
@@ -483,7 +483,7 @@ export function Training() {
                     id="isCurated"
                     checked={newSessionForm.isCurated}
                     onChange={e => setNewSessionForm({...newSessionForm, isCurated: e.target.checked})}
-                    className="w-5 h-5 rounded border-white/10 bg-zinc-900 text-emerald-500 focus:ring-emerald-500"
+                    className="w-5 h-5 rounded border-white/10 bg-zinc-900 text-[#4db6ac] focus:ring-[#4db6ac]"
                   />
                   <label htmlFor="isCurated" className="text-[10px] font-black text-zinc-400 uppercase tracking-widest cursor-pointer">
                     Añadir a la Biblioteca Global (Curación)
@@ -493,7 +493,7 @@ export function Training() {
                 <div className="pt-4 flex justify-end">
                   <button 
                     type="submit"
-                    className="px-8 py-4 rounded-2xl bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
+                    className="px-8 py-4 rounded-2xl bg-[#4db6ac] text-white font-black text-[10px] uppercase tracking-widest hover:bg-[#3a9e95] transition-all shadow-lg shadow-[#4db6ac]/20"
                   >
                     Crear Capacitación
                   </button>
@@ -646,8 +646,8 @@ export function Training() {
                 ) : (
                   <div className="text-center space-y-8 py-10">
                     <div className="relative inline-block">
-                      <div className={`w-32 h-32 rounded-full flex items-center justify-center border-4 ${calculateQuizScore() >= 70 ? 'border-emerald-500 bg-emerald-500/10' : 'border-rose-500 bg-rose-500/10'}`}>
-                        <span className={`text-4xl font-black ${calculateQuizScore() >= 70 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <div className={`w-32 h-32 rounded-full flex items-center justify-center border-4 ${calculateQuizScore() >= 70 ? 'border-[#4db6ac] bg-[#4db6ac]/10' : 'border-rose-500 bg-rose-500/10'}`}>
+                        <span className={`text-4xl font-black ${calculateQuizScore() >= 70 ? 'text-[#4db6ac] dark:text-[#d4af37]' : 'text-rose-500'}`}>
                           {calculateQuizScore()}%
                         </span>
                       </div>
@@ -655,7 +655,7 @@ export function Training() {
                         <motion.div 
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
-                          className="absolute -top-2 -right-2 w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg"
+                          className="absolute -top-2 -right-2 w-10 h-10 bg-[#4db6ac] rounded-full flex items-center justify-center text-white shadow-lg"
                         >
                           <CheckCircle2 className="w-6 h-6" />
                         </motion.div>
@@ -677,7 +677,7 @@ export function Training() {
                       {calculateQuizScore() >= 70 ? (
                         <button 
                           onClick={() => handleCompleteVideo(activeVideoSession!)}
-                          className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-emerald-500/20 transition-all"
+                          className="w-full py-5 bg-[#4db6ac] hover:bg-[#3a9e95] text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-[#4db6ac]/20 transition-all"
                         >
                           Finalizar y Reclamar Recompensa
                         </button>
@@ -707,7 +707,7 @@ export function Training() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         {[
           { label: 'Total Sesiones', value: allSessions.length, icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-          { label: 'Completadas', value: allSessions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: 'Completadas', value: allSessions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
           { label: 'Programadas', value: allSessions.filter(s => s.status === 'scheduled').length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
           { label: 'Participantes', value: allSessions.reduce((acc, s) => acc + (s.attendees?.length || 0), 0), icon: Users, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
         ].map((stat, i) => (
@@ -738,7 +738,7 @@ export function Training() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
                 activeTab === tab.id 
-                  ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                  ? 'bg-[#4db6ac] text-white shadow-lg shadow-[#4db6ac]/20'
                   : 'text-zinc-500 hover:text-white'
               }`}
             >
@@ -748,11 +748,11 @@ export function Training() {
           ))}
         </div>
         <div className="relative w-full md:w-80 group">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 group-focus-within:text-[#4db6ac] dark:group-focus-within:text-[#d4af37] transition-colors" />
           <input
             type="text"
             placeholder="Buscar capacitación..."
-            className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-inner"
+            className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-3.5 pl-12 pr-6 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-inner"
           />
         </div>
       </div>
@@ -768,7 +768,7 @@ export function Training() {
         </motion.div>
       ) : loading ? (
         <div className="flex flex-col items-center justify-center py-32 gap-4">
-          <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+          <Loader2 className="w-10 h-10 text-[#4db6ac] dark:text-[#d4af37] animate-spin" />
           <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Cargando Conocimiento...</p>
         </div>
       ) : filteredSessions.length > 0 ? (
@@ -779,17 +779,17 @@ export function Training() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-[32px] p-4 sm:p-8 hover:border-emerald-500/30 transition-all group shadow-xl hover:shadow-emerald-500/5 flex flex-col"
+              className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-[32px] p-4 sm:p-8 hover:border-[#4db6ac]/30 transition-all group shadow-xl hover:shadow-[#4db6ac]/5 flex flex-col"
             >
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 sm:mb-6">
                 <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
                   <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/5 shrink-0 ${
-                    session.status === 'completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                    session.status === 'completed' ? 'bg-[#4db6ac]/10 text-[#4db6ac] dark:text-[#d4af37]' : 'bg-amber-500/10 text-amber-500'
                   }`}>
                     {session.status === 'completed' ? <Award className="w-5 h-5 sm:w-7 sm:h-7" /> : <Play className="w-5 h-5 sm:w-7 sm:h-7" />}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-black text-white text-base sm:text-xl uppercase tracking-tight group-hover:text-emerald-400 transition-colors truncate">{session.title}</h3>
+                    <h3 className="font-black text-white text-base sm:text-xl uppercase tracking-tight group-hover:text-[#d4af37] transition-colors truncate">{session.title}</h3>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[8px] sm:text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-1">
                       <div className="flex items-center gap-1">
                         <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -809,7 +809,7 @@ export function Training() {
                 </div>
                 <div className="flex flex-row sm:flex-col items-center sm:items-end w-full sm:w-auto justify-between sm:justify-end gap-2 shrink-0">
                   <span className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[9px] font-black uppercase tracking-widest ${
-                    session.status === 'completed' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-black'
+                    session.status === 'completed' ? 'bg-[#4db6ac] text-white' : 'bg-amber-500 text-black'
                   }`}>
                     {session.status === 'completed' ? 'Completada' : 'Programada'}
                   </span>
@@ -873,7 +873,7 @@ export function Training() {
                 ) : (
                   <button
                     onClick={() => setActiveVideoSession(session)}
-                    className="w-full sm:w-auto justify-center text-emerald-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-emerald-500/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
+                    className="w-full sm:w-auto justify-center text-[#4db6ac] dark:text-[#d4af37] hover:text-[#3a9e95] dark:hover:text-[#d4af37] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 bg-[#4db6ac]/10 sm:bg-transparent py-2 sm:py-0 rounded-xl sm:rounded-none"
                   >
                     <span>Ver Detalles</span>
                     <ChevronRight className="w-4 h-4" />
