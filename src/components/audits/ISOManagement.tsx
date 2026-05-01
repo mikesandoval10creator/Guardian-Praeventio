@@ -15,7 +15,6 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
-  type LucideIcon,
 } from 'lucide-react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../../services/firebase';
