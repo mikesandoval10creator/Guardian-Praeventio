@@ -1,11 +1,17 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { RiskNode, EnvironmentContext } from '../types';
 import { db, collection, onSnapshot, query, orderBy, handleFirestoreError, OperationType } from '../services/firebase';
+import { addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { useFirebase } from './FirebaseContext';
 import { fetchEnvironmentContext } from '../services/orchestratorService';
 
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
+
+export interface KnowledgeGraph {
+  nodes: RiskNode[];
+  edges: { from: string; to: string }[];
+}
 
 interface UniversalKnowledgeContextType {
   nodes: RiskNode[];
@@ -13,6 +19,7 @@ interface UniversalKnowledgeContextType {
   projectClusters: Record<string, RiskNode[]>;
   environment: EnvironmentContext | null;
   communityGlossary: any[];
+  graph: KnowledgeGraph;
   stats: {
     totalNodes: number;
     totalConnections: number;
@@ -21,6 +28,8 @@ interface UniversalKnowledgeContextType {
     projectCount: number;
     avgConnections: string;
   };
+  createNode: (data: Omit<RiskNode, 'id'>) => Promise<string>;
+  createEdge: (fromId: string, toId: string) => Promise<void>;
 }
 
 const UniversalKnowledgeContext = createContext<UniversalKnowledgeContextType | undefined>(undefined);
@@ -121,6 +130,42 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     }, {} as Record<string, RiskNode[]>);
   }, [nodes]);
 
+  const graph = useMemo<KnowledgeGraph>(() => {
+    const edgeSet = new Set<string>();
+    const edges: { from: string; to: string }[] = [];
+    nodes.forEach(node => {
+      node.connections.forEach(toId => {
+        const key = [node.id, toId].sort().join('--');
+        if (!edgeSet.has(key)) {
+          edgeSet.add(key);
+          edges.push({ from: node.id, to: toId });
+        }
+      });
+    });
+    return { nodes, edges };
+  }, [nodes]);
+
+  const createNode = useCallback(async (data: Omit<RiskNode, 'id'>): Promise<string> => {
+    const ref = await addDoc(collection(db, 'nodes'), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return ref.id;
+  }, []);
+
+  const createEdge = useCallback(async (fromId: string, toId: string): Promise<void> => {
+    const fromNode = nodes.find(n => n.id === fromId);
+    const toNode = nodes.find(n => n.id === toId);
+    if (!fromNode || !toNode) return;
+    const fromConns = Array.from(new Set([...fromNode.connections, toId]));
+    const toConns = Array.from(new Set([...toNode.connections, fromId]));
+    await Promise.all([
+      updateDoc(doc(db, 'nodes', fromId), { connections: fromConns, updatedAt: serverTimestamp() }),
+      updateDoc(doc(db, 'nodes', toId), { connections: toConns, updatedAt: serverTimestamp() }),
+    ]);
+  }, [nodes]);
+
   const stats = useMemo(() => {
     const nodesByType: Record<string, number> = {};
     let totalConnections = 0;
@@ -149,7 +194,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
   }, [nodes]);
 
   return (
-    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, environment, communityGlossary, stats }}>
+    <UniversalKnowledgeContext.Provider value={{ nodes, loading, projectClusters, environment, communityGlossary, graph, stats, createNode, createEdge }}>
       {children}
     </UniversalKnowledgeContext.Provider>
   );

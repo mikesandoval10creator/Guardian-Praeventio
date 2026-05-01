@@ -4,7 +4,7 @@ import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, 
 import { useProject } from '../contexts/ProjectContext';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { RiskNode, NodeType } from '../types';
-import { where, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { where, collection, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { db, storage, ref, uploadBytes, getDownloadURL } from '../services/firebase';
 import { generateEmergencyPlanJSON } from '../services/geminiService';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -34,6 +34,15 @@ export function EmergencyGenerator() {
   const [isDownloading, setIsDownloading] = useState(false);
   const pdfRef = React.useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'resumen' | 'brigada' | 'procedimientos' | 'evacuacion' | 'normativas'>('resumen');
+
+  // Brigada state
+  const [brigadaAssignments, setBrigadaAssignments] = useState<Record<string, string>>({});
+  const [brigadaInputs, setBrigadaInputs] = useState<Record<string, string>>({});
+  const [brigadaSaving, setBrigadaSaving] = useState<Record<string, boolean>>({});
+  const [activationStatus, setActivationStatus] = useState<string>('');
 
   // Fetch approved risks from Risk Network
   const { data: nodes } = useFirestoreCollection<RiskNode>(
@@ -211,6 +220,57 @@ export function EmergencyGenerator() {
     }
   };
 
+  const brigadeRoles = [
+    { key: 'jefe', name: 'Jefe de Emergencia', description: 'Coordina la respuesta total ante la emergencia y autoriza la evacuación del recinto.' },
+    { key: 'incendio', name: 'Brigada Contra Incendio', description: 'Opera extintores y equipos de supresión para evitar la propagación del fuego.' },
+    { key: 'evacuacion', name: 'Brigada de Evacuación', description: 'Guía al personal hacia las zonas seguras siguiendo las rutas establecidas.' },
+    { key: 'auxilios', name: 'Primeros Auxilios', description: 'Brinda atención inicial a lesionados hasta la llegada de servicios de emergencia.' },
+  ];
+
+  const handleBrigadaSave = async (roleKey: string) => {
+    if (!selectedProject) return;
+    const responsable = brigadaInputs[roleKey] ?? brigadaAssignments[roleKey] ?? '';
+    setBrigadaSaving(prev => ({ ...prev, [roleKey]: true }));
+    try {
+      const brigadeRef = doc(db, 'projects', selectedProject.id, 'brigade_config', 'assignments');
+      await updateDoc(brigadeRef, { [roleKey]: responsable }).catch(async () => {
+        // Document may not exist yet — use setDoc-equivalent via addDoc on a named path isn't possible,
+        // so we import setDoc dynamically only if updateDoc fails.
+        const { setDoc } = await import('firebase/firestore');
+        await setDoc(brigadeRef, { [roleKey]: responsable }, { merge: true });
+      });
+      setBrigadaAssignments(prev => ({ ...prev, [roleKey]: responsable }));
+    } catch (error) {
+      logger.error('Error saving brigade assignment:', error);
+    } finally {
+      setBrigadaSaving(prev => ({ ...prev, [roleKey]: false }));
+    }
+  };
+
+  const handleActivateEmergency = async () => {
+    if (!selectedProject || !user) return;
+    try {
+      await addDoc(collection(db, 'projects', selectedProject.id, 'emergency_events'), {
+        type: 'manual_activation',
+        triggeredBy: user.uid,
+        timestamp: serverTimestamp(),
+        status: 'active',
+        brigadeNotified: true,
+      });
+      fetch('/api/emergency/notify-brigada', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: selectedProject.id, type: 'manual_activation' }),
+      }).catch(() => {});
+      setActivationStatus('Brigada notificada');
+      setTimeout(() => setActivationStatus(''), 4000);
+    } catch (error) {
+      logger.error('Error activating emergency:', error);
+      setActivationStatus('Error al activar emergencia');
+      setTimeout(() => setActivationStatus(''), 4000);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
@@ -223,6 +283,34 @@ export function EmergencyGenerator() {
         </div>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="flex gap-1 bg-zinc-900/50 border border-white/10 rounded-2xl p-1 overflow-x-auto">
+        {(
+          [
+            { id: 'resumen', label: 'Resumen' },
+            { id: 'brigada', label: 'Brigada' },
+            { id: 'procedimientos', label: 'Procedimientos' },
+            { id: 'evacuacion', label: 'Evacuación' },
+            { id: 'normativas', label: 'Normativas' },
+          ] as const
+        ).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className="flex-1 px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap"
+            style={
+              activeTab === tab.id
+                ? { backgroundColor: '#4db6ac', color: '#fff' }
+                : { backgroundColor: 'transparent', color: '#71717a' }
+            }
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Resumen Tab ── */}
+      {activeTab === 'resumen' && (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
         {/* Form */}
         <div className="lg:col-span-1 space-y-6">
@@ -455,6 +543,145 @@ export function EmergencyGenerator() {
           )}
         </div>
       </div>
+      )} {/* end Resumen tab */}
+
+      {/* ── Brigada Tab ── */}
+      {activeTab === 'brigada' && (
+        <div className="space-y-6">
+          {/* Role cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {brigadeRoles.map(role => (
+              <div
+                key={role.key}
+                className="bg-zinc-900/50 border border-white/10 rounded-2xl p-5 space-y-4"
+              >
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight">{role.name}</h3>
+                  <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{role.description}</p>
+                </div>
+                {brigadaAssignments[role.key] && (
+                  <p className="text-xs text-[#4db6ac] font-semibold">
+                    Asignado: {brigadaAssignments[role.key]}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Asignar responsable"
+                    value={brigadaInputs[role.key] ?? brigadaAssignments[role.key] ?? ''}
+                    onChange={e =>
+                      setBrigadaInputs(prev => ({ ...prev, [role.key]: e.target.value }))
+                    }
+                    className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 transition-all"
+                    style={{ '--tw-ring-color': '#4db6ac' } as React.CSSProperties}
+                  />
+                  <button
+                    onClick={() => handleBrigadaSave(role.key)}
+                    disabled={brigadaSaving[role.key]}
+                    className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all disabled:opacity-50"
+                    style={{ backgroundColor: '#4db6ac' }}
+                  >
+                    {brigadaSaving[role.key] ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Activate Emergency */}
+          <div className="flex flex-col items-start gap-3">
+            <button
+              onClick={handleActivateEmergency}
+              disabled={!selectedProject || !user}
+              className="px-6 py-4 rounded-xl font-black uppercase tracking-widest text-xs bg-rose-600 hover:bg-rose-700 text-white transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              <AlertTriangle className="w-4 h-4" />
+              Activar Emergencia
+            </button>
+            {activationStatus && (
+              <p className="text-sm font-semibold text-[#4db6ac]">{activationStatus}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Procedimientos Tab ── */}
+      {activeTab === 'procedimientos' && (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 space-y-6">
+          <h2 className="text-base font-black text-white uppercase tracking-tight">Procedimientos de Emergencia</h2>
+          <ol className="space-y-5">
+            {[
+              { step: 1, title: 'Detección y Alerta', body: 'Identificar la emergencia (incendio, accidente, derrame u otro evento). Activar la alarma sonora o visual correspondiente e informar de inmediato al Jefe de Emergencia.' },
+              { step: 2, title: 'Notificación y Activación de Brigadas', body: 'El Jefe de Emergencia evalúa la magnitud del evento y activa las brigadas necesarias: Contra Incendio, Evacuación y/o Primeros Auxilios. Se notifica a los servicios externos (bomberos, SAMU) si se requiere.' },
+              { step: 3, title: 'Control y Contención', body: 'Cada brigada ejecuta su protocolo específico. Se despeja el área afectada, se cortan suministros de riesgo (gas, electricidad) y se aplican medidas de contención para evitar la propagación del daño.' },
+              { step: 4, title: 'Evaluación y Retorno', body: 'Verificar que todo el personal esté en el punto de encuentro y contabilizar su presencia. Una vez que la autoridad competente declare el área segura, el Jefe de Emergencia autoriza el retorno ordenado a las instalaciones.' },
+            ].map(item => (
+              <li key={item.step} className="flex gap-4">
+                <span
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0"
+                  style={{ backgroundColor: '#4db6ac' }}
+                >
+                  {item.step}
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-tight mb-1">{item.title}</h3>
+                  <p className="text-sm text-zinc-400 leading-relaxed">{item.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* ── Evacuación Tab ── */}
+      {activeTab === 'evacuacion' && (
+        <div className="space-y-6">
+          <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 space-y-4">
+            <h2 className="text-base font-black text-white uppercase tracking-tight">Rutas de Evacuación</h2>
+            <ul className="space-y-3 text-sm text-zinc-300">
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">→</span>Ruta A: Pasillo principal → Escalera de emergencia norte → Salida calle lateral</li>
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">→</span>Ruta B: Pasillo secundario → Escalera de emergencia sur → Salida patio trasero</li>
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">→</span>Ruta C (planta baja): Corredor central → Salida principal → Calle frontal</li>
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">→</span>Ruta D (pisos superiores): Escalera de emergencia este → Salida lateral este</li>
+            </ul>
+          </div>
+          <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 space-y-4">
+            <h2 className="text-base font-black text-white uppercase tracking-tight">Puntos de Encuentro</h2>
+            <ul className="space-y-3 text-sm text-zinc-300">
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">●</span>PE-1: Estacionamiento exterior norte — capacidad 80 personas</li>
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">●</span>PE-2: Plaza pública frente al edificio — capacidad 150 personas</li>
+              <li className="flex gap-3"><span className="text-[#4db6ac] font-bold shrink-0">●</span>PE-3: Cancha deportiva sector sur — capacidad 200 personas (emergencias mayores)</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* ── Normativas Tab ── */}
+      {activeTab === 'normativas' && (
+        <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-6 space-y-5">
+          <h2 className="text-base font-black text-white uppercase tracking-tight">Marco Normativo Aplicable</h2>
+          {[
+            { code: 'Ley 16.744', title: 'Seguro Social contra Riesgos de Accidentes del Trabajo y Enfermedades Profesionales', desc: 'Establece las obligaciones del empleador en materia de prevención de riesgos, cobertura del seguro y las prestaciones ante accidentes laborales y enfermedades profesionales.' },
+            { code: 'DS 594', title: 'Reglamento sobre Condiciones Sanitarias y Ambientales en los Lugares de Trabajo', desc: 'Regula las condiciones mínimas de higiene, seguridad, ventilación, temperatura y manejo de sustancias peligrosas en los centros de trabajo.' },
+            { code: 'DS 40', title: 'Reglamento sobre Prevención de Riesgos Profesionales', desc: 'Define las obligaciones del empleador de informar a los trabajadores sobre los riesgos de su actividad (Derecho a Saber) y las medidas de control establecidas.' },
+            { code: 'DS 101', title: 'Reglamento para la Aplicación de la Ley 16.744', desc: 'Establece los procedimientos para la calificación y declaración de accidentes del trabajo y enfermedades profesionales, así como los organismos administradores.' },
+          ].map(norm => (
+            <div key={norm.code} className="border border-white/10 rounded-xl p-4 space-y-1">
+              <div className="flex items-center gap-3">
+                <span
+                  className="px-2 py-0.5 rounded-md text-xs font-black text-white"
+                  style={{ backgroundColor: '#4db6ac' }}
+                >
+                  {norm.code}
+                </span>
+                <h3 className="text-sm font-bold text-white">{norm.title}</h3>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed pl-0">{norm.desc}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
     </div>
   );
 }
