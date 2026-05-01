@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/node";
+import { z } from "zod";
 
 // Init Sentry before anything else — captures startup errors too
 if (process.env.SENTRY_DSN) {
@@ -836,10 +837,20 @@ app.get("/api/drive/auth/callback", async (req, res) => {
 });
 
 // ERP Integration (SAP/Defontana Mock)
+const erpSyncSchema = z.object({
+  erpType: z.enum(['buk', 'sap', 'oracle', 'custom']),
+  action: z.enum(['workers_sync', 'payroll_sync', 'attendance_sync', 'custom']),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
 app.post("/api/erp/sync", verifyAuth, async (req, res) => {
-  const { erpType, action, payload } = req.body;
+  const parseResult = erpSyncSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: 'Payload inválido', issues: parseResult.error.issues });
+  }
+  const { erpType, action, payload } = parseResult.data;
   const uid = (req as any).user.uid;
-  
+
   try {
     console.log(`[ERP Sync] Type: ${erpType}, Action: ${action}`);
     

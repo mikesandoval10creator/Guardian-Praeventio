@@ -21,7 +21,7 @@ import { NodeType, RiskNode } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { AddAuditModal } from '../components/audits/AddAuditModal';
 import { SafetyInspection } from '../components/safety/SafetyInspection';
-import { ISOAudit } from '../components/audits/ISOAudit';
+import { ISOManagement } from '../components/audits/ISOManagement';
 const AuditDetailModal = lazy(() => import('../components/audits/AuditDetailModal').then(m => ({ default: m.AuditDetailModal })));
 
 export function Audits() {
@@ -106,7 +106,7 @@ export function Audits() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
           >
-            <ISOAudit />
+            <ISOManagement />
           </motion.div>
         ) : (
           <motion.div
