@@ -10,15 +10,21 @@
  * aparecen y dispararían falsos positivos en contexto técnico.
  */
 
+// Cada patrón usa lookbehind/lookahead de no-letras para emular word boundary
+// que respeta tildes y ñ (los \b nativos de JS no funcionan con Unicode).
+const NB = '(?<![\\p{L}\\p{N}])';
+const NA = '(?![\\p{L}\\p{N}])';
+const w = (body: string) => new RegExp(`${NB}(?:${body})${NA}`, 'iu');
+
 const HARASSMENT_TERMS: RegExp[] = [
   // Insultos directos
-  /\b(weon[ae]?|huevon[ae]?|conchatumadre|ctm|reculiad[oa]|maric[oó]n|maraca|culiad[oa]|pendej[oa])\b/i,
+  w('weon[ae]?|hue[oó]n[ae]?|huevon[ae]?|conchatumadre|ctm|reculiad[oa]|maric[oó]n|maraca|culiad[oa]|pendej[oa]'),
   // Amenazas
-  /\b(te\s+voy\s+a\s+matar|te\s+mato|te\s+rompo|te\s+pego|te\s+cag[ao])\b/i,
+  w('te\\s+voy\\s+a\\s+matar|te\\s+mato|te\\s+rompo|te\\s+pego|te\\s+cag[ao]'),
   // Discriminación racial / nacional (usos peyorativos comunes)
-  /\b(indio\s+culiad|negro\s+de\s+mierda|peruan[oa]\s+culiad|haitiano\s+culiad)\b/i,
+  w('indio\\s+culiad|negro\\s+de\\s+mierda|peruan[oa]\\s+culiad|haitiano\\s+culiad'),
   // Acoso sexual explícito
-  /\b(rica[s]?\s+tetas|culo\s+rico|te\s+la\s+meto|chuparla|hacerla|mam[aá]rmela)\b/i,
+  w('rica[s]?\\s+tetas|culo\\s+rico|te\\s+la\\s+meto|chuparla|mam[aá]rmela'),
 ];
 
 const SPAM_PATTERNS: RegExp[] = [

@@ -2069,9 +2069,12 @@ const setupBackgroundTriggers = () => {
 
 // ─── Digital Twin / LingBot-Map Reconstruction ────────────────────────────────
 app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
-  const { projectId, videoUrl, notes, mode } = req.body as { projectId: string; videoUrl: string; notes?: string; mode?: "gpu" | "cpu" };
+  const { projectId, videoUrl, notes, mode } = req.body as { projectId: string; videoUrl: string; notes?: string; mode?: string };
   if (!projectId || !videoUrl) {
     return res.status(400).json({ error: "projectId and videoUrl are required" });
+  }
+  if (mode !== undefined && mode !== "gpu" && mode !== "cpu") {
+    return res.status(400).json({ error: "mode must be 'gpu' or 'cpu'" });
   }
   const processingMode: "gpu" | "cpu" = mode === "cpu" ? "cpu" : "gpu";
   try {
@@ -2097,7 +2100,24 @@ app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
         method: "POST",
         headers: { Authorization: `Bearer ${modalToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ job_id: jobRef.id, video_url: videoUrl, project_id: projectId, offload_to_cpu: processingMode === "cpu" }),
-      }).catch(() => null);
+      }).then(async (r) => {
+        if (!r.ok) {
+          const text = await r.text().catch(() => "");
+          console.error(`[DigitalTwin] Modal dispatch failed ${r.status}: ${text.slice(0, 200)}`);
+          await jobRef.update({
+            status: "failed",
+            error: `Modal.run dispatch failed (${r.status})`,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }).catch(async (err) => {
+        console.error("[DigitalTwin] Modal dispatch network error:", err);
+        await jobRef.update({
+          status: "failed",
+          error: `Network error: ${err.message ?? "unknown"}`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => null);
+      });
     } else {
       // Simulate progression. CPU mode is ~3x slower in the demo.
       const stepMs = processingMode === "cpu" ? 15000 : 5000;

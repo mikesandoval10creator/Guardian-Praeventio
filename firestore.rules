@@ -193,6 +193,32 @@ service cloud.firestore {
         );
         allow delete: if isValidId(projectId) && (isAdmin() || isSupervisor() || (existing().userId == request.auth.uid));
       }
+
+      // Safety-critical collections — strict read for project members,
+      // create by any project member (sensor-driven), updates restricted.
+      match /mandown_events/{eventId} {
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().status in ['pending', 'active']
+          && incoming().workerId == request.auth.uid;
+        // Acknowledgement: any supervisor/admin/member can ack; only ack fields mutable
+        allow update: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'acknowledgedBy', 'acknowledgedByName', 'acknowledgedAt', 'resolvedAt', 'resolvedBy', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /zone_violations/{violationId} {
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow create: if isValidId(projectId) && isProjectMember(projectId)
+          && incoming().workerId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // Digital Twin reconstruction jobs — server writes only, members read.
+      match /digital_twin_jobs/{jobId} {
+        allow read: if isValidId(projectId) && isProjectMember(projectId);
+        allow write: if false;
+      }
       
       // Strict constraints for other project data
       match /locations/{locationId} {

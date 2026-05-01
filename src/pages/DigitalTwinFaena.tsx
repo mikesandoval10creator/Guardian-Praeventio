@@ -217,7 +217,16 @@ export function DigitalTwinFaena() {
             <Layers className="w-5 h-5 text-cyan-400" aria-hidden="true" />
           </div>
           <div>
-            <h1 className="text-lg font-black uppercase tracking-tighter text-white">Gemelo Digital 3D</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-black uppercase tracking-tighter text-white">Gemelo Digital 3D</h1>
+              <span
+                className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded bg-amber-500/15 text-amber-400 border border-amber-500/40"
+                role="status"
+                aria-label="Función en vista previa, no apta para reportes oficiales"
+              >
+                Vista previa
+              </span>
+            </div>
             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Reconstrucción Faena · lingBot-Map</p>
           </div>
         </div>
@@ -425,7 +434,7 @@ export function DigitalTwinFaena() {
               <EmptyState
                 mascot
                 title="Sin reconstrucción activa"
-                description="Sube un video de la faena para generar el gemelo digital 3D. La nube de puntos aparecerá aquí cuando esté lista."
+                description="Sube un video de la faena para generar el gemelo digital 3D. La nube de puntos aparecerá aquí cuando esté lista. (Vista previa: el resultado actual es ilustrativo y no representa la reconstrucción real hasta que se conecte el motor.)"
               />
             ) : (
               <Suspense fallback={
