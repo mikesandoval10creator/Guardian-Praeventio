@@ -31,6 +31,7 @@ import { NodeType } from '../types';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { WifiOff } from 'lucide-react';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
 import { get } from 'idb-keyval';
 
 const containerStyle = {
@@ -78,6 +79,7 @@ export function Evacuation() {
   const [alarmActivatedAt, setAlarmActivatedAt] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
+  const { criticalAlert } = useSeismicMonitor();
 
   const emergencyNodes = nodes.filter(n => (n.type === NodeType.EMERGENCY || n.type === NodeType.ASSET) && n.metadata?.lat && n.metadata?.lng);
   const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT);
@@ -193,6 +195,26 @@ export function Evacuation() {
       setSavingPlan(false);
     }
   };
+
+  // Auto-trigger evacuation when seismic monitor detects a critical earthquake (≥4.5, ≤500km)
+  useEffect(() => {
+    if (!criticalAlert) return;
+    const pid = selectedProject?.id;
+    triggerEmergency('sismo', pid).catch((err) =>
+      logger.error('Evacuation: auto seismic trigger failed', { err }),
+    );
+    if (pid) {
+      addDoc(collection(db, `projects/${pid}/emergency_messages`), {
+        type: 'seismic_auto',
+        magnitude: criticalAlert.magnitude,
+        place: criticalAlert.place,
+        triggeredAt: serverTimestamp(),
+        source: 'useSeismicMonitor',
+      }).catch((err) => logger.error('Evacuation: seismic emergency_messages write failed', { err }));
+    }
+    runDynamicCalculation(`Sismo automático M${criticalAlert.magnitude} — ${criticalAlert.place}`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criticalAlert?.id]);
 
   // Auto-recalculate if nodes change (e.g. new incident reported)
   useEffect(() => {
