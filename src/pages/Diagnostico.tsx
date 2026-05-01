@@ -6,6 +6,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { analyzeRiskWithAI } from '../services/geminiService';
+import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 import { z } from 'zod';
 import { logger } from '../utils/logger';
 
@@ -23,6 +24,7 @@ const diagnosticSchema = z.object({
 export function Diagnostico() {
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
+  const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -117,6 +119,12 @@ export function Diagnostico() {
       
       setResult(data);
       setStep(3);
+      // Fire-and-forget: pre-load normative + EPP + training nodes for the industry
+      if (selectedProject?.id) {
+        bootstrapProjectKnowledge(selectedProject.id, formData.industry).catch(
+          err => logger.error('bootstrapProjectKnowledge error:', err)
+        );
+      }
     } catch (error) {
       logger.error('Error generating base matrix:', error);
     } finally {

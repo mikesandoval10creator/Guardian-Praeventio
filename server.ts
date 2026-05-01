@@ -1528,6 +1528,42 @@ app.get("/api/legal/check-updates", verifyAuth, async (req, res) => {
   }
 });
 
+// Emergency: notify brigade members via FCM when emergency is activated
+app.post("/api/emergency/notify-brigada", verifyAuth, async (req, res) => {
+  try {
+    const { projectId, type = 'manual_activation' } = req.body as { projectId: string; type?: string };
+    if (!projectId) return res.status(400).json({ error: 'projectId required' });
+
+    // Gather FCM tokens of supervisors + prevencionistas in this project
+    const membersSnap = await admin.firestore().collection(`projects/${projectId}/members`).get();
+    const tokens: string[] = [];
+    membersSnap.forEach(d => {
+      const { role, fcmToken } = d.data() as { role: string; fcmToken?: string };
+      if (fcmToken && (role === 'supervisor' || role === 'gerente' || role === 'prevencionista')) {
+        tokens.push(fcmToken);
+      }
+    });
+
+    if (tokens.length > 0) {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: '🚨 EMERGENCIA ACTIVADA',
+          body: `Se activó el protocolo de emergencia. Tipo: ${type}. Responda inmediatamente.`,
+        },
+        data: { projectId, type, screen: 'EmergencyGenerator' },
+        android: { priority: 'high' },
+        apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+      });
+    }
+
+    res.json({ ok: true, notified: tokens.length });
+  } catch (error: any) {
+    console.error('[notify-brigada] error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Gemini API Proxy
 const ALLOWED_GEMINI_ACTIONS = [
   'generateEmbeddingsBatch',
