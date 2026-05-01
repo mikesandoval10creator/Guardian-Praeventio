@@ -1987,6 +1987,81 @@ const setupBackgroundTriggers = () => {
         console.error("Error in RAG background trigger listener:", error);
       });
 
+    // Helper: send FCM multicast to supervisors of a given project
+    const notifySupervisors = async (
+      projectId: string,
+      title: string,
+      body: string,
+      data: Record<string, string>,
+    ) => {
+      try {
+        const membersSnap = await db.collection(`projects/${projectId}/members`).get();
+        const supervisorUids: string[] = [];
+        membersSnap.forEach(d => {
+          const role = d.data().role;
+          if (role === 'supervisor' || role === 'gerente' || role === 'prevencionista') {
+            supervisorUids.push(d.id);
+          }
+        });
+        if (supervisorUids.length === 0) return;
+        const tokenDocs = await Promise.all(
+          supervisorUids.map(uid => db.collection('users').doc(uid).get())
+        );
+        const tokens = tokenDocs
+          .map(d => d.data()?.fcmToken as string | undefined)
+          .filter((t): t is string => !!t);
+        if (tokens.length === 0) return;
+        await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: { title, body },
+          data,
+          android: { priority: 'high' },
+        });
+      } catch (err) {
+        console.error('[notifySupervisors] error:', err);
+      }
+    };
+
+    // Trigger 3: ManDown events → immediate FCM push to supervisors
+    let isInitialLoadManDown = true;
+    db.collectionGroup('mandown_events')
+      .where('status', '==', 'pending')
+      .onSnapshot((snapshot) => {
+        if (isInitialLoadManDown) { isInitialLoadManDown = false; return; }
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type !== 'added') return;
+          const data = change.doc.data();
+          const projectId = change.doc.ref.parent.parent?.id;
+          if (!projectId) return;
+          await notifySupervisors(
+            projectId,
+            '🚨 Hombre caído detectado',
+            `${data.workerName || 'Trabajador'} requiere atención inmediata`,
+            { projectId, eventId: change.doc.id, type: 'mandown' },
+          );
+        });
+      }, (error) => console.error('[TRIGGER: ManDown FCM] listener error:', error));
+
+    // Trigger 4: Zone violations → immediate FCM push to supervisors
+    let isInitialLoadZone = true;
+    db.collectionGroup('zone_violations')
+      .onSnapshot((snapshot) => {
+        if (isInitialLoadZone) { isInitialLoadZone = false; return; }
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type !== 'added') return;
+          const data = change.doc.data();
+          const projectId = change.doc.ref.parent.parent?.id;
+          if (!projectId) return;
+          const zoneNames = (data.zones || []).map((z: any) => z.name).join(', ') || 'zona restringida';
+          await notifySupervisors(
+            projectId,
+            '⚠️ Geocerca violada',
+            `${data.workerName || 'Trabajador'} ingresó a ${zoneNames}`,
+            { projectId, eventId: change.doc.id, type: 'zone_violation' },
+          );
+        });
+      }, (error) => console.error('[TRIGGER: Geofence FCM] listener error:', error));
+
   } catch (err) {
     console.error("Failed to setup background triggers:", err);
   }

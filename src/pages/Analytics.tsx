@@ -390,8 +390,13 @@ export function Analytics() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Risk Distribution */}
           <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6">Distribución de Riesgos</h3>
-            <div className="h-64">
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="risk-distribution-title">Distribución de Riesgos</h3>
+            <div
+              className="h-64"
+              role="img"
+              aria-labelledby="risk-distribution-title"
+              aria-label={`Distribución de riesgos por nivel: ${riskLevelData.map(r => `${r.name} ${r.value}`).join(', ')}`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskLevelData} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e4e4e7" />
@@ -413,8 +418,13 @@ export function Analytics() {
 
           {/* Incident Trend */}
           <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6">Tendencia de Incidentes y Hallazgos</h3>
-            <div className="h-64">
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="incident-trend-title">Tendencia de Incidentes y Hallazgos</h3>
+            <div
+              className="h-64"
+              role="img"
+              aria-labelledby="incident-trend-title"
+              aria-label={`Línea de tendencia mensual. ${incidentTrendData.map(d => `${d.month}: ${d.incidentes ?? 0} incidentes y ${d.hallazgos ?? 0} hallazgos`).join('; ')}`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={incidentTrendData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
@@ -432,8 +442,13 @@ export function Analytics() {
 
           {/* Safety Dimensions (New) */}
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm lg:col-span-2">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6">Radar de Dimensiones de Seguridad</h3>
-            <div className="h-80">
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6" id="safety-radar-title">Radar de Dimensiones de Seguridad</h3>
+            <div
+              className="h-80"
+              role="img"
+              aria-labelledby="safety-radar-title"
+              aria-label={`Comparativa Actual vs Objetivo (escala 0–100). ${safetyDimensionsData.map(d => `${d.subject}: actual ${d.A}, objetivo ${d.B}`).join('; ')}`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="80%" data={safetyDimensionsData}>
                   <PolarGrid stroke="#e4e4e7" />
