@@ -378,10 +378,10 @@ export function Dashboard() {
       icon: Home,
       color: 'bg-[#10B981]',
       items: [
-        { title: 'Red Neuronal', icon: Network, path: '/risk-network', color: 'text-emerald-500' },
+        { title: 'Red Neuronal', icon: Network, path: '/risk-network', color: 'text-[#4db6ac]' },
         { title: 'Proyectos', icon: Briefcase, path: '/projects', color: 'text-blue-500' },
         { title: 'AI Hub', icon: Zap, path: '/ai-hub', color: 'text-violet-500' },
-        { title: 'Muro', icon: Users, path: '/safety-feed', color: 'text-emerald-500' },
+        { title: 'Muro', icon: Users, path: '/safety-feed', color: 'text-[#4db6ac]' },
       ]
     },
     {
@@ -488,7 +488,7 @@ export function Dashboard() {
       <div className="flex justify-end mb-1 sm:mb-2">
         <button 
           onClick={() => setShowMorningCheckIn(true)} 
-          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-full text-[10px] sm:text-xs font-bold transition-all border border-emerald-500/20 hover:scale-105"
+          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-[#4db6ac]/10 text-[#2a8a81] dark:text-[#4db6ac] hover:bg-[#4db6ac]/20 rounded-full text-[10px] sm:text-xs font-bold transition-all border border-[#4db6ac]/20 hover:scale-105"
         >
           <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           Despertar Matutino
@@ -512,11 +512,11 @@ export function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-3 bg-emerald-900/20 border border-emerald-500/15 rounded-xl sm:rounded-2xl"
+            className="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-3 bg-[#4db6ac]/10 border border-[#4db6ac]/15 rounded-xl sm:rounded-2xl"
           >
             <img src="/mascot.png" alt="Guardian Praeventio" className="w-10 h-10 sm:w-12 sm:h-12 object-contain shrink-0 drop-shadow" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm font-black text-emerald-400 leading-none">
+              <p className="text-xs sm:text-sm font-black text-[#4db6ac] dark:text-[#d4af37] leading-none">
                 {greeting}{selectedProject ? ` — ${selectedProject.name}` : ''}
               </p>
               <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 truncate">{tip}</p>
@@ -532,23 +532,23 @@ export function Dashboard() {
       
       {/* 1. Boletín Climático - Denser */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4 mt-1 sm:mt-0">
-        <section className="bg-[#bbf7d0] dark:bg-emerald-900/20 rounded-xl sm:rounded-2xl p-1.5 sm:p-5 shadow-sm relative overflow-hidden border border-emerald-500/10">
+        <section className="bg-[#bbf7d0] dark:bg-[#4db6ac]/10 rounded-xl sm:rounded-2xl p-1.5 sm:p-5 shadow-sm relative overflow-hidden border border-[#4db6ac]/10">
           <div className="flex flex-col sm:flex-row justify-between gap-1.5 sm:gap-5 relative z-10">
             <div className="flex-1">
               <div className="flex justify-between items-start mb-1.5 sm:mb-3">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-[10px] sm:text-base font-black text-zinc-900 dark:text-emerald-50 tracking-tight leading-none uppercase">Boletín climático</h2>
-                  <p className="text-[8px] sm:text-xs text-zinc-600 dark:text-emerald-200/70 flex items-center gap-1">
+                  <h2 className="text-[10px] sm:text-base font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">Boletín climático</h2>
+                  <p className="text-[8px] sm:text-xs text-zinc-600 dark:text-[#4db6ac]/70 flex items-center gap-1">
                     <Map className="w-2.5 h-2.5 sm:w-4 sm:h-4" /> Santiago
                   </p>
                 </div>
                 <RefreshCw 
-                  className={`w-3 h-3 sm:w-5 sm:h-5 text-zinc-500 dark:text-emerald-400 cursor-pointer ${loadingWeather ? 'animate-spin' : ''}`} 
+                  className={`w-3 h-3 sm:w-5 sm:h-5 text-zinc-500 dark:text-[#4db6ac] cursor-pointer ${loadingWeather ? 'animate-spin' : ''}`}
                 />
               </div>
 
               <div className="flex flex-row items-center gap-2 sm:gap-4">
-                <div className="hidden sm:flex w-12 h-12 sm:w-14 sm:h-14 bg-emerald-100 dark:bg-emerald-800/50 rounded-full items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                <div className="hidden sm:flex w-12 h-12 sm:w-14 sm:h-14 bg-[#4db6ac]/10 dark:bg-[#4db6ac]/20 rounded-full items-center justify-center text-[#2a8a81] dark:text-[#4db6ac] shrink-0">
                   {weather && weather.sunrise && weather.sunset && (new Date().getTime() > weather.sunrise && new Date().getTime() < weather.sunset) ? <Sun className="w-7 h-7 sm:w-8 sm:h-8" /> : <Moon className="w-7 h-7 sm:w-8 sm:h-8" />}
                 </div>
                 
@@ -563,19 +563,19 @@ export function Dashboard() {
                   <div className="grid grid-cols-4 gap-1 sm:gap-3 flex-1 w-full">
                     <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
                       <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Temp</span>
-                      <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none mt-0.5 sm:mt-1">{Math.round(weather.temp)}°C</span>
+                      <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-white leading-none mt-0.5 sm:mt-1">{Math.round(weather.temp)}°C</span>
                     </div>
                     <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
                       <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Condición</span>
-                      <span className="text-[9px] sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none truncate mt-0.5 sm:mt-1 max-w-full" title={weather.condition}>{weather.condition}</span>
+                      <span className="text-[9px] sm:text-lg font-black text-zinc-900 dark:text-white leading-none truncate mt-0.5 sm:mt-1 max-w-full" title={weather.condition}>{weather.condition}</span>
                     </div>
                     <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
                       <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Viento</span>
-                      <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none mt-0.5 sm:mt-1">{Math.round(weather.windSpeed || 0)} <span className="text-[6px] sm:text-xs">km/h</span></span>
+                      <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-white leading-none mt-0.5 sm:mt-1">{Math.round(weather.windSpeed || 0)} <span className="text-[6px] sm:text-xs">km/h</span></span>
                     </div>
                     <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
                       <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Humedad</span>
-                      <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none mt-0.5 sm:mt-1">{weather.humidity}%</span>
+                      <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-white leading-none mt-0.5 sm:mt-1">{weather.humidity}%</span>
                     </div>
                   </div>
                 ) : (
@@ -600,21 +600,21 @@ export function Dashboard() {
                   </span>
                 )}
                 {weather?.temp && weather.temp <= 30 && (!weather.windSpeed || weather.windSpeed <= 40) && (!String(weather?.condition || '').toLowerCase().includes('lluvia')) && (
-                  <span className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500 text-emerald-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
+                  <span className="flex items-center gap-1 bg-[#4db6ac]/10 dark:bg-[#4db6ac] text-[#2a8a81] dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
                     <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Óptimo
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="hidden sm:flex w-full sm:w-[120px] shrink-0 sm:border-l border-t sm:border-t-0 border-emerald-500/10 pt-2 sm:pt-0 sm:pl-4 flex-col justify-center relative">
-              <div className="flex justify-between text-[9px] sm:text-xs font-bold text-zinc-500 dark:text-emerald-400/70 mb-1 sm:mb-2">
+            <div className="hidden sm:flex w-full sm:w-[120px] shrink-0 sm:border-l border-t sm:border-t-0 border-[#4db6ac]/10 pt-2 sm:pt-0 sm:pl-4 flex-col justify-center relative">
+              <div className="flex justify-between text-[9px] sm:text-xs font-bold text-zinc-500 dark:text-[#4db6ac]/70 mb-1 sm:mb-2">
                 <span>{weather?.sunrise ? new Date(weather.sunrise).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '07:00'}</span>
                 <span>{weather?.sunset ? new Date(weather.sunset).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '19:00'}</span>
               </div>
               <div className="relative w-full h-6 sm:h-12 overflow-visible mt-1 sm:mt-2">
                 <svg viewBox="-5 -5 110 60" className="w-full h-full overflow-visible">
-                  <path d="M 0 50 A 50 50 0 0 1 100 50" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-500/20" strokeDasharray="4 2" />
+                  <path d="M 0 50 A 50 50 0 0 1 100 50" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#4db6ac]/20" strokeDasharray="4 2" />
                   {weather && (
                     <circle 
                       cx={(() => {
@@ -653,10 +653,10 @@ export function Dashboard() {
         {/* Porcentaje de Cumplimiento */}
         <section 
           onClick={() => setIsComplianceModalOpen(true)}
-          className="rounded-xl sm:rounded-2xl p-1.5 sm:p-4 shadow-sm relative overflow-hidden border bg-white/90 dark:bg-zinc-900/50 border-zinc-500/10 cursor-pointer hover:border-emerald-500/30 transition-colors group flex flex-row sm:flex-col items-center sm:items-start justify-between sm:justify-between h-auto sm:h-full"
+          className="rounded-xl sm:rounded-2xl p-1.5 sm:p-4 shadow-sm relative overflow-hidden border bg-white/90 dark:bg-zinc-900/50 border-zinc-500/10 cursor-pointer hover:border-[#4db6ac]/30 transition-colors group flex flex-row sm:flex-col items-center sm:items-start justify-between sm:justify-between h-auto sm:h-full"
         >
           <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform hidden sm:block">
-            <Target className="w-24 h-24 text-emerald-500" />
+            <Target className="w-24 h-24 text-[#4db6ac]" />
           </div>
           
           {/* Mobile Layout: Horizontal */}
@@ -665,7 +665,7 @@ export function Dashboard() {
               <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
                 <svg className="w-full h-full transform -rotate-90 absolute inset-0">
                   <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="2" fill="transparent" className="text-zinc-200 dark:text-zinc-800" />
-                  <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="2" fill="transparent" strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - (complianceData.percentage / 100))} className="text-emerald-500" />
+                  <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="2" fill="transparent" strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - (complianceData.percentage / 100))} className="text-[#4db6ac]" />
                 </svg>
                 <span className="text-[7px] font-black text-zinc-900 dark:text-white relative z-10">{complianceData.percentage}%</span>
               </div>
@@ -674,7 +674,7 @@ export function Dashboard() {
                 <p className="text-[7px] text-zinc-500 dark:text-zinc-400 truncate max-w-[100px]">{complianceData.label}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-widest">
+            <div className="flex items-center gap-1 bg-[#4db6ac]/10 text-[#2a8a81] dark:text-[#4db6ac] px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-widest">
               Optimizar
             </div>
           </div>
@@ -694,7 +694,7 @@ export function Dashboard() {
               <div className="relative flex flex-col items-center justify-center w-14 h-14 shrink-0">
                 <svg className="w-full h-full transform -rotate-90">
                   <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent" className="text-zinc-200 dark:text-zinc-800" />
-                  <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent" strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - (complianceData.percentage / 100))} className="text-emerald-500" />
+                  <circle cx="50%" cy="50%" r="40%" stroke="currentColor" strokeWidth="3" fill="transparent" strokeDasharray={100.5} strokeDashoffset={100.5 * (1 - (complianceData.percentage / 100))} className="text-[#4db6ac]" />
                 </svg>
                 <span className="absolute text-xs font-black text-zinc-900 dark:text-white">
                   {complianceData.percentage}%
@@ -712,7 +712,7 @@ export function Dashboard() {
               </div>
             </div>
             
-            <div className="mt-2 flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest shadow-sm w-fit">
+            <div className="mt-2 flex items-center gap-1 bg-[#4db6ac]/10 text-[#2a8a81] dark:text-[#4db6ac] px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest shadow-sm w-fit">
               <TrendingUp className="w-3 h-3" /> Optimizar
             </div>
           </div>
@@ -752,8 +752,8 @@ export function Dashboard() {
 
       {/* EPP Widget - Full Width & Compact */}
       <section className="w-full mt-1 sm:mt-0">
-        <div className="bg-[#4ADE80] dark:bg-emerald-900/40 p-1.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm relative border border-white/20 dark:border-emerald-500/20 w-full flex flex-col justify-center items-center">
-          <div className="absolute -top-2 bg-[#22C55E] dark:bg-emerald-600 text-white px-1.5 py-0.5 rounded-full text-[8px] sm:text-xs font-black uppercase tracking-widest shadow-sm flex items-center gap-1 border border-white/20 dark:border-emerald-500/30 whitespace-nowrap z-10">
+        <div className="bg-[#4ADE80] dark:bg-[#4db6ac]/20 p-1.5 sm:p-4 rounded-xl sm:rounded-2xl shadow-sm relative border border-white/20 dark:border-[#4db6ac]/20 w-full flex flex-col justify-center items-center">
+          <div className="absolute -top-2 bg-[#22C55E] dark:bg-[#4db6ac] text-white px-1.5 py-0.5 rounded-full text-[8px] sm:text-xs font-black uppercase tracking-widest shadow-sm flex items-center gap-1 border border-white/20 dark:border-[#4db6ac]/30 whitespace-nowrap z-10">
             EPP Requerido
           </div>
           
@@ -770,8 +770,8 @@ export function Dashboard() {
             </div>
 
             <div className="bg-white/40 dark:bg-black/20 backdrop-blur-sm rounded-xl sm:rounded-2xl p-1 sm:p-3 shadow-inner w-8 h-8 sm:w-16 sm:h-16 flex flex-col items-center justify-center border border-dashed border-white/60 dark:border-white/10 shrink-0">
-              <Shield className="w-3 h-3 sm:w-6 sm:h-6 text-emerald-800/40 dark:text-emerald-500/40 mb-0.5" />
-              <span className="text-emerald-800/40 dark:text-emerald-500/40 text-[4px] sm:text-[8px] font-black uppercase tracking-widest text-center px-0.5 leading-tight">Praeventio</span>
+              <Shield className="w-3 h-3 sm:w-6 sm:h-6 text-[#2a8a81]/40 dark:text-white/40 mb-0.5" />
+              <span className="text-[#2a8a81]/40 dark:text-white/40 text-[4px] sm:text-[8px] font-black uppercase tracking-widest text-center px-0.5 leading-tight">Praeventio</span>
             </div>
 
             <div className="flex gap-1 sm:gap-3">
@@ -919,7 +919,7 @@ export function Dashboard() {
 
                 <div className="mt-6 pt-4 border-t border-zinc-200 dark:border-white/5 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${getCompletedCount(activePeriod) === currentChallenges[activePeriod].length ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                    <div className={`w-3 h-3 rounded-full ${getCompletedCount(activePeriod) === currentChallenges[activePeriod].length ? 'bg-[#4db6ac]' : 'bg-amber-500 animate-pulse'}`} />
                     <span className="text-xs font-black text-amber-500 uppercase tracking-widest">
                       {getCompletedCount(activePeriod) === currentChallenges[activePeriod].length ? 'Completado' : 'Pendiente'}
                     </span>
