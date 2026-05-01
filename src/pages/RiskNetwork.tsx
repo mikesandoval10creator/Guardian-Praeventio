@@ -201,8 +201,12 @@ export function RiskNetwork() {
           </div>
           <div className="space-y-3">
             {loading ? (
-              <p className="text-[10px] text-zinc-500 animate-pulse">Sincronizando con la red neuronal...</p>
-            ) : recentNodes.length > 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+              </div>
+            ) : recentNodes.length === 0 ? (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-4">No hay nodos recientes</p>
+            ) : (
               recentNodes.map((node) => (
                 <div key={node.id} className="group flex items-center justify-between p-3 bg-white dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5 hover:border-emerald-500/30 transition-all cursor-pointer">
                   <div className="flex items-center gap-3">
@@ -220,8 +224,6 @@ export function RiskNetwork() {
                   </div>
                 </div>
               ))
-            ) : (
-              <p className="text-[10px] text-zinc-500 italic">No hay nodos recientes. Comienza a crear análisis o inspecciones.</p>
             )}
           </div>
         </div>
@@ -258,14 +260,14 @@ export function RiskNetwork() {
               className="w-full flex items-center justify-center gap-2 bg-[var(--btn-secondary-bg)] hover:opacity-80 disabled:opacity-50 text-[var(--btn-secondary-text,white)] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg"
             >
               {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {isOnline ? 'Analizar Red Neuronal' : 'Requiere Conexión'}
+              {!isOnline ? 'Requiere Conexión' : isAnalyzing ? 'Analizando...' : 'Analizar Red Neuronal'}
             </button>
             
             {aiInsight && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-4 p-4 bg-white dark:bg-zinc-950 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl shadow-sm"
+                className="mt-4 p-4 bg-white dark:bg-zinc-950 border border-emerald-200 dark:border-[#d4af37]/50 rounded-2xl shadow-sm"
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Brain className="w-4 h-4 text-emerald-500" />
@@ -301,7 +303,7 @@ export function RiskNetwork() {
             className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20"
           >
             {isPredicting ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-            {isOnline ? 'Predecir Riesgos Inminentes' : 'Requiere Conexión'}
+            {!isOnline ? 'Requiere Conexión' : isPredicting ? 'Prediciendo...' : 'Predecir Riesgos Inminentes'}
           </button>
 
           {predictions.length > 0 && (
@@ -312,7 +314,7 @@ export function RiskNetwork() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="p-4 bg-white dark:bg-zinc-950 border border-rose-200 dark:border-rose-500/30 rounded-2xl flex flex-col h-full shadow-sm"
+                  className="p-4 bg-white dark:bg-zinc-950 border border-rose-200 dark:border-rose-500/50 rounded-2xl flex flex-col h-full shadow-sm"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold text-zinc-900 dark:text-white line-clamp-1">{pred.title}</h4>

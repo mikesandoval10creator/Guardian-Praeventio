@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
+import { useParams, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   Briefcase, Users, Folder, UserCheck, Calendar, Activity, 
@@ -285,6 +285,7 @@ const hubsData: Record<string, any> = {
 export function ModuleHub() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { selectedProject } = useProject();
   const { nodes } = useRiskEngine();
   
@@ -385,7 +386,8 @@ export function ModuleHub() {
             <Link
               key={i}
               to={item.path}
-              className="flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-white/40 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 hover:bg-white/60 dark:hover:bg-zinc-900 hover:border-zinc-300 dark:hover:border-white/10 transition-all hover:-translate-y-1 group relative overflow-hidden"
+              aria-current={location.pathname === item.path ? 'page' : undefined}
+              className="flex flex-col items-center justify-center gap-3 sm:gap-4 p-4 sm:p-6 min-h-[80px] sm:min-h-[96px] rounded-2xl bg-white/40 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 hover:bg-white/60 dark:hover:bg-zinc-900 hover:border-zinc-300 dark:hover:border-white/10 focus-visible:ring-2 focus-visible:ring-[#4db6ac] dark:focus-visible:ring-[#d4af37] focus-visible:outline-none transition-all hover:-translate-y-1 group relative overflow-hidden"
             >
               <div className={`absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-500 ${hub.bgColor}`} />
               
@@ -431,10 +433,10 @@ export function ModuleHub() {
                   <span className="text-sm font-bold text-zinc-900 dark:text-white">{maint.equipment}</span>
                   <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md font-bold ${
                     maint.status === 'Óptimo' || maint.status === 'Al día' || maint.status === 'Vigente' || maint.status === 'Automático'
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' 
+                      ? 'bg-[#4db6ac]/15 text-[#2a8a81] dark:text-[#4db6ac]'
                       : maint.status === 'Pendiente' || maint.status === 'Vencidas' || maint.status === 'Falla' || maint.status === 'Falla de presión'
-                      ? 'bg-red-500/10 text-red-600 dark:text-red-500'
-                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-500'
+                      ? 'bg-red-500/15 text-red-600 dark:text-red-500'
+                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-500'
                   }`}>
                     {maint.status}
                   </span>
