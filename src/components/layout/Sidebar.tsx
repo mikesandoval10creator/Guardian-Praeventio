@@ -139,6 +139,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.compliance", "Cumplimiento Legal"), icon: ClipboardCheck, path: "/hub/compliance", color: "text-emerald-500" },
         { title: t("nav.culture", "Talento y Cultura"), icon: Users, path: "/hub/training", color: "text-indigo-500" },
         { title: t("nav.afiches", "Afiches de Seguridad"), icon: Printer, path: "/afiches-seguridad", color: "text-blue-400" },
+        { title: t("nav.digital_twin", "Gemelo Digital 3D"), icon: Layers, path: "/hub/operations/digital-twin", color: "text-cyan-400" },
       ],
     },
     {

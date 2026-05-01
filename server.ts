@@ -1994,15 +1994,17 @@ const setupBackgroundTriggers = () => {
 
 // ─── Digital Twin / LingBot-Map Reconstruction ────────────────────────────────
 app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
-  const { projectId, videoUrl, notes } = req.body as { projectId: string; videoUrl: string; notes?: string };
+  const { projectId, videoUrl, notes, mode } = req.body as { projectId: string; videoUrl: string; notes?: string; mode?: "gpu" | "cpu" };
   if (!projectId || !videoUrl) {
     return res.status(400).json({ error: "projectId and videoUrl are required" });
   }
+  const processingMode: "gpu" | "cpu" = mode === "cpu" ? "cpu" : "gpu";
   try {
     const db = admin.firestore();
     const jobRef = await db.collection("projects").doc(projectId).collection("digital_twin_jobs").add({
       videoUrl,
       notes: notes ?? "",
+      mode: processingMode,
       status: "queued",
       progress: 0,
       createdBy: (req as any).user.uid,
@@ -2010,23 +2012,26 @@ app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Fire-and-forget: dispatch to Modal.run serverless GPU
-    // When MODAL_TOKEN is configured this submits a real job, otherwise marks as simulated
+    // Fire-and-forget: dispatch to Modal.run serverless GPU (or CPU container if mode === 'cpu')
     const modalToken = process.env.MODAL_TOKEN;
     if (modalToken) {
-      fetch("https://api.modal.com/v1/apps/lingbot-map/run", {
+      const endpoint = processingMode === "cpu"
+        ? "https://api.modal.com/v1/apps/lingbot-map-cpu/run"
+        : "https://api.modal.com/v1/apps/lingbot-map/run";
+      fetch(endpoint, {
         method: "POST",
         headers: { Authorization: `Bearer ${modalToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobRef.id, video_url: videoUrl, project_id: projectId }),
+        body: JSON.stringify({ job_id: jobRef.id, video_url: videoUrl, project_id: projectId, offload_to_cpu: processingMode === "cpu" }),
       }).catch(() => null);
     } else {
-      // Simulate progression for development / demo
+      // Simulate progression. CPU mode is ~3x slower in the demo.
+      const stepMs = processingMode === "cpu" ? 15000 : 5000;
       setTimeout(async () => {
         await jobRef.update({ status: "processing", progress: 30, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      }, 5000);
+      }, stepMs);
       setTimeout(async () => {
         await jobRef.update({ status: "processing", progress: 70, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      }, 12000);
+      }, stepMs * 2.4);
       setTimeout(async () => {
         await jobRef.update({
           status: "completed",
@@ -2036,10 +2041,10 @@ app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
           boundingBox: { minX: -15, maxX: 15, minY: 0, maxY: 8, minZ: -15, maxZ: 15 },
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
-      }, 20000);
+      }, stepMs * 4);
     }
 
-    res.json({ jobId: jobRef.id, status: "queued" });
+    res.json({ jobId: jobRef.id, status: "queued", mode: processingMode });
   } catch (err) {
     console.error("[DigitalTwin] reconstruct error:", err);
     res.status(500).json({ error: "Failed to create reconstruction job" });
