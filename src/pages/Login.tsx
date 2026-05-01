@@ -90,7 +90,7 @@ export default function Login() {
           className="bg-white dark:bg-zinc-900 rounded-[2rem] sm:rounded-3xl p-6 sm:p-10 shadow-2xl border border-zinc-200 dark:border-zinc-800 relative overflow-hidden"
         >
           {/* Background Accents */}
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#4db6ac]/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10">
@@ -111,7 +111,7 @@ export default function Login() {
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-center">
                 Guardian Praeventio
               </h1>
-              <span className="text-[8px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest text-center">
+              <span className="text-[8px] sm:text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest text-center">
                 Identidad y Conciencia
               </span>
             </div>
@@ -136,7 +136,7 @@ export default function Login() {
                   className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 sm:gap-3 transition-all shadow-xl ${
                     !isOnline 
                       ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' 
-                      : 'bg-emerald-500 hover:bg-emerald-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                      : 'bg-[#4db6ac] hover:bg-[#3a9e95] text-white hover:scale-[1.02] active:scale-[0.98]'
                   }`}
                 >
                   <Zap className="w-5 h-5" />

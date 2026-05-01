@@ -223,7 +223,7 @@ export function Analytics() {
             {isGenerating ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <BrainCircuit className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+              <BrainCircuit className="w-4 h-4 text-[#d4af37] dark:text-[#4db6ac]" />
             )}
             {isOnline ? 'Generar Resumen IA' : 'Cargar Resumen Guardado'}
           </button>
@@ -266,8 +266,8 @@ export function Analytics() {
             className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm"
           >
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-100">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <BrainCircuit className="w-5 h-5 text-emerald-600" />
+              <div className="w-10 h-10 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center">
+                <BrainCircuit className="w-5 h-5 text-[#4db6ac] dark:text-[#d4af37]" />
               </div>
               <div>
                 <h2 className="text-lg font-black text-zinc-900 uppercase tracking-tight">{executiveSummary.titulo}</h2>

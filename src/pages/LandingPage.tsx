@@ -40,8 +40,8 @@ const FEATURES = [
   },
   {
     icon: Users,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10 border-emerald-500/20',
+    color: 'text-[#d4af37]',
+    bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20',
     title: 'Gestión de Equipos',
     desc: 'Roles por proyecto (gerente, prevencionista, supervisor), invitaciones por email y multi-empresa.',
   },
@@ -56,7 +56,7 @@ const FEATURES = [
 
 const PLANS = [
   { name: 'Gratuito', workers: '10', price: '$0', color: 'border-zinc-700' },
-  { name: 'Comité', workers: '25', price: '$10/mes', color: 'border-emerald-500', popular: true },
+  { name: 'Comité', workers: '25', price: '$10/mes', color: 'border-[#4db6ac]', popular: true },
   { name: 'Departamento', workers: '100', price: '$30/mes', color: 'border-blue-500' },
   { name: 'Enterprise', workers: '250+', price: 'Desde $50/mes', color: 'border-violet-500' },
 ];
@@ -211,10 +211,10 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             {PLANS.map((p) => (
               <div
                 key={p.name}
-                className={`relative bg-zinc-900 border rounded-2xl p-5 flex flex-col gap-3 ${p.color} ${p.popular ? 'ring-2 ring-emerald-500 ring-offset-2 ring-offset-zinc-950' : ''}`}
+                className={`relative bg-zinc-900 border rounded-2xl p-5 flex flex-col gap-3 ${p.color} ${p.popular ? 'ring-2 ring-[#4db6ac] ring-offset-2 ring-offset-zinc-950' : ''}`}
               >
                 {p.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-500 text-zinc-950 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#4db6ac] text-zinc-950 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
                     Popular
                   </div>
                 )}

@@ -121,7 +121,7 @@ export function Audits() {
               {[
                 { label: 'Total', value: stats.total, icon: Activity, color: 'text-blue-500', bg: 'bg-blue-500/10' },
                 { label: 'Planificadas', value: stats.planned, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-                { label: 'Completadas', value: stats.completed, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+                { label: 'Completadas', value: stats.completed, icon: CheckCircle2, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10' },
                 { label: 'Puntaje Prom.', value: `${stats.avgScore}%`, icon: Target, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
               ].map((stat, i) => (
                 <motion.div
@@ -194,7 +194,7 @@ export function Audits() {
                             {audit.metadata.type || 'Interna'}
                           </span>
                           <span className={`text-[8px] font-black uppercase tracking-widest ${
-                            audit.metadata.status === 'Completada' || audit.metadata.status === 'Completado' ? 'text-emerald-500' : 'text-zinc-400'
+                            audit.metadata.status === 'Completada' || audit.metadata.status === 'Completado' ? 'text-[#4db6ac] dark:text-[#d4af37]' : 'text-zinc-400'
                           }`}>
                             {audit.metadata.status}
                           </span>
