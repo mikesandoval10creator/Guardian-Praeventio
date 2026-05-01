@@ -360,9 +360,10 @@ export function Training() {
                     <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Mentoría El Guardián AI</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setCapsule(null)}
-                  className="p-3 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                  aria-label="Cerrar"
+                  className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white flex items-center justify-center"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -407,9 +408,10 @@ export function Training() {
             >
               <div className="p-8 border-b border-white/5 flex justify-between items-center shrink-0">
                 <h2 className="text-xl font-black text-white uppercase tracking-tighter">Nueva Capacitación</h2>
-                <button 
+                <button
                   onClick={() => setIsCreatingSession(false)}
-                  className="p-3 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                  aria-label="Cerrar"
+                  className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white flex items-center justify-center"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -519,9 +521,10 @@ export function Training() {
                     <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Capacitación Interactiva</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setActiveVideoSession(null)}
-                  className="p-3 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                  aria-label="Cerrar"
+                  className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white flex items-center justify-center"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -599,9 +602,10 @@ export function Training() {
                   </div>
                 </div>
                 {!isQuizFinished && (
-                  <button 
+                  <button
                     onClick={() => setIsQuizActive(false)}
-                    className="p-3 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
+                    aria-label="Cerrar"
+                    className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white flex items-center justify-center"
                   >
                     <X className="w-6 h-6" />
                   </button>

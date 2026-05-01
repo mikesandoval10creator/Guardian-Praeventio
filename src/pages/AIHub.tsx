@@ -123,7 +123,12 @@ export function AIHub() {
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Análisis Predictivo a 7 Días</p>
           </div>
         </div>
-        <SafetyForecast />
+        {isOnline ? <SafetyForecast /> : (
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-500 dark:text-zinc-400">
+            <WifiOff className="w-8 h-8 opacity-40" />
+            <p className="text-sm font-medium">Requiere conexión a internet</p>
+          </div>
+        )}
       </section>
 
       {/* Emergency Simulation Section */}
@@ -137,7 +142,12 @@ export function AIHub() {
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Entrenamiento Dinámico Basado en Riesgos</p>
           </div>
         </div>
-        <EmergencySimulator />
+        {isOnline ? <EmergencySimulator /> : (
+          <div className="flex flex-col items-center justify-center py-12 gap-3 text-zinc-500 dark:text-zinc-400">
+            <WifiOff className="w-8 h-8 opacity-40" />
+            <p className="text-sm font-medium">Requiere conexión a internet</p>
+          </div>
+        )}
       </section>
 
       {/* Risk Network Explorer Section */}
