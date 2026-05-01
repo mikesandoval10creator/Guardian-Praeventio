@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run",
+    "smoke": "vitest run src/smoke.test.ts",
     "test:watch": "vitest",
     "verify:roles": "node scripts/verify-roles-sync.cjs",
     "cap:sync": "npm run build && npx cap sync",
