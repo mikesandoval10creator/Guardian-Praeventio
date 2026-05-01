@@ -32,6 +32,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { Worker } from '../types';
 import { logger } from '../utils/logger';
 import { awardPoints } from '../services/gamificationService';
+import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 
 interface EmergencyProtocol {
   id: string;
@@ -288,6 +289,7 @@ export function Emergency() {
           >
             {/* Protocols List */}
             <div className="lg:col-span-2 space-y-6">
+              <ManDownSupervisorWidget />
               <DynamicEvacuationMap />
               
               {/* Man Down Control Panel */}

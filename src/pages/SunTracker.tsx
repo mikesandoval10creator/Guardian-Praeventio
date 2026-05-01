@@ -7,6 +7,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
+import { WeatherSafetyRecommendations } from '../components/WeatherSafetyRecommendations';
 
 export function SunTracker() {
   const [uvIndex, setUvIndex] = useState(0);
@@ -353,6 +354,9 @@ export function SunTracker() {
           </div>
         </Card>
       </div>
+
+      {/* Safety recommendations based on UV + altitude */}
+      <WeatherSafetyRecommendations weather={{ temp: temperature }} />
     </div>
   );
 }
