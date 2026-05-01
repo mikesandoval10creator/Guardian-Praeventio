@@ -22,6 +22,8 @@ import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyz
 import { DifferentialDiagnosis } from '../components/medicine/DifferentialDiagnosis';
 import { AptitudeCertificateForm } from '../components/medicine/AptitudeCertificateForm';
 import { AnatomyLibrary } from '../components/medicine/AnatomyLibrary';
+import { VigilanciaScheduler } from '../components/medicine/VigilanciaScheduler';
+import { DrugInteractions } from '../components/medicine/DrugInteractions';
 
 export function Medicine() {
   const { selectedProject } = useProject();
@@ -29,7 +31,7 @@ export function Medicine() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [bodyRegions, setBodyRegions] = useState<BodyRegion[]>([]);
-  const [activeTab, setActiveTab] = useState<'visor' | 'diagnostico' | 'aptitud' | 'anatomia'>('visor');
+  const [activeTab, setActiveTab] = useState<'visor' | 'diagnostico' | 'aptitud' | 'anatomia' | 'vigilancia' | 'farmacos'>('visor');
 
   const medicalNodes = nodes.filter(node => 
     node.type === NodeType.MEDICINE && 
@@ -85,6 +87,8 @@ export function Medicine() {
             { id: 'diagnostico' as const, label: 'Dx Diferencial IA' },
             { id: 'aptitud' as const, label: 'Certificado DS 109' },
             { id: 'anatomia' as const, label: 'Librería Anatómica' },
+            { id: 'vigilancia' as const, label: 'Vigilancia Programada' },
+            { id: 'farmacos' as const, label: 'Interacciones IA' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -109,6 +113,8 @@ export function Medicine() {
         {activeTab === 'diagnostico' && <DifferentialDiagnosis />}
         {activeTab === 'aptitud' && <AptitudeCertificateForm />}
         {activeTab === 'anatomia' && <AnatomyLibrary />}
+        {activeTab === 'vigilancia' && <VigilanciaScheduler />}
+        {activeTab === 'farmacos' && <DrugInteractions />}
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
