@@ -213,8 +213,13 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
 
               {/* Rule-based recommendations */}
               {recs.map((r, i) => (
-                <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${SEVERITY_STYLES[r.severity]}`}>
-                  <span className={`mt-0.5 shrink-0 ${SEVERITY_ICON[r.severity]}`}>{r.icon}</span>
+                <div
+                  key={i}
+                  className={`flex items-start gap-3 p-3 rounded-xl border ${SEVERITY_STYLES[r.severity]}`}
+                  role={r.severity === 'critical' ? 'alert' : 'status'}
+                  aria-label={`${r.severity === 'critical' ? 'Alerta crítica' : r.severity === 'warning' ? 'Advertencia' : 'Información'}: ${r.title}`}
+                >
+                  <span className={`mt-0.5 shrink-0 ${SEVERITY_ICON[r.severity]}`} aria-hidden="true">{r.icon}</span>
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-wide mb-0.5">{r.title}</p>
                     <p className="text-[11px] opacity-80 leading-relaxed">{r.body}</p>

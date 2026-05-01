@@ -67,11 +67,11 @@ export function SunTracker() {
   }, [timeOfDay, cloudCover, latitude, dayOfYear]);
 
   const getUvRiskLevel = (uv: number) => {
-    if (uv <= 2) return { level: 'Bajo', color: 'text-emerald-500', bg: 'bg-emerald-500/20', border: 'border-emerald-500/50' };
-    if (uv <= 5) return { level: 'Moderado', color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50' };
-    if (uv <= 7) return { level: 'Alto', color: 'text-orange-500', bg: 'bg-orange-500/20', border: 'border-orange-500/50' };
-    if (uv <= 10) return { level: 'Muy Alto', color: 'text-rose-500', bg: 'bg-rose-500/20', border: 'border-rose-500/50' };
-    return { level: 'Extremo', color: 'text-purple-500', bg: 'bg-purple-500/20', border: 'border-purple-500/50' };
+    if (uv <= 2) return { level: 'Bajo', color: 'text-emerald-500', bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', Icon: CheckCircle2, ariaLabel: 'Riesgo Bajo' };
+    if (uv <= 5) return { level: 'Moderado', color: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', Icon: Info, ariaLabel: 'Riesgo Moderado' };
+    if (uv <= 7) return { level: 'Alto', color: 'text-orange-500', bg: 'bg-orange-500/20', border: 'border-orange-500/50', Icon: AlertTriangle, ariaLabel: 'Riesgo Alto' };
+    if (uv <= 10) return { level: 'Muy Alto', color: 'text-rose-500', bg: 'bg-rose-500/20', border: 'border-rose-500/50', Icon: ShieldAlert, ariaLabel: 'Riesgo Muy Alto' };
+    return { level: 'Extremo', color: 'text-purple-500', bg: 'bg-purple-500/20', border: 'border-purple-500/50', Icon: ShieldAlert, ariaLabel: 'Riesgo Extremo' };
   };
 
   const risk = getUvRiskLevel(uvIndex);
@@ -132,8 +132,12 @@ export function SunTracker() {
             Calculadora Local Offline (Ley 20.096)
           </p>
         </div>
-        <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${risk.color} ${risk.bg} ${risk.border}`}>
-          <AlertTriangle className="w-5 h-5" />
+        <div
+          className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${risk.color} ${risk.bg} ${risk.border}`}
+          role="status"
+          aria-label={`${risk.ariaLabel} — Índice UV ${uvIndex}`}
+        >
+          <risk.Icon className="w-5 h-5" aria-hidden="true" />
           <span className="font-bold uppercase tracking-wider text-sm">
             Riesgo {risk.level} (Índice {uvIndex})
           </span>
@@ -343,9 +347,14 @@ export function SunTracker() {
           )}
 
           {/* UV Index Display */}
-          <div className="relative z-10 bg-black/50 backdrop-blur-md p-6 rounded-2xl border border-white/10 text-center mt-auto mb-10">
+          <div
+            className="relative z-10 bg-black/50 backdrop-blur-md p-6 rounded-2xl border border-white/10 text-center mt-auto mb-10"
+            role="status"
+            aria-label={`Índice UV calculado: ${uvIndex} — ${risk.ariaLabel}`}
+          >
             <p className="text-sm font-bold text-zinc-300 uppercase tracking-widest mb-2">Índice UV Calculado</p>
-            <div className={`text-6xl font-black ${risk.color}`}>
+            <div className={`flex items-center justify-center gap-3 text-6xl font-black ${risk.color}`}>
+              <risk.Icon className="w-10 h-10" aria-hidden="true" />
               {uvIndex}
             </div>
             <p className={`text-sm font-bold uppercase mt-2 ${risk.color}`}>

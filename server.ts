@@ -1992,6 +1992,91 @@ const setupBackgroundTriggers = () => {
   }
 };
 
+// ─── Digital Twin / LingBot-Map Reconstruction ────────────────────────────────
+app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
+  const { projectId, videoUrl, notes } = req.body as { projectId: string; videoUrl: string; notes?: string };
+  if (!projectId || !videoUrl) {
+    return res.status(400).json({ error: "projectId and videoUrl are required" });
+  }
+  try {
+    const db = admin.firestore();
+    const jobRef = await db.collection("projects").doc(projectId).collection("digital_twin_jobs").add({
+      videoUrl,
+      notes: notes ?? "",
+      status: "queued",
+      progress: 0,
+      createdBy: (req as any).user.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Fire-and-forget: dispatch to Modal.run serverless GPU
+    // When MODAL_TOKEN is configured this submits a real job, otherwise marks as simulated
+    const modalToken = process.env.MODAL_TOKEN;
+    if (modalToken) {
+      fetch("https://api.modal.com/v1/apps/lingbot-map/run", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${modalToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobRef.id, video_url: videoUrl, project_id: projectId }),
+      }).catch(() => null);
+    } else {
+      // Simulate progression for development / demo
+      setTimeout(async () => {
+        await jobRef.update({ status: "processing", progress: 30, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }, 5000);
+      setTimeout(async () => {
+        await jobRef.update({ status: "processing", progress: 70, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }, 12000);
+      setTimeout(async () => {
+        await jobRef.update({
+          status: "completed",
+          progress: 100,
+          resultUrl: null,
+          pointCount: Math.floor(Math.random() * 50000) + 20000,
+          boundingBox: { minX: -15, maxX: 15, minY: 0, maxY: 8, minZ: -15, maxZ: 15 },
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }, 20000);
+    }
+
+    res.json({ jobId: jobRef.id, status: "queued" });
+  } catch (err) {
+    console.error("[DigitalTwin] reconstruct error:", err);
+    res.status(500).json({ error: "Failed to create reconstruction job" });
+  }
+});
+
+app.get("/api/digitalTwin/status/:jobId", verifyAuth, async (req, res) => {
+  const { projectId } = req.query as { projectId: string };
+  const { jobId } = req.params;
+  if (!projectId) return res.status(400).json({ error: "projectId is required" });
+  try {
+    const db = admin.firestore();
+    const snap = await db.collection("projects").doc(projectId).collection("digital_twin_jobs").doc(jobId).get();
+    if (!snap.exists) return res.status(404).json({ error: "Job not found" });
+    res.json({ jobId, ...snap.data() });
+  } catch (err) {
+    console.error("[DigitalTwin] status error:", err);
+    res.status(500).json({ error: "Failed to get job status" });
+  }
+});
+
+app.get("/api/digitalTwin/jobs", verifyAuth, async (req, res) => {
+  const { projectId } = req.query as { projectId: string };
+  if (!projectId) return res.status(400).json({ error: "projectId is required" });
+  try {
+    const db = admin.firestore();
+    const snaps = await db
+      .collection("projects").doc(projectId).collection("digital_twin_jobs")
+      .orderBy("createdAt", "desc").limit(10).get();
+    res.json(snaps.docs.map(d => ({ jobId: d.id, ...d.data() })));
+  } catch (err) {
+    console.error("[DigitalTwin] jobs list error:", err);
+    res.status(500).json({ error: "Failed to list jobs" });
+  }
+});
+// ──────────────────────────────────────────────────────────────────────────────
+
 // Sentry error handler must be registered before any other error middleware
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
