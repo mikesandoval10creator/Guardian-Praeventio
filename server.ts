@@ -1,8 +1,7 @@
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import { createServer as createViteServer } from "vite";
-import path from "path";
+// vite is imported dynamically inside the dev-only block below to avoid breaking production where vite is not installedimport path from "path";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import crypto from "crypto";
@@ -337,6 +336,7 @@ app.use('/api', gamificationRouter);
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({
     server: { middlewareMode: true },
     appType: "spa",
