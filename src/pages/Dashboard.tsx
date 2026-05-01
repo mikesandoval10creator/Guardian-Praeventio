@@ -63,6 +63,7 @@ import { FastCheckModal } from '../components/FastCheckModal';
 import { AIInsightsModal } from '../components/dashboard/AIInsightsModal';
 import { ComplianceModal } from '../components/dashboard/ComplianceModal';
 import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidget';
+import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { SunTrackerContainer } from '../components/SunTrackerContainer';
@@ -751,6 +752,9 @@ export function Dashboard() {
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
+
+      {/* Man Down supervisor alert widget — only renders when events exist */}
+      <ManDownSupervisorWidget />
 
       {/* EPP Widget - Full Width & Compact */}
       <section className="w-full mt-1 sm:mt-0">

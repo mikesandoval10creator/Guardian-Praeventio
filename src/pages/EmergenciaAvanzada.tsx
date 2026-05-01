@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle, Activity, Map, Users, Radio, ShieldAlert,
   CheckCircle2, ArrowRight, Send, Loader2, UserCheck, UserX,
-  Zap, Clock, RefreshCw, XCircle,
+  Zap, Clock, RefreshCw, XCircle, Mic, MicOff,
 } from "lucide-react";
+import { useAcousticSOS } from "../hooks/useAcousticSOS";
 import { Card } from "../components/shared/Card";
 import { useProject } from "../contexts/ProjectContext";
 import { useFirebase } from "../contexts/FirebaseContext";
@@ -48,6 +49,13 @@ export function EmergenciaAvanzada() {
   const [showTriggerConfirm, setShowTriggerConfirm] = useState(false);
   const [showResolveConfirm, setShowResolveConfirm] = useState(false);
   const [pendingQuake, setPendingQuake] = useState<Earthquake | null>(null);
+
+  const acousticSOS = useAcousticSOS({
+    threshold: 75,
+    requiredKnocks: 3,
+    windowMs: 6000,
+    onSOS: () => { setPendingQuake(null); setShowTriggerConfirm(true); },
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const projectLat = (selectedProject as any)?.lat ?? (selectedProject as any)?.coordinates?.lat ?? -33.4489;
@@ -202,13 +210,26 @@ export function EmergenciaAvanzada() {
               Resolver Emergencia
             </button>
           ) : (
-            <button
-              onClick={() => { setPendingQuake(null); setShowTriggerConfirm(true); }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase rounded-xl flex items-center gap-2 transition-colors"
-            >
-              <AlertTriangle className="w-4 h-4" />
-              Activar Emergencia
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => acousticSOS.isActive ? acousticSOS.stop() : acousticSOS.start()}
+                title={acousticSOS.isActive ? 'Desactivar SOS acústico (3 golpes)' : 'Activar SOS acústico — 3 golpes en el micrófono disparan emergencia'}
+                className={`p-2 rounded-xl text-xs font-black uppercase transition-all border flex items-center gap-1.5 min-w-[44px] min-h-[44px] justify-center ${
+                  acousticSOS.isActive
+                    ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse'
+                    : 'bg-zinc-800 border-white/10 text-zinc-400 hover:text-white'
+                }`}
+              >
+                {acousticSOS.isActive ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={() => { setPendingQuake(null); setShowTriggerConfirm(true); }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase rounded-xl flex items-center gap-2 transition-colors"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                Activar Emergencia
+              </button>
+            </div>
           )}
         </div>
       </div>

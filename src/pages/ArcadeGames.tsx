@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gamepad2, Trophy, Star, AlertTriangle, ShieldAlert, Zap, BookOpen, Loader2, CheckCircle2, X } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -164,6 +164,12 @@ export function ArcadeGames() {
     // Win condition
     if (score >= 1000) {
       setGameState('won');
+      fetch('/api/gamification/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'arcade_win', points: Math.round(score / 10) }),
+        credentials: 'include',
+      }).catch(() => {});
       return;
     }
 
