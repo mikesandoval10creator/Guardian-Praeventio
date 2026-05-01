@@ -1615,7 +1615,9 @@ const ALLOWED_GEMINI_ACTIONS = [
   'getNutritionSuggestion',
   'scanLegalUpdates',
   'analyzeMedicalInjury',
-  'generateMedicalIllustration'
+  'generateMedicalIllustration',
+  'differentialDiagnosis',
+  'checkDrugInteractions'
 ];
 
 app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {

@@ -2696,6 +2696,81 @@ Responde ÚNICAMENTE con JSON válido con esta estructura exacta:
   });
 };
 
+export const differentialDiagnosis = async (params: {
+  symptoms: string;
+  age?: number;
+  sex?: 'M' | 'F' | 'O';
+  occupation?: string;
+  exposures?: string;
+  vitals?: string;
+}) => {
+  const genAI = new GoogleGenAI({ apiKey: API_KEY! });
+
+  const prompt = `Eres un médico ocupacional chileno experto (Ley 16.744, DS 594, DS 109, MINSAL).
+Realiza un análisis de diagnóstico diferencial para un trabajador con estos datos:
+
+SÍNTOMAS: ${params.symptoms}
+${params.age ? `EDAD: ${params.age} años` : ''}
+${params.sex ? `SEXO: ${params.sex}` : ''}
+${params.occupation ? `OCUPACIÓN: ${params.occupation}` : ''}
+${params.exposures ? `EXPOSICIONES LABORALES: ${params.exposures}` : ''}
+${params.vitals ? `SIGNOS VITALES: ${params.vitals}` : ''}
+
+Responde EXCLUSIVAMENTE con JSON válido:
+{
+  "differentialDiagnosis": [
+    { "condition": "nombre", "icd10": "código CIE-10", "probability": "alta|media|baja", "rationale": "razonamiento clínico breve" }
+  ],
+  "occupationalRelevance": "¿es enfermedad profesional según Ley 16.744? Cita normativa",
+  "recommendedExams": ["examen 1", "examen 2"],
+  "recommendedSurveillance": "PREXOR | PLANESI | TMERT | EVAST | PVE genérico | ninguno",
+  "redFlags": ["señal de alarma 1"],
+  "suggestedTreatment": "tratamiento inicial recomendado, NO sustituye juicio clínico",
+  "diatRequired": boolean,
+  "specialistReferral": "especialista a referir o null"
+}
+
+Lista 3-5 diagnósticos diferenciales ordenados por probabilidad. Sé clínicamente preciso.`;
+
+  return await withExponentialBackoff(async () => {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseMimeType: 'application/json' },
+    });
+    const text = response.text ?? '';
+    return JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+  });
+};
+
+export const checkDrugInteractions = async (drugs: string[], patientContext?: string) => {
+  const genAI = new GoogleGenAI({ apiKey: API_KEY! });
+
+  const prompt = `Eres farmacéutico clínico chileno. Analiza interacciones medicamentosas:
+
+MEDICAMENTOS: ${drugs.join(', ')}
+${patientContext ? `CONTEXTO PACIENTE: ${patientContext}` : ''}
+
+Responde EXCLUSIVAMENTE con JSON válido:
+{
+  "interactions": [
+    { "drugs": ["A","B"], "severity": "leve|moderada|grave|contraindicada", "mechanism": "...", "clinicalEffect": "...", "recommendation": "..." }
+  ],
+  "overallRisk": "bajo|medio|alto",
+  "warnings": ["alerta 1"]
+}`;
+
+  return await withExponentialBackoff(async () => {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseMimeType: 'application/json' },
+    });
+    const text = response.text ?? '';
+    return JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+  });
+};
+
 export const generateMedicalIllustration = async (regions: { id: string; label: string; severity: string | null }[], specialistContext?: string) => {
   const genAI = new GoogleGenAI({ apiKey: API_KEY! });
   const injured = regions.filter(r => r.severity !== null);

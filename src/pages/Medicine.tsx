@@ -19,6 +19,9 @@ import { NodeType } from '../types';
 import { AddMedicineModal } from '../components/medicine/AddMedicineModal';
 import { HumanBodyViewer, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
 import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
+import { DifferentialDiagnosis } from '../components/medicine/DifferentialDiagnosis';
+import { AptitudeCertificateForm } from '../components/medicine/AptitudeCertificateForm';
+import { AnatomyLibrary } from '../components/medicine/AnatomyLibrary';
 
 export function Medicine() {
   const { selectedProject } = useProject();
@@ -26,6 +29,7 @@ export function Medicine() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [bodyRegions, setBodyRegions] = useState<BodyRegion[]>([]);
+  const [activeTab, setActiveTab] = useState<'visor' | 'diagnostico' | 'aptitud' | 'anatomia'>('visor');
 
   const medicalNodes = nodes.filter(node => 
     node.type === NodeType.MEDICINE && 
@@ -64,19 +68,47 @@ export function Medicine() {
         </button>
       </div>
 
-      {/* Body viewer + AI analyzer (with Gemini illustration) */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
+      {/* Doctor's Workstation — tabbed AI tools */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 flex-wrap">
           <Brain className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
-          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Visor Corporal & Análisis IA</h2>
+          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Estación de Trabajo Médica</h2>
           <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
-            Gemini
+            Gemini IA
           </span>
         </div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          <HumanBodyViewer onChange={setBodyRegions} compact />
-          <MedicalAnalyzer regions={bodyRegions} />
+
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 rounded-2xl bg-zinc-100 dark:bg-zinc-900 overflow-x-auto custom-scrollbar">
+          {[
+            { id: 'visor' as const, label: 'Visor Corporal' },
+            { id: 'diagnostico' as const, label: 'Dx Diferencial IA' },
+            { id: 'aptitud' as const, label: 'Certificado DS 109' },
+            { id: 'anatomia' as const, label: 'Librería Anatómica' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                activeTab === tab.id
+                  ? 'bg-white dark:bg-zinc-800 text-[#2a8a81] dark:text-[#d4af37] shadow-sm'
+                  : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
+
+        {activeTab === 'visor' && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <HumanBodyViewer onChange={setBodyRegions} compact />
+            <MedicalAnalyzer regions={bodyRegions} />
+          </div>
+        )}
+        {activeTab === 'diagnostico' && <DifferentialDiagnosis />}
+        {activeTab === 'aptitud' && <AptitudeCertificateForm />}
+        {activeTab === 'anatomia' && <AnatomyLibrary />}
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
