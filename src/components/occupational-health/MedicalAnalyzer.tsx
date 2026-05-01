@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Stethoscope, Brain, Clock, AlertTriangle, ShieldCheck,
-  FileText, Loader2, ChevronDown, ChevronUp, Hospital
+  FileText, Loader2, ChevronDown, ChevronUp, Hospital, Image as ImageIcon, Sparkles
 } from 'lucide-react';
-import { analyzeMedicalInjury } from '../../services/geminiService';
+import { analyzeMedicalInjury, generateMedicalIllustration } from '../../services/geminiService';
 import { BodyRegion } from './HumanBodyViewer';
 
 interface MedicalAnalysis {
@@ -35,6 +35,9 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(true);
+  const [illustration, setIllustration] = useState<string | null>(null);
+  const [illustrationLoading, setIllustrationLoading] = useState(false);
+  const [illustrationError, setIllustrationError] = useState<string | null>(null);
 
   const injuredRegions = regions.filter(r => r.severity !== null);
 
@@ -43,6 +46,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
     setLoading(true);
     setError(null);
     setAnalysis(null);
+    setIllustration(null);
     try {
       const result = await analyzeMedicalInjury(
         injuredRegions.map(r => ({
@@ -59,6 +63,28 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
       setError(err?.message ?? 'Error al analizar las lesiones.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runIllustration = async () => {
+    if (injuredRegions.length === 0) return;
+    setIllustrationLoading(true);
+    setIllustrationError(null);
+    try {
+      const result = await generateMedicalIllustration(
+        injuredRegions.map(r => ({ id: r.id, label: r.label, severity: r.severity })),
+        analysis?.specialistRequired,
+      );
+      if (result?.error) throw new Error(result.error);
+      if (result?.imageBase64) {
+        setIllustration(`data:${result.mimeType ?? 'image/png'};base64,${result.imageBase64}`);
+      } else {
+        throw new Error('Respuesta sin imagen');
+      }
+    } catch (err: any) {
+      setIllustrationError(err?.message ?? 'Error generando ilustración.');
+    } finally {
+      setIllustrationLoading(false);
     }
   };
 
@@ -219,6 +245,43 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
                   </div>
                 </div>
               )}
+
+              {/* Medical illustration (Gemini-generated) */}
+              <div className="border-t border-zinc-200/50 dark:border-white/5 pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <ImageIcon className="w-3 h-3" />Ilustración Anatómica IA
+                  </p>
+                  {!illustration && !illustrationLoading && (
+                    <button
+                      onClick={runIllustration}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] text-[10px] font-black uppercase tracking-wider border border-[#4db6ac]/20 dark:border-[#d4af37]/20 hover:bg-[#4db6ac]/20 dark:hover:bg-[#d4af37]/20 transition-colors"
+                    >
+                      <Sparkles className="w-3 h-3" />Generar
+                    </button>
+                  )}
+                </div>
+                {illustrationLoading && (
+                  <div className="flex flex-col items-center justify-center py-12 gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-white/5">
+                    <Loader2 className="w-6 h-6 animate-spin text-[#4db6ac] dark:text-[#d4af37]" />
+                    <p className="text-xs text-zinc-500">Gemini generando ilustración médica...</p>
+                  </div>
+                )}
+                {illustrationError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <p className="text-xs text-rose-600 dark:text-rose-400">{illustrationError}</p>
+                  </div>
+                )}
+                {illustration && (
+                  <div className="relative rounded-xl overflow-hidden bg-white border border-zinc-200/50 dark:border-white/5">
+                    <img src={illustration} alt="Ilustración anatómica generada por IA" className="w-full h-auto" />
+                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-zinc-900/80 text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5 text-[#d4af37]" />Gemini
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Re-analyze */}
               <button

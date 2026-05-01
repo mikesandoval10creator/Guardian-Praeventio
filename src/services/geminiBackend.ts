@@ -2696,6 +2696,42 @@ Responde ÚNICAMENTE con JSON válido con esta estructura exacta:
   });
 };
 
+export const generateMedicalIllustration = async (regions: { id: string; label: string; severity: string | null }[], specialistContext?: string) => {
+  const genAI = new GoogleGenAI({ apiKey: API_KEY! });
+  const injured = regions.filter(r => r.severity !== null);
+  if (injured.length === 0) return { error: 'Sin zonas para ilustrar' };
+
+  const regionList = injured.map(r => `${r.label} (${r.severity})`).join(', ');
+
+  const prompt = `Professional medical anatomical illustration in editorial style, clean white background.
+Show the human body with focus on these injured regions: ${regionList}.
+Use soft teal/petroleum blue palette with gold accents (matching Guardian Praeventio brand).
+Style: clean medical textbook illustration, NOT photorealistic, NOT graphic/bloody.
+Show anatomical labels with subtle arrows pointing to affected areas.
+Educational and professional — suitable for occupational health DIAT documentation in Chile.
+${specialistContext ? `Context: ${specialistContext}` : ''}
+No text overlays. Purely visual anatomical reference.`;
+
+  return await withExponentialBackoff(async () => {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash-preview-image-generation',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
+    });
+
+    const parts = response.candidates?.[0]?.content?.parts ?? [];
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        return {
+          imageBase64: part.inlineData.data,
+          mimeType: part.inlineData.mimeType ?? 'image/png',
+        };
+      }
+    }
+    return { error: 'No se generó imagen' };
+  });
+};
+
 export * from './chemicalBackend.js';
 export * from './psychosocialBackend.js';
 export * from './shiftBackend.js';

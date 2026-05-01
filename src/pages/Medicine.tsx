@@ -1,27 +1,31 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Activity, 
-  Heart, 
-  Stethoscope, 
-  Search, 
-  Plus, 
+import {
+  Activity,
+  Heart,
+  Stethoscope,
+  Search,
+  Plus,
   ChevronRight,
   ShieldCheck,
   AlertCircle,
   Loader2,
-  Calendar
+  Calendar,
+  Brain
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { AddMedicineModal } from '../components/medicine/AddMedicineModal';
+import { HumanBodyViewer, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
+import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
 
 export function Medicine() {
   const { selectedProject } = useProject();
   const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [bodyRegions, setBodyRegions] = useState<BodyRegion[]>([]);
 
   const medicalNodes = nodes.filter(node => 
     node.type === NodeType.MEDICINE && 
@@ -42,13 +46,16 @@ export function Medicine() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Medicina Ocupacional</h1>
-          <p className="text-zinc-400 mt-1">Gestión de salud, exámenes médicos y vigilancia epidemiológica</p>
+          <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter flex items-center gap-3">
+            <Stethoscope className="w-8 h-8 text-rose-500" />
+            Medicina Ocupacional
+          </h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">Gestión de salud, exámenes médicos y vigilancia epidemiológica</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl font-medium transition-all shadow-lg shadow-rose-500/20 active:scale-95"
         >
@@ -56,6 +63,21 @@ export function Medicine() {
           <span>Nueva Consulta</span>
         </button>
       </div>
+
+      {/* Body viewer + AI analyzer (with Gemini illustration) */}
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Brain className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Visor Corporal & Análisis IA</h2>
+          <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
+            Gemini
+          </span>
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <HumanBodyViewer onChange={setBodyRegions} compact />
+          <MedicalAnalyzer regions={bodyRegions} />
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Records List */}
@@ -99,7 +121,7 @@ export function Medicine() {
                       <div className="text-right hidden md:block">
                         <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Resultado</p>
                         <span className={`text-xs font-bold ${
-                          node.metadata.result === 'Apto' ? 'text-emerald-500' : 
+                          node.metadata.result === 'Apto' ? 'text-[#4db6ac]' : 
                           node.metadata.result === 'Apto con restricción' ? 'text-amber-500' : 
                           'text-zinc-500'
                         }`}>
@@ -136,7 +158,7 @@ export function Medicine() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-zinc-400">Aptitud Médica</span>
-                <span className="text-xs font-bold text-emerald-500">{stats.aptitude}%</span>
+                <span className="text-xs font-bold text-[#4db6ac]">{stats.aptitude}%</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-zinc-400">Restricciones Activas</span>
@@ -151,7 +173,7 @@ export function Medicine() {
 
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-500" />
+              <ShieldCheck className="w-5 h-5 text-[#4db6ac]" />
               Vigilancia Médica
             </h3>
             <div className="space-y-4">
