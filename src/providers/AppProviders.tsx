@@ -13,6 +13,18 @@ interface AppProvidersProps {
 }
 
 export function AppProviders({ children }: AppProvidersProps) {
+  // Provider order matters here.
+  //
+  // `UniversalKnowledgeProvider` was previously the outermost provider, but
+  // Round 14 added a `where('projectId','==', selectedProject.id)` filter
+  // to its `nodes` subscription so we no longer load every node the user
+  // can read across every project (which scaled poorly and leaked
+  // cross-project data into the global graph). The filter requires
+  // `useProject()`, which means `ProjectProvider` must wrap
+  // `UniversalKnowledgeProvider`. Reordering is safe because no other
+  // provider in this chain consumes `useUniversalKnowledge()` upstream of
+  // it — verified by `grep -r useUniversalKnowledge src/` against the
+  // ancestor providers below.
   return (
     <ThemeProvider>
       <NormativeProvider>

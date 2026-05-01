@@ -1,29 +1,119 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { useProject } from '../../contexts/ProjectContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { NodeType, RiskNode } from '../../types';
 import { List } from 'react-window';
-import { 
-  Plus, 
-  Link as LinkIcon, 
-  Search, 
-  X, 
-  Check, 
+import {
+  Plus,
+  Link as LinkIcon,
+  Search,
+  X,
+  Check,
   AlertCircle,
   Database,
   Network,
-  ArrowRight
+  ArrowRight,
+  Tag,
+  FileText,
+  Loader2,
+  CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Allowed types in the inline node-creation form. We restrict this to the
+// concepts that make sense to author manually from the Manager tab; richer
+// types (Trabajador, Activo, etc.) flow in via dedicated wizards elsewhere.
+const CREATABLE_NODE_TYPES: ReadonlyArray<{ value: NodeType; label: string }> = [
+  { value: NodeType.RISK, label: 'Riesgo' },
+  { value: NodeType.CONTROL, label: 'Control' },
+  { value: NodeType.NORMATIVE, label: 'Normativa' },
+  { value: NodeType.FINDING, label: 'Hallazgo' },
+  { value: NodeType.WORKER, label: 'Trabajador' },
+  { value: NodeType.EPP, label: 'EPP' },
+];
+
+const TITLE_MAX = 120;
+const DESCRIPTION_MAX = 500;
+const TAG_MAX_LENGTH = 30;
+const TAG_MAX_COUNT = 10;
+
+interface NodeFormState {
+  title: string;
+  description: string;
+  type: NodeType;
+  tagsRaw: string;
+}
+
+const EMPTY_FORM: NodeFormState = {
+  title: '',
+  description: '',
+  type: NodeType.RISK,
+  tagsRaw: '',
+};
+
+interface NodeFormErrors {
+  title?: string;
+  description?: string;
+  tagsRaw?: string;
+  project?: string;
+}
+
+function parseTags(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+function validateForm(form: NodeFormState, hasProject: boolean): NodeFormErrors {
+  const errors: NodeFormErrors = {};
+  const title = form.title.trim();
+  if (!title) {
+    errors.title = 'El título es obligatorio.';
+  } else if (title.length > TITLE_MAX) {
+    errors.title = `El título no puede superar ${TITLE_MAX} caracteres.`;
+  }
+
+  if (form.description.length > DESCRIPTION_MAX) {
+    errors.description = `La descripción no puede superar ${DESCRIPTION_MAX} caracteres.`;
+  }
+
+  const tags = parseTags(form.tagsRaw);
+  if (tags.length > TAG_MAX_COUNT) {
+    errors.tagsRaw = `Máximo ${TAG_MAX_COUNT} etiquetas (separadas por coma).`;
+  } else {
+    const offending = tags.find((t) => t.length > TAG_MAX_LENGTH);
+    if (offending) {
+      errors.tagsRaw = `Cada etiqueta debe tener máximo ${TAG_MAX_LENGTH} caracteres ("${offending.slice(0, TAG_MAX_LENGTH)}…").`;
+    }
+  }
+
+  if (!hasProject) {
+    errors.project = 'Selecciona un proyecto activo antes de crear un nodo.';
+  }
+
+  return errors;
+}
 
 export function RiskNetworkManager() {
   const { nodes, loading } = useUniversalKnowledge();
   const { addConnection, addNode } = useRiskEngine();
+  const { selectedProject } = useProject();
+  const { addNotification } = useNotifications();
+
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [targetNodeId, setTargetNodeId] = useState<string | null>(null);
   const [isLinking, setIsLinking] = useState(false);
+
+  // Node-creation form state
+  const [form, setForm] = useState<NodeFormState>(EMPTY_FORM);
+  const [errors, setErrors] = useState<NodeFormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Debounce search term to avoid excessive filtering
   useEffect(() => {
@@ -34,7 +124,7 @@ export function RiskNetworkManager() {
   }, [searchTerm]);
 
   const filteredNodes = useMemo(() => {
-    return nodes.filter(n => 
+    return nodes.filter(n =>
       n.title.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       n.type.toLowerCase().includes(debouncedSearch.toLowerCase())
     );
@@ -51,6 +141,46 @@ export function RiskNetworkManager() {
     }
   };
 
+  const handleCreateNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const validationErrors = validateForm(form, Boolean(selectedProject));
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    if (!selectedProject) return; // narrowing for TS
+    setErrors({});
+    setIsSubmitting(true);
+    try {
+      const created = await addNode({
+        title: form.title.trim(),
+        description: form.description.trim(),
+        type: form.type,
+        tags: parseTags(form.tagsRaw),
+        connections: [],
+        metadata: {},
+        projectId: selectedProject.id,
+      } as Omit<RiskNode, 'id' | 'createdAt' | 'updatedAt'>);
+
+      if (created) {
+        setForm(EMPTY_FORM);
+        setShowSuccess(true);
+        addNotification({
+          title: 'Nodo creado',
+          message: `Se agregó "${created.title}" a la red de conocimiento.`,
+          type: 'success',
+        });
+        setTimeout(() => setShowSuccess(false), 2500);
+      } else {
+        setErrors({ title: 'No se pudo crear el nodo. Verifica tu sesión y conexión.' });
+      }
+    } catch (err) {
+      setErrors({ title: err instanceof Error ? err.message : 'Error desconocido al crear el nodo.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const Row = ({ index, style }: any) => {
     const node = filteredNodes[index];
     return (
@@ -58,8 +188,8 @@ export function RiskNetworkManager() {
         <button
           onClick={() => setSelectedNodeId(node.id)}
           className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all h-full ${
-            selectedNodeId === node.id 
-              ? 'bg-indigo-500/10 border-indigo-500/50' 
+            selectedNodeId === node.id
+              ? 'bg-indigo-500/10 border-indigo-500/50'
               : 'bg-zinc-50 dark:bg-white/5 border-zinc-200 dark:border-white/5 hover:bg-zinc-100 dark:hover:bg-white/10'
           }`}
         >
@@ -92,7 +222,7 @@ export function RiskNetworkManager() {
             <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Conecta el Conocimiento de Seguridad</p>
           </div>
         </div>
-        
+
         <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
@@ -104,6 +234,169 @@ export function RiskNetworkManager() {
           />
         </div>
       </div>
+
+      {/* Crear nota: inline node-creation form. Surfaces the existing
+          useRiskEngine().addNode() flow as a UI affordance on the Manager
+          tab so prevencionistas don't have to switch tabs to author nodes. */}
+      <form
+        onSubmit={handleCreateNode}
+        aria-label="Formulario de creación de nodo"
+        className="bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl border border-zinc-200 dark:border-white/5 p-6 space-y-5"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
+            <Plus className="w-4 h-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tight">Crear Nota</h3>
+            <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Agrega un nodo al proyecto activo</p>
+          </div>
+        </div>
+
+        {errors.project && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2">
+            <AlertCircle className="w-3.5 h-3.5" />
+            {errors.project}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label htmlFor="rnm-node-title" className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">
+              Título <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="rnm-node-title"
+              type="text"
+              value={form.title}
+              maxLength={TITLE_MAX + 5}
+              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="Ej. Caída desde altura en andamio nivel 3"
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? 'rnm-node-title-error' : undefined}
+              className="w-full bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+            <div className="flex items-center justify-between">
+              <p id="rnm-node-title-error" className="text-[9px] font-bold text-red-500 uppercase tracking-widest">
+                {errors.title || ' '}
+              </p>
+              <span className="text-[9px] font-bold text-zinc-500 tabular-nums">{form.title.length}/{TITLE_MAX}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="rnm-node-type" className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">
+              Tipo
+            </label>
+            <select
+              id="rnm-node-type"
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as NodeType }))}
+              className="w-full bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            >
+              {CREATABLE_NODE_TYPES.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+              <FileText className="w-2.5 h-2.5 inline mr-1" />
+              Selecciona la categoría del nodo
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label htmlFor="rnm-node-description" className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">
+            Descripción
+          </label>
+          <textarea
+            id="rnm-node-description"
+            value={form.description}
+            maxLength={DESCRIPTION_MAX + 25}
+            rows={3}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="Detalle breve del nodo (opcional). Si lo dejas en blanco, la IA puede sugerir contenido."
+            aria-invalid={Boolean(errors.description)}
+            aria-describedby={errors.description ? 'rnm-node-description-error' : undefined}
+            className="w-full bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 resize-none"
+          />
+          <div className="flex items-center justify-between">
+            <p id="rnm-node-description-error" className="text-[9px] font-bold text-red-500 uppercase tracking-widest">
+              {errors.description || ' '}
+            </p>
+            <span className="text-[9px] font-bold text-zinc-500 tabular-nums">{form.description.length}/{DESCRIPTION_MAX}</span>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label htmlFor="rnm-node-tags" className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">
+            Etiquetas
+          </label>
+          <input
+            id="rnm-node-tags"
+            type="text"
+            value={form.tagsRaw}
+            onChange={(e) => setForm((f) => ({ ...f, tagsRaw: e.target.value }))}
+            placeholder="Ej. altura, andamio, ds-594  (separadas por coma)"
+            aria-invalid={Boolean(errors.tagsRaw)}
+            aria-describedby={errors.tagsRaw ? 'rnm-node-tags-error' : undefined}
+            className="w-full bg-white dark:bg-white/5 border border-zinc-200 dark:border-white/10 rounded-xl px-3 py-2.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+          />
+          <div className="flex items-center justify-between">
+            <p id="rnm-node-tags-error" className="text-[9px] font-bold text-red-500 uppercase tracking-widest">
+              {errors.tagsRaw || ' '}
+            </p>
+            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+              <Tag className="w-2.5 h-2.5" />
+              Máx. {TAG_MAX_COUNT} etiquetas, {TAG_MAX_LENGTH} caracteres c/u
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <AnimatePresence>
+            {showSuccess && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                className="flex items-center gap-2 text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest"
+                role="status"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Nodo creado
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <div className="ml-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { setForm(EMPTY_FORM); setErrors({}); }}
+              disabled={isSubmitting}
+              className="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-50"
+            >
+              Limpiar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !selectedProject}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors flex items-center gap-2"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" />
+                  Crear nodo
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Node List */}
@@ -147,7 +440,7 @@ export function RiskNetworkManager() {
                 </div>
                 {targetNode ? (
                   <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl w-32 relative group">
-                    <button 
+                    <button
                       onClick={() => setTargetNodeId(null)}
                       className="absolute -top-2 -right-2 w-5 h-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-full flex items-center justify-center text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
                     >
@@ -157,7 +450,7 @@ export function RiskNetworkManager() {
                     <p className="text-[10px] font-bold text-zinc-900 dark:text-white uppercase truncate">{targetNode.title}</p>
                   </div>
                 ) : (
-                  <button 
+                  <button
                     onClick={() => setIsLinking(true)}
                     className="p-4 bg-zinc-100 dark:bg-white/5 border border-zinc-200 dark:border-white/10 border-dashed rounded-2xl w-32 hover:bg-zinc-200 dark:hover:bg-white/10 transition-all"
                   >

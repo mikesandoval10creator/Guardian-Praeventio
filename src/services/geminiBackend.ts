@@ -227,20 +227,33 @@ export const predictGlobalIncidents = async (context: string, envContext: string
 export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
+  // Round 16 (R1) — `criticidad` is intentionally OMITTED from the prompt
+  // and the response schema. Risk level / criticidad classification is a
+  // legal output of the deterministic IPER P×S matrix (`src/services/
+  // protocols/iper.ts`) and Ley 16.744 attaches liability to that
+  // classification. The LLM is restricted to suggesting controls and
+  // citing normativa — it cannot produce a class that downstream auditors
+  // could mistake for a deterministic figure. IPERCAnalysis.tsx already
+  // discards the AI's classification today; we now harden that contract
+  // by removing it from both the prompt and the JSON schema so the model
+  // can't slip it in via Gemini's structured-output mode.
   const prompt = `Analiza el siguiente riesgo reportado en el contexto de la industria ${industry || 'general'}.
-    
+
     Riesgo Reportado:
     "${description}"
-    
+
     Contexto de la Red de Riesgos:
     ${nodesContext}
-    
+
     Proporciona un análisis IPERC (Identificación de Peligros, Evaluación de Riesgos y Controles).
-    Incluye:
-    1. Nivel de criticidad (Alta, Media, Baja).
-    2. Lista de recomendaciones inmediatas.
-    3. Lista de controles a implementar (Jerarquía de Controles).
-    4. Normativa aplicable (ej. DS 594, Ley 16.744).`;
+
+    IMPORTANTE: NO devuelvas un nivel de criticidad ni una clasificación P×S.
+    La clasificación legal del riesgo viene de la matriz IPER deterministic (P×S)
+    operada por el prevencionista. Tu rol se limita a:
+    1. Lista de recomendaciones inmediatas.
+    2. Lista de controles a implementar siguiendo la Jerarquía de Controles
+       (eliminación → sustitución → ingeniería → administrativo → EPP).
+    3. Normativa aplicable (ej. DS 594, DS 40, DS 54, Ley 16.744, NCh ISO 45001).`;
 
   const fallback = async () => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -252,12 +265,11 @@ export const analyzeRiskWithAI = async (description: string, nodesContext: strin
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
             recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
             controles: { type: Type.ARRAY, items: { type: Type.STRING } },
             normativa: { type: Type.STRING }
           },
-          required: ["criticidad", "recomendaciones", "controles", "normativa"]
+          required: ["recomendaciones", "controles", "normativa"]
         }
       }
     });
@@ -700,19 +712,27 @@ export const simulateRiskPropagation = async (nodeTitle: string, context: string
 export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Partial<RiskNode>> => {
   if (!API_KEY) return nodeData;
 
+  // Round 16 (R1) doctrine + R18 R6 MEDIUM #2 — Same doctrine applies here:
+  // `criticidad` is intentionally OMITTED from prompt + schema even when
+  // enriching a Riesgo node. Risk-level classification is a legal output of
+  // the deterministic IPER P×S matrix (`calculateIper()`); Ley 16.744 / DS 40
+  // attach liability to that figure. This helper only enriches descriptive
+  // fields (title, description). The prevencionista must classify via IPER.
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const prompt = `Eres un experto en prevención de riesgos laborales (SST) en Chile.
   Se ha detectado un registro incompleto en el sistema de gestión de riesgos.
   Tu tarea es completar la información faltante con datos técnicos, verídicos y precisos, basados en normativas y estándares de seguridad industrial. No uses texto de relleno ni simules datos, proporciona información real y aplicable.
-  
+
   Datos actuales del registro:
   Título: ${nodeData.title || 'Faltante'}
   Descripción: ${nodeData.description || 'Faltante'}
   Tipo: ${nodeData.type || 'Desconocido'}
   Tags: ${nodeData.tags?.join(', ') || 'Ninguno'}
-  
-  Devuelve un JSON con los campos 'title' y 'description' completados profesionalmente. Si es un riesgo, incluye 'criticidad' (Baja, Media, Alta, Crítica).`;
-  
+
+  Devuelve un JSON con los campos 'title' y 'description' completados profesionalmente.
+
+  IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`, operada por el prevencionista. Tu rol se limita a enriquecer título y descripción.`;
+
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -723,23 +743,21 @@ export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Parti
           type: Type.OBJECT,
           properties: {
             title: { type: Type.STRING, description: "Título técnico y preciso" },
-            description: { type: Type.STRING, description: "Descripción detallada, técnica y verídica del elemento" },
-            criticidad: { type: Type.STRING, description: "Nivel de criticidad si aplica (Baja, Media, Alta, Crítica)" }
+            description: { type: Type.STRING, description: "Descripción detallada, técnica y verídica del elemento" }
           },
           required: ["title", "description"]
         }
       }
     });
-    
+
     const result = JSON.parse(response.text || '{}');
-    
+
     return {
       ...nodeData,
       title: result.title || nodeData.title,
       description: result.description || nodeData.description,
       metadata: {
-        ...nodeData.metadata,
-        ...(result.criticidad && nodeData.type === 'Riesgo' ? { criticidad: result.criticidad } : {})
+        ...nodeData.metadata
       }
     };
   } catch (error) {
@@ -885,7 +903,7 @@ export const getSafetyAdvice = async (weather: any) => {
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Genera un consejo de seguridad breve (máximo 100 caracteres) basado en las siguientes condiciones climáticas:
-    Temperatura: ${weather.temp}°C, UV: ${weather.uv}, Calidad Aire: ${weather.airQuality}`,
+    Temperatura: ${weather.temp}°C, UV: ${weather.uv}, Calidad Aire: ${weather.airQuality ?? 'no disponible'}`,
     config: {
       systemInstruction: "Eres un experto en prevención de riesgos laborales con un tono profesional y motivador."
     }
@@ -1269,11 +1287,21 @@ export const generateSafetyCapsule = async (workerName: string, role: string, co
 export const suggestRisksWithAI = async (industry: string, context: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
+  // Round 16 (R1) doctrine — `criticidad` is intentionally OMITTED from the
+  // prompt and the response schema. Risk-level classification is a legal
+  // output of the deterministic IPER P×S matrix (`calculateIper()` /
+  // `src/services/protocols/iper.ts`) and Ley 16.744 attaches liability to
+  // that classification. The LLM exposes only Probabilidad and Severidad as
+  // numeric inputs (1–5); the consumer (Matrix.tsx) must derive `criticidad`
+  // via the deterministic P×S ladder so auditors cannot mistake an AI guess
+  // for a deterministic figure.
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Basado en el rubro "${industry}" y el contexto del proyecto "${context}", sugiere 5 riesgos críticos que deberían estar en la matriz IPERC.
-    Para cada riesgo, asigna un valor de Probabilidad (1-5) y Severidad (1-5) según la metodología de evaluación de riesgos.`,
+    Para cada riesgo, asigna un valor de Probabilidad (1-5) y Severidad (1-5) según la metodología de evaluación de riesgos.
+
+    IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`. Tu rol se limita a estimar P y S como inputs numéricos, junto con recomendaciones, controles (Jerarquía: eliminación → sustitución → ingeniería → administrativo → EPP) y normativa aplicable (DS 594, DS 40, DS 54, Ley 16.744, NCh ISO 45001).`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -1288,12 +1316,11 @@ export const suggestRisksWithAI = async (industry: string, context: string) => {
             consecuencia: { type: Type.STRING, description: "Consecuencia potencial (ej: Fractura, Muerte)" },
             probabilidad: { type: Type.NUMBER, description: "Valor de 1 a 5" },
             severidad: { type: Type.NUMBER, description: "Valor de 1 a 5" },
-            criticidad: { type: Type.STRING, enum: ["Baja", "Media", "Alta", "Crítica"] },
             recomendaciones: { type: Type.ARRAY, items: { type: Type.STRING } },
             controles: { type: Type.ARRAY, items: { type: Type.STRING } },
             normativa: { type: Type.ARRAY, items: { type: Type.STRING } }
           },
-          required: ["title", "actividad", "description", "riesgo", "consecuencia", "probabilidad", "severidad", "criticidad", "recomendaciones", "controles", "normativa"]
+          required: ["title", "actividad", "description", "riesgo", "consecuencia", "probabilidad", "severidad", "recomendaciones", "controles", "normativa"]
         }
       }
     }
@@ -2168,14 +2195,23 @@ export const analyzeRiskNetworkHealth = async (nodes: any[]) => {
 export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64: string | null, userName: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
+  // Round 16 (R1) doctrine — SafetyFeed posts are pure triage signals. The
+  // LLM does NOT classify criticidad here; the prevencionista will run the
+  // deterministic IPER P×S matrix (`calculateIper()`) once the node lands
+  // in the network. Ley 16.744 / DS 40 / DS 54 attach legal liability to
+  // the deterministic classification, so we strip `criticidad` from both
+  // the prompt and the JSON schema to prevent Gemini's structured-output
+  // mode from injecting an AI guess that auditors could mistake for it.
   const ai = new GoogleGenAI({ apiKey: API_KEY });
-  
+
   const parts: any[] = [{ text: `Analiza esta publicación del muro de seguridad hecha por ${userName}.
   Contenido: "${content}"
-  
+
   Determina si esta publicación representa un RIESGO (Risk) o un INCIDENTE (Incident) que deba ser registrado en la Red Neuronal.
   Si es solo un comentario general, tip o felicitación, isRelevant debe ser false.
-  Si es un riesgo o incidente, isRelevant debe ser true, y debes extraer un título, descripción, nivel de criticidad y etiquetas (tags).` }];
+  Si es un riesgo o incidente, isRelevant debe ser true, y debes extraer un título, descripción y etiquetas (tags).
+
+  IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`, operada por el prevencionista. Tu rol aquí es sólo triage: detectar si el post pertenece a la Red Neuronal.` }];
 
   if (imageBase64) {
     parts.push({
@@ -2198,9 +2234,8 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
           type: { type: Type.STRING, description: "RISK o INCIDENT" },
           title: { type: Type.STRING },
           description: { type: Type.STRING },
-          criticidad: { type: Type.STRING, description: "Baja, Media, Alta, Critica" },
-          tags: { 
-            type: Type.ARRAY, 
+          tags: {
+            type: Type.ARRAY,
             items: { type: Type.STRING }
           }
         },

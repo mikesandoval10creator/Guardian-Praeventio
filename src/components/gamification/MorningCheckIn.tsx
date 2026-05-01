@@ -8,6 +8,7 @@ import { db, collection, addDoc, serverTimestamp, handleFirestoreError, Operatio
 import { getNutritionSuggestion } from '../../services/geminiService';
 import { awardPoints } from '../../services/gamificationService';
 import { logger } from '../../utils/logger';
+import { logAuditAction } from '../../services/auditService';
 
 interface MorningCheckInProps {
   onComplete: () => void;
@@ -46,18 +47,14 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
         checkedAt: serverTimestamp(),
       };
 
-      // Save affidavit to immutable audit logs (global)
-      await addDoc(collection(db, 'audit_logs'), {
-        userId: user.uid,
-        action: 'MORNING_CHECKIN_AFFIDAVIT',
-        module: 'Gamification',
-        timestamp: new Date().toISOString(),
-        details: {
-          eppChecked,
-          psychosocialMood: mood,
-          declarationText: "Declaro bajo juramento que cuento con el equipo de protección personal requerido y me encuentro en condiciones óptimas para desempeñar mis labores de manera segura.",
-          legalStatus: "Declaración Jurada Simple"
-        }
+      // Save affidavit via server-side audit log endpoint. The server stamps
+      // the actor uid + timestamp from the verified token; client-side direct
+      // writes to /audit_logs are denied by firestore.rules.
+      await logAuditAction('MORNING_CHECKIN_AFFIDAVIT', 'Gamification', {
+        eppChecked,
+        psychosocialMood: mood,
+        declarationText: "Declaro bajo juramento que cuento con el equipo de protección personal requerido y me encuentro en condiciones óptimas para desempeñar mis labores de manera segura.",
+        legalStatus: "Declaración Jurada Simple",
       });
 
       // Also save to project-level collection for supervisor visibility
@@ -79,7 +76,10 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
     } catch (error) {
       logger.error("Error saving checkin affidavit:", error);
       handleFirestoreError(error, OperationType.CREATE, 'audit_logs');
-      // Even on failure in saving, complete so they aren't stuck, but maybe alert
+      // logAuditAction already swallows network errors and logs them; if we
+      // reach this catch it's because something else in the try block threw
+      // (e.g. getNutritionSuggestion rejecting synchronously). Never block
+      // the worker from completing the flow.
       onComplete();
     } finally {
       setIsSaving(false);

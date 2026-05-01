@@ -71,13 +71,29 @@ export interface WeatherData {
   condition: string;
   humidity: number;
   uv: number;
-  airQuality: string;
-  altitude: number;
+  /**
+   * Air Quality Index label. `null` means no AQI source available
+   * for these coordinates — UI must surface "Datos no disponibles"
+   * instead of substituting a fake value.
+   */
+  airQuality: string | null;
+  /**
+   * Elevation (m). `null` means the geocoding/elevation API is not
+   * wired — render an honest empty state, not a synthesized number.
+   */
+  altitude: number | null;
   location: string;
   recommendations: string[];
   windSpeed?: number;
   sunrise?: number;
   sunset?: number;
+  /**
+   * Round 18 (R6): truthful empty-state flag. When `true`, every
+   * numeric/string field is a placeholder (null) and the UI MUST
+   * render "Datos no disponibles — verifique configuración
+   * OPENWEATHER_API_KEY" instead of plotting fictional values.
+   */
+  unavailable?: boolean;
 }
 
 export interface SeismicData {

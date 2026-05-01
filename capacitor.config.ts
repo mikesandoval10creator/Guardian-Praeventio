@@ -26,8 +26,21 @@ const config: CapacitorConfig = {
     limitsNavigationsToAppBoundDomains: true,
   },
   plugins: {
+    // Note: @perfood/capacitor-healthkit (v1.3.2) does NOT accept a
+    // `CapacitorHealthkit` config block — it auto-discovers via CocoaPods.
+    // All iOS-side config (Info.plist usage strings, HealthKit capability,
+    // App.entitlements) lives in the Xcode project under `ios/App/App/`.
+    // See IOS_BUILD.md for the full runbook + copy-paste templates.
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"],
+    },
+    // Biometric (TouchID / FaceID / Android fingerprint) — see
+    // src/hooks/useBiometricAuth.ts for the 3-tier strategy. The plugin
+    // auto-registers via @capacitor/cli; this empty block is here to
+    // make the dependency intent explicit and to leave a hook for
+    // future Android allowDeviceCredential tuning.
+    BiometricAuth: {
+      androidBiometryStrength: 'weak',
     },
     CapacitorSQLite: {
       iosDatabaseLocation: 'Library/CapacitorDatabase',

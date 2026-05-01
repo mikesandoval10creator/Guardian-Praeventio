@@ -9,18 +9,22 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
 import { SyncConflictBanner } from '../shared/SyncConflictBanner';
+import { routeForCollection } from '../shared/syncConflictRoutes';
 import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
 import { SmartConnectionsPanel } from '../knowledge/SmartConnectionsPanel';
+import { logger } from '../../utils/logger';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
 import { MFASetupModal } from '../auth/MFASetupModal';
+import { NormativaSwitch } from '../normativa/NormativaSwitch';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
+import { CookieConsent } from '../legal/CookieConsent';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -97,19 +101,25 @@ export function RootLayout() {
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#4db6ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-[#4db6ac]/30 flex flex-col transition-colors duration-300">
+      <CookieConsent />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
         <EmergencyAlertBanner />
         <PendingInvitesBanner />
         <SyncConflictBanner
-          onOpenRecord={(col, _docId) => {
-            // Route to the most relevant page for each Firestore collection
-            if (col.includes('nodes')) navigate('/map');
-            else if (col.includes('safety_posts')) navigate('/safety-feed');
-            else if (col.includes('comite_actas')) navigate('/comite-paritario');
-            else if (col.includes('training')) navigate('/training');
-            else if (col.includes('findings')) navigate('/findings');
-            else navigate('/');
+          onOpenRecord={(collectionName, docId) => {
+            // Mapping lives in the shared `routeForCollection` helper so it
+            // can be unit-tested in isolation; see
+            // `src/components/shared/syncConflictRoutes.ts`.
+            const target = routeForCollection(collectionName, docId);
+            if (target) {
+              navigate(target);
+            } else {
+              logger.warn('SyncConflictBanner: no route mapping for collection', {
+                collection: collectionName,
+                docId,
+              });
+            }
           }}
         />
       </div>
@@ -201,7 +211,12 @@ export function RootLayout() {
 
         {/* Right: Notifications, Theme & Profile */}
         <div className="flex items-center gap-2 shrink-0">
-          <Link 
+          {/* Country normativa selector — visible on every page */}
+          <div className="hidden md:block">
+            <NormativaSwitch />
+          </div>
+
+          <Link
             to="/safe-driving"
             className="hidden sm:flex w-10 h-10 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all duration-300 relative shadow-sm"
             title="Modo Conducción Segura"

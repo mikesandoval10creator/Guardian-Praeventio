@@ -49,9 +49,9 @@ export function PredictiveGuard() {
       const projectNodes = nodes.filter(n => n.projectId === selectedProject.id);
       const context = projectNodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n');
       
-      const weatherContext = environment?.weather ? 
-        `Temperatura: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed || 0}km/h, Humedad: ${environment.weather.humidity}%, Condición: ${environment.weather.condition}` : 
-        'Sin datos climáticos.';
+      const weatherContext = environment?.weather && !environment.weather.unavailable ?
+        `Temperatura: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed || 0}km/h, Humedad: ${environment.weather.humidity}%, Condición: ${environment.weather.condition}` :
+        'Sin datos climáticos (telemetría meteorológica no disponible — verifique OPENWEATHER_API_KEY).';
 
       const data = await generatePredictiveForecast(selectedProject.name, context, weatherContext);
       setForecast(data);
@@ -160,7 +160,21 @@ export function PredictiveGuard() {
                 </div>
               </div>
 
-              {environment?.weather ? (
+              {environment?.weather && environment.weather.unavailable ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="py-6 px-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-center relative z-10"
+                >
+                  <WifiOff className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-amber-300 mb-1">
+                    Datos no disponibles
+                  </p>
+                  <p className="text-xs text-amber-200/80 leading-relaxed">
+                    Verifique configuración <code className="font-mono text-amber-100">OPENWEATHER_API_KEY</code>.
+                  </p>
+                </div>
+              ) : environment?.weather ? (
                 <div className="space-y-6 relative z-10">
                   <div className="flex items-end gap-4">
                     <span className="text-6xl font-black text-white tracking-tighter leading-none">
@@ -200,7 +214,11 @@ export function PredictiveGuard() {
                       <Thermometer className="w-5 h-5 text-rose-400" />
                       <div>
                         <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Calidad Aire</p>
-                        <p className="text-sm font-black text-white">{environment.weather.airQuality}</p>
+                        <p className="text-sm font-black text-white">
+                          {environment.weather.airQuality ?? (
+                            <span className="text-zinc-500" title="Datos no disponibles, requiere API geocoding+AQI">—</span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -393,7 +411,7 @@ export function PredictiveGuard() {
 
             {/* Haki de Observación Consultivo (System 4) */}
             <AnimatePresence>
-              {environment?.weather && environment.weather.windSpeed > 50 && (
+              {environment?.weather && !environment.weather.unavailable && (environment.weather.windSpeed ?? 0) > 50 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}

@@ -12,6 +12,42 @@
 
 ---
 
+## Soporte
+
+- General: soporte@praeventio.net
+- Privacidad: privacidad@praeventio.net
+- Comercial / Enterprise: ventas@praeventio.net
+- Bugs: https://github.com/mikesandoval10creator/Guardian-Praeventio/issues
+
+---
+
+## Quick start for new contributors
+
+Si vas a contribuir código por primera vez, lee estos cuatro documentos
+antes de tocar nada:
+
+1. **[`CONTRIBUTING.md`](./CONTRIBUTING.md)** — flujo TDD, convenciones,
+   cómo agregar rutas / acciones Gemini / motores de cálculo, checklist
+   de PR.
+2. **[`ARCHITECTURE.md`](./ARCHITECTURE.md)** — mapa de módulos, data
+   flows críticos (Webpay, REBA, curriculum claims), estrategia de split
+   de `server.ts` y `geminiBackend.ts`, inventario de colecciones
+   Firestore, modelo de tier-gating.
+3. **[`RUNBOOK.md`](./RUNBOOK.md)** — procedimientos operacionales:
+   emulador Firestore, deploy a Cloud Run, restore de backup, rotación
+   KMS, FCM de prueba, triage Sentry.
+4. **[`docs/api-routes.md`](./docs/api-routes.md)** — catálogo completo
+   de los 43 endpoints HTTP (auth, body, response, errores, audit log,
+   tenant isolation).
+
+Para emergencias de producción: [`DR_RUNBOOK.md`](./DR_RUNBOOK.md). Para
+reportes de seguridad: [`SECURITY.md`](./SECURITY.md).
+
+Tests al cierre de Round 16: **866 pasando**, `npm run typecheck` con 0
+errores. Mantener verde es invariante de proyecto.
+
+---
+
 ## Características principales
 
 - **El Guardián** — asistente IA con RAG sobre la base normativa chilena (BCN, ISO).
@@ -91,6 +127,30 @@ Para Firebase Admin local: descargar `firebase-applet-config.json` desde la cons
 | `npm run start` | Servidor en modo producción |
 | `npm run cap:android` | Sincronizar y abrir Android Studio |
 | `npm run cap:ios` | Sincronizar y abrir Xcode |
+| `npm run mutation` | Mutation testing (Stryker) sobre motores de cálculo de seguridad |
+
+---
+
+## Mutation testing
+
+`npm run mutation` corre [Stryker](https://stryker-mutator.io/) sobre los motores
+de cálculo de seguridad — donde una regresión silenciosa puede traducirse en
+mal cálculo de riesgo y daño físico al trabajador. Es por eso que estos
+módulos exigen una cobertura mutacional alta, no sólo line/branch.
+
+- **Ejecución local:** `npm run mutation` (~5 min en hardware moderno;
+  hasta 15-30 min en hardware más lento; aún no agregado a CI).
+- **Targets** (`stryker.conf.json`): `services/ergonomics/{reba,rula}.ts`,
+  `services/protocols/{iper,prexor,tmert}.ts`, `services/safety/{ergonomicAssessments,iperAssessments}.ts`.
+- **Umbrales:** `high: 80%`, `low: 60%`, `break: 50%` (R18 baseline —
+  ver [`STRYKER_BASELINE.md`](./STRYKER_BASELINE.md)).
+- **Reporte HTML:** `reports/mutation/mutation.html` tras la corrida; abrir en
+  navegador para inspeccionar mutantes sobrevivientes.
+
+**Línea base R18 (2026-04-28):** score global **67.32%** (828 killed,
+356 survived, 46 no-coverage, 0 errors, 0 timeouts sobre 1230 mutantes).
+Detalle por archivo y plan de mejora R19 documentado en
+[`STRYKER_BASELINE.md`](./STRYKER_BASELINE.md).
 
 ---
 
@@ -161,10 +221,14 @@ Este proyecto también puede correrse desde Google AI Studio: `https://ai.studio
 
 ## Contribuir
 
+Guía completa en [`CONTRIBUTING.md`](./CONTRIBUTING.md). Resumen:
+
 1. Crear branch desde `main` con prefijo (`feat/`, `fix/`, `audit/`, `claude/`).
-2. Asegurar `npm run typecheck` pasa antes de PR.
-3. Mantener cobertura de las funciones críticas (REBA, A*, IPER, evaluación legal).
-4. No introducir secretos en commits — usar `.env.local`.
+2. TDD estricto (RED → GREEN → REFACTOR).
+3. `npm run typecheck` y `npm run test` deben pasar antes de PR.
+4. Mantener cobertura de las funciones críticas (REBA, A*, IPER, evaluación legal).
+5. No introducir secretos en commits — usar `.env.local`.
+6. Toda operación de cambio de estado debe escribir en `audit_logs`.
 
 ---
 

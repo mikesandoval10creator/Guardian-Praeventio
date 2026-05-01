@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, 
-  Search, 
-  MapPin, 
-  Calendar, 
-  Building2, 
+import {
+  Plus,
+  Search,
+  MapPin,
+  Calendar,
+  Building2,
   ShieldAlert,
   Shield,
   ChevronRight,
-  X, 
-  Loader2, 
-  CheckCircle2, 
-  Clock, 
+  X,
+  Loader2,
+  CheckCircle2,
+  Clock,
   Archive,
   Briefcase,
   Users,
@@ -26,21 +27,32 @@ import {
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
+import { DataLoadErrorBanner } from '../components/shared/DataLoadErrorBanner';
 import { INDUSTRIES, INDUSTRY_SECTORS, RISK_LEVELS } from '../constants';
 import { ProjectDocuments } from '../components/projects/ProjectDocuments';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
+import { GanttProjectView } from '../components/projects/GanttProjectView';
+import { PredictedActivityModal } from '../components/projects/PredictedActivityModal';
+import { useCalendarPredictions } from '../hooks/useCalendarPredictions';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { get } from 'idb-keyval';
+import { useNotifications } from '../contexts/NotificationContext';
 import { logger } from '../utils/logger';
+import { get } from 'idb-keyval';
+import type { PredictedActivity } from '../services/calendar/predictions';
 
 export function Projects() {
-  const { projects, createProject, loading, selectedProject, setSelectedProject } = useProject();
+  const { projects, createProject, loading, error: projectsError, selectedProject, setSelectedProject } = useProject();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'assets'>('overview');
+  const [listViewMode, setListViewMode] = useState<'cards' | 'timeline'>('cards');
   const isOnline = useOnlineStatus();
+  const { predictions, climateRisks } = useCalendarPredictions();
+  const navigate = useNavigate();
+  const { addNotification } = useNotifications();
+  const [selectedActivity, setSelectedActivity] = useState<PredictedActivity | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -259,6 +271,8 @@ export function Projects() {
 
   return (
     <div className="flex-1 w-full p-4 sm:p-6 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+      <DataLoadErrorBanner error={projectsError} resourceLabel="los proyectos" />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div className="min-w-0">
@@ -313,6 +327,28 @@ export function Projects() {
         </div>
       </div>
 
+      {/* View Mode Toggle */}
+      <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full sm:w-auto sm:self-start shadow-sm">
+        {[
+          { id: 'cards' as const, label: 'Tarjetas', icon: Layout },
+          { id: 'timeline' as const, label: 'Línea de tiempo', icon: Calendar },
+        ].map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            onClick={() => setListViewMode(mode.id)}
+            className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-1 sm:flex-none ${
+              listViewMode === mode.id
+                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+            }`}
+          >
+            <mode.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            {mode.label}
+          </button>
+        ))}
+      </div>
+
       {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
@@ -331,6 +367,42 @@ export function Projects() {
             <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-[#4db6ac] dark:text-[#d4af37] animate-spin" />
             <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest">Sincronizando Proyectos...</p>
           </div>
+      ) : listViewMode === 'timeline' ? (
+        <GanttProjectView
+          projects={filteredProjects.map((p) => {
+            // Guard against malformed startDate strings: new Date('garbage')
+            // returns Invalid Date, which propagates as NaN through the
+            // gantt-task-react timeline math. Validate before passing.
+            const parsedStart = p.startDate ? new Date(p.startDate) : null;
+            const startDate = parsedStart && !Number.isNaN(parsedStart.getTime())
+              ? parsedStart
+              : new Date();
+            const parsedEnd = p.endDate ? new Date(p.endDate) : null;
+            const endDate = parsedEnd && !Number.isNaN(parsedEnd.getTime())
+              ? parsedEnd
+              : new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+            return { id: p.id, name: p.name, startDate, endDate, status: p.status };
+          })}
+          predictedActivities={predictions}
+          climateRisks={climateRisks}
+          onActivityClick={(activity) => setSelectedActivity(activity)}
+          onClimateRiskClick={(risk) => {
+            // The RiskNetwork page is the canonical "knowledge graph" view.
+            // ClimateRiskNodePayload doesn't expose a stable id (the doc isn't
+            // persisted yet from the Gantt), so we pass the title — the Risk
+            // Network can use that as a search/highlight hint. Fallback to a
+            // synthetic id derived from project + forecast date when needed.
+            const payload = risk?.riskNodePayload;
+            const nodeKey =
+              payload?.title ??
+              `${risk.projectId}::${risk.forecast.date.toISOString().slice(0, 10)}`;
+            navigate(`/risk-network?node=${encodeURIComponent(nodeKey)}`);
+          }}
+          onProjectClick={(projectId) => {
+            const target = projects.find((p) => p.id === projectId);
+            if (target) setSelectedProject(target);
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredProjects.map((project) => (
@@ -640,6 +712,47 @@ export function Projects() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Predicted activity detail modal — opened from the Gantt timeline. */}
+      <PredictedActivityModal
+        activity={selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+        onSchedule={async (activity) => {
+          // TODO(calendar-schedule-from-modal): the existing /api/calendar/sync
+          // endpoint only accepts a `challenges` string array (see server.ts
+          // line 809), so it can't carry the recommendedDate / duration of a
+          // PredictedActivity yet. For now we surface a notification so the
+          // user knows the action was acknowledged, and close the modal.
+          // Follow-up: extend the endpoint (or add /api/calendar/events) to
+          // accept structured event payloads, then replace this stub.
+          try {
+            addNotification({
+              title: 'Actividad agendada',
+              message: `${activity.type} programada para ${activity.recommendedDate.toLocaleDateString('es-CL')}. Sincronizaremos con Google Calendar cuando el endpoint estructurado esté disponible.`,
+              type: 'info',
+            });
+            logger.info('predicted_activity_schedule_requested', {
+              type: activity.type,
+              projectId: activity.projectId,
+              recommendedDate: activity.recommendedDate.toISOString(),
+            });
+          } finally {
+            setSelectedActivity(null);
+          }
+        }}
+        onDismiss={(activity) => {
+          // Soft-dismiss: persist a 7-day snooze in localStorage so the same
+          // (projectId, type) tuple isn't re-surfaced immediately. The
+          // prediction hook can read this key on next refresh to suppress.
+          try {
+            const key = `praeventio_dismissed_activity_${activity.projectId}_${activity.type}`;
+            localStorage.setItem(key, String(Date.now()));
+          } catch (err) {
+            logger.warn('predicted_activity_dismiss_persist_failed', { error: String(err) });
+          }
+          setSelectedActivity(null);
+        }}
+      />
     </div>
   );
 }

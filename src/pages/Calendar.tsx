@@ -49,6 +49,22 @@ export function Calendar() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [viewMode, setViewMode] = useState<'calendar' | 'gantt'>('calendar');
   const [weatherData, setWeatherData] = useState<any>(null);
+  // ── Round 18 (R6): real multi-day forecast, no Math.random fabrication ──
+  // Days +1 and +2 used to be `weatherData.temp ± Math.random()` which is a
+  // lie dressed up as a forecast. We now fetch the existing
+  // /api/environment/forecast endpoint (powered by environmentBackend.getForecast)
+  // and render an honest "Pronóstico no disponible" placeholder when the API
+  // key is missing or the request fails.
+  type ForecastApiDay = {
+    date: string | Date;
+    conditionCode?: 'sunny' | 'rainy' | 'stormy' | 'windy' | 'extreme-heat' | 'cold-snap' | 'snow';
+    temperatureC?: number;
+    windKmh?: number;
+    precipMm?: number;
+  };
+  const [forecastApi, setForecastApi] = useState<ForecastApiDay[] | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(true);
+  const [forecastAvailable, setForecastAvailable] = useState(true);
 
   useEffect(() => {
     const loadWeather = async () => {
@@ -62,44 +78,161 @@ export function Calendar() {
     loadWeather();
   }, []);
 
-  // Generate forecast based on current weather
+  useEffect(() => {
+    let cancelled = false;
+    const loadForecast = async () => {
+      setForecastLoading(true);
+      try {
+        const res = await fetch('/api/environment/forecast?days=3');
+        if (!res.ok) {
+          if (!cancelled) {
+            setForecastApi(null);
+            setForecastAvailable(false);
+          }
+          return;
+        }
+        const data = await res.json();
+        const days: ForecastApiDay[] = Array.isArray(data?.forecast) ? data.forecast : [];
+        if (!cancelled) {
+          setForecastApi(days);
+          // An empty list means the upstream (or the env key) is unavailable.
+          // environmentBackend.getForecast() returns [] in both cases.
+          setForecastAvailable(days.length > 0);
+        }
+      } catch (error) {
+        console.error('Failed to load forecast:', error);
+        if (!cancelled) {
+          setForecastApi(null);
+          setForecastAvailable(false);
+        }
+      } finally {
+        if (!cancelled) setForecastLoading(false);
+      }
+    };
+    loadForecast();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Map a ClimateForecastDay-style conditionCode to the Calendar widget's
+  // icon/color/bg/condition-string tuple. Kept inline since this is the only
+  // consumer; a shared helper would be over-engineering.
+  const styleForCondition = (
+    code: ForecastApiDay['conditionCode'],
+    temp: number | undefined,
+  ) => {
+    switch (code) {
+      case 'rainy':
+        return { icon: CloudRain, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', condition: 'Lluvia' };
+      case 'stormy':
+        return { icon: CloudRain, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-500/10', condition: 'Tormenta' };
+      case 'snow':
+        return { icon: CloudRain, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-500/10', condition: 'Nieve' };
+      case 'windy':
+        return { icon: Wind, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', condition: 'Viento fuerte' };
+      case 'extreme-heat':
+        return { icon: Sun, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', condition: 'Calor extremo' };
+      case 'cold-snap':
+        return { icon: Cloud, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', condition: 'Frío extremo' };
+      case 'sunny':
+      default: {
+        const hot = typeof temp === 'number' && temp > 25;
+        return {
+          icon: hot ? Sun : Cloud,
+          color: hot ? 'text-amber-500' : 'text-zinc-500',
+          bg: hot ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-zinc-50 dark:bg-zinc-500/10',
+          condition: 'Despejado',
+        };
+      }
+    }
+  };
+
+  // Generate forecast based on current weather + multi-day API forecast.
   const getForecast = () => {
     const today = new Date();
-    if (!weatherData) {
-      return [
-        { date: today, temp: '--°C', condition: 'Cargando...', icon: Cloud, color: 'text-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-500/10' },
-        { date: addDays(today, 1), temp: '--°C', condition: 'Cargando...', icon: Cloud, color: 'text-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-500/10' },
-        { date: addDays(today, 2), temp: '--°C', condition: 'Cargando...', icon: Cloud, color: 'text-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-500/10' },
-      ];
-    }
-    
-    return [
-      { 
-        date: today, 
-        temp: `${weatherData.temp}°C`, 
-        condition: weatherData.condition, 
-        icon: weatherData.temp < 0 ? CloudRain : (weatherData.temp > 25 ? Sun : Cloud), 
-        color: weatherData.temp > 25 ? 'text-amber-500' : 'text-blue-500', 
-        bg: weatherData.temp > 25 ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-blue-50 dark:bg-blue-500/10' 
-      },
-      { 
-        date: addDays(today, 1), 
-        temp: `${weatherData.temp + (Math.round(Math.random() * 4 - 2))}°C`, 
-        condition: 'Pronóstico', 
-        icon: Cloud, 
-        color: 'text-zinc-500', 
-        bg: 'bg-zinc-50 dark:bg-zinc-500/10' 
-      },
-      { 
-        date: addDays(today, 2), 
-        temp: `${weatherData.temp + (Math.round(Math.random() * 6 - 3))}°C`, 
-        condition: 'Pronóstico', 
-        icon: Cloud, 
-        color: 'text-zinc-500', 
-        bg: 'bg-zinc-50 dark:bg-zinc-500/10',
-        alert: weatherData.windSpeed > 40
-      },
-    ];
+    const offsets = [0, 1, 2] as const;
+
+    return offsets.map((offset) => {
+      const date = addDays(today, offset);
+
+      // "Hoy" stays bound to the current-weather widget: it's the only source
+      // we have for the live condition string ("nubes dispersas", etc.).
+      if (offset === 0) {
+        if (!weatherData) {
+          return {
+            date,
+            temp: '--°C',
+            condition: 'Cargando...',
+            icon: Cloud,
+            color: 'text-zinc-500',
+            bg: 'bg-zinc-50 dark:bg-zinc-500/10',
+            alert: false,
+          };
+        }
+        return {
+          date,
+          temp: `${weatherData.temp}°C`,
+          condition: weatherData.condition,
+          icon: weatherData.temp < 0 ? CloudRain : (weatherData.temp > 25 ? Sun : Cloud),
+          color: weatherData.temp > 25 ? 'text-amber-500' : 'text-blue-500',
+          bg: weatherData.temp > 25 ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-blue-50 dark:bg-blue-500/10',
+          alert: false,
+        };
+      }
+
+      // Days +1 / +2: real forecast or honest empty state.
+      if (forecastLoading) {
+        return {
+          date,
+          temp: '--°C',
+          condition: 'Cargando...',
+          icon: Cloud,
+          color: 'text-zinc-500',
+          bg: 'bg-zinc-50 dark:bg-zinc-500/10',
+          alert: false,
+        };
+      }
+
+      if (!forecastAvailable || !forecastApi) {
+        return {
+          date,
+          temp: '—°C',
+          condition: 'Pronóstico no disponible',
+          icon: Cloud,
+          color: 'text-zinc-500',
+          bg: 'bg-zinc-50 dark:bg-zinc-500/10',
+          alert: false,
+        };
+      }
+
+      // The API returns days starting from "today" (UTC midnight). Pick the
+      // entry at the matching offset; when it's missing (short response) we
+      // also surface the honest empty placeholder.
+      const apiDay = forecastApi[offset];
+      if (!apiDay || typeof apiDay.temperatureC !== 'number') {
+        return {
+          date,
+          temp: '—°C',
+          condition: 'Pronóstico no disponible',
+          icon: Cloud,
+          color: 'text-zinc-500',
+          bg: 'bg-zinc-50 dark:bg-zinc-500/10',
+          alert: false,
+        };
+      }
+
+      const style = styleForCondition(apiDay.conditionCode, apiDay.temperatureC);
+      return {
+        date,
+        temp: `${Math.round(apiDay.temperatureC)}°C`,
+        condition: style.condition,
+        icon: style.icon,
+        color: style.color,
+        bg: style.bg,
+        alert: typeof apiDay.windKmh === 'number' && apiDay.windKmh > 40,
+      };
+    });
   };
 
   const { data: events, loading } = useFirestoreCollection<Event>(
@@ -157,12 +290,22 @@ export function Calendar() {
     return allEvents.filter(event => isSameDay(new Date(event.date), day));
   };
 
-  // Mock data for Gantt if events don't have endDate
-  const ganttEvents = allEvents.map(e => ({
-    ...e,
-    endDate: e.endDate || new Date(new Date(e.date).getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // Mock 3 days duration
-    progress: e.progress || Math.floor(Math.random() * 100)
-  }));
+  // ── Round 17 (R4): honest empty duration ─────────────────────────
+  // Events without an `endDate` were previously inflated to a 3-day
+  // span AND given a random progress 0-99 % so the Gantt always
+  // looked busy. Prevencionistas can't trust a chart that fabricates
+  // work spans. We now flag those events explicitly and render them
+  // as a single-day bar with a "duración no especificada" label.
+  // Progress defaults to 0 instead of Math.random().
+  const ganttEvents = allEvents.map(e => {
+    const hasEnd = !!e.endDate;
+    return {
+      ...e,
+      endDate: hasEnd ? e.endDate : e.date,
+      durationUnspecified: !hasEnd,
+      progress: typeof e.progress === 'number' ? e.progress : 0,
+    };
+  });
 
   const forecast = getForecast();
 
@@ -339,7 +482,14 @@ export function Calendar() {
                   <div key={event.id} className="flex items-center group">
                     <div className="w-1/4 pr-4">
                       <div className="text-xs font-bold text-zinc-900 dark:text-white truncate">{event.title}</div>
-                      <div className="text-[9px] text-zinc-500 uppercase tracking-wider">{event.type}</div>
+                      <div className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                        {event.type}
+                        {event.durationUnspecified && (
+                          <span className="ml-1 text-amber-500" title="Duración no especificada — registrá una fecha de término en el evento.">
+                            · duración no especificada
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="w-3/4 relative h-8 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-100 dark:border-white/5">
                       {/* Grid lines */}
@@ -348,22 +498,27 @@ export function Calendar() {
                           <div key={i} className="flex-1 border-l border-zinc-100 dark:border-white/5 h-full" />
                         ))}
                       </div>
-                      
+
                       {/* Gantt Bar */}
                       {startOffset < totalDays && (
-                        <motion.div 
+                        <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min(widthPercent, 100 - leftPercent)}%` }}
-                          className="absolute top-1.5 bottom-1.5 rounded-md bg-[#4db6ac]/20 border border-[#4db6ac]/50 overflow-hidden cursor-pointer hover:bg-[#4db6ac]/30 transition-colors"
+                          className={`absolute top-1.5 bottom-1.5 rounded-md overflow-hidden cursor-pointer transition-colors ${
+                            event.durationUnspecified
+                              ? 'bg-amber-500/20 border border-amber-500/50 hover:bg-amber-500/30'
+                              : 'bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/30'
+                          }`}
                           style={{ left: `${leftPercent}%` }}
                           onClick={() => setSelectedEvent(event)}
+                          title={event.durationUnspecified ? 'Duración no especificada' : undefined}
                         >
-                          <div 
-                            className="h-full bg-[#4db6ac]"
+                          <div
+                            className={`h-full ${event.durationUnspecified ? 'bg-amber-500' : 'bg-emerald-500'}`}
                             style={{ width: `${event.progress}%` }}
                           />
-                          <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-[#2a8a81] dark:text-zinc-100">
-                            {event.progress}%
+                          <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-emerald-900 dark:text-emerald-100">
+                            {event.durationUnspecified ? '—' : `${event.progress}%`}
                           </span>
                         </motion.div>
                       )}

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { logger } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 import { signInWithGoogle, auth, db } from '../services/firebase';
 import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/shared/Card';
@@ -10,6 +11,7 @@ import { isBiometricSupported, verifyBiometric, registerBiometric } from '../uti
 import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 export default function Login() {
+  const { t } = useTranslation();
   const isOnline = useOnlineStatus();
   const [hasBiometric, setHasBiometric] = useState(false);
   const [biometricCredential, setBiometricCredential] = useState<string | null>(null);
@@ -99,7 +101,7 @@ export default function Login() {
               className="inline-flex items-center gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-medium text-xs uppercase tracking-wider mb-8"
             >
               <ArrowLeft className="w-4 h-4" />
-              Volver al inicio
+              {t('auth.back_home', 'Volver al inicio')}
             </Link>
 
             <div className="flex flex-col items-center mb-8 sm:mb-10">
@@ -140,7 +142,7 @@ export default function Login() {
                   }`}
                 >
                   <Zap className="w-5 h-5" />
-                  Usar Biometría (Face ID / Huella)
+                  {t('auth.biometric_login', 'Usar Biometría (Face ID / Huella)')}
                 </Button>
               ) : null}
 
@@ -156,19 +158,21 @@ export default function Login() {
                 {!isOnline ? (
                   <>
                     <WifiOff className="w-4 h-4" />
-                    Requiere Conexión
+                    {t('auth.requires_connection', 'Requiere Conexión')}
                   </>
                 ) : (
                   <>
                     <LogIn className="w-4 h-4" />
-                    {biometricCredential ? "Iniciar de otra forma" : "Iniciar con Google"}
+                    {biometricCredential
+                      ? t('auth.login_other_way', 'Iniciar de otra forma')
+                      : t('auth.login_with_google', 'Iniciar con Google')}
                   </>
                 )}
               </Button>
             </div>
 
             <p className="mt-6 sm:mt-8 text-center text-[8px] sm:text-[10px] text-zinc-400 dark:text-zinc-500 font-medium uppercase tracking-widest leading-relaxed px-4">
-              Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad.
+              {t('auth.consent_notice', 'Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad.')}
             </p>
           </div>
         </motion.div>

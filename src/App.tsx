@@ -1,11 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { initAdMob } from './services/adService';
+import { preWarmHealthConnect } from './services/health/healthConnectAdapter';
 import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
+import { LanguageProvider } from "./contexts/LanguageProvider";
 import { AppProviders } from "./providers/AppProviders";
+import { NormativaProvider } from "./components/normativa/NormativaSwitch";
 import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
 import { useAutoLogout } from "./hooks/useAutoLogout";
@@ -48,13 +51,16 @@ const IoTEdgeFiltering = lazy(() => import('./pages/IoTEdgeFiltering').then(modu
 const SSOConfig = lazy(() => import('./pages/SSOConfig').then(module => ({ default: module.SSOConfig })));
 const CQRSArchitecture = lazy(() => import('./pages/CQRSArchitecture').then(module => ({ default: module.CQRSArchitecture })));
 const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: module.Pricing })));
+const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
+const RefereeAccept = lazy(() => import('./pages/RefereeAccept').then(module => ({ default: module.RefereeAccept })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
 const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ default: module.SunTracker })));
 const SafetyCoach = lazy(() => import('./pages/SafetyCoach').then(module => ({ default: module.SafetyCoach })));
+const Terms = lazy(() => import('./pages/Terms').then(module => ({ default: module.Terms })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -94,9 +100,11 @@ function AppRoutes() {
     return <ConsciousnessLoader />;
   }
 
-  // Skip landing/splash for direct deep-links (invite, public node)
+  // Skip landing/splash for direct deep-links (invite, public node,
+  // curriculum referee co-sign — Round 14 R5).
   const skipLanding = window.location.pathname.startsWith('/invite') ||
-    window.location.pathname.startsWith('/public');
+    window.location.pathname.startsWith('/public') ||
+    window.location.pathname.startsWith('/curriculum/referee');
 
   if (!hasEntered && !skipLanding) {
     // Show landing page first; after "Entrar" briefly show splash then the app
@@ -124,12 +132,14 @@ function AppRoutes() {
           element={!user ? <Login /> : <Navigate to="/" />}
         />
                   <Route path="/invite" element={<InviteAccept />} />
+                  <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
                   />
                   <Route path="/privacidad" element={<PrivacyPolicy />} />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<Terms />} />
                   <Route path="/" element={<RootLayout />}>
                     <Route index element={<Dashboard />} />
                     
@@ -147,6 +157,10 @@ function AppRoutes() {
                     <Route path="webxr" element={<WebXR />} />
                     <Route path="history" element={<History />} />
                     <Route path="pricing" element={<Pricing />} />
+                    <Route path="pricing/success" element={<Pricing />} />
+                    <Route path="pricing/failed" element={<Pricing />} />
+                    <Route path="pricing/retry" element={<Pricing />} />
+                    <Route path="transparencia" element={<Transparencia />} />
                     <Route path="google-drive" element={<GoogleDriveIntegrationManager />} />
                     <Route path="immutable-render" element={<ImmutableRender />} />
                     <Route path="wearables" element={<WearablesIntegration />} />
@@ -174,18 +188,29 @@ function AppRoutes() {
 }
 
 export default function App() {
-  useEffect(() => { initAdMob(); }, []);
+  useEffect(() => {
+    initAdMob();
+    // Pre-warm the Health Connect availability probe so a user tapping
+    // "Connect" on the Telemetry page within ~50ms of boot doesn't race
+    // the cached probe and see a false negative. Errors are swallowed
+    // by `preWarmHealthConnect` (cache resolves to `NotSupported`).
+    void preWarmHealthConnect();
+  }, []);
 
   return (
     <ErrorBoundary>
       <FirebaseProvider>
-        <BrowserRouter>
-          <OfflineIndicator />
-          <OfflineSyncManager />
-          <SurvivalPing />
-          <PWAUpdateToast />
-          <AppRoutes />
-        </BrowserRouter>
+        <LanguageProvider>
+          <NormativaProvider>
+            <BrowserRouter>
+              <OfflineIndicator />
+              <OfflineSyncManager />
+              <SurvivalPing />
+              <PWAUpdateToast />
+              <AppRoutes />
+            </BrowserRouter>
+          </NormativaProvider>
+        </LanguageProvider>
       </FirebaseProvider>
     </ErrorBoundary>
   );

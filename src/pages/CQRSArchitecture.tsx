@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Database, ShieldAlert, Activity, ArrowRightLeft, Server, Zap, HardDrive, Layers } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function CQRSArchitecture() {
   const [isSimulating, setIsSimulating] = useState(false);
@@ -21,7 +22,17 @@ export function CQRSArchitecture() {
     return () => clearInterval(interval);
   }, [isSimulating]);
 
+  // Gate: CQRS + multi-tenant Event Store / Redis read-models is the
+  // architectural foundation we sell on the Corporativo tier (multi-tenant
+  // nativo + multi-tenant CSM). The page header itself says "Nivel:
+  // Enterprise", but the route was wide-open. `canUseMultiTenant` reflects
+  // the actual product boundary (corporativo+).
   return (
+    <PremiumFeatureGuard
+      feature="canUseMultiTenant"
+      featureName="Arquitectura CQRS Multi-Tenant"
+      description="La arquitectura CQRS con Event Store y read-models segregados está disponible desde el plan Corporativo (multi-tenant nativo)."
+    >
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
@@ -167,5 +178,6 @@ export function CQRSArchitecture() {
         </Card>
       </div>
     </div>
+    </PremiumFeatureGuard>
   );
 }

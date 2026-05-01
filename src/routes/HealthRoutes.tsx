@@ -7,6 +7,7 @@ const Ergonomics = lazy(() => import('../pages/Ergonomics').then(module => ({ de
 const Psychosocial = lazy(() => import('../pages/Psychosocial').then(module => ({ default: module.Psychosocial })));
 const BioAnalysis = lazy(() => import('../pages/BioAnalysis').then(module => ({ default: module.BioAnalysis })));
 const HumanBodyViewer = lazy(() => import('../pages/HumanBodyViewer').then(module => ({ default: module.HumanBodyViewer })));
+const SunTracker = lazy(() => import('../pages/SunTracker').then(module => ({ default: module.SunTracker })));
 
 export const HealthRoutes = [
   <Route key="hygiene" path="hygiene" element={<Hygiene />} />,
@@ -15,4 +16,5 @@ export const HealthRoutes = [
   <Route key="psychosocial" path="psychosocial" element={<Psychosocial />} />,
   <Route key="bio-analysis" path="bio-analysis" element={<BioAnalysis />} />,
   <Route key="human-body" path="human-body" element={<HumanBodyViewer />} />,
+  <Route key="sun-tracker" path="sun-tracker" element={<SunTracker />} />,
 ];

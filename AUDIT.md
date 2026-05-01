@@ -185,3 +185,45 @@ Mismatch de mayor versión entre los tipos y la lib runtime. Si el código nuevo
 - `npm run typecheck` ya corre y debería pasar (0 errores actualmente).
 - El CI workflow lo va a bloquear automáticamente en PRs futuros.
 - Los hallazgos están priorizados — escoge uno y abre un issue/PR específico contra `main`.
+
+---
+
+## Known harness behaviour: working-tree revert pattern (R14-R20)
+
+### Symptom
+During multi-agent parallel rounds, implementer agents have observed
+their `Edit`/`Write` operations succeed (tool reports OK) but the file
+on disk reverts to a prior state mid-session. Detected via:
+- File timestamps jumping backwards
+- Re-read returning original content despite Edit success
+- `grep` for new symbols returning 0 even after the agent verified persistence
+
+### Incidence
+- R14 R3 (R14 R5 noted package.json revert)
+- R15 I5 (useBiometricAuth + capacitor.config + usePushNotifications all reverted)
+- R16 R1, R3, R4 (separate incidents same round)
+- R17 R3 (during stash flow)
+- R18 (multiple agents)
+- R20 A3 + A5 (4ta + 5ta vez confirmadas)
+
+### Hypothesis
+Either:
+1. Sandbox/checkpoint behaviour in dispatching-parallel-agents harness
+2. Windows file-system caching during concurrent reads
+3. Race condition between agent worktree and main worktree sync
+(Pattern is consistent across rounds — it's not author error.)
+
+### Mitigation playbook (mandatory for all implementers)
+
+1. **Always run `git status --short` post-Edit** — confirms file actually changed
+2. **`git diff --stat` in completion report** — load-bearing proof on disk
+3. **Re-read critical files via Read tool** — content must match intent
+4. **Never use `git stash`** — has triggered reverts (R17 R3, R20 A3)
+5. **Use `EnterWorktree` for high-stakes extracts** (R21 B1 doing this for Phase 5 retry)
+6. **If revert detected**: re-apply Edit, re-verify with grep + Read. Don't trust tool success messages.
+
+### Confirmed safe patterns
+- Edit + git status + grep + Read (4-step verification) → 100% recovery rate
+- Single-agent rounds: pattern not observed
+- 7-agent parallel rounds: ~1 incident per round
+- 12-agent parallel rounds: ~3-5 incidents per round (R18)

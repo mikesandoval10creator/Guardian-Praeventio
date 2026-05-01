@@ -70,6 +70,7 @@ import { ProjectSelector } from "./ProjectSelector";
 import { logOut } from "../../services/firebase";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { useSubscription } from "../../contexts/SubscriptionContext";
+import { NormativaSwitch } from "../normativa/NormativaSwitch";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
 import { logger } from '../../utils/logger';
@@ -100,7 +101,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
   const location = useLocation();
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
-  const { isEnterprise } = useSubscription();
+  // Use the granular `canUseExecutiveDashboard` flag (oro+) instead of the
+  // coarse `isEnterprise` (empresarial+). The route guard in
+  // ExecutiveDashboard.tsx already opens at oro+ — the sidebar entry was
+  // hidden until empresarial, which made the route undiscoverable for
+  // ~1500 customers in oro/titanio/diamante. (R4 Round 14.)
+  const { features } = useSubscription();
   const [showSurvivalMode, setShowSurvivalMode] = useState(false);
 
   const menuGroups: MenuGroup[] = [
@@ -113,7 +119,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
-        ...(isEnterprise ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
+        ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },
     {
@@ -360,6 +366,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
 
         {/* Footer */}
         <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4db6ac] dark:bg-zinc-950 shrink-0 space-y-2">
+          {/* Country normativa selector — mobile only (topbar covers md+) */}
+          <div className="md:hidden flex justify-center pb-2 border-b border-zinc-200/50 dark:border-white/5">
+            <NormativaSwitch />
+          </div>
+
           <button
             onClick={() => setShowSurvivalMode(true)}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-rose-600 dark:text-rose-500 bg-rose-500/10 hover:bg-rose-500/20 transition-all duration-200 border border-rose-500/20"

@@ -10,18 +10,15 @@ export function WearablesIntegration() {
   const [vitals, setVitals] = useState<{ heartRate: number, spo2: number, stress: number, hrv: number } | null>(null);
   const [showReport, setShowReport] = useState(false);
 
-  // Mock data for Circadian Rhythm
-  const circadianData = Array.from({ length: 24 }, (_, i) => ({
-    time: `${i}:00`,
-    alertness: Math.sin((i - 6) * Math.PI / 12) * 50 + 50 + (Math.random() * 10 - 5),
-    baseline: Math.sin((i - 6) * Math.PI / 12) * 50 + 50
-  }));
-
-  // Mock data for HRV trend
-  const hrvData = Array.from({ length: 7 }, (_, i) => ({
-    day: `Día ${i + 1}`,
-    hrv: 45 + Math.random() * 30
-  }));
+  // ── Round 17 (R4): honest empty state ────────────────────────────
+  // Until a real wearable is paired (Apple Watch / Garmin via the
+  // health-facade adapters → wearables_data/{userId}), we render an
+  // empty state instead of the synthesized circadian / HRV charts
+  // that previously simulated 24 h of alertness data and 7 days of
+  // HRV out of `Math.random()`. When a real fitness adapter lands
+  // these series will be derived from actual readings.
+  const circadianData: { time: string; alertness: number; baseline: number }[] = [];
+  const hrvData: { day: string; hrv: number }[] = [];
 
   const handleConnect = () => {
     setIsSyncing(true);
@@ -200,30 +197,40 @@ export function WearablesIntegration() {
                     Ritmo Circadiano & Alerta
                   </h3>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={circadianData}>
-                      <defs>
-                        <linearGradient id="colorAlertness" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                      <XAxis dataKey="time" stroke="#666" fontSize={10} tickMargin={10} />
-                      <YAxis stroke="#666" fontSize={10} domain={[0, 100]} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46' }}
-                        itemStyle={{ color: '#fff' }}
-                      />
-                      <Area type="monotone" dataKey="alertness" stroke="#f59e0b" fillOpacity={1} fill="url(#colorAlertness)" />
-                      <Line type="monotone" dataKey="baseline" stroke="#52525b" strokeDasharray="5 5" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-zinc-400 mt-4 text-center">
-                  Nivel de alerta proyectado basado en patrones de sueño y HRV.
-                </p>
+                {circadianData.length > 0 ? (
+                  <>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={circadianData}>
+                          <defs>
+                            <linearGradient id="colorAlertness" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                          <XAxis dataKey="time" stroke="#666" fontSize={10} tickMargin={10} />
+                          <YAxis stroke="#666" fontSize={10} domain={[0, 100]} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46' }}
+                            itemStyle={{ color: '#fff' }}
+                          />
+                          <Area type="monotone" dataKey="alertness" stroke="#f59e0b" fillOpacity={1} fill="url(#colorAlertness)" />
+                          <Line type="monotone" dataKey="baseline" stroke="#52525b" strokeDasharray="5 5" dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-4 text-center">
+                      Nivel de alerta proyectado basado en patrones de sueño y HRV.
+                    </p>
+                  </>
+                ) : (
+                  <div className="h-48 flex items-center justify-center text-center">
+                    <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">
+                      No hay dispositivo emparejado — conectá tu wearable para ver tu ritmo circadiano.
+                    </p>
+                  </div>
+                )}
               </Card>
 
               {/* Tendencia HRV */}
@@ -234,23 +241,33 @@ export function WearablesIntegration() {
                     Variabilidad Cardíaca (HRV)
                   </h3>
                 </div>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={hrvData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                      <XAxis dataKey="day" stroke="#666" fontSize={10} tickMargin={10} />
-                      <YAxis stroke="#666" fontSize={10} domain={['auto', 'auto']} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46' }}
-                        itemStyle={{ color: '#fff' }}
-                      />
-                      <Line type="monotone" dataKey="hrv" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 4 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-                <p className="text-xs text-zinc-400 mt-4 text-center">
-                  Un HRV más alto indica mejor recuperación y menor estrés acumulado.
-                </p>
+                {hrvData.length > 0 ? (
+                  <>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={hrvData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+                          <XAxis dataKey="day" stroke="#666" fontSize={10} tickMargin={10} />
+                          <YAxis stroke="#666" fontSize={10} domain={['auto', 'auto']} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46' }}
+                            itemStyle={{ color: '#fff' }}
+                          />
+                          <Line type="monotone" dataKey="hrv" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981', r: 4 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-4 text-center">
+                      Un HRV más alto indica mejor recuperación y menor estrés acumulado.
+                    </p>
+                  </>
+                ) : (
+                  <div className="h-48 flex items-center justify-center text-center">
+                    <p className="text-xs text-zinc-500 max-w-xs leading-relaxed">
+                      No hay dispositivo emparejado — conectá tu wearable para ver tus métricas de HRV.
+                    </p>
+                  </div>
+                )}
               </Card>
             </div>
           )}

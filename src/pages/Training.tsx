@@ -197,8 +197,8 @@ export function Training() {
 
       awardPoints('training_completed');
 
-      if (!isPremium && canShowAd() && !isEmergencyActive) {
-        recordAdShown();
+      if (!isPremium && !isEmergencyActive && (await canShowAd())) {
+        await recordAdShown();
         setTimeout(() => setAdTrainingTitle(session.title), 400);
       }
     } catch (error) {

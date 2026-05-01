@@ -28,6 +28,10 @@ export function Ergonomics() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
+  // Round 17 (R4): worker selector lives INSIDE the modal as Step 0
+  // (search + 5 most recent + full list). The R16 BLOCKER page-level
+  // <select> + disabled "Nueva Evaluación" button has been reverted —
+  // we just pass the workers list down as a prop.
   const { data: workers } = useFirestoreCollection<Worker>(
     selectedProject ? `projects/${selectedProject.id}/workers` : 'workers'
   );
@@ -61,14 +65,14 @@ export function Ergonomics() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
-          <button 
+          <button
             onClick={() => setIsAIModalOpen(true)}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
           >
             <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Bio-Análisis IA</span>
           </button>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-orange-500/20 active:scale-95"
           >
@@ -211,10 +215,11 @@ export function Ergonomics() {
         </div>
       </div>
 
-      <AddErgonomicsModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <AddErgonomicsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         projectId={selectedProject?.id}
+        workers={workers}
       />
       {isAIModalOpen && (
         <Suspense fallback={null}>

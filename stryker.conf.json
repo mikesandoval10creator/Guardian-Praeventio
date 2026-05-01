@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "packageManager": "npm",
+  "reporters": ["progress", "clear-text", "html"],
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.config.ts" },
+  "mutate": [
+    "src/services/safety/ergonomicAssessments.ts",
+    "src/services/safety/iperAssessments.ts",
+    "src/services/protocols/tmert.ts",
+    "src/services/protocols/iper.ts",
+    "src/services/protocols/prexor.ts",
+    "src/services/ergonomics/reba.ts",
+    "src/services/ergonomics/rula.ts"
+  ],
+  "mutator": {
+    "excludedMutations": ["ArrayDeclaration"]
+  },
+  "coverageAnalysis": "perTest",
+  "_thresholds_comment": "R20 ratchet (2026-04-29, A4) — global score 76.95 → 84.95 (+8.00 pp). Añadidos 275 tests parametricos en rula.test.ts (TABLE_A 144 + TABLE_B 72 + TABLE_C 56 + 3 structural) que asertan cada celda canónica de las 3 tablas RULA (McAtamney 1993) por la vía inputs→postureA/B/finalScore. `mutator.excludedMutations: ['ArrayDeclaration']` aplicado globalmente: ArrayDeclaration mutations sobre tablas canónicas (TABLE_A/B/C en rula.ts y reba.ts) no son señal de bug accionable; los valores son canónicos del paper original (McAtamney 1993; Hignett 2000) y los tests parametricos por celda cubren todas las identidades numéricas. Stryker schema 9.6.1 no soporta excluded-by-file — el override es global; reba.ts también se beneficia. Resultado rula.ts 65.78 → 94.22 (+28.44 pp), reba.ts 75.07 → 75.81 (+0.74), global 76.95 → 84.95. Threshold 'break' subido 60 → 65: rula 94.22 lejos del piso, reba 75.81 (lowest) deja 10.81 pp de buffer. Próximo R21: completar coverage en reba.ts trunk-extension boundary (esperado +5pp). Ver STRYKER_BASELINE.md sección 'R20 Ratchet'.",
+  "thresholds": { "high": 80, "low": 60, "break": 65 },
+  "timeoutMS": 60000
+}
