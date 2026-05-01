@@ -63,6 +63,33 @@ function AppRoutes() {
   // Initialize auto-logout for enterprise security
   useAutoLogout();
 
+  // DEMO MODE — bypass auth for screenshot/preview purposes
+  const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
+  if (isDemo) {
+    return (
+      <AppProviders>
+        <Suspense fallback={<ConsciousnessLoader />}>
+          <Routes>
+            <Route path="/" element={<RootLayout />}>
+              <Route index element={<Dashboard />} />
+              {EmergencyRoutes}
+              {TrainingRoutes}
+              {OperationsRoutes}
+              {RiskRoutes}
+              {HealthRoutes}
+              {ComplianceRoutes}
+              {AIRoutes}
+              <Route path="safe-driving" element={<SafeDrivingMode />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="*" element={<Dashboard />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </AppProviders>
+    );
+  }
+
   if (loading) {
     return <ConsciousnessLoader />;
   }
