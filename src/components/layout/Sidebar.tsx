@@ -62,7 +62,8 @@ import {
   Moon,
   Droplet,
   WifiOff,
-  LayoutDashboard
+  LayoutDashboard,
+  Stethoscope,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
@@ -140,6 +141,16 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.culture", "Talento y Cultura"), icon: Users, path: "/hub/training", color: "text-indigo-500" },
         { title: t("nav.afiches", "Afiches de Seguridad"), icon: Printer, path: "/afiches-seguridad", color: "text-blue-400" },
         { title: t("nav.digital_twin", "Gemelo Digital 3D"), icon: Layers, path: "/hub/operations/digital-twin", color: "text-cyan-400" },
+      ],
+    },
+    {
+      title: t("nav.occupational_health_group", "Salud Ocupacional"),
+      icon: Stethoscope,
+      items: [
+        { title: t("nav.human_body_viewer", "Visor Corporal DIAT"), icon: Activity, path: "/human-body", color: "text-rose-500" },
+        { title: t("nav.medicine", "Medicina"), icon: HeartPulse, path: "/medicine", color: "text-rose-400" },
+        { title: t("nav.hygiene", "Higiene Industrial"), icon: Droplets, path: "/hygiene", color: "text-blue-400" },
+        { title: t("nav.ergonomics", "Ergonomía"), icon: UserCheck, path: "/ergonomics", color: "text-amber-400" },
       ],
     },
     {

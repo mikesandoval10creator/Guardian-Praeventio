@@ -2247,12 +2247,29 @@ async function runLocalReconstruction(opts: {
       let resultUrl: string | null = null;
       if (plyFiles.length > 0) {
         const plyPath = path.join(outputDir, plyFiles[0]);
+        const glbPath = plyPath.replace(/\.ply$/, ".glb");
+        const glbScript = path.resolve(process.cwd(), "scripts/ply_to_glb.py");
+
+        // Optionally convert to GLB via Blender Python for lighter Three.js loading
+        let uploadPath = plyPath;
+        let uploadExt = "ply";
+        if (fs.existsSync(glbScript)) {
+          try {
+            await new Promise<void>((res, rej) => {
+              const conv = spawn("python3", [glbScript, "--input", plyPath, "--output", glbPath, "--decimate", "0.15"]);
+              conv.on("close", c => c === 0 ? res() : rej(new Error(`ply_to_glb exit ${c}`)));
+              conv.on("error", rej);
+            });
+            if (fs.existsSync(glbPath)) { uploadPath = glbPath; uploadExt = "glb"; }
+          } catch (e) { console.warn("[DigitalTwin] GLB conversion failed, uploading PLY:", e); }
+        }
+
         const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
         if (bucketName) {
           try {
             const bucket = admin.storage().bucket(bucketName);
-            const dest = `digital_twin_jobs/${jobRef.id}/result.ply`;
-            await bucket.upload(plyPath, { destination: dest, metadata: { contentType: "application/octet-stream" } });
+            const dest = `digital_twin_jobs/${jobRef.id}/result.${uploadExt}`;
+            await bucket.upload(uploadPath, { destination: dest, metadata: { contentType: uploadExt === "glb" ? "model/gltf-binary" : "application/octet-stream" } });
             const [url] = await bucket.file(dest).getSignedUrl({ action: "read", expires: "2035-01-01" });
             resultUrl = url;
           } catch (e) { console.error("[DigitalTwin] Storage upload:", e); }
