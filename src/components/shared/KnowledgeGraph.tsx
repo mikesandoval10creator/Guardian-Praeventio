@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   FileText,
   User,
-  Zap
+  Zap,
+  Download
 } from 'lucide-react';
 import { getNodeColor, getNodeIcon } from '../../utils/nodeTypeUtils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -317,6 +318,47 @@ export function KnowledgeGraph() {
     return text.includes('cierre') || text.includes('clausura') || text.includes('fatal') || text.includes('muerte') || text.includes('grave') || text.includes('clausura de faena');
   };
 
+  // JSON Canvas export (Obsidian-compatible format per jsoncanvas.org/spec/1.0/)
+  const handleExportCanvas = useCallback(() => {
+    const { nodes, links } = graphData;
+    const CANVAS_COLOR: Partial<Record<NodeType, number>> = {
+      [NodeType.RISK]: 1, [NodeType.INCIDENT]: 1,
+      [NodeType.FINDING]: 2, [NodeType.AUDIT]: 2,
+      [NodeType.EPP]: 3,
+      [NodeType.CONTROL]: 4, [NodeType.BEST_PRACTICE]: 4, [NodeType.LESSON_LEARNED]: 4, [NodeType.TRAINING]: 4,
+      [NodeType.NORMATIVE]: 5, [NodeType.INSPECTION]: 5,
+      [NodeType.WORKER]: 6,
+    };
+    const COLS = Math.ceil(Math.sqrt(nodes.length || 1));
+    const W = 280, H = 80, GAP_X = 340, GAP_Y = 120;
+    const canvasNodes = nodes.map((n, i) => ({
+      id: n.id,
+      type: 'text' as const,
+      x: (i % COLS) * GAP_X,
+      y: Math.floor(i / COLS) * GAP_Y,
+      width: W,
+      height: H,
+      text: `**${n.title}**${n.description ? `\n${n.description}` : ''}`,
+      ...(CANVAS_COLOR[n.type] ? { color: String(CANVAS_COLOR[n.type]) } : {}),
+    }));
+    const nodeIds = new Set(nodes.map(n => n.id));
+    let edgeIdx = 0;
+    const canvasEdges = links
+      .map(l => ({
+        fromNode: typeof l.source === 'object' ? (l.source as RiskNode).id : String(l.source),
+        toNode: typeof l.target === 'object' ? (l.target as RiskNode).id : String(l.target),
+      }))
+      .filter(e => nodeIds.has(e.fromNode) && nodeIds.has(e.toNode))
+      .map(e => ({ id: `edge-${edgeIdx++}`, ...e }));
+    const blob = new Blob([JSON.stringify({ nodes: canvasNodes, edges: canvasEdges }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `red-conocimiento-${Date.now()}.canvas`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [graphData]);
+
   return (
     <div className={`relative rounded-3xl border overflow-hidden transition-all duration-500 ${isFullscreen ? 'fixed inset-0 z-50' : 'h-[600px]'} ${isZenMode ? 'bg-black border-transparent' : 'bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-white/5'}`}>
       {/* Header / Controls */}
@@ -361,6 +403,13 @@ export function KnowledgeGraph() {
             title={is3D ? "Cambiar a vista 2D" : "Cambiar a vista 3D"}
           >
             <Box className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+          <button
+            onClick={handleExportCanvas}
+            className="p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-emerald-500 hover:border-emerald-500/30 transition-all shrink-0"
+            title="Exportar como Obsidian Canvas (.canvas)"
+          >
+            <Download className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
