@@ -103,11 +103,13 @@ export default function Login() {
             </Link>
 
             <div className="flex flex-col items-center mb-8 sm:mb-10">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-zinc-900 dark:bg-zinc-100 rounded-2xl flex items-center justify-center mb-4 sm:mb-6 shadow-lg rotate-3">
-                <ShieldCheck className="w-7 h-7 sm:w-8 sm:h-8 text-white dark:text-zinc-900" />
-              </div>
+              <img
+                src="/mascot.png"
+                alt="Guardian Praeventio"
+                className="w-24 h-24 sm:w-28 sm:h-28 object-contain drop-shadow-xl mb-2"
+              />
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-center">
-                Praeventio Guard
+                Guardian Praeventio
               </h1>
               <span className="text-[8px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest text-center">
                 Identidad y Conciencia

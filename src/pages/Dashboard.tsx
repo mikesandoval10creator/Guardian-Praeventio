@@ -498,6 +498,36 @@ export function Dashboard() {
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
       )}
+
+      {/* Mascot greeting banner */}
+      {(() => {
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+        const tip = hour < 12
+          ? 'Recuerda verificar tu EPP antes de iniciar actividades.'
+          : hour < 19
+          ? 'Mantente hidratado y toma descansos regulares.'
+          : 'Revisa el reporte del día antes de cerrar el turno.';
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-3 bg-emerald-900/20 border border-emerald-500/15 rounded-xl sm:rounded-2xl"
+          >
+            <img src="/mascot.png" alt="Guardian Praeventio" className="w-10 h-10 sm:w-12 sm:h-12 object-contain shrink-0 drop-shadow" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs sm:text-sm font-black text-emerald-400 leading-none">
+                {greeting}{selectedProject ? ` — ${selectedProject.name}` : ''}
+              </p>
+              <p className="text-[10px] sm:text-xs text-zinc-400 mt-0.5 truncate">{tip}</p>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 shrink-0">
+              <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest">Guardian Praeventio</span>
+            </div>
+          </motion.div>
+        );
+      })()}
+
       <PredictiveAlertWidget />
       
       {/* 1. Boletín Climático - Denser */}

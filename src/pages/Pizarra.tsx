@@ -221,7 +221,7 @@ export function Pizarra() {
         <div className="flex-1 overflow-hidden">
           {totalNodes === 0 ? (
             <EmptyState
-              icon={Network}
+              mascot
               title="Red de conocimiento vacía"
               description="Crea tu primer nodo para comenzar a mapear riesgos, lecciones y buenas prácticas."
               action={{ label: 'Nuevo nodo', onClick: () => setShowForm(true) }}
