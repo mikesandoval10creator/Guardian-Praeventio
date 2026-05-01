@@ -61,7 +61,8 @@ import {
   Sun,
   Moon,
   Droplet,
-  WifiOff
+  WifiOff,
+  LayoutDashboard
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
@@ -121,6 +122,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.ai_hub", "AI Hub"), icon: Zap, path: "/ai-hub", color: "text-violet-500" },
         { title: "Coach de Seguridad", icon: Brain, path: "/safety-coach", color: "text-emerald-500" },
         { title: t("nav.zettelkasten", "Zettelkasten"), icon: Database, path: "/zettelkasten", color: "text-blue-500" },
+        { title: "Pizarra", icon: LayoutDashboard, path: "/pizarra", color: "text-indigo-400" },
         { title: t("nav.academic_processor", "Procesador Académico"), icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
         { title: t("nav.ocr_motor", "Motor OCR"), icon: Scan, path: "/document-ocr", color: "text-violet-400" },
         { title: "Rastreador Solar", icon: Sun, path: "/sun-tracker", color: "text-amber-500" },
