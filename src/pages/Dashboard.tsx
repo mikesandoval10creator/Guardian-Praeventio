@@ -66,6 +66,7 @@ import { RealTimeStatusWidget } from '../components/dashboard/RealTimeStatusWidg
 import { PredictiveAlertWidget } from '../components/dashboard/PredictiveAlertWidget';
 import { MorningCheckIn } from '../components/gamification/MorningCheckIn';
 import { SunTrackerContainer } from '../components/SunTrackerContainer';
+import { WeatherBulletin } from '../components/WeatherBulletin';
 import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
 import { Skeleton } from '../components/shared/Skeleton';
 import { useGamification } from '../hooks/useGamification';
@@ -719,9 +720,10 @@ export function Dashboard() {
         </section>
       </div>
 
-      {/* Solar + Health Check row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4 mx-1 sm:mx-0 mt-1 sm:mt-0">
+      {/* Solar + Weather + Health Check row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1 sm:gap-4 mx-1 sm:mx-0 mt-1 sm:mt-0">
         <SunTrackerContainer lat={selectedProject?.coordinates?.lat} />
+        <WeatherBulletin altitudeM={(selectedProject?.settings as any)?.altitudeM} compact />
         <ProjectHealthCheck />
       </div>
 

@@ -1,247 +1,461 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Cloud, Droplets, Wind, Thermometer, Sun, Moon, MapPin, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Cloud, Droplets, Wind, Thermometer, Sun, MapPin,
+  AlertTriangle, Activity, RefreshCw, Mountain,
+} from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
-import { useProject } from '../contexts/ProjectContext';
-import { fetchWeatherData } from '../services/orchestratorService';
-import { WeatherData } from '../types';
+import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
+import { logger } from '../utils/logger';
 
-interface WeatherBulletinProps {
-  className?: string;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface OpenMeteoCurrentUnits {
+  temperature_2m: string;
+  relative_humidity_2m: string;
+  precipitation: string;
+  wind_speed_10m: string;
+  uv_index: string;
+}
+
+interface OpenMeteoCurrentWeather {
+  temperature_2m: number;
+  relative_humidity_2m: number;
+  precipitation: number;
+  wind_speed_10m: number;
+  uv_index: number;
+}
+
+interface OpenMeteoResponse {
+  current_units: OpenMeteoCurrentUnits;
+  current: OpenMeteoCurrentWeather;
+}
+
+interface WeatherState {
+  tempC: number;
+  humidity: number;
+  precipMm: number;
+  windKph: number;
+  uvIndex: number;
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const OPEN_METEO_URL =
+  'https://api.open-meteo.com/v1/forecast' +
+  '?latitude=-33.45&longitude=-70.67' +
+  '&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,uv_index' +
+  '&timezone=America%2FSantiago';
+
+const REFRESH_MS = 600_000; // 10 minutes
+
+// ---------------------------------------------------------------------------
+// UV helpers
+// ---------------------------------------------------------------------------
+
+interface UvMeta {
+  label: string;
+  /** Tailwind text colour classes (light + dark) */
+  textClass: string;
+  /** Tailwind bg badge classes */
+  badgeClass: string;
+}
+
+function getUvMeta(uv: number): UvMeta {
+  if (uv > 10) return { label: 'Extremo', textClass: 'text-violet-600 dark:text-violet-400', badgeClass: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300' };
+  if (uv >= 8)  return { label: 'Muy alto', textClass: 'text-red-600 dark:text-red-400',    badgeClass: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300' };
+  if (uv >= 6)  return { label: 'Alto',     textClass: 'text-orange-500 dark:text-orange-400', badgeClass: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300' };
+  if (uv >= 3)  return { label: 'Moderado', textClass: 'text-yellow-600 dark:text-yellow-400', badgeClass: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' };
+  return         { label: 'Bajo',      textClass: 'text-green-600 dark:text-green-400',  badgeClass: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' };
+}
+
+// ---------------------------------------------------------------------------
+// Altitude O2 classification
+// ---------------------------------------------------------------------------
+
+interface AltitudeTier {
+  label: string;
+  o2Label: string;
+  /** True when acclimation is mandatory */
+  mandatory: boolean;
+  badgeClass: string;
+}
+
+function getAltitudeTier(altM: number): AltitudeTier {
+  if (altM > 2400) return {
+    label: '> 2.400 m',
+    o2Label: '-25 % O₂ — Aclimatación obligatoria',
+    mandatory: true,
+    badgeClass: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+  };
+  if (altM > 1500) return {
+    label: '1.500–2.400 m',
+    o2Label: '-15 % O₂',
+    mandatory: false,
+    badgeClass: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300',
+  };
+  if (altM > 500) return {
+    label: '500–1.500 m',
+    o2Label: '-5 % O₂',
+    mandatory: false,
+    badgeClass: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300',
+  };
+  return {
+    label: '0–500 m',
+    o2Label: 'Normal',
+    mandatory: false,
+    badgeClass: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton shimmer
+// ---------------------------------------------------------------------------
+
+function SkeletonRow({ wide = false }: { wide?: boolean }) {
+  return (
+    <div
+      className={`h-4 rounded-md bg-zinc-200 dark:bg-zinc-700 animate-pulse ${wide ? 'w-3/4' : 'w-1/2'}`}
+      aria-hidden="true"
+    />
+  );
+}
+
+function BulletinSkeleton() {
+  return (
+    <div className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-5 h-5 rounded-full bg-zinc-200 dark:bg-zinc-700 animate-pulse" aria-hidden="true" />
+        <SkeletonRow wide />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Metric row
+// ---------------------------------------------------------------------------
+
+interface MetricRowProps {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  accent?: boolean;
+}
+
+function MetricRow({ icon, label, value, accent = false }: MetricRowProps) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <span className={`shrink-0 ${accent ? 'text-[#4db6ac] dark:text-[#d4af37]' : 'text-zinc-500 dark:text-zinc-400'}`}>
+        {icon}
+      </span>
+      <span className="text-zinc-600 dark:text-zinc-400 truncate">{label}</span>
+      <span className="ml-auto font-semibold text-zinc-800 dark:text-zinc-100 tabular-nums whitespace-nowrap">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+export interface WeatherBulletinProps {
+  altitudeM?: number;
   compact?: boolean;
+  className?: string;
 }
 
-// Particles for cross-inversion states
-function StarParticles() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-1 h-1 bg-white rounded-full"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-          }}
-          animate={{ opacity: [0.2, 1, 0.2], scale: [0.8, 1.2, 0.8] }}
-          transition={{
-            duration: 2 + Math.random() * 2,
-            repeat: Infinity,
-            delay: Math.random() * 2,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
-function AmberParticles() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="absolute w-2 h-2 bg-amber-400/60 rounded-full blur-sm"
-          style={{
-            left: `${10 + Math.random() * 80}%`,
-            top: `${10 + Math.random() * 80}%`,
-          }}
-          animate={{ opacity: [0.3, 0.8, 0.3], y: [0, -8, 0] }}
-          transition={{
-            duration: 3 + Math.random() * 2,
-            repeat: Infinity,
-            delay: Math.random() * 3,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
+export function WeatherBulletin({
+  altitudeM = 0,
+  compact = false,
+  className = '',
+}: WeatherBulletinProps) {
+  const { isDayTime } = useTheme();
+  const { earthquakes, criticalAlert } = useSeismicMonitor();
 
-function getConditionIcon(condition: string, isDayTime: boolean) {
-  const lower = condition.toLowerCase();
-  if (lower.includes('lluvia') || lower.includes('rain') || lower.includes('llovizna')) return '🌧️';
-  if (lower.includes('nube') || lower.includes('cloud') || lower.includes('nublado')) return isDayTime ? '⛅' : '☁️';
-  if (lower.includes('niebla') || lower.includes('fog') || lower.includes('neblina')) return '🌫️';
-  if (lower.includes('nieve') || lower.includes('snow')) return '❄️';
-  if (lower.includes('tormenta') || lower.includes('thunder')) return '⛈️';
-  if (lower.includes('despejado') || lower.includes('clear')) return isDayTime ? '☀️' : '🌙';
-  return isDayTime ? '🌤️' : '🌙';
-}
-
-export function WeatherBulletin({ className = '', compact = false }: WeatherBulletinProps) {
-  const { isDarkMode, isDayTime } = useTheme();
-  const { selectedProject } = useProject();
-  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [weather, setWeather] = useState<WeatherState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Cross-inversion logic from proto 1
-  const isLightTheme = !isDarkMode;
-  const shouldUseDarkStyle = isLightTheme && !isDayTime;   // light theme at night → dark stars
-  const shouldUseLightStyle = isDarkMode && isDayTime;      // dark theme at day → amber glow
+  const fetchWeather = useCallback(async () => {
+    try {
+      const res = await fetch(OPEN_METEO_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: OpenMeteoResponse = await res.json() as OpenMeteoResponse;
+      const c = json.current;
+      setWeather({
+        tempC: c.temperature_2m,
+        humidity: c.relative_humidity_2m,
+        precipMm: c.precipitation,
+        windKph: c.wind_speed_10m,
+        uvIndex: c.uv_index,
+      });
+      setFetchError(false);
+      setLastUpdated(new Date());
+    } catch (err) {
+      logger.error('WeatherBulletin: Open-Meteo fetch failed', err);
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const lat = selectedProject?.coordinates?.lat ?? -33.4489;
-    const lon = selectedProject?.coordinates?.lng ?? -70.6693;
-    setLoading(true);
-    fetchWeatherData(lat, lon)
-      .then(setWeather)
-      .finally(() => setLoading(false));
-
-    // Refresh every 10 minutes
-    const interval = setInterval(() => {
-      fetchWeatherData(lat, lon).then(setWeather);
-    }, 10 * 60 * 1000);
+    fetchWeather();
+    const interval = setInterval(fetchWeather, REFRESH_MS);
     return () => clearInterval(interval);
-  }, [selectedProject?.id]);
+  }, [fetchWeather]);
 
-  const containerClass = shouldUseDarkStyle
-    ? 'bg-zinc-900/95 text-white border-zinc-700'
-    : shouldUseLightStyle
-    ? 'bg-amber-50/95 text-amber-900 border-amber-200'
-    : 'bg-white/80 dark:bg-zinc-800/80 text-zinc-800 dark:text-white border-zinc-200 dark:border-zinc-700';
+  // Seismic derived state
+  const latestQuake = earthquakes[0] ?? null;
+  const seismicOk = !criticalAlert;
 
-  if (loading) {
-    return (
-      <div className={`relative rounded-2xl border p-4 backdrop-blur-sm ${containerClass} ${className}`}>
-        <div className="flex items-center gap-2 animate-pulse">
-          <Cloud className="w-5 h-5 opacity-50" />
-          <span className="text-sm opacity-50">Cargando boletín climático…</span>
-        </div>
-      </div>
-    );
-  }
+  // Altitude
+  const altTier = getAltitudeTier(altitudeM);
 
-  if (!weather) return null;
+  // UV
+  const uvMeta = weather ? getUvMeta(weather.uvIndex) : null;
 
-  const sunriseTime = weather.sunrise ? new Date(weather.sunrise).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : null;
-  const sunsetTime = weather.sunset ? new Date(weather.sunset).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : null;
+  // ---------------------------------------------------------------------------
+  // Loading
+  // ---------------------------------------------------------------------------
+  if (loading) return <BulletinSkeleton />;
 
-  if (compact) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: -4 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`relative rounded-2xl border p-3 backdrop-blur-sm transition-all duration-700 ${containerClass} ${className}`}
-      >
-        {shouldUseDarkStyle && <StarParticles />}
-        {shouldUseLightStyle && <AmberParticles />}
-        <div className="relative z-10 flex items-center gap-3">
-          <span className="text-2xl">{getConditionIcon(weather.condition, isDayTime)}</span>
-          <div>
-            <p className="text-lg font-bold">{weather.temp}°C</p>
-            <p className="text-xs opacity-70 capitalize">{weather.condition}</p>
-          </div>
-          <div className="ml-auto text-right">
-            <div className="flex items-center gap-1 text-xs opacity-70">
-              <Droplets className="w-3 h-3" />
-              <span>{weather.humidity}%</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs opacity-70">
-              <Wind className="w-3 h-3" />
-              <span>{Math.round(weather.windSpeed)} km/h</span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Error fallback (still show seismic + altitude even without weather)
+  // ---------------------------------------------------------------------------
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -8 }}
+    <motion.section
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`relative rounded-2xl border p-5 backdrop-blur-sm transition-all duration-700 ${containerClass} ${className}`}
+      transition={{ duration: 0.7 }}
+      aria-label="Boletín Climático y Sísmico"
+      className={`relative overflow-hidden rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm ${className}`}
     >
-      {shouldUseDarkStyle && <StarParticles />}
-      {shouldUseLightStyle && <AmberParticles />}
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 border-b border-zinc-100/80 dark:border-white/5">
+        <div className="flex items-center gap-2">
+          {isDayTime
+            ? <Sun className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" aria-hidden="true" />
+            : <Cloud className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" aria-hidden="true" />
+          }
+          <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+            Boletín Climático
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <MapPin className="w-3 h-3" aria-hidden="true" />
+            Santiago, Chile
+          </span>
+          <button
+            onClick={fetchWeather}
+            aria-label="Actualizar datos climáticos"
+            className="p-1 rounded-md text-zinc-400 hover:text-[#4db6ac] dark:hover:text-[#d4af37] transition-colors"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
 
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs opacity-60 mb-1">
-              <MapPin className="w-3 h-3" />
-              <span>{weather.location || selectedProject?.name || 'Santiago, Chile'}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-4xl">{getConditionIcon(weather.condition, isDayTime)}</span>
-              <div>
-                <p className="text-3xl font-bold">{weather.temp}°C</p>
-                <p className="text-sm opacity-70 capitalize">{weather.condition}</p>
+      {/* Body */}
+      <div className="px-4 py-3">
+        {fetchError && !weather && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 mb-3 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
+            No se pudo obtener datos meteorológicos. Reintentando en {REFRESH_MS / 60_000} min.
+          </p>
+        )}
+
+        <div className={`grid gap-x-6 gap-y-1 ${compact ? '' : 'grid-cols-2'}`}>
+          {/* ---- Left column: weather metrics ---- */}
+          <div className="space-y-1.5">
+            <p className="text-xs font-medium text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wide mb-2">
+              Condiciones actuales
+            </p>
+
+            {weather ? (
+              <>
+                <MetricRow
+                  icon={<Thermometer className="w-4 h-4" />}
+                  label="Temperatura"
+                  value={`${weather.tempC.toFixed(1)} °C`}
+                  accent
+                />
+                <MetricRow
+                  icon={<Droplets className="w-4 h-4" />}
+                  label="Humedad"
+                  value={`${weather.humidity} %`}
+                />
+                <MetricRow
+                  icon={<Wind className="w-4 h-4" />}
+                  label="Viento"
+                  value={`${weather.windKph.toFixed(1)} km/h`}
+                />
+                {!compact && (
+                  <MetricRow
+                    icon={<Cloud className="w-4 h-4" />}
+                    label="Precipitación"
+                    value={`${weather.precipMm.toFixed(1)} mm`}
+                  />
+                )}
+
+                {/* UV badge */}
+                <div className="flex items-center gap-2 text-sm pt-0.5">
+                  <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
+                    <Sun className="w-4 h-4" aria-hidden="true" />
+                  </span>
+                  <span className="text-zinc-600 dark:text-zinc-400">UV</span>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={uvMeta?.label}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={`ml-auto px-2 py-0.5 rounded-full text-xs font-semibold ${uvMeta?.badgeClass ?? ''}`}
+                      aria-label={`Índice UV ${weather.uvIndex.toFixed(1)} — ${uvMeta?.label}`}
+                    >
+                      {weather.uvIndex.toFixed(1)} — {uvMeta?.label}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
+
+                {/* AQI placeholder */}
+                {!compact && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="shrink-0 text-zinc-500 dark:text-zinc-400">
+                      <Activity className="w-4 h-4" aria-hidden="true" />
+                    </span>
+                    <span className="text-zinc-600 dark:text-zinc-400">Calidad del aire</span>
+                    <span className="ml-auto text-xs text-zinc-400 dark:text-zinc-500 italic">
+                      Sin datos AQI
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">Sin datos meteorológicos</p>
+            )}
+          </div>
+
+          {/* ---- Right column: seismic + altitude ---- */}
+          {!compact && (
+            <div className="space-y-1.5">
+              {/* Seismic */}
+              <p className="text-xs font-medium text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wide mb-2">
+                Actividad sísmica
+              </p>
+
+              <AnimatePresence mode="wait">
+                {seismicOk ? (
+                  <motion.div
+                    key="ok"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="flex items-center gap-2"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" aria-hidden="true" />
+                    <span className="text-sm text-green-600 dark:text-green-400 font-medium">Sin actividad</span>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="alert"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    role="alert"
+                    aria-live="assertive"
+                    className="space-y-1"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${criticalAlert && criticalAlert.magnitude >= 6 ? 'bg-red-500' : 'bg-amber-500'}`}
+                        aria-hidden="true"
+                      />
+                      <span className={`text-sm font-semibold ${criticalAlert && criticalAlert.magnitude >= 6 ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        M {criticalAlert?.magnitude.toFixed(1)} — {criticalAlert?.place}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 pl-4">
+                      {criticalAlert ? new Date(criticalAlert.time).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Latest quake (informational, below critical) */}
+              {latestQuake && seismicOk && (
+                <div className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+                  Último: M {latestQuake.magnitude.toFixed(1)} — {latestQuake.place}
+                </div>
+              )}
+
+              {/* Altitude */}
+              <div className="pt-3 border-t border-zinc-100/80 dark:border-white/5 mt-2">
+                <p className="text-xs font-medium text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wide mb-2">
+                  Altitud y oxígeno
+                </p>
+                <div className="flex items-start gap-2">
+                  <Mountain className="w-4 h-4 shrink-0 text-zinc-500 dark:text-zinc-400 mt-0.5" aria-hidden="true" />
+                  <div className="space-y-1">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${altTier.badgeClass}`}>
+                      {altTier.o2Label}
+                    </span>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{altTier.label}</p>
+                    {altTier.mandatory && (
+                      <p className="text-xs text-red-600 dark:text-red-400 font-medium flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                        Aclimatación obligatoria (DS 594)
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-
-          {/* Day/Night indicator */}
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-            isDayTime
-              ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'
-              : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300'
-          }`}>
-            {isDayTime ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
-            <span>{isDayTime ? 'Día' : 'Noche'}</span>
-          </div>
+          )}
         </div>
 
-        {/* Metrics grid */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="flex items-center gap-2 text-sm opacity-75">
-            <Droplets className="w-4 h-4 text-blue-400" />
-            <span>Humedad: <strong>{weather.humidity}%</strong></span>
-          </div>
-          <div className="flex items-center gap-2 text-sm opacity-75">
-            <Wind className="w-4 h-4 text-teal-400" />
-            <span>Viento: <strong>{Math.round(weather.windSpeed)} km/h</strong></span>
-          </div>
-          <div className="flex items-center gap-2 text-sm opacity-75">
-            <Thermometer className="w-4 h-4 text-orange-400" />
-            <span>UV: <strong>{weather.uv}</strong></span>
-          </div>
-          <div className="flex items-center gap-2 text-sm opacity-75">
-            <Cloud className="w-4 h-4 text-gray-400" />
-            <span>Aire: <strong>{weather.airQuality}</strong></span>
-          </div>
-        </div>
-
-        {/* Sunrise/Sunset */}
-        {(sunriseTime || sunsetTime) && (
-          <div className="flex gap-4 text-xs opacity-60 mb-3">
-            {sunriseTime && (
-              <span className="flex items-center gap-1">
-                <Sun className="w-3 h-3 text-amber-400" />
-                {sunriseTime}
-              </span>
-            )}
-            {sunsetTime && (
-              <span className="flex items-center gap-1">
-                <Moon className="w-3 h-3 text-indigo-400" />
-                {sunsetTime}
-              </span>
-            )}
+        {/* Compact mode: seismic + altitude summary row */}
+        {compact && (
+          <div className="flex items-center gap-3 mt-2 pt-2 border-t border-zinc-100/80 dark:border-white/5">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${seismicOk ? 'bg-green-500' : criticalAlert && criticalAlert.magnitude >= 6 ? 'bg-red-500' : 'bg-amber-500'}`} aria-hidden="true" />
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {seismicOk ? 'Sin actividad sísmica' : `M ${criticalAlert?.magnitude.toFixed(1)}`}
+            </span>
+            <span className={`ml-auto px-2 py-0.5 rounded-full text-xs font-semibold ${altTier.badgeClass}`}>
+              {altTier.o2Label}
+            </span>
           </div>
         )}
 
-        {/* OHS Recommendations */}
-        {weather.recommendations && weather.recommendations.length > 0 && (
-          <div className={`rounded-lg p-2.5 text-xs ${
-            shouldUseDarkStyle ? 'bg-white/10' : shouldUseLightStyle ? 'bg-amber-100/70' : 'bg-zinc-100 dark:bg-zinc-700/50'
-          }`}>
-            <div className="flex items-center gap-1.5 mb-1.5 font-medium opacity-80">
-              <AlertTriangle className="w-3 h-3" />
-              <span>Recomendaciones de seguridad</span>
-            </div>
-            <ul className="space-y-1 opacity-70">
-              {weather.recommendations.slice(0, 2).map((rec, i) => (
-                <li key={i} className="flex items-start gap-1">
-                  <span className="mt-0.5 shrink-0">•</span>
-                  <span>{rec}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* Footer: last updated */}
+        {lastUpdated && (
+          <p className="text-right text-xs text-zinc-400 dark:text-zinc-600 mt-2 pt-1">
+            Actualizado: {lastUpdated.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+          </p>
         )}
       </div>
-    </motion.div>
+    </motion.section>
   );
 }

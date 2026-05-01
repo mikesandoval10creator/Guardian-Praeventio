@@ -1,132 +1,201 @@
-import { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Link2,
+  Sparkles,
+  X,
+  Link,
+  BookOpen,
+  Building2,
+  Shield,
   GraduationCap,
-  AlertTriangle,
-  ShieldCheck,
-  UserCheck,
-  ChevronDown,
-  ChevronUp,
-  Zap,
+  type LucideProps,
 } from 'lucide-react';
-import { useZettelkastenIntelligence, SmartAction, SmartActionType } from '../../hooks/useZettelkastenIntelligence';
+import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
+import type { SmartAction, URLContext } from '../../hooks/useZettelkastenIntelligence';
 
-const ACTION_ICONS: Record<SmartActionType, React.ReactNode> = {
-  link_risk_to_control: <Link2 className="w-4 h-4" />,
-  assign_training: <GraduationCap className="w-4 h-4" />,
-  create_incident_node: <AlertTriangle className="w-4 h-4" />,
-  link_worker_to_epp: <ShieldCheck className="w-4 h-4" />,
-  escalate_to_supervisor: <UserCheck className="w-4 h-4" />,
+// ---------------------------------------------------------------------------
+// Icon map — string names → Lucide components
+// ---------------------------------------------------------------------------
+
+type IconComponent = React.FC<LucideProps>;
+
+const ICON_MAP: Record<string, IconComponent> = {
+  Link,
+  BookOpen,
+  Building2,
+  Shield,
+  GraduationCap,
 };
 
-const PRIORITY_BADGE: Record<SmartAction['priority'], string> = {
-  high: 'bg-red-500/20 text-red-400 border border-red-500/30',
-  medium: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
-  low: 'bg-green-500/20 text-green-400 border border-green-500/30',
+// ---------------------------------------------------------------------------
+// Context badge labels
+// ---------------------------------------------------------------------------
+
+const CONTEXT_LABELS: Record<URLContext, string> = {
+  workers: 'Trabajadores',
+  epp: 'EPP',
+  risks: 'Riesgos',
+  training: 'Capacitación',
+  ergonomics: 'Ergonomía',
+  medicine: 'Medicina',
+  audits: 'Auditorías',
+  general: 'General',
 };
 
-const PRIORITY_LABEL: Record<SmartAction['priority'], string> = {
-  high: 'Alta',
-  medium: 'Media',
-  low: 'Baja',
+// ---------------------------------------------------------------------------
+// Priority helpers
+// ---------------------------------------------------------------------------
+
+const PRIORITY_DOT: Record<SmartAction['priority'], string> = {
+  high: 'bg-red-400',
+  medium: 'bg-yellow-400',
+  low: 'bg-green-400',
 };
 
-const PRIORITY_ICON_WRAPPER: Record<SmartAction['priority'], string> = {
-  high: 'bg-red-500/10 text-red-400',
-  medium: 'bg-yellow-500/10 text-yellow-400',
-  low: 'bg-green-500/10 text-green-400',
-};
+// ---------------------------------------------------------------------------
+// SmartConnectionsPanel
+// ---------------------------------------------------------------------------
 
 export function SmartConnectionsPanel() {
-  const { smartActions } = useZettelkastenIntelligence();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const { smartActions, currentContext, smartPanelVisible, setSmartPanelVisible } =
+    useZettelkastenIntelligence();
 
-  if (smartActions.length === 0) return null;
+  const isVisible = smartPanelVisible && smartActions.length > 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 24, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 24, scale: 0.95 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className="fixed bottom-4 right-4 z-50 w-72 rounded-2xl shadow-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-xl overflow-hidden"
-      role="complementary"
-      aria-label="Acciones inteligentes Zettelkasten"
-    >
-      {/* Header */}
-      <button
-        onClick={() => setIsExpanded(prev => !prev)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-zinc-800/80 hover:bg-zinc-800 transition-colors"
-        aria-expanded={isExpanded}
-      >
-        <div className="flex items-center gap-2">
-          <span className="w-6 h-6 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <Zap className="w-3.5 h-3.5" />
-          </span>
-          <span className="text-xs font-bold text-white tracking-wide">Acciones Inteligentes</span>
-          <span className="min-w-[18px] h-[18px] bg-emerald-500 rounded-full flex items-center justify-center text-[9px] font-black text-white px-1">
-            {smartActions.length}
-          </span>
-        </div>
-        <span className="text-zinc-400">
-          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-        </span>
-      </button>
-
-      {/* Action list */}
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.ul
-            key="action-list"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: 'easeInOut' }}
-            className="overflow-hidden"
+    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+      {/* ------------------------------------------------------------------ */}
+      {/* Expanded card                                                        */}
+      {/* ------------------------------------------------------------------ */}
+      <AnimatePresence>
+        {isVisible && (
+          <motion.div
+            key="smart-panel"
+            initial={{ opacity: 0, y: 16, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.97 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="w-72 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/50 dark:border-white/10 shadow-2xl p-4 overflow-hidden"
           >
-            {smartActions.map((action, idx) => (
-              <li
-                key={action.type}
-                className={`flex items-start gap-3 px-4 py-3 ${
-                  idx < smartActions.length - 1
-                    ? 'border-b border-white/5'
-                    : ''
-                }`}
-              >
-                {/* Icon */}
-                <span
-                  className={`mt-0.5 shrink-0 w-7 h-7 rounded-lg flex items-center justify-center ${PRIORITY_ICON_WRAPPER[action.priority]}`}
-                >
-                  {ACTION_ICONS[action.type]}
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles
+                  className="w-4 h-4 shrink-0"
+                  style={{ color: '#4db6ac' }}
+                />
+                <span className="text-[12px] font-bold text-zinc-900 dark:text-white truncate">
+                  Conexiones Inteligentes
                 </span>
+                {/* Context badge */}
+                <span
+                  className="shrink-0 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border"
+                  style={{
+                    color: '#2a8a81',
+                    borderColor: '#4db6ac55',
+                    backgroundColor: '#4db6ac18',
+                  }}
+                >
+                  {CONTEXT_LABELS[currentContext]}
+                </span>
+              </div>
+              <button
+                onClick={() => setSmartPanelVisible(false)}
+                className="ml-2 shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                aria-label="Cerrar panel"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-                {/* Text */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-white leading-tight">
-                      {action.label}
-                    </span>
-                    <span
-                      className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full ${PRIORITY_BADGE[action.priority]}`}
+            {/* Action list */}
+            <ul className="flex flex-col gap-1.5">
+              {smartActions.map((action) => {
+                const Icon: IconComponent = ICON_MAP[action.icon] ?? Shield;
+                return (
+                  <li key={action.id}>
+                    <button
+                      onClick={() => {
+                        console.log('[SmartAction]', action.id, action.label);
+                      }}
+                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left group
+                        bg-zinc-50 dark:bg-zinc-800/60
+                        hover:bg-[#4db6ac]/10 dark:hover:bg-[#4db6ac]/15
+                        border border-transparent hover:border-[#4db6ac]/30
+                        transition-all duration-150"
                     >
-                      {PRIORITY_LABEL[action.priority]}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[10px] text-zinc-400 leading-snug line-clamp-2">
-                    {action.description}
-                  </p>
-                  {action.relevantNodeIds.length > 0 && (
-                    <span className="mt-1 inline-block text-[9px] text-zinc-500">
-                      {action.relevantNodeIds.length} nodo{action.relevantNodeIds.length > 1 ? 's' : ''} afectado{action.relevantNodeIds.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </motion.ul>
+                      {/* Icon */}
+                      <span
+                        className="mt-0.5 shrink-0 w-7 h-7 rounded-lg flex items-center justify-center
+                          bg-zinc-200/70 dark:bg-zinc-700/70
+                          group-hover:bg-[#4db6ac]/20
+                          transition-colors duration-150"
+                        style={{ color: '#2a8a81' }}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </span>
+
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {/* Priority dot */}
+                          <span
+                            className={`shrink-0 w-1.5 h-1.5 rounded-full ${PRIORITY_DOT[action.priority]}`}
+                          />
+                          <span className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-100 leading-tight truncate">
+                            {action.label}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[9px] text-zinc-500 dark:text-zinc-400 leading-snug line-clamp-2">
+                          {action.description}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Collapsed pill button (always visible when there are actions)        */}
+      {/* ------------------------------------------------------------------ */}
+      <AnimatePresence>
+        {!isVisible && smartActions.length > 0 && (
+          <motion.button
+            key="smart-pill"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            onClick={() => setSmartPanelVisible(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg border
+              bg-white dark:bg-zinc-900
+              border-zinc-200/60 dark:border-white/10
+              hover:border-[#4db6ac]/50 dark:hover:border-[#4db6ac]/40
+              hover:shadow-[0_0_16px_#4db6ac33]
+              transition-all duration-200"
+            aria-label="Mostrar acciones inteligentes"
+          >
+            <Sparkles
+              className="w-4 h-4 shrink-0"
+              style={{ color: '#4db6ac' }}
+            />
+            {/* Count badge */}
+            <span
+              className="min-w-[18px] h-[18px] rounded-full flex items-center justify-center text-[9px] font-black text-white px-1"
+              style={{ backgroundColor: '#2a8a81' }}
+            >
+              {smartActions.length}
+            </span>
+            <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+              Acciones IA
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

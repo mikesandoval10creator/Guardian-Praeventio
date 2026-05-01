@@ -7,6 +7,10 @@ import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'fire
 import { db } from '../services/firebase';
 import { logger } from '../utils/logger';
 
+// ---------------------------------------------------------------------------
+// Legacy node-based action types (preserved for backward compatibility)
+// ---------------------------------------------------------------------------
+
 export type SmartActionType =
   | 'link_risk_to_control'
   | 'assign_training'
@@ -14,13 +18,99 @@ export type SmartActionType =
   | 'link_worker_to_epp'
   | 'escalate_to_supervisor';
 
-export interface SmartAction {
+/** Node-graph–derived smart action (legacy shape, kept intact). */
+export interface NodeSmartAction {
   type: SmartActionType;
   label: string;
   description: string;
   relevantNodeIds: string[];
   priority: 'high' | 'medium' | 'low';
 }
+
+// ---------------------------------------------------------------------------
+// URL-context smart actions (new shape)
+// ---------------------------------------------------------------------------
+
+/** Context-aware smart action shown in the SmartConnectionsPanel. */
+export interface SmartAction {
+  id: string;
+  label: string;
+  description: string;
+  /** URL contexts this action applies to. */
+  context: string[];
+  /** Lucide icon name as a string. */
+  icon: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export type URLContext =
+  | 'workers'
+  | 'epp'
+  | 'risks'
+  | 'training'
+  | 'ergonomics'
+  | 'medicine'
+  | 'audits'
+  | 'general';
+
+/** Maps a pathname to the matching URLContext. */
+function detectContextFromURL(pathname: string): URLContext {
+  if (pathname.includes('/workers') || pathname.includes('/worker')) return 'workers';
+  if (pathname.includes('/epp')) return 'epp';
+  if (pathname.includes('/risks') || pathname.includes('/risk')) return 'risks';
+  if (pathname.includes('/training')) return 'training';
+  if (pathname.includes('/ergonomics') || pathname.includes('/ergonomic')) return 'ergonomics';
+  if (pathname.includes('/medicine') || pathname.includes('/medical')) return 'medicine';
+  if (pathname.includes('/audits') || pathname.includes('/audit')) return 'audits';
+  return 'general';
+}
+
+const SMART_ACTIONS: SmartAction[] = [
+  {
+    id: 'create-worker-epp-connection',
+    label: 'Conectar EPP a Trabajador',
+    description: 'Vincula los equipos de protección personal asignados al trabajador seleccionado.',
+    context: ['workers', 'epp'],
+    icon: 'Link',
+    priority: 'high',
+  },
+  {
+    id: 'suggest-normatives-for-project',
+    label: 'Sugerir normativas del proyecto',
+    description: 'Identifica normativas aplicables según los riesgos y contexto del proyecto.',
+    context: ['risks', 'audits', 'general'],
+    icon: 'BookOpen',
+    priority: 'medium',
+  },
+  {
+    id: 'link-industry-to-project',
+    label: 'Vincular industria al proyecto',
+    description: 'Asocia la industria correspondiente para afinar análisis y recomendaciones.',
+    context: ['general', 'risks'],
+    icon: 'Building2',
+    priority: 'medium',
+  },
+  {
+    id: 'suggest-epp-for-worker',
+    label: 'Sugerir EPP para el trabajador',
+    description: 'Recomienda equipos de protección personal según el perfil y los riesgos del trabajador.',
+    context: ['workers', 'epp'],
+    icon: 'Shield',
+    priority: 'high',
+  },
+  {
+    id: 'auto-link-training-to-worker',
+    label: 'Asignar capacitación pendiente',
+    description: 'Detecta y asigna automáticamente las capacitaciones pendientes para el trabajador.',
+    context: ['training', 'workers'],
+    icon: 'GraduationCap',
+    priority: 'high',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Legacy module type (preserved)
+// ---------------------------------------------------------------------------
 
 type ModuleType =
   | 'risk_network'
@@ -54,7 +144,7 @@ export function useZettelkastenIntelligence() {
   const location = useLocation();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // --- URL-based context detection ---
+  // --- Legacy URL-based module detection ---
   const currentModule = useMemo<ModuleType>(
     () => deriveModule(location.pathname),
     [location.pathname]
@@ -65,9 +155,30 @@ export function useZettelkastenIntelligence() {
     [location.pathname]
   );
 
-  // --- Smart actions derived from nodes ---
-  const smartActions = useMemo<SmartAction[]>(() => {
-    const actions: SmartAction[] = [];
+  // --- New URL-based context detection ---
+  const currentContext = useMemo<URLContext>(
+    () => detectContextFromURL(location.pathname),
+    [location.pathname]
+  );
+
+  // --- Context-filtered smart actions (new) ---
+  const smartActions = useMemo<SmartAction[]>(
+    () => SMART_ACTIONS.filter(action => action.context.includes(currentContext)),
+    [currentContext]
+  );
+
+  // Auto-show panel when there are relevant actions for a non-general context
+  const [smartPanelVisible, setSmartPanelVisible] = useState(false);
+
+  useEffect(() => {
+    if (smartActions.length > 0 && currentContext !== 'general') {
+      setSmartPanelVisible(true);
+    }
+  }, [smartActions.length, currentContext]);
+
+  // --- Node-graph–derived actions (legacy, renamed to nodeSmartActions) ---
+  const nodeSmartActions = useMemo<NodeSmartAction[]>(() => {
+    const actions: NodeSmartAction[] = [];
 
     // 1. RISK nodes without any linked CONTROL node
     const riskNodes = nodes.filter(n => n.type === NodeType.RISK);
@@ -128,8 +239,8 @@ export function useZettelkastenIntelligence() {
     return actions;
   }, [nodes]);
 
-  // suggestedActions = smartActions filtered/sorted by currentModule relevance
-  const suggestedActions = useMemo<SmartAction[]>(() => {
+  // suggestedActions = nodeSmartActions filtered/sorted by currentModule relevance
+  const suggestedActions = useMemo<NodeSmartAction[]>(() => {
     const moduleRelevance: Partial<Record<ModuleType, SmartActionType[]>> = {
       risk_network: ['link_risk_to_control', 'create_incident_node', 'escalate_to_supervisor'],
       workers: ['assign_training', 'link_worker_to_epp'],
@@ -139,7 +250,7 @@ export function useZettelkastenIntelligence() {
       dashboard: ['link_risk_to_control', 'assign_training', 'create_incident_node'],
     };
     const relevant = moduleRelevance[currentModule] ?? [];
-    const sorted = [...smartActions].sort((a, b) => {
+    const sorted = [...nodeSmartActions].sort((a, b) => {
       const aRelevant = relevant.includes(a.type) ? 0 : 1;
       const bRelevant = relevant.includes(b.type) ? 0 : 1;
       if (aRelevant !== bRelevant) return aRelevant - bRelevant;
@@ -147,7 +258,7 @@ export function useZettelkastenIntelligence() {
       return priorityOrder[a.priority] - priorityOrder[b.priority];
     });
     return sorted;
-  }, [smartActions, currentModule]);
+  }, [nodeSmartActions, currentModule]);
 
   // --- Orphan detection (legacy logic kept intact) ---
   const [orphanRisks, setOrphanRisks] = useState<RiskNode[]>([]);
@@ -244,12 +355,18 @@ export function useZettelkastenIntelligence() {
   }, [selectedProject]);
 
   return {
+    // Legacy / node-graph
     isAnalyzing,
     orphanRisks,
     orphanWorkers,
-    smartActions,
+    nodeSmartActions,
     suggestedActions,
     currentModule,
     currentEntityId,
+    // New / URL-context
+    currentContext,
+    smartActions,
+    smartPanelVisible,
+    setSmartPanelVisible,
   };
 }
