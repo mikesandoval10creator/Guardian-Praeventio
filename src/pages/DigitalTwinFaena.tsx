@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment } from '@react-three/drei';
@@ -102,6 +103,7 @@ export function DigitalTwinFaena() {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { toasts, show, dismiss } = useToast();
+  const reducedMotion = useReducedMotion();
 
   const [mode, setMode] = useState<ProcessingMode>('gpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -150,13 +152,13 @@ export function DigitalTwinFaena() {
     refreshJobs();
   }, [selectedProject?.id]);
 
-  // Polling: refresh active processing job every 4s
+  // Polling: refresh active processing job every 4s (skipped when user prefers reduced motion)
   useEffect(() => {
     const hasProcessing = jobs.some(j => j.status === 'queued' || j.status === 'processing');
-    if (!hasProcessing) return;
+    if (!hasProcessing || reducedMotion) return;
     const interval = setInterval(refreshJobs, 4000);
     return () => clearInterval(interval);
-  }, [jobs.map(j => `${j.jobId}:${j.status}`).join(',')]);
+  }, [jobs.map(j => `${j.jobId}:${j.status}`).join(','), reducedMotion]);
 
   const handleFileSelect = (file: File) => {
     if (!file.type.startsWith('video/')) {
@@ -234,7 +236,7 @@ export function DigitalTwinFaena() {
           onClick={refreshJobs}
           disabled={loadingJobs}
           aria-label="Refrescar lista de jobs"
-          className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+          className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
         >
           <RefreshCw className={`w-4 h-4 text-zinc-400 ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
         </button>
@@ -305,7 +307,7 @@ export function DigitalTwinFaena() {
               tabIndex={0}
               aria-label="Soltar video o hacer click para seleccionar"
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
-              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+              className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
                 dragOver
                   ? 'border-cyan-500/60 bg-cyan-500/5'
                   : videoFile

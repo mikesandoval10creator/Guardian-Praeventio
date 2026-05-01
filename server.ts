@@ -36,6 +36,8 @@ import { saveTokens, getValidAccessToken, revokeTokens } from "./src/services/oa
 import { logger } from "./src/utils/logger.js";
 import admin from "firebase-admin";
 import fs from 'fs';
+import os from 'os';
+import { spawn } from 'child_process';
 import { GoogleGenAI } from "@google/genai";
 import { google } from 'googleapis';
 
@@ -2068,6 +2070,125 @@ const setupBackgroundTriggers = () => {
 };
 
 // ─── Digital Twin / LingBot-Map Reconstruction ────────────────────────────────
+/**
+ * Runs lingBot-Map locally on CPU (no GPU, no Modal.run).
+ * Requires LINGBOT_MAP_PATH env pointing to the repo root and Python 3.10+ installed.
+ * Typical runtime: 10–30 min per video.
+ */
+async function runLingBotMapLocal(opts: {
+  jobRef: FirebaseFirestore.DocumentReference;
+  videoUrl: string;
+  projectId: string;
+  processingMode: "gpu" | "cpu";
+}): Promise<void> {
+  const { jobRef, videoUrl, processingMode } = opts;
+  const lingbotPath = process.env.LINGBOT_MAP_PATH!;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "lingbot-"));
+  const videoPath = path.join(tmpDir, "input.mp4");
+  const outputDir = path.join(tmpDir, "output");
+  fs.mkdirSync(outputDir);
+
+  const db = admin.firestore();
+
+  // Download video from Firebase Storage URL to local temp file
+  await jobRef.update({ status: "processing", progress: 2, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  const videoRes = await fetch(videoUrl);
+  if (!videoRes.ok) throw new Error(`Failed to download video: ${videoRes.status}`);
+  const buf = Buffer.from(await videoRes.arrayBuffer());
+  fs.writeFileSync(videoPath, buf);
+
+  await jobRef.update({ progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+  // Build CLI args
+  const args = [
+    path.join(lingbotPath, "demo.py"),
+    "--video_path", videoPath,
+    "--output_dir", outputDir,
+    "--no_viewer",
+    "--use_sdpa",   // PyTorch native attention (no FlashInfer needed)
+  ];
+  if (processingMode === "cpu") args.push("--offload_to_cpu");
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn("python3", args, { cwd: lingbotPath });
+    let lastProgress = 5;
+    let stderr = "";
+
+    // Parse stdout for progress: "Frame XX/YYY" or "Progress: XX%"
+    proc.stdout.on("data", async (chunk: Buffer) => {
+      const text = chunk.toString();
+      const frameMatch = text.match(/Frame\s+(\d+)\/(\d+)/i);
+      const pctMatch = text.match(/Progress[:\s]+(\d+)%/i);
+      let progress = lastProgress;
+      if (frameMatch) {
+        progress = Math.round((parseInt(frameMatch[1]) / parseInt(frameMatch[2])) * 90) + 5;
+      } else if (pctMatch) {
+        progress = Math.round(parseInt(pctMatch[1]) * 0.9) + 5;
+      }
+      if (progress > lastProgress + 4) {
+        lastProgress = progress;
+        await jobRef.update({ progress, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => null);
+      }
+    });
+
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString().slice(-2000); });
+
+    proc.on("close", async (code) => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+
+      if (code !== 0) {
+        console.error("[DigitalTwin] lingBot-Map exited with code", code, stderr.slice(-500));
+        await jobRef.update({
+          status: "failed",
+          error: `lingBot-Map exited with code ${code}`,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }).catch(() => null);
+        return reject(new Error(`exit code ${code}`));
+      }
+
+      // Find .ply output
+      const plyFiles = fs.existsSync(outputDir)
+        ? fs.readdirSync(outputDir).filter(f => f.endsWith(".ply"))
+        : [];
+      let resultUrl: string | null = null;
+
+      if (plyFiles.length > 0) {
+        const plyPath = path.join(outputDir, plyFiles[0]);
+        const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+        if (bucketName) {
+          try {
+            const bucket = admin.storage().bucket(bucketName);
+            const dest = `digital_twin_jobs/${jobRef.id}/result.ply`;
+            await bucket.upload(plyPath, { destination: dest, metadata: { contentType: "application/octet-stream" } });
+            const [url] = await bucket.file(dest).getSignedUrl({ action: "read", expires: "2035-01-01" });
+            resultUrl = url;
+          } catch (uploadErr) {
+            console.error("[DigitalTwin] Storage upload error:", uploadErr);
+          }
+        }
+      }
+
+      await jobRef.update({
+        status: "completed",
+        progress: 100,
+        resultUrl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      resolve();
+    });
+
+    proc.on("error", async (err) => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      await jobRef.update({
+        status: "failed",
+        error: `spawn error: ${err.message}`,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }).catch(() => null);
+      reject(err);
+    });
+  });
+}
+
 app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
   const { projectId, videoUrl, notes, mode } = req.body as { projectId: string; videoUrl: string; notes?: string; mode?: string };
   if (!projectId || !videoUrl) {
@@ -2118,8 +2239,14 @@ app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }).catch(() => null);
       });
+    } else if (process.env.LINGBOT_MAP_PATH) {
+      // Local CPU reconstruction via lingBot-Map (--offload_to_cpu, no GPU required).
+      // Runs as a child process; takes 10–30 min. Video must already be in Firebase Storage.
+      runLingBotMapLocal({ jobRef, videoUrl, projectId, processingMode }).catch((err) => {
+        console.error("[DigitalTwin] Local lingBot-Map error:", err);
+      });
     } else {
-      // Simulate progression. CPU mode is ~3x slower in the demo.
+      // Demo simulation (no MODAL_TOKEN or LINGBOT_MAP_PATH configured).
       const stepMs = processingMode === "cpu" ? 15000 : 5000;
       setTimeout(async () => {
         await jobRef.update({ status: "processing", progress: 30, updatedAt: admin.firestore.FieldValue.serverTimestamp() });

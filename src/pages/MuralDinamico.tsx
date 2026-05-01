@@ -191,9 +191,9 @@ export function MuralDinamico() {
                 <button
                   key={type}
                   onClick={() => setPostType(type)}
-                  className={`p-2 rounded-lg border transition-colors ${
-                    postType === type 
-                      ? 'bg-zinc-800 border-emerald-500/50' 
+                  className={`p-2 rounded-lg border transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
+                    postType === type
+                      ? 'bg-zinc-800 border-emerald-500/50'
                       : 'bg-zinc-900/50 border-white/5 hover:border-white/20'
                   }`}
                   title={`Tipo: ${type}`}
@@ -201,7 +201,7 @@ export function MuralDinamico() {
                   {getPostIcon(type)}
                 </button>
               ))}
-              <button className="p-2 rounded-lg border border-white/5 bg-zinc-900/50 hover:border-white/20 transition-colors text-zinc-400">
+              <button className="p-2 rounded-lg border border-white/5 bg-zinc-900/50 hover:border-white/20 transition-colors text-zinc-400 min-h-[44px] min-w-[44px] flex items-center justify-center">
                 <ImageIcon className="w-5 h-5" />
               </button>
             </div>
@@ -243,7 +243,7 @@ export function MuralDinamico() {
                     </p>
                   </div>
                 </div>
-                <button className="text-zinc-500 hover:text-white transition-colors">
+                <button className="text-zinc-500 hover:text-white transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
                   <MoreVertical className="w-5 h-5" />
                 </button>
               </div>
@@ -261,7 +261,7 @@ export function MuralDinamico() {
               <div className="flex items-center gap-4 pt-4 border-t border-white/5">
                 <button
                   onClick={() => handleToggleLike(post.id, 'likes', post.likes?.includes(user?.uid || '') ?? false)}
-                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${post.likes?.includes(user?.uid || '') ? 'text-amber-400' : 'text-zinc-400 hover:text-amber-400'}`}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${post.likes?.includes(user?.uid || '') ? 'text-amber-400' : 'text-zinc-400 hover:text-amber-400'}`}
                 >
                   <div className={`p-1.5 rounded-md transition-colors ${post.likes?.includes(user?.uid || '') ? 'bg-amber-500/20' : 'bg-zinc-800 group-hover:bg-amber-500/20'}`}>
                     <Award className="w-4 h-4" />
@@ -270,7 +270,7 @@ export function MuralDinamico() {
                 </button>
                 <button
                   onClick={() => handleToggleLike(post.id, 'acknowledged', post.acknowledged?.includes(user?.uid || '') ?? false)}
-                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${post.acknowledged?.includes(user?.uid || '') ? 'text-emerald-400' : 'text-zinc-400 hover:text-emerald-400'}`}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${post.acknowledged?.includes(user?.uid || '') ? 'text-emerald-400' : 'text-zinc-400 hover:text-emerald-400'}`}
                 >
                   <div className={`p-1.5 rounded-md transition-colors ${post.acknowledged?.includes(user?.uid || '') ? 'bg-emerald-500/20' : 'bg-zinc-800 group-hover:bg-emerald-500/20'}`}>
                     <CheckCircle2 className="w-4 h-4" />
@@ -279,7 +279,7 @@ export function MuralDinamico() {
                 </button>
                 <button
                   onClick={() => toggleComments(post.id)}
-                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group ${openComments.has(post.id) ? 'text-blue-400' : 'text-zinc-400 hover:text-blue-400'}`}
+                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors group min-h-[44px] min-w-[44px] ${openComments.has(post.id) ? 'text-blue-400' : 'text-zinc-400 hover:text-blue-400'}`}
                 >
                   <div className={`p-1.5 rounded-md transition-colors ${openComments.has(post.id) ? 'bg-blue-500/20' : 'bg-zinc-800 group-hover:bg-blue-500/20'}`}>
                     <MessageSquare className="w-4 h-4" />
