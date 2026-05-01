@@ -43,6 +43,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
 import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
+import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -55,6 +56,12 @@ export function Analytics() {
 
   // Filter nodes by project
   const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id);
+
+  // Industry compliance score
+  const { calculateComplianceScore } = useIndustryIntegration();
+  const complianceScore = selectedProject
+    ? calculateComplianceScore(selectedProject.industry ?? 'GP-MANU', projectNodes)
+    : null;
 
   // Calculate KPIs
   const risks = projectNodes.filter(n => n.type === NodeType.RISK);
@@ -291,7 +298,7 @@ export function Analytics() {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-white rounded-2xl p-4 border border-zinc-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Riesgos Críticos</p>
@@ -341,6 +348,42 @@ export function Analytics() {
               </span>
             </div>
           </div>
+
+          {/* Industry Compliance Score */}
+          {complianceScore && (
+            <div className={`bg-white rounded-2xl p-4 border shadow-sm ${
+              complianceScore.total >= 80 ? 'border-emerald-200' :
+              complianceScore.total >= 60 ? 'border-amber-200' : 'border-rose-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Índice Legal</p>
+                <BrainCircuit className={`w-4 h-4 ${
+                  complianceScore.total >= 80 ? 'text-emerald-500' :
+                  complianceScore.total >= 60 ? 'text-amber-500' : 'text-rose-500'
+                }`} />
+              </div>
+              <div className="flex items-end gap-2 mb-1">
+                <span className={`text-3xl font-black leading-none ${
+                  complianceScore.total >= 80 ? 'text-emerald-600' :
+                  complianceScore.total >= 60 ? 'text-amber-600' : 'text-rose-600'
+                }`}>{complianceScore.total}%</span>
+              </div>
+              <div className="w-full bg-zinc-100 rounded-full h-1">
+                <div
+                  className={`h-1 rounded-full transition-all ${
+                    complianceScore.total >= 80 ? 'bg-emerald-500' :
+                    complianceScore.total >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${complianceScore.total}%` }}
+                />
+              </div>
+              {complianceScore.missingNormativas.length > 0 && (
+                <p className="text-[9px] text-rose-500 mt-1 font-medium">
+                  {complianceScore.missingNormativas.length} normativa{complianceScore.missingNormativas.length > 1 ? 's' : ''} faltante{complianceScore.missingNormativas.length > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Charts */}

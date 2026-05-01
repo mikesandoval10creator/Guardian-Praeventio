@@ -1,7 +1,17 @@
 import { useCallback } from 'react';
 import { useRiskEngine } from './useRiskEngine';
-import { NodeType } from '../types';
+import { NodeType, RiskNode } from '../types';
 import { logger } from '../utils/logger';
+
+export interface ComplianceScore {
+  total: number;          // 0-100 weighted aggregate
+  normativas: number;     // 0-100
+  capacitaciones: number; // 0-100
+  epp: number;            // 0-100
+  detail: string;         // human-readable summary
+  missingNormativas: string[];
+  missingCapacitaciones: string[];
+}
 
 // Diccionarios de Conocimiento Base (Risk Network Estático)
 const INDUSTRY_NORMATIVES: Record<string, string[]> = {
@@ -109,11 +119,62 @@ export function useIndustryIntegration() {
     }
   }, [getNormatives, getTraining, addNode]);
 
+  /**
+   * Calculates a 0-100 compliance score for a project based on nodes already
+   * present in the Risk Network vs. required normatives + training for the industry.
+   * Weights: normativas 40%, capacitaciones 35%, EPP nodes 25%.
+   */
+  const calculateComplianceScore = useCallback((industry: string, nodes: RiskNode[]): ComplianceScore => {
+    const requiredNormativas = getNormatives(industry);
+    const requiredCapacitaciones = getTraining(industry);
+
+    const normativaNodes = nodes.filter(n => n.type === NodeType.NORMATIVE).map(n => n.title.toLowerCase());
+    const capacitacionNodes = nodes.filter(n => n.type === NodeType.TRAINING).map(n => n.title.toLowerCase());
+    const eppNodes = nodes.filter(n => n.type === NodeType.EPP);
+
+    // Normativas: % of required that appear in risk network (fuzzy match on first word)
+    const coveredNorm = requiredNormativas.filter(req =>
+      normativaNodes.some(n => n.includes(req.toLowerCase().slice(0, 15)))
+    );
+    const normScore = requiredNormativas.length > 0
+      ? Math.round((coveredNorm.length / requiredNormativas.length) * 100)
+      : 100;
+
+    // Capacitaciones: same fuzzy match
+    const coveredCap = requiredCapacitaciones.filter(req =>
+      capacitacionNodes.some(n => n.includes(req.toLowerCase().slice(0, 15)))
+    );
+    const capScore = requiredCapacitaciones.length > 0
+      ? Math.round((coveredCap.length / requiredCapacitaciones.length) * 100)
+      : 100;
+
+    // EPP: presence of at least 5 EPP nodes = 100%, linear below
+    const eppScore = Math.min(100, Math.round((eppNodes.length / 5) * 100));
+
+    const total = Math.round(normScore * 0.4 + capScore * 0.35 + eppScore * 0.25);
+
+    const missingNormativas = requiredNormativas.filter(req =>
+      !normativaNodes.some(n => n.includes(req.toLowerCase().slice(0, 15)))
+    );
+    const missingCapacitaciones = requiredCapacitaciones.filter(req =>
+      !capacitacionNodes.some(n => n.includes(req.toLowerCase().slice(0, 15)))
+    );
+
+    const detail = total >= 80
+      ? `Cumplimiento alto (${total}%). ${missingNormativas.length === 0 ? 'Todas las normativas cubiertas.' : `Faltan ${missingNormativas.length} normativas.`}`
+      : total >= 60
+      ? `Cumplimiento moderado (${total}%). Revisar normativas y capacitaciones faltantes.`
+      : `Cumplimiento bajo (${total}%). Se requieren acciones inmediatas para cumplir Ley 16.744.`;
+
+    return { total, normativas: normScore, capacitaciones: capScore, epp: eppScore, detail, missingNormativas, missingCapacitaciones };
+  }, [getNormatives, getTraining]);
+
   return {
     getNormatives,
     getEPP,
     getTraining,
     bootstrapProjectKnowledge,
+    calculateComplianceScore,
     availableIndustries: Object.keys(INDUSTRY_NORMATIVES),
     availableRoles: Object.keys(ROLE_EPP)
   };
