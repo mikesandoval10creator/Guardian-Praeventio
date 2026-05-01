@@ -224,7 +224,7 @@ export function Calendar() {
       <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Boletín Climático (Próximos 3 Días)</h2>
-          <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg">
+          <span className="text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wider bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-lg">
             Zettelkasten Activo
           </span>
         </div>
@@ -282,11 +282,11 @@ export function Calendar() {
                   key={i}
                   className={`min-h-[120px] p-3 rounded-2xl border transition-all ${
                     isSameDay(day, new Date()) 
-                      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30' 
+                      ? 'bg-[#4db6ac]/10 dark:bg-[#4db6ac]/10 border-[#4db6ac]/30 dark:border-[#d4af37]/30'
                       : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10'
                   }`}
                 >
-                  <span className={`text-xs font-black ${isSameDay(day, new Date()) ? 'text-emerald-600 dark:text-emerald-500' : 'text-zinc-500'}`}>
+                  <span className={`text-xs font-black ${isSameDay(day, new Date()) ? 'text-[#4db6ac] dark:text-[#d4af37]' : 'text-zinc-500'}`}>
                     {format(day, 'd')}
                   </span>
                   <div className="mt-2 space-y-1">
@@ -354,15 +354,15 @@ export function Calendar() {
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: `${Math.min(widthPercent, 100 - leftPercent)}%` }}
-                          className="absolute top-1.5 bottom-1.5 rounded-md bg-emerald-500/20 border border-emerald-500/50 overflow-hidden cursor-pointer hover:bg-emerald-500/30 transition-colors"
+                          className="absolute top-1.5 bottom-1.5 rounded-md bg-[#4db6ac]/20 border border-[#4db6ac]/50 overflow-hidden cursor-pointer hover:bg-[#4db6ac]/30 transition-colors"
                           style={{ left: `${leftPercent}%` }}
                           onClick={() => setSelectedEvent(event)}
                         >
                           <div 
-                            className="h-full bg-emerald-500" 
+                            className="h-full bg-[#4db6ac]"
                             style={{ width: `${event.progress}%` }}
                           />
-                          <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-emerald-900 dark:text-emerald-100">
+                          <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black text-[#2a8a81] dark:text-zinc-100">
                             {event.progress}%
                           </span>
                         </motion.div>
@@ -388,17 +388,17 @@ export function Calendar() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {loading ? (
               <div className="col-span-full py-12 flex flex-col items-center gap-3">
-                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                <Loader2 className="w-8 h-8 text-[#4db6ac] dark:text-[#d4af37] animate-spin" />
                 <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sincronizando Agenda...</p>
               </div>
             ) : (events || []).slice(0, 3).map(event => (
               <div 
                 key={event.id} 
                 onClick={() => setSelectedEvent(event)}
-                className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-3xl p-6 space-y-4 group hover:border-emerald-500/30 transition-all cursor-pointer shadow-sm"
+                className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-3xl p-6 space-y-4 group hover:border-[#4db6ac]/30 transition-all cursor-pointer shadow-sm"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-200 dark:border-emerald-500/20">
+                  <span className="text-[8px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-md border border-[#4db6ac]/20 dark:border-[#d4af37]/20">
                     {event.type}
                   </span>
                   <Clock className="w-4 h-4 text-zinc-500" />

@@ -39,8 +39,8 @@ const PLANS = [
       'Evaluaciones rápidas de riesgo',
       'Informes básicos'
     ],
-    color: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-500/30',
-    buttonColor: 'bg-emerald-500 hover:bg-emerald-600 text-white',
+    color: 'bg-[#4db6ac]/10 dark:bg-[#4db6ac]/10 border-[#4db6ac]/30 dark:border-[#d4af37]/30',
+    buttonColor: 'bg-[#4db6ac] hover:bg-[#3a9e95] text-white',
     popular: true
   },
   {
@@ -186,10 +186,10 @@ export function Pricing() {
         {PLANS.map((p) => (
           <div 
             key={p.id}
-            className={`relative rounded-3xl p-8 flex flex-col ${p.color} border ${plan === p.id ? 'ring-4 ring-offset-2 ring-emerald-500 dark:ring-offset-zinc-900' : ''}`}
+            className={`relative rounded-3xl p-8 flex flex-col ${p.color} border ${plan === p.id ? 'ring-4 ring-offset-2 ring-[#4db6ac] dark:ring-offset-zinc-900' : ''}`}
           >
             {p.popular && (
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#4db6ac] text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
                 Recomendado
               </div>
             )}
@@ -202,7 +202,7 @@ export function Pricing() {
                 <span className="text-sm font-medium opacity-80">{p.period}</span>
               </div>
               {p.introPrice && (
-                <p className="text-xs font-bold mt-2 text-emerald-600 dark:text-emerald-400">
+                <p className="text-xs font-bold mt-2 text-[#4db6ac] dark:text-[#d4af37]">
                   Precio Introductorio: {p.introPrice}/mes (primeros 3 meses)
                 </p>
               )}
@@ -246,7 +246,7 @@ export function Pricing() {
       <div className="mt-16 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl overflow-hidden">
         <div className="p-6 sm:p-8 border-b border-zinc-200 dark:border-white/10">
           <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
-            <Building2 className="w-6 h-6 text-emerald-500" />
+            <Building2 className="w-6 h-6 text-[#4db6ac] dark:text-[#d4af37]" />
             Planes Corporativos
           </h3>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
@@ -270,14 +270,14 @@ export function Pricing() {
                 <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors">
                   <td className="p-4 sm:p-6 font-bold text-zinc-900 dark:text-white uppercase">{p.name}</td>
                   <td className="p-4 sm:p-6 text-zinc-600 dark:text-zinc-300">{p.capacity} personas</td>
-                  <td className="p-4 sm:p-6 text-emerald-600 dark:text-emerald-400 font-bold">{p.intro}</td>
+                  <td className="p-4 sm:p-6 text-[#4db6ac] dark:text-[#d4af37] font-bold">{p.intro}</td>
                   <td className="p-4 sm:p-6 font-medium">{p.price}</td>
                   <td className="p-4 sm:p-6 font-bold">{p.annual}</td>
                   <td className="p-4 sm:p-6 text-right">
                     <button 
                       onClick={() => handlePayment(p.id as SubscriptionPlan)}
                       disabled={plan === p.id || !!isProcessing}
-                      className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold uppercase tracking-wider text-xs flex items-center gap-1 justify-end w-full disabled:opacity-50"
+                      className="text-[#4db6ac] dark:text-[#d4af37] hover:text-[#2a8a81] dark:hover:text-[#d4af37] font-bold uppercase tracking-wider text-xs flex items-center gap-1 justify-end w-full disabled:opacity-50"
                     >
                       {isProcessing === p.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

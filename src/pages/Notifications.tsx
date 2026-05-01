@@ -29,7 +29,7 @@ export function Notifications() {
           {notificationPermissionStatus !== 'granted' && (
             <button 
               onClick={requestPermission}
-              className="px-3 sm:px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors flex-1 sm:flex-none text-center"
+              className="px-3 sm:px-4 py-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-colors flex-1 sm:flex-none text-center"
             >
               Activar Notificaciones Push
             </button>
@@ -59,18 +59,18 @@ export function Notifications() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             className={`p-4 sm:p-5 rounded-2xl border transition-all group relative ${
-              notification.read ? 'bg-zinc-900/30 border-white/5' : 'bg-zinc-900/60 border-emerald-500/20 shadow-lg shadow-emerald-500/5'
+              notification.read ? 'bg-zinc-900/30 border-white/5' : 'bg-zinc-900/60 border-[#4db6ac]/20 shadow-lg shadow-[#4db6ac]/5'
             }`}
           >
             {!notification.read && (
-              <div className="absolute top-4 sm:top-5 right-4 sm:right-5 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-500 rounded-full" />
+              <div className="absolute top-4 sm:top-5 right-4 sm:right-5 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#4db6ac] rounded-full" />
             )}
             
             <div className="flex gap-3 sm:gap-4">
               <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${
                 notification.type === 'warning' ? 'bg-amber-500/10 text-amber-500' :
                 notification.type === 'error' ? 'bg-rose-500/10 text-rose-500' :
-                notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                notification.type === 'success' ? 'bg-[#4db6ac]/10 text-[#4db6ac] dark:text-[#d4af37]' :
                 'bg-blue-500/10 text-blue-500'
               }`}>
                 {notification.type === 'warning' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" /> :
@@ -94,7 +94,7 @@ export function Notifications() {
                 </p>
                 
                 <div className="mt-3 sm:mt-4 flex items-center gap-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                  <button className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
+                  <button className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#4db6ac] dark:text-[#d4af37] hover:text-[#3a9e95] transition-colors">
                     Ver Detalles
                   </button>
                   {!notification.read && (

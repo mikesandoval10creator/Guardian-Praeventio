@@ -67,7 +67,7 @@ export function Profile() {
 
   const achievements = [
     { id: 1, title: 'Primeros Pasos', description: 'Completa tu primera capacitación', icon: Target, color: 'text-blue-500', bg: 'bg-blue-500/10', completed: completedCourses >= 1 },
-    { id: 2, title: 'Guardián Activo', description: 'Publica 5 veces en el muro', icon: MessageSquare, color: 'text-emerald-500', bg: 'bg-emerald-500/10', completed: userPosts >= 5 },
+    { id: 2, title: 'Guardián Activo', description: 'Publica 5 veces en el muro', icon: MessageSquare, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10', completed: userPosts >= 5 },
     { id: 3, title: 'Experto en Riesgos', description: 'Identifica 10 hallazgos', icon: Shield, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: totalPoints > 1000 },
     { id: 4, title: 'Líder de Seguridad', description: 'Llega al nivel 10', icon: Trophy, color: 'text-purple-500', bg: 'bg-purple-500/10', completed: totalPoints > 5000 },
     { id: 5, title: 'Semana Invicta', description: 'Sin incidentes registrados en 7 días', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: recentIncidents === 0 },
@@ -85,12 +85,12 @@ export function Profile() {
           <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">Se unió en Marzo 2024</p>
           <div className="flex items-center gap-4 pt-2">
             <div className="flex items-center gap-1">
-              <Users className="w-4 h-4 text-emerald-500" />
-              <span className="text-xs font-black text-emerald-500">12 Siguiendo</span>
+              <Users className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+              <span className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37]">12 Siguiendo</span>
             </div>
             <div className="flex items-center gap-1">
-              <Users className="w-4 h-4 text-emerald-500" />
-              <span className="text-xs font-black text-emerald-500">48 Seguidores</span>
+              <Users className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+              <span className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37]">48 Seguidores</span>
             </div>
           </div>
         </div>
@@ -99,13 +99,13 @@ export function Profile() {
             {user?.photoURL ? (
               <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-emerald-500">
+              <div className="w-full h-full flex items-center justify-center bg-[#4db6ac]">
                 <UserIcon className="w-12 h-12 text-white" />
               </div>
             )}
           </div>
           <div className="absolute -bottom-2 -right-2 bg-white dark:bg-zinc-900 p-1.5 rounded-xl shadow-lg border border-zinc-100 dark:border-zinc-800">
-            <div className="w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center">
+            <div className="w-6 h-6 bg-[#4db6ac] rounded-lg flex items-center justify-center">
               <Shield className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
@@ -130,10 +130,10 @@ export function Profile() {
           <span className="text-xl font-black text-orange-600">12</span>
           <span className="text-[8px] font-black text-orange-500/60 uppercase tracking-widest">Días Racha</span>
         </Card>
-        <Card className="p-4 border-2 border-emerald-500/20 bg-emerald-500/5 flex flex-col items-center gap-1 rounded-3xl">
-          <Star className="w-6 h-6 text-emerald-500 fill-emerald-500" />
-          <span className="text-xl font-black text-emerald-600">{totalPoints}</span>
-          <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">Total XP</span>
+        <Card className="p-4 border-2 border-[#4db6ac]/20 dark:border-[#d4af37]/20 bg-[#4db6ac]/5 dark:bg-[#d4af37]/5 flex flex-col items-center gap-1 rounded-3xl">
+          <Star className="w-6 h-6 text-[#4db6ac] dark:text-[#d4af37] fill-[#4db6ac] dark:fill-[#d4af37]" />
+          <span className="text-xl font-black text-[#4db6ac] dark:text-[#d4af37]">{totalPoints}</span>
+          <span className="text-[8px] font-black text-[#4db6ac]/60 dark:text-[#d4af37]/60 uppercase tracking-widest">Total XP</span>
         </Card>
         <Card className="p-4 border-2 border-blue-500/20 bg-blue-500/5 flex flex-col items-center gap-1 rounded-3xl">
           <Trophy className="w-6 h-6 text-blue-500 fill-blue-500" />
@@ -146,7 +146,7 @@ export function Profile() {
       <div className="space-y-4">
         <div className="flex items-center justify-between px-4">
           <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Logros</h2>
-          <button onClick={() => navigate('/gamification')} className="text-[10px] font-black text-emerald-500 uppercase tracking-widest hover:underline">Ver todos</button>
+          <button onClick={() => navigate('/gamification')} className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest hover:underline">Ver todos</button>
         </div>
         <div className="grid grid-cols-1 gap-3 px-2">
           {achievements.map((achievement) => (
@@ -159,12 +159,12 @@ export function Profile() {
                 <p className="text-xs text-zinc-500 font-medium">{achievement.description}</p>
                 {achievement.completed && (
                   <div className="mt-2 h-1.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 w-full" />
+                    <div className="h-full bg-[#4db6ac] w-full" />
                   </div>
                 )}
               </div>
               {achievement.completed ? (
-                <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                <CheckCircle2 className="w-6 h-6 text-[#4db6ac] dark:text-[#d4af37]" />
               ) : (
                 <div className="w-6 h-6 rounded-full border-2 border-zinc-200 dark:border-zinc-800" />
               )}
