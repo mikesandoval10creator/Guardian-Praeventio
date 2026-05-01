@@ -5,6 +5,8 @@ import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useProject } from '../contexts/ProjectContext';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 import { logger } from '../utils/logger';
 
 // ─── Template definitions ────────────────────────────────────────────────────
@@ -194,6 +196,7 @@ export function AfichesSeguridad() {
   const [format, setFormat] = useState<'A4' | 'A3' | 'A2'>('A4');
   const [downloading, setDownloading] = useState(false);
   const posterRef = useRef<HTMLDivElement>(null);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const projectName = selectedProject?.name ?? 'Praeventio Guard';
   const qrUrl = `${window.location.origin}/public-node/${selectedProject?.id ?? 'demo'}`;
@@ -214,14 +217,17 @@ export function AfichesSeguridad() {
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       pdf.addImage(imgData, 'JPEG', 0, 0, mmW, mmH);
       pdf.save(`afiches-seguridad-${selected.id}-${format}.pdf`);
+      showToast(`Afiche descargado en formato ${format}`, 'success');
     } catch (err) {
       logger.error('[AfichesSeguridad] PDF generation failed', { message: (err as Error).message });
+      showToast('Error al generar el PDF. Intenta de nuevo.', 'error');
     } finally {
       setDownloading(false);
     }
   };
 
   return (
+    <>
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -319,5 +325,7 @@ export function AfichesSeguridad() {
         </div>
       </div>
     </div>
+    <ToastContainer toasts={toasts} onDismiss={dismiss} />
+    </>
   );
 }

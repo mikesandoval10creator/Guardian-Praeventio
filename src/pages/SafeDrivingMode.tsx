@@ -152,15 +152,19 @@ export function SafeDrivingMode() {
         </div>
 
         {/* Emergency Button (Massive) */}
-        <button 
+        <button
           onClick={handleEmergency}
+          role="button"
+          aria-pressed={isEmergency}
+          aria-label={isEmergency ? 'Emergencia activa — S.O.S. enviado' : 'Activar emergencia S.O.S.'}
+          aria-live="polite"
           className={`h-48 rounded-[3rem] border-4 flex flex-col items-center justify-center gap-4 transition-all active:scale-95 ${
-            isEmergency 
-              ? 'bg-rose-600 border-rose-500 animate-pulse' 
+            isEmergency
+              ? 'bg-rose-600 border-rose-500 animate-pulse'
               : 'bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20'
           }`}
         >
-          <ShieldAlert className={`w-16 h-16 ${isEmergency ? 'text-white' : 'text-rose-500'}`} />
+          <ShieldAlert className={`w-16 h-16 ${isEmergency ? 'text-white' : 'text-rose-500'}`} aria-hidden="true" />
           <span className={`text-3xl font-black uppercase tracking-widest ${isEmergency ? 'text-white' : 'text-rose-500'}`}>
             {isEmergency ? (sosConfirmedAt ? `S.O.S. ${sosConfirmedAt}` : 'Enviando...') : 'Emergencia'}
           </span>

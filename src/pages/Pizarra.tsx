@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Plus, Network, Lightbulb, Tag, X, Save, Loader2
+  LayoutDashboard, Plus, Network, Lightbulb, Tag, X, Save, Loader2, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { KnowledgeGraph } from '../components/shared/KnowledgeGraph';
 import { SmartConnectionsPanel } from '../components/knowledge/SmartConnectionsPanel';
+import { EmptyState } from '../components/shared/EmptyState';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useProject } from '../contexts/ProjectContext';
@@ -44,6 +45,7 @@ export function Pizarra() {
   const [form, setForm] = useState<NewNodeForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
 
   const handleSave = async () => {
     if (!form.title.trim() || !selectedProject) return;
@@ -214,22 +216,47 @@ export function Pizarra() {
       </AnimatePresence>
 
       {/* Main: graph + smart panel */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Knowledge graph */}
         <div className="flex-1 overflow-hidden">
-          <KnowledgeGraph />
+          {totalNodes === 0 ? (
+            <EmptyState
+              icon={Network}
+              title="Red de conocimiento vacía"
+              description="Crea tu primer nodo para comenzar a mapear riesgos, lecciones y buenas prácticas."
+              action={{ label: 'Nuevo nodo', onClick: () => setShowForm(true) }}
+            />
+          ) : (
+            <KnowledgeGraph />
+          )}
         </div>
 
-        {/* Smart connections side panel */}
-        <div className="w-72 shrink-0 border-l border-white/5 overflow-y-auto bg-zinc-900/40">
-          <div className="p-3 border-b border-white/5">
-            <div className="flex items-center gap-2">
-              <Lightbulb className="w-4 h-4 text-amber-400" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Conexiones Inteligentes</span>
-            </div>
-          </div>
-          <SmartConnectionsPanel />
-        </div>
+        {/* Toggle button (mobile) */}
+        <button
+          onClick={() => setShowPanel(v => !v)}
+          aria-label={showPanel ? 'Cerrar panel de conexiones' : 'Abrir panel de conexiones inteligentes'}
+          className="sm:hidden absolute bottom-4 right-4 z-20 p-3 bg-amber-500 text-white rounded-2xl shadow-lg"
+        >
+          {showPanel ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
+        </button>
+
+        {/* Smart connections side panel — always visible on sm+, toggleable on mobile */}
+        <AnimatePresence>
+          {(showPanel || true) && (
+            <motion.div
+              initial={false}
+              className={`${showPanel ? 'flex' : 'hidden'} sm:flex flex-col w-72 shrink-0 border-l border-white/5 overflow-y-auto bg-zinc-900/40 absolute sm:relative inset-y-0 right-0 z-10`}
+            >
+              <div className="p-3 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-400" aria-hidden="true" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Conexiones Inteligentes</span>
+                </div>
+              </div>
+              <SmartConnectionsPanel />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
