@@ -22,8 +22,7 @@ COPY --from=builder /app/dist ./dist
 
 # Copy server and backend services
 COPY server.ts tsconfig.json ./
-COPY src/services ./src/services
-COPY src/types ./src/types
+COPY src ./src
 
 # Optional: Firebase Admin config (mount as secret in Cloud Run instead)
 COPY firebase-applet-config.json* ./
