@@ -39,6 +39,7 @@ import { UserProfileModal } from '../components/workers/UserProfileModal';
 import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { logger } from '../utils/logger';
+import { EmptyState } from '../components/shared/EmptyState';
 
 export function Workers() {
   const { selectedProject } = useProject();
@@ -333,14 +334,13 @@ export function Workers() {
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-12 sm:p-20 text-center shadow-sm">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-50 dark:bg-zinc-800 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
-            <UserPlus className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-400 dark:text-zinc-600" />
-          </div>
-          <h3 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-2">No se encontraron trabajadores</h3>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
-            Comienza añadiendo personal a este proyecto para gestionar su seguridad y documentación.
-          </p>
+        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+          <EmptyState
+            mascot
+            title="No se encontraron trabajadores"
+            description="Comienza añadiendo personal a este proyecto para gestionar su seguridad y documentación."
+            action={{ label: 'Añadir Trabajador', onClick: () => setIsAddModalOpen(true) }}
+          />
         </div>
       )}
 

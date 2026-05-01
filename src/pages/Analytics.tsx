@@ -44,6 +44,7 @@ import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
 import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
 import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
+import { EmptyState } from '../components/shared/EmptyState';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -244,7 +245,17 @@ export function Analytics() {
       {/* Project Health Check */}
       <ProjectHealthCheck />
 
-      {/* Report Container (for PDF export) */}
+      {projectNodes.length === 0 ? (
+        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+          <EmptyState
+            mascot
+            title="Aún no hay datos para analizar"
+            description="Registra riesgos, incidentes, hallazgos o auditorías en tu proyecto para visualizar KPIs y tendencias en este panel."
+            action={{ label: 'Generar Resumen IA', onClick: handleGenerateSummary }}
+          />
+        </div>
+      ) : (
+      /* Report Container (for PDF export) */
       <div id="executive-report" className="space-y-6 bg-zinc-50 p-4 rounded-2xl">
         
         {/* AI Executive Summary */}
@@ -465,6 +476,7 @@ export function Analytics() {
         </div>
 
       </div>
+      )}
     </div>
   );
 }

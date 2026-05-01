@@ -40,6 +40,7 @@ import { PostTrainingAdModal } from '../components/shared/PostTrainingAdModal';
 import { prepareInterstitial, canShowAd, recordAdShown } from '../services/adService';
 import { useEmergency } from '../contexts/EmergencyContext';
 import { logger } from '../utils/logger';
+import { EmptyState } from '../components/shared/EmptyState';
 
 interface QuizQuestion {
   question: string;
@@ -879,14 +880,13 @@ export function Training() {
           ))}
         </div>
       ) : (
-        <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-[40px] p-24 text-center shadow-inner">
-          <div className="w-24 h-24 bg-zinc-800 rounded-[32px] flex items-center justify-center mx-auto mb-8 border border-white/5 shadow-2xl">
-            <BookOpen className="w-12 h-12 text-zinc-600" />
-          </div>
-          <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">No hay capacitaciones activas</h3>
-          <p className="text-zinc-500 max-w-md mx-auto font-medium leading-relaxed">
-            Programa tu primera sesión de capacitación o genera una <span className="text-blue-500">Cápsula IA</span> para empezar a fortalecer la cultura preventiva.
-          </p>
+        <div className="bg-zinc-900/50 border border-dashed border-white/10 rounded-[40px] shadow-inner">
+          <EmptyState
+            mascot
+            title="No hay capacitaciones activas"
+            description="Programa tu primera sesión de capacitación o genera una Cápsula IA para empezar a fortalecer la cultura preventiva."
+            action={{ label: 'Crear Sesión', onClick: () => setIsCreatingSession(true) }}
+          />
         </div>
       )}
 
