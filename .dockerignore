@@ -3,7 +3,6 @@ dist
 .env
 .env.*
 !.env.example
-firebase-applet-config.json
 .git
 .gitignore
 *.log
