@@ -97,7 +97,7 @@ export function ControlsAndMaterials() {
         <Button variant="secondary" className="shrink-0">
           <Filter className="w-4 h-4" />
         </Button>
-        <Button className="shrink-0 bg-emerald-500 hover:bg-emerald-600">
+        <Button className="shrink-0 bg-[#4db6ac] hover:bg-[#3a9e95]">
           <Plus className="w-4 h-4 mr-2" />
           Nuevo
         </Button>

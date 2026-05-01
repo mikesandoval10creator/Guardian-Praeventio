@@ -223,7 +223,7 @@ export function DEAZones() {
                 <Button type="button" variant="secondary" className="flex-1" onClick={() => setIsChecklistOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white">
+                <Button type="submit" className="flex-1 bg-[#4db6ac] hover:bg-[#3a9e95] text-white">
                   Aprobar Inspección
                 </Button>
               </div>

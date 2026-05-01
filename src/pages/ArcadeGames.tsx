@@ -240,7 +240,7 @@ export function ArcadeGames() {
               <Trophy className="w-16 h-16 text-yellow-500 mb-4" />
               <h2 className="text-3xl font-black text-white uppercase tracking-widest mb-2">¡Cero Daño!</h2>
               <p className="text-emerald-200 mb-6 text-xl">Has completado el turno sin incidentes.</p>
-              <Button onClick={() => setGameState('start')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3">
+              <Button onClick={() => setGameState('start')} className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-8 py-3">
                 Volver al Menú
               </Button>
             </div>

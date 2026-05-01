@@ -118,7 +118,7 @@ export function AcademicProcessor() {
               </div>
 
               <div className="pt-6 border-t border-zinc-200 dark:border-white/10 flex justify-end">
-                <Button className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white">
                   <CheckCircle2 className="w-4 h-4 mr-2" /> Guardar en Zettelkasten
                 </Button>
               </div>

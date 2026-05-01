@@ -444,7 +444,7 @@ export function SafetyFeed() {
                         placeholder="Escribe un comentario..." 
                         className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
                       />
-                      <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">
+                      <button type="submit" className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">
                         Enviar
                       </button>
                     </form>
@@ -619,7 +619,7 @@ export function SafetyFeed() {
                   <button 
                     type="submit"
                     disabled={isAnalyzing}
-                    className="px-10 py-4 rounded-2xl bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                    className="px-10 py-4 rounded-2xl bg-[#4db6ac] text-white font-black text-[10px] uppercase tracking-widest hover:bg-[#3a9e95] transition-all shadow-lg shadow-[#4db6ac]/20 disabled:opacity-50 flex items-center gap-2"
                   >
                     {isAnalyzing ? (
                       <>

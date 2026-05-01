@@ -261,7 +261,7 @@ export function Emergency() {
           </button>
           <button
             onClick={() => setShowContactsModal(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-[#4db6ac]/20 active:scale-95"
           >
             <Phone className="w-4 h-4" />
             <span>Contactos de Emergencia</span>
@@ -483,7 +483,7 @@ export function Emergency() {
                     {worker.phone ? (
                       <a
                         href={`tel:${worker.phone}`}
-                        className="flex items-center gap-2 px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shrink-0"
+                        className="flex items-center gap-2 px-3 py-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shrink-0"
                       >
                         <Phone className="w-3 h-3" />
                         {worker.phone}
