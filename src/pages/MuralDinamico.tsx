@@ -8,6 +8,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { db, collection, onSnapshot, query, orderBy, limit, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../services/firebase';
 import { updateDoc, doc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { moderatePostContent } from '../utils/contentModeration';
 
 interface Post {
   id: string;
@@ -45,6 +46,7 @@ export function MuralDinamico() {
   const [newPostContent, setNewPostContent] = useState('');
   const [postType, setPostType] = useState<string>('info');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -69,6 +71,13 @@ export function MuralDinamico() {
 
   const handlePostSubmit = async () => {
     if (!newPostContent.trim() || !selectedProject || !user) return;
+
+    const moderation = moderatePostContent(newPostContent);
+    if (!moderation.ok) {
+      setModerationError(moderation.reason);
+      return;
+    }
+    setModerationError(null);
     setIsSubmitting(true);
 
     const path = `projects/${selectedProject.id}/safety_posts`;
@@ -77,7 +86,7 @@ export function MuralDinamico() {
         userId: user.uid,
         userName: user.displayName || user.email || 'Usuario',
         userPhoto: user.photoURL || '',
-        content: newPostContent,
+        content: newPostContent.trim(),
         type: typeMapping[postType] || 'Tip',
         likes: [],
         createdAt: serverTimestamp(),
@@ -156,11 +165,26 @@ export function MuralDinamico() {
         <div className="space-y-4">
           <textarea
             value={newPostContent}
-            onChange={(e) => setNewPostContent(e.target.value)}
+            onChange={(e) => { setNewPostContent(e.target.value); if (moderationError) setModerationError(null); }}
             placeholder="Comparte una alerta, lección aprendida o comunicado..."
-            className="w-full h-24 bg-zinc-900/50 border border-white/10 rounded-xl p-4 text-sm text-white placeholder:text-zinc-600 focus:ring-2 focus:ring-emerald-500/50 outline-none resize-none"
+            aria-invalid={moderationError !== null}
+            aria-describedby={moderationError ? 'mural-mod-error' : undefined}
+            className={`w-full h-24 bg-zinc-900/50 border rounded-xl p-4 text-sm text-white placeholder:text-zinc-600 focus:ring-2 outline-none resize-none ${
+              moderationError ? 'border-rose-500/60 focus:ring-rose-500/40' : 'border-white/10 focus:ring-emerald-500/50'
+            }`}
           />
-          
+
+          {moderationError && (
+            <div
+              id="mural-mod-error"
+              role="alert"
+              className="flex items-start gap-2 p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl"
+            >
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-xs text-rose-200 leading-relaxed">{moderationError}</p>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
             <div className="flex gap-2">
               {(['info', 'alert', 'success', 'event'] as const).map((type) => (
