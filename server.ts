@@ -2189,6 +2189,89 @@ async function runLingBotMapLocal(opts: {
   });
 }
 
+/**
+ * Generic local reconstruction runner — used by COLMAP path.
+ * Downloads video, spawns Python script, parses "Frame X/Y" progress, uploads .ply.
+ */
+async function runLocalReconstruction(opts: {
+  jobRef: FirebaseFirestore.DocumentReference;
+  videoUrl: string;
+  scriptPath: string;
+  scriptArgs?: string[];
+}): Promise<void> {
+  const { jobRef, videoUrl, scriptPath, scriptArgs = [] } = opts;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "colmap-"));
+  const videoPath = path.join(tmpDir, "input.mp4");
+  const outputDir = path.join(tmpDir, "output");
+  fs.mkdirSync(outputDir);
+
+  await jobRef.update({ status: "processing", progress: 2, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+  const videoRes = await fetch(videoUrl);
+  if (!videoRes.ok) throw new Error(`Failed to download video: ${videoRes.status}`);
+  fs.writeFileSync(videoPath, Buffer.from(await videoRes.arrayBuffer()));
+  await jobRef.update({ progress: 5, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+  const args = [scriptPath, "--video_path", videoPath, "--output_dir", outputDir, ...scriptArgs];
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn("python3", args);
+    let lastProgress = 5;
+    let stderr = "";
+
+    proc.stdout.on("data", async (chunk: Buffer) => {
+      const text = chunk.toString();
+      const m = text.match(/Frame\s+(\d+)\/(\d+)/i) || text.match(/Progress[:\s]+(\d+)%/i);
+      let progress = lastProgress;
+      if (m) {
+        progress = m[2]
+          ? Math.round((parseInt(m[1]) / parseInt(m[2])) * 90) + 5
+          : Math.round(parseInt(m[1]) * 0.9) + 5;
+      }
+      if (progress > lastProgress + 4) {
+        lastProgress = progress;
+        await jobRef.update({ progress, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => null);
+      }
+    });
+
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString().slice(-2000); });
+
+    proc.on("close", async (code) => {
+      if (code !== 0) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+        console.error("[DigitalTwin] reconstruction script exited", code, stderr.slice(-400));
+        await jobRef.update({ status: "failed", error: `exit code ${code}`, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => null);
+        return reject(new Error(`exit ${code}`));
+      }
+
+      const plyFiles = fs.existsSync(outputDir) ? fs.readdirSync(outputDir).filter(f => f.endsWith(".ply")) : [];
+      let resultUrl: string | null = null;
+      if (plyFiles.length > 0) {
+        const plyPath = path.join(outputDir, plyFiles[0]);
+        const bucketName = process.env.FIREBASE_STORAGE_BUCKET;
+        if (bucketName) {
+          try {
+            const bucket = admin.storage().bucket(bucketName);
+            const dest = `digital_twin_jobs/${jobRef.id}/result.ply`;
+            await bucket.upload(plyPath, { destination: dest, metadata: { contentType: "application/octet-stream" } });
+            const [url] = await bucket.file(dest).getSignedUrl({ action: "read", expires: "2035-01-01" });
+            resultUrl = url;
+          } catch (e) { console.error("[DigitalTwin] Storage upload:", e); }
+        }
+      }
+
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      await jobRef.update({ status: "completed", progress: 100, resultUrl, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      resolve();
+    });
+
+    proc.on("error", async (err) => {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      await jobRef.update({ status: "failed", error: `spawn: ${err.message}`, updatedAt: admin.firestore.FieldValue.serverTimestamp() }).catch(() => null);
+      reject(err);
+    });
+  });
+}
+
 app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
   const { projectId, videoUrl, notes, mode } = req.body as { projectId: string; videoUrl: string; notes?: string; mode?: string };
   if (!projectId || !videoUrl) {
@@ -2241,29 +2324,37 @@ app.post("/api/digitalTwin/reconstruct", verifyAuth, async (req, res) => {
       });
     } else if (process.env.LINGBOT_MAP_PATH) {
       // Local CPU reconstruction via lingBot-Map (--offload_to_cpu, no GPU required).
-      // Runs as a child process; takes 10–30 min. Video must already be in Firebase Storage.
       runLingBotMapLocal({ jobRef, videoUrl, projectId, processingMode }).catch((err) => {
         console.error("[DigitalTwin] Local lingBot-Map error:", err);
       });
     } else {
-      // Demo simulation (no MODAL_TOKEN or LINGBOT_MAP_PATH configured).
-      const stepMs = processingMode === "cpu" ? 15000 : 5000;
-      setTimeout(async () => {
-        await jobRef.update({ status: "processing", progress: 30, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      }, stepMs);
-      setTimeout(async () => {
-        await jobRef.update({ status: "processing", progress: 70, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      }, stepMs * 2.4);
-      setTimeout(async () => {
-        await jobRef.update({
-          status: "completed",
-          progress: 100,
-          resultUrl: null,
-          pointCount: Math.floor(Math.random() * 50000) + 20000,
-          boundingBox: { minX: -15, maxX: 15, minY: 0, maxY: 8, minZ: -15, maxZ: 15 },
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // COLMAP CPU reconstruction (always available — installed on server).
+      // Falls back to demo simulation only if the script file is missing.
+      const colmapScript = path.resolve(process.cwd(), "scripts/reconstruct_faena.py");
+      if (fs.existsSync(colmapScript)) {
+        runLocalReconstruction({ jobRef, videoUrl, scriptPath: colmapScript, scriptArgs: ["--max_frames", "120"] }).catch((err) => {
+          console.error("[DigitalTwin] COLMAP reconstruction error:", err);
         });
-      }, stepMs * 4);
+      } else {
+        // Demo simulation fallback (dev environments without the scripts dir)
+        const stepMs = processingMode === "cpu" ? 15000 : 5000;
+        setTimeout(async () => {
+          await jobRef.update({ status: "processing", progress: 30, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        }, stepMs);
+        setTimeout(async () => {
+          await jobRef.update({ status: "processing", progress: 70, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        }, stepMs * 2.4);
+        setTimeout(async () => {
+          await jobRef.update({
+            status: "completed",
+            progress: 100,
+            resultUrl: null,
+            pointCount: Math.floor(Math.random() * 50000) + 20000,
+            boundingBox: { minX: -15, maxX: 15, minY: 0, maxY: 8, minZ: -15, maxZ: 15 },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }, stepMs * 4);
+      }
     }
 
     res.json({ jobId: jobRef.id, status: "queued", mode: processingMode });

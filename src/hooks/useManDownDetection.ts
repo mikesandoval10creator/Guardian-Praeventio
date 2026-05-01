@@ -110,7 +110,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     }, ALARM_MIN_DURATION_MS);
   };
 
-  const acknowledgeAlert = () => {
+  const acknowledgeAlert = async () => {
     acknowledgedRef.current = true;
     stopAlarmLoop();
     setIsAlerting(false);
@@ -119,12 +119,22 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     const ref = mandownEventRef.current;
     mandownEventRef.current = null;
     if (!ref) return;
-    updateDoc(doc(db, `projects/${ref.projectId}/mandown_events`, ref.docId), {
-      status: 'acknowledged',
-      acknowledgedBy: user?.uid ?? null,
-      acknowledgedByName: user?.displayName ?? null,
-      acknowledgedAt: serverTimestamp(),
-    }).catch((err) => logger.error('useManDownDetection: failed to acknowledge event', { err }));
+    try {
+      await updateDoc(doc(db, `projects/${ref.projectId}/mandown_events`, ref.docId), {
+        status: 'acknowledged',
+        acknowledgedBy: user?.uid ?? null,
+        acknowledgedByName: user?.displayName ?? null,
+        acknowledgedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('[ManDown] acknowledgeAlert Firestore write failed — queuing retry:', err);
+      logger.error('useManDownDetection: failed to acknowledge event', { err });
+      // Re-arm the alarm so the acknowledgment doesn't silently disappear
+      acknowledgedRef.current = false;
+      mandownEventRef.current = ref;
+      setIsAlerting(true);
+      startAlarmLoop();
+    }
   };
 
   const startDetection = () => {

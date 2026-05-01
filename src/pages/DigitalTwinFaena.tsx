@@ -287,6 +287,12 @@ export function DigitalTwinFaena() {
                   : 'Procesamiento sin GPU dedicada. Más lento pero sin costo por job.'}
               </p>
             </div>
+            {mode === 'cpu' && (
+              <div className="mt-2 p-3 rounded-lg bg-amber-900/30 border border-amber-600/40 text-amber-200 text-xs">
+                <strong>Modo CPU local:</strong> la reconstrucción toma 10–30 min en el servidor
+                usando COLMAP (sin GPU, sin costo). El resultado aparecerá automáticamente al terminar.
+              </div>
+            )}
           </div>
 
           {/* Upload zone */}

@@ -40,6 +40,7 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       logger.error('EmergencyContext: failed to persist emergency event', { err });
       captureEmergencyError(err, { trigger: type, projectId: projectId ?? 'unknown' });
+      console.error('[Emergency] triggerEmergency Firestore write failed:', err);
     }
   };
 
@@ -49,7 +50,11 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
 
     const ref = activeEventRef.current;
     activeEventRef.current = null;
-    if (!ref) return;
+    if (!ref) {
+      console.warn('[Emergency] resolveEmergency called with no active emergency doc');
+      setIsEmergencyActive(false);
+      return;
+    }
 
     const user = auth.currentUser;
     updateDoc(doc(db, `projects/${ref.projectId}/emergency_events`, ref.docId), {
