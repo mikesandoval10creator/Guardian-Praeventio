@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Activity } from 'lucide-react';
-import { HumanBodyViewer as HumanBodyViewerComponent } from '../components/occupational-health/HumanBodyViewer';
+import { HumanBodyViewer as HumanBodyViewerComponent, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
+import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
 
 export function HumanBodyViewer() {
+  const [regions, setRegions] = useState<BodyRegion[]>([]);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Page header */}
@@ -18,14 +21,15 @@ export function HumanBodyViewer() {
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-rose-500 bg-rose-500/10 border-rose-500/20 shrink-0">
           <Activity className="w-4 h-4" />
-          <span className="font-bold uppercase tracking-wider text-xs">
-            Salud Ocupacional
-          </span>
+          <span className="font-bold uppercase tracking-wider text-xs">Salud Ocupacional</span>
         </div>
       </div>
 
-      {/* Interactive component */}
-      <HumanBodyViewerComponent />
+      {/* Two-column layout: body viewer + AI analyzer */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <HumanBodyViewerComponent onChange={setRegions} />
+        <MedicalAnalyzer regions={regions} />
+      </div>
     </div>
   );
 }

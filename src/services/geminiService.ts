@@ -115,6 +115,7 @@ export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreement
 export const summarizeAgreements = async (rawMeetingNotes: string) => callGeminiAPI('summarizeAgreements', [rawMeetingNotes]);
 export const mapRisksToSurveillance = async (risks: any[]) => callGeminiAPI('mapRisksToSurveillance', [risks]);
 export const analyzeHealthPatterns = async (medicalRecords: any[]) => callGeminiAPI('analyzeHealthPatterns', [medicalRecords]);
+export const analyzeMedicalInjury = async (regions: { id: string; label: string; severity: string | null; ds594Article?: string }[]) => callGeminiAPI('analyzeMedicalInjury', [regions]);
 export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => callGeminiAPI('analyzeRiskCorrelations', [nodes, events]);
 export const downloadSpecificNormative = async (normativeId: string, force: boolean = false) => callGeminiAPI('downloadSpecificNormative', [normativeId, force]);
 export const searchRelevantContext = async (query: string) => callGeminiAPI('searchRelevantContext', [query]);

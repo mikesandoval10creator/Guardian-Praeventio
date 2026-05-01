@@ -2657,6 +2657,45 @@ export * from './comiteBackend.js';
 export * from './medicineBackend.js';
 export * from './predictionBackend.js';
 export * from './legalBackend.js';
+export const analyzeMedicalInjury = async (regions: { id: string; label: string; severity: string | null; ds594Article?: string }[]) => {
+  const genAI = new GoogleGenAI({ apiKey: API_KEY! });
+  const injured = regions.filter(r => r.severity !== null);
+  if (injured.length === 0) return { error: 'No se seleccionaron zonas lesionadas.' };
+
+  const regionsText = injured.map(r =>
+    `- ${r.label} (severidad: ${r.severity}${r.ds594Article ? `, ${r.ds594Article}` : ''})`
+  ).join('\n');
+
+  const prompt = `Eres un médico experto en salud ocupacional chilena (DS 594, DS 40, Ley 16.744).
+Analiza estas lesiones de accidente laboral y entrega un diagnóstico ocupacional estructurado en JSON.
+
+ZONAS LESIONADAS:
+${regionsText}
+
+Responde ÚNICAMENTE con JSON válido con esta estructura exacta:
+{
+  "anatomicalSystems": ["sistemas anatómicos afectados"],
+  "specialistRequired": "especialista médico recomendado",
+  "immediateActions": ["acciones inmediatas de primeros auxilios"],
+  "ds594References": ["artículos DS 594 aplicables"],
+  "diatCodes": ["códigos DIAT correspondientes"],
+  "estimatedRecovery": "tiempo estimado de recuperación",
+  "workRestrictions": ["restricciones laborales recomendadas"],
+  "severity": "leve | moderado | grave | crítico",
+  "requiresHospitalization": boolean
+}`;
+
+  return await withExponentialBackoff(async () => {
+    const response = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { responseMimeType: 'application/json' }
+    });
+    const text = response.text ?? '';
+    return JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim());
+  });
+};
+
 export * from './chemicalBackend.js';
 export * from './psychosocialBackend.js';
 export * from './shiftBackend.js';

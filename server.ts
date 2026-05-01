@@ -1613,7 +1613,8 @@ const ALLOWED_GEMINI_ACTIONS = [
   'downloadSpecificNormative',
   'searchRelevantContext',
   'getNutritionSuggestion',
-  'scanLegalUpdates'
+  'scanLegalUpdates',
+  'analyzeMedicalInjury'
 ];
 
 app.post("/api/gemini", verifyAuth, geminiLimiter, async (req, res) => {
