@@ -41,6 +41,10 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { logger } from '../utils/logger';
+import { ProjectHealthCheck } from '../components/ProjectHealthCheck';
+import { useIndustryIntegration } from '../hooks/useIndustryIntegration';
+import { EmptyState } from '../components/shared/EmptyState';
 
 export function Analytics() {
   const { t } = useTranslation();
@@ -53,6 +57,12 @@ export function Analytics() {
 
   // Filter nodes by project
   const projectNodes = nodes.filter(n => !selectedProject || n.projectId === selectedProject.id);
+
+  // Industry compliance score
+  const { calculateComplianceScore } = useIndustryIntegration();
+  const complianceScore = selectedProject
+    ? calculateComplianceScore(selectedProject.industry ?? 'GP-MANU', projectNodes)
+    : null;
 
   // Calculate KPIs
   const risks = projectNodes.filter(n => n.type === NodeType.RISK);
@@ -155,7 +165,7 @@ export function Analytics() {
       setExecutiveSummary(summary);
       await cacheAIResponse('analytics-summary', summary);
     } catch (error) {
-      console.error("Error generating summary:", error);
+      logger.error("Error generating summary:", error);
       const cached = await getCachedAIResponse('analytics-summary');
       if (cached) {
         setExecutiveSummary(cached);
@@ -185,7 +195,7 @@ export function Analytics() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Reporte_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
-      console.error("Error exporting PDF:", error);
+      logger.error("Error exporting PDF:", error);
     } finally {
       setIsExporting(false);
     }
@@ -213,7 +223,7 @@ export function Analytics() {
             {isGenerating ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <BrainCircuit className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />
+              <BrainCircuit className="w-4 h-4 text-[#d4af37] dark:text-[#4db6ac]" />
             )}
             {isOnline ? 'Generar Resumen IA' : 'Cargar Resumen Guardado'}
           </button>
@@ -232,7 +242,20 @@ export function Analytics() {
         </div>
       </div>
 
-      {/* Report Container (for PDF export) */}
+      {/* Project Health Check */}
+      <ProjectHealthCheck />
+
+      {projectNodes.length === 0 ? (
+        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+          <EmptyState
+            mascot
+            title="Aún no hay datos para analizar"
+            description="Registra riesgos, incidentes, hallazgos o auditorías en tu proyecto para visualizar KPIs y tendencias en este panel."
+            action={{ label: 'Generar Resumen IA', onClick: handleGenerateSummary }}
+          />
+        </div>
+      ) : (
+      /* Report Container (for PDF export) */
       <div id="executive-report" className="space-y-6 bg-zinc-50 p-4 rounded-2xl">
         
         {/* AI Executive Summary */}
@@ -243,8 +266,8 @@ export function Analytics() {
             className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm"
           >
             <div className="flex items-center gap-3 mb-4 pb-4 border-b border-zinc-100">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <BrainCircuit className="w-5 h-5 text-emerald-600" />
+              <div className="w-10 h-10 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center">
+                <BrainCircuit className="w-5 h-5 text-[#4db6ac] dark:text-[#d4af37]" />
               </div>
               <div>
                 <h2 className="text-lg font-black text-zinc-900 uppercase tracking-tight">{executiveSummary.titulo}</h2>
@@ -286,7 +309,7 @@ export function Analytics() {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-white rounded-2xl p-4 border border-zinc-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Riesgos Críticos</p>
@@ -336,14 +359,55 @@ export function Analytics() {
               </span>
             </div>
           </div>
+
+          {/* Industry Compliance Score */}
+          {complianceScore && (
+            <div className={`bg-white rounded-2xl p-4 border shadow-sm ${
+              complianceScore.total >= 80 ? 'border-emerald-200' :
+              complianceScore.total >= 60 ? 'border-amber-200' : 'border-rose-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Índice Legal</p>
+                <BrainCircuit className={`w-4 h-4 ${
+                  complianceScore.total >= 80 ? 'text-emerald-500' :
+                  complianceScore.total >= 60 ? 'text-amber-500' : 'text-rose-500'
+                }`} />
+              </div>
+              <div className="flex items-end gap-2 mb-1">
+                <span className={`text-3xl font-black leading-none ${
+                  complianceScore.total >= 80 ? 'text-emerald-600' :
+                  complianceScore.total >= 60 ? 'text-amber-600' : 'text-rose-600'
+                }`}>{complianceScore.total}%</span>
+              </div>
+              <div className="w-full bg-zinc-100 rounded-full h-1">
+                <div
+                  className={`h-1 rounded-full transition-all ${
+                    complianceScore.total >= 80 ? 'bg-emerald-500' :
+                    complianceScore.total >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                  }`}
+                  style={{ width: `${complianceScore.total}%` }}
+                />
+              </div>
+              {complianceScore.missingNormativas.length > 0 && (
+                <p className="text-[9px] text-rose-500 mt-1 font-medium">
+                  {complianceScore.missingNormativas.length} normativa{complianceScore.missingNormativas.length > 1 ? 's' : ''} faltante{complianceScore.missingNormativas.length > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Risk Distribution */}
           <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6">Distribución de Riesgos</h3>
-            <div className="h-64">
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="risk-distribution-title">Distribución de Riesgos</h3>
+            <div
+              className="h-64"
+              role="img"
+              aria-labelledby="risk-distribution-title"
+              aria-label={`Distribución de riesgos por nivel: ${riskLevelData.map(r => `${r.name} ${r.value}`).join(', ')}`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={riskLevelData} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e4e4e7" />
@@ -365,8 +429,13 @@ export function Analytics() {
 
           {/* Incident Trend */}
           <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6">Tendencia de Incidentes y Hallazgos</h3>
-            <div className="h-64">
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="incident-trend-title">Tendencia de Incidentes y Hallazgos</h3>
+            <div
+              className="h-64"
+              role="img"
+              aria-labelledby="incident-trend-title"
+              aria-label={`Línea de tendencia mensual. ${incidentTrendData.map(d => `${d.month}: ${d.incidentes ?? 0} incidentes y ${d.hallazgos ?? 0} hallazgos`).join('; ')}`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={incidentTrendData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
@@ -384,8 +453,13 @@ export function Analytics() {
 
           {/* Safety Dimensions (New) */}
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm lg:col-span-2">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6">Radar de Dimensiones de Seguridad</h3>
-            <div className="h-80">
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6" id="safety-radar-title">Radar de Dimensiones de Seguridad</h3>
+            <div
+              className="h-80"
+              role="img"
+              aria-labelledby="safety-radar-title"
+              aria-label={`Comparativa Actual vs Objetivo (escala 0–100). ${safetyDimensionsData.map(d => `${d.subject}: actual ${d.A}, objetivo ${d.B}`).join('; ')}`}
+            >
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="80%" data={safetyDimensionsData}>
                   <PolarGrid stroke="#e4e4e7" />
@@ -402,6 +476,7 @@ export function Analytics() {
         </div>
 
       </div>
+      )}
     </div>
   );
 }

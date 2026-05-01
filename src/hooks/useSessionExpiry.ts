@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { auth, logOut, onAuthStateChanged } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 const SESSION_MAX_MS = 8 * 60 * 60 * 1000; // 8-hour shift maximum (one work shift)
 const STALE_AGE_MS = 24 * 60 * 60 * 1000; // a stored first-login older than this is considered stale and reset
@@ -56,7 +57,7 @@ function notifyShiftEnded() {
       return;
     }
   } catch {}
-  console.warn('[SessionExpiry]', msg);
+  logger.warn('[SessionExpiry] ' + msg);
 }
 
 export function useSessionExpiry() {
@@ -74,12 +75,12 @@ export function useSessionExpiry() {
       // Clock-skew safety: if the computed expiry is already past on first check,
       // force logout immediately rather than wait for the interval to tick.
       if (now >= expiry) {
-        console.warn('[SessionExpiry] Session exceeded 8h limit — forcing re-auth');
+        logger.warn('[SessionExpiry] Session exceeded 8h limit — forcing re-auth');
         notifyShiftEnded();
         try {
           await logOut();
         } catch (err) {
-          console.error('[SessionExpiry] logOut failed', err);
+          logger.error('[SessionExpiry] logOut failed', err);
         }
       }
     };

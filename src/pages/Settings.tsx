@@ -27,6 +27,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { BunkerManager } from '../components/BunkerManager';
 import { get, set } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 export function Settings() {
   const { t, i18n } = useTranslation();
@@ -96,7 +97,7 @@ export function Settings() {
           updateDoc(doc(db, 'users', user.uid), {
             notificationPreferences: newPrefs
           }).catch(err => {
-            console.error("Error updating notification preferences", err);
+            logger.error("Error updating notification preferences", err);
             addNotification({title: 'Error', message: 'No se pudieron guardar las preferencias', type: 'error'});
           });
         });
@@ -137,7 +138,7 @@ export function Settings() {
       await logOut();
       navigate('/');
     } catch (error) {
-      console.error('Error logging out:', error);
+      logger.error('Error logging out:', error);
     }
   };
 
@@ -192,7 +193,7 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Autenticación de Dos Factores (2FA)</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Añade una capa extra de seguridad a tu cuenta.</p>
               </div>
-              <button onClick={() => setMfaEnabled(!mfaEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+              <button onClick={() => setMfaEnabled(!mfaEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${mfaEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -218,7 +219,7 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Alertas por Correo Electrónico</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Resúmenes diarios y alertas críticas.</p>
               </div>
-              <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+              <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${emailNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -232,7 +233,7 @@ export function Settings() {
                 <button onClick={() => {
                   setPushNotifs(!pushNotifs);
                   if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
-                }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                   <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${pushNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
@@ -255,7 +256,7 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🩺 Exámenes Médicos</h5>
                       <p className="text-[10px] text-zinc-500">Recordatorios de vigencia y nuevos resultados médicos.</p>
                     </div>
-                    <button onClick={() => updateNotifPref('medical', !notifPrefs.medical)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.medical ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                    <button onClick={() => updateNotifPref('medical', !notifPrefs.medical)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.medical ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                       <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.medical ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -265,7 +266,7 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">📚 Capacitaciones</h5>
                       <p className="text-[10px] text-zinc-500">Asignaciones de cursos, ODI y charlas programadas.</p>
                     </div>
-                    <button onClick={() => updateNotifPref('training', !notifPrefs.training)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.training ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                    <button onClick={() => updateNotifPref('training', !notifPrefs.training)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.training ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                       <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.training ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -275,7 +276,7 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🤖 Asistente IA (Guardian)</h5>
                       <p className="text-[10px] text-zinc-500">Consejos predictivos y anomalías detectadas en terreno.</p>
                     </div>
-                    <button onClick={() => updateNotifPref('ai_alerts', !notifPrefs.ai_alerts)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.ai_alerts ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                    <button onClick={() => updateNotifPref('ai_alerts', !notifPrefs.ai_alerts)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.ai_alerts ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                       <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.ai_alerts ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -300,7 +301,7 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Análisis Predictivo Autónomo</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Permite a la IA analizar datos en segundo plano.</p>
               </div>
-              <button onClick={() => setAiProactive(!aiProactive)} className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+              <button onClick={() => setAiProactive(!aiProactive)} className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${aiProactive ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -324,7 +325,7 @@ export function Settings() {
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => addNotification({title: 'Exportación Iniciada', message: 'Tus datos se están preparando para descarga.', type: 'success'})} className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-500 text-xs font-bold rounded-xl transition-colors border border-emerald-500/20">
+              <button onClick={() => addNotification({title: 'Exportación Iniciada', message: 'Tus datos se están preparando para descarga.', type: 'success'})} className="flex-1 py-2 bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] text-xs font-bold rounded-xl transition-colors border border-[#4db6ac]/20">
                 Exportar Datos (JSON)
               </button>
               <button onClick={() => addNotification({title: 'Caché Limpiada', message: 'Se ha liberado espacio local correctamente.', type: 'success'})} className="flex-1 py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">

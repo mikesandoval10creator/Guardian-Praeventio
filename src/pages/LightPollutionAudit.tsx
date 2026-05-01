@@ -41,6 +41,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { Card, Button } from '../components/shared/Card';
+import { logger } from '../utils/logger';
 import { logAuditAction } from '../services/auditService';
 
 type TaskCat = 'precision' | 'regular' | 'basto' | 'transito';
@@ -136,7 +137,7 @@ function LightPollutionAuditInner() {
       );
       setSavedId(docRef.id);
     } catch (err) {
-      console.error('LightPollutionAudit save failed', err);
+      logger.error('LightPollutionAudit save failed', err);
     } finally {
       setSaving(false);
     }

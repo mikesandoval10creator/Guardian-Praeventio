@@ -11,7 +11,7 @@
 // - Audit log: training.uv.alert_emitted cuando se emite alerta crítica.
 // - Tier: canUseAdvancedAnalytics (Diamante+).
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sun, AlertTriangle, ShieldAlert, MapPin, Loader2, CheckCircle2 } from 'lucide-react';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -91,9 +91,6 @@ function SunTrackerInner() {
     setRecording('saving');
     try {
       const ref = doc(db, 'uv_exposures', `${user.uid}_${iso}`);
-      // Use merge:true and a peakUv field so the daily doc accumulates the
-      // worst UV reached in the day (server-side rules in R16 should make
-      // this append-only via FieldValue arithmetic).
       await setDoc(ref, {
         userId: user.uid,
         userEmail: user.email,

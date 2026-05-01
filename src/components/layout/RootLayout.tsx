@@ -14,6 +14,7 @@ import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
+import { SmartConnectionsPanel } from '../knowledge/SmartConnectionsPanel';
 import { logger } from '../../utils/logger';
 import { ReloadPrompt } from './ReloadPrompt';
 import { SyncCenterModal } from '../shared/SyncCenterModal';
@@ -22,6 +23,7 @@ import { NormativaSwitch } from '../normativa/NormativaSwitch';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
+import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
 
 export function RootLayout() {
@@ -49,8 +51,7 @@ export function RootLayout() {
       const mfa = await get('mfa_setup_completed');
       setMfaSetupCompleted(mfa === 'true');
       
-      const themePref = await get('theme_preference');
-      if (themePref) setThemeMode(themePref as any);
+      // theme preference is managed by ThemeContext
     };
     loadMfaStatus();
   }, []);
@@ -96,70 +97,10 @@ export function RootLayout() {
     };
   }, []);
 
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system' | 'auto'>('system');
-
-  const [isDarkMode, setIsDarkMode] = useState(false);
-
-  useEffect(() => {
-    const applyTheme = () => {
-      let shouldBeDark = false;
-      if (themeMode === 'dark') {
-        shouldBeDark = true;
-      } else if (themeMode === 'light') {
-        shouldBeDark = false;
-      } else if (themeMode === 'auto') {
-        const hour = new Date().getHours();
-        shouldBeDark = hour < 6 || hour >= 18; // Night is 6 PM to 6 AM
-      } else {
-        // system
-        shouldBeDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      }
-
-      setIsDarkMode(shouldBeDark);
-      const root = window.document.documentElement;
-      if (shouldBeDark) {
-        root.classList.add('dark');
-        set('theme', 'dark');
-      } else {
-        root.classList.remove('dark');
-        set('theme', 'light');
-      }
-    };
-
-    applyTheme();
-
-    const handleThemePrefChange = async () => {
-      const pref = await get('theme_preference');
-      setThemeMode((pref as any) || 'system');
-    };
-    window.addEventListener('theme_preference_changed', handleThemePrefChange);
-
-    let mediaQuery: MediaQueryList | null = null;
-    let interval: NodeJS.Timeout | null = null;
-
-    if (themeMode === 'system') {
-      mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', applyTheme);
-    } else if (themeMode === 'auto') {
-      interval = setInterval(applyTheme, 60000);
-    }
-
-    return () => {
-      window.removeEventListener('theme_preference_changed', handleThemePrefChange);
-      if (mediaQuery) mediaQuery.removeEventListener('change', applyTheme);
-      if (interval) clearInterval(interval);
-    };
-  }, [themeMode]);
-
-  const toggleTheme = async () => {
-    const newMode = isDarkMode ? 'light' : 'dark';
-    setThemeMode(newMode);
-    await set('theme_preference', newMode);
-    window.dispatchEvent(new Event('theme_preference_changed'));
-  };
+  const { isDarkMode, toggleTheme } = useTheme();
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-[#4eb5ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-emerald-500/30 flex flex-col transition-colors duration-300">
+    <div className="h-[100dvh] w-full overflow-hidden bg-[#4db6ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-[#4db6ac]/30 flex flex-col transition-colors duration-300">
       <CookieConsent />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
@@ -184,7 +125,7 @@ export function RootLayout() {
       </div>
       <ReloadPrompt />
 
-      <header className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-[#4eb5ac]/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200/50 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm">
+      <header className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-[#4db6ac]/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200/50 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm">
         {/* Left: Menu & Logo */}
         <div className="flex items-center gap-3 shrink-0">
           <button 
@@ -197,12 +138,12 @@ export function RootLayout() {
           
           {isHome ? (
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+              <div className="w-10 h-10 bg-gradient-to-br from-[#4db6ac] to-[#2a8a81] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(77,182,172,0.3)]">
                 <span className="text-white font-black text-lg leading-none">P</span>
               </div>
               <div className="flex flex-col hidden sm:flex">
                 <span className="text-sm font-black tracking-tight text-zinc-900 dark:text-white leading-none">Praeventio</span>
-                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5">Guard</span>
+                <span className="text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest mt-0.5">Guard</span>
               </div>
             </div>
           ) : (
@@ -223,7 +164,7 @@ export function RootLayout() {
         {/* Middle: Global Search & AI Help */}
         <div className="flex flex-1 max-w-xl mx-4 relative justify-end sm:justify-center">
           <div className="relative w-full max-w-[300px] sm:max-w-full flex items-center group hidden sm:flex">
-            <Search className="absolute left-4 w-4 h-4 text-zinc-700 dark:text-zinc-500 group-focus-within:text-emerald-500 transition-colors" />
+            <Search className="absolute left-4 w-4 h-4 text-zinc-700 dark:text-zinc-500 group-focus-within:text-[#4db6ac] transition-colors" />
             <input 
               type="text" 
               value={searchQuery}
@@ -235,7 +176,7 @@ export function RootLayout() {
                 }
               }}
               placeholder="Buscar o preguntar a la IA..." 
-              className="w-full bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-emerald-500/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-700 dark:placeholder:text-zinc-500 shadow-inner"
+              className="w-full bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-[#4db6ac]/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-700 dark:placeholder:text-zinc-500 shadow-inner"
             />
             <button 
               onClick={() => {
@@ -245,7 +186,7 @@ export function RootLayout() {
               }}
               disabled={!isOnline}
               className={`absolute right-2 p-1.5 rounded-xl transition-all duration-300 ${
-                !isOnline ? 'bg-white/40 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:scale-105'
+                !isOnline ? 'bg-white/40 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] hover:scale-105'
               }`}
               title={!isOnline ? 'Requiere conexión a internet' : 'Preguntar a Gemini AI'}
             >
@@ -261,7 +202,7 @@ export function RootLayout() {
             }}
             disabled={!isOnline}
             className={`sm:hidden w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-              !isOnline ? 'bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+              !isOnline ? 'bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 border border-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac]'
             }`}
           >
             <Sparkles className="w-5 h-5" />
@@ -321,7 +262,7 @@ export function RootLayout() {
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] bg-emerald-500 rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[9px] font-black text-white px-1 shadow-sm">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] bg-[#4db6ac] dark:bg-[#d4af37] rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[9px] font-black text-white dark:text-zinc-900 px-1 shadow-sm">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
@@ -340,7 +281,7 @@ export function RootLayout() {
               </div>
               <div className="hidden sm:flex flex-col pr-1 sm:pr-2">
                 <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white leading-none truncate max-w-[60px] sm:max-w-[100px]">{user.displayName || 'Mi perfil'}</span>
-                <span className={`text-[9px] sm:text-[10px] font-medium mt-0.5 ${isOnline ? 'text-emerald-600 dark:text-emerald-500' : 'text-rose-600 dark:text-rose-500'}`}>
+                <span className={`text-[9px] sm:text-[10px] font-medium mt-0.5 ${isOnline ? 'text-[#4db6ac] dark:text-[#4db6ac]' : 'text-rose-600 dark:text-rose-500'}`}>
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
               </div>
@@ -391,6 +332,7 @@ export function RootLayout() {
       </main>
       <AsesorChat />
       <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
+      <SmartConnectionsPanel />
     </div>
   );
 }

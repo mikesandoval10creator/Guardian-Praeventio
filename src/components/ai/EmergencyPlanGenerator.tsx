@@ -3,7 +3,9 @@ import { generateEmergencyPlan } from '../../services/geminiService';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { useFirebase } from '../../contexts/FirebaseContext';
 import { NodeType } from '../../types';
+import { logger } from '../../utils/logger';
 import { FileText, Loader2, Zap, Shield, CheckCircle2, Save, Download, X, WifiOff, Cloud } from 'lucide-react';
 import { Button } from '../shared/Card';
 import ReactMarkdown from 'react-markdown';
@@ -16,6 +18,7 @@ export function EmergencyPlanGenerator() {
   const [saved, setSaved] = useState(false);
   const { nodes, environment } = useUniversalKnowledge();
   const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
 
@@ -36,7 +39,7 @@ export function EmergencyPlanGenerator() {
       const result = await generateEmergencyPlan(selectedProject.name, fullContext);
       setPlan(result);
     } catch (error) {
-      console.error('Error generating emergency plan:', error);
+      logger.error('Error generating emergency plan:', error);
     } finally {
       setLoading(false);
     }
@@ -189,7 +192,7 @@ export function EmergencyPlanGenerator() {
       setSavedToCloud(true);
       setTimeout(() => setSavedToCloud(false), 3000);
     } catch (error) {
-      console.error("Error saving to cloud:", error);
+      logger.error("Error saving to cloud:", error);
       alert('Error al guardar en la nube.');
     } finally {
       setIsSavingToCloud(false);
@@ -317,22 +320,35 @@ export function EmergencyPlanGenerator() {
     if (!plan || !selectedProject) return;
     setLoading(true);
     try {
-      await addNode({
-        type: NodeType.NORMATIVE,
-        title: `Plan de Emergencia IA: ${selectedProject.name}`,
-        description: plan,
-        tags: ['PE', 'IA', 'Emergencia', selectedProject.name],
-        projectId: selectedProject.id,
-        connections: [],
-        metadata: {
-          generatedBy: 'El Guardián AI',
-          type: 'Emergency Plan',
-          timestamp: new Date().toISOString()
-        }
-      });
+      const { collection, addDoc, db, serverTimestamp } = await import('../../services/firebase');
+      await Promise.all([
+        // 1. Persist in Risk Network Zettelkasten
+        addNode({
+          type: NodeType.EMERGENCY,
+          title: `Plan de Emergencia IA: ${selectedProject.name}`,
+          description: plan,
+          tags: ['PE', 'IA', 'Emergencia', selectedProject.name],
+          projectId: selectedProject.id,
+          connections: [],
+          metadata: {
+            generatedBy: 'El Guardián AI',
+            type: 'Emergency Plan',
+            timestamp: new Date().toISOString(),
+          },
+        }),
+        // 2. Persist in emergency_plans collection for supervisor dashboard visibility
+        addDoc(collection(db, `projects/${selectedProject.id}/emergency_plans`), {
+          title: `Plan de Emergencia IA: ${selectedProject.name}`,
+          content: plan,
+          generatedBy: user?.uid ?? 'system',
+          generatorName: user?.displayName ?? 'El Guardián AI',
+          status: 'draft',
+          createdAt: serverTimestamp(),
+        }),
+      ]);
       setSaved(true);
     } catch (error) {
-      console.error('Error saving emergency plan:', error);
+      logger.error('Error saving emergency plan', { error });
     } finally {
       setLoading(false);
     }

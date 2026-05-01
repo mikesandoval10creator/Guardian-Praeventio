@@ -65,6 +65,15 @@ jobs:
             --cpu=1
           env_vars: |
             NODE_ENV=production
+            KMS_ADAPTER=in-memory-dev
+          secrets: |
+            GEMINI_API_KEY=GEMINI_API_KEY:latest
+            SESSION_SECRET=SESSION_SECRET:latest
+            RESEND_API_KEY=RESEND_API_KEY:latest
+            IOT_WEBHOOK_SECRET=IOT_WEBHOOK_SECRET:latest
+            VITE_GOOGLE_MAPS_API_KEY=VITE_GOOGLE_MAPS_API_KEY:latest
+            VITE_OPENWEATHER_API_KEY=VITE_OPENWEATHER_API_KEY:latest
+            PINECONE_API_KEY=PINECONE_API_KEY:latest
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"

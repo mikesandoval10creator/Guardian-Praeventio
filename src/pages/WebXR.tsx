@@ -78,6 +78,7 @@ function WebXRInner() {
 
   useEffect(() => {
     let stream: MediaStream | null = null;
+
     if (isScanning) {
       // Round 18 (R5): mark the start of the AR scan exactly once per
       // "Iniciar AR" → "Detener" cycle. Re-starting resets the clock.

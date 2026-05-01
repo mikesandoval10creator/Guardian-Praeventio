@@ -21,11 +21,11 @@ export function ProjectSelector() {
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/40 dark:bg-zinc-900 border border-white/20 dark:border-white/5 hover:bg-white/60 dark:hover:bg-zinc-800 transition-all duration-300 group shadow-sm"
       >
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-[0_0_15px_rgba(16,185,129,0.3)] group-hover:scale-105 transition-transform">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4db6ac] to-[#2a8a81] flex items-center justify-center text-white shadow-[0_0_15px_rgba(77,182,172,0.3)] group-hover:scale-105 transition-transform">
           <Briefcase className="w-5 h-5" />
         </div>
         <div className="flex-1 text-left overflow-hidden">
-          <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest leading-none mb-1">Proyecto Activo</p>
+          <p className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest leading-none mb-1">Proyecto Activo</p>
           <p className="text-sm font-bold tracking-tight truncate text-zinc-900 dark:text-white">
             {selectedProject?.name || 'Seleccionar Proyecto'}
           </p>
@@ -58,12 +58,12 @@ export function ProjectSelector() {
                     }}
                     className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
                       selectedProject?.id === project.id 
-                        ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 shadow-inner' 
+                        ? 'bg-[#4db6ac]/5 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 shadow-inner'
                         : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                     }`}
                   >
                     <div className={`w-2 h-2 rounded-full shadow-sm ${
-                      project.status === 'active' ? 'bg-emerald-500 shadow-emerald-500/50' : 'bg-zinc-300 dark:bg-zinc-600'
+                      project.status === 'active' ? 'bg-[#4db6ac] shadow-[#4db6ac]/50' : 'bg-zinc-300 dark:bg-zinc-600'
                     }`} />
                     <span className="text-xs font-bold tracking-wide text-left truncate">{project.name}</span>
                   </button>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain, ShieldAlert, WifiOff, MapPin } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -21,6 +21,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { logger } from '../utils/logger';
 
 export function PTSGenerator() {
   const [searchParams] = useSearchParams();
@@ -42,6 +43,12 @@ export function PTSGenerator() {
   const [suspensionReason, setSuspensionReason] = useState<string>('');
   const [isSuspending, setIsSuspending] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [ptsToast, setPtsToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showPtsToast = (msg: string, ok: boolean) => {
+    setPtsToast({ msg, ok });
+    setTimeout(() => setPtsToast(null), 5000);
+  };
   const [showSuccessQuote, setShowSuccessQuote] = useState(false);
   const pdfRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
@@ -121,7 +128,7 @@ export function PTSGenerator() {
       setSuspensionReason(dangerousWeather);
       setGeneratedPTS(null); // Clear any generated PTS
     } catch (error) {
-      console.error('Error suspending task:', error);
+      logger.error('Error suspending task:', error);
     } finally {
       setIsSuspending(false);
     }
@@ -129,7 +136,7 @@ export function PTSGenerator() {
 
   const handleGPSAutocomplete = () => {
     if (!navigator.geolocation) {
-      alert('Geolocalización no soportada por el navegador.');
+      showPtsToast('Geolocalización no soportada por el navegador.', false);
       return;
     }
 
@@ -151,17 +158,15 @@ export function PTSGenerator() {
             return prefix + prev;
           });
           
-        } catch (error) {
-          console.error('Error in reverse geocoding:', error);
-          alert('No se pudo obtener el nombre de la ubicación, pero se registraron las coordenadas.');
+        } catch {
+          showPtsToast('No se pudo obtener el nombre — se registraron las coordenadas GPS.', true);
           setTaskDescription(prev => `[Coordenadas GPS: Lat: ${position.coords.latitude.toFixed(4)}, Lon: ${position.coords.longitude.toFixed(4)}]\n\n` + prev);
         } finally {
           setIsLocating(false);
         }
       },
-      (error) => {
-        console.error('Error getting location:', error);
-        alert('Error al obtener la ubicación GPS.');
+      () => {
+        showPtsToast('Error al obtener la ubicación GPS.', false);
         setIsLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -191,7 +196,7 @@ export function PTSGenerator() {
       }
       setGeneratedPTS(result);
     } catch (error) {
-      console.error('Error generating PTS:', error);
+      logger.error('Error generating PTS:', error);
     } finally {
       setIsGenerating(false);
     }
@@ -273,7 +278,7 @@ export function PTSGenerator() {
           },
           file: pdfFile
         });
-        alert('Documento guardado para sincronización cuando haya conexión.');
+        showPtsToast('Documento guardado — se sincronizará cuando haya conexión.', true);
       } else {
         // 2. Upload to Storage
         const storageRef = ref(storage, storagePath);
@@ -348,9 +353,8 @@ export function PTSGenerator() {
       setShowSuccessQuote(true);
       setTimeout(() => setShowSuccessQuote(false), 8000);
       
-    } catch (error) {
-      console.error(`Error saving ${documentType}:`, error);
-      alert(`Error al guardar el ${documentType}`);
+    } catch {
+      showPtsToast(`Error al guardar el ${documentType}. Verifica tu conexión e inténtalo nuevamente.`, false);
     } finally {
       setIsSaving(false);
     }
@@ -387,9 +391,8 @@ export function PTSGenerator() {
       }
       
       pdf.save(`${documentType === 'PTS' ? 'PTS' : 'PE'}_${taskName.replace(/\s+/g, '_')}.pdf`);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Hubo un error al generar el PDF.');
+    } catch {
+      showPtsToast('Hubo un error al generar el PDF.', false);
     } finally {
       setIsDownloading(false);
     }
@@ -397,6 +400,22 @@ export function PTSGenerator() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
+      <AnimatePresence>
+        {ptsToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-3 ${
+              ptsToast.ok ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}
+          >
+            {ptsToast.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+            {ptsToast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>

@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { usePendingActions } from './usePendingActions';
+import { logger } from '../utils/logger';
 
 export function useFirestoreCollection<T = DocumentData>(
   collectionPath: string | null | undefined,
@@ -50,7 +51,7 @@ export function useFirestoreCollection<T = DocumentData>(
         setLoading(false);
       },
       (err) => {
-        console.error(`Error fetching collection ${collectionPath}:`, err);
+        logger.error(`Error fetching collection ${collectionPath}:`, err);
         setError(err as Error);
         setLoading(false);
       }

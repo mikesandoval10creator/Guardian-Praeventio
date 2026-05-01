@@ -22,6 +22,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { handleFirestoreError, OperationType } from '../services/firebase';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { logger } from '../utils/logger';
 
 export function SusesoReports() {
   const { nodes } = useRiskEngine();
@@ -60,7 +61,7 @@ export function SusesoReports() {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`${activeTab}_${selectedIncident.title.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
-      console.error("Error exporting PDF:", error);
+      logger.error("Error exporting PDF:", error);
     } finally {
       setIsGenerating(false);
     }
@@ -122,8 +123,8 @@ export function SusesoReports() {
       }, 3000);
       
     } catch (error) {
-      console.error("Error sharing PDF:", error);
-      alert('Hubo un error al intentar guardar el documento en la nube.');
+      logger.error("Error sharing PDF:", error);
+      logger.error('Error saving to cloud storage.');
     } finally {
       setIsSavingToDrive(false);
     }
@@ -173,23 +174,31 @@ export function SusesoReports() {
               <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">Cálculo Financiero del Ahorro por Siniestralidad</h3>
               <p className="text-sm text-zinc-500 mb-6">Estimación del Retorno de Inversión (ROI) basado en la prevención de incidentes y reducción de la tasa de siniestralidad.</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-2xl p-4">
-                  <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Costo Promedio por Incidente</h4>
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">$2.500.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
-                  <p className="text-[10px] text-zinc-500 mt-2">Basado en datos históricos de la industria (Días perdidos, multas, reemplazos).</p>
-                </div>
-                <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4">
-                  <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Incidentes Prevenidos (Est.)</h4>
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">12 <span className="text-xs font-medium text-zinc-500">este año</span></p>
-                  <p className="text-[10px] text-zinc-500 mt-2">Gracias a controles implementados y alertas tempranas.</p>
-                </div>
-                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4">
-                  <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Total Estimado</h4>
-                  <p className="text-2xl font-black text-zinc-900 dark:text-white">$30.000.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
-                  <p className="text-[10px] text-zinc-500 mt-2">Retorno directo a la última línea del negocio.</p>
-                </div>
-              </div>
+              {(() => {
+                const COST_PER_INCIDENT = 2_500_000;
+                const resolvedIncidents = incidents.filter(n => n.metadata?.status === 'resolved' || n.metadata?.resolved === true).length;
+                const estimatedPrevented = Math.max(resolvedIncidents, incidents.length > 0 ? Math.ceil(incidents.length * 0.3) : 0);
+                const totalSavings = estimatedPrevented * COST_PER_INCIDENT;
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-2xl p-4">
+                      <h4 className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Costo Promedio por Incidente</h4>
+                      <p className="text-2xl font-black text-zinc-900 dark:text-white">$2.500.000 <span className="text-xs font-medium text-zinc-500">CLP</span></p>
+                      <p className="text-[10px] text-zinc-500 mt-2">Basado en datos históricos de la industria (días perdidos, multas, reemplazos).</p>
+                    </div>
+                    <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-2xl p-4">
+                      <h4 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Incidentes Registrados (Proyecto)</h4>
+                      <p className="text-2xl font-black text-zinc-900 dark:text-white">{incidents.length} <span className="text-xs font-medium text-zinc-500">totales</span></p>
+                      <p className="text-[10px] text-zinc-500 mt-2">{resolvedIncidents} resueltos · {incidents.length - resolvedIncidents} activos</p>
+                    </div>
+                    <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl p-4">
+                      <h4 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Ahorro Estimado (30% prevención)</h4>
+                      <p className="text-2xl font-black text-zinc-900 dark:text-white">${totalSavings.toLocaleString('es-CL')} <span className="text-xs font-medium text-zinc-500">CLP</span></p>
+                      <p className="text-[10px] text-zinc-500 mt-2">Basado en {estimatedPrevented} incidentes prevenidos estimados.</p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="mt-8 p-6 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-4">Impacto en Cotización Adicional (SUSESO)</h4>
@@ -318,19 +327,40 @@ export function SusesoReports() {
                     {/* Section A: Empleador */}
                     <div className="border border-zinc-300 rounded-lg p-4">
                       <h3 className="text-[10px] font-black uppercase tracking-widest bg-zinc-100 inline-block px-2 py-1 rounded mb-3">A. Identificación del Empleador</h3>
+                      {!(selectedProject as any)?.companyName && (
+                        <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded text-[9px] text-amber-700 font-medium">
+                          ⚠️ Datos del empleador incompletos — completa Razón Social, RUT y Organismo Administrador en la configuración del proyecto.
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Razón Social</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">Praeventio Guard S.A.</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${!(selectedProject as any)?.companyName ? 'text-amber-600 italic' : ''}`}>
+                            {(selectedProject as any)?.companyName || 'Sin configurar'}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[8px] font-bold uppercase text-zinc-500">RUT</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">76.123.456-7</p>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">RUT Empresa</p>
+                          <p className={`text-sm font-medium border-b border-zinc-200 pb-1 ${!(selectedProject as any)?.companyRut ? 'text-amber-600 italic' : ''}`}>
+                            {(selectedProject as any)?.companyRut || 'Sin configurar'}
+                          </p>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <p className="text-[8px] font-bold uppercase text-zinc-500">Proyecto / Sucursal</p>
-                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject?.name || 'Casa Matriz'}</p>
+                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">{selectedProject?.name || '—'}</p>
                         </div>
+                        <div>
+                          <p className="text-[8px] font-bold uppercase text-zinc-500">Organismo Administrador</p>
+                          <p className="text-sm font-medium border-b border-zinc-200 pb-1">
+                            {(selectedProject as any)?.mutualidad || 'Sin configurar'}
+                          </p>
+                        </div>
+                        {(selectedProject as any)?.companyAddress && (
+                          <div className="col-span-2">
+                            <p className="text-[8px] font-bold uppercase text-zinc-500">Dirección</p>
+                            <p className="text-sm font-medium border-b border-zinc-200 pb-1">{(selectedProject as any).companyAddress}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { fetchLawFromBCN, CRITICAL_LAWS } from "./bcnService.js";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { logger } from '../utils/logger';
 
 interface VectorDocument {
   id: string;
@@ -47,7 +48,7 @@ const withExponentialBackoff = async <T>(
         throw error;
       }
       const delay = baseDelay * Math.pow(2, retries);
-      console.warn(`Rate limited in RAG. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
+      logger.warn(`Rate limited in RAG. Retrying in ${delay}ms... (Attempt ${retries + 1}/${maxRetries})`);
       await sleep(delay);
       retries++;
     }
@@ -75,7 +76,7 @@ export const generateEmbedding = async (text: string): Promise<number[]> => {
  * Indexes a law into the vector store.
  */
 export const indexLaw = async (law: any, vectorCollection: admin.firestore.CollectionReference) => {
-  console.log(`Indexing law: ${law.titulo || law.idNorma}...`);
+  logger.debug(`Indexing law: ${law.titulo || law.idNorma}...`);
   if (!law.texto) return;
 
   // Chunk the text (~1000 chars per chunk)
@@ -102,7 +103,7 @@ export const indexLaw = async (law: any, vectorCollection: admin.firestore.Colle
         
         await vectorCollection.doc(docId).set(docData);
       } catch (e) {
-        console.error(`Failed to embed chunk ${actualIndex} of law ${law.idNorma}`, e);
+        logger.error(`Failed to embed chunk ${actualIndex} of law ${law.idNorma}`, e);
       }
     }));
     await sleep(1000);
@@ -125,12 +126,12 @@ export const downloadSpecificNormative = async (normativeId: string, force: bool
   if (!force && status && status.initialized) {
     const lastUpdate = status.updatedAt?.toDate()?.getTime() || 0;
     if (now - lastUpdate < sixMonthsMs) {
-      console.log(`Normative ${normativeId} is up to date.`);
+      logger.debug(`Normative ${normativeId} is up to date.`);
       return { success: true, message: "Normativa actualizada." };
     }
   }
 
-  console.log(`Downloading normative ${normativeId} from BCN...`);
+  logger.debug(`Downloading normative ${normativeId} from BCN...`);
   const law = await fetchLawFromBCN(normativeId);
   if (law) {
     await indexLaw(law, vectorCollection);
@@ -154,21 +155,21 @@ export const initializeRAG = async () => {
   try {
     const status = await getRagStatus(db, 'global');
     if (status && status.initialized) {
-      console.log("RAG System global context already initialized in Firestore.");
+      logger.debug("RAG System global context already initialized in Firestore.");
       isInitialized = true;
       return;
     }
 
-    console.log("Global RAG context not found. Executing seed...");
+    logger.debug("Global RAG context not found. Executing seed...");
     for (const criticalLaw of CRITICAL_LAWS) {
       await downloadSpecificNormative(criticalLaw.id);
     }
     
     await setRagStatus(db, 'global', { initialized: true });
     isInitialized = true;
-    console.log(`Global RAG context initialized.`);
+    logger.debug(`Global RAG context initialized.`);
   } catch (error) {
-    console.error("Error initializing RAG system:", error);
+    logger.error("Error initializing RAG system:", error);
   }
 };
 
@@ -204,7 +205,7 @@ export const searchRelevantContext = async (query: string, topK: number = 3): Pr
       return `[Fuente: ${data.title}]\n${data.content}`;
     }).join("\n\n");
   } catch (error) {
-    console.error("Error searching context:", error);
+    logger.error("Error searching context:", error);
     return "Error al recuperar contexto legal.";
   }
 };
@@ -238,11 +239,11 @@ export const queryCommunityKnowledge = async (
       .get();
 
     if (!results.empty) {
-      console.log(`[RAG Interceptor] Cache hit for industry: ${industry}`);
+      logger.debug(`[RAG Interceptor] Cache hit for industry: ${industry}`);
       return results.docs[0].data().response;
     }
 
-    console.log(`[RAG Interceptor] Cache miss for industry: ${industry}. Calling Gemini...`);
+    logger.debug(`[RAG Interceptor] Cache miss for industry: ${industry}. Calling Gemini...`);
     // Fallback to Gemini
     const aiResponse = await geminiFallback();
 
@@ -257,7 +258,7 @@ export const queryCommunityKnowledge = async (
 
     return aiResponse;
   } catch (error) {
-    console.error("[RAG Interceptor] Error:", error);
+    logger.error("[RAG Interceptor] Error:", error);
     // If anything fails (e.g. vector search not indexed), fallback to Gemini
     return await geminiFallback();
   }

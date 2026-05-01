@@ -8,6 +8,7 @@ import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { jsPDF } from 'jspdf';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 export function ReportGenerator() {
   const [reportType, setReportType] = useState<'PTS' | 'PE' | 'AST'>('PTS');
@@ -39,7 +40,7 @@ export function ReportGenerator() {
         connections: []
       });
     } catch (error) {
-      console.error('Error generating report:', error);
+      logger.error('Error generating report:', error);
     } finally {
       setLoading(false);
     }
@@ -47,6 +48,7 @@ export function ReportGenerator() {
 
   const [isSavingToCloud, setIsSavingToCloud] = useState(false);
   const [savedToCloud, setSavedToCloud] = useState(false);
+  const [cloudError, setCloudError] = useState(false);
 
   const handleSaveToCloud = async () => {
     if (!report || !selectedProject) return;
@@ -191,9 +193,9 @@ export function ReportGenerator() {
 
       setSavedToCloud(true);
       setTimeout(() => setSavedToCloud(false), 3000);
-    } catch (error) {
-      console.error("Error saving to cloud:", error);
-      alert('Error al guardar en la nube.');
+    } catch {
+      setCloudError(true);
+      setTimeout(() => setCloudError(false), 5000);
     } finally {
       setIsSavingToCloud(false);
     }
@@ -404,23 +406,26 @@ export function ReportGenerator() {
                     <Download className="w-3 h-3" />
                     Descargar PDF
                   </button>
-                  <button 
+                  <button
                     onClick={handleSaveToCloud}
                     disabled={isSavingToCloud || savedToCloud}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                      savedToCloud 
-                        ? 'bg-emerald-500/20 text-emerald-500' 
-                        : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-500'
+                      cloudError ? 'bg-rose-500/20 text-rose-500'
+                        : savedToCloud
+                          ? 'bg-emerald-500/20 text-emerald-500'
+                          : 'bg-blue-500/20 hover:bg-blue-500/30 text-blue-500'
                     }`}
                   >
                     {isSavingToCloud ? (
                       <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : cloudError ? (
+                      <AlertCircle className="w-3 h-3" />
                     ) : savedToCloud ? (
                       <CheckCircle2 className="w-3 h-3" />
                     ) : (
                       <Cloud className="w-3 h-3" />
                     )}
-                    {savedToCloud ? 'Guardado' : 'Guardar en la Nube'}
+                    {cloudError ? 'Error — Reintentar' : savedToCloud ? 'Guardado' : 'Guardar en la Nube'}
                   </button>
                 </div>
                 <div className="markdown-body">

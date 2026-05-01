@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { logger } from '../../utils/logger';
 import i18n from '../../i18n';
 
 interface Props {
@@ -23,7 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    logger.error('Uncaught error: ' + error.message, { componentStack: errorInfo.componentStack ?? '' });
   }
 
   public render() {
@@ -45,24 +46,31 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-zinc-50 dark:bg-zinc-950">
-          <div className="max-w-2xl w-full bg-white dark:bg-zinc-900 rounded-2xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
-            <h2 className="text-2xl font-black uppercase tracking-tighter text-red-600 mb-4">
+          <div className="max-w-sm w-full bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col items-center text-center">
+            <img
+              src="/mascot.png"
+              alt="Guardian Praeventio"
+              className="w-24 h-24 object-contain mb-4 opacity-80"
+              style={{ filter: 'grayscale(30%)' }}
+            />
+            <h2 className="text-lg font-black uppercase tracking-tighter text-red-500 mb-2">
               {i18n.t('errors.system_interrupted', 'Sistema Interrumpido')}
             </h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 font-mono">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-5 leading-relaxed">
               {i18n.t(
                 'errors.anomaly_detected',
-                'Se ha detectado una anomalía en el flujo de datos. La conciencia del sistema requiere calibración.',
+                'Se detectó una anomalía. El Guardian está calibrando el sistema.',
               )}
             </p>
-            <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-4 mb-6 overflow-auto max-h-40">
-              <pre className="text-[10px] font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
-                {errorMessage}
-              </pre>
-            </div>
+            <details className="w-full mb-5 text-left">
+              <summary className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 cursor-pointer mb-2">Ver detalle técnico</summary>
+              <div className="bg-zinc-100 dark:bg-zinc-800 rounded-xl p-3 overflow-auto max-h-32">
+                <pre className="text-[9px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">{errorMessage}</pre>
+              </div>
+            </details>
             <button
               onClick={() => window.location.reload()}
-              className="w-full py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl font-bold uppercase tracking-widest text-xs hover:opacity-90 transition-opacity"
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-colors"
             >
               {i18n.t('errors.restart_consciousness', 'Reiniciar Conciencia')}
             </button>

@@ -3,6 +3,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 export function useAutonomousAlerts() {
   const { selectedProject } = useProject();
@@ -80,7 +81,7 @@ export function useAutonomousAlerts() {
         }
 
       } catch (error) {
-        console.error("Error in autonomous alerts:", error);
+        logger.error("Error in autonomous alerts:", error);
       }
     };
 

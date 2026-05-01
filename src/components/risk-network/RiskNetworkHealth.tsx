@@ -5,6 +5,7 @@ import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext'
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { analyzeRiskNetworkHealth } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 export function RiskNetworkHealth() {
   const { nodes, stats, loading: nodesLoading } = useUniversalKnowledge();
@@ -21,7 +22,7 @@ export function RiskNetworkHealth() {
       const data = await analyzeRiskNetworkHealth(nodes);
       setInsights(data);
     } catch (error) {
-      console.error('Error analyzing Risk Network health:', error);
+      logger.error('Error analyzing Risk Network health:', error);
     } finally {
       setAnalyzing(false);
     }
@@ -38,7 +39,7 @@ export function RiskNetworkHealth() {
         missingSynapses: prev.missingSynapses.filter((s: any) => `${s.sourceId}-${s.targetId}` !== synapseId)
       }));
     } catch (error) {
-      console.error('Error auto-connecting:', error);
+      logger.error('Error auto-connecting:', error);
     } finally {
       setConnecting(null);
     }

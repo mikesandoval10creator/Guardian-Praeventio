@@ -61,7 +61,9 @@ import {
   Sun,
   Moon,
   Droplet,
-  WifiOff
+  WifiOff,
+  LayoutDashboard,
+  Stethoscope,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ProjectSelector } from "./ProjectSelector";
@@ -71,6 +73,7 @@ import { useSubscription } from "../../contexts/SubscriptionContext";
 import { NormativaSwitch } from "../normativa/NormativaSwitch";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
+import { logger } from '../../utils/logger';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -111,9 +114,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       title: t("nav.command_center", "Centro de Mando"),
       icon: Home,
       items: [
-        { title: t("nav.dashboard", "Inicio"), icon: Home, path: "/", color: "text-emerald-500" },
+        { title: t("nav.dashboard", "Inicio"), icon: Home, path: "/", color: "text-[#4db6ac]" },
         { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
-        { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-emerald-500" },
+        { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
@@ -124,9 +127,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       icon: Brain,
       items: [
         { title: t("nav.ai_hub", "AI Hub"), icon: Zap, path: "/ai-hub", color: "text-violet-500" },
+        { title: "Coach de Seguridad", icon: Brain, path: "/safety-coach", color: "text-[#4db6ac]" },
         { title: t("nav.zettelkasten", "Zettelkasten"), icon: Database, path: "/zettelkasten", color: "text-blue-500" },
+        { title: "Pizarra", icon: LayoutDashboard, path: "/pizarra", color: "text-indigo-400" },
         { title: t("nav.academic_processor", "Procesador Académico"), icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
         { title: t("nav.ocr_motor", "Motor OCR"), icon: Scan, path: "/document-ocr", color: "text-violet-400" },
+        { title: "Rastreador Solar", icon: Sun, path: "/sun-tracker", color: "text-amber-500" },
       ],
     },
     {
@@ -137,8 +143,20 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.risk_network", "Prevención y Riesgos"), icon: ShieldAlert, path: "/hub/risks", color: "text-violet-500" },
         { title: t("nav.health", "Salud y Bienestar"), icon: HeartPulse, path: "/hub/health", color: "text-rose-500" },
         { title: t("nav.emergencies", "Entorno y Emergencias"), icon: AlertTriangle, path: "/hub/emergencies", color: "text-amber-500" },
-        { title: t("nav.compliance", "Cumplimiento Legal"), icon: ClipboardCheck, path: "/hub/compliance", color: "text-emerald-500" },
+        { title: t("nav.compliance", "Cumplimiento Legal"), icon: ClipboardCheck, path: "/hub/compliance", color: "text-[#4db6ac]" },
         { title: t("nav.culture", "Talento y Cultura"), icon: Users, path: "/hub/training", color: "text-indigo-500" },
+        { title: t("nav.afiches", "Afiches de Seguridad"), icon: Printer, path: "/afiches-seguridad", color: "text-blue-400" },
+        { title: t("nav.digital_twin", "Gemelo Digital 3D"), icon: Layers, path: "/hub/operations/digital-twin", color: "text-cyan-400" },
+      ],
+    },
+    {
+      title: t("nav.occupational_health_group", "Salud Ocupacional"),
+      icon: Stethoscope,
+      items: [
+        { title: t("nav.human_body_viewer", "Visor Corporal DIAT"), icon: Activity, path: "/human-body", color: "text-rose-500" },
+        { title: t("nav.medicine", "Medicina"), icon: HeartPulse, path: "/medicine", color: "text-rose-400" },
+        { title: t("nav.hygiene", "Higiene Industrial"), icon: Droplets, path: "/hygiene", color: "text-blue-400" },
+        { title: t("nav.ergonomics", "Ergonomía"), icon: UserCheck, path: "/ergonomics", color: "text-amber-400" },
       ],
     },
     {
@@ -180,7 +198,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       onClose(); // Close sidebar on mobile
       navigate("/");
     } catch (error) {
-      console.error("Error logging out:", error);
+      logger.error("Error logging out:", error);
     }
   };
 
@@ -201,17 +219,17 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 bottom-0 w-[280px] sm:w-[300px] bg-[#4eb5ac] dark:bg-zinc-950 border-r border-zinc-200/50 dark:border-white/10 z-[70] flex flex-col shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        className={`fixed top-0 left-0 bottom-0 w-[280px] sm:w-[300px] bg-[#4db6ac] dark:bg-zinc-950 border-r border-zinc-200/50 dark:border-white/10 z-[70] flex flex-col shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center justify-between bg-[#4eb5ac]/50 dark:bg-zinc-950/50 shrink-0">
+        <div className="p-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center justify-between bg-[#4db6ac]/50 dark:bg-zinc-950/50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.3)] relative">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#4db6ac] to-[#2a8a81] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(77,182,172,0.3)] relative">
               <span className="text-white font-black text-lg leading-none">
                 P
               </span>
               {!isOnline && (
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-[#4eb5ac] dark:border-zinc-950 flex items-center justify-center" title="Modo Búnker (Offline)">
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-[#4db6ac] dark:border-zinc-950 flex items-center justify-center" title="Modo Búnker (Offline)">
                   <WifiOff className="w-2 h-2 text-white" />
                 </div>
               )}
@@ -221,7 +239,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                 Praeventio
               </span>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest">
                   Guard v1.0
                 </span>
                 {!isOnline && (
@@ -265,7 +283,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`p-1.5 rounded-lg transition-colors ${hasActiveItem ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-white/20 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-400 group-hover:bg-white/40 dark:group-hover:bg-zinc-700"}`}
+                        className={`p-1.5 rounded-lg transition-colors ${hasActiveItem ? "bg-[#4db6ac]/10 dark:bg-[#d4af37]/20 text-[#4db6ac] dark:text-[#d4af37]" : "bg-white/20 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-400 group-hover:bg-white/40 dark:group-hover:bg-zinc-700"}`}
                       >
                         <group.icon className="w-4 h-4" />
                       </div>
@@ -278,7 +296,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                       transition={{ duration: 0.2 }}
                     >
                       <ChevronDown
-                        className={`w-4 h-4 ${isGroupOpen ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-700 dark:text-zinc-500"}`}
+                        className={`w-4 h-4 ${isGroupOpen ? "text-[#4db6ac] dark:text-[#d4af37]" : "text-zinc-700 dark:text-zinc-500"}`}
                       />
                     </motion.div>
                   </button>
@@ -305,7 +323,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                                 onClick={onClose}
                                 className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                                   isActive
-                                    ? "bg-white/40 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-white/30 dark:border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]"
+                                    ? "bg-white/40 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-white/30 dark:border-[#d4af37]/20 shadow-[0_0_15px_rgba(77,182,172,0.08)]"
                                     : "text-zinc-800 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 hover:bg-white/20 dark:hover:bg-zinc-800/30"
                                 }`}
                               >
@@ -330,7 +348,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                                 {isActive && !item.isBeta && (
                                   <motion.div
                                     layoutId="sidebar-active"
-                                    className="ml-auto w-1.5 h-1.5 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.8)]"
+                                    className="ml-auto w-1.5 h-1.5 bg-[#4db6ac] dark:bg-[#d4af37] rounded-full shadow-[0_0_8px_rgba(77,182,172,0.8)]"
                                   />
                                 )}
                               </Link>
@@ -347,7 +365,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4eb5ac] dark:bg-zinc-950 shrink-0 space-y-2">
+        <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4db6ac] dark:bg-zinc-950 shrink-0 space-y-2">
           {/* Country normativa selector — mobile only (topbar covers md+) */}
           <div className="md:hidden flex justify-center pb-2 border-b border-zinc-200/50 dark:border-white/5">
             <NormativaSwitch />

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useNavigate } from 'react-router-dom';
 import { logOut } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes
 
@@ -20,9 +21,9 @@ export function useAutoLogout() {
           await logOut();
           navigate('/login');
           // Optional: Show a toast notification here
-          console.log('Sesión cerrada por inactividad');
+          logger.info('Session closed due to inactivity');
         } catch (error) {
-          console.error('Error auto-logging out:', error);
+          logger.error('Error during auto-logout', { error });
         }
       }, INACTIVITY_TIMEOUT);
     }

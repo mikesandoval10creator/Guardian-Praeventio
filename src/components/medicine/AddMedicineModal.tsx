@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Stethoscope, User, Calendar, Loader2 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface AddMedicineModalProps {
   isOpen: boolean;
@@ -67,7 +68,7 @@ export function AddMedicineModal({ isOpen, onClose, projectId }: AddMedicineModa
         observations: '',
       });
     } catch (error) {
-      console.error('Error adding medicine node:', error);
+      logger.error('Error adding medicine node:', error);
     } finally {
       setLoading(false);
     }

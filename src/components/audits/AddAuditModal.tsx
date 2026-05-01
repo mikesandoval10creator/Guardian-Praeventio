@@ -4,6 +4,7 @@ import { X, ClipboardCheck, Calendar, User, Loader2, Shield, Activity, FileText 
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
+import { logger } from '../../utils/logger';
 
 interface AddAuditModalProps {
   isOpen: boolean;
@@ -74,7 +75,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
         tags: ''
       });
     } catch (error) {
-      console.error('Error adding audit:', error);
+      logger.error('Error adding audit:', error);
     } finally {
       setLoading(false);
     }

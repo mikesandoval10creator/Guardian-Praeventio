@@ -8,6 +8,7 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useEmergency } from '../../contexts/EmergencyContext';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface Scenario {
   title: string;
@@ -47,7 +48,7 @@ export function EmergencySimulator() {
       const data = await generateEmergencyScenario(context);
       setScenario(data);
     } catch (error) {
-      console.error('Error generating scenario:', error);
+      logger.error('Error generating scenario:', error);
     } finally {
       setIsGenerating(false);
     }

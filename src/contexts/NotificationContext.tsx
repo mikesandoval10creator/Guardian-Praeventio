@@ -7,6 +7,7 @@ import { useFirebase } from './FirebaseContext';
 import { db } from '../services/firebase';
 
 import { get, set } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 export type NotificationType = 'info' | 'warning' | 'error' | 'success';
 
@@ -89,7 +90,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           
           // Handle incoming messages when app is in foreground
           onMessage(messaging, (payload) => {
-            console.log('Message received. ', payload);
+            logger.debug('Message received. ', payload as unknown as Record<string, unknown>);
             if (!isCrisisMode) {
               addNotification({
                 title: payload.notification?.title || 'Nueva Notificación',
@@ -100,7 +101,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           });
         }
       } catch (error) {
-        console.error('Error setting up Firebase Messaging:', error);
+        logger.error('Error setting up Firebase Messaging:', error);
       }
     };
 

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ShieldCheck, FileText, GraduationCap, AlertTriangle, Clock, Calendar } from 'lucide-react';
 import { Worker } from '../../types';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { logger } from '../../utils/logger';
 
 interface TraceabilityModalProps {
   isOpen: boolean;
@@ -73,7 +74,7 @@ export function TraceabilityModal({ isOpen, onClose, worker, projectId }: Tracea
 
       setLogs(realLogs);
     } catch (error) {
-      console.error("Error fetching logs:", error);
+      logger.error("Error fetching logs:", error);
     } finally {
       setLoading(false);
     }

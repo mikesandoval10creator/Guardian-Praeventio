@@ -8,6 +8,7 @@ import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 interface PersonalizedSafetyPlanProps {
   worker: RiskNode;
@@ -45,7 +46,7 @@ export function PersonalizedSafetyPlan({ worker }: PersonalizedSafetyPlanProps) 
       );
       setPlan(result);
     } catch (error) {
-      console.error('Error generating personalized plan:', error);
+      logger.error('Error generating personalized plan:', error);
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ export function PersonalizedSafetyPlan({ worker }: PersonalizedSafetyPlanProps) 
 
       setPlan(null); // Reset after saving
     } catch (error) {
-      console.error('Error saving personalized plan:', error);
+      logger.error('Error saving personalized plan:', error);
     } finally {
       setIsSaving(false);
     }

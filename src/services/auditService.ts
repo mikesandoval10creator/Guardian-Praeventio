@@ -1,4 +1,5 @@
-import { auth } from './firebase';
+import { collection, addDoc, serverTimestamp, db, auth, handleFirestoreError, OperationType } from './firebase';
+import { logger } from '../utils/logger';
 
 /**
  * Shape of the `details` payload on audit_logs.
@@ -62,7 +63,8 @@ export const logAuditAction = async (
       body: JSON.stringify({ action, module, details, projectId }),
     });
   } catch (error) {
-    // Never break the main app flow on an audit-log failure.
-    console.error('Failed to write audit log:', error);
+    // We don't want audit logging to break the main application flow,
+    // but we should log it to the console.
+    logger.error('Failed to write audit log:', error);
   }
 };

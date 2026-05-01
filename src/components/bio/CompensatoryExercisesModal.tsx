@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Activity, Play, CheckCircle2, Clock, Info, WifiOff } from 'lucide-react';
 import { generateCompensatoryExercises } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 interface CompensatoryExercisesModalProps {
   isOpen: boolean;
@@ -34,7 +35,7 @@ export function CompensatoryExercisesModal({ isOpen, onClose, metrics }: Compens
           setLoading(false);
         })
         .catch(err => {
-          console.error("Error generating exercises:", err);
+          logger.error("Error generating exercises:", err);
           setLoading(false);
         });
     } else {

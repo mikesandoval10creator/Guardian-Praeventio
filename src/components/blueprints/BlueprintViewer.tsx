@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { db, storage, ref, uploadBytes, getDownloadURL, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where, handleFirestoreError, OperationType } from '../../services/firebase';
+import { logger } from '../../utils/logger';
 
 interface Marker {
   id: string;
@@ -42,7 +43,7 @@ export const BlueprintViewer: React.FC = () => {
       const blueprintsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSavedBlueprints(blueprintsData);
     } catch (error) {
-      console.error("Error loading blueprints:", error);
+      logger.error("Error loading blueprints:", error);
       handleFirestoreError(error, OperationType.LIST, 'blueprints');
     }
   };
@@ -83,7 +84,7 @@ export const BlueprintViewer: React.FC = () => {
       alert('Plano guardado exitosamente');
       loadBlueprints();
     } catch (error) {
-      console.error("Error saving blueprint:", error);
+      logger.error("Error saving blueprint:", error);
       handleFirestoreError(error, selectedBlueprintId ? OperationType.UPDATE : OperationType.CREATE, 'blueprints');
     } finally {
       setIsSaving(false);

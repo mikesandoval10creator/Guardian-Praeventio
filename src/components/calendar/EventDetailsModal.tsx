@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, Trash2, Edit2, Save, AlertTriangle } from 'lucide-react';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { logger } from '../../utils/logger';
 
 interface Event {
   id: string;
@@ -28,6 +30,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
   const [loading, setLoading] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Event>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   React.useEffect(() => {
     if (event) {
@@ -92,25 +95,24 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       });
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating event:', error);
+      logger.error('Error updating event:', error);
       alert('Error al actualizar el evento');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedProject || !event.id) return;
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este evento?')) return;
+  const handleDelete = () => setShowDeleteConfirm(true);
 
+  const doDeleteEvent = async () => {
+    if (!selectedProject || !event.id) return;
+    setShowDeleteConfirm(false);
     setLoading(true);
     try {
-      const eventRef = doc(db, `projects/${selectedProject.id}/events`, event.id);
-      await deleteDoc(eventRef);
+      await deleteDoc(doc(db, `projects/${selectedProject.id}/events`, event.id));
       onClose();
     } catch (error) {
-      console.error('Error deleting event:', error);
-      alert('Error al eliminar el evento');
+      logger.error('Error deleting event:', error);
     } finally {
       setLoading(false);
     }
@@ -362,6 +364,15 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
           </motion.div>
         </motion.div>
       )}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Eliminar evento"
+        message="¿Estás seguro de que deseas eliminar este evento del calendario?"
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteEvent}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </AnimatePresence>
   );
 }

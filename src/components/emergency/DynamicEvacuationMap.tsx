@@ -19,6 +19,7 @@ import { calculateDynamicEvacuationRoute } from '../../services/geminiService';
 import { get } from 'idb-keyval';
 
 import { VectorialEvacuationMap } from './VectorialEvacuationMap';
+import { logger } from '../../utils/logger';
 
 export function DynamicEvacuationMap() {
   const { nodes } = useUniversalKnowledge();
@@ -48,7 +49,7 @@ export function DynamicEvacuationMap() {
       const data = await calculateDynamicEvacuationRoute(activeEmergencies, workers, machinery, userBlockedAreas);
       setRouteData(data);
     } catch (error) {
-      console.error('Error calculating route:', error);
+      logger.error('Error calculating route:', error);
     } finally {
       setIsCalculating(false);
     }

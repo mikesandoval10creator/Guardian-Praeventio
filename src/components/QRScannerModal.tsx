@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, QrCode, Loader2 } from 'lucide-react';
+import { logger } from '../utils/logger';
 
 interface QRScannerModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export function QRScannerModal({ isOpen, onClose, onScan }: QRScannerModalProps)
 
     return () => {
       scanner.clear().catch(error => {
-        console.error("Failed to clear html5QrcodeScanner. ", error);
+        logger.error("Failed to clear html5QrcodeScanner. ", error);
       });
     };
   }, [isOpen, onScan, onClose]);

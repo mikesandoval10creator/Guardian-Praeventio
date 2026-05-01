@@ -10,6 +10,7 @@ import 'katex/dist/katex.min.css';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { logger } from '../../utils/logger';
 
 export function PredictiveAnalysis() {
   const { nodes, loading: nodesLoading, environment } = useUniversalKnowledge();
@@ -30,7 +31,7 @@ export function PredictiveAnalysis() {
       const data = await predictGlobalIncidents(context, envContext);
       setResults(data);
     } catch (error) {
-      console.error('Error running predictive analysis:', error);
+      logger.error('Error running predictive analysis:', error);
     } finally {
       setAnalyzing(false);
     }
@@ -56,7 +57,7 @@ Contexto Ambiental: ${envContext}
       const pts = await generateSafetyReport('PTS', context);
       setReport(pts);
     } catch (error) {
-      console.error('Error generating report:', error);
+      logger.error('Error generating report:', error);
     } finally {
       setGeneratingReport(null);
     }
@@ -86,7 +87,7 @@ Contexto Ambiental: ${envContext}
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save('PTS_Generado_Guardian_AI.pdf');
     } catch (error) {
-      console.error('Error downloading PDF:', error);
+      logger.error('Error downloading PDF:', error);
     } finally {
       setDownloading(false);
     }

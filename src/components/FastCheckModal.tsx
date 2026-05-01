@@ -8,6 +8,7 @@ import { analyzeFastCheck } from '../services/geminiService';
 import { useGamification } from '../hooks/useGamification';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { savePendingOfflineQuery } from '../utils/offlineKnowledge';
+import { logger } from '../utils/logger';
 
 interface FastCheckModalProps {
   isOpen: boolean;
@@ -90,7 +91,7 @@ export function FastCheckModal({ isOpen, onClose }: FastCheckModalProps) {
 
     } catch (error) {
       navigator.vibrate?.([200, 100, 200]); // error haptic
-      console.error('Error analyzing Fast Check:', error);
+      logger.error('Error analyzing Fast Check:', error);
     } finally {
       setIsAnalyzing(false);
     }

@@ -10,6 +10,7 @@
 // Capacitor mocks. The hook itself stays a thin React wrapper.
 
 import { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { getMessagingInstance, getToken, onMessage } from '../services/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../services/firebase';
@@ -126,7 +127,7 @@ export function usePushNotifications() {
         }
 
         if (permStatus.receive !== 'granted') {
-          console.log('User denied push permission');
+          logger.warn('User denied push permission');
           setHasPermission(false);
           return;
         }
@@ -135,7 +136,7 @@ export function usePushNotifications() {
         await PushNotifications.register();
 
         PushNotifications.addListener('registration', async (token) => {
-          console.log('Push registration success, token: ' + token.value);
+          logger.info('Push registration success', { token: token.value });
           setFcmToken(token.value);
           // Fire-and-forget Firestore mirror (kept for backward compat).
           if (auth.currentUser) {
@@ -154,21 +155,21 @@ export function usePushNotifications() {
         });
 
         PushNotifications.addListener('registrationError', (error: any) => {
-          console.error('Error on registration: ' + JSON.stringify(error));
+          logger.error('Push registration error', { error });
           setRegistrationError('native_registration_error');
         });
 
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          console.log('Push received: ' + JSON.stringify(notification));
+          logger.debug('Push notification received', { notification });
         });
 
         PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-          console.log('Push action performed: ' + JSON.stringify(notification));
+          logger.debug('Push action performed', { notification });
         });
       } else {
         const messaging = await getMessagingInstance();
         if (!messaging) {
-          console.warn('Messaging not supported in this browser.');
+          logger.warn('Messaging not supported in this browser');
           return;
         }
 
@@ -180,9 +181,7 @@ export function usePushNotifications() {
           const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
           if (!vapidKey) {
-            console.warn(
-              'VITE_FIREBASE_VAPID_KEY is not set. Push notifications will not work in production.',
-            );
+            logger.warn('VITE_FIREBASE_VAPID_KEY is not set — push notifications will not work in production');
           }
 
           const token = await getToken(messaging, {
@@ -191,7 +190,7 @@ export function usePushNotifications() {
 
           if (token) {
             setFcmToken(token);
-            console.log('FCM Token:', token);
+            logger.info('FCM token acquired');
 
             if (auth.currentUser) {
               try {
@@ -206,14 +205,14 @@ export function usePushNotifications() {
             }
             await reportTokenToServer(token);
           } else {
-            console.log('No registration token available. Request permission to generate one.');
+            logger.warn('No FCM registration token available');
           }
         } else {
-          console.log('Unable to get permission to notify.');
+          logger.warn('Push notification permission denied by user');
         }
       }
     } catch (error) {
-      console.error('An error occurred while retrieving token. ', error);
+      logger.error('Error retrieving push token', { error });
     }
   };
 
@@ -231,7 +230,7 @@ export function usePushNotifications() {
         if (!messaging) return;
 
         unsubscribe = onMessage(messaging, (payload) => {
-          console.log('Message received. ', payload);
+          logger.debug('FCM message received', { payload });
           if (payload.notification) {
             new Notification(payload.notification.title || 'New Notification', {
               body: payload.notification.body,

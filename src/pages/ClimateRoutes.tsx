@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Map, Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, DirectionsRenderer } from '@react-google-maps/api';
+import { logger } from '../utils/logger';
 
 const containerStyle = {
   width: '100%',
@@ -48,7 +49,7 @@ export function ClimateRoutes() {
       const statuses: ('safe' | 'warning' | 'danger')[] = ['safe', 'warning', 'danger'];
       setRouteStatus(statuses[Math.floor(Math.random() * statuses.length)]);
     } catch (error) {
-      console.error("Error calculating route:", error);
+      logger.error("Error calculating route:", error);
       alert("No se pudo calcular la ruta. Verifica los lugares ingresados.");
     } finally {
       setIsCalculating(false);

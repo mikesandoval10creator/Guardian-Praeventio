@@ -4,6 +4,7 @@ import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, AlertTriangle } fr
 import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { logger } from '../../utils/logger';
 
 interface AddEventModalProps {
   isOpen: boolean;
@@ -84,7 +85,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
         type: 'Reunión'
       });
     } catch (error) {
-      console.error('Error adding event:', error);
+      logger.error('Error adding event:', error);
       alert('Error al guardar el evento');
     } finally {
       setLoading(false);

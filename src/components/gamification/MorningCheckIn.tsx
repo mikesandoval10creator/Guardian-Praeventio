@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, ShieldCheck, HeartPulse, Brain, CheckCircle2, Award, X, Salad, Droplets, Zap } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useProject } from '../../contexts/ProjectContext';
+import { db, collection, addDoc, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
 import { getNutritionSuggestion } from '../../services/geminiService';
+import { awardPoints } from '../../services/gamificationService';
+import { logger } from '../../utils/logger';
 import { logAuditAction } from '../../services/auditService';
 
 interface MorningCheckInProps {
@@ -12,6 +16,7 @@ interface MorningCheckInProps {
 
 export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
   const { user } = useFirebase();
+  const { selectedProject } = useProject();
   const [step, setStep] = useState(1);
   const [eppChecked, setEppChecked] = useState<Record<string, boolean>>({
     casco: false,
@@ -34,6 +39,14 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
     
     setIsSaving(true);
     try {
+      const checkInData = {
+        userId: user.uid,
+        userName: user.displayName ?? null,
+        eppChecked,
+        psychosocialMood: mood,
+        checkedAt: serverTimestamp(),
+      };
+
       // Save affidavit via server-side audit log endpoint. The server stamps
       // the actor uid + timestamp from the verified token; client-side direct
       // writes to /audit_logs are denied by firestore.rules.
@@ -43,7 +56,16 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
         declarationText: "Declaro bajo juramento que cuento con el equipo de protección personal requerido y me encuentro en condiciones óptimas para desempeñar mis labores de manera segura.",
         legalStatus: "Declaración Jurada Simple",
       });
+
+      // Also save to project-level collection for supervisor visibility
+      if (selectedProject) {
+        addDoc(
+          collection(db, `projects/${selectedProject.id}/morning_checkins`),
+          checkInData
+        ).catch(() => {}); // non-blocking, audit_log already saved
+      }
       setShowReward(true);
+      awardPoints('morning_checkin');
       // Fetch nutrition suggestion in background; auto-close after 6s if suggestion loads
       getNutritionSuggestion(mood ?? 3, user.displayName ?? 'Trabajador')
         .then(setNutrition)
@@ -52,11 +74,12 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
         onComplete();
       }, 6000);
     } catch (error) {
+      logger.error("Error saving checkin affidavit:", error);
+      handleFirestoreError(error, OperationType.CREATE, 'audit_logs');
       // logAuditAction already swallows network errors and logs them; if we
       // reach this catch it's because something else in the try block threw
-      // (e.g. getNutritionSuggestion rejecting synchronously). Surface to
-      // console; never block the worker from completing the flow.
-      console.error("Error saving checkin affidavit:", error);
+      // (e.g. getNutritionSuggestion rejecting synchronously). Never block
+      // the worker from completing the flow.
       onComplete();
     } finally {
       setIsSaving(false);

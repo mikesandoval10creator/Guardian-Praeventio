@@ -6,6 +6,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 interface Earthquake {
   id: string;
@@ -85,12 +86,12 @@ export function EvacuationRoutes() {
                   emittedAt: new Date().toISOString(),
                   emittedBy: 'API Sismológica'
                 }
-              }).catch(console.error);
+              }).catch(err => logger.error('Failed to write seismic emergency node', { message: (err as Error).message }));
             }
           }
         }
       } catch (error) {
-        console.error("Error fetching seismic data:", error);
+        logger.error("Error fetching seismic data:", error);
       } finally {
         setIsCheckingSeismic(false);
       }

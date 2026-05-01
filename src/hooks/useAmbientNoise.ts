@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { logger } from '../utils/logger';
 
 export function useAmbientNoise() {
   const [noiseLevel, setNoiseLevel] = useState<number>(0); // 0 to 100
@@ -47,7 +48,7 @@ export function useAmbientNoise() {
       updateNoiseLevel();
       setIsListening(true);
     } catch (err) {
-      console.error('Error accessing microphone for ambient noise:', err);
+      logger.error('Error accessing microphone for ambient noise:', err);
     }
   }, []);
 

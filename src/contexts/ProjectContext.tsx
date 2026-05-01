@@ -15,13 +15,20 @@ interface Project {
   endDate?: string;
   clientName?: string;
   riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
-  workersCount?: number; // Added for subscription and legal compliance
+  workersCount?: number;
   updatedAt?: string;
   isPendingSync?: boolean;
+  // Legal / SUSESO fields
+  companyName?: string;   // Razón social del empleador
+  companyRut?: string;    // RUT empresa (ej: 76.123.456-7)
+  companyAddress?: string;
+  mutualidad?: 'ACHS' | 'IST' | 'Mutual de Seguridad' | 'SUSESO' | 'Otra';
+  // Emergency contact for SafeDrivingMode "Base" button
+  phone?: string;
   // Tracking & Shifts
-  shiftStart?: string; // e.g., "08:00"
-  shiftEnd?: string;   // e.g., "18:00"
-  trackCommute?: boolean; // Track 1 hour before/after
+  shiftStart?: string;
+  shiftEnd?: string;
+  trackCommute?: boolean;
   settings?: {
     geofences?: any[];
     manDownInactivityThreshold?: number;
@@ -107,6 +114,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
       // Seed initial data for the new project
       await seedGlobalData(docRef.id, projectData.industry);
+
+      // Seed Zettelkasten template nodes (Blocks I-VIII)
+      const { seedProjectNodes } = await import('../services/nodeSeedService');
+      seedProjectNodes(docRef.id, user?.uid ?? 'system').catch(() => {});
 
       return docRef.id;
     } catch (error) {

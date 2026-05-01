@@ -16,6 +16,7 @@ import { forecastSafetyEvents } from '../../services/geminiService';
 import { Card } from '../shared/Card';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../../utils/pwa-offline';
+import { logger } from '../../utils/logger';
 
 export function SafetyForecast() {
   const { nodes, environment } = useUniversalKnowledge();
@@ -32,7 +33,7 @@ export function SafetyForecast() {
           setForecast(cached);
         }
       } catch (e) {
-        console.error('Error loading cached forecast', e);
+        logger.error('Error loading cached forecast', e);
       } finally {
         setIsLoading(false);
       }
@@ -47,7 +48,7 @@ export function SafetyForecast() {
       setForecast(result);
       await cacheAIResponse('safety-forecast', result);
     } catch (error) {
-      console.error('Error running forecast:', error);
+      logger.error('Error running forecast:', error);
       const cached = await getCachedAIResponse('safety-forecast');
       if (cached) {
         setForecast(cached);

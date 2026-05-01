@@ -58,6 +58,8 @@ const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
 const RefereeAccept = lazy(() => import('./pages/RefereeAccept').then(module => ({ default: module.RefereeAccept })));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => ({ default: module.PrivacyPolicy })));
+const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ default: module.SunTracker })));
+const SafetyCoach = lazy(() => import('./pages/SafetyCoach').then(module => ({ default: module.SafetyCoach })));
 const Terms = lazy(() => import('./pages/Terms').then(module => ({ default: module.Terms })));
 
 function AppRoutes() {
@@ -66,6 +68,33 @@ function AppRoutes() {
 
   // Initialize auto-logout for enterprise security
   useAutoLogout();
+
+  // DEMO MODE — bypass auth for screenshot/preview purposes
+  const isDemo = new URLSearchParams(window.location.search).get('demo') === 'true';
+  if (isDemo) {
+    return (
+      <AppProviders>
+        <Suspense fallback={<ConsciousnessLoader />}>
+          <Routes>
+            <Route path="/" element={<RootLayout />}>
+              <Route index element={<Dashboard />} />
+              {EmergencyRoutes}
+              {TrainingRoutes}
+              {OperationsRoutes}
+              {RiskRoutes}
+              {HealthRoutes}
+              {ComplianceRoutes}
+              {AIRoutes}
+              <Route path="safe-driving" element={<SafeDrivingMode />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="analytics" element={<Analytics />} />
+              <Route path="*" element={<Dashboard />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </AppProviders>
+    );
+  }
 
   if (loading) {
     return <ConsciousnessLoader />;
@@ -144,6 +173,8 @@ function AppRoutes() {
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
+                    <Route path="sun-tracker" element={<SunTracker />} />
+                    <Route path="safety-coach" element={<SafetyCoach />} />
                     <Route
                       path="profile"
                       element={user ? <Profile /> : <Navigate to="/login" />}

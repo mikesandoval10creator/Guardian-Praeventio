@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { TreePine, Map, ShieldAlert, AlertTriangle, Info, Droplet, CloudSnow, Sun, CloudLightning, ThermometerSnowflake, Wind, Cloud } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { fetchWeatherData } from '../services/orchestratorService';
+import { logger } from '../utils/logger';
 
 export function NationalParksEmergency() {
   const [incidentType, setIncidentType] = useState<'fire' | 'spill'>('spill');
@@ -17,7 +18,7 @@ export function NationalParksEmergency() {
         const data = await fetchWeatherData(-51.0, -73.0);
         setWeatherData(data);
       } catch (error) {
-        console.error("Failed to load weather:", error);
+        logger.error("Failed to load weather:", error);
       } finally {
         setLoading(false);
       }

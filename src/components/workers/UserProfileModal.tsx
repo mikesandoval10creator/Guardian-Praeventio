@@ -238,7 +238,7 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Curriculum_Preventivo_${worker.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
-      console.error('Error exporting PDF:', error);
+      logger.error('Error exporting PDF:', error);
       alert('Error al exportar el currículum a PDF.');
     } finally {
       setIsExporting(false);

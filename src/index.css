@@ -8,11 +8,15 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --animate-marquee: marquee 120s linear infinite;
   
-  /* Custom Brand Colors */
-  --color-brand-green: #10b981;
-  --color-brand-purple: #8b5cf6;
-  --color-brand-petroleum: #061f2d;
-  --color-brand-gold: #d4af37;
+  /* Custom Brand Colors — caballito de batalla teal #4db6ac (light) + petroleum + gold (dark) */
+  --color-brand-teal: #4db6ac;        /* Workhorse light mode primary */
+  --color-brand-green: #4db6ac;       /* Alias preserved for backward compatibility */
+  --color-brand-coral: #b66258;       /* Complementary of teal (color theory) */
+  --color-brand-purple: #8b5cf6;      /* Secondary accent */
+  --color-brand-petroleum: #061f2d;   /* Dark mode primary base */
+  --color-brand-petroleum-deep: #020c12;
+  --color-brand-petroleum-mid: #0a2e42;
+  --color-brand-gold: #d4af37;        /* Dark mode accent */
 
   @keyframes marquee {
     0% { transform: translateX(0); }
@@ -85,6 +89,10 @@
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
     height: 4px;
+  }
+  .custom-scrollbar {
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;

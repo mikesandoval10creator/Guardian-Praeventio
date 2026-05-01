@@ -15,6 +15,7 @@ const AutoCADViewer = lazy(() => import('../pages/AutoCADViewer').then(module =>
 const BlueprintViewer = lazy(() => import('../pages/BlueprintViewer').then(module => ({ default: module.BlueprintViewer })));
 const ERPIntegration = lazy(() => import('../pages/ERPIntegration').then(module => ({ default: module.ERPIntegration })));
 const Workers = lazy(() => import('../pages/Workers').then(module => ({ default: module.Workers })));
+const DigitalTwinFaena = lazy(() => import('../pages/DigitalTwinFaena').then(module => ({ default: module.DigitalTwinFaena })));
 
 export const OperationsRoutes = [
   <Route key="projects" path="projects" element={<Projects />} />,
@@ -31,4 +32,5 @@ export const OperationsRoutes = [
   <Route key="blueprint-viewer" path="blueprint-viewer" element={<BlueprintViewer />} />,
   <Route key="erp-integration" path="erp-integration" element={<ERPIntegration />} />,
   <Route key="workers" path="workers" element={<Workers />} />,
+  <Route key="digital-twin" path="digital-twin" element={<DigitalTwinFaena />} />,
 ];

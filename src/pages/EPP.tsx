@@ -23,6 +23,7 @@ import { collection, addDoc, where } from 'firebase/firestore';
 import { AssignEPPModal } from '../components/epp/AssignEPPModal';
 import { EPPVerificationModal } from '../components/epp/EPPVerificationModal';
 import { Sparkles } from 'lucide-react';
+import { logger } from '../utils/logger';
 
 export function EPP() {
   const { selectedProject } = useProject();
@@ -79,7 +80,7 @@ export function EPP() {
       setIsAdding(false);
       setNewItem({ name: '', category: '', description: '', imageUrl: '', required: false, stock: 0 });
     } catch (error) {
-      console.error('Error adding EPP item:', error);
+      logger.error('Error adding EPP item:', error);
     }
   };
 

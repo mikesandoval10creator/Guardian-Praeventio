@@ -8,6 +8,7 @@ const KnowledgeIngestion = lazy(() => import('../pages/KnowledgeIngestion').then
 const AcademicProcessor = lazy(() => import('../pages/AcademicProcessor').then(module => ({ default: module.AcademicProcessor })));
 const RiskNetwork = lazy(() => import('../pages/RiskNetwork').then(module => ({ default: module.RiskNetwork })));
 const Glossary = lazy(() => import('../pages/Glossary').then(module => ({ default: module.Glossary })));
+const Pizarra = lazy(() => import('../pages/Pizarra').then(module => ({ default: module.Pizarra })));
 
 export const AIRoutes = [
   <Route key="ai-hub" path="ai-hub" element={<AIHub />} />,
@@ -17,4 +18,5 @@ export const AIRoutes = [
   <Route key="academic-processor" path="academic-processor" element={<AcademicProcessor />} />,
   <Route key="risk-network" path="risk-network" element={<RiskNetwork />} />,
   <Route key="glossary" path="glossary" element={<Glossary />} />,
+  <Route key="pizarra" path="pizarra" element={<Pizarra />} />,
 ];

@@ -44,6 +44,7 @@ import { WeatherBulletin } from '../components/dashboard/WeatherBulletin';
 import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
+import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 
@@ -260,6 +261,9 @@ export function Dashboard() {
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
+
+      {/* Man Down supervisor alert — only renders when events exist */}
+      <ManDownSupervisorWidget />
 
       {/* 5. EPP Widget */}
       <EPPRequiredWidget />

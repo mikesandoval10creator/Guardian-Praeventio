@@ -8,6 +8,7 @@ import {
   Calendar,
   Building2,
   ShieldAlert,
+  Shield,
   ChevronRight,
   X,
   Loader2,
@@ -59,6 +60,10 @@ export function Projects() {
     location: '',
     industry: INDUSTRIES[0],
     clientName: '',
+    companyName: '',
+    companyRut: '',
+    companyAddress: '',
+    mutualidad: 'ACHS' as 'ACHS' | 'IST' | 'Mutual de Seguridad' | 'SUSESO' | 'Otra',
     startDate: new Date().toISOString().split('T')[0],
     riskLevel: 'Medio' as any,
     status: 'active' as const,
@@ -103,6 +108,10 @@ export function Projects() {
         location: '',
         industry: INDUSTRIES[0],
         clientName: '',
+        companyName: '',
+        companyRut: '',
+        companyAddress: '',
+        mutualidad: 'ACHS' as any,
         startDate: new Date().toISOString().split('T')[0],
         riskLevel: 'Medio',
         status: 'active',
@@ -111,7 +120,7 @@ export function Projects() {
         trackCommute: true
       });
     } catch (error) {
-      console.error('Error creating project:', error);
+      logger.error('Error creating project:', error);
     } finally {
       setIsCreating(false);
     }
@@ -138,7 +147,7 @@ export function Projects() {
             <div className="min-w-0 flex-1">
               <h1 className="text-xl sm:text-3xl font-black text-zinc-900 dark:text-white tracking-tighter uppercase break-words leading-tight">{selectedProject.name}</h1>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1.5 sm:mt-1">
-                <span className="text-[8px] sm:text-[10px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                <span className="text-[8px] sm:text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest bg-[#4db6ac]/10 px-2 py-0.5 rounded-lg border border-[#4db6ac]/20">
                   {selectedProject.status}
                 </span>
                 <span className="text-[8px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest truncate">{selectedProject.industry}</span>
@@ -174,7 +183,7 @@ export function Projects() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-1 sm:flex-none ${
-                activeTab === tab.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+                activeTab === tab.id ? 'bg-[#4db6ac] text-white shadow-lg shadow-[#4db6ac]/20' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
               }`}
             >
               <tab.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -192,7 +201,7 @@ export function Projects() {
                   <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-3 sm:mb-4">Información General</h3>
                   <div className="grid grid-cols-1 gap-3 sm:gap-4">
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
-                      <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 shrink-0" />
+                      <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] shrink-0" />
                       <div className="min-w-0">
                         <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Ubicación</p>
                         <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.location}</p>
@@ -212,6 +221,16 @@ export function Projects() {
                         <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{selectedProject.clientName || 'N/A'}</p>
                       </div>
                     </div>
+                    {(selectedProject as any).companyName && (
+                      <div className="bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center gap-3 sm:gap-4">
+                        <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Empleador (SUSESO)</p>
+                          <p className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white truncate">{(selectedProject as any).companyName}</p>
+                          <p className="text-[10px] text-zinc-500">{(selectedProject as any).companyRut} · {(selectedProject as any).mutualidad}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -228,7 +247,7 @@ export function Projects() {
                     <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center border-4 ${
                       selectedProject.riskLevel === 'Crítico' ? 'border-red-500/20 text-red-500' :
                       selectedProject.riskLevel === 'Alto' ? 'border-amber-500/20 text-amber-500' :
-                      selectedProject.riskLevel === 'Medio' ? 'border-blue-500/20 text-blue-500' : 'border-emerald-500/20 text-emerald-500'
+                      selectedProject.riskLevel === 'Medio' ? 'border-blue-500/20 text-blue-500' : 'border-[#4db6ac]/20 text-[#4db6ac] dark:text-[#d4af37]'
                     }`}>
                       <ShieldAlert className="w-8 h-8 sm:w-10 sm:h-10" />
                     </div>
@@ -269,7 +288,7 @@ export function Projects() {
           className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 transition-all w-full sm:w-auto shrink-0 ${
             !isOnline 
               ? 'bg-zinc-800/50 text-zinc-500 cursor-not-allowed' 
-              : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+              : 'bg-[#4db6ac] hover:bg-[#3a9e95] text-white shadow-lg shadow-[#4db6ac]/20'
           }`}
         >
           {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Plus className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -280,8 +299,8 @@ export function Projects() {
       {/* Stats Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
         <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shrink-0">
-            <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 flex items-center justify-center border border-[#4db6ac]/20 dark:border-[#d4af37]/20 shrink-0">
+            <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-[#4db6ac] dark:text-[#d4af37]" />
           </div>
           <div className="min-w-0">
             <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest truncate">Proyectos Activos</p>
@@ -338,14 +357,14 @@ export function Projects() {
           placeholder="Buscar por nombre, industria o ubicación..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
+          className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
         />
       </div>
 
       {/* Projects List */}
       {loading ? (
           <div className="flex flex-col items-center justify-center py-12 sm:py-20 gap-4">
-            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 animate-spin" />
+            <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-[#4db6ac] dark:text-[#d4af37] animate-spin" />
             <p className="text-[10px] sm:text-xs font-black text-zinc-500 uppercase tracking-widest">Sincronizando Proyectos...</p>
           </div>
       ) : listViewMode === 'timeline' ? (
@@ -392,7 +411,7 @@ export function Projects() {
               whileHover={{ y: -5 }}
               onClick={() => setSelectedProject(project)}
               className={`bg-white dark:bg-zinc-900/50 border rounded-2xl sm:rounded-3xl p-5 sm:p-6 cursor-pointer transition-all relative overflow-hidden group shadow-sm flex flex-col ${
-                selectedProject?.id === project.id ? 'border-emerald-500 ring-1 ring-emerald-500/50' : 'border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20'
+                selectedProject?.id === project.id ? 'border-[#4db6ac] ring-1 ring-[#4db6ac]/50' : 'border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20'
               }`}
             >
               {/* Status Badge */}
@@ -404,7 +423,7 @@ export function Projects() {
                   </span>
                 )}
                 <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${
-                  project.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 
+                  project.status === 'active' ? 'bg-[#4db6ac]/10 dark:bg-[#4db6ac]/10 text-[#4db6ac] dark:text-[#d4af37]' :
                   project.status === 'completed' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500' : 'bg-zinc-100 dark:bg-zinc-500/10 text-zinc-600 dark:text-zinc-500'
                 }`}>
                   {project.status === 'active' ? 'Activo' : project.status === 'completed' ? 'Completado' : 'Archivado'}
@@ -413,8 +432,8 @@ export function Projects() {
 
               <div className="space-y-3 sm:space-y-4 flex-1">
                 <div className="flex items-start gap-3 sm:gap-4 pr-16 sm:pr-20">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl sm:rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-white/5 group-hover:border-emerald-500/30 transition-all">
-                    <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500 group-hover:text-emerald-500 transition-colors" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-xl sm:rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center border border-zinc-200 dark:border-white/5 group-hover:border-[#4db6ac]/30 transition-all">
+                    <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-zinc-500 group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] transition-colors" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm sm:text-base md:text-lg font-black text-zinc-900 dark:text-white truncate uppercase tracking-tight">{project.name}</h3>
@@ -438,11 +457,11 @@ export function Projects() {
                     <ShieldAlert className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
                       project.riskLevel === 'Crítico' ? 'text-red-500' :
                       project.riskLevel === 'Alto' ? 'text-amber-500' :
-                      project.riskLevel === 'Medio' ? 'text-blue-500' : 'text-emerald-500'
+                      project.riskLevel === 'Medio' ? 'text-blue-500' : 'text-[#4db6ac] dark:text-[#d4af37]'
                     }`} />
                     <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Riesgo {project.riskLevel}</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 dark:text-zinc-600 group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] group-hover:translate-x-1 transition-all" />
                 </div>
               </div>
             </motion.div>
@@ -467,10 +486,10 @@ export function Projects() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
-              <div className="p-4 sm:p-8 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-emerald-50 dark:from-emerald-500/5 to-transparent shrink-0">
+              <div className="p-4 sm:p-8 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-gradient-to-r from-[#4db6ac]/10 dark:from-[#d4af37]/10 to-transparent shrink-0">
                 <div className="flex items-center gap-3 sm:gap-4">
-                  <div className="w-10 h-10 sm:w-12 h-12 rounded-xl sm:rounded-2xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center shrink-0">
-                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 dark:text-emerald-500" />
+                  <div className="w-10 h-10 sm:w-12 h-12 rounded-xl sm:rounded-2xl bg-[#4db6ac]/20 dark:bg-[#d4af37]/20 flex items-center justify-center shrink-0">
+                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-[#4db6ac] dark:text-[#d4af37]" />
                   </div>
                   <div>
                     <h3 className="text-lg sm:text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Nuevo Proyecto</h3>
@@ -492,7 +511,7 @@ export function Projects() {
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Ej: Mina Los Bronces - Fase 4"
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                     />
                   </div>
                   <div className="space-y-1.5 sm:space-y-2">
@@ -501,7 +520,7 @@ export function Projects() {
                       <select
                         value={formData.industry}
                         onChange={e => setFormData({ ...formData, industry: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all appearance-none"
                       >
                         {INDUSTRY_SECTORS.map(sector => (
                           <optgroup key={sector.sector} label={sector.sector}>
@@ -524,7 +543,7 @@ export function Projects() {
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Detalles sobre el alcance y objetivos..."
                     rows={3}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none"
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all resize-none"
                   />
                 </div>
 
@@ -539,7 +558,7 @@ export function Projects() {
                         value={formData.location}
                         onChange={e => setFormData({ ...formData, location: e.target.value })}
                         placeholder="Ciudad, Región"
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                   </div>
@@ -550,8 +569,59 @@ export function Projects() {
                       value={formData.clientName}
                       onChange={e => setFormData({ ...formData, clientName: e.target.value })}
                       placeholder="Nombre de la empresa mandante"
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                     />
+                  </div>
+                </div>
+
+                {/* Legal employer data for SUSESO/DIAT compliance */}
+                <div className="pt-4 border-t border-zinc-200 dark:border-white/5">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white mb-4">Datos del Empleador (Ley 16.744 / SUSESO)</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Razón Social</label>
+                      <input
+                        type="text"
+                        value={formData.companyName}
+                        onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                        placeholder="Nombre legal de la empresa"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">RUT Empresa</label>
+                      <input
+                        type="text"
+                        value={formData.companyRut}
+                        onChange={e => setFormData({ ...formData, companyRut: e.target.value })}
+                        placeholder="Ej: 76.123.456-7"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Dirección</label>
+                      <input
+                        type="text"
+                        value={formData.companyAddress}
+                        onChange={e => setFormData({ ...formData, companyAddress: e.target.value })}
+                        placeholder="Calle, Número, Ciudad"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Organismo Administrador</label>
+                      <select
+                        value={formData.mutualidad}
+                        onChange={e => setFormData({ ...formData, mutualidad: e.target.value as any })}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
+                      >
+                        <option value="ACHS">ACHS</option>
+                        <option value="IST">IST</option>
+                        <option value="Mutual de Seguridad">Mutual de Seguridad</option>
+                        <option value="SUSESO">SUSESO (Administración Delegada)</option>
+                        <option value="Otra">Otra</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -562,7 +632,7 @@ export function Projects() {
                       <select
                         value={formData.riskLevel}
                         onChange={e => setFormData({ ...formData, riskLevel: e.target.value as any })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all appearance-none"
                       >
                         {RISK_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
@@ -578,7 +648,7 @@ export function Projects() {
                         type="date"
                         value={formData.startDate}
                         onChange={e => setFormData({ ...formData, startDate: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl pl-10 sm:pl-14 pr-4 sm:pr-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                   </div>
@@ -593,7 +663,7 @@ export function Projects() {
                         type="time"
                         value={formData.shiftStart}
                         onChange={e => setFormData({ ...formData, shiftStart: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                     <div className="space-y-1.5 sm:space-y-2">
@@ -602,7 +672,7 @@ export function Projects() {
                         type="time"
                         value={formData.shiftEnd}
                         onChange={e => setFormData({ ...formData, shiftEnd: e.target.value })}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all"
                       />
                     </div>
                   </div>
@@ -613,7 +683,7 @@ export function Projects() {
                         type="checkbox"
                         checked={formData.trackCommute}
                         onChange={e => setFormData({ ...formData, trackCommute: e.target.checked })}
-                        className="w-4 h-4 text-emerald-500 rounded border-zinc-300 focus:ring-emerald-500"
+                        className="w-4 h-4 text-[#4db6ac] rounded border-zinc-300 focus:ring-[#4db6ac]"
                       />
                       <div>
                         <p className="text-xs font-bold text-zinc-900 dark:text-white">Rastrear Accidentes de Trayecto</p>
@@ -626,7 +696,7 @@ export function Projects() {
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-black py-4 sm:py-5 rounded-2xl sm:rounded-3xl transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2 sm:gap-3 uppercase tracking-widest text-[10px] sm:text-sm mt-4 shrink-0"
+                  className="w-full bg-[#4db6ac] hover:bg-[#3a9e95] disabled:opacity-50 text-white font-black py-4 sm:py-5 rounded-2xl sm:rounded-3xl transition-all shadow-xl shadow-[#4db6ac]/20 flex items-center justify-center gap-2 sm:gap-3 uppercase tracking-widest text-[10px] sm:text-sm mt-4 shrink-0"
                 >
                   {isCreating ? (
                     <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />

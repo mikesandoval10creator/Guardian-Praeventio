@@ -4,6 +4,7 @@ import { BookOpen, Upload, FileText, Loader2, Brain, CheckCircle2, AlertTriangle
 import { Card, Button } from '../components/shared/Card';
 import { extractAcademicSummary } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
+import { logger } from '../utils/logger';
 
 export function AcademicProcessor() {
   const [textInput, setTextInput] = useState('');
@@ -20,7 +21,7 @@ export function AcademicProcessor() {
       const summary = await extractAcademicSummary(textInput);
       setResult(summary);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       setError('Error al procesar el texto. Por favor, intenta de nuevo.');
     } finally {
       setIsProcessing(false);
@@ -117,7 +118,7 @@ export function AcademicProcessor() {
               </div>
 
               <div className="pt-6 border-t border-zinc-200 dark:border-white/10 flex justify-end">
-                <Button className="bg-emerald-500 hover:bg-emerald-600 text-white">
+                <Button className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white">
                   <CheckCircle2 className="w-4 h-4 mr-2" /> Guardar en Zettelkasten
                 </Button>
               </div>

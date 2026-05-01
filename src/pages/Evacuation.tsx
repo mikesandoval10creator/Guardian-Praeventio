@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, OverlayView, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
 import { 
@@ -30,6 +31,7 @@ import { NodeType } from '../types';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { WifiOff } from 'lucide-react';
 import { useEmergency } from '../contexts/EmergencyContext';
+import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
 import { get } from 'idb-keyval';
 
 const containerStyle = {
@@ -74,8 +76,10 @@ export function Evacuation() {
   const [aiRoute, setAiRoute] = useState<any>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [lastRecalculation, setLastRecalculation] = useState<Date | null>(null);
+  const [alarmActivatedAt, setAlarmActivatedAt] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
+  const { criticalAlert } = useSeismicMonitor();
 
   const emergencyNodes = nodes.filter(n => (n.type === NodeType.EMERGENCY || n.type === NodeType.ASSET) && n.metadata?.lat && n.metadata?.lng);
   const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT);
@@ -120,7 +124,7 @@ export function Evacuation() {
       // Clear previous directions
       setDirectionsResponse(null);
     } catch (error) {
-      console.error('Error calculating dynamic route:', error);
+      logger.error('Error calculating dynamic route', { error });
     } finally {
       setCalculating(false);
     }
@@ -134,7 +138,7 @@ export function Evacuation() {
         // Only recalculate if it's been at least 30 seconds since the last one to avoid spamming
         const now = new Date();
         if (!lastRecalculation || (now.getTime() - lastRecalculation.getTime() > 30000)) {
-          console.log('Triggering automatic route recalculation due to critical IoT event:', latestEvent);
+          logger.info('Triggering automatic route recalculation due to critical IoT event', { latestEvent });
           runDynamicCalculation(`Evento Crítico IoT: ${latestEvent.source} - ${latestEvent.metric}`);
         }
       }
@@ -149,7 +153,7 @@ export function Evacuation() {
       const plan = await generateEmergencyPlan(selectedProject?.name || 'Proyecto Actual', context, selectedProject?.industry);
       setEmergencyPlan(plan);
     } catch (error) {
-      console.error('Error generating emergency plan:', error);
+      logger.error('Error generating emergency plan', { error });
     } finally {
       setGeneratingPlan(false);
     }
@@ -186,11 +190,31 @@ export function Evacuation() {
 
       setEmergencyPlan(null);
     } catch (error) {
-      console.error('Error saving emergency plan:', error);
+      logger.error('Error saving emergency plan', { error });
     } finally {
       setSavingPlan(false);
     }
   };
+
+  // Auto-trigger evacuation when seismic monitor detects a critical earthquake (≥4.5, ≤500km)
+  useEffect(() => {
+    if (!criticalAlert) return;
+    const pid = selectedProject?.id;
+    triggerEmergency('sismo', pid).catch((err) =>
+      logger.error('Evacuation: auto seismic trigger failed', { err }),
+    );
+    if (pid) {
+      addDoc(collection(db, `projects/${pid}/emergency_messages`), {
+        type: 'seismic_auto',
+        magnitude: criticalAlert.magnitude,
+        place: criticalAlert.place,
+        triggeredAt: serverTimestamp(),
+        source: 'useSeismicMonitor',
+      }).catch((err) => logger.error('Evacuation: seismic emergency_messages write failed', { err }));
+    }
+    runDynamicCalculation(`Sismo automático M${criticalAlert.magnitude} — ${criticalAlert.place}`);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [criticalAlert?.id]);
 
   // Auto-recalculate if nodes change (e.g. new incident reported)
   useEffect(() => {
@@ -216,7 +240,7 @@ export function Evacuation() {
     if (status === 'OK' && result) {
       setDirectionsResponse(result);
     } else {
-      console.error(`Directions request failed: ${status}`);
+      logger.error('Directions request failed', { status });
     }
   }, []);
 
@@ -236,11 +260,14 @@ export function Evacuation() {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <button 
-            onClick={() => triggerEmergency('sismo')}
-            className="flex items-center justify-center gap-2 bg-red-600/20 border border-red-500/50 text-red-500 px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all hover:bg-red-600/30 active:scale-95 w-full sm:w-auto"
+            onClick={async () => {
+              await triggerEmergency('sismo', selectedProject?.id);
+              setAlarmActivatedAt(new Date().toLocaleTimeString('es-CL'));
+            }}
+            className={`flex items-center justify-center gap-2 border px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 w-full sm:w-auto ${alarmActivatedAt ? 'bg-red-600/40 border-red-500 text-red-300' : 'bg-red-600/20 border-red-500/50 text-red-500 hover:bg-red-600/30'}`}
           >
             <AlertCircle className="w-4 h-4" />
-            <span>Activar Alarma Manual</span>
+            <span>{alarmActivatedAt ? `Alarma Activa ${alarmActivatedAt}` : 'Activar Alarma Manual'}</span>
           </button>
           <button 
             onClick={handleGenerateEmergencyPlan}

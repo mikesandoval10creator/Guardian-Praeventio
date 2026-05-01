@@ -32,6 +32,22 @@ export enum NodeType {
   ATTENDANCE = 'Asistencia',
   SAFE_ZONE = 'Zona de Seguridad',
   CONTROL = 'Control',
+  // Block V — Collective Intelligence
+  LESSON_LEARNED = 'Lección Aprendida',
+  BEST_PRACTICE = 'Buena Práctica',
+  PEER_FEEDBACK = 'Retroalimentación',
+  COMMUNITY_REPORT = 'Reporte Comunitario',
+  // Block VI — Enterprise Ecosystem
+  CONTRACTOR = 'Contratista',
+  SUPPLIER = 'Proveedor',
+  PROCUREMENT_RISK = 'Riesgo de Adquisición',
+  // Block VII — Regional / Environmental
+  ENVIRONMENTAL_IMPACT = 'Impacto Ambiental',
+  REGIONAL_NORMATIVE = 'Normativa Regional',
+  // Block VIII — Advanced AI
+  AI_PREDICTION = 'Predicción IA',
+  DIGITAL_TWIN = 'Gemelo Digital',
+  BEHAVIORAL_PATTERN = 'Patrón de Comportamiento',
 }
 
 export interface RiskNode {

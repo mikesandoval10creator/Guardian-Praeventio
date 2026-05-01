@@ -2,6 +2,7 @@ import { collection, getDocs, doc, setDoc, addDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 export const seedCommunityGlossary = async () => {
   // Round 14 (A5 audit) — `/api/seed-glossary` is gated by verifyAuth on the
@@ -16,7 +17,7 @@ export const seedCommunityGlossary = async () => {
     throw new Error('Debes iniciar sesión para poblar el Glosario Comunitario.');
   }
   try {
-    console.log('Iniciando poblamiento del Grand Line (Community Glossary)...');
+    logger.info('Iniciando poblamiento del Grand Line (Community Glossary)...');
     const token = await user.getIdToken();
     const response = await fetch('/api/seed-glossary', {
       method: 'POST',
@@ -31,10 +32,10 @@ export const seedCommunityGlossary = async () => {
     }
 
     const data = await response.json();
-    console.log('Poblamiento completado:', data);
+    logger.info('Poblamiento completado:', data);
     return data;
   } catch (error) {
-    console.error('Error seeding community glossary:', error);
+    logger.error('Error seeding community glossary:', error);
     throw error;
   }
 };
@@ -46,19 +47,19 @@ export const seedGlobalData = async (projectId?: string, industry?: string) => {
     const templatesSnapshot = await getDocs(templatesRef);
     
     if (templatesSnapshot.empty) {
-      console.log('Seeding global templates...');
+      logger.info('Seeding global templates...');
       for (const [industryName, nodes] of Object.entries(INDUSTRY_IPER_BASE)) {
         await setDoc(doc(templatesRef, industryName.replace(/[^a-zA-Z0-9]/g, '_')), {
           industryName: industryName,
           nodes: nodes
         });
       }
-      console.log('Global templates seeded successfully.');
+      logger.info('Global templates seeded successfully.');
     }
 
     // 2. Seed Project-Specific IPER Nodes if projectId is provided
     if (projectId && industry) {
-      console.log(`Seeding IPER nodes for project ${projectId} (${industry})...`);
+      logger.info(`Seeding IPER nodes for project ${projectId} (${industry})...`);
       const nodesToSeed = INDUSTRY_IPER_BASE[industry] || INDUSTRY_IPER_BASE['General'];
       const nodesRef = collection(db, 'nodes');
 
@@ -80,7 +81,7 @@ export const seedGlobalData = async (projectId?: string, industry?: string) => {
           updatedAt: new Date().toISOString()
         });
       }
-      console.log('Project IPER nodes seeded successfully.');
+      logger.info('Project IPER nodes seeded successfully.');
     }
 
     // 3. Seed Gamification Games
@@ -88,7 +89,7 @@ export const seedGlobalData = async (projectId?: string, industry?: string) => {
     const gamesSnapshot = await getDocs(gamesRef);
     
     if (gamesSnapshot.empty) {
-      console.log('Seeding gamification content...');
+      logger.info('Seeding gamification content...');
       const games = [
         {
           id: 'g1',
@@ -126,9 +127,9 @@ export const seedGlobalData = async (projectId?: string, industry?: string) => {
       for (const game of games) {
         await setDoc(doc(gamesRef, game.id), game);
       }
-      console.log('Gamification content seeded successfully.');
+      logger.info('Gamification content seeded successfully.');
     }
   } catch (error) {
-    console.error('Error seeding global data:', error);
+    logger.error('Error seeding global data:', error);
   }
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, Plus, Download, Trash2, Loader2, FileCheck, AlertCircle, ShieldCheck, AlertOctagon } from 'lucide-react';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
 import { db, collection, addDoc, onSnapshot, query, where, handleFirestoreError, OperationType, deleteDoc, doc, updateDoc } from '../../services/firebase';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { analyzeDocumentCompliance } from '../../services/geminiService';
@@ -32,6 +33,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<WorkerDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Fetch documents for the worker
   React.useEffect(() => {
@@ -131,19 +133,24 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
     }
   };
 
-  const handleDelete = async (docId: string) => {
-    if (!confirm('¿Estás seguro de eliminar este documento?')) return;
-    
+  const handleDelete = (docId: string) => {
+    setPendingDeleteId(docId);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteId) return;
     try {
       const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
-      await deleteDoc(doc(db, path, docId));
-      // Note: We could also delete the Risk node, but usually nodes are kept for history
+      await deleteDoc(doc(db, path, pendingDeleteId));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'documents');
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && worker && (
         <motion.div
@@ -267,5 +274,15 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
         </motion.div>
       )}
     </AnimatePresence>
+
+    <ConfirmDialog
+      isOpen={!!pendingDeleteId}
+      title="Eliminar documento"
+      message="¿Estás seguro de eliminar este documento? Esta acción no se puede deshacer."
+      confirmLabel="Eliminar"
+      onConfirm={confirmDelete}
+      onCancel={() => setPendingDeleteId(null)}
+    />
+    </>
   );
 }

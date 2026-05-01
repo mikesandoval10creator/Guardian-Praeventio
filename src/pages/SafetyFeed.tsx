@@ -31,6 +31,7 @@ import { SafetyPost, SafetySolution, NodeType } from '../types';
 import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { SkeletonCard } from '../components/shared/Skeleton';
+import { logger } from '../utils/logger';
 
 export function SafetyFeed() {
   const { user } = useFirebase();
@@ -145,7 +146,7 @@ export function SafetyFeed() {
       setNewPost({ content: '', type: 'SafetyMoment', imageBase64: null });
       setIsPosting(false);
     } catch (error) {
-      console.error('Error creating post:', error);
+      logger.error('Error creating post:', error);
       alert('Hubo un error al publicar. Inténtalo de nuevo.');
     } finally {
       setIsAnalyzing(false);
@@ -219,15 +220,27 @@ export function SafetyFeed() {
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-4 pt-4 border-t border-white/5">
-              <button className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">
+              <button
+                disabled={!isOnline}
+                onClick={() => { setNewPost(p => ({ ...p, type: 'SafetyMoment' })); setIsPosting(true); }}
+                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+              >
                 <ImageIcon className="w-4 h-4 text-blue-500" />
                 <span>Imagen</span>
               </button>
-              <button className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">
+              <button
+                disabled={!isOnline}
+                onClick={() => { setNewPost(p => ({ ...p, type: 'SafetyMoment' })); setIsPosting(true); }}
+                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+              >
                 <Zap className="w-4 h-4 text-yellow-500" />
                 <span>Momento</span>
               </button>
-              <button className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors">
+              <button
+                disabled={!isOnline}
+                onClick={() => { setNewPost(p => ({ ...p, type: 'Tip' })); setIsPosting(true); }}
+                className="flex items-center gap-2 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-white transition-colors disabled:opacity-40"
+              >
                 <Lightbulb className="w-4 h-4 text-emerald-500" />
                 <span>Tip</span>
               </button>
@@ -381,7 +394,16 @@ export function SafetyFeed() {
                         <span>{post.comments.length}</span>
                       </button>
                     </div>
-                    <button className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors">
+                    <button
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({ title: 'Praeventio Guard', text: post.content, url: window.location.href }).catch(() => {});
+                        } else {
+                          navigator.clipboard?.writeText(`${post.content}\n${window.location.href}`);
+                        }
+                      }}
+                      className="flex items-center gap-2 text-[10px] font-black text-zinc-500 uppercase tracking-widest hover:text-white transition-colors"
+                    >
                       <Share2 className="w-4 h-4" />
                       <span>Compartir</span>
                     </button>
@@ -427,7 +449,7 @@ export function SafetyFeed() {
                         placeholder="Escribe un comentario..." 
                         className="flex-1 bg-zinc-950 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500/50 transition-colors"
                       />
-                      <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">
+                      <button type="submit" className="bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors">
                         Enviar
                       </button>
                     </form>
@@ -602,7 +624,7 @@ export function SafetyFeed() {
                   <button 
                     type="submit"
                     disabled={isAnalyzing}
-                    className="px-10 py-4 rounded-2xl bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                    className="px-10 py-4 rounded-2xl bg-[#4db6ac] text-white font-black text-[10px] uppercase tracking-widest hover:bg-[#3a9e95] transition-all shadow-lg shadow-[#4db6ac]/20 disabled:opacity-50 flex items-center gap-2"
                   >
                     {isAnalyzing ? (
                       <>

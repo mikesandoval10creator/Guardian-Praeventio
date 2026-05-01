@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { logger } from '../utils/logger';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
   Wind,
+  ThermometerSun,
+  AlertTriangle,
   MapPin,
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -69,7 +73,7 @@ export function Telemetry() {
     try {
       const nav = navigator as any;
       if (!nav.bluetooth) {
-        alert('Web Bluetooth API no está soportada en este navegador. Usa Chrome o Edge.');
+        setAlerts(prev => [...prev, 'Web Bluetooth API no está soportada en este navegador. Usa Chrome o Edge.']);
         return;
       }
 
@@ -116,9 +120,9 @@ export function Telemetry() {
 
       setFitTokens({ connected: true, deviceName: device.name });
       setIsConnectingFit(false);
-      alert(`Conectado a ${device.name}`);
+      setAlerts(prev => [...prev, `Conectado a ${device.name} vía Bluetooth.`]);
     } catch (error) {
-      console.error('Error connecting to Bluetooth device:', error);
+      logger.error('Error connecting to Bluetooth device', { error });
       setIsConnectingFit(false);
       // alert('Error al conectar con el dispositivo Bluetooth.');
     }
@@ -169,11 +173,11 @@ export function Telemetry() {
       );
 
       if (!authWindow) {
-        alert('Por favor, permite las ventanas emergentes (popups) para conectar Google Fit.');
+        setAlerts(prev => [...prev, 'Permite las ventanas emergentes (popups) en el navegador para conectar Google Fit.']);
         setIsConnectingFit(false);
       }
     } catch (error) {
-      console.error('Error connecting to Google Fit:', error);
+      logger.error('Error connecting to Google Fit', { error });
       setIsConnectingFit(false);
     }
   };
@@ -280,7 +284,7 @@ export function Telemetry() {
       }
 
     } catch (error) {
-      console.error('Error fetching fitness data:', error);
+      logger.error('Error fetching fitness data', { error });
     }
   }, []);
 
@@ -315,23 +319,30 @@ export function Telemetry() {
       const context = `Proyecto: ${selectedProject?.name || 'Global'}. Clima: ${weather?.temp || 20}°C, Viento: ${weather?.windSpeed || 10}km/h.`;
       const eventData = await generateRealisticIoTEvent(context);
 
-      // Edge IoT Filter: Only upload anomalous events to Firebase to save bandwidth/storage
+      // Edge IoT Filter: Only upload anomalous events to save bandwidth/storage.
+      // Route through /api/telemetry/ingest so autoValidateTelemetry runs on the backend.
       if (eventData.status === 'warning' || eventData.status === 'critical') {
         try {
-          await addDoc(collection(db, 'telemetry_events'), {
-            ...eventData,
-            timestamp: serverTimestamp(),
-            projectId: selectedProject?.id || 'global'
+          const token = await auth.currentUser?.getIdToken();
+          await fetch('/api/telemetry/ingest', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              ...eventData,
+              projectId: selectedProject?.id || 'global',
+            }),
           });
         } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, 'telemetry_events');
+          logger.error('Error ingesting telemetry event', { error });
         }
       } else {
-        console.log('[Edge IoT Filter] Normal event filtered out locally:', eventData);
-        // Optionally update local state for the UI without hitting Firebase
+        logger.debug('Edge IoT filter: normal event filtered locally', { status: eventData.status });
       }
     } catch (error) {
-      console.error('Error simulating IoT event:', error);
+      logger.error('Error simulating IoT event', { error });
     } finally {
       setSimulatingIoT(false);
     }
@@ -366,7 +377,7 @@ export function Telemetry() {
           }
         }
       } catch (error) {
-        console.error('Error fetching telemetry:', error);
+        logger.error('Error fetching telemetry', { error });
       } finally {
         setLoading(false);
       }

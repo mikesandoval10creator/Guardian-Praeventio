@@ -4,6 +4,7 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { logger } from '../utils/logger';
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
@@ -50,7 +51,7 @@ async function notifyServerLogout(): Promise<void> {
     });
   } catch (err) {
     // Logout must succeed even if the server unlink call fails.
-    console.warn('[firebase.logOut] notifyServerLogout failed (non-fatal):', err);
+    logger.warn('[firebase.logOut] notifyServerLogout failed (non-fatal)', { err });
   }
 }
 
@@ -71,7 +72,7 @@ export async function testConnection() {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. The client is offline.");
+      logger.error("Please check your Firebase configuration. The client is offline.");
     }
   }
 }
@@ -124,7 +125,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  logger.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
 

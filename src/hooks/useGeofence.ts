@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point, polygon } from '@turf/helpers';
+import { logger } from '../utils/logger';
 
 export interface GeofenceZone {
   id: string;
@@ -36,7 +37,7 @@ function ensureAudioContextOnUserGesture() {
         void sharedAudioCtx.resume().catch(() => {});
       }
     } catch (err) {
-      console.warn('[useGeofence] AudioContext init failed on user gesture', err);
+      logger.warn('[useGeofence] AudioContext init failed on user gesture', err);
     } finally {
       document.removeEventListener('pointerdown', handler);
     }
@@ -62,7 +63,7 @@ async function playZoneAlarm() {
     try {
       sharedAudioCtx = new Ctor();
     } catch (err) {
-      console.warn('[useGeofence] could not create AudioContext, vibration only', err);
+      logger.warn('[useGeofence] could not create AudioContext, vibration only', err);
       return;
     }
   }
@@ -71,7 +72,7 @@ async function playZoneAlarm() {
     try {
       await sharedAudioCtx.resume();
     } catch (err) {
-      console.warn('[useGeofence] AudioContext.resume() rejected — vibration only', err);
+      logger.warn('[useGeofence] AudioContext.resume() rejected — vibration only', err);
       return;
     }
   }
@@ -90,13 +91,18 @@ async function playZoneAlarm() {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.5);
   } catch (err) {
-    console.warn('[useGeofence] alarm tone playback failed', err);
+    logger.warn('[useGeofence] alarm tone playback failed', err);
   }
 }
 
-export function useGeofence(zones: GeofenceZone[]) {
+export function useGeofence(
+  zones: GeofenceZone[],
+  onZoneEntry?: (zones: GeofenceZone[]) => void,
+) {
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [activeZones, setActiveZones] = useState<GeofenceZone[]>([]);
+  const onZoneEntryRef = useRef(onZoneEntry);
+  onZoneEntryRef.current = onZoneEntry;
   // Track which zone IDs the worker is currently inside to avoid repeated alarms
   const insideZoneIdsRef = useRef<Set<string>>(new Set());
   // Latest `zones` value so the watchPosition callback always sees fresh polygons
@@ -158,6 +164,7 @@ export function useGeofence(zones: GeofenceZone[]) {
 
         if (justEntered.length > 0) {
           void playZoneAlarm();
+          onZoneEntryRef.current?.(justEntered);
         }
       },
       () => {

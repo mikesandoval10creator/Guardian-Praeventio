@@ -29,6 +29,7 @@ import { Worker } from '../types';
 import { AddWorkerModal } from '../components/workers/AddWorkerModal';
 import { EditWorkerModal } from '../components/workers/EditWorkerModal';
 import { EPPModal } from '../components/workers/EPPModal';
+import { ConfirmDialog } from '../components/shared/ConfirmDialog';
 import { DocsModal } from '../components/workers/DocsModal';
 import { QRCodeModal } from '../components/workers/QRCodeModal';
 import { MassImportModal } from '../components/workers/MassImportModal';
@@ -38,6 +39,8 @@ const LaborManagementModal = lazy(() => import('../components/workers/LaborManag
 import { UserProfileModal } from '../components/workers/UserProfileModal';
 import { Database, RefreshCw, FileSignature, Star } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { logger } from '../utils/logger';
+import { EmptyState } from '../components/shared/EmptyState';
 
 export function Workers() {
   const { selectedProject } = useProject();
@@ -65,15 +68,18 @@ export function Workers() {
   
   const collectionPath = selectedProject ? `projects/${selectedProject.id}/workers` : 'workers';
   
-  const handleDelete = async (workerId: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este trabajador?')) return;
+  const [deleteWorkerId, setDeleteWorkerId] = useState<string | null>(null);
 
+  const handleDelete = (workerId: string) => setDeleteWorkerId(workerId);
+
+  const doDeleteWorker = async () => {
+    if (!deleteWorkerId) return;
     try {
-      const workerRef = doc(db, collectionPath, workerId);
-      await deleteDoc(workerRef);
+      await deleteDoc(doc(db, collectionPath, deleteWorkerId));
     } catch (error) {
-      console.error('Error deleting worker:', error);
-      alert('Error al eliminar el trabajador');
+      logger.error('Error deleting worker:', error);
+    } finally {
+      setDeleteWorkerId(null);
     }
   };
 
@@ -115,7 +121,7 @@ export function Workers() {
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 shadow-lg shadow-emerald-500/20 text-xs sm:text-sm"
+            className="flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 shadow-lg shadow-[#4db6ac]/20 text-xs sm:text-sm"
           >
             <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Añadir Trabajador</span>
@@ -134,14 +140,14 @@ export function Workers() {
             placeholder="Buscar por nombre, email o cargo..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-9 sm:pl-10 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
+            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-9 sm:pl-10 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
           />
         </div>
         <div className="relative">
           <select
             value={filterRole}
             onChange={(e) => setFilterRole(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none transition-all shadow-sm"
+            className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 appearance-none transition-all shadow-sm"
           >
             <option value="all">Todos los roles</option>
             <option value="Prevencionista">Prevencionista</option>
@@ -164,7 +170,7 @@ export function Workers() {
       {/* Workers Grid */}
       {loading ? (
         <div className="flex items-center justify-center py-12 sm:py-20">
-          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-emerald-500"></div>
+          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-[#4db6ac]"></div>
         </div>
       ) : filteredWorkers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -174,7 +180,7 @@ export function Workers() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 hover:border-emerald-500/30 transition-all group relative shadow-sm"
+              className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 hover:border-[#4db6ac]/30 transition-all group relative shadow-sm"
             >
               <div className="absolute top-0 right-0 p-3 sm:p-4">
                 <div className="relative dropdown-container">
@@ -224,11 +230,11 @@ export function Workers() {
               </div>
 
               <div className="flex items-start gap-3 sm:gap-4 mb-3 sm:mb-4">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-xl sm:text-2xl font-bold text-emerald-500 border border-zinc-200 dark:border-white/5 shrink-0">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-xl sm:text-2xl font-bold text-[#4db6ac] dark:text-[#d4af37] border border-zinc-200 dark:border-white/5 shrink-0">
                   {worker.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg leading-tight group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors pr-6">
+                  <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg leading-tight group-hover:text-[#4db6ac] dark:group-hover:text-[#d4af37] transition-colors pr-6">
                     {worker.name}
                   </h3>
                   <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium mt-0.5">{worker.role}</p>
@@ -295,7 +301,7 @@ export function Workers() {
                   onClick={() => { setSelectedWorker(worker); setActiveModal('safety-plan'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
-                  <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 dark:text-emerald-400 group-hover/btn:scale-110 transition-transform" />
+                  <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
                   <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Plan</span>
                 </button>
                 <button 
@@ -309,14 +315,14 @@ export function Workers() {
                   onClick={() => { setSelectedWorker(worker); setActiveModal('traceability'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
-                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 dark:text-emerald-400 group-hover/btn:scale-110 transition-transform" />
+                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
                   <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Trazabilidad</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('qr'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
-                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 dark:text-emerald-400 group-hover/btn:scale-110 transition-transform" />
+                  <QrCode className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
                   <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">QR</span>
                 </button>
                 <button 
@@ -331,14 +337,13 @@ export function Workers() {
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-12 sm:p-20 text-center shadow-sm">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-50 dark:bg-zinc-800 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto mb-4 sm:mb-6">
-            <UserPlus className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-400 dark:text-zinc-600" />
-          </div>
-          <h3 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-white mb-2">No se encontraron trabajadores</h3>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
-            Comienza añadiendo personal a este proyecto para gestionar su seguridad y documentación.
-          </p>
+        <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
+          <EmptyState
+            mascot
+            title="No se encontraron trabajadores"
+            description="Comienza añadiendo personal a este proyecto para gestionar su seguridad y documentación."
+            action={{ label: 'Añadir Trabajador', onClick: () => setIsAddModalOpen(true) }}
+          />
         </div>
       )}
 
@@ -358,9 +363,9 @@ export function Workers() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
             >
-              <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-emerald-50 dark:bg-gradient-to-r dark:from-emerald-500/10 dark:to-transparent shrink-0">
+              <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-[#4db6ac]/10 dark:bg-gradient-to-r dark:from-[#d4af37]/10 dark:to-transparent shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-500 shrink-0">
+                  <div className="w-10 h-10 bg-[#4db6ac]/20 dark:bg-[#d4af37]/20 rounded-xl flex items-center justify-center text-[#4db6ac] dark:text-[#d4af37] shrink-0">
                     <BrainCircuit className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
@@ -518,6 +523,15 @@ export function Workers() {
           onClose={() => setActiveModal(null)}
         />
       )}
+      <ConfirmDialog
+        isOpen={!!deleteWorkerId}
+        title="Eliminar trabajador"
+        message="¿Estás seguro? Esta acción eliminará al trabajador y todos sus datos asociados."
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteWorker}
+        onCancel={() => setDeleteWorkerId(null)}
+      />
     </div>
   );
 }

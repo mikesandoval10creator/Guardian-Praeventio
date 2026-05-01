@@ -4,6 +4,7 @@ import { X, Upload, FileSpreadsheet, Loader2, AlertCircle, CheckCircle2 } from '
 import { db, collection, addDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
+import { logger } from '../../utils/logger';
 
 interface MassImportModalProps {
   isOpen: boolean;
@@ -71,7 +72,7 @@ export function MassImportModal({ isOpen, onClose, projectId }: MassImportModalP
 
         successCount++;
       } catch (error) {
-        console.error('Import error for line', i, error);
+        logger.error('Import error for line', i, error);
         errorCount++;
       }
     }

@@ -5,7 +5,9 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useSensors } from '../contexts/SensorContext';
 import { NodeType } from '../types';
 import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { saveBlackBox } from '../utils/offlineStorage';
+import { logger } from '../utils/logger';
 
 interface ManDownOptions {
   onManDownConfirmed?: (impactData: { userId?: string; userName?: string; timestamp: string }) => void;
@@ -23,6 +25,8 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   const { sensorData, startListening, stopListening } = useSensors();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  // Stores the Firestore mandown_events doc so acknowledgeAlert() can update it
+  const mandownEventRef = useRef<{ projectId: string; docId: string } | null>(null);
 
   // Pre-warmed AudioContext (must be created from a user gesture for mobile autoplay policy).
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -106,11 +110,31 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     }, ALARM_MIN_DURATION_MS);
   };
 
-  const acknowledgeAlert = () => {
+  const acknowledgeAlert = async () => {
     acknowledgedRef.current = true;
     stopAlarmLoop();
     setIsAlerting(false);
     setCountdown(10);
+
+    const ref = mandownEventRef.current;
+    mandownEventRef.current = null;
+    if (!ref) return;
+    try {
+      await updateDoc(doc(db, `projects/${ref.projectId}/mandown_events`, ref.docId), {
+        status: 'acknowledged',
+        acknowledgedBy: user?.uid ?? null,
+        acknowledgedByName: user?.displayName ?? null,
+        acknowledgedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('[ManDown] acknowledgeAlert Firestore write failed — queuing retry:', err);
+      logger.error('useManDownDetection: failed to acknowledge event', { err });
+      // Re-arm the alarm so the acknowledgment doesn't silently disappear
+      acknowledgedRef.current = false;
+      mandownEventRef.current = ref;
+      setIsAlerting(true);
+      startAlarmLoop();
+    }
   };
 
   const startDetection = () => {
@@ -182,7 +206,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
             resolve(`${position.coords.latitude}, ${position.coords.longitude}`);
           },
           (error) => {
-            console.warn('Error fetching geolocation:', error);
+            logger.warn('Error fetching geolocation:', { code: error.code, message: error.message });
             resolve('Error al obtener ubicación GPS');
           },
           { timeout: 5000 }
@@ -219,6 +243,21 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         timestamp: serverTimestamp()
       });
 
+      // 3. Create auditable mandown_event for supervisor acknowledgment tracking
+      const eventRef = await addDoc(
+        collection(db, `projects/${selectedProject.id}/mandown_events`),
+        {
+          workerId: user.uid,
+          workerName: user.displayName ?? null,
+          location,
+          status: 'active',
+          triggeredAt: serverTimestamp(),
+          acknowledgedBy: null,
+          acknowledgedAt: null,
+        }
+      );
+      mandownEventRef.current = { projectId: selectedProject.id, docId: eventRef.id };
+
       // NOTE: do NOT clear isAlerting here — the supervisor must explicitly
       // acknowledge via acknowledgeAlert() to silence the local alarm. This
       // prevents the alarm from going quiet just because the network call
@@ -232,7 +271,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         timestamp: impactTimestamp,
       });
     } catch (error) {
-      console.error('Error triggering man down alert:', error);
+      logger.error('Error triggering man down alert:', error);
     }
   };
 

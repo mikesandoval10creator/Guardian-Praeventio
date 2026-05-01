@@ -1,6 +1,7 @@
 import admin from "firebase-admin";
 import { GoogleGenAI, Type } from "@google/genai";
 import { processGlobalSafetyAudit, calculateComplianceSummary } from "./geminiBackend.js";
+import { logger } from '../utils/logger';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -64,7 +65,7 @@ export const autoValidateTelemetry = async (telemetryEvent: any) => {
         
         return JSON.parse(response.text);
     } catch (e) {
-        console.error("Error auto-validating telemetry:", e);
+        logger.error("Error auto-validating telemetry:", e);
         return null;
     }
 };

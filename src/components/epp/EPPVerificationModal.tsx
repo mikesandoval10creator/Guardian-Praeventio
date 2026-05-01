@@ -7,6 +7,7 @@ import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { verifyEPPWithAI } from '../../services/geminiService';
+import { logger } from '../../utils/logger';
 
 interface EPPVerificationModalProps {
   isOpen: boolean;
@@ -61,7 +62,7 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
       const analysis = await verifyEPPWithAI(base64Image, selectedWorker.name, requiredEPP);
       setResult(analysis);
     } catch (err) {
-      console.error('Error verifying EPP:', err);
+      logger.error('Error verifying EPP:', err);
     } finally {
       setIsAnalyzing(false);
     }
@@ -107,7 +108,7 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
       setImage(null);
       setSelectedWorkerId('');
     } catch (error) {
-      console.error('Error saving verification:', error);
+      logger.error('Error saving verification:', error);
     } finally {
       setIsSaving(false);
     }

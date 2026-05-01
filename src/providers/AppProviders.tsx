@@ -5,6 +5,8 @@ import { SubscriptionProvider } from "../contexts/SubscriptionContext";
 import { NotificationProvider } from "../contexts/NotificationContext";
 import { EmergencyProvider } from "../contexts/EmergencyContext";
 import { SensorProvider } from "../contexts/SensorContext";
+import { ThemeProvider } from "../contexts/ThemeContext";
+import { NormativeProvider } from "../contexts/NormativeContext";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -24,18 +26,22 @@ export function AppProviders({ children }: AppProvidersProps) {
   // it — verified by `grep -r useUniversalKnowledge src/` against the
   // ancestor providers below.
   return (
-    <ProjectProvider>
+    <ThemeProvider>
+      <NormativeProvider>
       <UniversalKnowledgeProvider>
-        <SubscriptionProvider>
-          <NotificationProvider>
-            <EmergencyProvider>
-              <SensorProvider>
-                {children}
-              </SensorProvider>
-            </EmergencyProvider>
-          </NotificationProvider>
-        </SubscriptionProvider>
+        <ProjectProvider>
+          <SubscriptionProvider>
+            <NotificationProvider>
+              <EmergencyProvider>
+                <SensorProvider>
+                  {children}
+                </SensorProvider>
+              </EmergencyProvider>
+            </NotificationProvider>
+          </SubscriptionProvider>
+        </ProjectProvider>
       </UniversalKnowledgeProvider>
-    </ProjectProvider>
+      </NormativeProvider>
+    </ThemeProvider>
   );
 }

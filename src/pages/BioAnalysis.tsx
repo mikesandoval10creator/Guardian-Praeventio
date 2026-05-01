@@ -14,6 +14,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { FaceLandmarker, PoseLandmarker, ObjectDetector, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+import { logger } from '../utils/logger';
 
 export function BioAnalysis() {
   const { user } = useFirebase();
@@ -69,7 +70,7 @@ export function BioAnalysis() {
       });
       
     } catch (error) {
-      console.error("Bluetooth error:", error);
+      logger.error("Bluetooth error:", error);
       alert("No se pudo conectar al wearable. Asegúrate de tener Bluetooth activado y permisos concedidos.");
     }
   };
@@ -122,7 +123,7 @@ export function BioAnalysis() {
           setIsModelsLoaded(true);
         }
       } catch (error) {
-        console.error("Error loading mediapipe models:", error);
+        logger.error("Error loading mediapipe models:", error);
       }
     };
     loadModels();
@@ -307,7 +308,7 @@ export function BioAnalysis() {
           });
         }
       } catch (err) {
-        console.error("Error accessing camera:", err);
+        logger.error("Error accessing camera:", err);
         setCameraPermissionDenied(true);
       }
     }
@@ -393,7 +394,7 @@ export function BioAnalysis() {
       setAlerts(result.alerts || []);
 
     } catch (error) {
-      console.error("Error analyzing image:", error);
+      logger.error("Error analyzing image:", error);
       alert("Error al analizar la imagen con IA.");
     } finally {
       setIsAiProcessing(false);
@@ -439,7 +440,7 @@ export function BioAnalysis() {
       });
       alert("Hallazgo guardado en la Red Neuronal y Hallazgos exitosamente.");
     } catch (error) {
-      console.error("Error saving to Zettelkasten:", error);
+      logger.error("Error saving to Zettelkasten:", error);
       alert("Error al guardar en la Red Neuronal.");
     }
   };

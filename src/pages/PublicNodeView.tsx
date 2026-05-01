@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { db, doc, getDoc, collection, query, where, getDocs } from '../services/firebase';
 import { RiskNode, NodeType } from '../types';
+import { getNodeIcon, getNodeBadgeClass } from '../utils/nodeTypeUtils';
+import { logger } from '../utils/logger';
 
 export function PublicNodeView() {
   const { nodeId } = useParams<{ nodeId: string }>();
@@ -56,7 +58,7 @@ export function PublicNodeView() {
           setError('Nodo no encontrado o no es público.');
         }
       } catch (err) {
-        console.error('Error fetching public node:', err);
+        logger.error('Error fetching public node:', err);
         setError('Error al cargar la información.');
       } finally {
         setLoading(false);
@@ -66,28 +68,7 @@ export function PublicNodeView() {
     fetchNode();
   }, [nodeId]);
 
-  const getNodeIcon = (type: NodeType) => {
-    switch (type) {
-      case NodeType.WORKER: return User;
-      case NodeType.RISK: return AlertTriangle;
-      case NodeType.EPP: return Shield;
-      case NodeType.MACHINE: return Cpu;
-      case NodeType.NORMATIVE: return FileText;
-      case NodeType.DOCUMENT: return FileText;
-      default: return Info;
-    }
-  };
 
-  const getNodeColor = (type: NodeType) => {
-    switch (type) {
-      case NodeType.WORKER: return 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
-      case NodeType.RISK: return 'text-rose-500 bg-rose-500/10 border-rose-500/20';
-      case NodeType.EPP: return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-      case NodeType.NORMATIVE: return 'text-violet-500 bg-violet-500/10 border-violet-500/20';
-      case NodeType.DOCUMENT: return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-      default: return 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
-    }
-  };
 
   if (loading) {
     return (
@@ -155,7 +136,7 @@ export function PublicNodeView() {
           <div className="relative z-10 space-y-6 sm:space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-4">
-                <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${getNodeColor(node.type)}`}>
+                <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border ${getNodeBadgeClass(node.type)}`}>
                   {React.createElement(getNodeIcon(node.type), { className: 'w-4 h-4' })}
                   <span className="text-[10px] font-black uppercase tracking-widest">{node.type}</span>
                 </div>
@@ -224,7 +205,7 @@ export function PublicNodeView() {
                   className="bg-zinc-900 border border-white/10 rounded-3xl p-6 flex items-center justify-between group cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl border ${getNodeColor(conn.type)}`}>
+                    <div className={`p-3 rounded-2xl border ${getNodeBadgeClass(conn.type)}`}>
                       {React.createElement(getNodeIcon(conn.type), { className: 'w-5 h-5' })}
                     </div>
                     <div>

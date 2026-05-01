@@ -4,6 +4,7 @@ import { X, BrainCircuit, Loader2, AlertTriangle, CheckCircle2, FileText, Sparkl
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { analyzePsychosocialRisks } from '../../services/geminiService';
+import { logger } from '../../utils/logger';
 
 interface AIPsychosocialAnalysisModalProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export function AIPsychosocialAnalysisModal({ isOpen, onClose }: AIPsychosocialA
       const result = await analyzePsychosocialRisks(projectNodes.slice(0, 50), selectedProject?.name ?? 'Sin proyecto');
       setAnalysis(result);
     } catch (error) {
-      console.error('Error analyzing psychosocial data:', error);
+      logger.error('Error analyzing psychosocial data:', error);
       setAnalysis('Ocurrió un error al generar el análisis. Por favor, intente nuevamente.');
     } finally {
       setLoading(false);

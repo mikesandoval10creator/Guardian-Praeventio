@@ -21,6 +21,7 @@ import { db } from '../services/firebase';
 import { generateOperationalTasks } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { get, set } from 'idb-keyval';
+import { logger } from '../utils/logger';
 
 interface Normative {
   id: string;
@@ -62,7 +63,7 @@ export function NormativeDetail() {
           setNormative({ id: docSnap.id, ...docSnap.data() } as Normative);
         }
       } catch (error) {
-        console.error('Error fetching normative:', error);
+        logger.error('Error fetching normative:', error);
       } finally {
         setLoading(false);
       }
@@ -85,7 +86,7 @@ export function NormativeDetail() {
       const tasks = await generateOperationalTasks(normative.title, normative.description);
       setOperationalTasks(tasks);
     } catch (error) {
-      console.error('Error generating tasks:', error);
+      logger.error('Error generating tasks:', error);
     } finally {
       setIsGeneratingTasks(false);
     }

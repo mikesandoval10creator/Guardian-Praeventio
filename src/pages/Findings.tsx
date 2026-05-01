@@ -27,6 +27,15 @@ export function Findings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [severityFilter, setSeverityFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [planToast, setPlanToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showPlanToast = (msg: string, ok: boolean) => {
+    setPlanToast({ msg, ok });
+    setTimeout(() => setPlanToast(null), 5000);
+  };
   const { nodes, loading, addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
 
@@ -71,27 +80,37 @@ export function Findings() {
       );
 
       if (created === total) {
-        alert(`Se han generado ${created} tareas de acción correctiva vinculadas a este hallazgo.`);
+        showPlanToast(`${created} tareas de acción correctiva generadas y vinculadas.`, true);
       } else {
-        alert(`Se crearon ${created}/${total} tareas. Reintenta para crear las restantes (puede ser problema de conexión).`);
+        showPlanToast(`Se crearon ${created}/${total} tareas. Reintenta para crear las restantes.`, false);
       }
-    } catch (error) {
+    } catch {
       if (created > 0) {
-        alert(`Se crearon ${created}/${total} tareas antes del error. Reintenta para completar el plan.`);
+        showPlanToast(`Se crearon ${created}/${total} tareas antes del error. Reintenta para completar.`, false);
       } else {
-        alert('Error al generar el plan de acción con IA. Verifica tu conexión e inténtalo nuevamente.');
+        showPlanToast('Error al generar el plan con IA. Verifica tu conexión e inténtalo nuevamente.', false);
       }
     } finally {
       setProcessingId(null);
     }
   };
 
-  const findings = nodes.filter(n => 
-    n.type === NodeType.FINDING && 
-    (!selectedProject || n.projectId === selectedProject.id) &&
-    (n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     (n.description || '').toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const findings = nodes.filter(n => {
+    if (n.type !== NodeType.FINDING) return false;
+    if (selectedProject && n.projectId !== selectedProject.id) return false;
+    const term = searchTerm.toLowerCase();
+    if (term && !n.title.toLowerCase().includes(term) && !(n.description || '').toLowerCase().includes(term)) return false;
+    if (severityFilter !== 'all') {
+      const sev = (n.metadata?.severity || n.metadata?.criticidad || '').toLowerCase();
+      if (sev !== severityFilter.toLowerCase()) return false;
+    }
+    if (statusFilter !== 'all') {
+      const st = (n.metadata?.status || n.metadata?.estado || '').toLowerCase();
+      if (statusFilter === 'open' && st !== 'abierto' && st !== 'abierta' && st !== 'open') return false;
+      if (statusFilter === 'resolved' && st !== 'cerrado' && st !== 'cerrada' && st !== 'completed' && st !== 'completado') return false;
+    }
+    return true;
+  });
 
   const stats = {
     total: findings.length,
@@ -111,6 +130,25 @@ export function Findings() {
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border space-y-6">
+      {/* Plan toast */}
+      <AnimatePresence>
+        {planToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-3 ${
+              planToast.ok
+                ? 'bg-emerald-600 text-white'
+                : 'bg-amber-500 text-white'
+            }`}
+          >
+            {planToast.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            {planToast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -169,11 +207,51 @@ export function Findings() {
             className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all placeholder:text-zinc-500"
           />
         </div>
-        <button className="flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors w-full sm:w-auto">
+        <button
+          onClick={() => setShowFilters(f => !f)}
+          className={`flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 border rounded-xl transition-colors w-full sm:w-auto text-xs sm:text-sm font-medium ${
+            showFilters || severityFilter !== 'all' || statusFilter !== 'all'
+              ? 'bg-amber-500 border-amber-500 text-white'
+              : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'
+          }`}
+        >
           <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span className="text-xs sm:text-sm font-medium sm:hidden">Filtros</span>
+          <span>Filtros{(severityFilter !== 'all' || statusFilter !== 'all') ? ' •' : ''}</span>
         </button>
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap gap-4 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Severidad</span>
+            <div className="flex gap-2 flex-wrap">
+              {[{ v: 'all', label: 'Todas' }, { v: 'crítica', label: 'Crítica' }, { v: 'alta', label: 'Alta' }, { v: 'media', label: 'Media' }, { v: 'baja', label: 'Baja' }].map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setSeverityFilter(opt.v)}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                    severityFilter === opt.v ? 'bg-amber-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Estado</span>
+            <div className="flex gap-2 flex-wrap">
+              {[{ v: 'all', label: 'Todos' }, { v: 'open', label: 'Abiertos' }, { v: 'resolved', label: 'Cerrados' }].map(opt => (
+                <button
+                  key={opt.v}
+                  onClick={() => setStatusFilter(opt.v)}
+                  className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                    statusFilter === opt.v ? 'bg-amber-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                  }`}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Findings List */}
       <div className="space-y-3 sm:space-y-4">

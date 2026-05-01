@@ -6,6 +6,7 @@ import { NodeType } from '../../types';
 import { generateActionPlan } from '../../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { logger } from '../../utils/logger';
 
 interface InspectionItem {
   id: string;
@@ -98,7 +99,7 @@ export function SafetyInspection() {
 
       setSaved(true);
     } catch (error) {
-      console.error('Error saving inspection:', error);
+      logger.error('Error saving inspection:', error);
     } finally {
       setLoading(false);
     }

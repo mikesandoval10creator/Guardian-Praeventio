@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   HelpCircle, 
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 export function Help() {
+  const faqRef = useRef<HTMLDivElement>(null);
   const faqs = [
     { q: '¿Cómo inicio un análisis IPERC con IA?', a: 'Ve al módulo de Gestión de Riesgos o Matriz IA y presiona el botón "Análisis IA". Describe el peligro y Gemini generará el análisis.' },
     { q: '¿Cómo gestiono múltiples proyectos?', a: 'Utiliza el selector de proyectos en la barra lateral izquierda para cambiar entre tus diferentes espacios de trabajo.' },
@@ -60,7 +61,7 @@ export function Help() {
         ))}
       </div>
 
-      <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 mb-12">
+      <div ref={faqRef} className="bg-zinc-900/50 border border-white/10 rounded-3xl p-8 mb-12">
         <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
           <HelpCircle className="w-6 h-6 text-amber-500" />
           Preguntas Frecuentes
@@ -84,11 +85,17 @@ export function Help() {
         <h3 className="text-xl font-bold text-white mb-2">¿Aún necesitas ayuda?</h3>
         <p className="text-zinc-400 mb-6">Nuestro equipo de soporte técnico está disponible 24/7 para asistirte.</p>
         <div className="flex flex-wrap justify-center gap-4">
-          <button className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20">
+          <a
+            href="mailto:soporte@praeventio.cl?subject=Ticket%20de%20Soporte%20Guardian%20Praeventio"
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20"
+          >
             <Mail className="w-5 h-5" />
             <span>Enviar Ticket</span>
-          </button>
-          <button className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all border border-white/5">
+          </a>
+          <button
+            onClick={() => faqRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all border border-white/5"
+          >
             <ExternalLink className="w-5 h-5" />
             <span>Base de Conocimientos</span>
           </button>

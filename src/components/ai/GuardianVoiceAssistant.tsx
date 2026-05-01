@@ -9,6 +9,7 @@ import { NodeType } from '../../types';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
 import { isOnline } from '../../utils/pwa-offline';
 import { useAmbientNoise } from '../../hooks/useAmbientNoise';
+import { logger } from '../../utils/logger';
 
 // @ts-ignore
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -104,7 +105,7 @@ export function GuardianVoiceAssistant() {
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Wake word recognition error:', event.error);
+      logger.error('Wake word recognition error:', event.error);
       if (event.error === 'not-allowed') {
         setIsListeningWakeWord(false);
       }
@@ -114,7 +115,7 @@ export function GuardianVoiceAssistant() {
       recognition.start();
       recognitionRef.current = recognition;
     } catch (e) {
-      console.error("Could not start wake word recognition", e);
+      logger.error("Could not start wake word recognition", e);
     }
 
     return () => {
@@ -185,7 +186,7 @@ export function GuardianVoiceAssistant() {
         setResponse(offlineRes);
       }
     } catch (err) {
-      console.error('Error processing text:', err);
+      logger.error('Error processing text:', err);
       setResponse("Hubo un error al procesar tu solicitud.");
     } finally {
       setIsProcessing(false);
@@ -221,7 +222,7 @@ export function GuardianVoiceAssistant() {
       setResponse('');
       setPendingPrompt(null);
     } catch (err) {
-      console.error('Error accessing microphone:', err);
+      logger.error('Error accessing microphone:', err);
       setCameraPermissionDenied(true);
       setResponse("No se pudo acceder al micrófono. Por favor, verifica los permisos en tu navegador o escribe tu consulta abajo.");
     }
@@ -298,7 +299,7 @@ export function GuardianVoiceAssistant() {
               await addConnection(newFindingNode.id, newActionPlanNode.id);
             }
           } catch (planErr) {
-            console.error('Error generating action plan:', planErr);
+            logger.error('Error generating action plan:', planErr);
           }
         }
 
@@ -310,7 +311,7 @@ export function GuardianVoiceAssistant() {
         }
       };
     } catch (err) {
-      console.error('Error processing audio:', err);
+      logger.error('Error processing audio:', err);
       setResponse("Hubo un error al procesar tu solicitud.");
     } finally {
       setIsProcessing(false);

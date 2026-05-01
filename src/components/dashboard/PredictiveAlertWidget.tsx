@@ -6,6 +6,7 @@ import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext'
 import { predictGlobalIncidents } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { cacheAIResponse, getCachedAIResponse } from '../../utils/pwa-offline';
+import { logger } from '../../utils/logger';
 
 export function PredictiveAlertWidget() {
   const { nodes } = useRiskEngine();
@@ -47,7 +48,7 @@ export function PredictiveAlertWidget() {
         setInsights(data);
         await cacheAIResponse('predictive-alert', data);
       } catch (error) {
-        console.error('Error fetching AI insights:', error);
+        logger.error('Error fetching AI insights:', error);
         // Try to load from cache on error
         const cached = await getCachedAIResponse('predictive-alert');
         if (cached) {

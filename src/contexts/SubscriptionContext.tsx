@@ -3,6 +3,7 @@ import { useFirebase } from './FirebaseContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from './ProjectContext';
+import { logger } from '../utils/logger';
 
 export type SubscriptionPlan =
   | 'free'
@@ -161,7 +162,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
           setPlan('free');
         }
       } catch (error) {
-        console.error('Error fetching subscription:', error);
+        logger.error('Error fetching subscription:', error);
         setPlan('free');
       } finally {
         setLoading(false);

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Database, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, Server, ArrowRightLeft, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { auth } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 export function ERPIntegration() {
   const [isSyncing, setIsSyncing] = useState(false);
@@ -29,7 +30,7 @@ export function ERPIntegration() {
       const data = await response.json();
       setLastSync(new Date(data.data.timestamp).toLocaleString());
     } catch (error) {
-      console.error('Error syncing ERP:', error);
+      logger.error('Error syncing ERP:', error);
       alert('Error al sincronizar con el ERP. Verifica la conexión con el servidor.');
     } finally {
       setIsSyncing(false);

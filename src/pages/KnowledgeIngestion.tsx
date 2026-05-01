@@ -6,6 +6,7 @@ import { processDocumentToNodes } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { NodeType } from '../types';
+import { logger } from '../utils/logger';
 
 export function KnowledgeIngestion() {
   const [text, setText] = useState('');
@@ -65,7 +66,7 @@ export function KnowledgeIngestion() {
       });
       setText('');
     } catch (error) {
-      console.error('Error processing document:', error);
+      logger.error('Error processing document:', error);
       setResult({
         success: false,
         nodesAdded: 0,

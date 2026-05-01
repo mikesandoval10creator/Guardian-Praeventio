@@ -11,6 +11,7 @@ const ControlsAndMaterials = lazy(() => import('../pages/ControlsAndMaterials').
 const SecurityShield = lazy(() => import('../pages/SecurityShield').then(module => ({ default: module.SecurityShield })));
 const LightPollutionAudit = lazy(() => import('../pages/LightPollutionAudit').then(module => ({ default: module.LightPollutionAudit })));
 const Findings = lazy(() => import('../pages/Findings').then(module => ({ default: module.Findings })));
+const AfichesSeguridad = lazy(() => import('../pages/AfichesSeguridad').then(module => ({ default: module.AfichesSeguridad })));
 
 export const RiskRoutes = [
   <Route key="risks" path="risks" element={<Risks />} />,
@@ -23,4 +24,5 @@ export const RiskRoutes = [
   <Route key="security-shield" path="security-shield" element={<SecurityShield />} />,
   <Route key="light-pollution" path="light-pollution" element={<LightPollutionAudit />} />,
   <Route key="findings" path="findings" element={<Findings />} />,
+  <Route key="afiches-seguridad" path="afiches-seguridad" element={<AfichesSeguridad />} />,
 ];

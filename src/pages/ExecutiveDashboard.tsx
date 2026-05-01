@@ -46,6 +46,7 @@ import { generateExecutiveSummary } from '../services/geminiService';
 import { cacheAIResponse, getCachedAIResponse } from '../utils/pwa-offline';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import { logger } from '../utils/logger';
 
 // Compliance calculation reused from Dashboard.tsx
 function calculateCompliance(project: any, allNodes: any[]): number {
@@ -177,11 +178,13 @@ export function ExecutiveDashboard() {
     { subject: 'Incidentes', A: Math.max(0, 100 - recentIncidents.length * 15) },
   ];
 
-  // ISO 45001 radar
+  // ISO 45001 radar — all values derived from real node counts
+  const normativeNodes = nodes.filter(n => n.type === NodeType.NORMATIVE);
+  const auditNodes = nodes.filter(n => n.type === NodeType.AUDIT);
   const isoData = [
-    { subject: 'EPP',      A: Math.min(100, nodes.filter(n => n.type === NodeType.EPP).length * 10 || 70) },
-    { subject: 'Normativa', A: 78 },
-    { subject: 'Conducta',  A: 88 },
+    { subject: 'EPP',       A: Math.min(100, nodes.filter(n => n.type === NodeType.EPP).length * 10 || 70) },
+    { subject: 'Normativa', A: normativeNodes.length > 0 ? Math.min(100, 50 + normativeNodes.length * 5) : avgCompliance },
+    { subject: 'Conducta',  A: auditNodes.length > 0 ? Math.min(100, Math.round(auditNodes.reduce((s, a) => s + (a.metadata?.score ?? 70), 0) / auditNodes.length)) : avgCompliance },
     { subject: 'Procesos',  A: Math.min(100, nodes.filter(n => n.type === NodeType.TASK).length * 5 || 70) },
     { subject: 'Entorno',   A: Math.min(100, 60 + nodes.filter(n => n.type === NodeType.INSPECTION).length * 2) },
   ];
@@ -225,7 +228,7 @@ export function ExecutiveDashboard() {
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Dashboard_Ejecutivo_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (err) {
-      console.error('PDF export error:', err);
+      logger.error('PDF export error:', err);
     } finally {
       setIsExporting(false);
     }

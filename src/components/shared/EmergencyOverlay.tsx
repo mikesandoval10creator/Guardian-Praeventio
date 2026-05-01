@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
 import { useEmergency } from '../../contexts/EmergencyContext';
+import { logger } from '../../utils/logger';
 
 export function EmergencyOverlay() {
   const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
@@ -27,7 +28,7 @@ export function EmergencyOverlay() {
               lng: Number(pos.coords.longitude.toFixed(5))
             });
           },
-          (err) => console.warn("No se pudo obtener ubicación para emergencia:", err),
+          (err) => logger.warn("No se pudo obtener ubicación para emergencia:", { code: err.code, message: err.message }),
           { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
       }

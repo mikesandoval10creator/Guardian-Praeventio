@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { logger } from '../utils/logger';
 import { useTranslation } from 'react-i18next';
 import { signInWithGoogle, auth, db } from '../services/firebase';
 import { LogIn, ShieldCheck, Zap, Activity, WifiOff, ArrowLeft } from 'lucide-react';
@@ -34,7 +35,7 @@ export default function Login() {
         biometricKeys: arrayUnion(credId)
       });
     } catch (e) {
-      console.log("No se pudo sincronizar BD, pero la llave local existe", e);
+      logger.warn('Could not sync DB but local key exists', { error: e });
     }
   };
 
@@ -56,14 +57,14 @@ export default function Login() {
              await syncBiometricToCloud(user.uid, credId);
           }
         } catch(e) {
-           console.log("Biometric registration skipped", e);
+           logger.debug('Biometric registration skipped', { error: e });
         }
       } else if (user && hasBiometric && biometricCredential) {
          // Already registered, just make sure cloud knows about this device's key
          await syncBiometricToCloud(user.uid, biometricCredential);
       }
     } catch (error) {
-      console.error('Error logging in:', error);
+      logger.error('Error logging in', { error });
     }
   };
 
@@ -77,7 +78,7 @@ export default function Login() {
         await signInWithGoogle();
       }
     } catch(error) {
-      console.error("Biometric verification failed", error);
+      logger.error('Biometric verification failed', { error });
     }
   }
 
@@ -91,7 +92,7 @@ export default function Login() {
           className="bg-white dark:bg-zinc-900 rounded-[2rem] sm:rounded-3xl p-6 sm:p-10 shadow-2xl border border-zinc-200 dark:border-zinc-800 relative overflow-hidden"
         >
           {/* Background Accents */}
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#4db6ac]/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl" />
 
           <div className="relative z-10">
@@ -104,13 +105,15 @@ export default function Login() {
             </Link>
 
             <div className="flex flex-col items-center mb-8 sm:mb-10">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-zinc-900 dark:bg-zinc-100 rounded-2xl flex items-center justify-center mb-4 sm:mb-6 shadow-lg rotate-3">
-                <ShieldCheck className="w-7 h-7 sm:w-8 sm:h-8 text-white dark:text-zinc-900" />
-              </div>
+              <img
+                src="/mascot.png"
+                alt="Guardian Praeventio"
+                className="w-24 h-24 sm:w-28 sm:h-28 object-contain drop-shadow-xl mb-2"
+              />
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-center">
-                Praeventio Guard
+                Guardian Praeventio
               </h1>
-              <span className="text-[8px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest text-center">
+              <span className="text-[8px] sm:text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest text-center">
                 Identidad y Conciencia
               </span>
             </div>
@@ -135,7 +138,7 @@ export default function Login() {
                   className={`w-full py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs flex items-center justify-center gap-2 sm:gap-3 transition-all shadow-xl ${
                     !isOnline 
                       ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' 
-                      : 'bg-emerald-500 hover:bg-emerald-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                      : 'bg-[#4db6ac] hover:bg-[#3a9e95] text-white hover:scale-[1.02] active:scale-[0.98]'
                   }`}
                 >
                   <Zap className="w-5 h-5" />

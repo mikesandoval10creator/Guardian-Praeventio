@@ -2,6 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import admin from "firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { generateEmbedding } from "./ragService.js";
+import { logger } from '../utils/logger';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -11,7 +12,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  console.log(`Generating initial data for industry: ${industry}`);
+  logger.debug(`Generating initial data for industry: ${industry}`);
 
   // 1. Generate IPERC Matrix
   const ipercPrompt = `Analiza los riesgos más críticos y comunes en la industria: ${industry}.
@@ -22,7 +23,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
     3. Lista de controles a implementar (Jerarquía de Controles).
     4. Normativa aplicable (ej. DS 594, Ley 16.744).`;
 
-  console.log(`Calling Gemini for IPERC (${industry})...`);
+  logger.debug(`Calling Gemini for IPERC (${industry})...`);
   const ipercResponse = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: ipercPrompt,
@@ -50,7 +51,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
     El documento debe ser estructurado, profesional y utilizar formato Markdown.
     Incluye secciones como Objetivos, Alcance, Responsabilidades, EPP Requerido, Paso a Paso, y Medidas de Control.`;
 
-  console.log(`Calling Gemini for PTS (${industry})...`);
+  logger.debug(`Calling Gemini for PTS (${industry})...`);
   const ptsResponse = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview",
     contents: ptsPrompt,
@@ -62,7 +63,7 @@ const generateInitialDataForIndustry = async (industry: string) => {
   const db = admin.firestore();
   const glossaryCollection = db.collection('community_glossary');
 
-  console.log(`Generating embeddings and saving to Firestore (${industry})...`);
+  logger.debug(`Generating embeddings and saving to Firestore (${industry})...`);
   
   const ipercEmbedding = await generateEmbedding(ipercPrompt);
   await glossaryCollection.add({
@@ -84,12 +85,12 @@ const generateInitialDataForIndustry = async (industry: string) => {
     type: 'PTS_SEED'
   });
 
-  console.log(`Finished seeding for ${industry}`);
+  logger.debug(`Finished seeding for ${industry}`);
 };
 
 export const cleanupUserApiKeys = async () => {
   if (!admin.apps.length) {
-    console.error("Firebase Admin not initialized. Cannot run cleanup.");
+    logger.error("Firebase Admin not initialized. Cannot run cleanup.");
     return;
   }
 
@@ -114,18 +115,18 @@ export const cleanupUserApiKeys = async () => {
     
     if (count > 0) {
       await batch.commit();
-      console.log(`Cleaned up API keys from ${count} user documents.`);
+      logger.debug(`Cleaned up API keys from ${count} user documents.`);
     } else {
-      console.log("No user API keys found to clean up.");
+      logger.debug("No user API keys found to clean up.");
     }
   } catch (error) {
-    console.error("Error cleaning up user API keys:", error);
+    logger.error("Error cleaning up user API keys:", error);
   }
 };
 
 export const runSeed = async () => {
   if (!admin.apps.length) {
-    console.error("Firebase Admin not initialized. Cannot run seed.");
+    logger.error("Firebase Admin not initialized. Cannot run seed.");
     return;
   }
 
@@ -135,8 +136,8 @@ export const runSeed = async () => {
     try {
       await generateInitialDataForIndustry(industry);
     } catch (error) {
-      console.error(`Error seeding industry ${industry}:`, error);
+      logger.error(`Error seeding industry ${industry}:`, error);
     }
   }
-  console.log("Seeding complete.");
+  logger.debug("Seeding complete.");
 };

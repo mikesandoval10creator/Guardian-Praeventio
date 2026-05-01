@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import { saveBunkerKnowledge, saveForSync } from '../../utils/pwa-offline';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useProject } from '../../contexts/ProjectContext';
+import { logger } from '../../utils/logger';
 
 interface TacticalOnboardingModalProps {
   isOpen: boolean;
@@ -163,7 +164,7 @@ export function TacticalOnboardingModal({ isOpen, onClose, workerData }: Tactica
         type: 'success'
       });
     } catch (error) {
-      console.error('Error generating PDFs:', error);
+      logger.error('Error generating PDFs:', error);
       addNotification({
         title: 'Error',
         message: 'Hubo un problema al generar los documentos.',

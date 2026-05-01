@@ -10,7 +10,13 @@ import * as Sentry from '@sentry/react';
 import i18n from './i18n';
 import App from './App.tsx';
 import './index.css';
+import './lib/i18n';
+import { initSentry } from './lib/sentry';
 import { registerSW } from 'virtual:pwa-register';
+import { logger } from './utils/logger';
+
+// Init error monitoring before anything else so startup errors are captured
+initSentry();
 
 const updateSW = registerSW({
   onNeedRefresh() {
@@ -22,7 +28,7 @@ const updateSW = registerSW({
     }));
   },
   onOfflineReady() {
-    console.log('Praeventio Guard está listo para operar sin conexión.');
+    logger.debug('Praeventio Guard está listo para operar sin conexión.');
   },
 });
 

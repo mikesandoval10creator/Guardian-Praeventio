@@ -6,6 +6,7 @@ import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext'
 import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { logger } from '../../utils/logger';
 
 export function ComplianceAuditor() {
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,7 @@ export function ComplianceAuditor() {
       );
       setAuditResult(result);
     } catch (error) {
-      console.error('Error performing compliance audit:', error);
+      logger.error('Error performing compliance audit:', error);
     } finally {
       setLoading(false);
     }

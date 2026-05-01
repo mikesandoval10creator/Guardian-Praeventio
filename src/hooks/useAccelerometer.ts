@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Motion } from '@capacitor/motion';
 import { Capacitor } from '@capacitor/core';
+import { logger } from '../utils/logger';
 
 interface AccelerometerData {
   x: number;
@@ -57,7 +58,7 @@ export function useAccelerometer(options: FallDetectionOptions = {}) {
           return false;
         }
       } catch (error) {
-        console.error('Error requesting DeviceMotion permission:', error);
+        logger.error('Error requesting DeviceMotion permission:', error);
         return false;
       }
     } else {
@@ -75,7 +76,7 @@ export function useAccelerometer(options: FallDetectionOptions = {}) {
         setIsActive(true);
         setPermissionGranted(true);
       } catch (error) {
-        console.error("Error starting native motion listener:", error);
+        logger.error("Error starting native motion listener:", error);
         setIsSupported(false);
       }
     } else {

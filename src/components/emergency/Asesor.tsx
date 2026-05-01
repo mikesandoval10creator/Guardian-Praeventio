@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send, ShieldAlert, Loader2, Crosshair } from 'lucide-react';
 import { auth } from '../../services/firebase';
+import { logger } from '../../utils/logger';
 
 export function Asesor() {
   const [query, setQuery] = useState('');
@@ -39,7 +40,7 @@ SITUACIÓN REPORTADA: ${query}`;
       const data = await res.json();
       setResponse(data.response || '');
     } catch (error) {
-      console.error('Error asking Asesor:', error);
+      logger.error('Error asking Asesor:', error);
       setResponse('Error de comunicación con el Asesor. Proceda con protocolo estándar de emergencia.');
     } finally {
       setLoading(false);

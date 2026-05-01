@@ -3,16 +3,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, MapPin, ExternalLink, X } from 'lucide-react';
 import { useSeismicMonitor } from '../../hooks/useSeismicMonitor';
 import { useProject } from '../../contexts/ProjectContext';
+import { useEmergency } from '../../contexts/EmergencyContext';
 
 export function EmergencyAlertBanner() {
   const { selectedProject } = useProject();
-  
+  const { triggerEmergency } = useEmergency();
+
   // Use project coordinates if available, otherwise default to Santiago, Chile
   const projectLat = selectedProject?.coordinates?.lat || -33.4489;
   const projectLng = selectedProject?.coordinates?.lng || -70.6693;
-  
+
   const { criticalAlert } = useSeismicMonitor(projectLat, projectLng);
   const [dismissedAlertId, setDismissedAlertId] = React.useState<string | null>(null);
+  const triggeredAlertIdRef = React.useRef<string | null>(null);
+
+  // When a new critical seismic alert arrives, persist it as an emergency event
+  React.useEffect(() => {
+    if (!criticalAlert) return;
+    if (triggeredAlertIdRef.current === criticalAlert.id) return;
+    triggeredAlertIdRef.current = criticalAlert.id;
+    triggerEmergency('sismo_critico', selectedProject?.id);
+  }, [criticalAlert, selectedProject?.id, triggerEmergency]);
 
   return (
     <AnimatePresence>

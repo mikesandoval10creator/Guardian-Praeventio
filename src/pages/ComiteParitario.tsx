@@ -7,6 +7,7 @@ import {
   CheckCircle,
   Clock,
   Plus,
+  X,
   Calendar as CalendarIcon,
   AlertTriangle,
   ShieldCheck,
@@ -20,6 +21,8 @@ import { useProject } from '../contexts/ProjectContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../services/geminiService';
+import { db } from '../services/firebase';
+import { collection, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 
 interface Acta {
   id: string;
@@ -43,12 +46,91 @@ export function ComiteParitario() {
   useAutoCalendarEvents();
   const [legalScanResult, setLegalScanResult] = useState<any>(null);
   const [legalScanning, setLegalScanning] = useState(false);
+  const [showAddActa, setShowAddActa] = useState(false);
+  const [actaSaving, setActaSaving] = useState(false);
+  const [actaForm, setActaForm] = useState({
+    fecha: new Date().toISOString().split('T')[0],
+    tipo: 'Ordinaria' as 'Ordinaria' | 'Extraordinaria',
+    asistentesRaw: '',
+  });
+
+  const [addAcuerdoActaId, setAddAcuerdoActaId] = useState<string | null>(null);
+  const [acuerdoSaving, setAcuerdoSaving] = useState(false);
+  const [acuerdoForm, setAcuerdoForm] = useState({ descripcion: '', responsable: '', fechaPlazo: '' });
+
+  const handleAddActa = async () => {
+    if (!selectedProject) return;
+    const asistentes = actaForm.asistentesRaw
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (!actaForm.fecha || asistentes.length === 0) return;
+    setActaSaving(true);
+    try {
+      await addDoc(collection(db, `projects/${selectedProject.id}/comite_actas`), {
+        fecha: actaForm.fecha,
+        tipo: actaForm.tipo,
+        asistentes,
+        acuerdos: [],
+        createdAt: new Date().toISOString(),
+      });
+      setShowAddActa(false);
+      setActaForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'Ordinaria', asistentesRaw: '' });
+    } catch {
+      // error handled silently — optimistic UI stays open
+    } finally {
+      setActaSaving(false);
+    }
+  };
+
+  const handleAddAcuerdo = async (actaId: string) => {
+    if (!selectedProject || !acuerdoForm.descripcion.trim() || !acuerdoForm.responsable.trim() || !acuerdoForm.fechaPlazo) return;
+    setAcuerdoSaving(true);
+    try {
+      const newAcuerdo: Acuerdo = {
+        id: crypto.randomUUID(),
+        descripcion: acuerdoForm.descripcion.trim(),
+        responsable: acuerdoForm.responsable.trim(),
+        fechaPlazo: acuerdoForm.fechaPlazo,
+        estado: 'Pendiente',
+      };
+      await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
+        acuerdos: arrayUnion(newAcuerdo),
+      });
+      setAddAcuerdoActaId(null);
+      setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' });
+    } catch {
+      // silent — form stays open so user can retry
+    } finally {
+      setAcuerdoSaving(false);
+    }
+  };
+
+  const handleUpdateAcuerdoEstado = async (actaId: string, acuerdoId: string, newEstado: Acuerdo['estado']) => {
+    if (!selectedProject) return;
+    const acta = actas?.find(a => a.id === actaId);
+    if (!acta) return;
+    const updatedAcuerdos = acta.acuerdos.map(a =>
+      a.id === acuerdoId ? { ...a, estado: newEstado } : a
+    );
+    await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
+      acuerdos: updatedAcuerdos,
+    });
+  };
 
   const [agendaResult, setAgendaResult] = useState<any>(null);
   const [agendaLoading, setAgendaLoading] = useState(false);
   const [meetingNotes, setMeetingNotes] = useState('');
   const [summaryResult, setSummaryResult] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const { data: actas, loading } = useFirestoreCollection<Acta>(
+    selectedProject ? `projects/${selectedProject.id}/comite_actas` : null
+  );
+
+  const todosLosAcuerdos = actas?.flatMap(acta =>
+    acta.acuerdos.map(a => ({ ...a, actaId: acta.id }))
+  ) || [];
 
   const runLegalScan = async () => {
     setLegalScanning(true);
@@ -92,12 +174,6 @@ export function ComiteParitario() {
     }
   };
 
-  const { data: actas, loading } = useFirestoreCollection<Acta>(
-    selectedProject ? `projects/${selectedProject.id}/comite_actas` : null
-  );
-
-  const todosLosAcuerdos = actas?.flatMap(acta => acta.acuerdos) || [];
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
@@ -111,7 +187,10 @@ export function ComiteParitario() {
           </p>
         </div>
         <div className="flex gap-3">
-          <button className="bg-zinc-900 dark:bg-white text-white dark:text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xl flex items-center gap-2">
+          <button
+            onClick={() => setShowAddActa(true)}
+            className="bg-zinc-900 dark:bg-white text-white dark:text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xl flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             <span>Nueva Acta</span>
           </button>
@@ -202,6 +281,55 @@ export function ComiteParitario() {
                       </div>
                     </div>
                   </div>
+
+                  {addAcuerdoActaId === acta.id ? (
+                    <div className="space-y-2 pt-3 border-t border-zinc-100 dark:border-white/5 mt-3">
+                      <input
+                        type="text"
+                        placeholder="Descripción del acuerdo"
+                        value={acuerdoForm.descripcion}
+                        onChange={e => setAcuerdoForm(f => ({ ...f, descripcion: e.target.value }))}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Responsable"
+                        value={acuerdoForm.responsable}
+                        onChange={e => setAcuerdoForm(f => ({ ...f, responsable: e.target.value }))}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
+                      />
+                      <input
+                        type="date"
+                        value={acuerdoForm.fechaPlazo}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={e => setAcuerdoForm(f => ({ ...f, fechaPlazo: e.target.value }))}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAddAcuerdo(acta.id)}
+                          disabled={acuerdoSaving}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {acuerdoSaving ? 'Guardando...' : 'Guardar'}
+                        </button>
+                        <button
+                          onClick={() => { setAddAcuerdoActaId(null); setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' }); }}
+                          className="px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setAddAcuerdoActaId(acta.id); setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' }); }}
+                      className="mt-3 w-full flex items-center justify-center gap-1 px-3 py-1.5 border border-dashed border-zinc-300 dark:border-white/10 rounded-xl text-[10px] font-black text-zinc-500 hover:text-emerald-500 hover:border-emerald-500 transition-colors uppercase tracking-widest"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Añadir Acuerdo
+                    </button>
+                  )}
                 </motion.div>
               ))
             )}
@@ -241,13 +369,19 @@ export function ComiteParitario() {
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            acuerdo.estado === 'Completado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                            acuerdo.estado === 'En Progreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
-                            'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                          }`}>
-                            {acuerdo.estado}
-                          </span>
+                          <select
+                            value={acuerdo.estado}
+                            onChange={e => handleUpdateAcuerdoEstado(acuerdo.actaId, acuerdo.id, e.target.value as Acuerdo['estado'])}
+                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border-0 cursor-pointer focus:outline-none appearance-none ${
+                              acuerdo.estado === 'Completado' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                              acuerdo.estado === 'En Progreso' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                              'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                            }`}
+                          >
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="En Progreso">En Progreso</option>
+                            <option value="Completado">Completado</option>
+                          </select>
                         </td>
                       </tr>
                     ))
@@ -396,6 +530,87 @@ export function ComiteParitario() {
       </div>
 
     </div>
+
+      {/* Nueva Acta Modal */}
+      <AnimatePresence>
+        {showAddActa && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowAddActa(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-zinc-900 rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-white/10 space-y-5"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">Nueva Acta</h2>
+                <button onClick={() => setShowAddActa(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1.5">Fecha de reunión</label>
+                  <input
+                    type="date"
+                    value={actaForm.fecha}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={e => setActaForm(f => ({ ...f, fecha: e.target.value }))}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1.5">Tipo de reunión</label>
+                  <select
+                    value={actaForm.tipo}
+                    onChange={e => setActaForm(f => ({ ...f, tipo: e.target.value as 'Ordinaria' | 'Extraordinaria' }))}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="Ordinaria">Ordinaria</option>
+                    <option value="Extraordinaria">Extraordinaria</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest block mb-1.5">Asistentes (uno por línea)</label>
+                  <textarea
+                    value={actaForm.asistentesRaw}
+                    onChange={e => setActaForm(f => ({ ...f, asistentesRaw: e.target.value }))}
+                    placeholder={"Juan Pérez — Supervisor\nMaría González — Delegada Trabajadores"}
+                    rows={4}
+                    className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={() => setShowAddActa(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white text-xs font-black uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleAddActa}
+                  disabled={actaSaving || !actaForm.fecha || !actaForm.asistentesRaw.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {actaSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Guardar Acta
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

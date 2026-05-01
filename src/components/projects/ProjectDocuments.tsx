@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { ConfirmDialog } from '../shared/ConfirmDialog';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
   Upload, 
@@ -14,17 +15,18 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
-import { 
-  storage, 
-  db, 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject, 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
+import { compressImage } from '../../utils/imageCompression';
+import {
+  storage,
+  db,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+  collection,
+  addDoc,
+  query,
+  where,
   onSnapshot,
   deleteDoc,
   doc
@@ -51,7 +53,14 @@ interface ProjectDocumentsProps {
 
 export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
   const [uploading, setUploading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; url: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [uploadToast, setUploadToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showUploadToast = (msg: string, ok: boolean) => {
+    setUploadToast({ msg, ok });
+    setTimeout(() => setUploadToast(null), 4000);
+  };
   const { user } = useFirebase();
   const isOnline = useOnlineStatus();
 
@@ -84,10 +93,11 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
             }
           }
         });
-        alert('Archivo guardado para sincronización. Se subirá cuando recuperes la conexión.');
+        showUploadToast('Archivo guardado. Se subirá cuando recuperes la conexión.', true);
       } else {
+        const uploadFile = await compressImage(file);
         const storageRef = ref(storage, `projects/${projectId}/documents/${Date.now()}_${file.name}`);
-        const snapshot = await uploadBytes(storageRef, file);
+        const snapshot = await uploadBytes(storageRef, uploadFile);
         const url = await getDownloadURL(snapshot.ref);
 
         await addDoc(collection(db, 'project_documents'), {
@@ -100,29 +110,25 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
           createdAt: new Date().toISOString()
         });
       }
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Error al subir el archivo. Verifica los permisos de almacenamiento.');
+    } catch {
+      showUploadToast('Error al subir el archivo. Verifica los permisos de almacenamiento.', false);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleDelete = async (docId: string, url: string) => {
-    if (!window.confirm('¿Estás seguro de eliminar este documento?')) return;
+  const handleDelete = (docId: string, url: string) => setDeleteTarget({ id: docId, url });
 
+  const doDeleteDocument = async () => {
+    if (!deleteTarget) return;
+    const { id: docId, url } = deleteTarget;
+    setDeleteTarget(null);
     try {
-      // Delete from Storage
-      const storageRef = ref(storage, url);
-      await deleteObject(storageRef);
-
-      // Delete from Firestore
-      await deleteDoc(doc(db, 'project_documents', docId));
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      // Even if storage delete fails (e.g. file already gone), try to clean up firestore
-      await deleteDoc(doc(db, 'project_documents', docId));
+      await deleteObject(ref(storage, url));
+    } catch {
+      // file may already be gone — continue to Firestore cleanup
     }
+    await deleteDoc(doc(db, 'project_documents', docId));
   };
 
   const formatSize = (bytes: number) => {
@@ -139,6 +145,22 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
 
   return (
     <div className="space-y-6">
+      <AnimatePresence>
+        {uploadToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-xl text-sm font-bold flex items-center gap-3 ${
+              uploadToast.ok ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}
+          >
+            {uploadToast.ok ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            {uploadToast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
@@ -251,6 +273,15 @@ export function ProjectDocuments({ projectId }: ProjectDocumentsProps) {
             <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">No hay documentos cargados</p>
           </div>
         )}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Eliminar documento"
+        message="El archivo se eliminará de Storage y Firestore permanentemente."
+        confirmLabel="Eliminar"
+        danger
+        onConfirm={doDeleteDocument}
+        onCancel={() => setDeleteTarget(null)}
+      />
       </div>
     </div>
   );

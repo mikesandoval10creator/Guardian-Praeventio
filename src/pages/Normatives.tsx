@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { motion } from 'framer-motion';
 import { 
   Book, 
@@ -36,6 +37,8 @@ export function Normatives() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [showCategoryPanel, setShowCategoryPanel] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   
   useEffect(() => {
@@ -60,7 +63,7 @@ export function Normatives() {
       const suggestions = await suggestNormativesWithAI(selectedProject.industry);
       setIndustryProtocols(suggestions);
     } catch (error) {
-      console.error('Error loading industry protocols:', error);
+      logger.error('Error loading industry protocols', { error });
     } finally {
       setLoadingProtocols(false);
     }
@@ -83,7 +86,7 @@ export function Normatives() {
       ];
 
       for (const law of criticalLaws) {
-        console.log(`Syncing ${law.name}...`);
+        logger.info('Syncing normative', { name: law.name });
         await downloadSpecificNormative(law.id);
       }
 
@@ -160,7 +163,7 @@ export function Normatives() {
       }
       alert('Biblioteca sincronizada con éxito (Vectores + Metadata)');
     } catch (error) {
-      console.error('Error seeding normatives:', error);
+      logger.error('Error seeding normatives', { error });
     } finally {
       setIsSeeding(false);
     }
@@ -173,12 +176,15 @@ export function Normatives() {
     await set('savedNormatives', newSaved);
   };
 
+  const categories = [...new Set(normatives.map(n => n.category).filter(Boolean))];
+
   const filteredNormatives = normatives.filter(norm => {
     const matchesSearch = (norm.title || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
                           (norm.code || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
                           (norm.category || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     const matchesSaved = showSavedOnly ? savedIds.includes(norm.id) : true;
-    return matchesSearch && matchesSaved;
+    const matchesCategory = categoryFilter === 'all' || norm.category === categoryFilter;
+    return matchesSearch && matchesSaved && matchesCategory;
   });
 
   return (
@@ -223,11 +229,32 @@ export function Normatives() {
             className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-3 sm:py-2.5 pl-10 pr-4 text-[10px] sm:text-xs text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium shadow-sm"
           />
         </div>
-        <button className="flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl py-3 sm:py-2.5 px-6 transition-all w-full md:w-auto text-[10px] font-black uppercase tracking-widest shadow-sm">
+        <button
+          onClick={() => setShowCategoryPanel(p => !p)}
+          className={`flex items-center justify-center gap-2 border rounded-xl py-3 sm:py-2.5 px-6 transition-all w-full md:w-auto text-[10px] font-black uppercase tracking-widest shadow-sm ${
+            showCategoryPanel || categoryFilter !== 'all'
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'bg-white dark:bg-zinc-900/50 border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800'
+          }`}
+        >
           <Filter className="w-4 h-4" />
-          <span>Filtrar</span>
+          <span>Filtrar{categoryFilter !== 'all' ? ' •' : ''}</span>
         </button>
       </div>
+
+      {showCategoryPanel && (
+        <div className="flex flex-wrap gap-2 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl mb-2">
+          {['all', ...categories].map(cat => (
+            <button
+              key={cat}
+              onClick={() => setCategoryFilter(cat)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${
+                cat === categoryFilter ? 'bg-emerald-500 text-white' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+              }`}
+            >{cat === 'all' ? 'Todas' : cat}</button>
+          ))}
+        </div>
+      )}
 
       {/* Dynamic Industry Protocols Section */}
       {selectedProject?.industry && (

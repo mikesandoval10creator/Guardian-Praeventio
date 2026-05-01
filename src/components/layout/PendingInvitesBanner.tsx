@@ -46,9 +46,9 @@ export function PendingInvitesBanner() {
   const first = invites[0];
 
   return (
-    <div className="mx-3 mt-2 mb-0 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-2.5 flex items-center gap-3">
-      <Bell className="w-4 h-4 text-emerald-400 shrink-0" />
-      <p className="text-xs font-bold text-emerald-300 flex-1">
+    <div className="mx-3 mt-2 mb-0 bg-[#4db6ac]/10 border border-[#4db6ac]/30 rounded-xl px-4 py-2.5 flex items-center gap-3">
+      <Bell className="w-4 h-4 text-[#4db6ac] shrink-0" />
+      <p className="text-xs font-bold text-[#4db6ac] flex-1">
         {invites.length === 1
           ? <>Tienes una invitación pendiente a <span className="text-white">{first.projectName}</span></>
           : <>Tienes <span className="text-white">{invites.length}</span> invitaciones de equipo pendientes</>
@@ -56,7 +56,7 @@ export function PendingInvitesBanner() {
       </p>
       <button
         onClick={() => navigate(`/invite?token=${first.token}`)}
-        className="text-[10px] font-black uppercase tracking-wider text-emerald-400 hover:text-emerald-300 transition-colors whitespace-nowrap"
+        className="text-[10px] font-black uppercase tracking-wider text-[#4db6ac] hover:text-[#3a9e95] transition-colors whitespace-nowrap"
       >
         Ver
       </button>

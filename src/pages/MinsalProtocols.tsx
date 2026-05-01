@@ -19,6 +19,7 @@ import { NodeType } from '../types';
 import { evaluateMinsalCompliance } from '../services/geminiService';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import ReactMarkdown from 'react-markdown';
+import { logger } from '../utils/logger';
 
 const PROTOCOLS = [
   {
@@ -94,7 +95,7 @@ export function MinsalProtocols() {
       const result = await evaluateMinsalCompliance(protocolTitle, context, selectedProject?.industry);
       setAnalysisResult(result);
     } catch (error) {
-      console.error('Error analyzing protocol:', error);
+      logger.error('Error analyzing protocol:', error);
       setAnalysisResult('Error al analizar el cumplimiento. Por favor, intente nuevamente.');
     } finally {
       setIsAnalyzing(false);

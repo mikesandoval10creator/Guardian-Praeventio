@@ -1,4 +1,5 @@
 import { auth } from './firebase';
+import { logger } from '../utils/logger';
 
 const callGeminiAPI = async (action: string, args: any[]) => {
   try {
@@ -24,7 +25,7 @@ const callGeminiAPI = async (action: string, args: any[]) => {
     }
     return data.result;
   } catch (error) {
-    console.error(`Error calling Gemini API for ${action}:`, error);
+    logger.error(`Error calling Gemini API for ${action}:`, error);
     throw error;
   }
 };
@@ -114,6 +115,10 @@ export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreement
 export const summarizeAgreements = async (rawMeetingNotes: string) => callGeminiAPI('summarizeAgreements', [rawMeetingNotes]);
 export const mapRisksToSurveillance = async (risks: any[]) => callGeminiAPI('mapRisksToSurveillance', [risks]);
 export const analyzeHealthPatterns = async (medicalRecords: any[]) => callGeminiAPI('analyzeHealthPatterns', [medicalRecords]);
+export const analyzeMedicalInjury = async (regions: { id: string; label: string; severity: string | null; ds594Article?: string }[]) => callGeminiAPI('analyzeMedicalInjury', [regions]);
+export const generateMedicalIllustration = async (regions: { id: string; label: string; severity: string | null }[], specialistContext?: string) => callGeminiAPI('generateMedicalIllustration', [regions, specialistContext]);
+export const differentialDiagnosis = async (params: { symptoms: string; age?: number; sex?: 'M' | 'F' | 'O'; occupation?: string; exposures?: string; vitals?: string }) => callGeminiAPI('differentialDiagnosis', [params]);
+export const checkDrugInteractions = async (drugs: string[], patientContext?: string) => callGeminiAPI('checkDrugInteractions', [drugs, patientContext]);
 export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => callGeminiAPI('analyzeRiskCorrelations', [nodes, events]);
 export const downloadSpecificNormative = async (normativeId: string, force: boolean = false) => callGeminiAPI('downloadSpecificNormative', [normativeId, force]);
 export const searchRelevantContext = async (query: string) => callGeminiAPI('searchRelevantContext', [query]);

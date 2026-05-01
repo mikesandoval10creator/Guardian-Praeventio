@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  FileText, 
-  AlertTriangle, 
-  Phone, 
-  Shield, 
-  ChevronRight, 
-  BookOpen, 
+import {
+  FileText,
+  AlertTriangle,
+  Phone,
+  Shield,
+  ChevronRight,
+  BookOpen,
   Download,
   Search,
   CheckCircle2,
@@ -15,7 +15,9 @@ import {
   Zap,
   Power,
   Loader2,
-  WifiOff
+  WifiOff,
+  X,
+  User
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProject } from '../contexts/ProjectContext';
@@ -27,6 +29,10 @@ import { db, doc, onSnapshot, setDoc, handleFirestoreError, OperationType } from
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useWakeLock } from '../hooks/useWakeLock';
+import { Worker } from '../types';
+import { logger } from '../utils/logger';
+import { awardPoints } from '../services/gamificationService';
+import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
 
 interface EmergencyProtocol {
   id: string;
@@ -46,9 +52,41 @@ export function Emergency() {
   const isOnline = useOnlineStatus();
   const { isSupported: isWakeLockSupported, isLocked: isWakeLocked, requestWakeLock, releaseWakeLock } = useWakeLock();
 
+  const [showContactsModal, setShowContactsModal] = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
+
   const { data: protocolsData, loading: loadingProtocols } = useFirestoreCollection<EmergencyProtocol>(
     selectedProject ? `projects/${selectedProject.id}/emergency_protocols` : null
   );
+
+  const { data: workers } = useFirestoreCollection<Worker>(
+    selectedProject ? `projects/${selectedProject.id}/workers` : null
+  );
+
+  const handleDownloadPDF = async () => {
+    if (!selectedProject?.id) return;
+    setDownloadingPDF(true);
+    try {
+      const res = await fetch('/api/reports/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: selectedProject.id, type: 'emergency_plan' }),
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Plan_Emergencia_${selectedProject.name || selectedProject.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      logger.error('Error downloading emergency plan PDF', { error: err });
+    } finally {
+      setDownloadingPDF(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!selectedProject?.id) return;
@@ -184,7 +222,7 @@ export function Emergency() {
               {/* B9: Supervisor acknowledgement — secondary, only while the alarm is sounding (countdown finished). */}
               {countdown === 0 && (
                 <button
-                  onClick={acknowledgeAlert}
+                  onClick={() => { awardPoints('mandown_acknowledged'); acknowledgeAlert(); }}
                   aria-label="Detener alarma — rescate en camino"
                   className="w-full bg-white/10 border border-white/40 text-white py-4 rounded-2xl font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs sm:text-sm"
                 >
@@ -251,7 +289,6 @@ export function Emergency() {
               <span>{!isOnline ? 'Requiere Conexión' : isCrisisMode ? 'Crisis Activa' : 'Modo Crisis'}</span>
             </button>
           </div>
-          {/* Round 22 audit fix DT-11: 3 botones sin onClick wired */}
           <button
             onClick={handleDownloadPlan}
             disabled={isDownloadingPlan || protocols.length === 0}
@@ -262,7 +299,7 @@ export function Emergency() {
           </button>
           <button
             onClick={() => setIsContactsOpen(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-[#4db6ac]/20 active:scale-95"
           >
             <Phone className="w-4 h-4" />
             <span>Contactos de Emergencia</span>
@@ -314,6 +351,7 @@ export function Emergency() {
           >
             {/* Protocols List */}
             <div className="lg:col-span-2 space-y-6">
+              <ManDownSupervisorWidget />
               <DynamicEvacuationMap />
               
               {/* Man Down Control Panel */}
@@ -455,6 +493,70 @@ export function Emergency() {
               {/* Tactical Advisor */}
               <Asesor />
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Emergency Contacts Modal */}
+      <AnimatePresence>
+        {showContactsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={() => setShowContactsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-zinc-900 rounded-[2rem] p-6 w-full max-w-md shadow-2xl border border-zinc-200 dark:border-white/10 max-h-[80vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-500/10 rounded-xl">
+                    <Phone className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">Contactos de Emergencia</h2>
+                </div>
+                <button onClick={() => setShowContactsModal(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 space-y-3 pr-1">
+                {(!workers || workers.length === 0) && (
+                  <p className="text-sm text-zinc-500 text-center py-8">No hay trabajadores registrados en este proyecto.</p>
+                )}
+                {workers?.filter(w => w.status === 'active').map(worker => (
+                  <div key={worker.id} className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 overflow-hidden">
+                      {worker.photoUrl
+                        ? <img src={worker.photoUrl} alt={worker.name} className="w-full h-full object-cover" />
+                        : <User className="w-5 h-5 text-emerald-500" />
+                      }
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-zinc-900 dark:text-white truncate">{worker.name}</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{worker.role}</p>
+                    </div>
+                    {worker.phone ? (
+                      <a
+                        href={`tel:${worker.phone}`}
+                        className="flex items-center gap-2 px-3 py-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shrink-0"
+                      >
+                        <Phone className="w-3 h-3" />
+                        {worker.phone}
+                      </a>
+                    ) : (
+                      <span className="text-[10px] text-zinc-400 italic shrink-0">Sin teléfono</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
