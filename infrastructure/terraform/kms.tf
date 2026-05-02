@@ -12,8 +12,8 @@
 #   docs/KMS_ROTATION.md
 # =============================================================================
 
-resource "google_kms_key_ring" "praeventio" {
-  name     = "praeventio"
+resource "google_kms_key_ring" "guardian" {
+  name     = "guardian-praeventio"
   location = var.region
 
   lifecycle {
@@ -24,9 +24,9 @@ resource "google_kms_key_ring" "praeventio" {
   }
 }
 
-resource "google_kms_crypto_key" "oauth_tokens_kek" {
-  name     = "oauth-tokens-kek"
-  key_ring = google_kms_key_ring.praeventio.id
+resource "google_kms_crypto_key" "oauth_tokens" {
+  name     = "oauth-refresh-tokens"
+  key_ring = google_kms_key_ring.guardian.id
   purpose  = "ENCRYPT_DECRYPT"
 
   # 90-day automatic rotation. Existing wrapped DEKs continue to decrypt with
@@ -49,19 +49,29 @@ resource "google_kms_crypto_key" "oauth_tokens_kek" {
 }
 
 # -----------------------------------------------------------------------------
-# IAM — only the app runtime SA can encrypt/decrypt with the OAuth KEK.
+# IAM — Grant Cloud Run SA encrypt/decrypt on the OAuth KEK.
 # Granted at the key level (NOT project level) per principle of least privilege.
 # -----------------------------------------------------------------------------
-resource "google_kms_crypto_key_iam_member" "app_runtime_encrypter" {
-  crypto_key_id = google_kms_crypto_key.oauth_tokens_kek.id
+resource "google_kms_crypto_key_iam_member" "cloud_run_encrypt_decrypt" {
+  crypto_key_id = google_kms_crypto_key.oauth_tokens.id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:${google_service_account.app_runtime.email}"
+  member        = "serviceAccount:${var.cloud_run_sa}"
 }
 
 # Dedicated SA used by one-off migration scripts (see scripts/migrate-oauth-
 # tokens-to-envelope.cjs). Not strictly required for steady-state operation.
 resource "google_kms_crypto_key_iam_member" "kms_encrypter_only" {
-  crypto_key_id = google_kms_crypto_key.oauth_tokens_kek.id
+  crypto_key_id = google_kms_crypto_key.oauth_tokens.id
   role          = "roles/cloudkms.cryptoKeyEncrypter"
   member        = "serviceAccount:${google_service_account.kms_encrypter.email}"
+}
+
+output "kms_key_name" {
+  description = "Full resource name of the KMS key — use as KMS_KEY_NAME env var"
+  value       = google_kms_crypto_key.oauth_tokens.id
+}
+
+output "kms_key_ring" {
+  description = "KMS key ring resource name"
+  value       = google_kms_key_ring.guardian.id
 }

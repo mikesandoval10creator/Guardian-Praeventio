@@ -10,13 +10,8 @@
 # =============================================================================
 
 output "kms_key_resource_name" {
-  value       = google_kms_crypto_key.oauth_tokens_kek.id
-  description = "Fully-qualified KMS key resource name. Set as KMS_KEY_RESOURCE_NAME env in Cloud Run."
-}
-
-output "kms_key_ring" {
-  value       = google_kms_key_ring.praeventio.id
-  description = "Fully-qualified KeyRing resource name."
+  value       = google_kms_crypto_key.oauth_tokens.id
+  description = "Fully-qualified KMS key resource name. Set as KMS_KEY_NAME env in Cloud Run."
 }
 
 output "backups_bucket" {

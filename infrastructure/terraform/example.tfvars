@@ -9,8 +9,8 @@
 # but allows example.tfvars through.
 # =============================================================================
 
-project_id  = "praeventio-prod"
-region      = "southamerica-west1"
+project_id  = "praeventio-541ad"
+region      = "us-central1"
 environment = "prod"
 app_domain  = "praeventio.net"
 

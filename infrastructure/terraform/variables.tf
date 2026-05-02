@@ -4,13 +4,20 @@
 
 variable "project_id" {
   type        = string
-  description = "GCP project ID that owns the application resources (e.g. \"praeventio-prod\")."
+  default     = "praeventio-541ad"
+  description = "GCP project ID that owns the application resources."
 }
 
 variable "region" {
   type        = string
-  default     = "southamerica-west1"
+  default     = "us-central1"
   description = "Default GCP region. Must match Firestore region for cheap intra-region backup transfers."
+}
+
+variable "cloud_run_sa" {
+  type        = string
+  default     = "github-guardian-deploy@praeventio-541ad.iam.gserviceaccount.com"
+  description = "Service account email used by Cloud Run to call KMS and Secret Manager."
 }
 
 variable "environment" {
@@ -125,6 +132,7 @@ variable "secret_ids" {
   type        = list(string)
   description = "Secret Manager secret IDs to provision. Values are NOT managed by Terraform; add them with `gcloud secrets versions add ...`."
   default = [
+    # Legacy lowercase names (kept for backward compat with existing versions)
     "session-secret",
     "iot-webhook-secret",
     "webpay-api-key",
@@ -133,5 +141,20 @@ variable "secret_ids" {
     "resend-api-key",
     "gemini-api-key",
     "oauth-client-secret",
+    # Canonical UPPERCASE names referenced in deploy.yml
+    "GEMINI_API_KEY",
+    "SESSION_SECRET",
+    "RESEND_API_KEY",
+    "IOT_WEBHOOK_SECRET",
+    "VITE_GOOGLE_MAPS_API_KEY",
+    "VITE_OPENWEATHER_API_KEY",
+    "SENTRY_DSN",
+    "WEBPAY_COMMERCE_CODE",
+    "WEBPAY_API_KEY",
+    "MP_ACCESS_TOKEN",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "WEBAUTHN_RP_ID",
+    "APP_BASE_URL",
   ]
 }

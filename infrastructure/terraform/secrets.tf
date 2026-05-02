@@ -39,3 +39,12 @@ resource "google_secret_manager_secret_iam_member" "app_runtime_accessor" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.app_runtime.email}"
 }
+
+# Grant read access to the Cloud Run deploy SA on every secret.
+resource "google_secret_manager_secret_iam_member" "cloud_run_accessor" {
+  for_each = google_secret_manager_secret.app_secrets
+
+  secret_id = each.value.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.cloud_run_sa}"
+}

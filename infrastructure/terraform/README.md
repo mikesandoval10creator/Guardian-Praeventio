@@ -23,18 +23,16 @@ It complements the manual provisioning the founder is doing in parallel:
    ```
 3. Set the active project:
    ```sh
-   gcloud config set project praeventio-prod
+   gcloud config set project praeventio-541ad
    ```
 4. Enable the APIs Terraform needs:
    ```sh
-   gcloud services enable cloudkms.googleapis.com
-   gcloud services enable iam.googleapis.com
-   gcloud services enable storage.googleapis.com
-   gcloud services enable cloudscheduler.googleapis.com
-   gcloud services enable run.googleapis.com
-   gcloud services enable secretmanager.googleapis.com
-   gcloud services enable firestore.googleapis.com
-   gcloud services enable cloudresourcemanager.googleapis.com
+   gcloud services enable cloudkms.googleapis.com \
+     iam.googleapis.com storage.googleapis.com \
+     cloudscheduler.googleapis.com run.googleapis.com \
+     secretmanager.googleapis.com firestore.googleapis.com \
+     cloudresourcemanager.googleapis.com \
+     --project=praeventio-541ad
    ```
 
 ## Daily workflow

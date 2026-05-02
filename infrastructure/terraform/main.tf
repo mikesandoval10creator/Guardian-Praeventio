@@ -34,16 +34,15 @@ provider "google-beta" {
 }
 
 # -----------------------------------------------------------------------------
-# Backend stub. Local state is fine for solo development; flip to GCS for
-# production so that `terraform apply` from CI does not race with the founder's
-# laptop. Create the state bucket manually FIRST (see README §State management).
+# Backend: GCS remote state. Create the bucket before running `terraform init`
+# (see README §State management).
 # -----------------------------------------------------------------------------
-# terraform {
-#   backend "gcs" {
-#     bucket = "praeventio-tfstate"
-#     prefix = "envs/prod"
-#   }
-# }
+terraform {
+  backend "gcs" {
+    bucket = "praeventio-541ad-tf-state"
+    prefix = "guardian-praeventio"
+  }
+}
 
 # -----------------------------------------------------------------------------
 # Convenience local values used across modules.
