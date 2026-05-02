@@ -34,6 +34,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { performance } from 'node:perf_hooks';
+import { randomUUID } from 'node:crypto';
 import { google } from 'googleapis';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
@@ -751,7 +752,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
     // currency totals. Round 16 will refactor `buildInvoice` to be
     // multi-currency aware.
     const db = admin.firestore();
-    const invoiceId = `inv_mp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const invoiceId = `inv_mp_${Date.now()}_${randomUUID()}`;
 
     const baseUrl = process.env.APP_BASE_URL ?? '';
     const backUrls = {

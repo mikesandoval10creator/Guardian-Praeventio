@@ -13,7 +13,7 @@ export function useToast(durationMs = 3000) {
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   const show = useCallback((message: string, type: ToastType = 'success') => {
-    const id = Math.random().toString(36).slice(2);
+    const id = globalThis.crypto.randomUUID();
     setToasts(prev => [...prev, { id, message, type }]);
     timers.current[id] = setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
