@@ -124,6 +124,13 @@ const router = Router();
 router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
   const { query, stream = false } = req.body;
 
+  if (!query || typeof query !== 'string' || query.length === 0) {
+    return res.status(400).json({ error: 'query is required' });
+  }
+  if (query.length > 4000) {
+    return res.status(400).json({ error: 'query exceeds maximum length of 4000 characters' });
+  }
+
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
   }
@@ -157,7 +164,7 @@ router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
 
       const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3.1-pro-preview',
+        model: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
         contents: prompt,
       });
 
@@ -170,7 +177,7 @@ router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
       res.end();
     } else {
       const result = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
         contents: prompt,
       });
 
@@ -196,6 +203,10 @@ router.post('/gemini', verifyAuth, geminiLimiter, async (req, res) => {
 
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
+  }
+
+  if (!Array.isArray(args)) {
+    return res.status(400).json({ error: 'args must be an array' });
   }
 
   try {
