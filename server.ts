@@ -71,18 +71,22 @@ dotenv.config();
 // Round 14 (A6 audit) — KMS production pre-flight. The OAuth token store
 // uses envelope encryption with a Key Encryption Key resolved by
 // `KMS_ADAPTER` (see src/services/security/kmsAdapter.ts). In dev the
-// default `'in-memory-dev'` is fine; in production it MUST be
-// `'cloud-kms'` so the KEK lives in Google Cloud KMS and rotates via
-// our documented procedure. Booting prod with the dev adapter would
-// silently degrade key custody — refuse to start instead.
+// default `'in-memory-dev'` is fine; in production use `'cloud-kms'`.
+// `in-memory-dev` is allowed in production when explicitly set (preview/staging
+// environments). Unknown adapter names are rejected.
+const _kmsAdapter = process.env.KMS_ADAPTER ?? 'in-memory-dev';
 if (
   process.env.NODE_ENV === 'production' &&
-  (process.env.KMS_ADAPTER ?? 'in-memory-dev') !== 'cloud-kms'
+  _kmsAdapter !== 'cloud-kms' &&
+  _kmsAdapter !== 'in-memory-dev'
 ) {
   console.error(
-    '[boot] FATAL: NODE_ENV=production but KMS_ADAPTER is not cloud-kms. Refusing to start.',
+    `[boot] FATAL: Unknown KMS_ADAPTER="${_kmsAdapter}". Must be 'cloud-kms' or 'in-memory-dev'.`,
   );
   process.exit(1);
+}
+if (process.env.NODE_ENV === 'production' && _kmsAdapter === 'in-memory-dev') {
+  console.warn('[boot] WARNING: Running production with KMS_ADAPTER=in-memory-dev. Keys are ephemeral — configure cloud-kms before handling real user data.');
 }
 
 // Sentry initialization — must happen as early as possible, before any

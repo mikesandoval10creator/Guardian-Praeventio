@@ -28,6 +28,10 @@ import {
   Options,
   WebpayPlus,
 } from 'transbank-sdk';
+import type {
+  Environment as TransbankEnvironment,
+  Options as TransbankOptions,
+} from 'transbank-sdk';
 
 export interface WebpayConfig {
   /** Transbank-issued commerce code. Read from `WEBPAY_COMMERCE_CODE`. */
@@ -121,11 +125,11 @@ export class WebpayAdapterError extends Error {
 
 /** Holds adapter-level configuration once `init()` has been called. */
 interface InternalState {
-  options: Options | null;
+  options: TransbankOptions | null;
   configured: boolean;
 }
 
-function buildIntegrationOptions(): Options {
+function buildIntegrationOptions(): TransbankOptions {
   return new Options(
     IntegrationCommerceCodes.WEBPAY_PLUS,
     IntegrationApiKeys.WEBPAY,
@@ -133,7 +137,7 @@ function buildIntegrationOptions(): Options {
   );
 }
 
-function buildOptionsFromConfig(config: WebpayConfig): Options {
+function buildOptionsFromConfig(config: WebpayConfig): TransbankOptions {
   const env =
     config.environment === 'production'
       ? Environment.Production
@@ -141,7 +145,7 @@ function buildOptionsFromConfig(config: WebpayConfig): Options {
   return new Options(config.commerceCode, config.apiKey, env);
 }
 
-function readEnvOptions(): Options | null {
+function readEnvOptions(): TransbankOptions | null {
   const code = process.env.WEBPAY_COMMERCE_CODE;
   const key = process.env.WEBPAY_API_KEY;
   if (!code || !key) return null;
@@ -240,7 +244,7 @@ const state: InternalState = {
   configured: false,
 };
 
-function resolveOptions(): Options {
+function resolveOptions(): TransbankOptions {
   // Priority: explicit init() > env vars > sandbox defaults.
   if (state.options) return state.options;
   const fromEnv = readEnvOptions();

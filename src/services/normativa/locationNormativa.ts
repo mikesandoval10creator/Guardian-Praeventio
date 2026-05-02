@@ -158,15 +158,16 @@ export function mapAlpha2ToCountryCode(code: string | undefined | null): Country
  * Node-side (server.ts, tests).
  */
 function readGoogleMapsApiKey(): string | undefined {
+  // In Node.js (tests, server): process.env takes priority so vi.stubEnv works.
+  if (typeof process !== 'undefined' && process.env?.VITE_GOOGLE_MAPS_API_KEY) {
+    return process.env.VITE_GOOGLE_MAPS_API_KEY;
+  }
+  // In browser Vite builds: use import.meta.env.
   try {
     const viteEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-    const fromVite = viteEnv?.VITE_GOOGLE_MAPS_API_KEY;
-    if (fromVite) return fromVite;
+    if (viteEnv?.VITE_GOOGLE_MAPS_API_KEY) return viteEnv.VITE_GOOGLE_MAPS_API_KEY;
   } catch {
-    // import.meta.env may be undefined in some Node test environments.
-  }
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env.VITE_GOOGLE_MAPS_API_KEY;
+    // import.meta.env unavailable in some environments.
   }
   return undefined;
 }
