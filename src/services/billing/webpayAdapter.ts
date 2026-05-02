@@ -21,28 +21,17 @@
 // payloads in production. The `raw` field on `WebpayCommitResult` is for
 // server-side audit trails only — never serialize it back to the browser.
 
-// transbank-sdk v6 ships as CommonJS with __esModule:true which breaks Node.js
-// ESM named imports at runtime. Use createRequire for CJS interop at runtime,
-// and import type for TypeScript type annotations only.
-import type {
-  Environment as TransbankEnvironment,
-  Options as TransbankOptions,
-} from 'transbank-sdk';
-import { createRequire } from 'module';
-const _require = createRequire(import.meta.url);
-const {
+import {
   Environment,
   IntegrationApiKeys,
   IntegrationCommerceCodes,
   Options,
   WebpayPlus,
-} = _require('transbank-sdk') as {
-  Environment: typeof TransbankEnvironment;
-  IntegrationApiKeys: Record<string, string>;
-  IntegrationCommerceCodes: Record<string, string>;
-  Options: new (commerceCode: string, apiKey: string, environment: TransbankEnvironment) => TransbankOptions;
-  WebpayPlus: { Transaction: new (opts: TransbankOptions) => any };
-};
+} from 'transbank-sdk';
+import type {
+  Environment as TransbankEnvironment,
+  Options as TransbankOptions,
+} from 'transbank-sdk';
 
 export interface WebpayConfig {
   /** Transbank-issued commerce code. Read from `WEBPAY_COMMERCE_CODE`. */
