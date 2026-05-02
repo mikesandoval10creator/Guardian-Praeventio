@@ -116,8 +116,17 @@ service cloud.firestore {
     }
 
     function isValidProject(data) {
-      return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
-             data.keys().size() <= 25 &&
+      return data.keys().hasOnly([
+               'name', 'members', 'status', 'createdAt', 'createdBy',
+               'updatedAt', 'description', 'location', 'industry',
+               'emergencyPhone', 'riskLevel', 'normativaCountry', 'settings',
+               // Additional fields present in the Project TypeScript interface
+               'coordinates', 'startDate', 'endDate', 'clientName',
+               'workersCount', 'isPendingSync', 'companyName', 'companyRut',
+               'companyAddress', 'mutualidad', 'phone',
+               'shiftStart', 'shiftEnd', 'trackCommute'
+             ]) &&
+             data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&
              data.status in ['active', 'completed', 'archived'] &&
@@ -316,7 +325,7 @@ service cloud.firestore {
 
     match /telemetry_events/{eventId} {
       allow read: if isAdmin() || isSupervisor();
-      allow create: if isEmailVerified();
+      allow create: if false; // server-only via /api/telemetry/ingest (HMAC-verified)
     }
 
     match /training/{sessionId} {
