@@ -27,6 +27,9 @@ COPY src ./src
 # Optional: Firebase Admin config (mount as secret in Cloud Run instead)
 COPY firebase-applet-config.json* ./
 
+RUN addgroup -g 1001 nodejs && adduser -S app -u 1001 -G nodejs
+USER app
+
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s \

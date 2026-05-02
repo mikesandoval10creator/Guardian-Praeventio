@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "lint": "eslint src server.ts --ext .ts,.tsx --max-warnings 0",
     "test": "vitest run",
     "smoke": "vitest run src/smoke.test.ts",
     "test:watch": "vitest",
@@ -110,8 +110,11 @@
     "tesseract.js": "^7.0.0",
     "three": "^0.183.2",
     "transbank-sdk": "^6.1.1",
-    "vite": "^6.2.0",
+    "tsx": "^4.21.0",
     "zod": "^4.3.6"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.9.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.3.0",
@@ -129,7 +132,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/react-window": "^1.8.8",
+    "@types/react-window": "^2.0.0",
     "@types/supertest": "^6.0.3",
     "@types/three": "^0.183.1",
     "@vitest/ui": "^4.1.5",
@@ -140,7 +143,6 @@
     "supertest": "^7.2.2",
     "tailwindcss": "^4.1.14",
     "terser": "^5.46.1",
-    "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-compression": "^0.5.1",
