@@ -21,13 +21,16 @@
 // payloads in production. The `raw` field on `WebpayCommitResult` is for
 // server-side audit trails only — never serialize it back to the browser.
 
-import {
-  Environment,
-  IntegrationApiKeys,
-  IntegrationCommerceCodes,
-  Options,
-  WebpayPlus,
-} from 'transbank-sdk';
+// `transbank-sdk` is published as CommonJS, but this package is ESM
+// (`"type": "module"`). Under Node 20+ ESM strict mode, named imports
+// from a CJS module that uses `export { default as X }` chains fail at
+// runtime with `SyntaxError: ... does not provide an export named X`,
+// even though tsc accepts them. Import the default and destructure to
+// stay compatible with both module systems.
+import transbankSdk from 'transbank-sdk';
+const { Environment, IntegrationApiKeys, IntegrationCommerceCodes, Options, WebpayPlus } =
+  transbankSdk;
+type TransbankOptions = InstanceType<typeof Options>;
 
 export interface WebpayConfig {
   /** Transbank-issued commerce code. Read from `WEBPAY_COMMERCE_CODE`. */
@@ -121,11 +124,11 @@ export class WebpayAdapterError extends Error {
 
 /** Holds adapter-level configuration once `init()` has been called. */
 interface InternalState {
-  options: Options | null;
+  options: TransbankOptions | null;
   configured: boolean;
 }
 
-function buildIntegrationOptions(): Options {
+function buildIntegrationOptions(): TransbankOptions {
   return new Options(
     IntegrationCommerceCodes.WEBPAY_PLUS,
     IntegrationApiKeys.WEBPAY,
@@ -133,7 +136,7 @@ function buildIntegrationOptions(): Options {
   );
 }
 
-function buildOptionsFromConfig(config: WebpayConfig): Options {
+function buildOptionsFromConfig(config: WebpayConfig): TransbankOptions {
   const env =
     config.environment === 'production'
       ? Environment.Production
@@ -141,7 +144,7 @@ function buildOptionsFromConfig(config: WebpayConfig): Options {
   return new Options(config.commerceCode, config.apiKey, env);
 }
 
-function readEnvOptions(): Options | null {
+function readEnvOptions(): TransbankOptions | null {
   const code = process.env.WEBPAY_COMMERCE_CODE;
   const key = process.env.WEBPAY_API_KEY;
   if (!code || !key) return null;
@@ -240,7 +243,7 @@ const state: InternalState = {
   configured: false,
 };
 
-function resolveOptions(): Options {
+function resolveOptions(): TransbankOptions {
   // Priority: explicit init() > env vars > sandbox defaults.
   if (state.options) return state.options;
   const fromEnv = readEnvOptions();
