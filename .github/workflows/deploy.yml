@@ -66,6 +66,8 @@ jobs:
           env_vars: |
             NODE_ENV=production
             KMS_ADAPTER=in-memory-dev
+            APP_BASE_URL=https://guardian-praeventio-565212386989.us-central1.run.app
+            APP_URL=https://guardian-praeventio-565212386989.us-central1.run.app
           secrets: |
             GEMINI_API_KEY=GEMINI_API_KEY:latest
             SESSION_SECRET=SESSION_SECRET:latest
