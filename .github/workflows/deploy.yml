@@ -73,7 +73,6 @@ jobs:
             IOT_WEBHOOK_SECRET=IOT_WEBHOOK_SECRET:latest
             VITE_GOOGLE_MAPS_API_KEY=VITE_GOOGLE_MAPS_API_KEY:latest
             VITE_OPENWEATHER_API_KEY=VITE_OPENWEATHER_API_KEY:latest
-            PINECONE_API_KEY=PINECONE_API_KEY:latest
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
