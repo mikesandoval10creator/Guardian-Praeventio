@@ -28,8 +28,22 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { erpSyncLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
+
+// Round 22 — input validation for POST /api/erp/sync. The handler used
+// to splat `req.body` straight into Firestore + a log line, so a
+// malicious caller could pass arbitrary `erpType` strings (or non-string
+// values entirely) and bloat documents with arbitrary nested payloads.
+// Zod gives us a typed gate: erpType is restricted to a known whitelist
+// and payload must be a plain object.
+const erpSyncSchema = z.object({
+  erpType: z.enum(['sap', 'oracle', 'dynamics', 'odoo']),
+  action: z.string().min(1).max(128),
+  payload: z.record(z.string(), z.unknown()).optional().default({}),
+});
 
 const router = Router();
 
@@ -57,8 +71,12 @@ router.get('/environment/forecast', async (req, res) => {
 });
 
 // ERP Integration (SAP/Defontana Mock)
-router.post('/erp/sync', verifyAuth, async (req, res) => {
-  const { erpType, action, payload } = req.body;
+router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
+  const parsed = erpSyncSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'invalid_payload', issues: parsed.error.issues });
+  }
+  const { erpType, action, payload } = parsed.data;
   const uid = (req as any).user.uid;
 
   try {
