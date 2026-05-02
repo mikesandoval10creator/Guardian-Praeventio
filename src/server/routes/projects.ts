@@ -391,6 +391,11 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
   const { token } = req.params;
   const callerUid = (req as any).user.uid;
   const callerEmail = (req as any).user.email;
+  // Optional client-supplied projectId — when present it MUST match the
+  // invitation's projectId. This blocks cross-tenant write attacks where a
+  // crafted projectId could otherwise bypass the invitation's intended target.
+  const claimedProjectId: string | undefined =
+    typeof req.body?.projectId === 'string' ? req.body.projectId : undefined;
 
   try {
     const snapshot = await admin
@@ -419,16 +424,60 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
       return res.status(410).json({ error: 'Invitation has expired' });
     }
 
-    const projectRef = admin.firestore().collection('projects').doc(invite.projectId);
-    await projectRef.update({
-      members: admin.firestore.FieldValue.arrayUnion(callerUid),
-      [`memberRoles.${callerUid}`]: invite.invitedRole,
-    });
+    if (!invite.projectId || typeof invite.projectId !== 'string') {
+      return res.status(404).json({ error: 'Invitation has no associated project' });
+    }
 
-    await inviteDoc.ref.update({ status: 'accepted', acceptedAt: new Date().toISOString() });
+    // Cross-tenant write defense: if the client passes a projectId, it MUST
+    // match the invitation's projectId. The URL/body cannot override the
+    // invitation's actual target.
+    if (claimedProjectId !== undefined && claimedProjectId !== invite.projectId) {
+      return res
+        .status(403)
+        .json({ error: 'Invitation projectId does not match request projectId' });
+    }
+
+    const projectRef = admin.firestore().collection('projects').doc(invite.projectId);
+
+    // Run validate-and-write in a transaction so the project-existence check
+    // and the arrayUnion mutation are atomic. Without this, a project could
+    // be deleted between the read and write, or a stale read could be used
+    // to write to a non-existent project.
+    await admin.firestore().runTransaction(async (tx) => {
+      const projectSnap = await tx.get(projectRef);
+      if (!projectSnap.exists) {
+        const err: any = new Error('Project not found');
+        err.statusCode = 404;
+        throw err;
+      }
+      const inviteSnap = await tx.get(inviteDoc.ref);
+      const inviteFresh = inviteSnap.data() as any;
+      if (!inviteSnap.exists || !inviteFresh || inviteFresh.status !== 'pending') {
+        const err: any = new Error('Invitation not found or already used');
+        err.statusCode = 404;
+        throw err;
+      }
+      // Re-validate inside the tx in case of concurrent mutation.
+      if (inviteFresh.projectId !== invite.projectId) {
+        const err: any = new Error('Invitation project mismatch');
+        err.statusCode = 403;
+        throw err;
+      }
+      tx.update(projectRef, {
+        members: admin.firestore.FieldValue.arrayUnion(callerUid),
+        [`memberRoles.${callerUid}`]: invite.invitedRole,
+      });
+      tx.update(inviteDoc.ref, {
+        status: 'accepted',
+        acceptedAt: new Date().toISOString(),
+      });
+    });
 
     res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
   } catch (error: any) {
+    if (error && typeof error.statusCode === 'number') {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     console.error('Error accepting invitation:', error);
     res.status(500).json({
       error:

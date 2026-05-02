@@ -990,6 +990,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     const { token } = req.params;
     const callerUid = (req as any).user.uid;
     const callerEmail = (req as any).user.email;
+    // Optional client-supplied projectId — when present, must match the
+    // invitation's projectId. Blocks cross-tenant write attacks.
+    const claimedProjectId: string | undefined =
+      typeof req.body?.projectId === 'string' ? req.body.projectId : undefined;
     try {
       const snap = await deps.firestore
         .collection('invitations')
@@ -1009,7 +1013,22 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         await inviteDoc.ref.update({ status: 'expired' });
         return res.status(410).json({ error: 'Invitation has expired' });
       }
+      if (!invite.projectId || typeof invite.projectId !== 'string') {
+        return res.status(404).json({ error: 'Invitation has no associated project' });
+      }
+      if (claimedProjectId !== undefined && claimedProjectId !== invite.projectId) {
+        return res
+          .status(403)
+          .json({ error: 'Invitation projectId does not match request projectId' });
+      }
+      // Read-then-validate-then-write: confirm project exists before any
+      // mutation so a crafted invitation cannot create/poison phantom
+      // project docs via arrayUnion-on-update.
       const projectRef = deps.firestore.collection('projects').doc(invite.projectId);
+      const projectSnap = await projectRef.get();
+      if (!projectSnap.exists) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
       await projectRef.update({
         members: fakeFieldValue.arrayUnion(callerUid),
         [`memberRoles.${callerUid}`]: invite.invitedRole,
