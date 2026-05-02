@@ -174,6 +174,28 @@ router.post('/telemetry/ingest', async (req, res) => {
     return res.status(400).json({ error: 'Invalid metric' });
   }
 
+  // Validate cross-tenant: ensure this tenant has access to the requested project
+  if (tenantId && projectId && projectId !== 'global') {
+    try {
+      const tenantDoc = await admin.firestore().collection('tenants').doc(tenantId).get();
+      const allowedProjects: string[] | undefined = tenantDoc.data()?.allowedProjects;
+      // If the tenant doc has an allowedProjects array, enforce it
+      // If the field doesn't exist yet (legacy tenants), allow all (graceful degradation)
+      if (Array.isArray(allowedProjects) && !allowedProjects.includes(projectId)) {
+        return res.status(403).json({
+          error: 'Cross-tenant write rejected: projectId not in tenant allowedProjects',
+        });
+      }
+    } catch (err) {
+      // Log but don't fail if tenant doc can't be read (graceful degradation)
+      logger.warn('telemetry_tenant_project_check_failed', {
+        tenantId,
+        projectId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   try {
     const db = admin.firestore();
 
