@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Play, RotateCcw, Trophy, AlertCircle, X } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface ReflexBuzzerProps {
   onComplete: (points: number) => void;
@@ -14,6 +16,7 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
   const [attempts, setAttempts] = useState(0);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const startGame = () => {
     setGameState('waiting');
@@ -33,7 +36,7 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
       // Too early!
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setGameState('start');
-      alert('¡Demasiado pronto! Espera a que la pantalla se ponga verde.');
+      showToast('¡Demasiado pronto! Espera a que la pantalla se ponga verde.', 'warning');
     } else if (gameState === 'ready') {
       // Good reaction
       const time = Date.now() - startTimeRef.current;
@@ -191,6 +194,7 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
           </AnimatePresence>
         </div>
       </motion.div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

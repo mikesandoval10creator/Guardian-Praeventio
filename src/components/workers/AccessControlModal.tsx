@@ -5,6 +5,8 @@ import { Worker } from '../../types';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface AccessControlModalProps {
   isOpen: boolean;
@@ -17,6 +19,7 @@ export function AccessControlModal({ isOpen, onClose, worker, projectId }: Acces
   const [loading, setLoading] = useState(false);
   const [medicalDate, setMedicalDate] = useState('');
   const [certifications, setCertifications] = useState('');
+  const { toasts, show: showToast, dismiss } = useToast();
 
   useEffect(() => {
     if (worker) {
@@ -46,7 +49,7 @@ export function AccessControlModal({ isOpen, onClose, worker, projectId }: Acces
       onClose();
     } catch (error) {
       logger.error('Error updating access control:', error);
-      alert('Error al actualizar los datos de control de acceso.');
+      showToast('Error al actualizar los datos de control de acceso.', 'error');
     } finally {
       setLoading(false);
     }
@@ -142,6 +145,7 @@ export function AccessControlModal({ isOpen, onClose, worker, projectId }: Acces
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

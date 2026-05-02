@@ -21,6 +21,8 @@ import { where } from 'firebase/firestore';
 import { Asset } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { saveForSync } from '../../utils/pwa-offline';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface MaquinariaManagerProps {
   projectId: string;
@@ -31,6 +33,7 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [loading, setLoading] = useState(false);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
   
   const { data: assets, loading: fetching } = useFirestoreCollection<Asset>(
     'assets',
@@ -62,7 +65,7 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
           collection: 'assets',
           data: assetData
         });
-        alert('Activo guardado para sincronización cuando haya conexión.');
+        showToast('Activo guardado para sincronización cuando haya conexión.', 'info');
       } else {
         await addDoc(collection(db, 'assets'), assetData);
       }
@@ -265,6 +268,7 @@ export function MaquinariaManager({ projectId }: MaquinariaManagerProps) {
           </div>
         )}
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

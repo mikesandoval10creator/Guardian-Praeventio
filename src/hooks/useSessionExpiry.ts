@@ -51,12 +51,11 @@ export function clearFirstLogin(uid: string): void {
 
 function notifyShiftEnded() {
   const msg = 'Tu turno terminó (8h). Inicia sesión de nuevo para continuar.';
-  try {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-      window.alert(msg);
-      return;
-    }
-  } catch {}
+  // NOTE: Cannot use useToast here — this helper runs outside the React render
+  // tree (called from a setInterval callback inside useEffect) so there is no
+  // toast container to render into. Logging the warning is the safest fallback;
+  // the immediate logOut() call that follows will redirect the user to the
+  // login screen, which is the actual user-visible signal.
   logger.warn('[SessionExpiry] ' + msg);
 }
 

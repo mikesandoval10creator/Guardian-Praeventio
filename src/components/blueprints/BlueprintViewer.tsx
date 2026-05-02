@@ -6,6 +6,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { db, storage, ref, uploadBytes, getDownloadURL, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where, handleFirestoreError, OperationType } from '../../services/firebase';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface Marker {
   id: string;
@@ -28,6 +30,7 @@ export const BlueprintViewer: React.FC = () => {
   const [savedBlueprints, setSavedBlueprints] = useState<any[]>([]);
   const imageRef = useRef<HTMLImageElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   useEffect(() => {
     if (selectedProject) {
@@ -81,7 +84,7 @@ export const BlueprintViewer: React.FC = () => {
         });
       }
 
-      alert('Plano guardado exitosamente');
+      showToast('Plano guardado exitosamente', 'success');
       loadBlueprints();
     } catch (error) {
       logger.error("Error saving blueprint:", error);
@@ -332,6 +335,7 @@ export const BlueprintViewer: React.FC = () => {
           )}
         </div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 };

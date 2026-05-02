@@ -5,6 +5,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface AddEventModalProps {
   isOpen: boolean;
@@ -15,6 +17,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
   const { selectedProject, projects } = useProject();
   const [loading, setLoading] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
+  const { toasts, show: showToast, dismiss } = useToast();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -86,7 +89,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
       });
     } catch (error) {
       logger.error('Error adding event:', error);
-      alert('Error al guardar el evento');
+      showToast('Error al guardar el evento', 'error');
     } finally {
       setLoading(false);
     }
@@ -276,6 +279,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

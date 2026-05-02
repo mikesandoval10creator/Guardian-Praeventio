@@ -9,6 +9,8 @@ import { collection, addDoc } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface TrainingRecommendationsProps {
   worker: RiskNode;
@@ -27,6 +29,7 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
   const { nodes } = useUniversalKnowledge();
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const fetchRecommendations = async () => {
     if (!isOnline) return;
@@ -94,7 +97,7 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
             }
           });
           setRecommendations(prev => prev.filter((_, i) => i !== index));
-          alert('Asignación guardada para sincronización cuando haya conexión.');
+          showToast('Asignación guardada para sincronización cuando haya conexión.', 'info');
         });
       } else {
         // Save to Firestore
@@ -204,6 +207,7 @@ export function TrainingRecommendations({ worker }: TrainingRecommendationsProps
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">No se pudieron generar recomendaciones.</p>
         </div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }
