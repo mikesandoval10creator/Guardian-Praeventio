@@ -33,7 +33,11 @@ vi.mock('transbank-sdk', () => {
       public environment: string,
     ) {}
   }
-  return {
+  // Mirror the real CJS shape of `transbank-sdk`: the adapter does
+  // `import transbankSdk from 'transbank-sdk'` and destructures, so a
+  // `default` is required. Spread the same object as named exports so
+  // any `import { X } from 'transbank-sdk'` consumer keeps working.
+  const sdk = {
     WebpayPlus: { Transaction: TransactionStub },
     Options: OptionsStub,
     Environment: {
@@ -43,6 +47,7 @@ vi.mock('transbank-sdk', () => {
     IntegrationApiKeys: { WEBPAY: 'TEST_API_KEY' },
     IntegrationCommerceCodes: { WEBPAY_PLUS: '597055555532' },
   };
+  return { default: sdk, ...sdk };
 });
 
 // Import AFTER vi.mock is registered.

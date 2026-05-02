@@ -21,17 +21,16 @@
 // payloads in production. The `raw` field on `WebpayCommitResult` is for
 // server-side audit trails only — never serialize it back to the browser.
 
-import {
-  Environment,
-  IntegrationApiKeys,
-  IntegrationCommerceCodes,
-  Options,
-  WebpayPlus,
-} from 'transbank-sdk';
-import type {
-  Environment as TransbankEnvironment,
-  Options as TransbankOptions,
-} from 'transbank-sdk';
+// `transbank-sdk` is published as CommonJS, but this package is ESM
+// (`"type": "module"`). Under Node 20+ ESM strict mode, named imports
+// from a CJS module that uses `export { default as X }` chains fail at
+// runtime with `SyntaxError: ... does not provide an export named X`,
+// even though tsc accepts them. Import the default and destructure to
+// stay compatible with both module systems.
+import transbankSdk from 'transbank-sdk';
+const { Environment, IntegrationApiKeys, IntegrationCommerceCodes, Options, WebpayPlus } =
+  transbankSdk;
+type TransbankOptions = InstanceType<typeof Options>;
 
 export interface WebpayConfig {
   /** Transbank-issued commerce code. Read from `WEBPAY_COMMERCE_CODE`. */
