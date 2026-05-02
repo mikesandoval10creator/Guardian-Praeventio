@@ -1,7 +1,7 @@
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-// vite is imported dynamically inside the dev-only block below to avoid breaking production where vite is not installedimport path from "path";
+// vite is imported dynamically inside the dev-only block below to avoid breaking production where vite is not installed
 import path from "path";
 import cookieParser from "cookie-parser";
 import session from "express-session";
