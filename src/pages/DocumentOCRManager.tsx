@@ -8,6 +8,8 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function DocumentOCRManager() {
   const [file, setFile] = useState<File | null>(null);
@@ -27,6 +29,7 @@ export function DocumentOCRManager() {
   const isOnline = useOnlineStatus();
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -97,7 +100,7 @@ export function DocumentOCRManager() {
       
     } catch (error) {
       logger.error("Error scanning document:", error);
-      alert("Error al procesar el documento. Intente con una imagen más clara.");
+      showToast("Error al procesar el documento. Intente con una imagen más clara.", 'error');
     } finally {
       setIsScanning(false);
     }
@@ -120,13 +123,13 @@ export function DocumentOCRManager() {
           date: scanResult.date
         }
       });
-      alert('Documento guardado exitosamente en el Zettelkasten.');
+      showToast('Documento guardado exitosamente en el Zettelkasten.', 'success');
       setFile(null);
       setPreviewUrl(null);
       setScanResult(null);
     } catch (error) {
       logger.error("Error saving node:", error);
-      alert("Error al guardar en la red de riesgos.");
+      showToast("Error al guardar en la red de riesgos.", 'error');
     } finally {
       setIsSaving(false);
     }
@@ -307,6 +310,7 @@ export function DocumentOCRManager() {
           )}
         </Card>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

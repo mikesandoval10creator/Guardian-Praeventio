@@ -7,6 +7,8 @@ import { getPendingActions, SyncAction } from '../utils/pwa-offline';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function GoogleDriveIntegrationManager() {
   const [isLinked, setIsLinked] = useState(false);
@@ -14,6 +16,7 @@ export function GoogleDriveIntegrationManager() {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [pendingDocs, setPendingDocs] = useState<SyncAction[]>([]);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   useEffect(() => {
     const loadPendingDocs = async () => {
@@ -60,13 +63,13 @@ export function GoogleDriveIntegrationManager() {
       );
 
       if (!authWindow) {
-        alert('Por favor, permite las ventanas emergentes (popups) para conectar Google Drive.');
+        showToast('Por favor, permite las ventanas emergentes (popups) para conectar Google Drive.', 'warning');
         setIsSyncing(false);
       }
     } catch (error) {
       logger.error('Error connecting to Google Drive:', error);
       setIsSyncing(false);
-      alert('Error al iniciar la conexión con Google Drive.');
+      showToast('Error al iniciar la conexión con Google Drive.', 'error');
     }
   };
 
@@ -207,6 +210,7 @@ export function GoogleDriveIntegrationManager() {
           )}
         </Card>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
     </PremiumFeatureGuard>
   );

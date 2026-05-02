@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -51,6 +53,7 @@ export function Telemetry() {
   const [fitTokens, setFitTokens] = useState<any>(null);
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   // Gamified HUD State
   const [health, setHealth] = useState(100);
@@ -142,7 +145,7 @@ export function Telemetry() {
       try {
         const result = await adapter.requestPermissions(['heart-rate', 'steps']);
         if (result.granted.length === 0) {
-          alert(`No se concedieron permisos de ${label}.`);
+          showToast(`No se concedieron permisos de ${label}.`, 'warning');
           setIsConnectingFit(false);
           return;
         }
@@ -539,6 +542,7 @@ export function Telemetry() {
         onClose={() => setShowWebhookModal(false)}
         onCopy={copyToClipboard}
       />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
     </PremiumFeatureGuard>
   );

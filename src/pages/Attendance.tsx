@@ -37,6 +37,8 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function Attendance() {
   const { selectedProject } = useProject();
@@ -50,6 +52,7 @@ export function Attendance() {
   const [accessState, setAccessState] = useState<'idle' | 'scanning' | 'granted' | 'missing_skill'>('idle');
   const [activeWorker, setActiveWorker] = useState<Worker | null>(null);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -740,10 +743,11 @@ export function Attendance() {
               await handleCheckOut(worker);
             }
           } else {
-            alert('Trabajador no encontrado en este proyecto.');
+            showToast('Trabajador no encontrado en este proyecto.', 'warning');
           }
         }}
       />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }
