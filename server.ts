@@ -52,6 +52,7 @@ import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
 import subscriptionRouter from "./src/server/routes/subscription.js";
+import { emergencyRouter } from "./src/server/routes/emergency.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -398,42 +399,9 @@ updateGlobalEnvironmentalContext().catch(console.error);
 app.use('/api/curriculum', curriculumRouter);
 app.use('/api/auth', webauthnChallengeRouter);
 
-// Prototype Fusion Phase 6.1 — FCM notify-brigada endpoint
-// Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
-app.post('/api/emergency/notify-brigada', verifyAuth, async (req: express.Request, res: express.Response) => {
-  const { projectId, emergencyType, message } = req.body as { projectId?: string; emergencyType?: string; message?: string };
-  if (!projectId || !emergencyType) {
-    return res.status(400).json({ error: 'projectId and emergencyType are required' });
-  }
-  try {
-    const db = admin.firestore();
-    const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
-    const tokens: string[] = [];
-    for (const memberDoc of membersSnap.docs) {
-      const data = memberDoc.data();
-      if (['supervisor', 'gerente', 'prevencionista', 'admin'].includes(data.role) && data.fcmToken) {
-        tokens.push(data.fcmToken);
-      }
-    }
-    if (tokens.length === 0) {
-      return res.json({ ok: true, notified: 0, message: 'No supervisor tokens found' });
-    }
-    await admin.messaging().sendEachForMulticast({
-      tokens,
-      notification: {
-        title: `🚨 Emergencia: ${emergencyType}`,
-        body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
-      },
-      data: { projectId, emergencyType, timestamp: new Date().toISOString() },
-      android: { priority: 'high' },
-      apns: { payload: { aps: { 'content-available': 1 } } },
-    });
-    return res.json({ ok: true, notified: tokens.length });
-  } catch (err) {
-    logger.error('notify-brigada error', err instanceof Error ? err : new Error(String(err)));
-    return res.status(500).json({ error: 'Failed to notify brigade' });
-  }
-});
+// Security item 0.2 — notify-brigada extracted to src/server/routes/emergency.ts
+// with assertProjectMemberFromBody(), BRIGADE_ROLES gate, and brigadeLimiter.
+app.use('/api/emergency', emergencyRouter);
 
 // Round 13: Express terminal error middleware. MUST be the last `app.use(...)`
 // — Express only treats 4-arg middleware as an error handler, and only
