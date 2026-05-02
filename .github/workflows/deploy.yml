@@ -61,11 +61,11 @@ jobs:
             --allow-unauthenticated
             --min-instances=0
             --max-instances=10
-            --memory=512Mi
+            --memory=1Gi
             --cpu=1
           env_vars: |
             NODE_ENV=production
-            KMS_ADAPTER=in-memory-dev
+            KMS_ADAPTER=cloud-kms
           secrets: |
             GEMINI_API_KEY=GEMINI_API_KEY:latest
             SESSION_SECRET=SESSION_SECRET:latest
@@ -73,6 +73,14 @@ jobs:
             IOT_WEBHOOK_SECRET=IOT_WEBHOOK_SECRET:latest
             VITE_GOOGLE_MAPS_API_KEY=VITE_GOOGLE_MAPS_API_KEY:latest
             VITE_OPENWEATHER_API_KEY=VITE_OPENWEATHER_API_KEY:latest
+            SENTRY_DSN=SENTRY_DSN:latest
+            WEBPAY_COMMERCE_CODE=WEBPAY_COMMERCE_CODE:latest
+            WEBPAY_API_KEY=WEBPAY_API_KEY:latest
+            MP_ACCESS_TOKEN=MP_ACCESS_TOKEN:latest
+            GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest
+            GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
+            WEBAUTHN_RP_ID=WEBAUTHN_RP_ID:latest
+            APP_BASE_URL=APP_BASE_URL:latest
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
