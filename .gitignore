@@ -11,3 +11,4 @@ tsconfig.tsbuildinfo
 
 # Firebase config — contains project credentials, use env vars in production
 firebase-applet-config.json
+.claude/
