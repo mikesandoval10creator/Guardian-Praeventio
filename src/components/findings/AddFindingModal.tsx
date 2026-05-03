@@ -7,6 +7,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { generateActionPlan, analyzeSafetyImage } from '../../services/geminiService';
 import { logAuditAction } from '../../services/auditService';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface AddFindingModalProps {
   isOpen: boolean;
@@ -20,6 +22,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
   const { addNode, addConnection } = useRiskEngine();
   const { selectedProject } = useProject();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toasts, show: showToast, dismiss } = useToast();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -67,7 +70,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
       reader.readAsDataURL(file);
     } catch (error) {
       logger.error('Error analyzing image:', error);
-      alert('Error al analizar la imagen con IA.');
+      showToast('Error al analizar la imagen con IA.', 'error');
     } finally {
       setIsAnalyzingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -360,6 +363,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

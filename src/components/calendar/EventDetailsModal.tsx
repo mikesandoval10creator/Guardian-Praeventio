@@ -6,6 +6,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
 import { doc, updateDoc, deleteDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface Event {
   id: string;
@@ -31,6 +33,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Event>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   React.useEffect(() => {
     if (event) {
@@ -96,7 +99,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       setIsEditing(false);
     } catch (error) {
       logger.error('Error updating event:', error);
-      alert('Error al actualizar el evento');
+      showToast('Error al actualizar el evento', 'error');
     } finally {
       setLoading(false);
     }
@@ -364,6 +367,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         title="Eliminar evento"

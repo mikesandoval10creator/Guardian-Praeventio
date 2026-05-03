@@ -34,11 +34,12 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { performance } from 'node:perf_hooks';
+import { randomUUID } from 'node:crypto';
 import { google } from 'googleapis';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
-import { invoiceStatusLimiter } from '../middleware/limiters.js';
+import { invoiceStatusLimiter, googlePlayWebhookLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 import { isAdminRole } from '../../types/roles.js';
 
@@ -273,7 +274,7 @@ billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
 // POST /api/billing/webhook — Real-Time Developer Notifications (RTDN) push
 // from Google Play via Cloud Pub/Sub. Shared-secret gate via ?token=
 // query-string + lock-then-complete idempotency on `processed_pubsub`.
-billingApiRouter.post('/webhook', async (req, res) => {
+billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => {
   // Verify shared secret — configure WEBHOOK_SECRET in Pub/Sub push subscription URL as ?token=<secret>
   // Fail closed: missing config means we reject everything rather than accept everyone.
   const expectedToken = process.env.WEBHOOK_SECRET;
@@ -751,7 +752,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
     // currency totals. Round 16 will refactor `buildInvoice` to be
     // multi-currency aware.
     const db = admin.firestore();
-    const invoiceId = `inv_mp_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const invoiceId = `inv_mp_${Date.now()}_${randomUUID()}`;
 
     const baseUrl = process.env.APP_BASE_URL ?? '';
     const backUrls = {

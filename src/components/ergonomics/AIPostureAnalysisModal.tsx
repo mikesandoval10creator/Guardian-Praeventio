@@ -6,6 +6,8 @@ import { NodeType } from '../../types';
 import { analyzePostureWithAI } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface AIPostureAnalysisModalProps {
   isOpen: boolean;
@@ -24,6 +26,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
   const [workstation, setWorkstation] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,7 +57,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
       setAnalysisResult(result);
     } catch (error) {
       logger.error('Error analyzing posture:', error);
-      alert('Hubo un error al analizar la imagen. Por favor, intenta de nuevo.');
+      showToast('Hubo un error al analizar la imagen. Por favor, intenta de nuevo.', 'error');
     } finally {
       setLoading(false);
     }
@@ -324,6 +327,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
         accept="image/jpeg, image/png"
         className="hidden"
       />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

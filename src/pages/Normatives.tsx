@@ -18,6 +18,8 @@ import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { suggestNormativesWithAI, downloadSpecificNormative } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 interface Normative {
   id: string;
@@ -36,6 +38,7 @@ export function Normatives() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
+  const { toasts, show: showToast, dismiss } = useToast();
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showCategoryPanel, setShowCategoryPanel] = useState(false);
@@ -161,7 +164,7 @@ export function Normatives() {
           await addDoc(collection(db, 'normatives'), norm);
         }
       }
-      alert('Biblioteca sincronizada con éxito (Vectores + Metadata)');
+      showToast('Biblioteca sincronizada con éxito (Vectores + Metadata)', 'success');
     } catch (error) {
       logger.error('Error seeding normatives', { error });
     } finally {
@@ -393,6 +396,7 @@ export function Normatives() {
           </p>
         </div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

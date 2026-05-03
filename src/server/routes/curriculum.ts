@@ -95,14 +95,15 @@ function resolveExpectedOriginAtBoot(): string {
       );
     }
     if (origin.startsWith('http://')) {
-      // Boot-time warning rather than a hard failure — some self-hosted
-      // deployments terminate TLS at a sidecar and set APP_BASE_URL to
-      // the upstream http URL on purpose. The signature verify path
-      // still rejects mixed-scheme origins via @simplewebauthn/server.
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[webauthn] WARNING: expectedOrigin is http:// in production — verify TLS terminates upstream',
+      // Fail-fast: an http:// origin in production means signed referee
+      // URLs (and the WebAuthn ceremony) would be transmitted unencrypted.
+      // Refuse to boot rather than silently shipping a misconfigured
+      // server — Cloud Run / PM2 / systemd will surface the exit(1) in
+      // the deploy log instead of letting the bad config reach users.
+      logger.error(
+        '[webauthn] FATAL: expectedOrigin is http:// in production — refusing to start. Set APP_BASE_URL/APP_URL to an https:// URL.',
       );
+      process.exit(1);
     }
     return origin;
   }

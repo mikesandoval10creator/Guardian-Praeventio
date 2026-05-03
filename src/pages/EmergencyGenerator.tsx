@@ -18,6 +18,8 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function EmergencyGenerator() {
   const { selectedProject } = useProject();
@@ -34,6 +36,7 @@ export function EmergencyGenerator() {
   const [isDownloading, setIsDownloading] = useState(false);
   const pdfRef = React.useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'resumen' | 'brigada' | 'procedimientos' | 'evacuacion' | 'normativas'>('resumen');
@@ -172,10 +175,10 @@ export function EmergencyGenerator() {
         createdAt: serverTimestamp()
       });
 
-      alert('Plan de Emergencia guardado exitosamente en Documentos, Protocolos y Red Neuronal');
+      showToast('Plan de Emergencia guardado exitosamente en Documentos, Protocolos y Red Neuronal', 'success');
     } catch (error) {
       logger.error('Error saving Emergency Plan:', error);
-      alert('Error al guardar el Plan de Emergencia');
+      showToast('Error al guardar el Plan de Emergencia', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -214,7 +217,7 @@ export function EmergencyGenerator() {
       pdf.save(`PE_${scenario.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       logger.error('Error downloading PDF:', error);
-      alert('Error al descargar el PDF');
+      showToast('Error al descargar el PDF', 'error');
     } finally {
       setIsDownloading(false);
     }
@@ -655,6 +658,8 @@ export function EmergencyGenerator() {
           </div>
         </div>
       )}
+
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
 
       {/* ── Normativas Tab ── */}
       {activeTab === 'normativas' && (

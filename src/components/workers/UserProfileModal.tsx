@@ -14,6 +14,8 @@ import {
   type CurriculumHistoryEvent,
   type GamificationScoreRow,
 } from '../../services/curriculum/historyAggregator';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface UserProfileModalProps {
   worker: Worker;
@@ -64,6 +66,7 @@ function ActivityRow({ event }: { event: CurriculumHistoryEvent }) {
 export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   // ── Round 16 (R1) → Round 18 (A10): replace `safetyScore = 95` and
   //   `trainingsCount = 12` mocks with real reads. Strategy:
@@ -239,7 +242,7 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
       pdf.save(`Curriculum_Preventivo_${worker.name.replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       logger.error('Error exporting PDF:', error);
-      alert('Error al exportar el currículum a PDF.');
+      showToast('Error al exportar el currículum a PDF.', 'error');
     } finally {
       setIsExporting(false);
     }
@@ -459,6 +462,7 @@ export function UserProfileModal({ worker, onClose }: UserProfileModalProps) {
           </button>
         </div>
       </motion.div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

@@ -32,12 +32,15 @@ import { analyzeFeedPostForRiskNetwork } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { SkeletonCard } from '../components/shared/Skeleton';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function SafetyFeed() {
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
   const [isPosting, setIsPosting] = useState(false);
+  const { toasts, show: showToast, dismiss } = useToast();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [newPost, setNewPost] = useState({ content: '', type: 'SafetyMoment' as any, imageBase64: null as string | null });
   const [activeFilter, setActiveFilter] = useState<'all' | 'SafetyMoment' | 'Tip' | 'SuccessStory' | 'Warning'>('all');
@@ -147,7 +150,7 @@ export function SafetyFeed() {
       setIsPosting(false);
     } catch (error) {
       logger.error('Error creating post:', error);
-      alert('Hubo un error al publicar. Inténtalo de nuevo.');
+      showToast('Hubo un error al publicar. Inténtalo de nuevo.', 'error');
     } finally {
       setIsAnalyzing(false);
     }
@@ -641,6 +644,7 @@ export function SafetyFeed() {
           </div>
         )}
       </AnimatePresence>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

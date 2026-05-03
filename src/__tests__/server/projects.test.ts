@@ -216,6 +216,36 @@ describe('POST /api/invitations/:token/accept', () => {
     expect((fs.store.get('invitations/inv-old') as any).status).toBe('expired');
   });
 
+  it('rejects acceptance when invitation projectId does not match URL projectId', async () => {
+    // Both projects exist; the invitation is for projA, but the attacker
+    // crafts a request claiming projB. The handler must NOT add the caller
+    // to projB (cross-tenant write) and must NOT mutate either project.
+    fs.store.set('projects/projA', { name: 'Faena A', members: [], memberRoles: {} });
+    fs.store.set('projects/projB', { name: 'Faena B', members: [], memberRoles: {} });
+    fs.store.set('invitations/inv-cross', {
+      token: 'tk-cross',
+      status: 'pending',
+      invitedEmail: 'attacker@test.com',
+      invitedRole: 'gerente',
+      projectId: 'projA',
+      expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+    });
+    const res = await request(handle.app)
+      .post('/api/invitations/tk-cross/accept')
+      .set('Authorization', 'Bearer test:uid-attacker:attacker@test.com')
+      .send({ projectId: 'projB' });
+    expect([403, 404]).toContain(res.status);
+    // projB must NOT have been mutated — caller didn't gain membership.
+    const projB = fs.store.get('projects/projB') as any;
+    expect(projB.members ?? []).not.toContain('uid-attacker');
+    expect(projB.memberRoles?.['uid-attacker']).toBeUndefined();
+    // projA also must NOT have been mutated since the request was rejected.
+    const projA = fs.store.get('projects/projA') as any;
+    expect(projA.members ?? []).not.toContain('uid-attacker');
+    // Invitation must still be pending.
+    expect((fs.store.get('invitations/inv-cross') as any).status).toBe('pending');
+  });
+
   it('happy path: caller accepts → added to project members + invitation marked accepted', async () => {
     fs.store.set('projects/proj-1', { name: 'Faena Norte', members: [], memberRoles: {} });
     fs.store.set('invitations/inv-ok', {

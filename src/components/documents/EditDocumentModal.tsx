@@ -5,6 +5,8 @@ import { db, doc, updateDoc, handleFirestoreError, OperationType } from '../../s
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 
 import { saveForSync } from '../../utils/pwa-offline';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface Document {
   id: string;
@@ -28,6 +30,7 @@ interface EditDocumentModalProps {
 export function EditDocumentModal({ isOpen, onClose, document, projectId }: EditDocumentModalProps) {
   const [loading, setLoading] = useState(false);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
   const [formData, setFormData] = useState({
     name: '',
     type: 'PDF',
@@ -64,7 +67,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
             updatedAt: new Date().toISOString()
           }
         });
-        alert('Edición guardada para sincronización cuando haya conexión.');
+        showToast('Edición guardada para sincronización cuando haya conexión.', 'info');
       } else {
         const docRef = doc(db, `projects/${projectId}/documents`, document.id);
         await updateDoc(docRef, {
@@ -230,6 +233,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

@@ -6,6 +6,8 @@ import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { saveForSync } from '../../utils/pwa-offline';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface AddDocumentModalProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -80,7 +83,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
           file: file
         });
         
-        alert('Documento guardado para sincronización cuando haya conexión.');
+        showToast('Documento guardado para sincronización cuando haya conexión.', 'info');
       } else {
         // 1. Upload file to Firebase Storage
         const storageRef = ref(storage, storagePath);
@@ -280,6 +283,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

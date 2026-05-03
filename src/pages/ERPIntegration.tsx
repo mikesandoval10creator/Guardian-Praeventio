@@ -4,10 +4,13 @@ import { Database, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, Server, 
 import { Card, Button } from '../components/shared/Card';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function ERPIntegration() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -31,7 +34,7 @@ export function ERPIntegration() {
       setLastSync(new Date(data.data.timestamp).toLocaleString());
     } catch (error) {
       logger.error('Error syncing ERP:', error);
-      alert('Error al sincronizar con el ERP. Verifica la conexión con el servidor.');
+      showToast('Error al sincronizar con el ERP. Verifica la conexión con el servidor.', 'error');
     } finally {
       setIsSyncing(false);
     }
@@ -155,6 +158,7 @@ export function ERPIntegration() {
           </div>
         </Card>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

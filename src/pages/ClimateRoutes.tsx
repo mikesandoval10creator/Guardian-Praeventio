@@ -4,6 +4,8 @@ import { Map, Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermome
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, DirectionsRenderer } from '@react-google-maps/api';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 const containerStyle = {
   width: '100%',
@@ -19,6 +21,7 @@ export function ClimateRoutes() {
   const [routeStatus, setRouteStatus] = useState<'safe' | 'warning' | 'danger'>('warning');
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -50,7 +53,7 @@ export function ClimateRoutes() {
       setRouteStatus(statuses[Math.floor(Math.random() * statuses.length)]);
     } catch (error) {
       logger.error("Error calculating route:", error);
-      alert("No se pudo calcular la ruta. Verifica los lugares ingresados.");
+      showToast("No se pudo calcular la ruta. Verifica los lugares ingresados.", 'error');
     } finally {
       setIsCalculating(false);
     }
@@ -203,6 +206,7 @@ export function ClimateRoutes() {
           </div>
         </Card>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

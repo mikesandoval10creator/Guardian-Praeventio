@@ -111,3 +111,34 @@ export const webauthnRegisterLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'too_many_register_attempts', retryAfterMs: 60_000 },
 });
+
+// Per-IP rate limiter for the Google Play RTDN webhook (POST
+// /api/billing/webhook). The endpoint is already shared-secret gated
+// (?token=) and idempotent on messageId, but a flooder who somehow
+// learned the token could still burn Firestore reads/writes in a tight
+// loop. 10 req/min keyed on remote IP is well above legitimate Pub/Sub
+// push retry rates while capping abuse. We key on `req.ip` here (not
+// uid) because Pub/Sub deliveries are unauthenticated — the gate is the
+// shared secret, not a Bearer token.
+export const googlePlayWebhookLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? '') || 'unknown',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited' },
+});
+
+// Per-uid rate limiter for the ERP sync mock (POST /api/erp/sync).
+// 30 req/min keyed on the authenticated uid (verifyAuth runs first, so
+// req.user.uid is always present in the steady state); falls back to
+// req.ip for safety. Tight enough to catch run-away clients without
+// hampering legitimate batch syncs.
+export const erpSyncLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 30,
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'rate_limited' },
+});

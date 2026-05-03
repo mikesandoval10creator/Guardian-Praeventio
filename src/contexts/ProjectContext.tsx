@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useMe
 import { db, collection, onSnapshot, query, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
 import { usePendingActions } from '../hooks/usePendingActions';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 interface Project {
   id: string;
@@ -58,6 +60,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
   const { isAuthReady, user, isAdmin } = useFirebase();
   const pendingActions = usePendingActions('projects');
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const projects = useMemo(() => {
     let combined = [...fetchedProjects];
@@ -98,7 +101,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             members: [user?.uid]
           }
         });
-        alert('Proyecto guardado para sincronización cuando haya conexión.');
+        showToast('Proyecto guardado para sincronización cuando haya conexión.', 'info');
         return 'offline-id-' + Date.now();
       }
 
@@ -169,6 +172,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   return (
     <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading, error }}>
       {children}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </ProjectContext.Provider>
   );
 }

@@ -17,6 +17,8 @@ import { useProject } from '../../contexts/ProjectContext';
 import { db, collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, handleFirestoreError, OperationType, storage } from '../../services/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { logger } from '../../utils/logger';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface Message {
   id: string;
@@ -38,6 +40,7 @@ export function CrisisChat() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const { toasts, show: showToast, dismiss } = useToast();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -137,7 +140,7 @@ export function CrisisChat() {
       setIsRecording(true);
     } catch (err) {
       logger.error("Error accessing microphone:", err);
-      alert("No se pudo acceder al micrófono.");
+      showToast("No se pudo acceder al micrófono.", 'error');
     }
   };
 
@@ -171,7 +174,7 @@ export function CrisisChat() {
       });
     } catch (error) {
       logger.error("Error uploading audio:", error);
-      alert("Error al enviar el mensaje de voz.");
+      showToast("Error al enviar el mensaje de voz.", 'error');
     }
   };
 
@@ -355,6 +358,7 @@ export function CrisisChat() {
           Evacuación Completa
         </button>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

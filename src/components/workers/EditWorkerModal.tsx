@@ -4,6 +4,8 @@ import { X, User, Loader2 } from 'lucide-react';
 import { db, doc, updateDoc, handleFirestoreError, OperationType } from '../../services/firebase';
 import { Worker } from '../../types';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 interface EditWorkerModalProps {
   isOpen: boolean;
@@ -15,6 +17,7 @@ interface EditWorkerModalProps {
 export function EditWorkerModal({ isOpen, onClose, worker, projectId }: EditWorkerModalProps) {
   const [loading, setLoading] = useState(false);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
   const [formData, setFormData] = useState({
     name: '',
     role: '',
@@ -47,7 +50,7 @@ export function EditWorkerModal({ isOpen, onClose, worker, projectId }: EditWork
       const workerRef = doc(db, path, worker.id);
 
       if (!isOnline) {
-        alert('No hay conexión. La edición requiere conexión a internet.');
+        showToast('No hay conexión. La edición requiere conexión a internet.', 'warning');
         setLoading(false);
         return;
       }
@@ -221,6 +224,7 @@ export function EditWorkerModal({ isOpen, onClose, worker, projectId }: EditWork
           </motion.div>
         </motion.div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </AnimatePresence>
   );
 }

@@ -7,6 +7,8 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function KnowledgeIngestion() {
   const [text, setText] = useState('');
@@ -15,6 +17,7 @@ export function KnowledgeIngestion() {
   const [result, setResult] = useState<{ success: boolean; nodesAdded: number; message: string } | null>(null);
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -29,7 +32,7 @@ export function KnowledgeIngestion() {
     };
     reader.onerror = () => {
       setIsUploading(false);
-      alert('Error al leer el archivo');
+      showToast('Error al leer el archivo', 'error');
     };
     reader.readAsText(file);
   };
@@ -205,6 +208,7 @@ export function KnowledgeIngestion() {
           </div>
         </div>
       </div>
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
   );
 }

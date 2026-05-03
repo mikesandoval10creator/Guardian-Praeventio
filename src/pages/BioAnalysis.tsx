@@ -15,6 +15,8 @@ import { FaceLandmarker, PoseLandmarker, ObjectDetector, FilesetResolver, Drawin
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { logger } from '../utils/logger';
+import { useToast } from '../hooks/useToast';
+import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function BioAnalysis() {
   const { user } = useFirebase();
@@ -43,6 +45,7 @@ export function BioAnalysis() {
   const [wearableConnected, setWearableConnected] = useState(false);
   const [bodyTemp, setBodyTemp] = useState<number | null>(null);
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const connectWearable = async () => {
     try {
@@ -71,7 +74,7 @@ export function BioAnalysis() {
       
     } catch (error) {
       logger.error("Bluetooth error:", error);
-      alert("No se pudo conectar al wearable. Asegúrate de tener Bluetooth activado y permisos concedidos.");
+      showToast("No se pudo conectar al wearable. Asegúrate de tener Bluetooth activado y permisos concedidos.", 'error');
     }
   };
 
@@ -395,7 +398,7 @@ export function BioAnalysis() {
 
     } catch (error) {
       logger.error("Error analyzing image:", error);
-      alert("Error al analizar la imagen con IA.");
+      showToast("Error al analizar la imagen con IA.", 'error');
     } finally {
       setIsAiProcessing(false);
       setIsAnalyzing(false);
@@ -404,12 +407,12 @@ export function BioAnalysis() {
 
   const saveToRiskNetwork = async () => {
     if (!selectedProject || !user) {
-      alert("Selecciona un proyecto primero.");
+      showToast("Selecciona un proyecto primero.", 'warning');
       return;
     }
 
     if (alerts.length === 0) {
-      alert("No hay alertas críticas para guardar.");
+      showToast("No hay alertas críticas para guardar.", 'warning');
       return;
     }
 
@@ -438,10 +441,10 @@ export function BioAnalysis() {
           findingId: docRef.id
         }
       });
-      alert("Hallazgo guardado en la Red Neuronal y Hallazgos exitosamente.");
+      showToast("Hallazgo guardado en la Red Neuronal y Hallazgos exitosamente.", 'success');
     } catch (error) {
       logger.error("Error saving to Zettelkasten:", error);
-      alert("Error al guardar en la Red Neuronal.");
+      showToast("Error al guardar en la Red Neuronal.", 'error');
     }
   };
 
@@ -793,6 +796,7 @@ export function BioAnalysis() {
         onClose={() => setIsExercisesModalOpen(false)}
         metrics={metrics}
       />
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
     </PremiumFeatureGuard>
   );

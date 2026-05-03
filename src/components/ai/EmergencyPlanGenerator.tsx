@@ -11,6 +11,8 @@ import { Button } from '../shared/Card';
 import ReactMarkdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useToast } from '../../hooks/useToast';
+import { ToastContainer } from '../shared/ToastContainer';
 
 export function EmergencyPlanGenerator() {
   const [loading, setLoading] = useState(false);
@@ -21,6 +23,7 @@ export function EmergencyPlanGenerator() {
   const { user } = useFirebase();
   const { addNode } = useRiskEngine();
   const isOnline = useOnlineStatus();
+  const { toasts, show: showToast, dismiss } = useToast();
 
   const handleGenerate = async () => {
     if (!selectedProject || !isOnline) return;
@@ -193,7 +196,7 @@ export function EmergencyPlanGenerator() {
       setTimeout(() => setSavedToCloud(false), 3000);
     } catch (error) {
       logger.error("Error saving to cloud:", error);
-      alert('Error al guardar en la nube.');
+      showToast('Error al guardar en la nube.', 'error');
     } finally {
       setIsSavingToCloud(false);
     }
@@ -439,6 +442,7 @@ export function EmergencyPlanGenerator() {
           </div>
         </div>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </section>
   );
 }
