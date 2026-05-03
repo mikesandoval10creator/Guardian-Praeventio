@@ -1466,4 +1466,186 @@ describe('firestore.rules', () => {
       );
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Sprint 16 — organic structure top-level collections.
+  //
+  // Per ADR docs/architecture-decisions/0001-organic-collections-top-level.md,
+  // crews/processes/tasks live at the Firestore root with an explicit
+  // projectId field. Reads gate via isProjectMember(resource.data.projectId);
+  // writes for crews & processes are server-only (Admin SDK). Tasks allow
+  // project-member writes (validated separately by the route + rules).
+  // ─────────────────────────────────────────────────────────────────────
+  describe('crews/{crewId} — member-read + server-only writes', () => {
+    const PROJECT = 'organic-proj-1';
+    const MEMBER = 'organic-member-1';
+    const OUTSIDER = 'organic-outsider-1';
+
+    async function seedCrew(crewId: string) {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'crews', crewId), {
+          projectId: PROJECT,
+          name: 'Cuadrilla Alfa',
+          memberUids: [MEMBER],
+          createdAt: new Date().toISOString(),
+          totalProcessesCompleted: 0,
+          daysWithoutIncident: 0,
+          xp: 0,
+          lastIncidentAt: null,
+        });
+      });
+    }
+
+    it('allows a project member to read a crew in their project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      await seedCrew('crew-A');
+      const w = env.authenticatedContext(MEMBER, verifiedToken('worker'));
+      await assertSucceeds(getDoc(doc(w.firestore(), 'crews', 'crew-A')));
+    });
+
+    it('denies read to a worker NOT in the project (cross-tenant block)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      await seedCrew('crew-B');
+      const o = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(getDoc(doc(o.firestore(), 'crews', 'crew-B')));
+    });
+
+    it('denies create from any client — only the server may write', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(MEMBER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'crews', 'crew-attempt'), {
+          projectId: PROJECT,
+          name: 'cuadrilla forjada',
+          memberUids: [MEMBER],
+          createdAt: new Date().toISOString(),
+          totalProcessesCompleted: 0,
+          daysWithoutIncident: 0,
+          xp: 9999,
+          lastIncidentAt: null,
+        }),
+      );
+    });
+  });
+
+  describe('processes/{processId} — member-read + server-only writes', () => {
+    const PROJECT = 'organic-proj-2';
+    const MEMBER = 'organic-member-2';
+    const OUTSIDER = 'organic-outsider-2';
+
+    async function seedProcess(processId: string) {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'processes', processId), {
+          crewId: 'crew-X',
+          projectId: PROJECT,
+          type: 'concreto',
+          name: 'Hormigonado losa',
+          description: '',
+          startedAt: new Date().toISOString(),
+          endedAt: null,
+          plannedEndDate: null,
+          status: 'active',
+          complianceScore: 100,
+          incidentsDuringProcess: 0,
+          alertsResponded: 0,
+          xpAwardedAtClose: null,
+        });
+      });
+    }
+
+    it('allows a project member to read a process in their project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      await seedProcess('proc-A');
+      const w = env.authenticatedContext(MEMBER, verifiedToken('worker'));
+      await assertSucceeds(getDoc(doc(w.firestore(), 'processes', 'proc-A')));
+    });
+
+    it('denies read to a worker NOT in the project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      await seedProcess('proc-B');
+      const o = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(getDoc(doc(o.firestore(), 'processes', 'proc-B')));
+    });
+
+    it('denies create from any client — XP economy is server-managed', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      const w = env.authenticatedContext(MEMBER, verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'processes', 'proc-attempt'), {
+          crewId: 'crew-X',
+          projectId: PROJECT,
+          type: 'concreto',
+          name: 'forjado',
+          description: '',
+          startedAt: new Date().toISOString(),
+          endedAt: null,
+          plannedEndDate: null,
+          status: 'completed',
+          complianceScore: 100,
+          incidentsDuringProcess: 0,
+          alertsResponded: 999,
+          xpAwardedAtClose: 99999,
+        }),
+      );
+    });
+  });
+
+  describe('tasks/{taskId} — member-read + member-write within project', () => {
+    const PROJECT = 'organic-proj-3';
+    const MEMBER = 'organic-member-3';
+    const OUTSIDER = 'organic-outsider-3';
+
+    async function seedTask(taskId: string) {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'tasks', taskId), {
+          processId: 'proc-1',
+          crewId: 'crew-1',
+          projectId: PROJECT,
+          date: '2026-05-02',
+          description: 'Recibir hormigón',
+          assignedUids: [MEMBER],
+          status: 'pending',
+          completedAt: null,
+        });
+      });
+    }
+
+    it('allows a project member to read a task in their project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(MEMBER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      await seedTask('task-A');
+      const w = env.authenticatedContext(MEMBER, verifiedToken('worker'));
+      await assertSucceeds(getDoc(doc(w.firestore(), 'tasks', 'task-A')));
+    });
+
+    it('denies read to a worker NOT in the project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(OUTSIDER, 'worker');
+      await seedProject(PROJECT, [MEMBER]);
+      await seedTask('task-B');
+      const o = env.authenticatedContext(OUTSIDER, verifiedToken('worker'));
+      await assertFails(getDoc(doc(o.firestore(), 'tasks', 'task-B')));
+    });
+  });
 });
