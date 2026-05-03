@@ -16,7 +16,11 @@ import {
   AI_ANALYTICS_NODES,
 } from './index';
 
-const KEBAB_CASE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
+// Each segment is either lowercase kebab or an uppercase acronym (DS, ISO,
+// NIOSH, NFPA, OSHA, NCh, etc.) — normativa codes preserve their conventional
+// casing for readability ("norma-DS-594", "norma-ISO-45001"). Mixed-case
+// acronyms like "NCh" are also accepted.
+const KEBAB_CASE = /^[a-z][a-z0-9]*(-([a-z0-9]+|[A-Z][A-Za-z0-9]*))*$/;
 
 // Allowed source-citation prefixes. The Zettelkasten v2 spec lists a base set
 // (DS|ISO|NCh|NIOSH|OSHA|SUSESO|RFC|internal); Chilean/international OSH
