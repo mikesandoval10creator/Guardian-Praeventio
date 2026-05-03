@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { logger } from '../../utils/logger';
 import { windLoadOnSurface, windSpeedKmhToMs } from '../../services/physics/bernoulliEngine';
+import { generateScaffoldUpliftNode } from '../../services/zettelkasten/bernoulli';
 
 const WIND_PRESSURE_COEFF = 0.8; // Cp windward, según norma chilena NCh 432
 const newtonFormatter = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
@@ -22,6 +23,18 @@ export const StructuralCalculator: React.FC = () => {
     windSpeedKmhToMs(windSpeedKmh),
     WIND_PRESSURE_COEFF,
   );
+
+  // TODO Sprint 10+: replace this console emission with addNode() into Firestore via
+  // useRiskEngine. For now we wire the Bernoulli-driven scaffold-uplift generator so
+  // its output is observable in the engineer's dev console.
+  const scaffoldUpliftNode = generateScaffoldUpliftNode(
+    { id: 'structural-surface', areaM2: windAreaM2, pressureCoefficient: -1.0 },
+    { windKmh: windSpeedKmh },
+    { ratedCapacityN: 5_000, anchorCount: 4 },
+  );
+  if (scaffoldUpliftNode) {
+    logger.info('zettelkasten:scaffold-uplift', { node: scaffoldUpliftNode });
+  }
 
   const handleCalculate = async (e: React.FormEvent) => {
     e.preventDefault();

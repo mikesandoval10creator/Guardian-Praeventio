@@ -18,6 +18,7 @@ import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import { respiratorPressureDrop } from '../services/physics/bernoulliEngine';
+import { generatePulmonaryNode } from '../services/zettelkasten/bernoulli';
 
 // ATS/ERS spirometry guidelines (informational); NOT a clinical diagnosis.
 const PEF_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -62,6 +63,15 @@ export function BioAnalysis() {
     let drop = respiratorPressureDrop(PEF_FILTER_RESISTANCE_PA_S_PER_M3, flowM3PerS);
     const altitudeAdjusted = altitudeMasl > ALTITUDE_THRESHOLD_MASL;
     if (altitudeAdjusted) drop *= ALTITUDE_THIN_AIR_MULTIPLIER;
+    // TODO Sprint 10+: persist this pulmonary-altitude node via addNode() once the
+    // worker context is bound to the camera session. For now we emit to logger so the
+    // Bernoulli wiring is observable in the dev console.
+    const node = generatePulmonaryNode(
+      { id: 'bio-worker', pefLMin },
+      { masl: altitudeMasl },
+      { id: 'bio-mask', filterResistancePaSPerM3: PEF_FILTER_RESISTANCE_PA_S_PER_M3, criticalDropPa: PEF_FATIGUE_THRESHOLD_PA },
+    );
+    if (node) logger.info('zettelkasten:pulmonary-altitude', { node });
     return {
       flowM3PerS,
       dropPa: drop,

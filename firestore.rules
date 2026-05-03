@@ -118,13 +118,20 @@ service cloud.firestore {
     function isValidProject(data) {
       return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
              data.keys().hasOnly([
-               'name', 'members', 'status', 'createdAt', 'updatedAt',
-               'description', 'location', 'startDate', 'endDate',
+               // Core schema (matches Project interface in src/contexts/ProjectContext.tsx)
+               'name', 'description', 'location', 'coordinates',
+               'industry', 'status', 'startDate', 'endDate', 'clientName',
+               'riskLevel', 'workersCount', 'members',
+               'createdAt', 'createdBy', 'updatedAt', 'isPendingSync',
+               // Legal / SUSESO
+               'companyName', 'companyRut', 'companyAddress', 'mutualidad',
+               // Emergency + tracking
+               'phone', 'shiftStart', 'shiftEnd', 'trackCommute', 'settings',
+               // Future-proof slots used by some integrations
                'ownerUid', 'ownerEmail', 'organizationId', 'erpId',
                'tags', 'metadata', 'invitedEmails', 'photos',
                'archived', 'archivedAt', 'archivedBy',
-               'totalWorkers', 'safetyScore', 'lastIncidentAt',
-               'industry', 'riskLevel'
+               'safetyScore', 'lastIncidentAt'
              ]) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&

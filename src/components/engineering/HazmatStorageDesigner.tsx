@@ -5,6 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { logger } from '../../utils/logger';
 import { venturiFlowRate } from '../../services/physics/bernoulliEngine';
+import {
+  generateHazmatPipeNode,
+  generateMiningExtractionNode,
+} from '../../services/zettelkasten/bernoulli';
 
 // DS 594 Art. 35 — minimum air changes per hour for chemical storage
 const ACH_MIN_DS594 = 12;
@@ -45,6 +49,26 @@ export const HazmatStorageDesigner: React.FC = () => {
         AIR_DENSITY_KG_M3,
       );
       const ach = (q * 3600) / Number(roomVolumeM3);
+      // TODO Sprint 10+: replace these console logs with addNode() calls into Firestore
+      // via useRiskEngine. For now we surface the Bernoulli-driven Zettelkasten payloads
+      // so the integration site is wired and observable in the dev console.
+      const miningNode = generateMiningExtractionNode(
+        {
+          id: `hazmat-room-${storageType}`,
+          volumeM3: Number(roomVolumeM3),
+          inletAreaM2: Number(inletAreaA1),
+          throatAreaM2: Number(throatAreaA2),
+          deltaPPa: Number(deltaPPa),
+        },
+        { sensorId: 'hazmat-co-stub', measuredPpm: 0, oelPpm: 25 },
+      );
+      const pipeNode = generateHazmatPipeNode(
+        { id: 'hazmat-pipe-stub', velocityInMs: 0.5, velocityOutMs: 1.5, heightDeltaM: 0 },
+        { id: materialClass, densityKgM3: 870, vaporPressurePa: 10_000 },
+        { upstreamPressurePa: 200_000 },
+      );
+      if (miningNode) logger.info('zettelkasten:mining-extraction', { node: miningNode });
+      if (pipeNode) logger.info('zettelkasten:hazmat-pipe', { node: pipeNode });
       return { q, ach, compliant: ach >= ACH_MIN_DS594 };
     } catch (err) {
       logger.error(err);

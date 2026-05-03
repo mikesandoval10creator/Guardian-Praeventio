@@ -9,6 +9,7 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { logger } from '../../utils/logger';
 import { respiratorPressureDrop } from '../../services/physics/bernoulliEngine';
+import { generateRespiratorFatigueNode } from '../../services/zettelkasten/bernoulli';
 
 // NIOSH 42 CFR Part 84 — typical N95 filter resistance and resting breathing flow.
 const N95_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -32,6 +33,15 @@ function estimateRespiratorFatiguePercent(): { dropPa: number; sustainPercent: n
   // Heuristic: every Pa above the reference halves sustainable shift fraction.
   const raw = (1 - drop / FATIGUE_REFERENCE_DROP_PA) * 100;
   const clamped = Math.max(10, Math.min(100, raw));
+  // TODO Sprint 10+: persist this Zettelkasten node into Firestore via addNode() once
+  // the worker/mask IDs are bound to the analyzed image. For now we emit it to the
+  // logger so the wiring is observable.
+  const node = generateRespiratorFatigueNode(
+    { id: 'vision-worker', breathingFlowM3S: RESTING_FLOW_M3_PER_S },
+    { id: 'n95-vision', filterResistancePaSPerM3: N95_FILTER_RESISTANCE_PA_S_PER_M3, maxPressureDropPa: FATIGUE_REFERENCE_DROP_PA },
+    { temperatureC: 22 },
+  );
+  if (node) logger.info('zettelkasten:respirator-fatigue', { node });
   return { dropPa: drop, sustainPercent: clamped };
 }
 
