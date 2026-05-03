@@ -178,7 +178,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         className="relative pt-32 pb-20 px-5 sm:px-10 flex flex-col items-center text-center overflow-hidden"
       >
         {/* glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-teal-400/10 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-teal-400/5 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
 
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -232,12 +232,26 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       {/* ── TRUST BAR ───────────────────────────────────────────────── */}
       <div className="border-y border-white/5 py-5 px-5 sm:px-10">
         <ul className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-3 list-none p-0">
-          {COMPLIANCE_BADGES.map(label => (
-            <li key={label} className="flex items-center gap-2 text-zinc-500">
-              <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" aria-hidden="true" />
-              <span className="text-xs font-black uppercase tracking-widest">{label}</span>
-            </li>
-          ))}
+          {COMPLIANCE_BADGES.map(label => {
+            // Highlight the international standard with gold = prestige
+            const isInternational = label === 'ISO 45001';
+            return (
+              <li
+                key={label}
+                className={
+                  isInternational
+                    ? 'flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-petroleum-700 to-petroleum-900 border border-gold-400/30 text-gold-400'
+                    : 'flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-petroleum-700 to-petroleum-900 text-zinc-500'
+                }
+              >
+                <CheckCircle2
+                  className={isInternational ? 'w-3.5 h-3.5 text-gold-400' : 'w-3.5 h-3.5 text-teal-400'}
+                  aria-hidden="true"
+                />
+                <span className="text-xs font-black uppercase tracking-widest">{label}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
@@ -401,7 +415,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                   </div>
                 )}
                 {p.recommended && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold-400 text-petroleum-900 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
                     Recomendado
                   </div>
                 )}
