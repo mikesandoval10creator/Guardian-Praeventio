@@ -2,7 +2,7 @@
 
 ## Status
 
-**ESTE ARCHIVO ES UN ESQUELETO. La integración real con Transbank/Stripe está pendiente — ver TODOs.**
+**ESTE ARCHIVO ES UN ESQUELETO. La integración real con Transbank/Khipu/Google Play está pendiente — ver TODOs. Stripe fue descartado por decisión D3 (2026-05-03); no se reintroduce.**
 
 What is now landed:
 
@@ -10,8 +10,12 @@ What is now landed:
 - **Webpay (Transbank) — IMPLEMENTED (sandbox)**. Real adapter wired
   against `transbank-sdk` (`WebpayPlus.Transaction`); see "Webpay setup"
   below for the implementation status matrix.
-- Stripe adapter still a typed stub (every method throws
-  `StripeNotImplementedError`) — separate scope.
+- ~~Stripe adapter~~ **REMOVED — decisión D3 (2026-05-03).** Stripe queda
+  fuera del producto de forma definitiva. Las pasarelas oficiales son
+  Transbank/Webpay (CL web), Khipu (CL web alt) y Google Play Billing
+  (Android). iOS deferido. Cualquier referencia residual a Stripe en
+  esta página se mantiene como contexto histórico/migración pero no como
+  trabajo pendiente.
 - HTTP endpoints (`POST /api/billing/checkout`,
   `POST /api/billing/invoice/:id/mark-paid`,
   `GET /billing/webpay/return`) that persist invoices to a server-only
@@ -19,7 +23,8 @@ What is now landed:
 
 What is **not** here yet:
 
-- No `stripe` npm install.
+- No `stripe` npm install (y nunca lo habrá — D3).
+- No Khipu adapter aún (pendiente — pasarela CL alternativa a Webpay).
 - No SII boleta electrónica integration.
 - No `firestore.rules` change for `invoices/{id}` (intentional — the
   collection is admin-only and the default-deny rule keeps it that way).
@@ -43,17 +48,17 @@ What is **not** here yet:
                         │ status: pending-payment│    default-deny rule
                         └──────────┬─────────────┘
                                    │
-                  ┌────────────────┼────────────────┐
-                  ▼                ▼                ▼
-         ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-         │ webpayAdapter│  │ stripeAdapter│  │ manual-      │
-         │ (CLP)        │  │ (USD)        │  │ transfer     │
-         └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+                  ┌────────────┬────┴───┬────────────┐
+                  ▼            ▼        ▼            ▼
+         ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+         │ webpayAdapter│  │ khipuAdapter │  │ googlePlay   │  │ manual-      │
+         │ (CLP web)    │  │ (CLP web alt)│  │ Billing(AND) │  │ transfer     │
+         └──────┬───────┘  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+                │                 │                 │                 │
+        Webpay redirect      Khipu redirect     Play Billing     admin POST /mark-paid
+        + commitTransaction  + webhook          + RTDN webhook   (admin role gate)
                 │                 │                 │
-        Webpay redirect    Stripe Checkout    admin POST /mark-paid
-        + commitTransaction  + webhook            (admin role gate)
-                │                 │                 │
-                └─────────────────┴─────────────────┘
+                └────────────┴────────┴────────────┘
                                    │
                                    ▼
                          status: 'paid' / 'rejected'
@@ -64,7 +69,7 @@ What is **not** here yet:
 The Webpay redirect/return URL flow
 (`/billing/webpay/return` ← Transbank ← cardholder browser) is implemented,
 including `processed_webpay/{token_ws}` lock-then-complete idempotency.
-The Stripe redirect/webhook flow is still pending.
+The Khipu and Google Play Billing redirect/webhook flows are still pending.
 
 ---
 
@@ -80,8 +85,10 @@ The Stripe redirect/webhook flow is still pending.
     Reverse-engineering from those targets requires consistent ceiling.
 - **USD never carries Chilean IVA.** International invoices are exempt
   (export of services); local taxes (US sales tax, EU VAT, etc.) are the
-  customer's jurisdiction and Stripe handles them via Stripe Tax once
-  enabled.
+  customer's jurisdiction. Sin Stripe (D3): los impuestos por
+  jurisdicción internacional se manejarán contra factura manual o vía
+  Google Play Billing (que aplica tax automatically en Android consumer)
+  hasta que se evalúe una pasarela cross-border alternativa.
 - **Mixed-currency invoices are forbidden** — `calculateInvoiceTotals`
   throws if line items disagree on currency.
 
@@ -200,46 +207,43 @@ plumbed straight through to jose's `clockTolerance`.
 
 ---
 
-## Stripe setup (international USD path)
+## Khipu setup (CL web alternativa a Webpay)
 
-### Setup checklist
+### Pendiente — pasarela CL alternativa
 
-1. Create Stripe account; enable Stripe Tax for compliance.
-2. Create a Product per tier in the Stripe Dashboard (or via API).
-3. Create monthly + annual Prices for each Product. Note the `price_*`
-   IDs — these go in env vars, not the codebase, because Stripe is the
-   source of truth for the actual charge.
-4. Set env vars:
+Khipu permite pagos por transferencia bancaria CL sin pasar por la red
+de tarjetas (menores comisiones, ideal para B2B Titanio+ que ya usan
+transferencia manual). Cuando se implemente:
+
+1. Crear cuenta Khipu Cobros (<https://khipu.com/>).
+2. Generar `receiver_id` + `secret` (sandbox primero).
+3. Implementar `src/services/billing/khipuAdapter.ts` con
+   `createPayment()` (devuelve URL de pago) y `verifyNotification()`
+   (HMAC sobre payload del webhook Khipu).
+4. Variables de entorno:
 
    ```bash
-   STRIPE_SECRET_KEY=sk_live_...
-   STRIPE_WEBHOOK_SECRET=whsec_...
-   STRIPE_API_VERSION=2024-12-18.acacia    # pin deliberately
-   STRIPE_PRICE_COMITE_PARITARIO=price_...
-   STRIPE_PRICE_DEPARTAMENTO_PREVENCION=price_...
-   STRIPE_PRICE_PLATA=price_...
-   # ...one per tier id, uppercased with - → _
+   KHIPU_RECEIVER_ID=...
+   KHIPU_SECRET=...
+   KHIPU_ENV=integration            # o `production`
    ```
 
-5. `npm install stripe` (NOT yet installed).
-6. Implement `src/services/billing/stripeAdapter.stripe.ts` against the
-   `StripeAdapter` interface.
-7. Wire a webhook endpoint. Reuse the existing webhook hardening pattern
-   in `server.ts` (`/api/billing/webhook` for Google Play RTDN — see the
-   "lock-then-complete" idempotency block at the top of that handler).
-8. Stripe webhook signature validation **must** use the raw request body
-   — install `express.raw({ type: 'application/json' })` on the route
-   *only* (not globally) so the rest of the API still gets JSON parsing.
+5. Webhook: `POST /api/billing/khipu/webhook` con verificación HMAC
+   antes de tocar Firestore. Reusar el patrón
+   `processed_khipu/{notification_id}` (lock-then-complete) ya
+   establecido para Webpay/RTDN.
 
-### Webhook events to handle
+### Google Play Billing (Android consumer / B2B Android)
 
-| Event                              | Action                                              |
-| ---------------------------------- | --------------------------------------------------- |
-| `checkout.session.completed`       | Mark invoice `paid`, update user subscription       |
-| `invoice.payment_succeeded`        | (renewal) Extend subscription expiry                |
-| `invoice.payment_failed`           | Mark invoice `pending-payment`, notify customer     |
-| `customer.subscription.deleted`    | Downgrade user to `gratis` tier                     |
-| `charge.dispute.created`           | Audit log + alert finance via Resend                |
+Ya existe el handler RTDN (`/api/billing/webhook` en `server.ts`).
+Pendiente:
+
+1. Crear productos `subs` en Play Console por tier (gratis NO se crea —
+   Play exige producto pago).
+2. Linkear `purchaseToken` ↔ `invoices/{id}` durante el server-side
+   acknowledge.
+3. Manejar los 5 RTDN notification types (SUBSCRIPTION_PURCHASED,
+   RENEWED, IN_GRACE_PERIOD, CANCELED, EXPIRED) → status invoice.
 
 ---
 
@@ -308,9 +312,10 @@ Suggested document shape (matches `Invoice` type plus server stamps):
   createdBy, createdByEmail, createdAt,
   // After payment:
   paidAt?, paidBy?, paidByEmail?, paymentSource?,
-  // After Webpay/Stripe:
+  // After Webpay/Khipu/GooglePlay:
   webpayToken?, webpayAuthCode?,
-  stripeSessionId?, stripePaymentIntentId?,
+  khipuPaymentId?, khipuTransactionId?,
+  playPurchaseToken?, playOrderId?,
 }
 ```
 
@@ -347,18 +352,27 @@ The following must happen before this scaffolding is production-ready:
 - [ ] PDF receipt generation post-AUTHORIZED (boleta or temp receipt
       until SII integration lands).
 
-### Stripe
+### ~~Stripe~~ — DESCARTADO (D3, 2026-05-03)
 
-- [ ] `npm install stripe`.
-- [ ] Create Stripe products + prices for all 9 paid tiers (monthly +
-      annual = 18 prices).
-- [ ] Implement `StripeAdapter` against the SDK; pin `apiVersion`.
-- [ ] Add `POST /api/billing/stripe/webhook` with raw-body parsing
-      *only on that route* so signature verification works.
-- [ ] Implement the 5 webhook event handlers in the table above.
-- [ ] Enable Stripe Tax + Stripe Radar.
-- [ ] Add a "Manage subscription" customer portal link
-      (`stripe.billingPortal.sessions.create`).
+Decisión definitiva: Praeventio no usará Stripe. Las alternativas son:
+- **Khipu** (CL web alt — transferencia bancaria, sin red de tarjetas).
+- **Google Play Billing** (Android consumer).
+- iOS: diferido hasta primer cliente iOS confirmado.
+
+### Khipu (CL web alternativa)
+
+- [ ] Crear cuenta Khipu Cobros + sandbox.
+- [ ] Implementar `KhipuAdapter` (`createPayment` + `verifyNotification`).
+- [ ] `POST /api/billing/khipu/webhook` con verificación HMAC.
+- [ ] Idempotencia `processed_khipu/{notification_id}`.
+- [ ] Tests unitarios mockeados (siguiendo patrón `webpayAdapter.test.ts`).
+
+### Google Play Billing
+
+- [x] Handler RTDN (`/api/billing/webhook`) — ya en server.ts.
+- [ ] Crear productos `subs` por tier en Play Console.
+- [ ] Acknowledge server-side de `purchaseToken` → `invoices/{id}`.
+- [ ] Manejo completo de los 5 RTDN notification types.
 
 ### SII boleta electrónica
 
@@ -384,9 +398,9 @@ The following must happen before this scaffolding is production-ready:
 - [ ] Soft-delete + retention policy: invoices older than the SII
       retention window (6 years for tax docs in Chile) need an archival
       strategy — they should not just rot in Firestore.
-- [ ] PCI scope: keep all card data inside Webpay/Stripe hosted pages.
-      We must never receive a PAN. Add a CSP test asserting no
-      `card.stripe.com` iframes are loaded outside hosted checkout.
+- [ ] PCI scope: keep all card data inside Webpay hosted pages
+      (Khipu no maneja PAN — solo redirige a banca online del usuario).
+      We must never receive a PAN.
 - [ ] Email receipts via Resend (we already have it wired) — template
       the boleta PDF link + line items en español for CL, English for
       international.

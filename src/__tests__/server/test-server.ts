@@ -246,6 +246,15 @@ export interface TestServerDeps {
   }>;
   webhookSecret?: string;
   webpayConfigured?: boolean;
+  /**
+   * Sprint 10 — mock para `fetchEnvironmentContext` (orquestador). Permite
+   * a los tests verificar el flujo "Sentidos → Mente": clima + sismo se
+   * inyectan ANTES del RAG. Si no se provee, /api/ask-guardian se comporta
+   * como antes (legacy RAG-only).
+   */
+  fetchEnvironmentContext?: (lat: number, lon: number) => Promise<any>;
+  envContextEnabled?: boolean;
+  envContextTimeoutMs?: number;
 }
 
 export interface TestServerHandle {
@@ -312,6 +321,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       })),
     webhookSecret: overrides.webhookSecret ?? 'webhook-secret-test',
     webpayConfigured: overrides.webpayConfigured ?? true,
+    fetchEnvironmentContext: overrides.fetchEnvironmentContext,
+    envContextEnabled: overrides.envContextEnabled ?? true,
+    envContextTimeoutMs: overrides.envContextTimeoutMs ?? 2000,
   };
 
   const app = express();
@@ -1045,16 +1057,59 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   });
 
   // ─── /api/ask-guardian ──────────────────────────────────────────
-  // Minimal wiring test only — we mock the Gemini flow upstream.
+  // Sprint 10 — mirrors the production env-context injection. We don't
+  // call Gemini in tests; instead we surface the intermediate state
+  // (envContextUsed, envContextSnippet) so tests can assert that the
+  // orchestrator was invoked, skipped, or timed out as expected.
   app.post('/api/ask-guardian', verifyAuth, async (req, res) => {
-    const { query } = req.body ?? {};
+    const { query, projectId } = req.body ?? {};
     if (typeof query !== 'string' || query.length === 0) {
       return res.status(400).json({ error: 'query is required' });
     }
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }
-    res.json({ response: `Echo: ${query}`, contextUsed: false });
+
+    let envContextUsed = false;
+    let envContextSnippet: string | null = null;
+
+    if (deps.envContextEnabled && typeof projectId === 'string' && projectId.length > 0) {
+      const projectSnap = await deps.firestore.collection('projects').doc(projectId).get();
+      if (projectSnap.exists) {
+        const pdata = projectSnap.data() ?? {};
+        const lat = typeof pdata.lat === 'number' ? pdata.lat : pdata.location?.lat;
+        const lng = typeof pdata.lng === 'number' ? pdata.lng : pdata.location?.lng;
+        if (typeof lat === 'number' && typeof lng === 'number' && deps.fetchEnvironmentContext) {
+          try {
+            const timeoutMs = deps.envContextTimeoutMs ?? 2000;
+            const timeoutPromise = new Promise<null>((resolve) => {
+              setTimeout(() => resolve(null), timeoutMs);
+            });
+            const result = await Promise.race([
+              deps.fetchEnvironmentContext(lat, lng),
+              timeoutPromise,
+            ]);
+            if (result) {
+              const serialized = JSON.stringify(result);
+              envContextSnippet =
+                serialized.length > 500 ? serialized.slice(0, 497) + '...' : serialized;
+              envContextUsed = true;
+            } else {
+              console.warn('[ask-guardian] env-context timeout');
+            }
+          } catch {
+            console.warn('[ask-guardian] env-context timeout');
+          }
+        }
+      }
+    }
+
+    res.json({
+      response: `Echo: ${query}`,
+      contextUsed: false,
+      envContextUsed,
+      envContextSnippet,
+    });
   });
 
   // ─── /api/gemini ────────────────────────────────────────────────
