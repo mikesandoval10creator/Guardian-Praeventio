@@ -179,9 +179,39 @@ Server compute / Licencia**.
 
 ## 5. Arquitectura recomendada (multi-fase)
 
-### 5.1 Fase A — MVP en 2 semanas (sin GPU, sin cloud paga)
+### 5.1 Fase A — MVP en 2 semanas (sin GPU, sin cloud paga) — ✅ implementada al 2026-05-03
 
-**Stack**: MapLibre GL JS + three.js (ya instalado) + Firestore.
+**Stack final entregado**: `@react-google-maps/api` (ya instalado vía SiteMap)
++ Firestore + Bernoulli engine. Diferencia con la propuesta original (MapLibre):
+se usó Google Maps porque ya existía `VITE_GOOGLE_MAPS_API_KEY` y el componente
+`GoogleMap` con `tilt={45}` + `mapTypeId="hybrid"` cubre el efecto 2.5D sin
+sumar dependencias nuevas.
+
+**Archivos entregados (sprint 13, branch `dev/sprint-11-12-13-14-multi-2026-05-03`)**:
+
+- [`src/services/digitalTwin/siteGeometry.ts`](src/services/digitalTwin/siteGeometry.ts)
+  — modelo GeoJSON, paleta por tipo, centroide, `projectWindSuction`
+  acoplado a `bernoulliEngine.windLoadOnSurface`.
+- [`src/services/digitalTwin/siteGeometryStore.ts`](src/services/digitalTwin/siteGeometryStore.ts)
+  — `savePolygon` + `subscribeSiteGeometry` sobre
+  `tenants/{}/projects/{}/site_geometry/{geomId}`.
+- [`src/components/digital-twin/Site25DPanel.tsx`](src/components/digital-twin/Site25DPanel.tsx)
+  — panel "Mapa 2.5D del sitio" con drawing-manager, render por tipo y
+  leyenda Spanish-CL.
+- [`src/components/digital-twin/HazmatWindOverlay.tsx`](src/components/digital-twin/HazmatWindOverlay.tsx)
+  — halo downwind por polígono `hazard`, suscrito a
+  `UniversalKnowledgeContext`.
+- [`src/components/digital-twin/RiskNodeMarkers.tsx`](src/components/digital-twin/RiskNodeMarkers.tsx)
+  — pines coloreados por severidad desde
+  `tenants/{tenantId}/zettelkasten_nodes` (limit 100, orderBy createdAt desc).
+- [`src/pages/DigitalTwinFaena.tsx`](src/pages/DigitalTwinFaena.tsx)
+  — extendido con tabs "Reconstrucción 3D" / "Mapa 2.5D del sitio". Las
+  pestañas existentes (subida de video, lista de jobs, visor 3D) quedan
+  intactas.
+- [`src/components/digital-twin/Site25DPanel.test.tsx`](src/components/digital-twin/Site25DPanel.test.tsx)
+  — tests render + actualización del halo cuando cambia el viento.
+
+**Stack original propuesto (referencia)**: MapLibre GL JS + three.js (ya instalado) + Firestore.
 
 ```
 Usuario dibuja polígonos del sitio en mapa 2D
