@@ -2,10 +2,190 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
 import { useEmergency } from '../../contexts/EmergencyContext';
+import { useAppMode } from '../../contexts/AppModeContext';
+import { db, serverTimestamp } from '../../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
+
+// Sprint 14 — climate sub-type copy (Spanish UI). Centralized so future
+// sub-types (e.g., visibility, lightning) are added in one place.
+const CLIMATE_COPY: Record<'storm' | 'extreme_heat' | 'extreme_cold', { title: string; body: string }> = {
+  storm: {
+    title: '🌪️ TORMENTA DETECTADA',
+    body: 'Suspende trabajos en altura',
+  },
+  extreme_heat: {
+    title: '🥵 CALOR EXTREMO',
+    body: 'Hidratación obligatoria · pausas cada 20 min',
+  },
+  extreme_cold: {
+    title: '🥶 FRÍO EXTREMO',
+    body: 'Verifica EPP térmico',
+  },
+};
+
+const SISMO_AUTO_DISMISS_MS = 30_000;
+const CLIMATE_AUTO_DISMISS_MS = 60_000;
+
+interface SeismicLogPayload {
+  detectedAt: string;
+  peakG: number;
+  location: { lat: number; lng: number } | null;
+  tenantId: string;
+}
+
+/**
+ * Sprint 14 — Sismic overlay. Full-screen black takeover with the
+ * "Agáchate · Cúbrete · Sujétate" trio, optional Triángulo de la Vida tip
+ * (afternoon + indoor heuristic), and a 30s auto-dismiss / tap-to-dismiss.
+ *
+ * Persists one row to `tenants/{tenantId}/seismic_events/{id}` per trigger.
+ */
+function SismicAutoOverlay({
+  peakG,
+  onDismiss,
+  tenantId,
+}: {
+  peakG: number;
+  onDismiss: () => void;
+  tenantId: string;
+}): React.ReactElement {
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [logged, setLogged] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(onDismiss, SISMO_AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          setLocation({
+            lat: Number(pos.coords.latitude.toFixed(5)),
+            lng: Number(pos.coords.longitude.toFixed(5)),
+          }),
+        () => setLocation(null),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
+      );
+    }
+  }, []);
+
+  // Persist exactly once.
+  useEffect(() => {
+    if (logged) return;
+    setLogged(true);
+    const payload: SeismicLogPayload = {
+      detectedAt: new Date().toISOString(),
+      peakG,
+      location,
+      tenantId,
+    };
+    addDoc(collection(db, `tenants/${tenantId}/seismic_events`), {
+      ...payload,
+      createdAt: serverTimestamp(),
+    }).catch((err) =>
+      logger.warn('SismicAutoOverlay: failed to persist seismic_event', { err }),
+    );
+  }, [logged, peakG, location, tenantId]);
+
+  // Indoor heuristic: afternoon (12:00–20:00) + GPS at coarse fix is a weak
+  // proxy for "user is inside a building". Without a known-buildings index
+  // we surface the Triángulo de la Vida tip whenever both conditions hold.
+  const hour = new Date().getHours();
+  const isAfternoon = hour >= 12 && hour < 20;
+  const indoorLikely = isAfternoon && location !== null;
+
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center cursor-pointer"
+      aria-label="Cerrar alerta sísmica"
+    >
+      <div className="text-6xl md:text-8xl font-black mb-6">🟥 SISMO DETECTADO</div>
+      <div className="text-3xl md:text-5xl font-bold mb-4 text-red-400 uppercase tracking-widest">
+        Agáchate · Cúbrete · Sujétate
+      </div>
+      {indoorLikely && (
+        <div className="mt-6 max-w-2xl text-base md:text-xl text-amber-300 border-2 border-amber-500 rounded-2xl p-4">
+          Triángulo de la Vida: junto a un mueble sólido, NUNCA debajo. Cuello protegido.
+        </div>
+      )}
+      <div className="mt-8 text-sm text-zinc-500">Toca la pantalla para descartar</div>
+    </button>
+  );
+}
+
+/**
+ * Sprint 14 — Climate overlay. Routes by sub-type to the relevant copy,
+ * auto-dismisses after 60s OR when the user acknowledges with "Entendido".
+ */
+function ClimateAutoOverlay({
+  subType,
+  onDismiss,
+}: {
+  subType: 'storm' | 'extreme_heat' | 'extreme_cold';
+  onDismiss: () => void;
+}): React.ReactElement {
+  const copy = CLIMATE_COPY[subType];
+  useEffect(() => {
+    const t = setTimeout(onDismiss, CLIMATE_AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+  return (
+    <div
+      className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center"
+      role="alertdialog"
+      aria-label="Alerta climática"
+    >
+      <div className="text-5xl md:text-7xl font-black mb-6">{copy.title}</div>
+      <div className="text-2xl md:text-4xl font-bold mb-8 text-amber-300 max-w-3xl">
+        {copy.body}
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="bg-amber-500 hover:bg-amber-400 text-black px-10 py-4 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-lg"
+      >
+        Entendido
+      </button>
+    </div>
+  );
+}
 
 export function EmergencyOverlay() {
   const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
+  const { emergencyAutoEvent, dismissEmergency } = useAppMode();
+
+  // Sprint 14 — auto-monitor variants take precedence when their reason is
+  // present. The legacy `useEmergency` flow continues to drive the overlay
+  // when triggered manually or via the IoT critical path. Rendering happens
+  // BEFORE the early-returnless legacy branch so we can short-circuit.
+  if (emergencyAutoEvent) {
+    if (emergencyAutoEvent.reason === 'sismo') {
+      const tenantId =
+        (typeof window !== 'undefined' && (window as any).__GP_TENANT_ID__) || 'default';
+      return (
+        <SismicAutoOverlay
+          peakG={emergencyAutoEvent.peakG}
+          onDismiss={dismissEmergency}
+          tenantId={String(tenantId)}
+        />
+      );
+    }
+    if (emergencyAutoEvent.reason === 'climate' && emergencyAutoEvent.climateSubType) {
+      return (
+        <ClimateAutoOverlay
+          subType={emergencyAutoEvent.climateSubType}
+          onDismiss={dismissEmergency}
+        />
+      );
+    }
+    // Reason 'company' falls through to the legacy useEmergency-driven UI.
+  }
+
   const [isSafe, setIsSafe] = useState(false);
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);

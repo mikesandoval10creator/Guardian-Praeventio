@@ -184,11 +184,42 @@ export async function checkCompanyEmergency(): Promise<boolean> {
   return debounced('company', companyEmergencyActive);
 }
 
+/** Reason surfaced to the UI overlay. `sismo` and `company` win over `climate`
+ * when multiple predicates fire on the same tick (life-safety > weather). */
+export type EmergencyReason = 'sismo' | 'company' | 'climate';
+
+/** Climate sub-type — derived from the latest snapshot at trigger time so
+ * the overlay can pick the right copy ("storm" vs "extreme heat" vs
+ * "extreme cold"). `null` when the predicate did not fire on this tick. */
+export type ClimateSubType = 'storm' | 'extreme_heat' | 'extreme_cold' | null;
+
+export function deriveClimateSubType(snap: WeatherSnapshot): ClimateSubType {
+  const { windKmh, conditions, temperatureC } = snap;
+  if (
+    (windKmh != null && windKmh > 80) ||
+    (conditions != null && /storm|tornado|tormenta|tornad/i.test(conditions))
+  ) {
+    return 'storm';
+  }
+  if (temperatureC != null && temperatureC > 45) return 'extreme_heat';
+  if (temperatureC != null && temperatureC < -5) return 'extreme_cold';
+  return null;
+}
+
+export interface EmergencyTriggerEvent {
+  reason: EmergencyReason;
+  climateSubType: ClimateSubType;
+  peakG: number;
+  at: number;
+}
+
 /**
  * Starts the background monitor. Calls `onTrigger` on each rising edge
  * across any predicate. Returns a cleanup function.
  */
-export function startEmergencyMonitor(onTrigger: () => void): () => void {
+export function startEmergencyMonitor(
+  onTrigger: (evt?: EmergencyTriggerEvent) => void,
+): () => void {
   let cancelled = false;
   attachMotionListener();
 
@@ -200,7 +231,15 @@ export function startEmergencyMonitor(onTrigger: () => void): () => void {
         checkSismo(),
         checkCompanyEmergency(),
       ]);
-      if (climate || sismo || company) onTrigger();
+      if (sismo || company || climate) {
+        const reason: EmergencyReason = sismo ? 'sismo' : company ? 'company' : 'climate';
+        onTrigger({
+          reason,
+          climateSubType: reason === 'climate' ? deriveClimateSubType(weatherSnapshot) : null,
+          peakG: peakAccelG,
+          at: Date.now(),
+        });
+      }
     } catch {
       // Predicates must never throw, but be defensive.
     }

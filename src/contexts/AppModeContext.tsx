@@ -7,7 +7,10 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
-import { startEmergencyMonitor } from '../services/emergency/autoTrigger';
+import {
+  startEmergencyMonitor,
+  type EmergencyTriggerEvent,
+} from '../services/emergency/autoTrigger';
 
 /**
  * Guardian Praeventio — 4-mode UX infrastructure.
@@ -38,6 +41,12 @@ interface AppModeContextValue {
   setMode: (m: AppMode) => void;
   setAppearance: (a: AppAppearance) => void;
   emergencyAutoExpiresAt: Date | null;
+  /**
+   * Sprint 14 — set whenever the auto-monitor fires emergency mode. `null`
+   * when emergency was switched manually via `setMode('emergency')`. The
+   * EmergencyOverlay reads this to pick sismo vs climate vs company copy.
+   */
+  emergencyAutoEvent: EmergencyTriggerEvent | null;
   dismissEmergency: () => void;
 }
 
@@ -105,6 +114,7 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
   const [mode, setModeState] = useState<AppMode>(initial.mode);
   const [appearance, setAppearanceState] = useState<AppAppearance>(initial.appearance);
   const [emergencyAutoExpiresAt, setEmergencyAutoExpiresAt] = useState<Date | null>(null);
+  const [emergencyAutoEvent, setEmergencyAutoEvent] = useState<EmergencyTriggerEvent | null>(null);
 
   const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -168,9 +178,10 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
 
   // Mount the auto-emergency monitor once.
   useEffect(() => {
-    const cleanup = startEmergencyMonitor(() => {
+    const cleanup = startEmergencyMonitor((evt) => {
       setModeState('emergency');
       setEmergencyAutoExpiresAt(new Date(Date.now() + EMERGENCY_AUTO_TTL_MS));
+      setEmergencyAutoEvent(evt ?? null);
     });
     return cleanup;
   }, []);
@@ -180,6 +191,11 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
     // Manual switches never carry an auto-expiry.
     if (m !== 'emergency') {
       setEmergencyAutoExpiresAt(null);
+      setEmergencyAutoEvent(null);
+    } else {
+      // Manual emergency entry: clear any stale auto-event so the overlay
+      // falls back to its generic copy.
+      setEmergencyAutoEvent(null);
     }
     persist({ mode: m, appearance });
   }, [appearance]);
@@ -192,6 +208,7 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
   const dismissEmergency = useCallback((): void => {
     setModeState('normal');
     setEmergencyAutoExpiresAt(null);
+    setEmergencyAutoEvent(null);
     persist({ mode: 'normal', appearance });
   }, [appearance]);
 
@@ -201,6 +218,7 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
     setMode,
     setAppearance,
     emergencyAutoExpiresAt,
+    emergencyAutoEvent,
     dismissEmergency,
   };
 
