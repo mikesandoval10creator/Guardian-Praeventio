@@ -19,6 +19,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import { respiratorPressureDrop } from '../services/physics/bernoulliEngine';
 import { generatePulmonaryNode } from '../services/zettelkasten/bernoulli';
+import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
 
 // ATS/ERS spirometry guidelines (informational); NOT a clinical diagnosis.
 const PEF_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -71,7 +72,12 @@ export function BioAnalysis() {
       { masl: altitudeMasl },
       { id: 'bio-mask', filterResistancePaSPerM3: PEF_FILTER_RESISTANCE_PA_S_PER_M3, criticalDropPa: PEF_FATIGUE_THRESHOLD_PA },
     );
-    if (node) logger.info('zettelkasten:pulmonary-altitude', { node });
+    if (node) {
+      logger.info('zettelkasten:pulmonary-altitude', { node });
+      // Sprint 11: persistencia (debounce 2 s). Sin proyecto, no escribimos.
+      const projectId = selectedProject?.id;
+      if (projectId) writeNodesDebounced([node], { projectId });
+    }
     return {
       flowM3PerS,
       dropPa: drop,

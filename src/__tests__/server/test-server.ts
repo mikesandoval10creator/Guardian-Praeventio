@@ -1271,5 +1271,129 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     res.status(200).json({ success: true, planId });
   });
 
+  // ─── /api/zettelkasten/nodes (Sprint 11) ───────────────────────────
+  // Mirrors src/server/routes/zettelkasten.ts. The production handler
+  // uses a per-uid express-rate-limit (30 req / 15 min); aquí lo
+  // emulamos con un Map<uid, count> para no introducir dependencias
+  // de timers cross-test. Cada test instancia un buildTestServer nuevo
+  // ⇒ contador limpio.
+  const zkRateBuckets = new Map<string, number>();
+  const ZK_LIMIT = 30;
+  const VALID_ZK_TYPES = new Set([
+    'hidrante-pressure',
+    'misting-suppression',
+    'scaffold-uplift',
+    'confined-space-vent',
+    'gas-leak-anomaly',
+    'mining-extraction',
+    'hazmat-pipe',
+    'structural-wind',
+    'respirator-fatigue',
+    'pulmonary-altitude',
+    'micro-wind-energy',
+    'slope-stability',
+    'slam-mesh',
+    'dike-hydrostatic',
+    'gas-dispersion',
+  ]);
+  const VALID_ZK_SEVERITIES = new Set(['info', 'low', 'medium', 'high', 'critical']);
+  const ZK_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;
+
+  app.post('/api/zettelkasten/nodes', verifyAuth, async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const callerEmail = (req as any).user.email ?? null;
+
+    // Rate-limit por uid.
+    const count = (zkRateBuckets.get(callerUid) ?? 0) + 1;
+    zkRateBuckets.set(callerUid, count);
+    if (count > ZK_LIMIT) {
+      return res.status(429).json({ error: 'rate_limited' });
+    }
+
+    const { projectId, nodes } = req.body ?? {};
+    if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
+      return res.status(400).json({ error: 'Invalid projectId' });
+    }
+    if (!Array.isArray(nodes) || nodes.length === 0 || nodes.length > 32) {
+      return res.status(400).json({ error: 'nodes must be a non-empty array (≤32)' });
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (!n || typeof n !== 'object') {
+        return res.status(400).json({ error: `nodes[${i}] not an object` });
+      }
+      if (typeof n.title !== 'string' || n.title.length === 0 || n.title.length > 256) {
+        return res.status(400).json({ error: `nodes[${i}].title invalid` });
+      }
+      if (typeof n.description !== 'string' || n.description.length === 0 || n.description.length > 4096) {
+        return res.status(400).json({ error: `nodes[${i}].description invalid` });
+      }
+      if (typeof n.type !== 'string' || !VALID_ZK_TYPES.has(n.type)) {
+        return res.status(400).json({ error: `nodes[${i}].type invalid` });
+      }
+      if (typeof n.severity !== 'string' || !VALID_ZK_SEVERITIES.has(n.severity)) {
+        return res.status(400).json({ error: `nodes[${i}].severity invalid` });
+      }
+      if (!n.metadata || typeof n.metadata !== 'object' || Array.isArray(n.metadata)) {
+        return res.status(400).json({ error: `nodes[${i}].metadata invalid` });
+      }
+      if (!Array.isArray(n.connections)) {
+        return res.status(400).json({ error: `nodes[${i}].connections invalid` });
+      }
+      if (!Array.isArray(n.references)) {
+        return res.status(400).json({ error: `nodes[${i}].references invalid` });
+      }
+      if (typeof n.idempotencyKey !== 'string' || !ZK_ID_REGEX.test(n.idempotencyKey)) {
+        return res.status(400).json({ error: `nodes[${i}].idempotencyKey invalid` });
+      }
+    }
+
+    try {
+      await assertProjectMember(callerUid, projectId, deps.firestore as any);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    const written: string[] = [];
+    for (const node of nodes) {
+      await deps.firestore
+        .collection('zettelkasten_nodes')
+        .doc(node.idempotencyKey)
+        .set(
+          {
+            title: node.title,
+            description: node.description,
+            type: node.type,
+            severity: node.severity,
+            metadata: node.metadata,
+            connections: node.connections,
+            references: node.references,
+            projectId,
+            createdBy: callerUid,
+            createdByEmail: callerEmail,
+            idempotencyKey: node.idempotencyKey,
+          },
+          { merge: true },
+        );
+      await deps.firestore.collection('audit_logs').add({
+        action: 'zettelkasten.node.write',
+        module: 'zettelkasten',
+        details: {
+          nodeId: node.idempotencyKey,
+          type: node.type,
+          severity: node.severity,
+        },
+        userId: callerUid,
+        userEmail: callerEmail,
+        projectId,
+      });
+      written.push(node.idempotencyKey);
+    }
+    res.json({ success: true, count: written.length, ids: written });
+  });
+
   return { app, deps };
 }

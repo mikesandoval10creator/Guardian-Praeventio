@@ -10,6 +10,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { logger } from '../../utils/logger';
 import { respiratorPressureDrop } from '../../services/physics/bernoulliEngine';
 import { generateRespiratorFatigueNode } from '../../services/zettelkasten/bernoulli';
+import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 
 // NIOSH 42 CFR Part 84 — typical N95 filter resistance and resting breathing flow.
 const N95_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -28,20 +29,24 @@ function detectsRespirator(result: { eppDetected: string[]; risksDetected: strin
   return RESPIRATOR_KEYWORDS.some((k) => haystack.includes(k));
 }
 
-function estimateRespiratorFatiguePercent(): { dropPa: number; sustainPercent: number } {
+function estimateRespiratorFatiguePercent(
+  projectId: string | null,
+): { dropPa: number; sustainPercent: number } {
   const drop = respiratorPressureDrop(N95_FILTER_RESISTANCE_PA_S_PER_M3, RESTING_FLOW_M3_PER_S);
   // Heuristic: every Pa above the reference halves sustainable shift fraction.
   const raw = (1 - drop / FATIGUE_REFERENCE_DROP_PA) * 100;
   const clamped = Math.max(10, Math.min(100, raw));
-  // TODO Sprint 10+: persist this Zettelkasten node into Firestore via addNode() once
-  // the worker/mask IDs are bound to the analyzed image. For now we emit it to the
-  // logger so the wiring is observable.
+  // Sprint 11: el nodo Bernoulli aterriza en zettelkasten_nodes/{idempotencyKey}
+  // via writeNodesDebounced (2 s). Mantenemos el logger.info como debug aid.
   const node = generateRespiratorFatigueNode(
     { id: 'vision-worker', breathingFlowM3S: RESTING_FLOW_M3_PER_S },
     { id: 'n95-vision', filterResistancePaSPerM3: N95_FILTER_RESISTANCE_PA_S_PER_M3, maxPressureDropPa: FATIGUE_REFERENCE_DROP_PA },
     { temperatureC: 22 },
   );
-  if (node) logger.info('zettelkasten:respirator-fatigue', { node });
+  if (node) {
+    logger.info('zettelkasten:respirator-fatigue', { node });
+    if (projectId) writeNodesDebounced([node], { projectId });
+  }
   return { dropPa: drop, sustainPercent: clamped };
 }
 
@@ -288,7 +293,7 @@ export function VisionAnalyzer() {
                 </div>
 
                 {detectsRespirator(result) && (() => {
-                  const fatigue = estimateRespiratorFatiguePercent();
+                  const fatigue = estimateRespiratorFatiguePercent(selectedProject?.id ?? null);
                   return (
                     <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4">
                       <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">

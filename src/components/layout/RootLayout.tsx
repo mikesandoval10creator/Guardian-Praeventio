@@ -26,6 +26,8 @@ import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
 import { ModeSwitcher } from '../shared/ModeSwitcher';
+import { SOSButton } from '../emergency/SOSButton';
+import { EmergencyAutoBridge } from '../emergency/EmergencyAutoBridge';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -339,6 +341,11 @@ export function RootLayout() {
       <div className="fixed bottom-4 right-4 z-50 pointer-events-auto">
         <ModeSwitcher />
       </div>
+
+      {/* Sprint 14 — emergency bridge subscribes weather/company/motion to autoTrigger;
+          SOSButton renders only in emergency mode. */}
+      <EmergencyAutoBridge />
+      <SOSButton />
     </div>
   );
 }

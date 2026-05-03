@@ -9,6 +9,8 @@ import {
   generateHazmatPipeNode,
   generateMiningExtractionNode,
 } from '../../services/zettelkasten/bernoulli';
+import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
+import { useProject } from '../../contexts/ProjectContext';
 
 // DS 594 Art. 35 — minimum air changes per hour for chemical storage
 const ACH_MIN_DS594 = 12;
@@ -32,6 +34,7 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [inletAreaA1, setInletAreaA1] = useState<number | ''>(0.4);
   const [throatAreaA2, setThroatAreaA2] = useState<number | ''>(0.1);
   const [deltaPPa, setDeltaPPa] = useState<number | ''>(50);
+  const { selectedProject } = useProject();
 
   const venturiResult = useMemo(() => {
     if (
@@ -69,12 +72,21 @@ export const HazmatStorageDesigner: React.FC = () => {
       );
       if (miningNode) logger.info('zettelkasten:mining-extraction', { node: miningNode });
       if (pipeNode) logger.info('zettelkasten:hazmat-pipe', { node: pipeNode });
+      // Sprint 11: persistir nodos en zettelkasten_nodes (debounce 2 s).
+      // Saltamos limpiamente si no hay proyecto seleccionado.
+      const projectId = selectedProject?.id;
+      if (projectId) {
+        const batch = [miningNode, pipeNode].filter(
+          (n): n is NonNullable<typeof n> => Boolean(n),
+        );
+        if (batch.length > 0) writeNodesDebounced(batch, { projectId });
+      }
       return { q, ach, compliant: ach >= ACH_MIN_DS594 };
     } catch (err) {
       logger.error(err);
       return null;
     }
-  }, [roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa]);
+  }, [roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, materialClass, storageType, selectedProject?.id]);
 
   const handleDesign = async (e: React.FormEvent) => {
     e.preventDefault();

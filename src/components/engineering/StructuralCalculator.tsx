@@ -6,6 +6,8 @@ import ReactMarkdown from 'react-markdown';
 import { logger } from '../../utils/logger';
 import { windLoadOnSurface, windSpeedKmhToMs } from '../../services/physics/bernoulliEngine';
 import { generateScaffoldUpliftNode } from '../../services/zettelkasten/bernoulli';
+import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
+import { useProject } from '../../contexts/ProjectContext';
 
 const WIND_PRESSURE_COEFF = 0.8; // Cp windward, según norma chilena NCh 432
 const newtonFormatter = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
@@ -17,6 +19,7 @@ export const StructuralCalculator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [windAreaM2, setWindAreaM2] = useState<number>(20);
   const [windSpeedKmh, setWindSpeedKmh] = useState<number>(90);
+  const { selectedProject } = useProject();
 
   const windForceN = windLoadOnSurface(
     windAreaM2,
@@ -34,6 +37,9 @@ export const StructuralCalculator: React.FC = () => {
   );
   if (scaffoldUpliftNode) {
     logger.info('zettelkasten:scaffold-uplift', { node: scaffoldUpliftNode });
+    // Sprint 11: persistencia debounceada (2 s). Sin proyecto, no escribimos.
+    const projectId = selectedProject?.id;
+    if (projectId) writeNodesDebounced([scaffoldUpliftNode], { projectId });
   }
 
   const handleCalculate = async (e: React.FormEvent) => {
