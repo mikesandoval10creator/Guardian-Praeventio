@@ -6,8 +6,9 @@ import { OrbitControls, Grid, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 import {
   Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
-  Video, Clock, Eye, RefreshCw, Trash2, Info
+  Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
 } from 'lucide-react';
+import { Site25DPanel } from '../components/digital-twin/Site25DPanel';
 import { auth, storage, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -105,6 +106,7 @@ export function DigitalTwinFaena() {
   const { toasts, show, dismiss } = useToast();
   const reducedMotion = useReducedMotion();
 
+  const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d'>('reconstruction');
   const [mode, setMode] = useState<ProcessingMode>('gpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
@@ -242,7 +244,48 @@ export function DigitalTwinFaena() {
         </button>
       </div>
 
-      {/* Main grid */}
+      {/* Tabs */}
+      <div
+        role="tablist"
+        aria-label="Vistas del gemelo digital"
+        className="flex items-center gap-1 px-4 sm:px-6 pt-3 border-b border-white/5 bg-zinc-900/60 shrink-0"
+      >
+        <button
+          role="tab"
+          aria-selected={activeTab === 'reconstruction'}
+          onClick={() => setActiveTab('reconstruction')}
+          className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
+            activeTab === 'reconstruction'
+              ? 'bg-zinc-950 text-cyan-300 border-x border-t border-white/10'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+          Reconstrucción 3D
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'site25d'}
+          onClick={() => setActiveTab('site25d')}
+          className={`flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-t-lg transition-colors ${
+            activeTab === 'site25d'
+              ? 'bg-zinc-950 text-cyan-300 border-x border-t border-white/10'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <MapIcon className="w-3.5 h-3.5" aria-hidden="true" />
+          Mapa 2.5D del sitio
+        </button>
+      </div>
+
+      {activeTab === 'site25d' ? (
+        <div className="flex-1 p-4 sm:p-6 overflow-hidden">
+          <div className="h-full bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden">
+            <Site25DPanel />
+          </div>
+        </div>
+      ) : (
+      /* Main grid */
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 sm:p-6 overflow-hidden">
         {/* LEFT: Upload + Job list */}
         <aside className="space-y-4 overflow-y-auto pr-1">
@@ -492,6 +535,7 @@ export function DigitalTwinFaena() {
           </div>
         </section>
       </div>
+      )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
     </div>
