@@ -19,6 +19,7 @@ import { GeolocationTracker } from "./components/GeolocationTracker";
 import { SurvivalPing } from "./components/SurvivalPing";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
 import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonitor";
+import { DrivingSuggestion } from "./components/driving/DrivingSuggestion";
 import { PWAUpdateToast } from "./components/shared/PWAUpdateToast";
 import { WisdomCapsuleWatcher } from "./components/shared/WisdomCapsuleWatcher";
 
@@ -125,6 +126,7 @@ function AppRoutes() {
       <GeolocationTracker />
       <EmergencyOverlay />
       <FallDetectionMonitor />
+      <DrivingSuggestion />
       <GeofenceAlert />
       <WisdomCapsuleWatcher />
       <Suspense fallback={<ConsciousnessLoader />}>

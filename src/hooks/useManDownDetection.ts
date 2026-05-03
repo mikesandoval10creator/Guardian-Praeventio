@@ -243,10 +243,16 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         timestamp: serverTimestamp()
       });
 
-      // 3. Create auditable mandown_event for supervisor acknowledgment tracking
-      const eventRef = await addDoc(
-        collection(db, `projects/${selectedProject.id}/mandown_events`),
+      // 3. Create auditable mandown_event for supervisor acknowledgment tracking.
+      //
+      // Sprint 12 — when an `accidente de trayecto` commute session is active
+      // for this project, decorate the event with `tipo: 'trayecto'` so
+      // SUSESO reporting (Ley 16.744) can classify it without a follow-up
+      // form. The tag is informational; the lifecycle remains the same.
+      const { tagIncidentTipo, getActiveSession } = await import('../services/driving/commuteSession');
+      const tagged = tagIncidentTipo(
         {
+          projectId: selectedProject.id,
           workerId: user.uid,
           workerName: user.displayName ?? null,
           location,
@@ -254,7 +260,12 @@ export function useManDownDetection(options: ManDownOptions = {}) {
           triggeredAt: serverTimestamp(),
           acknowledgedBy: null,
           acknowledgedAt: null,
-        }
+        },
+        getActiveSession(),
+      );
+      const eventRef = await addDoc(
+        collection(db, `projects/${selectedProject.id}/mandown_events`),
+        tagged,
       );
       mandownEventRef.current = { projectId: selectedProject.id, docId: eventRef.id };
 
