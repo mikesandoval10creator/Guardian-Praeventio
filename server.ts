@@ -52,6 +52,7 @@ import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
 import subscriptionRouter from "./src/server/routes/subscription.js";
+import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -340,6 +341,12 @@ app.use('/api/invitations', invitationsRouter);
 // + AI Safety Coach (coach/chat with assertProjectMemberFromBody guard)
 // extracted to src/server/routes/gamification.ts. Final paths preserved.
 app.use('/api', gamificationRouter);
+
+// Sprint 11 — POST /api/zettelkasten/nodes. Persists Bernoulli-driven
+// risk nodes from the 4 client integrations (HazmatStorageDesigner,
+// StructuralCalculator, VisionAnalyzer, BioAnalysis) with audit trail.
+// Reuses verifyAuth + assertProjectMember + zettelkastenWriteLimiter.
+app.use('/api/zettelkasten', zettelkastenRouter);
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
