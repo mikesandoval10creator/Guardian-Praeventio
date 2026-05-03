@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, ArrowRight, CheckCircle2, Timer, Activity, Heart, Shield } from 'lucide-react';
+import { Sun, ArrowRight, CheckCircle2, Timer, Activity, Heart, Shield, BookOpen, Sparkles } from 'lucide-react';
 import { Card } from '../shared/Card';
+import { WisdomCapsule } from '../shared/WisdomCapsule';
+import { auth } from '../../services/firebase';
+import { useProject } from '../../contexts/ProjectContext';
 
 interface Stretch {
   id: string;
@@ -47,11 +50,78 @@ const STRETCHES: Stretch[] = [
   }
 ];
 
+interface CapsuleResp {
+  title: string;
+  body: string;
+  durationSeconds: number;
+  sourceNodes: string[];
+  xpReward: number;
+}
+
 export function MorningRoutine() {
   const [step, setStep] = useState<'intro' | 'active' | 'complete'>('intro');
   const [currentStretchIndex, setCurrentStretchIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isActive, setIsActive] = useState(false);
+
+  // Sprint 16 — Cápsula de Sabiduría slot.
+  const { selectedProject } = useProject();
+  const [capsule, setCapsule] = useState<CapsuleResp | null>(null);
+  const [capsuleLoading, setCapsuleLoading] = useState(false);
+  const [capsuleAcked, setCapsuleAcked] = useState(false);
+  const [capsuleAckXp, setCapsuleAckXp] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!selectedProject?.id) return;
+      setCapsuleLoading(true);
+      try {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const res = await fetch(
+          `/api/wisdom-capsule/today?projectId=${encodeURIComponent(selectedProject.id)}&date=${today}`,
+          { headers: { Authorization: `Bearer ${idToken}` } }
+        );
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!cancelled) setCapsule(j.capsule ?? null);
+      } catch {
+        // silent — slot degrades gracefully when network/Firestore unavailable
+      } finally {
+        if (!cancelled) setCapsuleLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProject?.id]);
+
+  const ackCapsule = async () => {
+    if (!selectedProject?.id || capsuleAcked) return;
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await fetch('/api/wisdom-capsule/ack', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ projectId: selectedProject.id, date: today }),
+      });
+      if (res.ok) {
+        const j = await res.json();
+        setCapsuleAcked(true);
+        setCapsuleAckXp(j.xpAwarded ?? 0);
+      }
+    } catch {
+      // best-effort
+    }
+  };
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -104,6 +174,54 @@ export function MorningRoutine() {
             <p className="text-sm text-zinc-400 leading-relaxed">
               Prepara tu cuerpo para la jornada. Estas elongaciones reducen el riesgo de lesiones musculoesqueléticas y mejoran tu enfoque.
             </p>
+
+            {/* Sprint 16 — Cápsula de Sabiduría slot */}
+            {(capsule || capsuleLoading) && (
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-amber-400" />
+                  <h4 className="text-[11px] font-black text-amber-400 uppercase tracking-widest">
+                    Cápsula de Sabiduría
+                  </h4>
+                </div>
+                {capsuleLoading && !capsule && (
+                  <p className="text-xs text-zinc-400">Cargando cápsula…</p>
+                )}
+                {capsule && (
+                  <>
+                    <div>
+                      <p className="text-sm font-bold text-white mb-1">{capsule.title}</p>
+                      <p className="text-xs text-zinc-300 leading-relaxed">{capsule.body}</p>
+                    </div>
+                    <button
+                      onClick={ackCapsule}
+                      disabled={capsuleAcked}
+                      className={`w-full py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
+                        capsuleAcked
+                          ? 'bg-emerald-500/20 text-emerald-300 cursor-default'
+                          : 'bg-amber-500 hover:bg-amber-600 text-zinc-950'
+                      }`}
+                    >
+                      {capsuleAcked ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Entendido {capsuleAckXp ? `+${capsuleAckXp} XP` : ''}
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Marcar entendido
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            {/* Random motivational quote keeps the existing widget contract */}
+            {!selectedProject?.id && (
+              <WisdomCapsule />
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-white/5 border border-white/10">
