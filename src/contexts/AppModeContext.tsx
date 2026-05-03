@@ -1,0 +1,214 @@
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  ReactNode,
+} from 'react';
+import { startEmergencyMonitor } from '../services/emergency/autoTrigger';
+
+/**
+ * Guardian Praeventio — 4-mode UX infrastructure.
+ *
+ * Modes (see BRAND.md):
+ *   - normal    : daily use; respects `appearance` (light/dark/auto).
+ *   - driving   : automotive cognitive profile; auto-flips day/night via CSS.
+ *   - emergency : SOS overlay; max contrast; auto-expires after 1 h when
+ *                 triggered by the auto-monitor (manual switch never
+ *                 expires automatically).
+ *
+ * Persistence: only `mode` + `appearance` are stored under
+ * `gp.appmode.v1`. Emergency state is intentionally event-driven — never
+ * persisted — so a hard reload can never resurrect a stale emergency.
+ */
+
+export type AppMode = 'normal' | 'driving' | 'emergency';
+export type AppAppearance = 'light' | 'dark' | 'auto';
+
+interface PersistedState {
+  mode: AppMode;
+  appearance: AppAppearance;
+}
+
+interface AppModeContextValue {
+  mode: AppMode;
+  appearance: AppAppearance;
+  setMode: (m: AppMode) => void;
+  setAppearance: (a: AppAppearance) => void;
+  emergencyAutoExpiresAt: Date | null;
+  dismissEmergency: () => void;
+}
+
+const STORAGE_KEY = 'gp.appmode.v1';
+const EMERGENCY_AUTO_TTL_MS = 60 * 60 * 1000; // 1h
+
+const AppModeContext = createContext<AppModeContextValue | null>(null);
+
+const DEFAULT_STATE: PersistedState = {
+  mode: 'normal',
+  appearance: 'auto',
+};
+
+function loadPersisted(): PersistedState {
+  if (typeof window === 'undefined') return DEFAULT_STATE;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_STATE;
+    const parsed = JSON.parse(raw) as Partial<PersistedState>;
+    const mode: AppMode =
+      parsed.mode === 'driving' || parsed.mode === 'emergency' || parsed.mode === 'normal'
+        ? parsed.mode
+        : 'normal';
+    const appearance: AppAppearance =
+      parsed.appearance === 'light' ||
+      parsed.appearance === 'dark' ||
+      parsed.appearance === 'auto'
+        ? parsed.appearance
+        : 'auto';
+    // Defensive: never resurrect emergency from storage.
+    return { mode: mode === 'emergency' ? 'normal' : mode, appearance };
+  } catch {
+    return DEFAULT_STATE;
+  }
+}
+
+function persist(state: PersistedState): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // Never persist emergency.
+    const safe: PersistedState = {
+      mode: state.mode === 'emergency' ? 'normal' : state.mode,
+      appearance: state.appearance,
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(safe));
+  } catch {
+    // Storage may be unavailable (private mode, quota). Non-fatal.
+  }
+}
+
+function resolveAppearanceIsDark(appearance: AppAppearance): boolean {
+  if (appearance === 'dark') return true;
+  if (appearance === 'light') return false;
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/** Removes any mode-related class from <html> so they cannot stack. */
+function clearModeClasses(root: HTMLElement): void {
+  root.classList.remove('dark', 'driving', 'emergency', 'driving-force-day');
+}
+
+export function AppModeProvider({ children }: { children: ReactNode }): React.ReactElement {
+  const initial = loadPersisted();
+  const [mode, setModeState] = useState<AppMode>(initial.mode);
+  const [appearance, setAppearanceState] = useState<AppAppearance>(initial.appearance);
+  const [emergencyAutoExpiresAt, setEmergencyAutoExpiresAt] = useState<Date | null>(null);
+
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Apply <html> classes whenever mode/appearance changes.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    clearModeClasses(root);
+
+    if (mode === 'driving') {
+      root.classList.add('driving');
+    } else if (mode === 'emergency') {
+      root.classList.add('emergency');
+    } else {
+      // mode === 'normal' — apply dark when appearance resolves to dark
+      if (resolveAppearanceIsDark(appearance)) {
+        root.classList.add('dark');
+      }
+    }
+  }, [mode, appearance]);
+
+  // React to system appearance changes when appearance === 'auto'.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (mode !== 'normal' || appearance !== 'auto') return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (): void => {
+      const root = document.documentElement;
+      if (mq.matches) root.classList.add('dark');
+      else root.classList.remove('dark');
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, [mode, appearance]);
+
+  // Auto-expire emergency 1h after the auto-trigger fired.
+  useEffect(() => {
+    if (expiryTimerRef.current) {
+      clearTimeout(expiryTimerRef.current);
+      expiryTimerRef.current = null;
+    }
+    if (mode === 'emergency' && emergencyAutoExpiresAt) {
+      const ms = emergencyAutoExpiresAt.getTime() - Date.now();
+      if (ms <= 0) {
+        setModeState('normal');
+        setEmergencyAutoExpiresAt(null);
+      } else {
+        expiryTimerRef.current = setTimeout(() => {
+          setModeState('normal');
+          setEmergencyAutoExpiresAt(null);
+        }, ms);
+      }
+    }
+    return () => {
+      if (expiryTimerRef.current) {
+        clearTimeout(expiryTimerRef.current);
+        expiryTimerRef.current = null;
+      }
+    };
+  }, [mode, emergencyAutoExpiresAt]);
+
+  // Mount the auto-emergency monitor once.
+  useEffect(() => {
+    const cleanup = startEmergencyMonitor(() => {
+      setModeState('emergency');
+      setEmergencyAutoExpiresAt(new Date(Date.now() + EMERGENCY_AUTO_TTL_MS));
+    });
+    return cleanup;
+  }, []);
+
+  const setMode = useCallback((m: AppMode): void => {
+    setModeState(m);
+    // Manual switches never carry an auto-expiry.
+    if (m !== 'emergency') {
+      setEmergencyAutoExpiresAt(null);
+    }
+    persist({ mode: m, appearance });
+  }, [appearance]);
+
+  const setAppearance = useCallback((a: AppAppearance): void => {
+    setAppearanceState(a);
+    persist({ mode, appearance: a });
+  }, [mode]);
+
+  const dismissEmergency = useCallback((): void => {
+    setModeState('normal');
+    setEmergencyAutoExpiresAt(null);
+    persist({ mode: 'normal', appearance });
+  }, [appearance]);
+
+  const value: AppModeContextValue = {
+    mode,
+    appearance,
+    setMode,
+    setAppearance,
+    emergencyAutoExpiresAt,
+    dismissEmergency,
+  };
+
+  return <AppModeContext.Provider value={value}>{children}</AppModeContext.Provider>;
+}
+
+export function useAppMode(): AppModeContextValue {
+  const ctx = useContext(AppModeContext);
+  if (!ctx) throw new Error('useAppMode must be used inside <AppModeProvider>');
+  return ctx;
+}

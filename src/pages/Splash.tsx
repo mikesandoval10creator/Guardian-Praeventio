@@ -6,7 +6,7 @@ interface SplashProps {
 
 export function Splash({ onEnter }: SplashProps) {
   return (
-    <div className="min-h-screen bg-[#58D66D] flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
+    <div className="min-h-screen bg-teal-400 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

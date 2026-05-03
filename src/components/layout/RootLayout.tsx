@@ -25,6 +25,7 @@ import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
+import { ModeSwitcher } from '../shared/ModeSwitcher';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -289,7 +290,7 @@ export function RootLayout() {
           ) : (
             <button
               onClick={() => navigate('/login')}
-              className="flex items-center gap-2 bg-[#58D66D] hover:bg-[#4bc95e] px-3 py-2 rounded-xl cursor-pointer transition-all shadow-sm"
+              className="flex items-center gap-2 bg-teal-400 hover:bg-teal-500 px-3 py-2 rounded-xl cursor-pointer transition-all shadow-sm"
             >
               <UserIcon className="w-4 h-4 text-zinc-950" />
               <span className="hidden sm:block text-[11px] font-black uppercase tracking-wider text-zinc-950">Iniciar sesión</span>
@@ -333,6 +334,11 @@ export function RootLayout() {
       <AsesorChat />
       <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
       <SmartConnectionsPanel />
+
+      {/* 4-mode UX dock — floating, post-login only (RootLayout never renders on landing). */}
+      <div className="fixed bottom-4 right-4 z-50 pointer-events-auto">
+        <ModeSwitcher />
+      </div>
     </div>
   );
 }

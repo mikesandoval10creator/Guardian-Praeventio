@@ -23,7 +23,7 @@ export default defineConfig(({mode}) => {
           name: 'Guardian Praeventio',
           short_name: 'Praeventio',
           description: 'Plataforma de Prevención de Riesgos Laborales con IA — Cumplimiento DS 54, DS 40, Ley 16.744',
-          theme_color: '#58D66D',
+          theme_color: '#4db6ac',
           background_color: '#18181b',
           display: 'standalone',
           lang: 'es-CL',

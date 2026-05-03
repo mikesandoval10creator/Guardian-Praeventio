@@ -149,11 +149,11 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       {/* ── NAV ─────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 sm:px-10 py-4 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-[#58D66D] flex items-center justify-center" aria-hidden="true">
+          <div className="w-8 h-8 rounded-xl bg-teal-400 flex items-center justify-center" aria-hidden="true">
             <ShieldAlert className="w-4 h-4 text-zinc-950" />
           </div>
           <span className="font-black text-base tracking-tight">
-            <span className="text-[#58D66D]">Guardian</span> Praeventio
+            <span className="text-teal-400">Guardian</span> Praeventio
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -165,7 +165,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </button>
           <button
             onClick={handleEnter}
-            className="bg-[#58D66D] hover:bg-[#4bc95e] text-zinc-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
+            className="bg-teal-400 hover:bg-teal-500 text-zinc-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
           >
             Entrar
           </button>
@@ -178,7 +178,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         className="relative pt-32 pb-20 px-5 sm:px-10 flex flex-col items-center text-center overflow-hidden"
       >
         {/* glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#58D66D]/10 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-teal-400/5 rounded-full blur-[120px] pointer-events-none" aria-hidden="true" />
 
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -186,14 +186,14 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           transition={{ duration: 0.7 }}
           className="relative z-10 max-w-4xl mx-auto"
         >
-          <div className="inline-flex items-center gap-2 bg-[#58D66D]/10 border border-[#58D66D]/30 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-[#58D66D] mb-6">
+          <div className="inline-flex items-center gap-2 bg-teal-400/10 border border-teal-400/30 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-teal-400 mb-6">
             <Star className="w-3 h-3 fill-current" aria-hidden="true" />
             Cumplimiento DS 54 · DS 40 · Ley 16.744
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-black tracking-tighter leading-none mb-6">
             La revolución de la<br />
-            <span className="text-[#58D66D]">prevención de riesgos</span>
+            <span className="text-teal-400">prevención de riesgos</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-300 max-w-2xl mx-auto mb-4 leading-relaxed font-semibold">
@@ -209,7 +209,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={handleEnter}
-              className="w-full sm:w-auto flex items-center justify-center gap-3 bg-[#58D66D] hover:bg-[#4bc95e] text-zinc-950 px-8 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-lg shadow-[#58D66D]/20 transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-3 bg-teal-400 hover:bg-teal-500 text-zinc-950 px-8 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-lg shadow-teal-400/20 transition-all"
             >
               <Play className="w-4 h-4 fill-current" aria-hidden="true" />
               Entrar a la app
@@ -232,12 +232,26 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       {/* ── TRUST BAR ───────────────────────────────────────────────── */}
       <div className="border-y border-white/5 py-5 px-5 sm:px-10">
         <ul className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-3 list-none p-0">
-          {COMPLIANCE_BADGES.map(label => (
-            <li key={label} className="flex items-center gap-2 text-zinc-500">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[#58D66D]" aria-hidden="true" />
-              <span className="text-xs font-black uppercase tracking-widest">{label}</span>
-            </li>
-          ))}
+          {COMPLIANCE_BADGES.map(label => {
+            // Highlight the international standard with gold = prestige
+            const isInternational = label === 'ISO 45001';
+            return (
+              <li
+                key={label}
+                className={
+                  isInternational
+                    ? 'flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-petroleum-700 to-petroleum-900 border border-gold-400/30 text-gold-400'
+                    : 'flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-petroleum-700 to-petroleum-900 text-zinc-500'
+                }
+              >
+                <CheckCircle2
+                  className={isInternational ? 'w-3.5 h-3.5 text-gold-400' : 'w-3.5 h-3.5 text-teal-400'}
+                  aria-hidden="true"
+                />
+                <span className="text-xs font-black uppercase tracking-widest">{label}</span>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
@@ -246,7 +260,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" aria-hidden="true" />
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-[#58D66D] mb-3">El problema</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">El problema</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-5 leading-tight">
               Por qué Guardian
             </h2>
@@ -276,10 +290,10 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             </div>
 
             {/* AFTER */}
-            <div className="bg-[#58D66D]/5 border border-[#58D66D]/30 rounded-2xl p-5 shadow-lg shadow-[#58D66D]/5">
-              <p className="text-[10px] font-black uppercase tracking-widest text-[#58D66D] mb-4">Con Guardian</p>
+            <div className="bg-teal-400/5 border border-teal-400/30 rounded-2xl p-5 shadow-lg shadow-teal-400/5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-4">Con Guardian</p>
               <div className="flex items-center gap-2 mb-3">
-                <CheckCircle2 className="w-4 h-4 text-[#58D66D]" aria-hidden="true" />
+                <CheckCircle2 className="w-4 h-4 text-teal-400" aria-hidden="true" />
                 <span className="text-sm font-black text-white">Tiempo real</span>
               </div>
               {/* mini mock chart */}
@@ -287,13 +301,13 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                 {[40, 65, 50, 80, 60, 90, 75].map((h, i) => (
                   <div
                     key={i}
-                    className="flex-1 rounded-t bg-gradient-to-t from-[#58D66D]/40 to-[#58D66D]"
+                    className="flex-1 rounded-t bg-gradient-to-t from-teal-400/40 to-teal-400"
                     style={{ height: `${h}%` }}
                   />
                 ))}
               </div>
               <div className="flex items-center gap-2 text-zinc-300">
-                <Activity className="w-3.5 h-3.5 text-[#58D66D]" aria-hidden="true" />
+                <Activity className="w-3.5 h-3.5 text-teal-400" aria-hidden="true" />
                 <span className="text-xs font-bold">Patrones detectados por IA</span>
               </div>
             </div>
@@ -338,7 +352,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       <motion.section {...sectionMotion} className="py-20 px-5 sm:px-10 bg-zinc-900/30 border-y border-white/5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
-            <p className="text-[11px] font-black uppercase tracking-widest text-[#58D66D] mb-3">Flujo simple</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">Flujo simple</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-3">
               Cómo funciona
             </h2>
@@ -350,7 +364,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* connector line — desktop only */}
             <div
-              className="hidden md:block absolute top-[34px] left-[16%] right-[16%] h-px bg-gradient-to-r from-[#58D66D]/0 via-[#58D66D]/40 to-[#58D66D]/0"
+              className="hidden md:block absolute top-[34px] left-[16%] right-[16%] h-px bg-gradient-to-r from-teal-400/0 via-teal-400/40 to-teal-400/0"
               aria-hidden="true"
             />
 
@@ -360,12 +374,12 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                 className="relative bg-zinc-900 border border-white/5 rounded-2xl p-6 flex flex-col items-start gap-3"
               >
                 <div className="flex items-center gap-3 w-full">
-                  <div className="w-12 h-12 rounded-full bg-[#58D66D] text-zinc-950 font-black text-lg flex items-center justify-center shadow-lg shadow-[#58D66D]/30 flex-shrink-0" aria-hidden="true">
+                  <div className="w-12 h-12 rounded-full bg-teal-400 text-zinc-950 font-black text-lg flex items-center justify-center shadow-lg shadow-teal-400/30 flex-shrink-0" aria-hidden="true">
                     {s.n}
                   </div>
-                  <s.icon className="w-5 h-5 text-[#58D66D]" aria-hidden="true" />
+                  <s.icon className="w-5 h-5 text-teal-400" aria-hidden="true" />
                   {i < HOW_STEPS.length - 1 && (
-                    <ArrowRight className="hidden md:block w-5 h-5 text-[#58D66D]/40 ml-auto" aria-hidden="true" />
+                    <ArrowRight className="hidden md:block w-5 h-5 text-teal-400/40 ml-auto" aria-hidden="true" />
                   )}
                 </div>
                 <h3 className="font-black text-xl tracking-tight mt-2">{s.title}</h3>
@@ -401,7 +415,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                   </div>
                 )}
                 {p.recommended && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold-400 text-petroleum-900 px-3 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
                     Recomendado
                   </div>
                 )}
@@ -424,8 +438,8 @@ export function LandingPage({ onEnter }: LandingPageProps) {
       {/* ── CTA FINAL ───────────────────────────────────────────────── */}
       <motion.section {...sectionMotion} className="py-24 px-5 sm:px-10 text-center">
         <div className="max-w-2xl mx-auto">
-          <div className="w-16 h-16 rounded-3xl bg-[#58D66D]/10 border border-[#58D66D]/30 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
-            <ShieldAlert className="w-8 h-8 text-[#58D66D]" />
+          <div className="w-16 h-16 rounded-3xl bg-teal-400/10 border border-teal-400/30 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
+            <ShieldAlert className="w-8 h-8 text-teal-400" />
           </div>
           <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">
             Empieza hoy.<br />Es gratis.
@@ -437,7 +451,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleEnter}
-            className="inline-flex items-center gap-3 bg-[#58D66D] hover:bg-[#4bc95e] text-zinc-950 px-10 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-xl shadow-[#58D66D]/20 transition-all"
+            className="inline-flex items-center gap-3 bg-teal-400 hover:bg-teal-500 text-zinc-950 px-10 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-xl shadow-teal-400/20 transition-all"
           >
             <Play className="w-4 h-4 fill-current" aria-hidden="true" />
             Abrir Guardian Praeventio
@@ -450,7 +464,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-6 h-6 rounded-lg bg-[#58D66D] flex items-center justify-center" aria-hidden="true">
+              <div className="w-6 h-6 rounded-lg bg-teal-400 flex items-center justify-center" aria-hidden="true">
                 <ShieldAlert className="w-3 h-3 text-zinc-950" />
               </div>
               <span className="text-xs font-black text-zinc-300">GUARDIAN PRAEVENTIO</span>
