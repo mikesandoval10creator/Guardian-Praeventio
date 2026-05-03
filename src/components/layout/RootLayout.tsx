@@ -28,6 +28,10 @@ import { CookieConsent } from '../legal/CookieConsent';
 import { ModeSwitcher } from '../shared/ModeSwitcher';
 import { SOSButton } from '../emergency/SOSButton';
 import { EmergencyAutoBridge } from '../emergency/EmergencyAutoBridge';
+import { AlertSchedulerMount } from '../predictive/AlertSchedulerMount';
+import { useProject } from '../../contexts/ProjectContext';
+import { collection, onSnapshot, query, where, limit } from 'firebase/firestore';
+import { db as firestoreDb } from '../../services/firebase';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -346,6 +350,49 @@ export function RootLayout() {
           SOSButton renders only in emergency mode. */}
       <EmergencyAutoBridge />
       <SOSButton />
+
+      {/* Sprint 16 — predictive-alert scheduler. Mounts only when both a
+          project AND a crew are resolved; renders nothing in the DOM. */}
+      <PredictiveSchedulerSlot />
     </div>
+  );
+}
+
+/**
+ * Sprint 16 — thin wrapper that resolves the first crew in the selected
+ * project and only mounts AlertSchedulerMount when both ids exist.
+ * Probes are empty by default; upstream autonomous-alerts pipelines can
+ * inject probes via a future context. The empty-probes path keeps
+ * evaluation cheap (early-return inside the scheduler).
+ */
+function PredictiveSchedulerSlot() {
+  const { selectedProject } = useProject();
+  const [crewId, setCrewId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedProject?.id) {
+      setCrewId(null);
+      return;
+    }
+    const q = query(
+      collection(firestoreDb, 'crews'),
+      where('projectId', '==', selectedProject.id),
+      limit(1),
+    );
+    const un = onSnapshot(
+      q,
+      (snap) => setCrewId(snap.empty ? null : snap.docs[0].id),
+      () => setCrewId(null),
+    );
+    return () => un();
+  }, [selectedProject?.id]);
+
+  if (!selectedProject?.id || !crewId) return null;
+  return (
+    <AlertSchedulerMount
+      projectId={selectedProject.id}
+      crewId={crewId}
+      probes={[]}
+    />
   );
 }

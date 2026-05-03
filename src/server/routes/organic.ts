@@ -256,6 +256,85 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
   }
 });
 
+/**
+ * Sprint 16 — POST /api/predictive-alerts/ack
+ *   body: { projectId, crewId, generatorId }
+ *
+ * Marks a predictive alert as "Atendida" by the calling user's crew,
+ * increments `processes.alertsResponded` for any active process owned
+ * by the crew, and awards 30 XP (XP_AMOUNTS.evadir_riesgo_predictivo)
+ * to the crew. Always positive — alerts NEVER deduct XP.
+ */
+router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, res) => {
+  const uid = (req as any).user.uid;
+  const { projectId, crewId, generatorId } = req.body ?? {};
+  if (typeof projectId !== 'string' || !projectId) {
+    return res.status(400).json({ error: 'projectId required' });
+  }
+  if (typeof crewId !== 'string' || !crewId) {
+    return res.status(400).json({ error: 'crewId required' });
+  }
+  if (typeof generatorId !== 'string' || !generatorId) {
+    return res.status(400).json({ error: 'generatorId required' });
+  }
+  try {
+    const db = admin.firestore();
+    await assertProjectMember(uid, projectId, db);
+
+    const crewRef = db.collection('crews').doc(crewId);
+    let xpAwarded = 0;
+    await db.runTransaction(async (tx) => {
+      const cs = await tx.get(crewRef);
+      if (!cs.exists) return;
+      const c = cs.data() as { xp: number; projectId: string };
+      if (c.projectId !== projectId) return; // tenant guard
+      tx.update(crewRef, { xp: (c.xp ?? 0) + 30 });
+      xpAwarded = 30;
+    });
+
+    // Best-effort: increment alertsResponded on any active process for
+    // this crew so the close-XP formula picks up the bonus too.
+    try {
+      const procs = await db
+        .collection('processes')
+        .where('crewId', '==', crewId)
+        .where('status', '==', 'active')
+        .limit(1)
+        .get();
+      if (!procs.empty) {
+        const ref = procs.docs[0].ref;
+        await ref.update({
+          alertsResponded: admin.firestore.FieldValue.increment(1),
+        });
+      }
+    } catch {
+      // non-fatal
+    }
+
+    // Audit trail (lightweight): record the ack event so the dashboard
+    // can show "respondida por la cuadrilla X a las Y".
+    try {
+      await db.collection('predictive_alert_acks').add({
+        projectId,
+        crewId,
+        generatorId,
+        ackedBy: uid,
+        ackedAt: admin.firestore.FieldValue.serverTimestamp(),
+        xpAwarded,
+      });
+    } catch {
+      // non-fatal
+    }
+
+    res.json({ success: true, xpAwarded, reason: 'evadir_riesgo_predictivo' });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    res.status(500).json({ error: err?.message ?? 'internal' });
+  }
+});
+
 router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
   const uid = (req as any).user.uid;
   const taskId = req.params.id;
