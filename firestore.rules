@@ -117,7 +117,15 @@ service cloud.firestore {
 
     function isValidProject(data) {
       return data.keys().hasAll(['name', 'members', 'status', 'createdAt']) &&
-             data.keys().size() <= 25 &&
+             data.keys().hasOnly([
+               'name', 'members', 'status', 'createdAt', 'updatedAt',
+               'description', 'location', 'startDate', 'endDate',
+               'ownerUid', 'ownerEmail', 'organizationId', 'erpId',
+               'tags', 'metadata', 'invitedEmails', 'photos',
+               'archived', 'archivedAt', 'archivedBy',
+               'totalWorkers', 'safetyScore', 'lastIncidentAt',
+               'industry', 'riskLevel'
+             ]) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.members is list && data.members.size() <= 500 &&
              data.status in ['active', 'completed', 'archived'] &&
@@ -316,7 +324,13 @@ service cloud.firestore {
 
     match /telemetry_events/{eventId} {
       allow read: if isAdmin() || isSupervisor();
-      allow create: if isEmailVerified();
+      // Client-side creates are forbidden. Telemetry must flow through
+      // /api/telemetry/ingest, which verifies a per-tenant HMAC-SHA256
+      // signature over the canonical body before the admin SDK writes
+      // here. Letting clients write directly bypasses HMAC and
+      // cross-tenant guards. See src/server/middleware/canonicalBody.ts
+      // and the rules tests in src/rules-tests/firestore.rules.test.ts.
+      allow create: if false;
     }
 
     match /training/{sessionId} {
