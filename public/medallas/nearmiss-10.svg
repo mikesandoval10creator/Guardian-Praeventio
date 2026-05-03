@@ -14,10 +14,15 @@
   <path d="M82 30 L128 110 L174 30 L160 30 L128 80 L96 30 Z" fill="url(#ribbon5)"/>
   <circle cx="128" cy="148" r="78" fill="url(#g5)" stroke="#172554" stroke-width="3"/>
   <circle cx="128" cy="148" r="62" fill="none" stroke="#bfdbfe" stroke-width="2" opacity="0.8"/>
-  <!-- Eye / observation icon -->
-  <ellipse cx="128" cy="148" rx="34" ry="20" fill="#eff6ff" stroke="#172554" stroke-width="2"/>
-  <circle cx="128" cy="148" r="10" fill="#172554"/>
-  <circle cx="124" cy="144" r="3" fill="#bfdbfe"/>
+  <!-- Magnifying glass icon (lupa) — semantic: inspeccionar, examinar, reportar near-miss -->
+  <g stroke="#172554" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Lens -->
+    <circle cx="118" cy="138" r="26" fill="#eff6ff"/>
+    <!-- Highlight curve on lens -->
+    <path d="M104 128 a18 18 0 0 1 8 -8" stroke="#bfdbfe" stroke-width="3" opacity="0.9" fill="none"/>
+    <!-- Handle -->
+    <line x1="138" y1="158" x2="160" y2="180" fill="none"/>
+  </g>
   <text x="128" y="232" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
         font-weight="800" font-size="13" fill="#172554">10 near-miss reportados</text>
 </svg>
