@@ -18,6 +18,48 @@
   --color-brand-petroleum-mid: #0a2e42;
   --color-brand-gold: #d4af37;        /* Dark mode accent */
 
+  /* ─────────────────────────────────────────────────────────────────
+     Scaled brand palette (50-900) — split-complementary harmony:
+     teal (primary) + petroleum (structural) + gold (prestige).
+     Generated from base swatches and verified for AA contrast.
+     ───────────────────────────────────────────────────────────────── */
+
+  /* Teal scale — generated from #4db6ac base */
+  --color-teal-50:  #f0fbf9;
+  --color-teal-100: #d6f3ee;
+  --color-teal-200: #a6e4dc;
+  --color-teal-300: #74d0c5;
+  --color-teal-400: #4db6ac;  /* base — caballito de batalla */
+  --color-teal-500: #3a9d93;  /* hover-deeper */
+  --color-teal-600: #2e8079;
+  --color-teal-700: #266761;
+  --color-teal-800: #1f534f;
+  --color-teal-900: #163936;
+
+  /* Petroleum scale — generated from #061f2d base */
+  --color-petroleum-50:  #e8eef2;
+  --color-petroleum-100: #c5d3dd;
+  --color-petroleum-200: #8fa9ba;
+  --color-petroleum-300: #597f96;
+  --color-petroleum-400: #2e5a72;
+  --color-petroleum-500: #1c4258;
+  --color-petroleum-600: #0f3245;
+  --color-petroleum-700: #0a2e42;  /* mid (alias preserved) */
+  --color-petroleum-800: #061f2d;  /* deep — brand base */
+  --color-petroleum-900: #020c12;  /* ultra-deep */
+
+  /* Gold scale — generated from #d4af37 base */
+  --color-gold-50:  #fdf8e7;
+  --color-gold-100: #faecbc;
+  --color-gold-200: #f5db83;
+  --color-gold-300: #ecc556;
+  --color-gold-400: #d4af37;  /* base */
+  --color-gold-500: #b8942a;
+  --color-gold-600: #957521;
+  --color-gold-700: #735a1a;
+  --color-gold-800: #5a4615;
+  --color-gold-900: #3e3010;
+
   @keyframes marquee {
     0% { transform: translateX(0); }
     100% { transform: translateX(calc(-50% - 4px)); }
@@ -69,7 +111,7 @@
     border-color: rgba(212, 175, 55, 0.3) !important; /* Gold with opacity */
   }
   
-  .dark .hover\:border-emerald-500\/30:hover {
+  .dark .hover\:border-teal-400\/30:hover {
     border-color: rgba(212, 175, 55, 0.6) !important;
   }
 
