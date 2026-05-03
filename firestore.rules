@@ -340,6 +340,17 @@ service cloud.firestore {
       allow create: if false;
     }
 
+    // Sprint 11 — Bernoulli-driven Zettelkasten nodes. Server-only writes
+    // via POST /api/zettelkasten/nodes (verifyAuth + assertProjectMember
+    // + zettelkastenWriteLimiter). Client-side reads están limitadas a
+    // members del proyecto al que pertenece el nodo. Cualquier client
+    // create/update/delete está prohibido — la única ruta legítima es
+    // el endpoint server-side, que usa Admin SDK y bypasea estas reglas.
+    match /zettelkasten_nodes/{nodeId} {
+      allow read: if isSignedIn() && existing().projectId is string && isProjectMember(existing().projectId);
+      allow create, update, delete: if false; // server-only via /api/zettelkasten/nodes
+    }
+
     match /training/{sessionId} {
       allow read: if isEmailVerified() && (
         isAdmin() || isSupervisor() || 
