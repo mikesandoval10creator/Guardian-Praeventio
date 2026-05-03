@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react';
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -17,34 +17,34 @@ const FEATURES = [
     color: 'text-rose-400',
     bg: 'bg-rose-500/10 border-rose-500/20',
     title: 'Respuesta a Emergencias',
-    desc: 'BotÃ³n de pÃ¡nico, geolocalizaciÃ³n en tiempo real y alertas masivas a todo el equipo en segundos.',
+    desc: 'Botón de pánico, geolocalización en tiempo real y alertas masivas a todo el equipo en segundos.',
   },
   {
     icon: Brain,
     color: 'text-violet-400',
     bg: 'bg-violet-500/10 border-violet-500/20',
     title: 'Inteligencia Artificial',
-    desc: 'Gemini Pro genera PTS automÃ¡ticos, evalÃºa riesgos y te guÃ­a con normativa DS 54, DS 40 y Ley 16.744.',
+    desc: 'Gemini Pro genera PTS automáticos, evalúa riesgos y te guía con normativa DS 54, DS 40 y Ley 16.744.',
   },
   {
     icon: BookOpen,
     color: 'text-amber-400',
     bg: 'bg-amber-500/10 border-amber-500/20',
     title: 'Capacitaciones',
-    desc: 'Videos, quizzes y gamificaciÃ³n. Registra capacitaciones y obtÃ©n certificados digitales automÃ¡ticamente.',
+    desc: 'Videos, quizzes y gamificación. Registra capacitaciones y obtén certificados digitales automáticamente.',
   },
   {
     icon: BarChart3,
     color: 'text-blue-400',
     bg: 'bg-blue-500/10 border-blue-500/20',
-    title: 'AuditorÃ­as ISO',
+    title: 'Auditorías ISO',
     desc: 'Checklist ISO 45001, OHSAS 18001 y reportes SUSESO generados en PDF con un clic.',
   },
   {
     icon: Users,
     color: 'text-[#d4af37]',
     bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20',
-    title: 'GestiÃ³n de Equipos',
+    title: 'Gestión de Equipos',
     desc: 'Roles por proyecto (gerente, prevencionista, supervisor), invitaciones por email y multi-empresa.',
   },
   {
@@ -67,7 +67,7 @@ interface Plan {
 
 const PLANS: Plan[] = [
   { name: 'Gratuito', workers: '10', price: '$0', color: 'border-zinc-700' },
-  { name: 'ComitÃ©', workers: '25', price: '$10/mes', color: 'border-[#4db6ac]', popular: true },
+  { name: 'Comité', workers: '25', price: '$10/mes', color: 'border-[#4db6ac]', popular: true },
   { name: 'Departamento', workers: '100', price: '$30/mes', color: 'border-blue-500', recommended: true },
   { name: 'Enterprise', workers: '250+', price: 'Desde $50/mes', color: 'border-violet-500' },
 ];
@@ -78,7 +78,7 @@ const HOW_STEPS = [
   {
     n: 1,
     title: 'Registra',
-    desc: 'Reporta riesgos e incidentes desde cualquier dispositivo. Web, mÃ³vil, voz.',
+    desc: 'Reporta riesgos e incidentes desde cualquier dispositivo. Web, móvil, voz.',
     icon: Mic,
   },
   {
@@ -89,7 +89,7 @@ const HOW_STEPS = [
   },
   {
     n: 3,
-    title: 'Cumplimiento automÃ¡tico',
+    title: 'Cumplimiento automático',
     desc: 'DIAT, libros de obra, actas CPHS y reportes SUSESO generados en segundos.',
     icon: FileText,
   },
@@ -107,10 +107,10 @@ export function LandingPage({ onEnter }: LandingPageProps) {
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = 'Guardian Praeventio â€” PrevenciÃ³n de riesgos en la palma de la mano';
+    document.title = 'Guardian Praeventio — Prevención de riesgos en la palma de la mano';
 
     const description =
-      'GestiÃ³n de riesgos, bienestar del equipo y cumplimiento normativo â€” todo en una sola plataforma con IA';
+      'Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA';
     let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
     let created = false;
     if (!meta) {
@@ -146,7 +146,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-x-hidden">
 
-      {/* â”€â”€ NAV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── NAV ─────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 sm:px-10 py-4 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-teal-400 flex items-center justify-center" aria-hidden="true">
@@ -161,7 +161,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             onClick={handleLogin}
             className="text-xs font-bold text-zinc-400 hover:text-white transition-colors hidden sm:block"
           >
-            Iniciar sesiÃ³n
+            Iniciar sesión
           </button>
           <button
             onClick={handleEnter}
@@ -172,7 +172,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </div>
       </nav>
 
-      {/* â”€â”€ HERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── HERO ────────────────────────────────────────────────────── */}
       <motion.section
         {...sectionMotion}
         className="relative pt-32 pb-20 px-5 sm:px-10 flex flex-col items-center text-center overflow-hidden"
@@ -188,16 +188,16 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         >
           <div className="inline-flex items-center gap-2 bg-teal-400/10 border border-teal-400/30 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-teal-400 mb-6">
             <Star className="w-3 h-3 fill-current" aria-hidden="true" />
-            Cumplimiento DS 54 Â· DS 40 Â· Ley 16.744
+            Cumplimiento DS 54 · DS 40 · Ley 16.744
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-black tracking-tighter leading-none mb-6">
-            La revoluciÃ³n de la<br />
-            <span className="text-teal-400">prevenciÃ³n de riesgos</span>
+            La revolución de la<br />
+            <span className="text-teal-400">prevención de riesgos</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-300 max-w-2xl mx-auto mb-4 leading-relaxed font-semibold">
-            GestiÃ³n de riesgos, bienestar del equipo y cumplimiento normativo â€” todo en una sola plataforma con IA
+            Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA
           </p>
 
           <p className="text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -224,12 +224,12 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </div>
 
           <p className="mt-5 text-xs text-zinc-600 font-bold uppercase tracking-widest">
-            Gratis hasta 10 trabajadores Â· Sin tarjeta de crÃ©dito
+            Gratis hasta 10 trabajadores · Sin tarjeta de crédito
           </p>
         </motion.div>
       </motion.section>
 
-      {/* â”€â”€ TRUST BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── TRUST BAR ───────────────────────────────────────────────── */}
       <div className="border-y border-white/5 py-5 px-5 sm:px-10">
         <ul className="max-w-5xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-3 list-none p-0">
           {COMPLIANCE_BADGES.map(label => (
@@ -241,17 +241,17 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </ul>
       </div>
 
-      {/* â”€â”€ POR QUÃ‰ GUARDIAN (pain point) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── POR QUÉ GUARDIAN (pain point) ────────────────────────────── */}
       <motion.section {...sectionMotion} className="relative py-20 px-5 sm:px-10">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" aria-hidden="true" />
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
             <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">El problema</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-5 leading-tight">
-              Por quÃ© Guardian
+              Por qué Guardian
             </h2>
             <p className="text-base sm:text-lg text-zinc-300 leading-relaxed">
-              La prevenciÃ³n de riesgos en Chile sigue atrapada en hojas de cÃ¡lculo y papeleo. Guardian digitiza el reporte de incidentes, las capacitaciones del equipo, y usa IA para detectar patrones antes de que ocurran accidentes.
+              La prevención de riesgos en Chile sigue atrapada en hojas de cálculo y papeleo. Guardian digitiza el reporte de incidentes, las capacitaciones del equipo, y usa IA para detectar patrones antes de que ocurran accidentes.
             </p>
           </div>
 
@@ -301,7 +301,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </div>
       </motion.section>
 
-      {/* â”€â”€ FEATURES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── FEATURES ────────────────────────────────────────────────── */}
       <motion.section {...sectionMotion} className="py-20 px-5 sm:px-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
@@ -309,7 +309,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
               Todo lo que necesitas para cumplir la ley
             </h2>
             <p className="text-zinc-400 max-w-xl mx-auto">
-              DiseÃ±ado para empresas chilenas. Todas las herramientas que exige la normativa, sin papel.
+              Diseñado para empresas chilenas. Todas las herramientas que exige la normativa, sin papel.
             </p>
           </div>
 
@@ -334,13 +334,13 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </div>
       </motion.section>
 
-      {/* â”€â”€ CÃ“MO FUNCIONA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── CÓMO FUNCIONA ───────────────────────────────────────────── */}
       <motion.section {...sectionMotion} className="py-20 px-5 sm:px-10 bg-zinc-900/30 border-y border-white/5">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <p className="text-[11px] font-black uppercase tracking-widest text-teal-400 mb-3">Flujo simple</p>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter mb-3">
-              CÃ³mo funciona
+              Cómo funciona
             </h2>
             <p className="text-zinc-400 max-w-xl mx-auto">
               Del reporte al cumplimiento en tres pasos.
@@ -348,7 +348,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </div>
 
           <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* connector line â€” desktop only */}
+            {/* connector line — desktop only */}
             <div
               className="hidden md:block absolute top-[34px] left-[16%] right-[16%] h-px bg-gradient-to-r from-teal-400/0 via-teal-400/40 to-teal-400/0"
               aria-hidden="true"
@@ -376,7 +376,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </div>
       </motion.section>
 
-      {/* â”€â”€ PRICING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── PRICING ─────────────────────────────────────────────────── */}
       <motion.section {...sectionMotion} className="py-20 px-5 sm:px-10 bg-zinc-900/40">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -416,12 +416,12 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </div>
 
           <p className="text-center text-xs text-zinc-600 mt-6 font-bold">
-            Planes enterprise hasta 5,000 trabajadores Â· Precios en USD
+            Planes enterprise hasta 5,000 trabajadores · Precios en USD
           </p>
         </div>
       </motion.section>
 
-      {/* â”€â”€ CTA FINAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── CTA FINAL ───────────────────────────────────────────────── */}
       <motion.section {...sectionMotion} className="py-24 px-5 sm:px-10 text-center">
         <div className="max-w-2xl mx-auto">
           <div className="w-16 h-16 rounded-3xl bg-teal-400/10 border border-teal-400/30 flex items-center justify-center mx-auto mb-6" aria-hidden="true">
@@ -431,7 +431,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             Empieza hoy.<br />Es gratis.
           </h2>
           <p className="text-zinc-400 mb-8">
-            Crea tu cuenta, agrega tu empresa y cumple la normativa chilena desde el primer dÃ­a.
+            Crea tu cuenta, agrega tu empresa y cumple la normativa chilena desde el primer día.
           </p>
           <motion.button
             whileHover={{ scale: 1.03 }}
@@ -445,7 +445,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         </div>
       </motion.section>
 
-      {/* â”€â”€ FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── FOOTER ──────────────────────────────────────────────────── */}
       <footer className="border-t border-white/5 py-10 px-5 sm:px-10">
         <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           <div>
@@ -456,7 +456,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
               <span className="text-xs font-black text-zinc-300">GUARDIAN PRAEVENTIO</span>
             </div>
             <p className="text-xs text-zinc-600 leading-relaxed">
-              PrevenciÃ³n de riesgos en la palma de la mano.
+              Prevención de riesgos en la palma de la mano.
             </p>
           </div>
 
@@ -523,7 +523,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
                 </button>
               </li>
               <li className="text-xs font-bold text-zinc-600 inline-flex items-center gap-1">
-                <Lock className="w-3 h-3" aria-hidden="true" />Datos seguros Â· Firebase
+                <Lock className="w-3 h-3" aria-hidden="true" />Datos seguros · Firebase
               </li>
             </ul>
           </div>
@@ -531,7 +531,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
 
         <div className="max-w-6xl mx-auto pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-zinc-700 font-bold">
-            Â© 2026 Praeventio Â· Chile
+            © 2026 Praeventio · Chile
           </p>
           <p className="text-[10px] text-zinc-700 font-bold uppercase tracking-widest">
             Hecho en Chile

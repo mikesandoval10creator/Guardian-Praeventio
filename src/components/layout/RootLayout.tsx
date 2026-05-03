@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -130,7 +130,7 @@ export function RootLayout() {
         <div className="flex items-center gap-3 shrink-0">
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            aria-label="Abrir MenÃº"
+            aria-label="Abrir Menú"
             className="w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all group lg:hidden shadow-sm"
           >
             <Menu className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -188,7 +188,7 @@ export function RootLayout() {
               className={`absolute right-2 p-1.5 rounded-xl transition-all duration-300 ${
                 !isOnline ? 'bg-white/40 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-400 cursor-not-allowed' : 'bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] hover:scale-105'
               }`}
-              title={!isOnline ? 'Requiere conexiÃ³n a internet' : 'Preguntar a Gemini AI'}
+              title={!isOnline ? 'Requiere conexión a internet' : 'Preguntar a Gemini AI'}
             >
               <Sparkles className="w-4 h-4" />
             </button>
@@ -211,7 +211,7 @@ export function RootLayout() {
 
         {/* Right: Notifications, Theme & Profile */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Country normativa selector â€” visible on every page */}
+          {/* Country normativa selector — visible on every page */}
           <div className="hidden md:block">
             <NormativaSwitch />
           </div>
@@ -219,7 +219,7 @@ export function RootLayout() {
           <Link
             to="/safe-driving"
             className="hidden sm:flex w-10 h-10 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all duration-300 relative shadow-sm"
-            title="Modo ConducciÃ³n Segura"
+            title="Modo Conducción Segura"
           >
             <Map className="w-5 h-5" />
           </Link>
@@ -231,7 +231,7 @@ export function RootLayout() {
                 ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20' 
                 : 'bg-white/30 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
             }`}
-            title="Centro de SincronizaciÃ³n"
+            title="Centro de Sincronización"
           >
             {!isOnline ? <WifiOff className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
             {pendingSyncCount > 0 && (
@@ -292,7 +292,7 @@ export function RootLayout() {
               className="flex items-center gap-2 bg-teal-400 hover:bg-teal-500 px-3 py-2 rounded-xl cursor-pointer transition-all shadow-sm"
             >
               <UserIcon className="w-4 h-4 text-zinc-950" />
-              <span className="hidden sm:block text-[11px] font-black uppercase tracking-wider text-zinc-950">Iniciar sesiÃ³n</span>
+              <span className="hidden sm:block text-[11px] font-black uppercase tracking-wider text-zinc-950">Iniciar sesión</span>
             </button>
           )}
         </div>
