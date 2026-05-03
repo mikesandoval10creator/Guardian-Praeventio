@@ -191,6 +191,36 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
   }
 });
 
+router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res) => {
+  // Sprint 16 — pause/resume support for ProcessDetailModal. Allowed
+  // transitions: active <-> paused. Terminal states (completed/aborted)
+  // cannot be re-opened from the client; that requires server-side audit.
+  const uid = (req as any).user.uid;
+  const processId = req.params.id;
+  const { status } = req.body ?? {};
+  if (status !== 'active' && status !== 'paused') {
+    return res.status(400).json({ error: 'status must be active|paused' });
+  }
+  try {
+    const db = admin.firestore();
+    const ref = db.collection('processes').doc(processId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'process not found' });
+    const proc = snap.data() as { projectId: string; status: string };
+    await assertProjectMember(uid, proc.projectId, db);
+    if (proc.status === 'completed' || proc.status === 'aborted') {
+      return res.status(409).json({ error: 'process is terminal' });
+    }
+    await ref.update({ status });
+    res.json({ success: true, status });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    res.status(500).json({ error: err?.message ?? 'internal' });
+  }
+});
+
 router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res) => {
   const uid = (req as any).user.uid;
   const processId = req.params.id;
