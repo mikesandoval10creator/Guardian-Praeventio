@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   assessClimateRisk,
   buildClimateRiskNodes,
+  generateVenturiRiskNode,
+  generateWindloadRiskNode,
   type ClimateForecastDay,
 } from './climateRiskCoupling';
 
@@ -144,6 +146,81 @@ describe('buildClimateRiskNodes', () => {
       { id: 'proj-A', workTypes: [], outdoor: true },
     ]);
     expect(out).toEqual([]);
+  });
+
+  it('generateVenturiRiskNode emits node when wind > 40 km/h on tunnel project', () => {
+    const node = generateVenturiRiskNode(
+      {
+        date: new Date('2026-04-25T00:00:00.000Z'),
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 70,
+      },
+      { id: 'proj-tunnel', workTypes: ['construcción de túnel'], outdoor: true },
+    );
+    expect(node).not.toBeNull();
+    expect(node!.riskNodePayload.type).toBe('venturi-warning');
+    expect(node!.riskNodePayload.title).toMatch(/Venturi/);
+  });
+
+  it('generateVenturiRiskNode returns null when project is not a tunnel/mine', () => {
+    const node = generateVenturiRiskNode(
+      {
+        date: new Date('2026-04-25T00:00:00.000Z'),
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 80,
+      },
+      { id: 'proj-x', workTypes: ['general'], outdoor: true },
+    );
+    expect(node).toBeNull();
+  });
+
+  it('generateWindloadRiskNode emits node when wind > 60 km/h with temp structures', () => {
+    const node = generateWindloadRiskNode(
+      {
+        date: new Date('2026-04-25T00:00:00.000Z'),
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 90,
+      },
+      { id: 'proj-y', workTypes: ['grúa torre', 'andamios'], outdoor: true },
+    );
+    expect(node).not.toBeNull();
+    expect(node!.riskNodePayload.type).toBe('windload-warning');
+    expect(node!.riskNodePayload.description).toMatch(/NCh 432/);
+  });
+
+  it('generateWindloadRiskNode returns null below 60 km/h trigger', () => {
+    const node = generateWindloadRiskNode(
+      {
+        date: new Date('2026-04-25T00:00:00.000Z'),
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 55,
+      },
+      { id: 'proj-y', workTypes: ['grúa torre'], outdoor: true },
+    );
+    expect(node).toBeNull();
+  });
+
+  it('buildClimateRiskNodes wires venturi + windload alongside CLIMATE_RISK', () => {
+    const forecasts: ClimateForecastDay[] = [
+      {
+        date: new Date('2026-04-25T00:00:00.000Z'),
+        conditionCode: 'windy',
+        temperatureC: 14,
+        windKmh: 90,
+      },
+    ];
+    const projects = [
+      { id: 'tunnel-A', workTypes: ['túnel ferroviario', 'altura'], outdoor: true },
+      { id: 'crane-B', workTypes: ['grúa torre', 'altura'], outdoor: true },
+    ];
+    const out = buildClimateRiskNodes(forecasts, projects);
+    const types = out.map((a) => a.riskNodePayload.type);
+    expect(types).toContain('venturi-warning');
+    expect(types).toContain('windload-warning');
   });
 
   it('riskNodePayload has Spanish recommendedControls', () => {
