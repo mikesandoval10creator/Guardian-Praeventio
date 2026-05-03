@@ -19,7 +19,11 @@ export type BernoulliNodeType =
   | 'slope-stability'
   | 'slam-mesh'
   | 'dike-hydrostatic'
-  | 'gas-dispersion';
+  | 'gas-dispersion'
+  // Sprint 16 — non-Bernoulli safety-learning node emitted by the daily
+  // wisdom-capsule pipeline. Carries projectId + sourceFindings (hallazgos
+  // ids) in metadata so the Zettelkasten can chain learning ↔ findings.
+  | 'safety-learning';
 
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */
