@@ -148,8 +148,8 @@ Cinco patrones canónicos descubiertos en `useZettelkastenIntegration.ts`:
 ## 6. Recomendaciones
 
 ### Recuperar (copiar adaptado al repo actual)
-1. `analisis_funcional.md` → `docs/legacy/analisis_funcional.md`.
-2. `auditoria01.md` → `docs/legacy/auditoria01.md`.
+1. ✅ recuperado — `analisis_funcional.md` → `docs/proto/analisis_funcional.md` (sanitizado al 2026-05-03, Sprint 10).
+2. ✅ recuperado — `auditoria01.md` → `docs/proto/auditoria01.md` (sanitizado al 2026-05-03, Sprint 10).
 3. `PLAN_MAESTRO.md` → `docs/legacy/PLAN_MAESTRO_skeleton.md` (marcar explícitamente que solo nodos 312-320 están enumerados).
 4. **Modelo `KnowledgeNode` + `SmartConnection`** de `UniversalKnowledgeContext.tsx` → fusionar con `useZettelkastenIntelligence` actual.
 5. **Los 5 smart actions tipados** → integrar en el hook actual (gap señalado en PARTE2).
