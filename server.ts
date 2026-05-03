@@ -54,6 +54,9 @@ import miscRouter from "./src/server/routes/misc.js";
 import organicRouter from "./src/server/routes/organic.js";
 import wisdomCapsuleRouter from "./src/server/routes/wisdomCapsule.js";
 import subscriptionRouter from "./src/server/routes/subscription.js";
+import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
+import commuteRouter from "./src/server/routes/commute.js";
+import emergencyRouter from "./src/server/routes/emergency.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -346,6 +349,24 @@ app.use('/api/invitations', invitationsRouter);
 // + AI Safety Coach (coach/chat with assertProjectMemberFromBody guard)
 // extracted to src/server/routes/gamification.ts. Final paths preserved.
 app.use('/api', gamificationRouter);
+
+// Sprint 11 — POST /api/zettelkasten/nodes. Persists Bernoulli-driven
+// risk nodes from the 4 client integrations (HazmatStorageDesigner,
+// StructuralCalculator, VisionAnalyzer, BioAnalysis) with audit trail.
+// Reuses verifyAuth + assertProjectMember + zettelkastenWriteLimiter.
+app.use('/api/zettelkasten', zettelkastenRouter);
+
+// Sprint 12 — POST /api/commute/{start,sample,end}. Server-side mirror of
+// the client `useCommuteSession` writes for accidente-de-trayecto (Ley
+// 16.744 SUSESO). Member-guarded + per-uid rate limited.
+app.use('/api/commute', commuteRouter);
+
+// Sprint 14 — POST /api/emergency/sos. Worker-initiated SOS alert
+// (SOSButton 3s long-press) writes a tenants/{tenantId}/emergency_alerts/{id}
+// row and fans out an FCM push to every supervisor/gerente/prevencionista
+// member of the project. notify-brigada (defined inline below) is left in
+// place; the new router only owns /sos so the two paths can coexist.
+app.use('/api/emergency', emergencyRouter);
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {

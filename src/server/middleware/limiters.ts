@@ -129,6 +129,26 @@ export const googlePlayWebhookLimiter = rateLimit({
   message: { error: 'rate_limited' },
 });
 
+// Sprint 11 — per-uid rate limiter for the Zettelkasten node-write
+// endpoint (POST /api/zettelkasten/nodes). The 15 Bernoulli generators on
+// the client (HazmatStorageDesigner, StructuralCalculator, VisionAnalyzer,
+// BioAnalysis) emit nodes whenever the user changes inputs. With the
+// 2-second debounce on the client a normal interactive session lands ~30
+// writes / 15 min comfortably; bursty test sessions or a buggy debounce
+// regression would still be capped here. Mirrors the geminiLimiter shape
+// (30 req / 15 min, keyed on uid). Mounted AFTER `verifyAuth` so the
+// keyGenerator can read `req.user.uid`. Falls back to req.ip → 'anonymous'
+// purely as a defensive default — under normal control flow `req.user.uid`
+// is always set because verifyAuth would have rejected the request first.
+export const zettelkastenWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas escrituras de nodos. Intenta de nuevo en 15 minutos.' },
+});
+
 // Per-uid rate limiter for the ERP sync mock (POST /api/erp/sync).
 // 30 req/min keyed on the authenticated uid (verifyAuth runs first, so
 // req.user.uid is always present in the steady state); falls back to

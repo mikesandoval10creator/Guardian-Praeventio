@@ -1358,4 +1358,112 @@ describe('firestore.rules', () => {
       );
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Sprint 11 — zettelkasten_nodes/{nodeId} member-read + server-only.
+  //
+  // Mirrors the telemetry_events block: the only legitimate writer is the
+  // server-side route POST /api/zettelkasten/nodes (via Admin SDK, which
+  // bypasses these rules). Clients can READ nodes from projects they
+  // belong to, and nothing else.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('zettelkasten_nodes/{nodeId} — member-read + server-only writes', () => {
+    const PROJECT_ID = 'zk-proj-1';
+
+    async function seedProjectAndNode(memberUids: string[], nodeId = 'zk-node-1') {
+      await requireEnv().withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'projects', PROJECT_ID), {
+          name: 'Faena Zettelkasten',
+          members: memberUids,
+          createdBy: memberUids[0] ?? 'unknown',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        });
+        await setDoc(doc(ctx.firestore(), 'zettelkasten_nodes', nodeId), {
+          title: 'Riesgo Bernoulli',
+          description: 'Δp filtro supera umbral',
+          type: 'respirator-fatigue',
+          severity: 'medium',
+          metadata: { dropPa: 1.2 },
+          connections: [],
+          references: ['NIOSH 42 CFR Part 84'],
+          projectId: PROJECT_ID,
+          createdBy: 'server',
+          idempotencyKey: nodeId,
+        });
+      });
+    }
+
+    it('allows a member to READ a node in their project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('zk-worker-1', 'worker');
+      await seedProjectAndNode(['zk-worker-1']);
+      const w = env.authenticatedContext('zk-worker-1', verifiedToken('worker'));
+      await assertSucceeds(getDoc(doc(w.firestore(), 'zettelkasten_nodes', 'zk-node-1')));
+    });
+
+    it('denies READ to an authenticated worker NOT in the project', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('zk-outsider', 'worker');
+      await seedProjectAndNode(['zk-worker-1']); // outsider not in members
+      const o = env.authenticatedContext('zk-outsider', verifiedToken('worker'));
+      await assertFails(getDoc(doc(o.firestore(), 'zettelkasten_nodes', 'zk-node-1')));
+    });
+
+    it('denies CREATE for any authenticated client (server-only)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('zk-worker-1', 'worker');
+      await requireEnv().withSecurityRulesDisabled(async (c) => {
+        await setDoc(doc(c.firestore(), 'projects', PROJECT_ID), {
+          name: 'Faena Zettelkasten',
+          members: ['zk-worker-1'],
+          createdBy: 'zk-worker-1',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+        });
+      });
+      const w = env.authenticatedContext('zk-worker-1', verifiedToken('worker'));
+      await assertFails(
+        setDoc(doc(w.firestore(), 'zettelkasten_nodes', 'zk-attempt'), {
+          title: 'fake',
+          description: 'fake',
+          type: 'respirator-fatigue',
+          severity: 'low',
+          metadata: {},
+          connections: [],
+          references: [],
+          projectId: PROJECT_ID,
+          createdBy: 'zk-worker-1',
+          idempotencyKey: 'zk-attempt',
+        }),
+      );
+    });
+
+    it('denies UPDATE even for a project member', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('zk-worker-1', 'worker');
+      await seedProjectAndNode(['zk-worker-1']);
+      const w = env.authenticatedContext('zk-worker-1', verifiedToken('worker'));
+      await assertFails(
+        updateDoc(doc(w.firestore(), 'zettelkasten_nodes', 'zk-node-1'), {
+          title: 'tampered',
+        }),
+      );
+    });
+
+    it('denies DELETE even for an admin (immutable from client side)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('zk-admin-1', 'admin');
+      await seedProjectAndNode(['zk-admin-1']);
+      const a = env.authenticatedContext('zk-admin-1', verifiedToken('admin'));
+      await assertFails(
+        deleteDoc(doc(a.firestore(), 'zettelkasten_nodes', 'zk-node-1')),
+      );
+    });
+  });
 });
