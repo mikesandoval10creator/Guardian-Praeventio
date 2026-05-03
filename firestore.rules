@@ -692,5 +692,46 @@ service cloud.firestore {
       // Client-side cosign or tampering is denied.
       allow update, delete: if false;
     }
+
+    // ===============================================================
+    // Sprint 15 — Organic structure: Crew, Process, Task
+    // ===============================================================
+    // Reads: any project member can read crews/processes/tasks for that
+    // project. Writes for `crews` and `processes` are server-only (Admin
+    // SDK) so the positive-only XP economy can never be tampered with
+    // from the client. `tasks` allow project-member writes restricted to
+    // a closed key set + a 3-step status pipeline.
+
+    match /crews/{crewId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create, update, delete: if false;
+    }
+
+    match /processes/{processId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create, update, delete: if false;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      // Project members may create + update task docs, with shape pinned
+      // to a closed key set. Status enum is enforced. Deletes are denied
+      // to preserve the audit trail.
+      allow create: if isProjectMember(incoming().projectId)
+        && incoming().keys().hasOnly([
+          'description', 'assignedUids', 'status', 'date',
+          'crewId', 'processId', 'projectId', 'completedAt'
+        ])
+        && incoming().status in ['pending', 'doing', 'done']
+        && incoming().description is string
+        && incoming().date is string;
+      allow update: if isProjectMember(resource.data.projectId)
+        && incoming().keys().hasOnly([
+          'description', 'assignedUids', 'status', 'date',
+          'crewId', 'processId', 'projectId', 'completedAt'
+        ])
+        && incoming().status in ['pending', 'doing', 'done'];
+      allow delete: if false;
+    }
   }
 }
