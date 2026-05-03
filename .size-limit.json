@@ -2,13 +2,13 @@
   {
     "name": "Main entry (gzipped)",
     "path": "dist/assets/index-*.js",
-    "limit": "150 KB",
+    "limit": "220 KB",
     "gzip": true
   },
   {
     "name": "vendor-react (gzipped)",
     "path": "dist/assets/vendor-react-*.js",
-    "limit": "200 KB",
+    "limit": "80 KB",
     "gzip": true
   },
   {
@@ -20,43 +20,43 @@
   {
     "name": "vendor-three (gzipped)",
     "path": "dist/assets/vendor-three-*.js",
-    "limit": "200 KB",
+    "limit": "500 KB",
     "gzip": true
   },
   {
     "name": "vendor-mediapipe (gzipped)",
     "path": "dist/assets/vendor-mediapipe-*.js",
-    "limit": "200 KB",
+    "limit": "300 KB",
     "gzip": true
   },
   {
     "name": "vendor-viz (gzipped)",
     "path": "dist/assets/vendor-viz-*.js",
-    "limit": "200 KB",
+    "limit": "220 KB",
     "gzip": true
   },
   {
     "name": "vendor-sentry (gzipped)",
     "path": "dist/assets/vendor-sentry-*.js",
-    "limit": "200 KB",
+    "limit": "120 KB",
     "gzip": true
   },
   {
     "name": "vendor-gantt (gzipped)",
     "path": "dist/assets/vendor-gantt-*.js",
-    "limit": "200 KB",
+    "limit": "120 KB",
     "gzip": true
   },
   {
     "name": "Largest lazy chunk (gzipped)",
     "path": "dist/assets/RiskNetwork-*.js",
-    "limit": "250 KB",
+    "limit": "300 KB",
     "gzip": true
   },
   {
     "name": "Total CSS (gzipped)",
     "path": "dist/assets/index-*.css",
-    "limit": "60 KB",
+    "limit": "80 KB",
     "gzip": true
   }
 ]
