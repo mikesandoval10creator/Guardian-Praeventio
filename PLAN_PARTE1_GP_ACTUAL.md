@@ -1,266 +1,199 @@
 # PLAN PARTE 1 — Guardian-Praeventio: Estado Actual y Brechas
 
-> Documento generado: 2026-04-30 | Auditoría exhaustiva del codebase actual
+> Documento actualizado: 2026-05-03 | Auditoría post-Sprint 5 + Color System
+> Documento original: 2026-04-30 | Versión actual incorpora deltas de tres sprints completos.
 
 ---
 
-## 1. ESTADO GENERAL DEL PROYECTO
+## 1. ESTADO GENERAL DEL PROYECTO (delta vs. 2026-04-30)
 
-| Métrica | Valor |
-|---------|-------|
-| Páginas totales | 87 |
-| Páginas con ruta activa | 86 (SunTracker.tsx sin ruta) |
-| Servicios totales | 30+ |
-| Servicios sin callers (muertos) | 7 |
-| Hooks totales | 27+ |
-| Hooks con ≤1 consumidor | 11 |
-| TODO.md items pendientes | 2 (SSO + ERP API) |
-| Build TypeScript | ✅ 0 errores en producción |
-| Carpetas de respaldo | 0 (no existe _respaldo en ningún repo) |
+| Métrica | 2026-04-30 | 2026-05-03 | Delta |
+|---------|------------|------------|-------|
+| Páginas totales | 87 | 98 | +11 |
+| Rutas activas | 86 | 68 | -18 (pase de deprecación intencional) |
+| Servicios totales | 30+ | 94 | +213% |
+| Hooks totales | 27 | 33 | +6 |
+| Hooks con ≤1 consumidor | 11 | 2 | -9 |
+| TS errors producción | 0 | 0 | igual |
+| Issues Sentry últimos 7d | n/a | 0 unresolved | sano o tráfico bajo |
+| Carpetas `_respaldo` | 0 | 0 | igual |
+
+> El crecimiento de servicios (de 30+ a 94) viene casi entero de Sprints 2 a 5: módulos físicos Bernoulli, sentinel de zettelkasten, integraciones Sentry, pipelines de hardening de seguridad y nuevo subsistema de tema 4-modo.
 
 ---
 
-## 2. LO QUE FUNCIONA DE EXTREMO A EXTREMO ✅
+## 2. HITOS COMPLETADOS DESDE EL ÚLTIMO AUDIT (2026-04-30 → 2026-05-03)
+
+### Sprint 2 — Hardening de seguridad backend
+- Cross-tenant write en `accept-invitation` cerrado con transacción Firestore (commit `caef640`).
+- Rate-limit del webhook Google Play (commit `4ccc17f`).
+- ERP sync con Zod + whitelist + rate-limit (commit `42b6700`).
+- 40 `alert()` reemplazados por `useToast` en 28 archivos (commits `7a0506f` + `adde942`).
+- `Math.random()` reemplazado por `crypto.randomUUID()` en services (commit `2984576`).
+
+### Sprint 3 — Tests + observabilidad
+- Tests `oauthGoogle.test.ts` (5 casos) + telemetry HMAC depth (commit `9ea820f`).
+- Reglas Firestore: `telemetry_events` (create:false), `isValidProject(hasOnly)` (commits `2a4b2f2` + `035bca5`).
+- Stryker mutation threshold 65% → 70% (commit `d8304bf`).
+- Smoke tests post-deploy en `deploy.yml` (commit `611edcf`).
+- DSN Sentry scrub en `.env.example` (commit `e8d15de`); doc `VITE_SENTRY_DSN` (commit `d5e7a8e`).
+
+### Sprint 4 — Bundle & performance
+- `manualChunks` real en Vite: `vendor-react`, `vendor-firebase`, `vendor-three`, `vendor-mediapipe` (commit `a3c8cd4`).
+- `size-limit` budgets ajustados a la nueva topología (commit `72bc809`).
+- CSP: `script-src 'blob:'` para MediaPipe WASM workers (commit `1879a1c`).
+- Lighthouse threshold 0.5 → 0.65 (commit `14ff0ed`).
+
+### Sprint 5 — Bernoulli expandido (semilla → módulos reales)
+- Motor `[bernoulliEngine.ts](src/services/physics/bernoulliEngine.ts)` con 6 funciones SI puras.
+- `HazmatStorageDesigner` con `venturiFlowRate` para ductos (DS 594) — commit `9cbb4e8`.
+- `VisionAnalyzer` calcula `respiratorPressureDrop` (NIOSH 42 CFR Part 84) — commit `afa8c08`.
+- `BioAnalysis` con chequeo ergonómico pulmonar consciente de altitud — commit `5178149`.
+- Nodos `venturi-warning` + `windload-warning` en `[climateRiskCoupling.ts](src/services/zettelkasten/climateRiskCoupling.ts)` — commit `0bf4620`.
+
+### UX / branding (Sprint 5 final)
+- `ErrorBoundary` categorizado con captura Sentry (commit `8b0e7b3`).
+- Landing redesign alineado con praeventio.net (commit `ade4a54`).
+- Sistema de color full teal/petroleum/gold scales 50–900 (commit `7c87869`).
+- Reemplazo lime-green `#58D66D` → brand-teal en todo el codebase (commit `8a0a0df`).
+- Acentos gold y petroleum en landing (commit `c19d3eb`).
+- 4 modos de tema: `normal-light`, `normal-dark`, `driving`, `emergency` (commit `9a76556`).
+- `AppModeContext` con persistencia y auto-expiry de modo emergencia (commit `f9cba6d`).
+- `ModeSwitcher` flotante en `RootLayout` (commit `09e3317`).
+- Documentación de teoría de color en `[BRAND.md](BRAND.md)` (commit `96d40f4`).
+
+---
+
+## 3. LO QUE FUNCIONA DE EXTREMO A EXTREMO ✅ (verificado 2026-05-03)
 
 | Sistema | Evidencia de funcionamiento real |
 |---------|----------------------------------|
 | Man Down detection | Alarma offline-first ≥30s, jerk-based, escribe Firestore + black box |
+| EmergencyContext (BRECHA-00 cerrada) | `[EmergencyContext.tsx:22-40](src/contexts/EmergencyContext.tsx)` escribe a `projects/{id}/emergency_events`, mantiene ref del docId para resolveEmergency |
 | Evacuation routes | Google Maps DirectionsService + Gemini AI + guarda en emergency_plans |
 | Geolocation tracking | Capacitor GPS, respeta Art. 22, filtra accuracy <50m, escribe Firestore |
 | Bluetooth mesh | BLE scan real, guarda IndexedDB con GPS (timeout 8s + fallback) |
 | Push notifications FCM | sendEachForMulticast() dispara en onSnapshot de incidentes críticos |
-| Offline sync | IndexedDB (web) + Capacitor SQLite (nativo), conflict detection via localUpdatedAt |
-| RBAC | Dual-capa: Firestore rules + Firebase Admin custom claims |
+| Offline sync | IndexedDB (web) + Capacitor SQLite (nativo), conflict detection vía localUpdatedAt |
+| RBAC dual-capa | Firestore rules + Firebase Auth custom claims (verificado en `firestore.rules` 678 líneas) |
 | Gemini AI (90+ acciones) | Proxy real /api/gemini, rate-limited, sin respuestas hardcodeadas |
-| CPHS / Comité Paritario | CRUD completo de actas y acuerdos, alert emails via Resend |
-| SUSESO/DIAT reports | Datos empresa dinámicos, PDF real via jsPDF |
-| Session expiry | Turno máx 8h, checker cada 15min, logout + alerta |
+| CPHS / Comité Paritario | CRUD completo de actas y acuerdos, alert emails vía Resend |
+| SUSESO/DIAT reports | Datos empresa dinámicos, PDF real vía jsPDF |
 | SafeDrivingMode dictación | SpeechRecognition → addDoc a driving_reports Firestore |
-| Workers module | CRUD completo, importación masiva CSV/Excel, 8 modales |
 | PTSGenerator | Gemini AI, guarda PDF + nodo en Risk Network, GPS geocoding |
 | Training module | Firestore + IndexedDB offline, quiz IA, YouTube embeds, gamificación |
-| Google Play Billing | /api/billing/verify + webhook reales |
+| Google Play Billing | /api/billing/verify + webhook reales (rate-limited Sprint 2) |
 | PDF generation | /api/reports/generate-pdf real (2MB limit) |
-| Analytics | KPIs calculados desde Risk Network, Recharts, export PDF |
 | Risk Engine | onSnapshot tiempo real, pending actions optimistas, embeddings async |
-| Gamification | Points, medallas, confetti, todo en Firestore |
-| ISOAudit | save con catch + toast de error + Retry |
 | Geofence | TurfJS real, entrada/salida detectada, sin alarma repetida |
 | Service worker PWA | Workbox caching, auto-update, offline-ready |
+| Bernoulli engine | 6 funciones SI puras + 4 wirings reales (Hazmat, Vision, Bio, Structural) |
+| Color system 4-mode | Driving (alto contraste tipografía bold), Emergency (rojo crítico), normal-light/dark |
+| Sentry pipeline | Org `praeventio` + project `guardian-praeventio` con DSN frontend y backend |
 
 ---
 
-## 3. BRECHAS CRÍTICAS — SEGURIDAD LETAL 🔴
+## 4. BRECHAS QUE PERSISTEN
 
-### BRECHA-00: EmergencyContext — Solo estado local, NO persiste
-**Archivo:** `src/contexts/EmergencyContext.tsx`
+### B-PERS-01: `useProjectCapacity` — 1 solo consumidor
+Hook que calcula la capacidad operativa de proyecto pero solo se usa en una página. Debería alimentar el dashboard ejecutivo, el módulo CPHS y el motor de risk-scoring. **Esfuerzo:** ~2h (cablear 2-3 nuevos consumers).
 
-El contexto solo gestiona estado local (useState). No escribe en Firestore, no llama APIs, no persiste nada. Un componente que llame `triggerEmergency()` creyendo que activa un protocolo real está equivocado — solo cambia una variable en memoria.
+### B-PERS-02: `useSubmit` — 0 consumidores
+Hook genérico de envío de formularios sin uso en producción. Decisión: **eliminar** o adoptarlo en los formularios pesados (Worker import, PTS, ISOAudit) — ya hay 6 lugares con código duplicado para manejar pending/error toast. **Esfuerzo:** ~3h (adoptar) o ~10min (eliminar).
 
-**Fix:**
-```typescript
-// En triggerEmergency(type):
-await addDoc(collection(db, 'projects', projectId, 'emergency_events'), {
-  type, triggeredBy: userId, timestamp: serverTimestamp(), status: 'active'
-});
-// En resolveEmergency():
-await updateDoc(eventRef, { status: 'resolved', resolvedAt: serverTimestamp(), resolvedBy: userId });
-```
-**Tiempo estimado:** 20 min
+### B-PERS-03: `workbox-build` deps incompletos local
+Build local rompe en `npm run build` por dependencias transitivas faltantes de `workbox-build`. CI lo soluciona porque tiene network limpio, pero el dev loop local es frágil. **Esfuerzo:** 30min (pin de versiones + npm dedupe).
+
+### B-PERS-04: `/api/ask-guardian` no inyecta contexto ambiental
+Endpoint en `[gemini.ts:124-191](src/server/routes/gemini.ts)` solo usa `searchRelevantContext` (RAG sobre cuerpo legal). No llama a `fetchEnvironmentContext` aunque la función ya existe en `orchestratorService`. Resultado: el Asesor responde sin saber temperatura, viento, sismicidad, UV o altitud — exactamente lo que PARTE3 (Gran Maestro) exigía. **Detalle de fix en PARTE3 §3.** **Esfuerzo:** 4h.
 
 ---
 
-### BRECHA-01: Botón SOS en SafeDrivingMode — STUB LETAL
-**Archivo:** `src/pages/SafeDrivingMode.tsx`
+## 5. BRECHAS NUEVAS DETECTADAS
 
-Botón muestra "S.O.S. Enviado" pero solo llama `setIsEmergency(true)` y `navigator.vibrate()`. Cero escritura a Firestore. Cero notificación FCM. Un conductor accidentado presiona SOS → nadie recibe alerta.
+### B-NEW-01: AppModeContext sin documentación de transitions
+El nuevo `AppModeContext` (4 modos) tiene auto-expiry de emergency pero la matriz exacta de transiciones permitidas no está documentada en BRAND.md. Operadores pueden activar `driving` desde `emergency` y eso bloquea el SOS visual. **Esfuerzo:** 1h (doc + test de transiciones).
 
-**Fix:** Depende de BRECHA-00. Una vez real: llamar `triggerEmergency('driving_sos')`.
-**Tiempo estimado:** 5 min (tras BRECHA-00)
+### B-NEW-02: ModeSwitcher en RootLayout — accesibilidad parcial
+El componente flotante no tiene `aria-pressed` correcto y no responde a `Escape` para cerrar. **Esfuerzo:** 30min.
 
----
+### B-NEW-03: Bernoulli wiring en HazmatStorageDesigner sin alerta UI
+`venturiFlowRate` se calcula y se loguea, pero la UI no muestra el alert cuando v supera el umbral DS 594. La data fluye al zettelkasten (✅) pero el operador no ve nada. **Esfuerzo:** 2h.
 
-### BRECHA-02: Botón "Base" en SafeDrivingMode — número vacío
-**Archivo:** `src/pages/SafeDrivingMode.tsx`
+### B-NEW-04: Tests de regresión de color tokens faltan
+La migración lime → teal afectó 80+ archivos. No existe snapshot test que evite que un futuro PR re-introduzca lime en clases utilitarias. **Esfuerzo:** 2h (eslint rule custom + un snapshot CSS).
 
-`href="tel:"` sin número. Al presionar no pasa nada. El tipo Worker no tiene campo `emergencyContacts[]`.
-
-**Fix:**
-1. Añadir `emergencyContacts?: { name: string; phone: string; relationship: string }[]` al tipo Worker
-2. Leer `selectedProject.emergencyPhone` para el botón Base
-3. Si no hay número: deshabilitar con tooltip explicativo
-
-**Tiempo estimado:** 15 min
+### B-NEW-05: 192 nodos del PLAN_MAESTRO sin definir
+Documentado en PARTE3 §6: bloques V-VIII (nodos 321–512) son hoja en blanco. Decidir si construir o abandonar formalmente. **Esfuerzo:** workshop de scoping (~6h) antes de cualquier código.
 
 ---
 
-### BRECHA-03: Man Down — sin confirmación de supervisor en Firestore
-**Archivo:** `src/hooks/useManDownDetection.ts`
+## 6. SERVICIOS BACKEND SIN CALLERS (Muertos) — actualizado
 
-`acknowledgeAlert()` es local — detiene el audio pero no queda rastro en Firestore de quién vio la alerta ni cuándo.
+De los 7 servicios huérfanos del audit anterior, los siguientes siguen sin uso:
 
-**Fix:**
-1. Al disparar alerta: escribir doc en `projects/{id}/mandown_events` con estado `pending`
-2. `acknowledgeAlert()`: hacer updateDoc con `{ acknowledgedBy, acknowledgedAt, status: 'acknowledged' }`
-3. Si nadie acknowledges en 10 min → servidor re-dispara FCM a nivel gerente
+| Servicio | Ruta server.ts | Estado |
+|----------|---------------|--------|
+| coachBackend | /api/coach/chat | huérfano (AsesorChat aún no tiene modo coach) |
+| safetyEngineBackend | /api/ask-guardian | parcialmente cubierto, pero ver B-PERS-04 |
+| dataSeedService | /api/seed-data | solo usable desde admin, sin UI expuesta |
+| oauthTokenStore | n/a | sin OAuth flow real cableado |
+| seedBackend | /api/seed-glossary | sin admin panel |
 
-**Tiempo estimado:** 30 min
-
----
-
-### BRECHA-04: Geofence — violación de zona no notifica al supervisor
-**Archivo:** `src/hooks/useGeofence.ts`
-
-Al entrar a zona peligrosa solo suena alarma local. El supervisor no recibe ninguna notificación. No queda registro en Firestore.
-
-**Fix:** Al detectar entrada: `addDoc(collection(db, 'projects', projectId, 'zone_violations'), { workerId, zoneId, timestamp })`
-
-**Tiempo estimado:** 15 min
+`gamificationBackend` y `environmentBackend` fueron cableados en sprints intermedios (revisar PR #14 y #15).
 
 ---
 
-## 4. BRECHAS IMPORTANTES — Afectan operación ⚠️
-
-### BRECHA-05: Man Down — sin re-escalación si sigue inmóvil
-Si alguien silencia la alarma sin ayudar, no hay re-alerta. Añadir job en server.ts: si `mandown_events` tiene `status: 'acknowledged'` pero `resolvedAt: null` después de 5 min → re-disparar.
-**Tiempo:** 20 min
-
-### BRECHA-06: Morning Check-in — no sincroniza a Firestore
-Solo guarda en IndexedDB. Los check-ins no son visibles para supervisores ni compliance audits.
-**Fix:** Tras IndexedDB, llamar `addDoc(collection(db, 'projects', projectId, 'morning_checkins'), {...})`
-**Tiempo:** 10 min
-
-### BRECHA-07: Evacuation — alarma manual sin feedback ni audit trail
-Botón "Activar Alarma Manual" no muestra confirmación ni guarda timestamp.
-**Fix:** Toast con timestamp + addDoc a emergency_messages.
-**Tiempo:** 10 min
-
-### BRECHA-08: Training — certificado importado pero sin botón
-`generateTrainingCertificate` importado en línea 25 pero nunca se llama.
-**Fix:** Añadir botón "Descargar Certificado" en card de sesión completada.
-**Tiempo:** 10 min
-
-### BRECHA-09: ISOAudit — sin lógica condicional de preguntas
-Muestra todas las preguntas sin ocultar según respuestas previas.
-**Fix:** Añadir `dependsOn` en estructura de preguntas, filtrar render según respuestas activas.
-**Tiempo:** 45 min
-
-### BRECHA-10: Seismic monitor — detecta pero no actúa
-Detecta sismos ≥4.5 a ≤500km pero solo actualiza estado local.
-**Fix:** Si `criticalAlert == true` → llamar `triggerEmergency('sismo')` + escribir a emergency_messages.
-**Tiempo:** 15 min
-
----
-
-## 5. BRECHAS MENORES 🟡
-
-| # | Problema | Archivo | Fix |
-|---|---------|---------|-----|
-| M1 | BiometricAuth local-only | useBiometricAuth.ts | Validar credential en servidor para ISO 27001 |
-| M2 | RESEND_API_KEY vacío | .env / deploy | Sin esta key, emails CPHS y alertas críticas fallan silenciosamente |
-| M3 | WEBHOOK_SECRET vacío | .env / deploy | Sin esta key, webhook Google Play rechaza todo. Billing roto en producción |
-| M4 | Gemini sin rate-limit por función | geminiService.ts | 90+ funciones sin presupuesto por tipo. Añadir token budget |
-| M5 | ERP sync validación mínima | server.ts | Añadir schema validation (zod) en payload |
-| M6 | 1 error TypeScript en test | src/types/roles.test.ts | npm install vitest o eliminar el test |
-
----
-
-## 6. SERVICIOS BACKEND SIN CALLERS (Muertos)
-
-| Servicio | Ruta server.ts disponible | Acción |
-|---------|--------------------------|--------|
-| coachBackend | /api/coach/chat | Conectar desde AsesorChat modo coach |
-| gamificationBackend | /api/gamification/points, /leaderboard, /check-medals | Conectar desde MedalSystem.tsx y WallyGame.tsx |
-| safetyEngineBackend | /api/ask-guardian | Conectar desde SafetyForecast.tsx y PredictiveAnalysis.tsx |
-| environmentBackend | /api/telemetry/ingest | Conectar desde Telemetry.tsx |
-| dataSeedService | /api/seed-data | Solo admin — exponer en Diagnostico.tsx |
-| oauthTokenStore | N/A | Evaluar eliminación o wiring a OAuth flow |
-| seedBackend | /api/seed-glossary | Exponer en Settings admin |
-
----
-
-## 7. HOOKS DE SEGURIDAD CRÍTICA CON 1 SOLO CONSUMIDOR
-
-Estos hooks de seguridad vital están casi sin usar:
-
-| Hook | Consumidores | Problema |
-|------|-------------|---------|
-| useAcousticSOS | 1 | Señal SOS acústica sin integración en emergencia |
-| useManDownDetection | 1 | Solo en SafeDrivingMode — debería estar en Dashboard |
-| useSurvivalPing | 1 | Ping de supervivencia sin escalación |
-| useDeadReckoning | 1 | Navegación sin GPS solo en 1 lugar |
-| useGeofence | 1 | Zonas peligrosas solo en 1 módulo |
-| useZettelkastenIntelligence | 2 | Solo orphan detection, no URL context |
-| useIndustryIntegration | 2 | Sin compliance scoring activo |
-
----
-
-## 8. GAPS DE DISEÑO CONFIRMADOS (vs. Proto 1)
-
-| Feature | Estado GP | Acción |
-|---------|-----------|--------|
-| WeatherBulletin con dark/light cross-inversion | ❌ No existe | Portar + mejorar desde proto 1 |
-| SunTrackerContainer (tema vs. hora real) | ❌ No existe | Portar + mejorar desde proto 1 |
-| ThemeContext.isDayTime | ❌ No existe | Portar desde proto 1 |
-| NormativeContext (inyección AI) | ❌ No existe | Portar + integrar en Asesor |
-| SmartConnectionsPanel flotante | ❌ No existe | Crear nuevo |
-| Pizarra.tsx como página real | ❌ No existe (solo metáfora) | Crear nueva página |
-| Orquestador → Asesor (contexto ambiental) | ❌ No conectado | Conectar orchestratorService a /api/ask-guardian |
-| BCN link card en Asesor | ❌ No existe | Añadir affordance explícita |
-| useZettelkastenIntegration URL-based | ❌ No existe (solo orphan) | Upgrade del hook actual |
-
----
-
-## 9. INFRAESTRUCTURA CONFIRMADA ✅ (no requiere trabajo)
+## 7. INFRAESTRUCTURA CONFIRMADA ✅
 
 | Item | Estado |
 |------|--------|
-| 32 colecciones Firestore activamente escritas | ✅ |
-| RBAC dual-capa (rules + custom claims) | ✅ |
-| FCM multicast en onSnapshot de incidentes críticos | ✅ |
-| Offline PWA (Workbox + IndexedDB + SQLite) | ✅ |
+| 32+ colecciones Firestore activamente escritas | ✅ |
+| RBAC dual-capa | ✅ |
+| FCM multicast en onSnapshot | ✅ |
+| Offline PWA | ✅ |
 | 27+ endpoints backend con lógica real | ✅ |
-| Helmet CSP + rate limiting 100 req/15min | ✅ |
-| PDF generation (/api/reports/generate-pdf) | ✅ |
-| Emails CPHS via Resend | ✅ |
+| Helmet CSP + rate limiting + blob: para MediaPipe | ✅ |
+| PDF generation | ✅ |
+| Emails CPHS vía Resend | ✅ |
 | Google Play Billing | ✅ |
-| orchestratorService (OpenWeatherMap + USGS live) | ✅ pero desconectado del Asesor |
+| orchestratorService (OpenWeatherMap + USGS live) | ✅ pero ver B-PERS-04 |
+| Sentry org+project con DSN documentado | ✅ |
+| Bernoulli engine 6 funciones SI | ✅ |
+| Color system 4-mode + AppModeContext | ✅ |
+| 4 manualChunks Vite + size-limit + Lighthouse 0.65 | ✅ |
 
 ---
 
-## 10. ORDEN DE EJECUCIÓN RECOMENDADO
+## 8. ORDEN DE EJECUCIÓN RECOMENDADO
 
-### Sprint A — Seguridad letal (antes de cualquier prueba de campo)
-1. BRECHA-00: EmergencyContext → Firestore (20 min) — **prerequisito de todo lo demás**
-2. BRECHA-01: SafeDrivingMode SOS (5 min)
-3. BRECHA-02: SafeDrivingMode Base phone (15 min)
-4. BRECHA-03: ManDown → mandown_events Firestore (30 min)
-5. BRECHA-04: Geofence → zone_violations Firestore (15 min)
-6. M2: Configurar RESEND_API_KEY
-7. M3: Configurar WEBHOOK_SECRET
+Las brechas letales originales (BRECHA-00 a 04) están **todas cerradas** — referencia en PARTE4 §1.
 
-### Sprint B — Operación supervisada
-8. BRECHA-05: ManDown re-escalación server job (20 min)
-9. BRECHA-07: Evacuation alarma con feedback (10 min)
-10. BRECHA-10: Seismic monitor dispara evacuación (15 min)
-11. BRECHA-06: Morning check-in sync Firestore (10 min)
+### Próximas 2 semanas
+1. B-PERS-04: env context en `/api/ask-guardian` (4h) — desbloquea valor del Asesor.
+2. B-PERS-03: workbox-build deps locales (30min).
+3. B-PERS-01: cablear `useProjectCapacity` (2h).
+4. B-PERS-02: decisión sobre `useSubmit` (3h o 10min).
 
-### Sprint C — Completitud de features
-12. BRECHA-08: Training certificado botón (10 min)
-13. BRECHA-09: ISOAudit preguntas condicionales (45 min)
-14. Conectar 7 servicios muertos a sus rutas server.ts
-15. Añadir ruta /sun-tracker en OperationsRoutes.tsx
+### Mes
+5. Sprint 6 — Lime re-integration como acento de éxito (3 colores: teal=trust, lime=energy, gold=prestige).
+6. Sprint 7 — Driving UI real con Maps SDK + speed-trigger.
+7. Sprint 8 — Emergency UI real con DeviceMotion sismo.
+8. Sprint 9 — Bernoulli extensions (15 use cases) — ver `[BERNOULLI_EXTENSIONS.md](BERNOULLI_EXTENSIONS.md)`.
 
 ---
 
-## 11. VERIFICACIÓN POST-IMPLEMENTACIÓN
+## 9. VERIFICACIÓN POST-IMPLEMENTACIÓN
 
 | Test | Condición de éxito |
 |------|-------------------|
-| SafeDrivingMode SOS | Presionar botón → doc en emergency_events Firestore en <2s |
-| SafeDrivingMode Base | Presionar botón → inicia llamada con número configurado |
-| ManDown acknowledge | Silenciar alarma → acknowledgedBy+at visible en mandown_events |
-| Geofence breach | Entrar en zona → doc en zone_violations + supervisor notificado |
-| Seismic critical | criticalAlert=true → modo evacuación activado |
-| Morning check-in | Completar → doc visible en morning_checkins Firestore |
-| npm run build | 0 errores TypeScript en producción |
+| `/api/ask-guardian` con env context | Respuesta menciona temperatura y sismicidad activa de la zona |
+| `useProjectCapacity` | ≥3 consumidores en producción |
+| `useSubmit` | 0 consumidores → eliminado, o ≥6 consumidores → adoptado |
+| `npm run build` local | 0 errores y `workbox-build` resuelve |
+| Snapshot de tokens lime | 0 ocurrencias en `src/**/*.tsx` |
+| AppMode transitions | Driving y Emergency mutuamente excluyentes documentados |
+
+---
+
+> Próxima revisión: 2026-05-31 tras Sprint 6 (lime acento) y Sprint 9 (Bernoulli extensions).
