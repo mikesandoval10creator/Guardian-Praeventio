@@ -22,6 +22,67 @@ import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { geminiLimiter } from '../middleware/limiters.js';
+import { getFirestore } from 'firebase-admin/firestore';
+
+// Sprint 10 — restablece el patrón "Portal → Sentidos → Mente" del prototipo
+// histórico (ver docs/proto/analisis_funcional.md). El orquestador inyecta
+// contexto ambiental (clima + sismicidad) ANTES del RAG normativo, de modo
+// que "El Gran Maestro" nunca razona en el vacío. Si el flag está apagado o
+// los datos del proyecto son insuficientes, el handler degrada de forma
+// silenciosa al comportamiento legacy (RAG-only).
+const ENV_CONTEXT_TIMEOUT_MS = 2000;
+
+interface ProjectGeo {
+  lat: number;
+  lng: number;
+  altitude?: number;
+}
+
+const isEnvContextEnabled = (): boolean => {
+  const flag = process.env.ENV_CONTEXT_ENABLED;
+  if (flag === undefined || flag === null || flag === '') return true;
+  return flag !== 'false' && flag !== '0';
+};
+
+const lookupProjectGeo = async (projectId: string): Promise<ProjectGeo | null> => {
+  try {
+    const snap = await getFirestore().collection('projects').doc(projectId).get();
+    if (!snap.exists) return null;
+    const data = snap.data() ?? {};
+    const lat = typeof data.lat === 'number' ? data.lat : data.location?.lat;
+    const lng = typeof data.lng === 'number' ? data.lng : data.location?.lng;
+    const altitude =
+      typeof data.altitude === 'number' ? data.altitude : data.location?.altitude;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+    return { lat, lng, altitude };
+  } catch {
+    return null;
+  }
+};
+
+const fetchEnvContextWithTimeout = async (
+  geo: ProjectGeo,
+): Promise<string | null> => {
+  try {
+    const { fetchEnvironmentContext } = await import('../../services/orchestratorService.js');
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), ENV_CONTEXT_TIMEOUT_MS);
+    });
+    const result = await Promise.race([
+      fetchEnvironmentContext(geo.lat, geo.lng),
+      timeoutPromise,
+    ]);
+    if (!result) {
+      console.warn('[ask-guardian] env-context timeout');
+      return null;
+    }
+    const serialized = JSON.stringify(result);
+    return serialized.length > 500 ? serialized.slice(0, 497) + '...' : serialized;
+  } catch (error) {
+    console.warn('[ask-guardian] env-context timeout', error);
+    return null;
+  }
+};
 
 const ALLOWED_GEMINI_ACTIONS = [
   'generateEmbeddingsBatch',
@@ -122,7 +183,7 @@ const router = Router();
 // verifyAuth before it reaches the limiter, so 401 traffic does not
 // consume any uid's quota.
 router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
-  const { query, stream = false } = req.body;
+  const { query, projectId, stream = false } = req.body;
 
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
@@ -131,11 +192,25 @@ router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+    // Sentidos: contexto ambiental tiempo real (clima + sismicidad). Se
+    // ejecuta antes del RAG normativo y se omite con elegancia si falta
+    // projectId, geo o el flag ENV_CONTEXT_ENABLED está desactivado.
+    let envContext: string | null = null;
+    if (isEnvContextEnabled() && typeof projectId === 'string' && projectId.length > 0) {
+      const geo = await lookupProjectGeo(projectId);
+      if (geo) {
+        envContext = await fetchEnvContextWithTimeout(geo);
+      }
+    }
+
     // Unified context search using Firestore Vector Search
     const { searchRelevantContext } = await import('../../services/ragService.js');
     const context = await searchRelevantContext(query);
 
     // Generate response using Gemini
+    const envBlock = envContext
+      ? `\n      [CONTEXTO AMBIENTAL TIEMPO REAL]\n      ${envContext}\n`
+      : '';
     const prompt = `
       Eres "El Guardián", el núcleo de inteligencia artificial de Praeventio Guard.
       Tu propósito es proteger la vida humana, analizar normativas (leyes chilenas como DS 594, Ley 16.744) y gestionar riesgos.
@@ -143,11 +218,11 @@ router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
 
       REGLA DE ORO: Si el usuario te pregunta por procedimientos específicos o leyes, prioritiza la información en el CONTEXTO LEGAL proporcionado.
       Si no hay información específica en el contexto, usa tu base de conocimientos pero aclara que es una recomendación general.
-
-      CONTEXTO LEGAL RELEVANTE:
+${envBlock}
+      [CONTEXTO NORMATIVO RELEVANTE]
       ${context}
 
-      PREGUNTA DEL USUARIO:
+      [PREGUNTA DEL USUARIO]
       ${query}
     `;
 
@@ -177,6 +252,7 @@ router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
       res.json({
         response: result.text,
         contextUsed: context !== 'No se encontró contexto legal relevante.',
+        envContextUsed: envContext !== null,
       });
     }
   } catch (error) {
