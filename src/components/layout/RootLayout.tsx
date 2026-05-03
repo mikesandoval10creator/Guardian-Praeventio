@@ -25,6 +25,7 @@ import { getPendingActions } from '../../utils/pwa-offline';
 import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
+import { ModeSwitcher } from '../shared/ModeSwitcher';
 
 export function RootLayout() {
   const { user } = useFirebase();
@@ -333,6 +334,11 @@ export function RootLayout() {
       <AsesorChat />
       <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
       <SmartConnectionsPanel />
+
+      {/* 4-mode UX dock — floating, post-login only (RootLayout never renders on landing). */}
+      <div className="fixed bottom-4 right-4 z-50 pointer-events-auto">
+        <ModeSwitcher />
+      </div>
     </div>
   );
 }
