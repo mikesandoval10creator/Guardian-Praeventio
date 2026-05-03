@@ -100,8 +100,10 @@ Ruta: [`/transparencia`](./src/pages/Transparencia.tsx).
 - **IVA 19% incluido** en precios CLP retail. Boleta/factura electrónica chilena.
 - **RUT emisor:** 78231119-0.
 - **Helper de IVA:** `withIVA(subtotal)` en `tiers.ts` retorna `{subtotal, iva, total}` con redondeo techo para mantener coherencia con la cifra `.990` mostrada al usuario.
-- **Pagos consumer (gratis → Oro):** Google Play Billing en app nativa.
-- **Pagos B2B (Titanio+):** Stripe / Webpay / transferencia + factura. CTA "Hablar con ventas" abre flujo manual hasta integración (ver `IMP5`).
+- **Pagos consumer (gratis → Oro):** Google Play Billing en app nativa Android.
+- **Pagos B2B (Titanio+):** Transbank/Webpay (CL web), Khipu (CL web alternativa), Google Play Billing (Android), transferencia + factura. CTA "Hablar con ventas" abre flujo manual hasta integración (ver `IMP5`).
+- **iOS:** diferido hasta primer cliente iOS confirmado y pago de fee Apple Developer ($100/año). Mientras tanto la web app PWA cubre iOS.
+- **Sin Stripe:** Praeventio opera 100% sobre pasarelas locales/regionales (Transbank, Khipu, Google Play). Esta decisión es definitiva — no se reintroduce Stripe.
 - **Cancelación:** mensual sin penalidad. Anual: prorrateo de meses no usados al cancelar.
 
 ---
