@@ -52,6 +52,7 @@ import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
 import organicRouter from "./src/server/routes/organic.js";
+import wisdomCapsuleRouter from "./src/server/routes/wisdomCapsule.js";
 import subscriptionRouter from "./src/server/routes/subscription.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
@@ -328,6 +329,8 @@ app.use('/api', telemetryRouter);
 app.use('/api', miscRouter);
 // Sprint 15 — organic structure (Crew/Process/Task) write endpoints.
 app.use('/api', organicRouter);
+// Sprint 15 — daily Wisdom Capsule summary endpoint.
+app.use('/api', wisdomCapsuleRouter);
 
 // ─── Project Invitation System (Round 18 Phase 3 — moved) ─────────────────
 // 6 endpoints (POST /api/projects/:id/invite, GET /api/projects/:id/members,
