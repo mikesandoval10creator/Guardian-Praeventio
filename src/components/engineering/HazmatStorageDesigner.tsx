@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { designHazmatStorage } from '../../services/geminiService';
-import { Building2, ShieldAlert, Loader2, CheckCircle2 } from 'lucide-react';
+import { Building2, ShieldAlert, Loader2, CheckCircle2, Wind, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { logger } from '../../utils/logger';
+import { venturiFlowRate } from '../../services/physics/bernoulliEngine';
+
+// DS 594 Art. 35 — minimum air changes per hour for chemical storage
+const ACH_MIN_DS594 = 12;
+const AIR_DENSITY_KG_M3 = 1.225;
+
+const formatEs = (value: number, fractionDigits = 2): string =>
+  new Intl.NumberFormat('es-CL', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
 
 export const HazmatStorageDesigner: React.FC = () => {
   const [storageType, setStorageType] = useState('Bodega Exclusiva');
@@ -11,6 +22,35 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [materialClass, setMaterialClass] = useState('Clase 3 (Líquidos Inflamables)');
   const [result, setResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Venturi (DS 594) extraction parameters
+  const [roomVolumeM3, setRoomVolumeM3] = useState<number | ''>(150);
+  const [inletAreaA1, setInletAreaA1] = useState<number | ''>(0.4);
+  const [throatAreaA2, setThroatAreaA2] = useState<number | ''>(0.1);
+  const [deltaPPa, setDeltaPPa] = useState<number | ''>(50);
+
+  const venturiResult = useMemo(() => {
+    if (
+      roomVolumeM3 === '' || inletAreaA1 === '' || throatAreaA2 === '' || deltaPPa === '' ||
+      Number(roomVolumeM3) <= 0 || Number(inletAreaA1) <= 0 || Number(throatAreaA2) <= 0 ||
+      Number(deltaPPa) < 0 || Number(inletAreaA1) <= Number(throatAreaA2)
+    ) {
+      return null;
+    }
+    try {
+      const q = venturiFlowRate(
+        Number(inletAreaA1),
+        Number(throatAreaA2),
+        Number(deltaPPa),
+        AIR_DENSITY_KG_M3,
+      );
+      const ach = (q * 3600) / Number(roomVolumeM3);
+      return { q, ach, compliant: ach >= ACH_MIN_DS594 };
+    } catch (err) {
+      logger.error(err);
+      return null;
+    }
+  }, [roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa]);
 
   const handleDesign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,6 +185,111 @@ export const HazmatStorageDesigner: React.FC = () => {
             )}
           </AnimatePresence>
         </div>
+      </div>
+
+      {/* Venturi extraction (DS 594 Art. 35) — additive Bernoulli engine integration */}
+      <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center border border-sky-500/20">
+            <Wind className="w-5 h-5 text-sky-500 dark:text-sky-400" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Ventilación por Venturi (DS 594)</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Cálculo local (Bernoulli) de extracción de aire para bodegas químicas. Ref.: DS 594 Art. 35.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Volumen sala (m³)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={roomVolumeM3}
+              onChange={(e) => setRoomVolumeM3(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">A₁ entrada (m²)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={inletAreaA1}
+              onChange={(e) => setInletAreaA1(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">A₂ garganta (m²)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={throatAreaA2}
+              onChange={(e) => setThroatAreaA2(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">ΔP (Pa)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={deltaPPa}
+              onChange={(e) => setDeltaPPa(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+        </div>
+
+        {venturiResult ? (
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg px-3 py-2">
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Q extracción</p>
+                <p className="text-lg font-black text-slate-900 dark:text-white">
+                  {formatEs(venturiResult.q, 4)} <span className="text-xs font-medium text-slate-500">m³/s</span>
+                </p>
+              </div>
+              <div className={`rounded-lg px-3 py-2 border ${
+                venturiResult.compliant
+                  ? 'bg-emerald-500/10 border-emerald-500/20'
+                  : 'bg-rose-500/10 border-rose-500/20'
+              }`}>
+                <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
+                  Renovaciones aire / hora (ACH)
+                </p>
+                <p className={`text-lg font-black ${
+                  venturiResult.compliant ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+                }`}>
+                  {formatEs(venturiResult.ach, 2)}
+                </p>
+              </div>
+            </div>
+            {!venturiResult.compliant && (
+              <div className="flex items-start gap-2 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                <AlertTriangle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-rose-700 dark:text-rose-300">
+                  ACH inferior al mínimo de {ACH_MIN_DS594} exigido por DS 594 Art. 35 para almacenamiento químico.
+                  Aumentar A₂, ΔP o reducir volumen.
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+            Ingresa parámetros válidos (A₁ &gt; A₂, ΔP ≥ 0) para calcular la extracción.
+          </p>
+        )}
+        <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
+          Cálculo local mediante ecuación de Bernoulli/Venturi (ρ aire = 1,225 kg/m³). Ref.: DS 594 Art. 35.
+        </p>
       </div>
     </div>
   );

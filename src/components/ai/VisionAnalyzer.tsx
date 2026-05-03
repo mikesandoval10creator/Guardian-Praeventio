@@ -8,6 +8,32 @@ import { analyzeVisionImage } from '../../services/geminiService';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { logger } from '../../utils/logger';
+import { respiratorPressureDrop } from '../../services/physics/bernoulliEngine';
+
+// NIOSH 42 CFR Part 84 — typical N95 filter resistance and resting breathing flow.
+const N95_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
+const RESTING_FLOW_M3_PER_S = 0.001;
+const FATIGUE_REFERENCE_DROP_PA = 0.5; // heuristic: at 0.5 Pa, 8h shift sustainable.
+
+const RESPIRATOR_KEYWORDS = ['respirador', 'mascarilla n95', 'mascarilla', 'filtro', 'n95'];
+
+function detectsRespirator(result: { eppDetected: string[]; risksDetected: string[]; recommendations: string[]; summary: string }): boolean {
+  const haystack = [
+    ...result.eppDetected,
+    ...result.risksDetected,
+    ...result.recommendations,
+    result.summary,
+  ].join(' ').toLowerCase();
+  return RESPIRATOR_KEYWORDS.some((k) => haystack.includes(k));
+}
+
+function estimateRespiratorFatiguePercent(): { dropPa: number; sustainPercent: number } {
+  const drop = respiratorPressureDrop(N95_FILTER_RESISTANCE_PA_S_PER_M3, RESTING_FLOW_M3_PER_S);
+  // Heuristic: every Pa above the reference halves sustainable shift fraction.
+  const raw = (1 - drop / FATIGUE_REFERENCE_DROP_PA) * 100;
+  const clamped = Math.max(10, Math.min(100, raw));
+  return { dropPa: drop, sustainPercent: clamped };
+}
 
 interface AnalysisResult {
   eppDetected: string[];
@@ -250,6 +276,24 @@ export function VisionAnalyzer() {
                     ))}
                   </ul>
                 </div>
+
+                {detectsRespirator(result) && (() => {
+                  const fatigue = estimateRespiratorFatiguePercent();
+                  return (
+                    <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4">
+                      <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        Fatiga respiratoria (Bernoulli)
+                      </h3>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300">
+                        Fatiga respiratoria estimada: <span className="font-black text-amber-500">{fatigue.sustainPercent.toFixed(0)}%</span> del turno antes de requerir relevo.
+                      </p>
+                      <p className="text-[10px] text-zinc-500 mt-1">
+                        Δp filtro ≈ {fatigue.dropPa.toFixed(2)} Pa (R=800 Pa·s/m³, Q=0,001 m³/s reposo). Ref.: NIOSH 42 CFR Part 84.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 <button
                   onClick={handleSave}

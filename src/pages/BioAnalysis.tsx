@@ -17,6 +17,13 @@ import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { respiratorPressureDrop } from '../services/physics/bernoulliEngine';
+
+// ATS/ERS spirometry guidelines (informational); NOT a clinical diagnosis.
+const PEF_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
+const PEF_FATIGUE_THRESHOLD_PA = 1.0;
+const ALTITUDE_THIN_AIR_MULTIPLIER = 1.3;
+const ALTITUDE_THRESHOLD_MASL = 3000;
 
 export function BioAnalysis() {
   const { user } = useFirebase();
@@ -44,6 +51,24 @@ export function BioAnalysis() {
   const [isModelsLoaded, setIsModelsLoaded] = useState(false);
   const [wearableConnected, setWearableConnected] = useState(false);
   const [bodyTemp, setBodyTemp] = useState<number | null>(null);
+  const [pefLMin, setPefLMin] = useState<number>(550);
+  const [altitudeMasl, setAltitudeMasl] = useState<number>(0);
+
+  // Pulmonary ergonomics (Bernoulli) — early-warning heuristic, NOT clinical diagnosis.
+  // Ref.: ATS/ERS spirometry guidelines (informational).
+  const pulmonaryErgonomics = (() => {
+    if (!Number.isFinite(pefLMin) || pefLMin <= 0) return null;
+    const flowM3PerS = pefLMin / 60000;
+    let drop = respiratorPressureDrop(PEF_FILTER_RESISTANCE_PA_S_PER_M3, flowM3PerS);
+    const altitudeAdjusted = altitudeMasl > ALTITUDE_THRESHOLD_MASL;
+    if (altitudeAdjusted) drop *= ALTITUDE_THIN_AIR_MULTIPLIER;
+    return {
+      flowM3PerS,
+      dropPa: drop,
+      altitudeAdjusted,
+      atRisk: drop > PEF_FATIGUE_THRESHOLD_PA,
+    };
+  })();
   const isOnline = useOnlineStatus();
   const { toasts, show: showToast, dismiss } = useToast();
 
@@ -773,6 +798,57 @@ export function BioAnalysis() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
+            <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4 flex items-center gap-2">
+              <HeartPulse className="w-4 h-4 text-cyan-500" />
+              Ergonomía pulmonar (Bernoulli)
+            </h3>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-400 mb-1">PEF (L/min)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={pefLMin}
+                  onChange={(e) => setPefLMin(Number(e.target.value) || 0)}
+                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest font-bold text-zinc-400 mb-1">Altitud (m s.n.m.)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={altitudeMasl}
+                  onChange={(e) => setAltitudeMasl(Number(e.target.value) || 0)}
+                  className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                />
+              </div>
+            </div>
+            {pulmonaryErgonomics ? (
+              <div className="space-y-2">
+                <p className="text-xs text-zinc-300">
+                  Δp filtro estimado: <span className="font-black text-cyan-400">{pulmonaryErgonomics.dropPa.toFixed(2)} Pa</span>
+                  {pulmonaryErgonomics.altitudeAdjusted && (
+                    <span className="text-[10px] text-zinc-400 ml-2">(×{ALTITUDE_THIN_AIR_MULTIPLIER} aire enrarecido &gt;{ALTITUDE_THRESHOLD_MASL} m)</span>
+                  )}
+                </p>
+                {pulmonaryErgonomics.atRisk && (
+                  <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2 text-xs text-rose-300">
+                    Capacidad pulmonar reducida — riesgo de fatiga temprana en altitud.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-500 italic">Ingresa un PEF válido (L/min).</p>
+            )}
+            <p className="mt-3 text-[10px] text-zinc-500">
+              Heurística de alerta temprana, NO un diagnóstico clínico. Ref.: ATS/ERS spirometry guidelines (informational).
+            </p>
           </div>
 
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-3xl p-6">
