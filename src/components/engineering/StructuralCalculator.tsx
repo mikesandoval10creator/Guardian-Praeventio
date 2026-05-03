@@ -169,7 +169,7 @@ export const StructuralCalculator: React.FC = () => {
               min={0}
               step="0.1"
               value={windAreaM2}
-              onChange={(e) => setWindAreaM2(Number(e.target.value))}
+              onChange={(e) => setWindAreaM2(Number(e.target.value) || 0)}
               className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
             />
           </div>
@@ -180,7 +180,7 @@ export const StructuralCalculator: React.FC = () => {
               min={0}
               step="1"
               value={windSpeedKmh}
-              onChange={(e) => setWindSpeedKmh(Number(e.target.value))}
+              onChange={(e) => setWindSpeedKmh(Number(e.target.value) || 0)}
               className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
             />
           </div>

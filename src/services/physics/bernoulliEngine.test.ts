@@ -27,6 +27,14 @@ describe('bernoulliEngine', () => {
     expect(() => venturiFlowRate(0.01, 0.01, 100, 1000)).toThrow();
   });
 
+  it('venturiFlowRate: throws on negative deltaP', () => {
+    expect(() => venturiFlowRate(0.01, 0.005, -10, 1000)).toThrow();
+  });
+
+  it('dynamicPressure: zero velocity yields 0', () => {
+    expect(dynamicPressure(1.225, 0)).toBe(0);
+  });
+
   it('windLoadOnSurface: 20 m², 25 m/s, Cp 0.8 ≈ 6125 N', () => {
     expect(windLoadOnSurface(20, 25, 0.8)).toBeCloseTo(6125, 0);
   });

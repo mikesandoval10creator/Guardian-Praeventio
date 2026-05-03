@@ -23,6 +23,9 @@ export function venturiFlowRate(
   if (a1M2 <= a2M2) {
     throw new Error('venturiFlowRate: A1 must be > A2');
   }
+  if (deltaPPa < 0) {
+    throw new Error('venturiFlowRate: deltaP must be >= 0');
+  }
   const ratio = a2M2 / a1M2;
   return a2M2 * Math.sqrt((2 * deltaPPa) / (rhoKgM3 * (1 - ratio * ratio)));
 }
