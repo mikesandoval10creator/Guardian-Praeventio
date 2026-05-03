@@ -175,7 +175,9 @@ const PORT = 3000;
 // Tailwind's runtime injection; img/media allow blob: + data: for previews.
 const cspDirectives = {
   defaultSrc: ["'self'"],
-  scriptSrc: ["'self'", "https://*.googleapis.com", "https://apis.google.com"],
+  // 'blob:' required for MediaPipe WASM workers (tasks-vision loads its
+  // worker scripts from Blob URLs at runtime in production).
+  scriptSrc: ["'self'", "blob:", "https://*.googleapis.com", "https://apis.google.com"],
   styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
   fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
   imgSrc: ["'self'", "blob:", "data:", "https://*.googleapis.com", "https://*.gstatic.com"],

@@ -127,35 +127,46 @@ export default defineConfig(({mode}) => {
           'pdfkit'
         ],
         output: {
-          // Vendor split: pin large deps into dedicated chunks so
-          // .size-limit.json budgets can watch them individually instead
-          // of dumping everything into the main bundle.
-          manualChunks: {
-            // React + ReactDOM + react-router (~150KB gzip)
-            'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // Vendor split: route id-based matching so transitive deps
+          // (e.g. scheduler pulled in by react) land in the right chunk
+          // and size-limit can budget each vendor independently.
+          // firebase-admin / pdfkit / express stay externalised above.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
 
-            // Firebase client SDK surface used by the web app (~120KB gzip).
-            // firebase-admin is server-side only and stays externalised above.
-            'vendor-firebase': [
-              'firebase/app',
-              'firebase/auth',
-              'firebase/firestore',
-              'firebase/storage',
-              'firebase/functions',
-            ],
+            // React core + router (~150KB gzip)
+            if (
+              id.includes('/node_modules/react/') ||
+              id.includes('/node_modules/react-dom/') ||
+              id.includes('/node_modules/react-router') ||
+              id.includes('/node_modules/scheduler/')
+            ) return 'vendor-react';
 
-            // Animations (framer-motion ~30KB gzip)
-            'vendor-motion': ['framer-motion'],
+            // Firebase client SDK (~120KB gzip)
+            if (id.includes('/node_modules/firebase/') ||
+                id.includes('/node_modules/@firebase/')) return 'vendor-firebase';
 
-            // Gantt (gantt-task-react ~30KB gzip)
-            'vendor-gantt': ['gantt-task-react'],
+            // Three.js + react-three-fiber/drei
+            if (id.includes('/node_modules/three/') ||
+                id.includes('/node_modules/@react-three/')) return 'vendor-three';
 
-            // Notes:
-            // - lucide-react is tree-shakeable; no manual split needed.
-            // - recharts / d3 / three / react-force-graph stay in app code
-            //   so they get lazy-loaded with their consuming routes.
-            // - Health Connect / HealthKit are native Capacitor plugins and
-            //   never enter the web bundle.
+            // MediaPipe (vision/camera utils, WASM workers)
+            if (id.includes('/node_modules/@mediapipe/')) return 'vendor-mediapipe';
+
+            // Visualization / animation grab-bag
+            if (id.includes('/node_modules/d3') ||
+                id.includes('/node_modules/recharts/') ||
+                id.includes('/node_modules/framer-motion/') ||
+                id.includes('/node_modules/gsap/') ||
+                id.includes('/node_modules/@gsap/')) return 'vendor-viz';
+
+            // Sentry SDK
+            if (id.includes('/node_modules/@sentry/')) return 'vendor-sentry';
+
+            // Gantt (kept separate since it lazy-loads with planning routes)
+            if (id.includes('/node_modules/gantt-task-react/')) return 'vendor-gantt';
+
+            return undefined;
           },
         },
       }

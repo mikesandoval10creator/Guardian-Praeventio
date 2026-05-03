@@ -80,7 +80,7 @@ function newId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  return `iper_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return `iper_${globalThis.crypto.randomUUID()}`;
 }
 
 export async function recordIperAssessment(

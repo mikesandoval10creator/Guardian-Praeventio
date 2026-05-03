@@ -94,7 +94,7 @@ export interface BuildInvoiceOptions {
 function defaultIdGenerator(): string {
   // Short alphanumeric id — replace with Firestore doc id at the endpoint
   // boundary. Keeping local generator for offline / unit-test use.
-  return `inv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `inv_${globalThis.crypto.randomUUID()}`;
 }
 
 /**

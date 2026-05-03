@@ -1234,4 +1234,128 @@ describe('firestore.rules', () => {
       await assertFails(deleteDoc(doc(w.firestore(), 'safety_trainings', 't5')));
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Master plan gap — telemetry_events client-create denial.
+  //
+  // Per the architecture plan, telemetry events are written ONLY by the
+  // Admin SDK from server.ts after HMAC validation of the ingress payload.
+  // No authenticated client should be able to create a telemetry doc
+  // directly (forging events would skew dashboards and alert thresholds).
+  //
+  // Pin the contract: `allow create: if false;` for telemetry_events.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('telemetry_events/{eventId} — server-only via HMAC route', () => {
+    it('denies create for unauthenticated', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      const u = env.unauthenticatedContext();
+      await assertFails(
+        setDoc(doc(u.firestore(), 'telemetry_events', 'te-anon'), {
+          type: 'page_view',
+          ts: new Date().toISOString(),
+        }),
+      );
+    });
+
+    it('denies create for an authenticated worker (no client writes)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('tele-worker-uid', 'worker');
+      const w = env.authenticatedContext(
+        'tele-worker-uid',
+        verifiedToken('worker'),
+      );
+      await assertFails(
+        setDoc(doc(w.firestore(), 'telemetry_events', 'te-w'), {
+          type: 'page_view',
+          ts: new Date().toISOString(),
+          userId: 'tele-worker-uid',
+        }),
+      );
+    });
+
+    it('denies create even for admin (only Admin SDK may write)', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc('tele-admin-uid', 'admin');
+      const a = env.authenticatedContext(
+        'tele-admin-uid',
+        verifiedToken('admin'),
+      );
+      await assertFails(
+        setDoc(doc(a.firestore(), 'telemetry_events', 'te-a'), {
+          type: 'page_view',
+          ts: new Date().toISOString(),
+        }),
+      );
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Master plan gap — isValidProject() hasOnly enforcement.
+  //
+  // The plan asks for hasOnly() validation on project writes so clients
+  // cannot inject arbitrary fields (e.g. an attacker adding `subscription`
+  // or `isAdmin` to a project doc). These tests pin the contract that
+  // unknown fields cause writes to fail.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('projects/{projectId} — isValidProject hasOnly enforcement', () => {
+    const CREATOR = 'proj-creator-uid';
+
+    function validProjectDoc() {
+      return {
+        name: 'Obra Test',
+        members: [CREATOR],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        createdBy: CREATOR,
+      };
+    }
+
+    it('allows create with only the schema-permitted fields', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(CREATOR, 'admin');
+      const c = env.authenticatedContext(CREATOR, verifiedToken('admin'));
+      await assertSucceeds(
+        setDoc(doc(c.firestore(), 'projects', 'p-ok'), validProjectDoc()),
+      );
+    });
+
+    it('denies create when an arbitrary unknown field is injected', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(CREATOR, 'admin');
+      const c = env.authenticatedContext(CREATOR, verifiedToken('admin'));
+      // hasOnly([...allowedKeys]) must reject documents with fields the
+      // schema does not declare. `attackerInjected` is not part of the
+      // project blueprint (name/members/status/createdAt/createdBy/...).
+      await assertFails(
+        setDoc(doc(c.firestore(), 'projects', 'p-extra'), {
+          ...validProjectDoc(),
+          attackerInjected: 'priv-escalation',
+        }),
+      );
+    });
+
+    it('denies update that introduces an arbitrary unknown field', async (ctx) => {
+      maybeSkip(ctx);
+      const env = requireEnv();
+      await seedUserDoc(CREATOR, 'admin');
+      // Seed bypassing rules so the update path is exercised in isolation.
+      await env.withSecurityRulesDisabled(async (ctx2) => {
+        await setDoc(
+          doc(ctx2.firestore(), 'projects', 'p-upd'),
+          validProjectDoc(),
+        );
+      });
+      const c = env.authenticatedContext(CREATOR, verifiedToken('admin'));
+      await assertFails(
+        updateDoc(doc(c.firestore(), 'projects', 'p-upd'), {
+          attackerInjected: 'priv-escalation',
+        }),
+      );
+    });
+  });
 });

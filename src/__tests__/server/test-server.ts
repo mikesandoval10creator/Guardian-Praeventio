@@ -315,6 +315,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   };
 
   const app = express();
+  // Per-route body parser for reports — production allows >64kb (full
+  // incident narrative + AI summary), capped at 2MB. Mounted BEFORE the
+  // global 64kb parser so the limit applies per request path.
+  app.use('/api/reports/generate-pdf', express.json({ limit: '2mb' }));
   app.use(express.json({ limit: '64kb' }));
 
   // verifyAuth middleware
@@ -1051,6 +1055,165 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }
     res.json({ response: `Echo: ${query}`, contextUsed: false });
+  });
+
+  // ─── /api/gemini ────────────────────────────────────────────────
+  // Mirrors the production allowlist gate. Only tests the security
+  // boundary (allowlist enforcement) — the actual backend dispatch is
+  // not exercised here.
+  const ALLOWED_GEMINI_ACTIONS = new Set([
+    'generateEmbeddingsBatch',
+    'autoConnectNodes',
+    'semanticSearch',
+    'analyzeFastCheck',
+    'predictGlobalIncidents',
+    'analyzeRiskWithAI',
+    'generateSafetyReport',
+    'getChatResponse',
+    'searchRelevantContext',
+  ]);
+  app.post('/api/gemini', verifyAuth, async (req, res) => {
+    const { action } = req.body ?? {};
+    if (typeof action !== 'string' || !ALLOWED_GEMINI_ACTIONS.has(action)) {
+      return res.status(400).json({ error: `Forbidden: Action ${action} is not allowed` });
+    }
+    res.json({ result: { ok: true, action } });
+  });
+
+  // ─── /api/reports/generate-pdf ──────────────────────────────────
+  // Body-size handler: the per-route express.json parser (mounted at
+  // app-init above with '2mb' limit) emits a 413 entity.too.large for
+  // bodies past 2MB. We add an error-handler middleware specific to
+  // this path to return a JSON 413 instead of express's default HTML.
+  app.post(
+    '/api/reports/generate-pdf',
+    (
+      err: any,
+      _req: Request,
+      res: Response,
+      next: NextFunction,
+    ) => {
+      if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+        return res.status(413).json({ error: 'payload_too_large' });
+      }
+      return next(err);
+    },
+    verifyAuth,
+    async (req, res) => {
+      const { content } = req.body ?? {};
+      if (typeof content !== 'string') {
+        return res.status(400).json({ error: 'content is required' });
+      }
+      // We don't actually render PDFKit in tests — assert that a
+      // legitimately large body (200kb+) is accepted and a small ACK
+      // is returned. The 2MB ceiling is enforced by the body parser.
+      res.setHeader('Content-Type', 'application/pdf');
+      res.status(200).send(Buffer.from(`PDF:${content.length}`));
+    },
+  );
+
+  // ─── /api/gamification/points ───────────────────────────────────
+  // Tenant isolation: when projectId is supplied, the caller must be
+  // a member; awarding points cross-tenant is a 403. When no project
+  // scope is supplied, points are awarded to the caller's own uid (the
+  // production handler reads uid from the verified token, NOT body).
+  app.post('/api/gamification/points', verifyAuth, async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const { amount, reason, projectId, targetUid } = req.body ?? {};
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+      return res.status(400).json({ error: 'invalid amount' });
+    }
+    // If a targetUid OR projectId is supplied, enforce tenant isolation:
+    // caller must be a member of the project, AND the targetUid must
+    // also be a member. This blocks tenant A from awarding points to
+    // tenant B's user.
+    if (typeof projectId === 'string' && projectId.length > 0) {
+      try {
+        await assertProjectMember(callerUid, projectId, deps.firestore as any);
+      } catch (err) {
+        if (err instanceof ProjectMembershipError) {
+          return res.status(err.httpStatus).json({ error: 'forbidden' });
+        }
+        throw err;
+      }
+      if (typeof targetUid === 'string' && targetUid !== callerUid) {
+        try {
+          await assertProjectMember(targetUid, projectId, deps.firestore as any);
+        } catch (err) {
+          if (err instanceof ProjectMembershipError) {
+            return res.status(403).json({ error: 'cross_tenant_forbidden' });
+          }
+          throw err;
+        }
+      }
+    } else if (typeof targetUid === 'string' && targetUid !== callerUid) {
+      // No project scope but trying to award to another user — block.
+      return res.status(403).json({ error: 'cross_tenant_forbidden' });
+    }
+    const beneficiary = typeof targetUid === 'string' && targetUid.length > 0 ? targetUid : callerUid;
+    const ref = deps.firestore.collection('user_stats').doc(beneficiary);
+    const snap = await ref.get();
+    const cur = (snap.exists ? snap.data() : {}) ?? {};
+    await ref.set({ ...cur, points: (cur.points ?? 0) + amount }, { merge: true });
+    await deps.firestore.collection('audit_logs').add({
+      action: 'gamification.points_awarded',
+      module: 'gamification',
+      details: { amount, reason: reason ?? null, beneficiary },
+      userId: callerUid,
+    });
+    res.json({ success: true });
+  });
+
+  // ─── /api/subscription/upgrade ──────────────────────────────────
+  // Closes DT-01/DT-05: only callers with a paid invoice for the
+  // requested plan may upgrade. Mirrors the production gate.
+  const VALID_PLANS = new Set([
+    'free',
+    'comite',
+    'departamento',
+    'plata',
+    'oro',
+    'titanio',
+    'platino',
+    'empresarial',
+    'corporativo',
+    'ilimitado',
+  ]);
+  app.post('/api/subscription/upgrade', verifyAuth, async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const { planId } = req.body ?? {};
+    if (typeof planId !== 'string' || !VALID_PLANS.has(planId)) {
+      return res.status(400).json({ error: 'invalid_plan' });
+    }
+    const paid = await deps.firestore
+      .collection('invoices')
+      .where('createdBy', '==', callerUid)
+      .where('status', '==', 'paid')
+      .get();
+    const hasPaidForPlan = paid.docs.some((d) => {
+      const data = d.data() ?? {};
+      const lineItems = Array.isArray(data.lineItems) ? data.lineItems : [];
+      return (
+        lineItems.some((li: any) => li?.tierId === planId) || data.tierId === planId
+      );
+    });
+    if (!hasPaidForPlan) {
+      return res.status(403).json({
+        error: 'no_paid_invoice_for_plan',
+        message: 'No paid invoice found for this plan. Complete a checkout first.',
+      });
+    }
+    await deps.firestore.collection('users').doc(callerUid).set(
+      { subscriptionPlan: planId, subscription: { planId, status: 'active' } },
+      { merge: true },
+    );
+    await deps.firestore.collection('audit_logs').add({
+      action: 'subscription.upgraded',
+      module: 'subscription',
+      details: { planId, method: 'verified-payment' },
+      userId: callerUid,
+    });
+    res.status(200).json({ success: true, planId });
   });
 
   return { app, deps };

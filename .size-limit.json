@@ -1,8 +1,50 @@
 [
   {
-    "name": "Main bundle (gzipped)",
+    "name": "Main entry (gzipped)",
     "path": "dist/assets/index-*.js",
-    "limit": "600 KB",
+    "limit": "150 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-react (gzipped)",
+    "path": "dist/assets/vendor-react-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-firebase (gzipped)",
+    "path": "dist/assets/vendor-firebase-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-three (gzipped)",
+    "path": "dist/assets/vendor-three-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-mediapipe (gzipped)",
+    "path": "dist/assets/vendor-mediapipe-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-viz (gzipped)",
+    "path": "dist/assets/vendor-viz-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-sentry (gzipped)",
+    "path": "dist/assets/vendor-sentry-*.js",
+    "limit": "200 KB",
+    "gzip": true
+  },
+  {
+    "name": "vendor-gantt (gzipped)",
+    "path": "dist/assets/vendor-gantt-*.js",
+    "limit": "200 KB",
     "gzip": true
   },
   {
