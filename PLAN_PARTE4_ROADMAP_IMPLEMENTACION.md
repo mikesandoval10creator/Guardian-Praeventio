@@ -1,370 +1,252 @@
 # PLAN PARTE 4 — Roadmap de Implementación Unificado
 
-> Integra hallazgos de GP actual + Prototipo 1 + Prototipo 2
-> Objetivo: Hacer REAL cada módulo y nodo. Mejorar el diseño sobre lo que tenían los prototipos.
+> Documento actualizado: 2026-05-03 | Alineado con [`ROADMAP_2026-05.md`](ROADMAP_2026-05.md) (fuente de verdad)
+> Integra hallazgos de GP actual + Prototipo 1 + Prototipo 2 + Sprint 5 (Bernoulli expandido)
 
 ---
 
 ## PRINCIPIOS DE ESTA IMPLEMENTACIÓN
 
-1. **Mejorar, no solo portar** — Cada feature de los prototipos se implementa con mejor diseño UI/UX
-2. **Real sobre stub** — Si existe en código pero no funciona de extremo a extremo, no cuenta
-3. **Seguridad primero** — Las brechas letales (BRECHA-00 al 04) bloquean todo lo demás
-4. **Zettelkasten como columna vertebral** — Las conexiones entre módulos son el valor diferencial
-5. **El Gran Maestro siempre con contexto ambiental** — AI nunca responde sin datos del campo
+1. **Mejorar, no solo portar** — cada feature se implementa con mejor diseño que el prototipo.
+2. **Real sobre stub** — si existe en código pero no funciona end-to-end, no cuenta.
+3. **Seguridad primero** — las brechas letales BRECHA-00 a 04 ya están **todas cerradas**.
+4. **Zettelkasten como columna vertebral** — las conexiones entre módulos son el valor diferencial.
+5. **El Gran Maestro siempre con contexto ambiental** — AI nunca responde sin datos del campo (pendiente Sprint 10).
+6. **Bernoulli como motor físico transversal** — el motor `bernoulliEngine.ts` alimenta 4 módulos hoy y 15 use cases planificados.
 
 ---
 
-## FASE 0 — SEGURIDAD LETAL (Esta semana, ~2 horas)
+## 1. BRECHAS LETALES — TODAS CERRADAS ✅
 
-**Sin esto NO hay pruebas de campo.**
+| Brecha | Descripción | Estado | Evidencia |
+|--------|-------------|--------|-----------|
+| BRECHA-00 | Inmutabilidad post-firma Ley 16.744 | ✅ cerrada | `firestore.rules:425-450` |
+| BRECHA-01 | Audit logs ISO 45001 | ✅ cerrada | rules + colección `audit_log` activa |
+| BRECHA-02 | HMAC telemetry | ✅ cerrada | commit `9ea820f` |
+| BRECHA-03 | Cross-tenant write `accept-invitation` | ✅ cerrada | commit `caef640` |
+| BRECHA-04 | RBAC 6 roles | ✅ cerrada | dual-capa rules + custom claims |
 
-| # | Tarea | Archivos | Tiempo |
-|---|-------|---------|--------|
-| 0.1 | EmergencyContext → Firestore real | src/contexts/EmergencyContext.tsx | 20 min |
-| 0.2 | SafeDrivingMode SOS → llama EmergencyContext | src/pages/SafeDrivingMode.tsx | 5 min |
-| 0.3 | SafeDrivingMode Base → número dinámico | src/pages/SafeDrivingMode.tsx + src/types/ | 15 min |
-| 0.4 | ManDown → mandown_events Firestore + acknowledge | src/hooks/useManDownDetection.ts | 30 min |
-| 0.5 | Geofence → zone_violations Firestore | src/hooks/useGeofence.ts | 15 min |
-| 0.6 | Añadir ruta /sun-tracker | src/routes/OperationsRoutes.tsx | 2 min |
-| 0.7 | Configurar RESEND_API_KEY y WEBHOOK_SECRET | .env / deploy config | 10 min |
-| 0.8 | ManDown re-escalación (server job 10 min) | server.ts | 20 min |
-| 0.9 | Seismic monitor → triggerEmergency si M≥4.5 | src/hooks/useSeismicMonitor.ts | 15 min |
-
-**Total estimado: ~2.5 horas**
+**Implicación:** las pruebas de campo están desbloqueadas en cuanto a seguridad letal.
 
 ---
 
-## FASE 1 — DISEÑO: BOLETÍN CLIMÁTICO (Semana 1, ~2 días)
+## 2. ITEMS COMPLETADOS NO DOCUMENTADOS PREVIAMENTE
 
-**Objetivo:** Portar el sistema de tema inteligente de proto 1 y mejorar el boletín climático.
+Trabajo entregado en Sprint 2-5 que el roadmap previo no mencionaba:
 
-### 1.1 ThemeContext con isDayTime
-**Archivo nuevo:** `src/contexts/ThemeContext.tsx`
-```typescript
-// isDayTime: 6 AM a 8 PM Chile
-// Exporta: theme, toggleTheme(), isDayTime
-// Recalcula cada hora
-// Persiste en localStorage
-```
+| Item | Commit |
+|------|--------|
+| 4-mode UX system (normal-light, normal-dark, driving, emergency) | `9a76556` |
+| `BRAND.md` con teoría de color | `96d40f4` |
+| `AppModeContext` con persistencia + auto-expiry de emergency | `f9cba6d` |
+| `ModeSwitcher` flotante en RootLayout | `09e3317` |
+| Bernoulli expansión a Hazmat/Vision/Bio (3 módulos) | `9cbb4e8`, `afa8c08`, `5178149` |
+| Semantic CSS tokens + scales 50-900 teal/petroleum/gold | `7c87869` |
+| ErrorBoundary categorizado + Sentry capture | `8b0e7b3` |
+| Landing redesign alineado con praeventio.net | `ade4a54` |
+| Lime → teal migration (~80 archivos) | `8a0a0df` |
+| Manual chunks Vite (4 vendors) | `a3c8cd4` |
+| Lighthouse threshold 0.5 → 0.65 | `14ff0ed` |
 
-### 1.2 Motor Astronómico SunTracker
-**Mejorar:** `src/pages/SunTracker.tsx` (ya existe como página básica)
-- Añadir algoritmos de proto 1: declinación solar, ángulo horario, ecuación del tiempo
-- 24 estados horarios en español ("amanecer-dorado", "mediodia-pleno")
-- 8 fases lunares con ciclo J2000.0
-- SVG animado con arco parabólico solar
-
-### 1.3 SunTrackerContainer (cross-inversion)
-**Archivo nuevo:** `src/components/SunTrackerContainer.tsx`
-```typescript
-// Mejoras sobre proto 1:
-// + Framer Motion para transiciones suaves (ya disponible en GP)
-// + Integrar datos sísmicos en el estado del contenedor
-// + Modo "faena minera" con ajuste de altitud
-```
-
-### 1.4 WeatherBulletin
-**Archivo nuevo:** `src/components/WeatherBulletin.tsx`
-- Integrar `orchestratorService.ts` (ya existe y funciona)
-- Mostrar: temperatura, UV, humedad, AQI, precipitación, sismicidad
-- Layout responsivo dos columnas
-- **Mejoras sobre proto 1:**
-  - AQI de OpenWeatherMap real (orchestratorService ya lo tiene)
-  - Indicador sísmico si hay actividad ≥3.0 en últimas 6h
-  - Umbral de altitud configurable por proyecto
-  - Animaciones Framer Motion en cambio de estado
-
-### 1.5 WeatherSafetyRecommendations
-**Archivo nuevo:** `src/components/WeatherSafetyRecommendations.tsx`
-- Mantener lógica de altitud de proto 1 (0→500→1500→2400m)
-- Usar Claude en lugar de Gemini (endpoint `/api/ask-guardian`)
-- Fallback a reglas predefinidas si AI falla
-
-### 1.6 NativeCompass
-**Mejorar:** `src/components/NativeCompass.tsx` (ya existe como stub)
-- Implementar la lógica completa de proto 1
-- SVG compass rose con 36 marcas
-- Calibración figura 8
-- Badge "SIN INTERNET" offline
-
-### 1.7 Integración
-- Montar WeatherBulletin en `Dashboard.tsx` y en `Asesor` page
-- Exportar isDayTime desde ThemeContext y usarlo en RootLayout
+**Sentry status:** 0 unresolved issues últimos 7 días — saludable o tráfico bajo en producción. Confirmar con métrica de pageviews una vez landing reciba tráfico orgánico.
 
 ---
 
-## FASE 2 — IA CONTEXTUAL (Semana 1-2, ~3 días)
+## 3. ROADMAP RE-PRIORIZADO — 17 SPRINTS
 
-**Objetivo:** Implementar "El Gran Maestro" en el Asesor actual.
+> El plan de 8 fases del roadmap previo se subsume en este plan de 17 sprints, alineado con `ROADMAP_2026-05.md`.
 
-### 2.1 NormativeContext
-**Archivo nuevo:** `src/contexts/NormativeContext.tsx`
-- Portar estructura de proto 1
-- **Mejora:** Conectar a `bcnService.ts` en lugar de datos estáticos
-- `getComprehensiveNormativeContext()` como función principal
-- Categorías: fundacional, higiene industrial, gestión riesgos, sectorial, MINSAL
+### Sprint 6 — Lime re-integration como acento de éxito ⏳
+**Esfuerzo:** ~4h. **Por qué:** la migración lime → teal fue total; queda jerarquía de 3 colores incompleta.
 
-### 2.2 Conectar Orquestador al Asesor
-**Modificar:** `server.ts` ruta `/api/ask-guardian`
-```typescript
-// Antes de llamar a Claude:
-const envContext = await fetchEnvironmentContext(lat, lng);
-const normativeCtx = getNormativeContextForSector(sector);
-const systemPrompt = buildExpertSystemPrompt(envContext, normativeCtx);
-```
+- 3-color hierarchy: **teal=trust** (primario), **lime=energy** (success/CTA crítico), **gold=prestige** (badges, premium).
+- Variants: `success-default` ahora teal, añadir `success-emphasis` lime para CTAs de acción exitosa.
+- Snapshot test en Storybook: 0 lime en utility classes excepto en componentes whitelisted.
+- Documentar en `BRAND.md` cuándo usar cada color.
 
-### 2.3 Output JSON estructurado (El Gran Maestro)
-- Añadir al system prompt la instrucción de JSON estricto
-- Parser en frontend para renderizar causa_raiz, riesgos[], plan_accion
-- Tarjeta BCN link directo a leychile.cl en respuestas normativas
+### Sprint 7 — Driving UI real con Maps SDK + speed-trigger ⏳
+**Esfuerzo:** ~12h.
 
-### 2.4 Mejoras UI del Asesor
-- Renderizar JSON estructurado como cards (no texto plano)
-- Indicador visual "Contexto activo: T=22°C, Viento=15km/h, Sin actividad sísmica"
-- Card normativa con link BCN cuando respuesta menciona decreto/ley
+- Capacitor Maps SDK con vista turn-by-turn.
+- Speed trigger: si `geolocation.speed > 5 m/s` durante ≥30s → activar `appMode = 'driving'` automáticamente.
+- Botón SOS dimensionado para uso con guantes (target 80×80px, alto contraste).
+- Cancelación de driving mode al detectar parada >5 min.
 
----
+### Sprint 8 — Emergency UI real con DeviceMotion sismo ⏳
+**Esfuerzo:** ~10h.
 
-## FASE 3 — ZETTELKASTEN REAL (Semanas 2-4, ~1 semana)
+- `DeviceMotion` hook + filtro pasa-banda 0.1-10 Hz para detectar PGA local.
+- Si magnitud estimada >M3.5 + USGS confirma sismo en zona <50km en últimos 60s → activar `appMode = 'emergency'`.
+- UI Emergency: rojo crítico, contador de tiempo desde sismo, botón "Estoy bien" (heartbeat) y "Necesito ayuda" (SOS).
 
-**Objetivo:** De 2 consumidores a 30. De orphan detection a inteligencia real.
+### Sprint 9 — Bernoulli extensions (15 use cases) ⏳
+**Esfuerzo:** ~30h en total, fraccionado por categoría.
 
-### 3.1 Upgrade useZettelkastenIntelligence
-**Modificar:** `src/hooks/useZettelkastenIntelligence.ts`
-- Mantener orphan detection (ya funciona)
-- **Añadir:** Detección de contexto por URL
-  ```typescript
-  const context = detectContextFromURL(location.pathname)
-  // '/workers' → 'workers'
-  // '/ergonomics' → 'ergonomics'
-  // '/risks' → 'risks'
-  ```
-- **Añadir:** 5 smart actions tipadas (de proto 1)
+Ver detalles en [`BERNOULLI_EXTENSIONS.md`](BERNOULLI_EXTENSIONS.md). Se ejecuta en bloques:
+- 9.1 — 5 use cases operativos nuevos (~12h)
+- 9.2 — UI alerts para los 5 ya integrados (~5h)
+- 9.3 — 5 wildcards con feasibility study (~13h)
 
-### 3.2 SmartConnectionsPanel flotante
-**Archivo nuevo:** `src/components/knowledge/SmartConnectionsPanel.tsx`
-- Panel flotante que aparece según contexto URL
-- Lista de acciones sugeridas por tipo de módulo
-- Persistencia: estado visible en localStorage por sesión
-- Montar en `RootLayout.tsx`
+### Sprint 10 — Env context injection en `/api/ask-guardian` ⏳
+**Esfuerzo:** ~4h. **Crítico — desbloquea valor del Asesor.**
 
-### 3.3 Upgrade UniversalKnowledgeContext
-**Modificar:** `src/contexts/UniversalKnowledgeContext.tsx`
-- Añadir al interface: `.graph`, `.createNode()`, `.createEdge()`
-- Auto-conexión por sector, rol, y tags comunes (lógica de proto 1)
-- Conectar con `useRiskEngine()` para nodos
+- Llamar `fetchEnvironmentContext(lat, lng)` antes de `searchRelevantContext`.
+- Inyectar bloque `[CONTEXTO AMBIENTAL]` con temperatura, viento, UV, sismicidad.
+- Forzar output JSON estructurado del Gran Maestro: `{causa_raiz, riesgos[], plan_accion}`.
+- Tarjeta BCN link a leychile.cl en respuestas normativas.
+- Detalle en `[PLAN_PARTE3_PROTOTIPO2.md](PLAN_PARTE3_PROTOTIPO2.md)` §3.
 
-### 3.4 Compliance Scoring
-**Modificar:** `src/hooks/useIndustryIntegration.ts`
-- Añadir `complianceScore: number` (0-100) por conexión
-- Score basado en: cobertura EPP + cumplimiento normativo + estado capacitaciones
-- Exponer en Dashboard como "Índice de Cumplimiento"
+### Sprint 11 — Blender 3D pipeline (HumanBodyViewer / DigitalTwinFaena / EPP) ⏳
+**Esfuerzo:** ~24h.
 
-### 3.5 Pizarra como página real
-**Archivo nuevo:** `src/pages/Pizarra.tsx`
-- `InteractiveBoardManager` (ya existe en components/knowledge/)
-- `SmartConnectionsPanel` (nuevo, fase 3.2)
-- `KnowledgeGraph` (ya existe en components/shared/ — NO montado actualmente)
-- Meta: tablero colaborativo de seguridad conectado al Risk Network
+- Pipeline Blender → glTF optimizado para Three.js.
+- 3 assets iniciales: cuerpo humano segmentado por D.S. 594 (7 regiones), faena minera tipo (digital twin base), EPP modular (casco, chaleco, arnés intercambiables).
+- Compresión Draco + KTX2 textures.
 
-### 3.6 Bootstrapping automático desde Diagnóstico
-**Modificar:** `src/pages/Diagnostico.tsx`
-- Al completar evaluación → inferir rubro SII
-- Llamar `useIndustryIntegration.bootstrapProjectKnowledge()`
-- Pre-cargar nodos de normativa + EPP por industria
+### Sprint 12 — MaestrIA: pipeline IA fotos hallazgos ⏳
+**Esfuerzo:** ~16h. **Inspirado en ganador hackathon Ancud Chile.**
 
----
+Pipeline 4 agentes encadenados (ver ROADMAP_2026-05 Sprint 6 original):
+1. **Detector** — Gemini Vision con bounding boxes.
+2. **Evaluador** — clasifica DS 594 / Art / severidad ISTAS21.
+3. **Estimador** — cotiza remediación (web search local).
+4. **Redactor** — hallazgo formal pre-llenado en Firestore.
 
-## FASE 4 — ACTIVAR SERVICIOS MUERTOS (Semana 3, ~2 días)
+UI con barra "PIPELINE PROGRESS". Output: documento listo para firma.
 
-**7 servicios con 0 callers → conectar a sus rutas existentes en server.ts**
+### Sprint 13 — ARIA multi-agente con Claude Agent SDK + MCP server interno ⏳
+**Esfuerzo:** ~20h. **"Best Use of Claude Managed Agents".**
 
-| Servicio | Endpoint server.ts | Conectar desde |
-|---------|-------------------|----------------|
-| coachBackend | /api/coach/chat | AsesorChat.tsx (modo coach) |
-| gamificationBackend | /api/gamification/* | MedalSystem.tsx, WallyGame.tsx |
-| safetyEngineBackend | /api/ask-guardian | SafetyForecast.tsx, PredictiveAnalysis.tsx |
-| environmentBackend | /api/telemetry/ingest | Telemetry.tsx |
-| dataSeedService | /api/seed-data | Settings admin panel |
-| oauthTokenStore | OAuth flow | InviteAccept.tsx + SSOConfig.tsx |
-| seedBackend | /api/seed-glossary | Glossary admin |
+5 agentes vía Claude Agent SDK:
+- **Sentinel** detecta anomalía (ManDown/Geofence) → MCP →
+- **KB Builder** lee manuales + historial → MCP →
+- **Investigator** analiza causa raíz → MCP →
+- **Q&A Agent** pregunta supervisor si faltan datos → MCP →
+- **Work Order Writer** genera orden + asigna técnico.
 
-### Hooks de seguridad con 1 consumidor → ampliar
-- `useAcousticSOS`: añadir a EmergenciaAvanzada.tsx
-- `useManDownDetection`: añadir a Dashboard.tsx (supervisores deben verlo)
-- `useSurvivalPing`: añadir a todos los módulos de campo
+Bus de mensajes: Firestore.
 
----
+### Sprint 14 — Compliance ISO 45001 + SUSESO ⏳
+**Esfuerzo:** ~20h.
 
-## FASE 5 — COMPLETITUD DE PÁGINAS (Mes 2, ~2 semanas)
+- **DIAT** automático desde Firestore → PDF firmable.
+- **Libro de obras digital** (DS 76).
+- **CPHS** automatización actas + recordatorios + Resend.
+- **Historial capacitaciones** export SERNAC/SUSESO.
+- **Firma digital** SimpleWebAuthn para declaraciones juradas check-in.
 
-**Páginas que existen pero necesitan trabajo específico**
+### Sprint 15 — App nativa Capacitor + Health Connect/Kit + APNS ⏳
+**Esfuerzo:** ~24h.
 
-### 5.1 AfichesSeguridad — Descarga real
-**Modificar:** `src/pages/modules/AfichesSeguridad.tsx` (o equivalente)
-- Implementar `handleDownload()` con html2canvas + jsPDF (ambas instaladas)
-- Templates por industria: 14 rubros de proto 1
-- QR code generado (qrcode ya instalado)
-- Formatos: A4, A3, A2 con resolución para impresión
+- CI/CD real para `cap:android` + `cap:ios`.
+- WebAuthn server-side.
+- Health Connect (Android) + HealthKit (iOS) → frecuencia cardíaca real para Man Down.
+- Background geolocation (modo conducción).
+- Offline-first SQLite → Firestore con UI de cola.
+- APNS para iOS.
 
-### 5.2 PlanEmergencia — 5 tabs + activación real
-- 5 tabs: Resumen, Brigada, Procedimientos, Evacuación, Normativas
-- 4 roles de brigada con responsabilidades explícitas
-- Activación → escribe en Firestore → FCM a brigada
-- GPS de brigada en tiempo real durante emergencia
+### Sprint 16 — Pagos reales (Webpay, MercadoPago, SII boletas) ⏳
+**Esfuerzo:** ~16h. **Cuando haya cuentas reales.**
 
-### 5.3 ISOManagement — 6 módulos reales
-- ISO 9001:2015 + ISO 45001:2018
-- Dashboard, Documentos, Competencias, Auditorías, Riesgos, Mejora Continua
-- Conectar a colección `iso_audits` en Firestore
+- Transbank/Webpay testing → producción.
+- MercadoPago SDK con OIDC.
+- Google Play Billing `WEBHOOK_SECRET` real.
+- Planes Básico/Pro/Enterprise con feature flags.
+- Boletas/facturas SII vía Acepta o Defontana.
+- Dashboard MRR/churn/conversión trial.
 
-### 5.4 Training — Certificado descargable
-- Añadir botón "Descargar Certificado" en sesión completada
-- Usar generateTrainingCertificate (ya importado, nunca llamado)
+### Sprint 17 — Scale + WAF multi-region + ISO 27001 ⏳
+**Esfuerzo:** ~20h. **Antes de >100 empresas.**
 
-### 5.5 Anatomía + Ergonomía conectadas
-- HumanBodyViewer: conectar región corporal a datos de ergonomía del trabajador
-- Al marcar región → crear nodo en Risk Network via useRiskEngine
-- Generar rutina preventiva via Gemini
-
-### 5.6 MuralDinamico — Pared comunitaria real
-- Firestore onSnapshot (ya existe en MuralDinamicoFirebase)
-- Verificar que auth-gated likes/shares funcionan
-- Integrar con Zettelkasten: publicar "Lecciones Aprendidas" automáticamente
+- Cloud Armor + WAF L7.
+- SBOM con Syft + image signing Cosign.
+- Secret rotation automática (Cloud Scheduler, 90 días).
+- Multi-region: us-central1 + southamerica-west1.
+- Audit logs inmutables a Cloud Logging (retención 7 años, Ley 16.744 exige 5).
+- Pentest externo + bug bounty.
+- Documentación ISO 27001.
 
 ---
 
-## FASE 6 — EVACUACIÓN DINÁMICA AI (Mes 2, ~1 semana)
-
-### 6.1 Endpoint /api/emergency/dynamic-route
-```typescript
-// server.ts (nuevo endpoint):
-app.post('/api/emergency/dynamic-route', verifyAuth, async (req, res) => {
-  const { location, eventType, blockages } = req.body;
-  const envContext = await fetchEnvironmentContext(location.lat, location.lng);
-  // 1. Intentar A* determinista primero (seguridad vital)
-  // 2. Si A* no tiene datos: Gemini como fallback
-  // 3. Retornar: route[], safeZones[], estimatedTime
-});
-```
-
-### 6.2 Conectar DynamicEvacuationMap
-- `src/components/emergency/DynamicEvacuationMap.tsx` → llamar nuevo endpoint
-- Mostrar ruta animada + zonas seguras
-- Integrar datos sísmicos y climáticos en tiempo real
-
-### 6.3 Computer Vision EPP
-- `src/components/ai/VisionAnalyzer.tsx` → conectar a `/api/gemini`
-- Prompt especializado: detectar EPP presente/faltante
-- Referencia automática a normativa aplicable (D.S. 132, D.S. 594)
-
----
-
-## FASE 7 — ENTERPRISE SECURITY (Mes 2-3, ~2 semanas)
-
-### 7.1 Verificar y completar Firestore Rules
-- Confirmar 3 roles: general > officer > soldado
-- Confirmar assignedSiteIds para scoping por sitio
-- Implementar audit_log inmutable (if false en update/delete)
-- Aplicar storage rules de proto 2 (12 buckets con límites)
-
-### 7.2 SSO SAML/OIDC
-- SSOConfig.tsx UI ya existe
-- Implementar backend SAML/OIDC con Firebase Auth provider
-- Soporte Azure AD + Google Workspace
-
-### 7.3 ERP/HRM API completa
-- ERPIntegration.tsx UI ya existe
-- /api/erp/sync endpoint ya existe en server.ts
-- Completar sync bidireccional con Buk/SAP (schema validation con Zod)
-
-### 7.4 Compresión de imágenes antes de Storage
-- Canvas API antes de upload a Firebase Storage
-- Reducir tamaño promedio de fotos EPP de ~5MB a ~1MB
-
----
-
-## FASE 8 — NODOS 321-512: CONSTRUIR EL FUTURO (Mes 3+)
-
-### Bloque V — Inteligencia Colectiva (321-380)
-- Red social corporativa de seguridad (MuralDinamico mejorado)
-- Lecciones aprendidas globales entre faenas
-- Benchmarking anónimo de índices de accidentabilidad
-- Sistema de mentores: trabajador experto → trabajador nuevo
-
-### Bloque VI — Ecosistema Enterprise (381-430)
-- Google Workspace full (Drive, Calendar, Sheets bidireccional)
-- ERP/SAP/Buk sync completo
-- SSO enterprise (Azure AD, Okta)
-- Blockchain para certificados de capacitación (ERC-20 en Polygon)
-
-### Bloque VII — Expansión Regional (431-470)
-- 15 países LATAM con sus normativas específicas
-- Pack normativa Chile (actual), Bolivia (Reglamento 583), Perú (Ley 29783), Brasil (NR-35)
-- Multi-moneda: CLP, USD, PEN, BOB, BRL
-- Panel de idiomas: español, inglés, portugués, quechua (interface)
-
-### Bloque VIII — AI Avanzada (471-512)
-- Computer vision EPP en tiempo real (stream de cámara)
-- Digital twin de la faena (Three.js ya disponible en GP)
-- Asistente de voz manos libres con ElevenLabs (Carmen, Roberto, Sarah)
-- Biometría comportamental para detección de fatiga
-- Gemelos digitales de trabajadores para simulación de riesgo
-
----
-
-## RESUMEN EJECUTIVO
+## 4. RESUMEN EJECUTIVO 2026-05-03
 
 ```
-ESTA SEMANA (Fase 0 + inicio Fase 1):
-├── Brechas letales: EmergencyContext, SOS, ManDown, Geofence
-├── Ruta SunTracker
-└── ThemeContext + inicio WeatherBulletin
+ESTA SEMANA (Sprints 6 + 10):
+├── Lime re-integration como acento (4h)
+└── Env context en /api/ask-guardian (4h) ← desbloquea valor Asesor
 
-MES 1 (Fases 1-3):
-├── Boletín climático completo con dark/light cross-inversion
-├── El Gran Maestro: Asesor con contexto ambiental + normativo
-└── Zettelkasten real: URL context + SmartConnectionsPanel + Pizarra
+PRÓXIMAS 2 SEMANAS (Sprints 7 + 8):
+├── Driving UI con Maps SDK + speed trigger
+└── Emergency UI con DeviceMotion sismo
 
-MES 2 (Fases 4-6):
-├── 7 servicios muertos conectados
-├── Páginas completadas: AfichesSeguridad, ISOManagement, PlanEmergencia
-└── Evacuación dinámica AI + Computer Vision EPP
+MES 1 (Sprint 9):
+└── Bernoulli extensions: 15 use cases físicos
 
-MES 2-3 (Fase 7):
-├── Enterprise: SSO, ERP, Firestore rules completas
-└── Preparación para expansión
+MES 2 (Sprints 11 + 12):
+├── Blender 3D pipeline
+└── MaestrIA: hallazgos por foto
 
-MES 3+ (Fase 8):
-└── Nodos 321-512: expandir al futuro
+MES 3 (Sprints 13 + 14):
+├── ARIA multi-agente
+└── Compliance ISO 45001 / SUSESO
+
+MES 4-6 (Sprints 15 + 16 + 17):
+├── Capacitor nativa + Health Connect/Kit
+├── Pagos reales SII
+└── Scale + WAF + ISO 27001
 ```
 
----
-
-## HERRAMIENTAS DE DISEÑO PARA MEJORAR LOS PROTOTIPOS
-
-| Área | Herramienta | Uso |
-|------|-------------|-----|
-| Componentes UI | shadcn/ui (ya instalado) | Consistencia visual |
-| Animaciones | Framer Motion (ya instalado) | Transiciones WeatherBulletin, Zettelkasten |
-| Gráficos | Recharts (ya instalado) | Dashboard métricas, compliance scoring |
-| Node graph | @xyflow/react (instalar) | Visualización Zettelkasten visual |
-| PDF export | html2canvas + jsPDF (ya instalado) | AfichesSeguridad, certificados |
-| AI para UI | Claude AI via /api/gemini | Generar sugerencias UX contextuales |
-| 3D | Three.js (ya instalado) | Digital twins, anatomía 3D |
+Total estimado restante: **~200 horas** (Sprints 6-17). Repartido en sprints de 1-3 semanas = ~6 meses calendario con dedicación parcial.
 
 ---
 
-## VERIFICACIÓN END-TO-END
+## 5. DEPENDENCIAS CRÍTICAS
 
-| Test | Fase | Condición de éxito |
-|------|------|-------------------|
-| SOS en campo | F0 | Presionar → doc en Firestore en <2s + FCM a supervisor |
-| WeatherBulletin night | F1 | Cambiar a tema claro → boletín muestra estrellas animadas si es noche |
-| Asesor con contexto | F2 | "¿Qué EPP necesito hoy?" → respuesta incluye temperatura y sismicidad actuales |
-| Smart action worker | F3 | Ir a /workers → panel sugiere "suggest-epp-for-worker" automáticamente |
-| Afiches PDF | F5 | Seleccionar A3 + minería → PDF descargable con normativa D.S. 132 |
-| Ruta evacuación AI | F6 | Simular sismo → mapa muestra ruta calculada con condiciones actuales |
-| Compliance 0-100 | F3 | Worker sin capacitación muestra score 23 en dashboard |
-| Audit log | F7 | Intentar updateDoc en audit_log → PERMISSION_DENIED |
+```
+Sprint 10 (env context) ─────────┬─→ Sprint 12 (MaestrIA con env)
+                                 └─→ Sprint 13 (ARIA con env)
+Sprint 6 (lime acento)
+Sprint 7 (driving) ──────────────┐
+Sprint 8 (emergency) ────────────┴─→ Sprint 15 (Capacitor nativa)
+Sprint 9 (Bernoulli ext) ────────┬─→ todos los módulos físicos
+Sprint 11 (Blender) ─────────────┴─→ Sprint 12 (overlay 3D en hallazgos)
+Sprint 14 (compliance) ──────────────→ Sprint 16 (pagos con boleta SII)
+Sprint 17 (scale) ───────────────────→ pre-requisito >100 empresas
+```
+
+**Crítico:** Sprint 10 desbloquea más valor que el resto sumado. Es prioridad #1 para próxima semana.
+
+---
+
+## 6. HERRAMIENTAS DE DISEÑO (no requieren instalación)
+
+| Área | Herramienta | Estado |
+|------|-------------|--------|
+| Componentes UI | shadcn/ui | ✅ instalado |
+| Animaciones | Framer Motion | ✅ instalado |
+| Gráficos | Recharts | ✅ instalado |
+| Node graph | @xyflow/react | ⏳ instalar para Sprint 12 visual |
+| PDF export | html2canvas + jsPDF | ✅ instalado |
+| AI para UI | Claude AI vía /api/ask-guardian | ✅ activo |
+| 3D | Three.js + Draco + KTX2 | ✅ instalado, optimización Sprint 11 |
+| Bernoulli engine | `[bernoulliEngine.ts](src/services/physics/bernoulliEngine.ts)` | ✅ 6 funciones SI |
+
+---
+
+## 7. VERIFICACIÓN END-TO-END (próximos 30 días)
+
+| Test | Sprint | Condición de éxito |
+|------|--------|-------------------|
+| `/api/ask-guardian` con env context | 10 | Respuesta menciona temp+sismicidad activa |
+| Lime acento solo en CTAs success | 6 | Snapshot test pasa con whitelist |
+| Driving auto-trigger por velocidad | 7 | Conducción >18 km/h por 30s → modo activo |
+| Emergency por DeviceMotion | 8 | PGA detectada + USGS confirma → modo activo |
+| 5 use cases Bernoulli operativos | 9 | Hidrantes, misting, andamios, HVAC, fugas gas con UI |
+| MaestrIA pipeline 4 agentes | 12 | Foto in → hallazgo formal pre-llenado out |
+| ARIA Sentinel → Work Order | 13 | ManDown → orden de trabajo asignada en Firestore |
+| Health Connect HR para Man Down | 15 | HR <40 o >180 → alerta supervisor |
+| Webpay producción cobro real | 16 | Plan Pro mensual cobrado correctamente |
+
+---
+
+> Próxima revisión: 2026-05-17 tras Sprints 6 + 10 (alta prioridad).
