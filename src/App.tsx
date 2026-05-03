@@ -54,6 +54,7 @@ const Pricing = lazy(() => import('./pages/Pricing').then(module => ({ default: 
 const Transparencia = lazy(() => import('./pages/Transparencia').then(module => ({ default: module.Transparencia })));
 const WebXR = lazy(() => import('./pages/WebXR').then(module => ({ default: module.default })));
 const SafeDrivingMode = lazy(() => import('./pages/SafeDrivingMode').then(module => ({ default: module.SafeDrivingMode })));
+const Driving = lazy(() => import('./pages/Driving').then(module => ({ default: module.Driving })));
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard').then(module => ({ default: module.ExecutiveDashboard })));
 const InviteAccept = lazy(() => import('./pages/InviteAccept').then(module => ({ default: module.InviteAccept })));
 const RefereeAccept = lazy(() => import('./pages/RefereeAccept').then(module => ({ default: module.RefereeAccept })));
@@ -86,6 +87,7 @@ function AppRoutes() {
               {ComplianceRoutes}
               {AIRoutes}
               <Route path="safe-driving" element={<SafeDrivingMode />} />
+              <Route path="driving" element={<Driving />} />
               <Route path="settings" element={<Settings />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="*" element={<Dashboard />} />
@@ -154,6 +156,7 @@ function AppRoutes() {
 
                     {/* Other Routes */}
                     <Route path="safe-driving" element={<SafeDrivingMode />} />
+              <Route path="driving" element={<Driving />} />
                     <Route path="webxr" element={<WebXR />} />
                     <Route path="history" element={<History />} />
                     <Route path="pricing" element={<Pricing />} />
