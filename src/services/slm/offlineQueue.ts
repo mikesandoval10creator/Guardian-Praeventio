@@ -234,6 +234,25 @@ export async function enqueueSession(
     hmac,
   };
   await db.put(STORE_NAME, record);
+  // 12th wave analytics — `slm.queue.grew`. Compute the post-insert depth
+  // from a fresh getAll() so the count reflects the database state the
+  // caller would observe via `listPending()`. Fire-and-forget; the
+  // adapter swallows any sink failure on its own. Dynamic import keeps
+  // the SLM namespace's import graph free of analytics (mirrors the
+  // orchestrator pattern in `orchestrator.ts`).
+  void (async () => {
+    try {
+      const all = (await db.getAll(STORE_NAME)) as QueuedSession[];
+      const queue_depth_after = all.filter((s) => s.reconciled === false).length;
+      const { analytics } = await import('../analytics');
+      await analytics.track('slm.queue.grew', {
+        queue_depth_after,
+        session_id: record.id,
+      });
+    } catch {
+      /* analytics MUST NOT break the enqueue contract */
+    }
+  })();
   return record.id;
 }
 

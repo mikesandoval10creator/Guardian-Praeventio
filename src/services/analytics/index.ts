@@ -24,14 +24,18 @@ export {
 export type { AnalyticsQueue, QueuedAnalyticsEvent } from './queue';
 export { consoleSink, noopSink, sentryBreadcrumbSink } from './sinks';
 export type {
+  AppBackgroundedProperties,
   AppModeName,
   AppModeSwitchedProperties,
   AppModeTriggerKind,
+  AppOpenedProperties,
   ArchiveReason,
   AuthProvider,
   AuthUserSignedInProperties,
   AuthUserSignedOutProperties,
   AuthUserSignedUpProperties,
+  BootKind,
+  CacheOrigin,
   CheckinKind,
   CheckinStatus,
   CommonProperties,
@@ -58,9 +62,12 @@ export type {
   Severity,
   SignoutReason,
   Sink,
+  SlmModelDownloadedProperties,
   SlmQueryKind,
   SlmQueryOfflineProperties,
   SlmQueryOnlineProperties,
+  SlmQueueGrewProperties,
+  SlmQueueReconciledProperties,
   TareaCompletedProperties,
 } from './types';
 

@@ -59,7 +59,13 @@ export type EventName =
   | 'payment.checkout.started'
   | 'payment.transaction.succeeded'
   | 'payment.transaction.failed'
-  | 'knowledge.doc.viewed';
+  | 'knowledge.doc.viewed'
+  // 12th wave additions — see catalog rows 76–78 (SLM) and 116–117 (app shell).
+  | 'app.opened'
+  | 'app.backgrounded'
+  | 'slm.queue.grew'
+  | 'slm.queue.reconciled'
+  | 'slm.model.downloaded';
 
 /**
  * Common props attached to every event.
@@ -282,6 +288,53 @@ export interface KnowledgeDocViewedProperties extends CommonProperties {
   view_duration_seconds_estimate?: number;
 }
 
+// ---------------------------------------------------------------------------
+// 12th wave additions — types matching catalog rows for the 5 new events.
+// Source-of-truth: docs/tracking/event-catalog.md (rows 76–78 for SLM,
+// rows 116–117 for app shell) + property-glossary "App shell" + "SLM"
+// sections. Names + enums copied verbatim — drift hunt for the wave was
+// `boot_kind` (catalog) NOT `launch_kind`, `cache_origin` enum (cdn|peer|
+// pre_packaged) NOT cache|network, and `pass_duration_ms` (catalog) NOT
+// `duration_ms`.
+// ---------------------------------------------------------------------------
+
+/** Discriminator for `app.opened` — catalog enum (`boot_kind`). */
+export type BootKind = 'cold' | 'warm' | 'pwa_resume';
+
+export interface AppOpenedProperties extends CommonProperties {
+  boot_kind: BootKind;
+  /** Seconds since the previous `app.opened` for the same browser. */
+  last_open_delta_seconds?: number;
+}
+
+export interface AppBackgroundedProperties extends CommonProperties {
+  /** Foreground time before the page hid (catalog optional). */
+  foreground_duration_seconds?: number;
+}
+
+export interface SlmQueueGrewProperties extends CommonProperties {
+  queue_depth_after: number;
+  /** UUID of the queued offline session — joins to ZK once reconciled. */
+  session_id: string;
+}
+
+export interface SlmQueueReconciledProperties extends CommonProperties {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  pass_duration_ms?: number;
+}
+
+/** Origin of the cached/fetched bytes (catalog enum on `cache_origin`). */
+export type CacheOrigin = 'cdn' | 'peer' | 'pre_packaged';
+
+export interface SlmModelDownloadedProperties extends CommonProperties {
+  model_id: string;
+  model_bytes: number;
+  download_duration_ms: number;
+  cache_origin?: CacheOrigin;
+}
+
 /**
  * Map from event name → its full property shape. Used by `Event<N>` below
  * so `analytics.track(name, props)` validates `props` against the right
@@ -306,6 +359,12 @@ export interface EventPropertiesMap {
   'payment.transaction.succeeded': PaymentTransactionSucceededProperties;
   'payment.transaction.failed': PaymentTransactionFailedProperties;
   'knowledge.doc.viewed': KnowledgeDocViewedProperties;
+  // 12th wave additions
+  'app.opened': AppOpenedProperties;
+  'app.backgrounded': AppBackgroundedProperties;
+  'slm.queue.grew': SlmQueueGrewProperties;
+  'slm.queue.reconciled': SlmQueueReconciledProperties;
+  'slm.model.downloaded': SlmModelDownloadedProperties;
 }
 
 /**

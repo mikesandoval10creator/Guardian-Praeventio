@@ -170,7 +170,36 @@ export async function runReconciliation(
   if (typeof opts?.projectId !== 'string' || opts.projectId.length === 0) {
     throw new Error('runReconciliation: projectId is required');
   }
-  return reconcileOfflineSessions({
+  // 12th wave analytics — measure end-to-end pass duration so the
+  // `pass_duration_ms` optional in the catalog is populated. The wrapper
+  // here (rather than inside `reconcileOfflineSessions`) is the natural
+  // seam: the orchestrator service stays test-pure (no analytics import)
+  // while the runner — which already imports the Zettelkasten persistence
+  // — owns the production wiring.
+  const startedAt =
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+  const result = await reconcileOfflineSessions({
     zettelkastenWriteFn: makeAdapter(opts.projectId),
   });
+  void (async () => {
+    try {
+      const elapsedNow =
+        typeof performance !== 'undefined' && typeof performance.now === 'function'
+          ? performance.now()
+          : Date.now();
+      const pass_duration_ms = Math.max(0, Math.round(elapsedNow - startedAt));
+      const { analytics } = await import('../analytics');
+      await analytics.track('slm.queue.reconciled', {
+        attempted: result.attempted,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        pass_duration_ms,
+      });
+    } catch {
+      /* analytics never blocks a reconcile result */
+    }
+  })();
+  return result;
 }
