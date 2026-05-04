@@ -20,6 +20,7 @@ import 'katex/dist/katex.min.css';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { Tooltip } from '../components/shared/Tooltip';
 
 export function EmergencyGenerator() {
   const { selectedProject } = useProject();
@@ -427,22 +428,27 @@ export function EmergencyGenerator() {
                   <p className="text-sm sm:text-base text-rose-600 font-bold mt-1">{scenario}</p>
                 </div>
                 <div className="flex gap-2 self-end sm:self-auto" data-html2canvas-ignore="true">
-                  <button 
-                    onClick={handleSave}
-                    disabled={isSaving || !isOnline}
-                    className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors disabled:opacity-50"
-                    title="Guardar en Drive y Risk Network"
-                  >
-                    {isSaving ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Save className="w-4 h-4 sm:w-5 sm:h-5" />}
-                  </button>
-                  <button 
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloading || !isOnline}
-                    className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors disabled:opacity-50"
-                    title="Descargar PDF"
-                  >
-                    {isDownloading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Download className="w-4 h-4 sm:w-5 sm:h-5" />}
-                  </button>
+                  {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
+                  <Tooltip content="Guardar en Drive y Risk Network">
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !isOnline}
+                      aria-label="Guardar plan en Drive y Risk Network"
+                      className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors disabled:opacity-50"
+                    >
+                      {isSaving ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" aria-hidden="true" /> : <Save className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />}
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Descargar PDF">
+                    <button
+                      onClick={handleDownloadPDF}
+                      disabled={isDownloading || !isOnline}
+                      aria-label="Descargar plan como PDF"
+                      className="p-2 bg-zinc-100 hover:bg-zinc-200 rounded-lg text-zinc-600 transition-colors disabled:opacity-50"
+                    >
+                      {isDownloading ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" aria-hidden="true" /> : <Download className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />}
+                    </button>
+                  </Tooltip>
                 </div>
               </div>
 

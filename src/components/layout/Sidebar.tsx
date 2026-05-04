@@ -231,8 +231,13 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                 P
               </span>
               {!isOnline && (
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-[#4db6ac] dark:border-zinc-950 flex items-center justify-center" title="Modo Búnker (Offline)">
-                  <WifiOff className="w-2 h-2 text-white" />
+                // Sprint 20 19th-wave (Bucket C): badge is non-interactive (no focus, no click); native title= is invisible to keyboard and screen readers. role="img" + aria-label gives proper SR semantic; the visible text "Búnker" pill below already conveys this for sighted users so a Tooltip wrapper is not warranted here.
+                <div
+                  role="img"
+                  aria-label="Modo Búnker (Offline)"
+                  className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-[#4db6ac] dark:border-zinc-950 flex items-center justify-center"
+                >
+                  <WifiOff className="w-2 h-2 text-white" aria-hidden="true" />
                 </div>
               )}
             </div>
