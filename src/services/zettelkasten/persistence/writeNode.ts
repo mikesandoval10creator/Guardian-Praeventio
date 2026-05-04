@@ -20,6 +20,7 @@
 import { auth } from '../../firebase';
 import { saveForSync } from '../../../utils/pwa-offline';
 import { logger } from '../../../utils/logger';
+import { withSentryScope } from '../../observability/sentryInstrumentation';
 import type { RiskNodePayload } from '../types';
 
 export interface WriteContext {
@@ -95,6 +96,29 @@ export async function nodeIdFor(node: RiskNodePayload, projectId: string): Promi
  * `.doc(idempotencyKey).set({...}, {merge: true})`).
  */
 export async function writeNodes(
+  nodes: RiskNodePayload[],
+  ctx: WriteContext,
+): Promise<WriteResult> {
+  // Sprint 20 Bucket Mu — Sentry scope tags `module=zettelkasten`. We
+  // count nodes by type (low cardinality) so an issue with the IPER
+  // generator vs. the HazmatStorageDesigner is easy to disambiguate
+  // from the Sentry issue page. We DO NOT pass the raw nodes (they
+  // contain the `description` text the user typed).
+  return withSentryScope(
+    'zettelkasten',
+    {
+      action: 'writeNodes',
+      projectId: ctx?.projectId ?? '(missing)',
+      nodeCount: Array.isArray(nodes) ? nodes.length : 0,
+      nodeTypes: Array.isArray(nodes)
+        ? Array.from(new Set(nodes.map((n) => n?.type).filter(Boolean)))
+        : [],
+    },
+    async () => writeNodesImpl(nodes, ctx),
+  );
+}
+
+async function writeNodesImpl(
   nodes: RiskNodePayload[],
   ctx: WriteContext,
 ): Promise<WriteResult> {

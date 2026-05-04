@@ -1,8 +1,26 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { withSentryScope } from './observability/sentryInstrumentation';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
 export const generatePredictiveForecast = async (projectName: string, context: string, weatherContext: string) => {
+  // Sprint 20 Bucket Mu — Sentry scope tags `module=prediction` so an
+  // operator filtering Sentry by module can see the predictive engine's
+  // failure rate distinct from the LLM-only path. `projectName` is
+  // present in safer logs already, so it's safe to include here.
+  return withSentryScope(
+    'prediction',
+    {
+      action: 'generatePredictiveForecast',
+      projectName,
+      contextLength: context?.length ?? 0,
+      weatherContextLength: weatherContext?.length ?? 0,
+    },
+    async () => generatePredictiveForecastImpl(projectName, context, weatherContext),
+  );
+};
+
+async function generatePredictiveForecastImpl(projectName: string, context: string, weatherContext: string) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
@@ -54,18 +72,30 @@ export const generatePredictiveForecast = async (projectName: string, context: s
   });
 
   return JSON.parse(response.text);
-};
+}
 
 export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => {
+  return withSentryScope(
+    'prediction',
+    {
+      action: 'analyzeRiskCorrelations',
+      nodeCount: Array.isArray(nodes) ? nodes.length : 0,
+      eventCount: Array.isArray(events) ? events.length : 0,
+    },
+    async () => analyzeRiskCorrelationsImpl(nodes, events),
+  );
+};
+
+async function analyzeRiskCorrelationsImpl(nodes: any[], events: any[]) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
   const prompt = `
     Analiza correlaciones ocultas entre los nodos de la red de conocimiento y los eventos de telemetría recientes.
-    
+
     Nodos: ${JSON.stringify(nodes.slice(0, 50))}
     Eventos: ${JSON.stringify(events.slice(0, 50))}
-    
+
     Busca patrones no evidentes (ej. "Cada vez que sube la humedad, aumentan los reportes de resbalones en la zona B").
   `;
 
@@ -90,4 +120,4 @@ export const analyzeRiskCorrelations = async (nodes: any[], events: any[]) => {
   });
 
   return JSON.parse(response.text);
-};
+}

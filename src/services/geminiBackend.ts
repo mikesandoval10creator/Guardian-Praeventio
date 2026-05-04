@@ -3,6 +3,7 @@ import { RiskNode } from '../types';
 import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
 import { calculateDeterministicSafeRoute } from './routingBackend.js';
 import { logger } from '../utils/logger';
+import { withSentryScope } from './observability/sentryInstrumentation';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -141,40 +142,63 @@ export const semanticSearch = async (query: string, nodes: Partial<RiskNode>[], 
 };
 
 export const analyzeFastCheck = async (observation: string) => {
-  if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+  // Sprint 20 Bucket Mu — wrap with Sentry scope. We DO NOT pass the
+  // raw `observation` text into the Sentry context: it can contain
+  // worker names, site coordinates, or PII the operator typed into the
+  // field. We pass only its length so we can correlate failures by
+  // input size without leaking the content.
+  return withSentryScope(
+    'gemini',
+    { action: 'analyzeFastCheck', observationLength: observation?.length ?? 0 },
+    async () => {
+      if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: `Analiza la siguiente observación de seguridad en terreno (Fast Check):
+      const ai = new GoogleGenAI({ apiKey: API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Analiza la siguiente observación de seguridad en terreno (Fast Check):
     "${observation}"
-    
+
     Clasifica la observación y proporciona:
     1. Tipo de nodo (RISK, FINDING, o MITIGATION).
     2. Un título corto y descriptivo.
     3. Nivel de criticidad (Alta, Media, Baja).
     4. Acción inmediata recomendada.
     5. Lista de etiquetas (tags) relevantes.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          tipo: { type: Type.STRING, enum: ["RISK", "FINDING", "MITIGATION"] },
-          titulo: { type: Type.STRING },
-          criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
-          accionInmediata: { type: Type.STRING },
-          tags: { type: Type.ARRAY, items: { type: Type.STRING } }
-        },
-        required: ["tipo", "titulo", "criticidad", "accionInmediata", "tags"]
-      }
-    }
-  });
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              tipo: { type: Type.STRING, enum: ["RISK", "FINDING", "MITIGATION"] },
+              titulo: { type: Type.STRING },
+              criticidad: { type: Type.STRING, enum: ["Alta", "Media", "Baja"] },
+              accionInmediata: { type: Type.STRING },
+              tags: { type: Type.ARRAY, items: { type: Type.STRING } }
+            },
+            required: ["tipo", "titulo", "criticidad", "accionInmediata", "tags"]
+          }
+        }
+      });
 
-  return JSON.parse(response.text);
+      return JSON.parse(response.text);
+    },
+  );
 };
 
 export const predictGlobalIncidents = async (context: string, envContext: string) => {
+  return withSentryScope(
+    'gemini',
+    {
+      action: 'predictGlobalIncidents',
+      contextLength: context?.length ?? 0,
+      envContextLength: envContext?.length ?? 0,
+    },
+    async () => predictGlobalIncidentsImpl(context, envContext),
+  );
+};
+
+async function predictGlobalIncidentsImpl(context: string, envContext: string) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -222,9 +246,25 @@ export const predictGlobalIncidents = async (context: string, envContext: string
   });
 
   return JSON.parse(response.text);
-};
+}
 
 export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => {
+  // Sprint 20 Bucket Mu — Sentry scope captures `industry` (low-cardinality,
+  // useful for triage) but never the raw `description` (free-text from
+  // the user, may contain worker names / site identifiers).
+  return withSentryScope(
+    'gemini',
+    {
+      action: 'analyzeRiskWithAI',
+      industry: industry || 'general',
+      descriptionLength: description?.length ?? 0,
+      nodesContextLength: nodesContext?.length ?? 0,
+    },
+    async () => analyzeRiskWithAIImpl(description, nodesContext, industry),
+  );
+};
+
+async function analyzeRiskWithAIImpl(description: string, nodesContext: string, industry?: string) {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   // Round 16 (R1) — `criticidad` is intentionally OMITTED from the prompt
@@ -278,7 +318,7 @@ export const analyzeRiskWithAI = async (description: string, nodesContext: strin
 
   const resultString = await queryCommunityKnowledge(prompt, industry || 'general', fallback);
   return JSON.parse(resultString);
-};
+}
 
 export const analyzePostureWithAI = async (base64Image: string, mimeType: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
