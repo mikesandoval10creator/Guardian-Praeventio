@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, Trash2, Edit2, Save, AlertTriangle } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -27,6 +28,7 @@ interface EventDetailsModalProps {
 }
 
 export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalProps) {
+  const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -84,7 +86,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
     if (navigator.onLine && (formData.date !== event.date || formData.time !== event.time)) {
       const overlaps = await checkOverlaps();
       if (overlaps.length > 0) {
-        setConflictError(`Conflicto detectado: Tienes eventos a la misma hora en: ${overlaps.join(', ')}.`);
+        setConflictError(t('calendar.details_conflict_detected', 'Conflicto detectado: Tienes eventos a la misma hora en: {{projects}}.', { projects: overlaps.join(', ') }));
         setLoading(false);
         return;
       }
@@ -99,7 +101,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       setIsEditing(false);
     } catch (error) {
       logger.error('Error updating event:', error);
-      showToast('Error al actualizar el evento', 'error');
+      showToast(t('calendar.details_error_update', 'Error al actualizar el evento'), 'error');
     } finally {
       setLoading(false);
     }
@@ -148,7 +150,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">
-                    {isEditing ? 'Editar Evento' : 'Detalles del Evento'}
+                    {isEditing ? t('calendar.details_edit_title', 'Editar Evento') : t('calendar.details_view_title', 'Detalles del Evento')}
                   </h2>
                   <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">
                     {event.type}
@@ -161,14 +163,14 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     <button
                       onClick={() => setIsEditing(true)}
                       className="p-2 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white shrink-0"
-                      title="Editar"
+                      title={t('calendar.details_action_edit', 'Editar')}
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={handleDelete}
                       className="p-2 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-500 shrink-0"
-                      title="Eliminar"
+                      title={t('calendar.details_action_delete', 'Eliminar')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -204,7 +206,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                   
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Título del Evento
+                      {t('calendar.field_title', 'Título del Evento')}
                     </label>
                     <div className="relative">
                       <Type className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -214,7 +216,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                         value={formData.title || ''}
                         onChange={e => setFormData({ ...formData, title: e.target.value })}
                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                        placeholder="Ej: Capacitación de Altura"
+                        placeholder={t('calendar.details_field_title_placeholder', 'Ej: Capacitación de Altura')}
                       />
                     </div>
                   </div>
@@ -222,7 +224,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                        Fecha
+                        {t('calendar.field_date', 'Fecha')}
                       </label>
                       <div className="relative">
                         <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -237,7 +239,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                        Hora
+                        {t('calendar.field_time', 'Hora')}
                       </label>
                       <div className="relative">
                         <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -254,7 +256,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Ubicación
+                      {t('calendar.field_location', 'Ubicación')}
                     </label>
                     <div className="relative">
                       <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -264,30 +266,30 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                         value={formData.location || ''}
                         onChange={e => setFormData({ ...formData, location: e.target.value })}
                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                        placeholder="Ej: Sala de Reuniones 1"
+                        placeholder={t('calendar.field_location_placeholder', 'Ej: Sala de Reuniones 1')}
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Tipo de Evento
+                      {t('calendar.field_type', 'Tipo de Evento')}
                     </label>
                     <select
                       value={formData.type || 'Reunión'}
                       onChange={e => setFormData({ ...formData, type: e.target.value as any })}
                       className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl py-3 px-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none"
                     >
-                      <option value="Capacitación">Capacitación</option>
-                      <option value="Inspección">Inspección</option>
-                      <option value="Auditoría">Auditoría</option>
-                      <option value="Reunión">Reunión</option>
+                      <option value="Capacitación">{t('calendar.event_type_training', 'Capacitación')}</option>
+                      <option value="Inspección">{t('calendar.event_type_inspection', 'Inspección')}</option>
+                      <option value="Auditoría">{t('calendar.event_type_audit', 'Auditoría')}</option>
+                      <option value="Reunión">{t('calendar.event_type_meeting', 'Reunión')}</option>
                     </select>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Descripción
+                      {t('calendar.field_description', 'Descripción')}
                     </label>
                     <div className="relative">
                       <FileText className="absolute left-4 top-4 w-4 h-4 text-zinc-500" />
@@ -296,7 +298,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                         value={formData.description || ''}
                         onChange={e => setFormData({ ...formData, description: e.target.value })}
                         className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-white/10 rounded-xl py-3 pl-11 pr-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-emerald-500 transition-colors min-h-[100px] resize-none"
-                        placeholder="Detalles del evento..."
+                        placeholder={t('calendar.field_description_placeholder', 'Detalles del evento...')}
                       />
                     </div>
                   </div>
@@ -312,21 +314,21 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-white/5">
                       <div className="flex items-center gap-2 text-zinc-500 mb-1">
                         <Calendar className="w-4 h-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Fecha</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">{t('calendar.field_date', 'Fecha')}</span>
                       </div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{event.date}</p>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-white/5">
                       <div className="flex items-center gap-2 text-zinc-500 mb-1">
                         <Clock className="w-4 h-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Hora</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">{t('calendar.field_time', 'Hora')}</span>
                       </div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{event.time}</p>
                     </div>
                     <div className="col-span-2 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-white/5">
                       <div className="flex items-center gap-2 text-zinc-500 mb-1">
                         <MapPin className="w-4 h-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Ubicación</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest">{t('calendar.field_location', 'Ubicación')}</span>
                       </div>
                       <p className="text-sm font-medium text-zinc-900 dark:text-white">{event.location}</p>
                     </div>
@@ -343,7 +345,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     onClick={() => setIsEditing(false)}
                     className="flex-1 py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/5 transition-colors"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancelar')}
                   </button>
                   <button
                     type="submit"
@@ -352,7 +354,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                     className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    <span>Guardar</span>
+                    <span>{t('common.save', 'Guardar')}</span>
                   </button>
                 </>
               ) : (
@@ -360,7 +362,7 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
                   onClick={onClose}
                   className="w-full py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/5 transition-colors border border-zinc-200 dark:border-white/10"
                 >
-                  Cerrar
+                  {t('common.close', 'Cerrar')}
                 </button>
               )}
             </div>
@@ -370,9 +372,9 @@ export function EventDetailsModal({ isOpen, onClose, event }: EventDetailsModalP
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
       <ConfirmDialog
         isOpen={showDeleteConfirm}
-        title="Eliminar evento"
-        message="¿Estás seguro de que deseas eliminar este evento del calendario?"
-        confirmLabel="Eliminar"
+        title={t('calendar.details_delete_title', 'Eliminar evento')}
+        message={t('calendar.details_delete_message', '¿Estás seguro de que deseas eliminar este evento del calendario?')}
+        confirmLabel={t('common.delete', 'Eliminar')}
         danger
         onConfirm={doDeleteEvent}
         onCancel={() => setShowDeleteConfirm(false)}

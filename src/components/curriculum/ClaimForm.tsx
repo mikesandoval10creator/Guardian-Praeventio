@@ -17,6 +17,7 @@
 // returns one; otherwise we record `fallbackAttest=true` with a reason.
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Loader2, AlertTriangle, CheckCircle2, UserCheck, Fingerprint } from 'lucide-react';
 import { Button, Card } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -39,8 +40,15 @@ export interface ClaimFormProps {
 }
 
 export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { isSupported, authenticate } = useBiometricAuth();
+  const categoryLabelI18n: Record<ClaimCategory, string> = {
+    experience: t('curriculum.category_experience', 'Experiencia laboral'),
+    certification: t('curriculum.category_certification', 'Certificación'),
+    incident_record: t('curriculum.category_incident_record', 'Registro de incidentes'),
+    other: t('curriculum.category_other', 'Otro'),
+  };
 
   const [claim, setClaim] = useState('');
   const [category, setCategory] = useState<ClaimCategory>('experience');
@@ -55,12 +63,12 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
 
   function validate(): string | null {
     const trimmed = claim.trim();
-    if (!trimmed) return 'Escribe el contenido del claim antes de firmarlo.';
-    if (trimmed.length > 500) return 'El claim no puede superar 500 caracteres.';
-    if (!r1Name.trim() || !r2Name.trim()) return 'Ambos nombres de referencia son obligatorios.';
-    if (!EMAIL_RE.test(r1Email) || !EMAIL_RE.test(r2Email)) return 'Revisa los emails de las referencias — alguno no es válido.';
-    if (r1Email.trim().toLowerCase() === r2Email.trim().toLowerCase()) return 'Las dos referencias deben tener emails distintos.';
-    if (!isSupported && !fallbackAttest) return 'Tu dispositivo no soporta huella; debes confirmar la declaración manual para continuar.';
+    if (!trimmed) return t('curriculum.error_empty_claim', 'Escribe el contenido del claim antes de firmarlo.');
+    if (trimmed.length > 500) return t('curriculum.error_claim_too_long', 'El claim no puede superar 500 caracteres.');
+    if (!r1Name.trim() || !r2Name.trim()) return t('curriculum.error_referee_names_required', 'Ambos nombres de referencia son obligatorios.');
+    if (!EMAIL_RE.test(r1Email) || !EMAIL_RE.test(r2Email)) return t('curriculum.error_invalid_email', 'Revisa los emails de las referencias — alguno no es válido.');
+    if (r1Email.trim().toLowerCase() === r2Email.trim().toLowerCase()) return t('curriculum.error_same_email', 'Las dos referencias deben tener emails distintos.');
+    if (!isSupported && !fallbackAttest) return t('curriculum.error_no_biometric', 'Tu dispositivo no soporta huella; debes confirmar la declaración manual para continuar.');
     return null;
   }
 
@@ -73,7 +81,7 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
       return;
     }
     if (!user || !auth.currentUser) {
-      setError('Tu sesión no está activa. Inicia sesión nuevamente.');
+      setError(t('curriculum.error_inactive_session', 'Tu sesión no está activa. Inicia sesión nuevamente.'));
       return;
     }
     setSubmitting(true);
@@ -82,9 +90,9 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
       let webauthnOk = false;
       let fallbackReason: string | undefined;
       if (isSupported) {
-        webauthnOk = await authenticate(`Firma tu claim: "${claim.slice(0, 60)}..."`);
+        webauthnOk = await authenticate(t('curriculum.biometric_prompt', 'Firma tu claim: "{{preview}}..."', { preview: claim.slice(0, 60) }));
         if (!webauthnOk) {
-          throw new Error('No pudimos confirmar la huella. Cancela y vuelve a intentar.');
+          throw new Error(t('curriculum.error_biometric_fail', 'No pudimos confirmar la huella. Cancela y vuelve a intentar.'));
         }
       } else {
         fallbackReason = 'webauthn_unsupported_device';
@@ -115,11 +123,11 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'No se pudo crear el claim.');
+      if (!res.ok) throw new Error(data?.error || t('curriculum.error_create_claim', 'No se pudo crear el claim.'));
       setSuccess(true);
       onCreated?.(data.claimId);
     } catch (err: any) {
-      setError(err?.message || 'Error desconocido al crear el claim.');
+      setError(err?.message || t('curriculum.error_unknown', 'Error desconocido al crear el claim.'));
     } finally {
       setSubmitting(false);
     }
@@ -130,11 +138,10 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
       <Card className="p-6 space-y-4 text-center">
         <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
         <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">
-          Claim enviado
+          {t('curriculum.success_title', 'Claim enviado')}
         </h3>
         <p className="text-sm text-zinc-500">
-          Las dos personas que nombraste recibirán un email con un enlace mágico para co-firmar.
-          Tu claim quedará verificado cuando ambas firmen (máximo 14 días).
+          {t('curriculum.success_message', 'Las dos personas que nombraste recibirán un email con un enlace mágico para co-firmar. Tu claim quedará verificado cuando ambas firmen (máximo 14 días).')}
         </p>
       </Card>
     );
@@ -148,10 +155,10 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
         </div>
         <div>
           <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-            Nuevo claim verificable
+            {t('curriculum.form_title', 'Nuevo claim verificable')}
           </h3>
           <p className="text-xs text-zinc-500">
-            Tu palabra firmada con huella + 2 referencias = currículum a prueba de fraude.
+            {t('curriculum.form_subtitle', 'Tu palabra firmada con huella + 2 referencias = currículum a prueba de fraude.')}
           </p>
         </div>
       </div>
@@ -159,7 +166,7 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-            Categoría
+            {t('curriculum.field_category', 'Categoría')}
           </label>
           <select
             value={category}
@@ -167,54 +174,54 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
             className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white"
           >
             {(Object.keys(CATEGORY_LABELS) as ClaimCategory[]).map((k) => (
-              <option key={k} value={k}>{CATEGORY_LABELS[k]}</option>
+              <option key={k} value={k}>{categoryLabelI18n[k]}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">
-            Tu claim ({claim.trim().length}/500)
+            {t('curriculum.field_claim', 'Tu claim ({{count}}/500)', { count: claim.trim().length })}
           </label>
           <textarea
             value={claim}
             onChange={(e) => setClaim(e.target.value)}
             rows={3}
             maxLength={500}
-            placeholder="Ej: He trabajado 5 años como capataz de seguridad en obra sin incidentes graves."
+            placeholder={t('curriculum.field_claim_placeholder', 'Ej: He trabajado 5 años como capataz de seguridad en obra sin incidentes graves.')}
             className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white resize-none"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-2 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Referencia 1</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('curriculum.referee_1', 'Referencia 1')}</p>
             <input
               value={r1Name}
               onChange={(e) => setR1Name(e.target.value)}
-              placeholder="Nombre"
+              placeholder={t('curriculum.placeholder_name', 'Nombre')}
               className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm"
             />
             <input
               value={r1Email}
               onChange={(e) => setR1Email(e.target.value)}
-              placeholder="Email"
+              placeholder={t('curriculum.placeholder_email', 'Email')}
               type="email"
               className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm"
             />
           </div>
           <div className="space-y-2 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Referencia 2</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('curriculum.referee_2', 'Referencia 2')}</p>
             <input
               value={r2Name}
               onChange={(e) => setR2Name(e.target.value)}
-              placeholder="Nombre"
+              placeholder={t('curriculum.placeholder_name', 'Nombre')}
               className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm"
             />
             <input
               value={r2Email}
               onChange={(e) => setR2Email(e.target.value)}
-              placeholder="Email"
+              placeholder={t('curriculum.placeholder_email', 'Email')}
               type="email"
               className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-sm"
             />
@@ -230,7 +237,7 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
               className="mt-0.5"
             />
             <span>
-              Tu dispositivo no soporta firma biométrica. Marca esta casilla para declarar manualmente que el contenido del claim es verídico (queda registrado en el log de auditoría).
+              {t('curriculum.fallback_attest', 'Tu dispositivo no soporta firma biométrica. Marca esta casilla para declarar manualmente que el contenido del claim es verídico (queda registrado en el log de auditoría).')}
             </span>
           </label>
         )}
@@ -245,12 +252,12 @@ export function ClaimForm({ onCreated, onCancel }: ClaimFormProps) {
         <div className="flex flex-wrap gap-2 justify-end">
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
-              Cancelar
+              {t('common.cancel', 'Cancelar')}
             </Button>
           )}
           <Button type="submit" disabled={submitting} className="gap-2">
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : isSupported ? <Fingerprint className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-            {submitting ? 'Firmando...' : isSupported ? 'Firmar con huella y enviar' : 'Declarar y enviar'}
+            {submitting ? t('curriculum.signing', 'Firmando...') : isSupported ? t('curriculum.submit_biometric', 'Firmar con huella y enviar') : t('curriculum.submit_manual', 'Declarar y enviar')}
           </Button>
         </div>
       </form>

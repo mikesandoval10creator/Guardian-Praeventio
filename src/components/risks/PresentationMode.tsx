@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X, Shield, AlertTriangle } from 'lucide-react';
 import { RiskNode } from '../../types';
@@ -9,6 +10,7 @@ interface PresentationModeProps {
 }
 
 export function PresentationMode({ risks, onClose }: PresentationModeProps) {
+  const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
 
   // Lock body scroll
@@ -36,8 +38,8 @@ export function PresentationMode({ risks, onClose }: PresentationModeProps) {
       <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
         <div className="text-white text-center">
           <AlertTriangle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold">No hay riesgos para presentar</h2>
-          <button onClick={onClose} className="mt-6 px-6 py-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition-colors">Salir</button>
+          <h2 className="text-2xl font-bold">{t('presentation.empty_title', 'No hay riesgos para presentar')}</h2>
+          <button onClick={onClose} className="mt-6 px-6 py-2 bg-zinc-800 rounded-xl hover:bg-zinc-700 transition-colors">{t('presentation.exit', 'Salir')}</button>
         </div>
       </div>
     );
@@ -52,8 +54,8 @@ export function PresentationMode({ risks, onClose }: PresentationModeProps) {
         <div className="flex items-center gap-4">
           <Shield className="w-8 h-8 text-emerald-500" />
           <div>
-            <h1 className="text-xl font-black uppercase tracking-widest">Charla ODI - Obligación de Informar</h1>
-            <p className="text-sm text-zinc-400">Riesgo {currentIndex + 1} de {risks.length}</p>
+            <h1 className="text-xl font-black uppercase tracking-widest">{t('presentation.header_title', 'Charla ODI - Obligación de Informar')}</h1>
+            <p className="text-sm text-zinc-400">{t('presentation.risk_progress', 'Riesgo {{current}} de {{total}}', { current: currentIndex + 1, total: risks.length })}</p>
           </div>
         </div>
         <button onClick={onClose} className="p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
@@ -83,21 +85,21 @@ export function PresentationMode({ risks, onClose }: PresentationModeProps) {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12 mt-8 sm:mt-12">
               <div>
-                <h3 className="text-lg sm:text-xl font-bold text-zinc-500 uppercase tracking-widest mb-4">Descripción del Peligro</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-zinc-500 uppercase tracking-widest mb-4">{t('presentation.hazard_description', 'Descripción del Peligro')}</h3>
                 <p className="text-xl sm:text-2xl text-zinc-300 leading-relaxed">{currentRisk.description}</p>
               </div>
               <div className="space-y-8">
                 <div>
-                  <h3 className="text-lg sm:text-xl font-bold text-emerald-500 uppercase tracking-widest mb-4">Medidas de Control</h3>
-                  <p className="text-xl sm:text-2xl text-white leading-relaxed">{currentRisk.metadata?.controles || 'Controles estándar aplicables'}</p>
+                  <h3 className="text-lg sm:text-xl font-bold text-emerald-500 uppercase tracking-widest mb-4">{t('presentation.control_measures', 'Medidas de Control')}</h3>
+                  <p className="text-xl sm:text-2xl text-white leading-relaxed">{currentRisk.metadata?.controles || t('presentation.default_controls', 'Controles estándar aplicables')}</p>
                 </div>
                 <div className="flex items-center gap-4 sm:gap-8">
                   <div className="bg-zinc-800 rounded-2xl p-4 sm:p-6 flex-1 text-center">
-                    <p className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest mb-2">Probabilidad</p>
+                    <p className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest mb-2">{t('presentation.probability', 'Probabilidad')}</p>
                     <p className="text-3xl sm:text-4xl font-black">{currentRisk.metadata?.probabilidad || 3}</p>
                   </div>
                   <div className="bg-zinc-800 rounded-2xl p-4 sm:p-6 flex-1 text-center">
-                    <p className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest mb-2">Severidad</p>
+                    <p className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest mb-2">{t('presentation.severity', 'Severidad')}</p>
                     <p className="text-3xl sm:text-4xl font-black">{currentRisk.metadata?.severidad || 3}</p>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Shield, Volume2, Activity, Thermometer, Wind, Loader2 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
@@ -19,6 +20,7 @@ const parameters = [
 ];
 
 export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalProps) {
+  const { t } = useTranslation();
   const { addNode } = useRiskEngine();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -88,8 +90,8 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                   <Shield className="w-6 h-6 text-emerald-600 dark:text-emerald-500" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Nuevo Registro</h2>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Monitoreo de agentes ambientales</p>
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{t('hygiene.modal_title', 'Nuevo Registro')}</h2>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('hygiene.modal_subtitle', 'Monitoreo de agentes ambientales')}</p>
                 </div>
               </div>
               <button 
@@ -102,7 +104,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Parámetro</label>
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">{t('hygiene.field_parameter', 'Parámetro')}</label>
                 <select
                   value={formData.parameter}
                   onChange={(e) => setFormData({ ...formData, parameter: e.target.value })}
@@ -115,7 +117,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Valor</label>
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">{t('hygiene.field_value', 'Valor')}</label>
                 <input
                   required
                   type="number"
@@ -128,13 +130,13 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">Ubicación / Área</label>
+                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider ml-1">{t('hygiene.field_location', 'Ubicación / Área')}</label>
                 <input
                   required
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="Ej: Zona de Carga"
+                  placeholder={t('hygiene.field_location_placeholder', 'Ej: Zona de Carga')}
                   className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 px-4 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                 />
               </div>
@@ -145,7 +147,7 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                   onClick={onClose}
                   className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancelar')}
                 </button>
                 <button
                   type="submit"
@@ -155,10 +157,10 @@ export function AddHygieneModal({ isOpen, onClose, projectId }: AddHygieneModalP
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Guardando...</span>
+                      <span>{t('hygiene.saving', 'Guardando...')}</span>
                     </>
                   ) : (
-                    <span>Guardar</span>
+                    <span>{t('common.save', 'Guardar')}</span>
                   )}
                 </button>
               </div>
