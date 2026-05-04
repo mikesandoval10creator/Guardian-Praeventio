@@ -105,11 +105,14 @@ export default function Login() {
             </Link>
 
             <div className="flex flex-col items-center mb-8 sm:mb-10">
-              <img
-                src="/mascot.png"
-                alt="Guardian Praeventio"
-                className="w-24 h-24 sm:w-28 sm:h-28 object-contain drop-shadow-xl mb-2"
-              />
+              <picture>
+                <source srcSet="/mascot.webp" type="image/webp" />
+                <img
+                  src="/mascot.png"
+                  alt="Guardian Praeventio"
+                  className="w-24 h-24 sm:w-28 sm:h-28 object-contain drop-shadow-xl mb-2"
+                />
+              </picture>
               <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-center">
                 Guardian Praeventio
               </h1>
