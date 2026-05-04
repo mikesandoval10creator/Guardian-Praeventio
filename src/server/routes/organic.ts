@@ -29,8 +29,10 @@ import {
 import {
   computeProcessCloseXp,
   baseXpForProcessType,
+  checkStatusTransition,
 } from '../../services/organic/processService.js';
-import type { ProcessType } from '../../types/organic.js';
+import type { ProcessType, ProcessStatus } from '../../types/organic.js';
+import { sentryAdapter } from '../../services/observability/sentryAdapter.js';
 
 const router = Router();
 
@@ -192,9 +194,9 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
 });
 
 router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res) => {
-  // Sprint 16 — pause/resume support for ProcessDetailModal. Allowed
-  // transitions: active <-> paused. Terminal states (completed/aborted)
-  // cannot be re-opened from the client; that requires server-side audit.
+  // Sprint 16 — pause/resume support for ProcessDetailModal.
+  // Sprint 17a — uses pure `checkStatusTransition` guard, audits the
+  // transition, and emits a Sentry breadcrumb for ops visibility.
   const uid = (req as any).user.uid;
   const processId = req.params.id;
   const { status } = req.body ?? {};
@@ -206,12 +208,48 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
     const ref = db.collection('processes').doc(processId);
     const snap = await ref.get();
     if (!snap.exists) return res.status(404).json({ error: 'process not found' });
-    const proc = snap.data() as { projectId: string; status: string };
+    const proc = snap.data() as { projectId: string; status: ProcessStatus };
     await assertProjectMember(uid, proc.projectId, db);
-    if (proc.status === 'completed' || proc.status === 'aborted') {
-      return res.status(409).json({ error: 'process is terminal' });
+
+    const check = checkStatusTransition(proc.status, status as ProcessStatus);
+    if (check.ok === false) {
+      if (check.reason === 'terminal') {
+        return res.status(409).json({ error: 'process is terminal' });
+      }
+      if (check.reason === 'noop') {
+        return res.json({ success: true, status, noop: true });
+      }
+      return res.status(400).json({ error: 'invalid status transition' });
     }
+
     await ref.update({ status });
+
+    // Sprint 17a — audit + ops breadcrumb. Both are best-effort: a logging
+    // failure must never block the user-facing state change.
+    try {
+      await db.collection('audit_logs').add({
+        action: 'process.status_change',
+        module: 'organic',
+        details: { processId, from: proc.status, to: status },
+        userId: uid,
+        projectId: proc.projectId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch {
+      /* non-fatal */
+    }
+    try {
+      sentryAdapter.addBreadcrumb({
+        category: 'organic.process',
+        level: 'info',
+        message: `process ${processId} ${proc.status} -> ${status}`,
+        timestamp: new Date(),
+        data: { processId, from: proc.status, to: status, projectId: proc.projectId },
+      });
+    } catch {
+      /* non-fatal */
+    }
+
     res.json({ success: true, status });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
