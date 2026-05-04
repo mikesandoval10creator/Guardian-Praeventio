@@ -38,6 +38,15 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // q4 and fp16 variants in the same repo; size pinned to the q4 path.
     size: 1900 * MB,
     url: 'https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-onnx-web',
+    // HF repo id used by AutoTokenizer.from_pretrained() in slmWorker
+    // (T-1.3.1). The library resolves `tokenizer.json` + `tokenizer_config.json`
+    // from the canonical Hub layout under this id.
+    // TODO Sigma: confirm AutoTokenizer.from_pretrained signature — if the
+    // library rejects this onnx-web repo (some HF mirrors strip tokenizer
+    // files from ONNX-only forks), fall back to the upstream
+    // `microsoft/Phi-3-mini-4k-instruct` repo which always carries the
+    // canonical tokenizer.json.
+    tokenizerUrl: 'microsoft/Phi-3-mini-4k-instruct-onnx-web',
     format: 'onnx-int4',
     license: 'MIT',
     preferredBackend: 'webgpu',
@@ -52,6 +61,7 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // TODO: confirm URL — Qwen team publishes ONNX builds across multiple
     // mirror repos; this is the most stable candidate at time of writing.
     url: 'https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct',
+    tokenizerUrl: 'onnx-community/Qwen2.5-0.5B-Instruct',
     format: 'onnx-int4',
     license: 'Apache-2.0',
     preferredBackend: 'wasm-simd',
@@ -66,6 +76,7 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // TODO: confirm URL — Google publishes Gemma weights primarily on
     // Kaggle; community ONNX exports live under `onnx-community/` on HF.
     url: 'https://huggingface.co/onnx-community/gemma-2-2b-it',
+    tokenizerUrl: 'onnx-community/gemma-2-2b-it',
     format: 'onnx-int4',
     license: 'Gemma',
     preferredBackend: 'webgpu',
