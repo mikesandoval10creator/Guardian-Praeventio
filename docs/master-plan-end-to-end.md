@@ -11,6 +11,13 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 - **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
 - Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
+### Quinta ola — 4 buckets (PR #32)
+
+- **Rho — `reconciliationRunner.ts`** (1 commit, completa lo deferido de Xi 4ta ola): `eae3ef4` adapter que mappea `QueuedSession → RiskNodePayload (type='safety-learning')` y llama `writeNodes` real del Zettelkasten. Único punto en `src/services/slm/` que importa de `../zettelkasten/`. 4 nuevos tests, 56 SLM total pass.
+- **Sigma — Real BPE tokenizer Phi-3 (T-1.3.1)** (4 commits): `c69c696` `@huggingface/transformers@3.8.1` runtime dep · `d5cdf20` `tokenizerUrl?: string` en `ModelDescriptor` + URLs HF para Phi-3/Qwen/Gemma · `18eef6b` `AutoTokenizer.from_pretrained` con dynamic import + fallback al `NaiveTokenizer` si load/decode fallan · `36a7954` 3 smoke tests con `vi.doMock`. 43 SLM tests pass.
+- **Tau — i18n coverage (Fase 6 parcial)** (1 commit): `b3e35c4` 5 componentes migrados (`ISOManagementHeader`, `AddAuditModal`, `AddMedicineModal`, `AnatomyLibrary`, `SurvivalMode`) con `t('key', 'fallback')` pattern. 104 keys nuevas en `es` (canonical ES-CL), `en`, `pt-BR`. `es-AR`/`es-MX`/`es-PE` heredan via `fallbackLng`. Refactor `BreathingPhase` enum-style para hacer motion logic locale-agnostic.
+- **Phi — Wire Asesor al orchestrator** (1 commit): `4dd4f9e` `AsesorChat.tsx` (main floating chat) + `Asesor.tsx` (emergency tactical) ambos llaman `ask({ prompt })` del orchestrator en lugar de `fetch('/api/ask-guardian', ...)` directo. `enqueueSession` cuando backend offline + `SLM_ENQUEUED_EVENT` dispatch + `pendingCount` badge en header + chip "online/offline". Streaming SSE removido (orchestrator returns single response — UX side-effect, no diseñado).
+
 ### Cuarta ola — 4 buckets (PR #31)
 
 - **Nu — Wire SLM al app real** (2 commits): `83e28fa` SLMProvider con `isOnline`/`pendingCount`/`activeModelId` + listeners `online`/`offline` + poll `listPending()` + custom event `gp-slm-enqueued` · `938bff0` SLMShellOverlay (banner global fixed top, mode-aware vía `useAppMode`) integrado en `AppProviders.tsx`. 4 nuevos tests passing.
