@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { randomBytes } from 'node:crypto';
 
 /**
  * Praeventio security headers — defense in depth on top of nginx.conf.
@@ -25,6 +26,18 @@ import type { Request, Response, NextFunction } from 'express';
  * spec but requires a `Reporting-Endpoints` header + a JSON object —
  * `report-uri` still works in every shipping browser and is one less
  * moving part to misconfigure.
+ *
+ * Sprint 20 thirteenth wave Bucket C — `'unsafe-inline'` removed from
+ * `script-src`. Replaced with a per-request 128-bit base64 nonce plus
+ * `'strict-dynamic'`. `strict-dynamic` (https://content-security-policy.com
+ * /strict-dynamic/) lets a nonce-trusted script load further scripts
+ * WITHOUT each child needing its own nonce — critical for SPAs whose entry
+ * chunk dynamic-imports lazy chunks at runtime. Modern browsers
+ * (Chrome 52+/Firefox 52+/Safari 15.4+) honour strict-dynamic and ignore
+ * the explicit host allowlist that follows; older browsers ignore
+ * strict-dynamic and fall back to the host allowlist. The nonce is
+ * exposed at `res.locals.cspNonce` so HTML response generators can stamp
+ * it onto inline `<script>` tags via the `__CSP_NONCE__` placeholder.
  */
 
 /*
@@ -75,19 +88,27 @@ const CONNECT_SRC_ORIGINS = [
  * The previous `https://*.firebaseio.com` token was a copy-paste from
  * connect-src and was never reachable for script loads. Removed.
  *
- * `'unsafe-inline'` for script-src is REQUIRED for Vite + React inline
- * bootstrap (until we add nonces; see csp-policy.md, Sprint 22+ tracker).
+ * The list below is the EXPLICIT-HOST FALLBACK for older browsers that
+ * ignore `'strict-dynamic'`. Modern browsers (Chrome 52+/Firefox 52+/
+ * Safari 15.4+) ignore everything in this list as soon as they see
+ * strict-dynamic and rely on the nonce alone — the explicit list is
+ * dead weight for them but is not removed because we still need it for
+ * the long tail of older browsers.
+ *
+ * `'self'`, `'nonce-X'`, and `'strict-dynamic'` are added by
+ * `buildCspString(nonce)` because the nonce is per-request.
  */
-const SCRIPT_SRC_ORIGINS = [
-  "'self'",
-  "'unsafe-inline'",
+const SCRIPT_SRC_FALLBACK_ORIGINS = [
   'https://www.gstatic.com',
   'https://apis.google.com',
 ] as const;
 
-const CSP_DIRECTIVES: Record<string, string> = {
+/*
+ * Static directive map. `script-src` is intentionally NOT here — it
+ * depends on the per-request nonce and is computed in buildCspString.
+ */
+const CSP_STATIC_DIRECTIVES: Record<string, string> = {
   'default-src': "'self'",
-  'script-src': SCRIPT_SRC_ORIGINS.join(' '),
   'style-src': "'self' 'unsafe-inline' https://fonts.googleapis.com",
   'font-src': "'self' https://fonts.gstatic.com data:",
   'img-src': "'self' data: blob: https:",
@@ -107,10 +128,31 @@ const CSP_DIRECTIVES: Record<string, string> = {
   'report-uri': '/api/csp-report',
 };
 
-function buildCspString(): string {
-  return Object.entries(CSP_DIRECTIVES)
+/*
+ * Generate a fresh base64-encoded 128-bit nonce. 16 bytes is the OWASP
+ * minimum (CSP Level 3 §6.7.1 "the nonce SHOULD be at least 128 bits
+ * long"). Default base64 yields 24 chars including padding — well above
+ * the 22-char floor demanded by CSP-strict policy auditors.
+ */
+function generateNonce(): string {
+  return randomBytes(16).toString('base64');
+}
+
+function buildCspString(nonce: string): string {
+  // script-src is built per-call so the nonce is fresh for every request.
+  // Order: 'self' first (some scanners are sensitive), then nonce, then
+  // strict-dynamic, then explicit-host fallback. Modern browsers stop at
+  // strict-dynamic; legacy browsers ignore strict-dynamic and use the
+  // host list. 'self' covers the same-origin /assets/*.js bundle Vite
+  // emits and gives belt-and-braces coverage when older browsers fall
+  // back without strict-dynamic.
+  const scriptSrc = `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${SCRIPT_SRC_FALLBACK_ORIGINS.join(' ')}`;
+
+  const otherDirectives = Object.entries(CSP_STATIC_DIRECTIVES)
     .map(([k, v]) => (v ? `${k} ${v}` : k))
     .join('; ');
+
+  return `${scriptSrc}; ${otherDirectives}`;
 }
 
 export function securityHeaders(
@@ -118,7 +160,13 @@ export function securityHeaders(
   res: Response,
   next: NextFunction,
 ): void {
-  res.setHeader('Content-Security-Policy', buildCspString());
+  // Per-request nonce. Exposed on res.locals so any downstream HTML
+  // response generator (the SPA fallback that serves index.html) can
+  // stamp it onto inline <script> tags via the __CSP_NONCE__ placeholder.
+  const nonce = generateNonce();
+  res.locals.cspNonce = nonce;
+
+  res.setHeader('Content-Security-Policy', buildCspString(nonce));
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Frame-Options', 'DENY');
@@ -142,7 +190,8 @@ export function securityHeaders(
 
 // Test-only export: lets tests assert directives without re-parsing the
 // header string. Not part of the public middleware API.
-export const __cspDirectivesForTests = CSP_DIRECTIVES;
+export const __cspStaticDirectivesForTests = CSP_STATIC_DIRECTIVES;
 export const __buildCspStringForTests = buildCspString;
+export const __generateNonceForTests = generateNonce;
 export const __connectSrcOriginsForTests = CONNECT_SRC_ORIGINS;
-export const __scriptSrcOriginsForTests = SCRIPT_SRC_ORIGINS;
+export const __scriptSrcFallbackOriginsForTests = SCRIPT_SRC_FALLBACK_ORIGINS;

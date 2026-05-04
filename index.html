@@ -29,7 +29,16 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Sprint 20 13th wave Bucket C — `nonce="__CSP_NONCE__"` placeholder is
+         swapped for a per-request base64 nonce by the Express middleware
+         (`res.locals.cspNonce`). Vite REPLACES this script tag during the
+         build (rewriting `/src/main.tsx` to `/assets/index-XXX.js`), which
+         strips arbitrary attributes — the `cspNoncePlaceholder` plugin in
+         `vite.config.ts` re-stamps the placeholder onto the emitted script
+         so production HTML still gets the nonce. Dev mode serves this file
+         unchanged; the literal placeholder is harmless because the entry
+         tag is satisfied by `'self'` in script-src. -->
+    <script type="module" src="/src/main.tsx" nonce="__CSP_NONCE__"></script>
   </body>
 </html>
 
