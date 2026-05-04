@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Shield, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Smartphone } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -9,14 +10,15 @@ interface ExtinguisherSimulatorProps {
   onClose: () => void;
 }
 
-const PASS_STEPS = [
-  { id: 'pull', title: 'Tirar (Pull)', description: 'Tira del pasador de seguridad para romper el precinto.', icon: '📌' },
-  { id: 'aim', title: 'Apuntar (Aim)', description: 'Apunta la boquilla hacia la base del fuego usando tu dispositivo.', icon: '🎯' },
-  { id: 'squeeze', title: 'Presionar (Squeeze)', description: 'Presiona la palanca de forma controlada.', icon: '✊' },
-  { id: 'sweep', title: 'Barrer (Sweep)', description: 'Mueve la boquilla de lado a lado cubriendo el área.', icon: '↔️' }
-];
-
 export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimulatorProps) {
+  const { t } = useTranslation();
+
+  const PASS_STEPS = [
+    { id: 'pull', title: t('extinguisher_simulator.step_pull_title', 'Tirar (Pull)'), description: t('extinguisher_simulator.step_pull_desc', 'Tira del pasador de seguridad para romper el precinto.'), icon: '📌' },
+    { id: 'aim', title: t('extinguisher_simulator.step_aim_title', 'Apuntar (Aim)'), description: t('extinguisher_simulator.step_aim_desc', 'Apunta la boquilla hacia la base del fuego usando tu dispositivo.'), icon: '🎯' },
+    { id: 'squeeze', title: t('extinguisher_simulator.step_squeeze_title', 'Presionar (Squeeze)'), description: t('extinguisher_simulator.step_squeeze_desc', 'Presiona la palanca de forma controlada.'), icon: '✊' },
+    { id: 'sweep', title: t('extinguisher_simulator.step_sweep_title', 'Barrer (Sweep)'), description: t('extinguisher_simulator.step_sweep_desc', 'Mueve la boquilla de lado a lado cubriendo el área.'), icon: '↔️' }
+  ];
   const [currentStep, setCurrentStep] = useState(0);
   const [fireSize, setFireSize] = useState(100);
   const [isExtinguishing, setIsExtinguishing] = useState(false);
@@ -148,8 +150,8 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
               <Flame className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-tight">Simulador de Extintores</h2>
-              <p className="text-xs text-rose-400 font-bold uppercase tracking-widest">Método P.A.S.S.</p>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">{t('extinguisher_simulator.title', 'Simulador de Extintores')}</h2>
+              <p className="text-xs text-rose-400 font-bold uppercase tracking-widest">{t('extinguisher_simulator.method_pass', 'Método P.A.S.S.')}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -212,10 +214,10 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
                 <div className="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 mb-6">
                   <Trophy className="w-12 h-12" />
                 </div>
-                <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">¡Fuego Extinguido!</h3>
-                <p className="text-emerald-400 font-bold uppercase tracking-widest mb-8">+150 Puntos</p>
+                <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">{t('extinguisher_simulator.win_title', '¡Fuego Extinguido!')}</h3>
+                <p className="text-emerald-400 font-bold uppercase tracking-widest mb-8">{t('extinguisher_simulator.win_points', '+150 Puntos')}</p>
                 <p className="text-zinc-400 text-sm max-w-md text-center mb-8">
-                  Has aplicado correctamente el método P.A.S.S. para controlar la emergencia.
+                  {t('extinguisher_simulator.win_message', 'Has aplicado correctamente el método P.A.S.S. para controlar la emergencia.')}
                 </p>
               </motion.div>
             )}
@@ -229,14 +231,14 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
                 <div className="w-24 h-24 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-500 mb-6">
                   <AlertTriangle className="w-12 h-12" />
                 </div>
-                <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">¡Tiempo Agotado!</h3>
-                <p className="text-rose-400 font-bold uppercase tracking-widest mb-8">El fuego se ha descontrolado</p>
+                <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">{t('extinguisher_simulator.lose_title', '¡Tiempo Agotado!')}</h3>
+                <p className="text-rose-400 font-bold uppercase tracking-widest mb-8">{t('extinguisher_simulator.lose_message', 'El fuego se ha descontrolado')}</p>
                 <button
                   onClick={handleReset}
                   className="flex items-center gap-2 px-6 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold uppercase tracking-widest transition-colors"
                 >
                   <RefreshCw className="w-5 h-5" />
-                  Reintentar
+                  {t('extinguisher_simulator.retry', 'Reintentar')}
                 </button>
               </motion.div>
             )}
@@ -287,11 +289,11 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
                   {currentStep === 3 ? (
                     <>
                       <Flame className="w-5 h-5" />
-                      Mantener Presionado para Extinguir
+                      {t('extinguisher_simulator.hold_to_extinguish', 'Mantener Presionado para Extinguir')}
                     </>
                   ) : (
                     <>
-                      Realizar Acción
+                      {t('extinguisher_simulator.perform_action', 'Realizar Acción')}
                       <ArrowRight className="w-5 h-5" />
                     </>
                   )}

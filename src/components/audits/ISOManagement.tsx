@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -60,15 +61,6 @@ interface ISOImprovement {
 type ISOTab = 'dashboard' | 'documentos' | 'competencias' | 'auditorias' | 'riesgos' | 'mejora';
 type IconType = React.FC<{ className?: string }>;
 
-const TABS: { id: ISOTab; label: string; icon: IconType }[] = [
-  { id: 'dashboard',    label: 'Dashboard',       icon: LayoutDashboard },
-  { id: 'documentos',   label: 'Documentos',       icon: FileText        },
-  { id: 'competencias', label: 'Competencias',     icon: Users           },
-  { id: 'auditorias',   label: 'Auditorías',       icon: ClipboardCheck  },
-  { id: 'riesgos',      label: 'Riesgos',          icon: AlertTriangle   },
-  { id: 'mejora',       label: 'Mejora Continua',  icon: TrendingUp      },
-];
-
 const TEAL = '#4db6ac';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -101,6 +93,7 @@ function DashboardTab(props: {
 // ─── Documentos Tab ───────────────────────────────────────────────────────────
 
 function DocumentosTab({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const { data: docs, loading } = useFirestoreCollection<ISODocument>(
     `projects/${projectId}/iso_documents`
   );
@@ -133,14 +126,14 @@ function DocumentosTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">Documentos ISO</h3>
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('iso_management.documentos_title', 'Documentos ISO')}</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-opacity hover:opacity-90"
           style={{ backgroundColor: TEAL }}
         >
           <Plus className="w-3 h-3" />
-          Nuevo Documento
+          {t('iso_management.new_document', 'Nuevo Documento')}
         </button>
       </div>
 
@@ -160,14 +153,21 @@ function DocumentosTab({ projectId }: { projectId: string }) {
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: TEAL }} />
         </div>
       ) : docs.length === 0 ? (
-        <EmptyState icon={FileText} message="No hay documentos ISO registrados" />
+        <EmptyState icon={FileText} message={t('iso_management.empty_documents', 'No hay documentos ISO registrados')} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-zinc-50 dark:bg-zinc-800/60">
-                {['Nombre', 'Tipo', 'Versión', 'Fecha', 'Estado', ''].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-zinc-400">{h}</th>
+                {[
+                  t('iso_management.col_name', 'Nombre'),
+                  t('iso_management.col_type', 'Tipo'),
+                  t('iso_management.col_version', 'Versión'),
+                  t('iso_management.col_date', 'Fecha'),
+                  t('iso_management.col_status', 'Estado'),
+                  '',
+                ].map((h, i) => (
+                  <th key={`${h}-${i}`} className="px-4 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-zinc-400">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -204,6 +204,7 @@ function DocumentosTab({ projectId }: { projectId: string }) {
 // ─── Competencias Tab ─────────────────────────────────────────────────────────
 
 function CompetenciasTab({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const { data: workers, loading } = useFirestoreCollection<Worker>(
     `projects/${projectId}/workers`
   );
@@ -234,20 +235,25 @@ function CompetenciasTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">Matriz de Competencias</h3>
+      <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('iso_management.competencies_title', 'Matriz de Competencias')}</h3>
       {loading ? (
         <div className="flex justify-center py-10">
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: TEAL }} />
         </div>
       ) : rows.length === 0 ? (
-        <EmptyState icon={Users} message="No hay registros de competencias" />
+        <EmptyState icon={Users} message={t('iso_management.empty_competencies', 'No hay registros de competencias')} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-zinc-50 dark:bg-zinc-800/60">
-                {['Trabajador', 'Competencia', 'Estado', 'Fecha Vencimiento'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-zinc-400">{h}</th>
+                {[
+                  t('iso_management.col_worker', 'Trabajador'),
+                  t('iso_management.col_competency', 'Competencia'),
+                  t('iso_management.col_status', 'Estado'),
+                  t('iso_management.col_expiry_date', 'Fecha Vencimiento'),
+                ].map((h, i) => (
+                  <th key={`${h}-${i}`} className="px-4 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-zinc-400">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -282,6 +288,7 @@ function CompetenciasTab({ projectId }: { projectId: string }) {
 // ─── Riesgos Tab ──────────────────────────────────────────────────────────────
 
 function RiesgosTab() {
+  const { t } = useTranslation();
   const { nodes, loading } = useRiskEngine();
   const isoRisks = nodes.filter(
     n =>
@@ -303,22 +310,27 @@ function RiesgosTab() {
   return (
     <div className="space-y-4">
       <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">
-        Registro de Riesgos — ISO 45001
-        <span className="ml-2 text-[9px] font-bold text-zinc-400">({isoRisks.length} registros)</span>
+        {t('iso_management.risks_title', 'Registro de Riesgos — ISO 45001')}
+        <span className="ml-2 text-[9px] font-bold text-zinc-400">{t('iso_management.risk_count', '({{count}} registros)', { count: isoRisks.length })}</span>
       </h3>
       {loading ? (
         <div className="flex justify-center py-10">
           <Loader2 className="w-6 h-6 animate-spin" style={{ color: TEAL }} />
         </div>
       ) : isoRisks.length === 0 ? (
-        <EmptyState icon={AlertTriangle} message="No hay riesgos etiquetados con ISO 45001" />
+        <EmptyState icon={AlertTriangle} message={t('iso_management.empty_risks', 'No hay riesgos etiquetados con ISO 45001')} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-zinc-200/50 dark:border-zinc-800/50">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-zinc-50 dark:bg-zinc-800/60">
-                {['Riesgo', 'Descripción', 'Nivel', 'Estado'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-zinc-400">{h}</th>
+                {[
+                  t('iso_management.col_risk', 'Riesgo'),
+                  t('iso_management.col_description', 'Descripción'),
+                  t('iso_management.col_level', 'Nivel'),
+                  t('iso_management.col_status', 'Estado'),
+                ].map((h, i) => (
+                  <th key={`${h}-${i}`} className="px-4 py-2.5 text-left text-[9px] font-black uppercase tracking-widest text-zinc-400">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -365,6 +377,7 @@ const PHASE_HEADER: Record<ISOImprovement['phase'], string> = {
 };
 
 function MejoraTab({ projectId }: { projectId: string }) {
+  const { t } = useTranslation();
   const { data: improvements, loading } = useFirestoreCollection<ISOImprovement>(
     `projects/${projectId}/iso_improvements`
   );
@@ -395,14 +408,14 @@ function MejoraTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">Ciclo PDCA — Mejora Continua</h3>
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500">{t('iso_management.improvement_title', 'Ciclo PDCA — Mejora Continua')}</h3>
         <button
           onClick={() => setShowForm(v => !v)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white shadow-sm transition-opacity hover:opacity-90"
           style={{ backgroundColor: TEAL }}
         >
           <Plus className="w-3 h-3" />
-          Nueva Mejora
+          {t('iso_management.new_improvement', 'Nueva Mejora')}
         </button>
       </div>
 
@@ -415,25 +428,33 @@ function MejoraTab({ projectId }: { projectId: string }) {
             className="overflow-hidden"
           >
             <div className="bg-white/80 dark:bg-zinc-900/80 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: TEAL }}>Nueva Mejora PDCA</p>
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: TEAL }}>{t('iso_management.new_improvement_pdca', 'Nueva Mejora PDCA')}</p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Título *</label>
+                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">{t('iso_management.title_required', 'Título *')}</label>
                   <input
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/30"
-                    placeholder="Descripción de la mejora..."
+                    placeholder={t('iso_management.improvement_placeholder', 'Descripción de la mejora...')}
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Fase PDCA</label>
+                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">{t('iso_management.phase_pdca', 'Fase PDCA')}</label>
                   <select
                     value={phase}
                     onChange={e => setPhase(e.target.value as ISOImprovement['phase'])}
                     className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none"
                   >
-                    {PDCA_PHASES.map(p => <option key={p} value={p}>{p}</option>)}
+                    {PDCA_PHASES.map(p => {
+                      const phaseLabel = ({
+                        Planear:   t('iso_management.phase_plan', 'Planear'),
+                        Hacer:     t('iso_management.phase_do', 'Hacer'),
+                        Verificar: t('iso_management.phase_check', 'Verificar'),
+                        Actuar:    t('iso_management.phase_act', 'Actuar'),
+                      } as Record<ISOImprovement['phase'], string>)[p];
+                      return <option key={p} value={p}>{phaseLabel}</option>;
+                    })}
                   </select>
                 </div>
               </div>
@@ -442,7 +463,7 @@ function MejoraTab({ projectId }: { projectId: string }) {
                   onClick={() => setShowForm(false)}
                   className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-800 dark:hover:text-white transition-colors"
                 >
-                  Cancelar
+                  {t('iso_management.cancel', 'Cancelar')}
                 </button>
                 <button
                   onClick={handleAdd}
@@ -451,7 +472,7 @@ function MejoraTab({ projectId }: { projectId: string }) {
                   style={{ backgroundColor: TEAL }}
                 >
                   {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                  Guardar
+                  {t('iso_management.save', 'Guardar')}
                 </button>
               </div>
             </div>
@@ -467,15 +488,21 @@ function MejoraTab({ projectId }: { projectId: string }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {PDCA_PHASES.map(p => {
             const items = improvements.filter(i => i.phase === p);
+            const phaseLabel = ({
+              Planear:   t('iso_management.phase_plan', 'Planear'),
+              Hacer:     t('iso_management.phase_do', 'Hacer'),
+              Verificar: t('iso_management.phase_check', 'Verificar'),
+              Actuar:    t('iso_management.phase_act', 'Actuar'),
+            } as Record<ISOImprovement['phase'], string>)[p];
             return (
               <div
                 key={p}
                 className={`rounded-2xl border-2 ${PHASE_COLORS[p]} bg-white/60 dark:bg-zinc-900/50 p-3 space-y-2 min-h-[160px]`}
               >
-                <p className={`text-[9px] font-black uppercase tracking-widest ${PHASE_HEADER[p]}`}>{p}</p>
-                <p className="text-[8px] text-zinc-400">{items.length} elemento{items.length !== 1 ? 's' : ''}</p>
+                <p className={`text-[9px] font-black uppercase tracking-widest ${PHASE_HEADER[p]}`}>{phaseLabel}</p>
+                <p className="text-[8px] text-zinc-400">{t('iso_management.element_count', '{{count}} elemento', { count: items.length })}</p>
                 {items.length === 0 ? (
-                  <p className="text-[9px] text-zinc-300 dark:text-zinc-600 italic pt-2">Sin mejoras</p>
+                  <p className="text-[9px] text-zinc-300 dark:text-zinc-600 italic pt-2">{t('iso_management.no_improvements', 'Sin mejoras')}</p>
                 ) : (
                   items.map(item => (
                     <div
@@ -492,7 +519,11 @@ function MejoraTab({ projectId }: { projectId: string }) {
                           <XCircle className="w-3 h-3 text-zinc-300" />
                         )}
                         <span className={`text-[8px] font-bold uppercase tracking-wider ${statusBadge(item.status)}`}>
-                          {item.status === 'pending' ? 'Pendiente' : item.status === 'in_progress' ? 'En Progreso' : 'Completado'}
+                          {item.status === 'pending'
+                            ? t('iso_management.status_pending', 'Pendiente')
+                            : item.status === 'in_progress'
+                            ? t('iso_management.status_in_progress', 'En Progreso')
+                            : t('iso_management.status_completed', 'Completado')}
                         </span>
                       </div>
                     </div>
@@ -521,10 +552,20 @@ function EmptyState({ icon: Icon, message }: { icon: IconType; message: string }
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ISOManagement() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<ISOTab>('dashboard');
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const projectId = selectedProject?.id ?? '';
+
+  const TABS: { id: ISOTab; label: string; icon: IconType }[] = [
+    { id: 'dashboard',    label: t('iso_management.tab_dashboard', 'Dashboard'),         icon: LayoutDashboard },
+    { id: 'documentos',   label: t('iso_management.tab_documents', 'Documentos'),         icon: FileText        },
+    { id: 'competencias', label: t('iso_management.tab_competencies', 'Competencias'),    icon: Users           },
+    { id: 'auditorias',   label: t('iso_management.tab_audits', 'Auditorías'),            icon: ClipboardCheck  },
+    { id: 'riesgos',      label: t('iso_management.tab_risks', 'Riesgos'),                icon: AlertTriangle   },
+    { id: 'mejora',       label: t('iso_management.tab_improvement', 'Mejora Continua'), icon: TrendingUp      },
+  ];
 
   // Data for dashboard KPIs
   const { data: docs } = useFirestoreCollection<ISODocument>(
@@ -555,7 +596,7 @@ export function ISOManagement() {
       <div className="flex flex-col items-center justify-center py-16 gap-3 text-zinc-400">
         <ShieldCheck className="w-10 h-10 text-zinc-200 dark:text-zinc-700" />
         <p className="text-[10px] font-black uppercase tracking-widest">
-          Selecciona un proyecto para gestionar ISO 45001
+          {t('iso_management.select_project', 'Selecciona un proyecto para gestionar ISO 45001')}
         </p>
       </div>
     );

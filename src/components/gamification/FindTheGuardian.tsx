@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, Shield, CheckCircle2, AlertCircle, Trophy, Star, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
@@ -17,11 +18,12 @@ interface HiddenItem {
 }
 
 export function FindTheGuardian() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<HiddenItem[]>([
     {
       id: 'guardian',
-      name: 'Guardián Praeventio',
-      description: 'El núcleo de IA vigilando la operación.',
+      name: t('find_the_guardian.item_guardian_name', 'Guardián Praeventio'),
+      description: t('find_the_guardian.item_guardian_desc', 'El núcleo de IA vigilando la operación.'),
       x: 75,
       y: 35,
       radius: 5,
@@ -31,8 +33,8 @@ export function FindTheGuardian() {
     },
     {
       id: 'extintor',
-      name: 'Extintor Obstruido',
-      description: 'Condición insegura: Equipo de emergencia bloqueado.',
+      name: t('find_the_guardian.item_extinguisher_name', 'Extintor Obstruido'),
+      description: t('find_the_guardian.item_extinguisher_desc', 'Condición insegura: Equipo de emergencia bloqueado.'),
       x: 20,
       y: 80,
       radius: 4,
@@ -42,8 +44,8 @@ export function FindTheGuardian() {
     },
     {
       id: 'casco',
-      name: 'Trabajador sin Casco',
-      description: 'Falta de EPP crítico en zona de riesgo.',
+      name: t('find_the_guardian.item_helmet_name', 'Trabajador sin Casco'),
+      description: t('find_the_guardian.item_helmet_desc', 'Falta de EPP crítico en zona de riesgo.'),
       x: 45,
       y: 60,
       radius: 4,
@@ -53,8 +55,8 @@ export function FindTheGuardian() {
     },
     {
       id: 'arnes',
-      name: 'Arnés Mal Enganchado',
-      description: 'Riesgo de caída a distinto nivel.',
+      name: t('find_the_guardian.item_harness_name', 'Arnés Mal Enganchado'),
+      description: t('find_the_guardian.item_harness_desc', 'Riesgo de caída a distinto nivel.'),
       x: 85,
       y: 15,
       radius: 4,
@@ -89,8 +91,8 @@ export function FindTheGuardian() {
         colors: ['#4f46e5', '#10b981', '#f59e0b']
       });
       addNotification({
-        title: '¡Misión Completada!',
-        message: `Has encontrado todos los elementos y ganado ${score} puntos.`,
+        title: t('find_the_guardian.mission_complete', '¡Misión Completada!'),
+        message: t('find_the_guardian.mission_complete_msg', 'Has encontrado todos los elementos y ganado {{score}} puntos.', { score }),
         type: 'success'
       });
     }
@@ -130,7 +132,7 @@ export function FindTheGuardian() {
         foundItem = true;
         setScore(prev => prev + item.points);
         addNotification({
-          title: '¡Elemento Encontrado!',
+          title: t('find_the_guardian.item_found', '¡Elemento Encontrado!'),
           message: `+${item.points} pts: ${item.name}`,
           type: 'success'
         });
@@ -188,14 +190,14 @@ export function FindTheGuardian() {
             <Target className="w-8 h-8 text-indigo-400" />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Ojo de Águila</h2>
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Encuentra los riesgos y al Guardián</p>
+            <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('find_the_guardian.title', 'Ojo de Águila')}</h2>
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{t('find_the_guardian.subtitle', 'Encuentra los riesgos y al Guardián')}</p>
           </div>
         </div>
         
         <div className="flex items-center gap-6 bg-black/50 p-4 rounded-2xl border border-white/5">
           <div className="text-center">
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Puntuación</p>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('find_the_guardian.score', 'Puntuación')}</p>
             <div className="flex items-center justify-center gap-2">
               <Trophy className="w-5 h-5 text-amber-500" />
               <span className="text-2xl font-black text-white">{score}</span>
@@ -203,7 +205,7 @@ export function FindTheGuardian() {
           </div>
           <div className="w-px h-10 bg-white/10" />
           <div className="text-center">
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Encontrados</p>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('find_the_guardian.found', 'Encontrados')}</p>
             <div className="text-2xl font-black text-white">
               <span className="text-emerald-500">{items.filter(i => i.found).length}</span>
               <span className="text-zinc-600">/{items.length}</span>
@@ -243,10 +245,10 @@ export function FindTheGuardian() {
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               style={{ transformOrigin: 'center center' }}
             >
-              <img 
+              <img
                 ref={imageRef}
-                src={imageUrl} 
-                alt="Escena Industrial" 
+                src={imageUrl}
+                alt={t('find_the_guardian.industrial_scene_alt', 'Escena Industrial')}
                 className="w-full h-full object-cover pointer-events-none select-none"
                 draggable={false}
               />
@@ -301,21 +303,21 @@ export function FindTheGuardian() {
               <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 border border-emerald-500/50">
                 <Trophy className="w-12 h-12 text-emerald-400" />
               </div>
-              <h3 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">¡Visión Perfecta!</h3>
-              <p className="text-zinc-400 font-medium mb-8 max-w-md">Has identificado todos los riesgos y al Guardián Praeventio. Tu agudeza visual previene accidentes.</p>
-              
+              <h3 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">{t('find_the_guardian.perfect_vision', '¡Visión Perfecta!')}</h3>
+              <p className="text-zinc-400 font-medium mb-8 max-w-md">{t('find_the_guardian.perfect_vision_msg', 'Has identificado todos los riesgos y al Guardián Praeventio. Tu agudeza visual previene accidentes.')}</p>
+
               <div className="flex items-center gap-4 mb-8">
                 <div className="bg-zinc-900 px-6 py-4 rounded-2xl border border-white/10">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Puntuación Final</p>
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('find_the_guardian.final_score', 'Puntuación Final')}</p>
                   <p className="text-3xl font-black text-amber-500">{score}</p>
                 </div>
                 <div className="bg-zinc-900 px-6 py-4 rounded-2xl border border-white/10">
-                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Precisión</p>
+                  <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('find_the_guardian.precision', 'Precisión')}</p>
                   <p className="text-3xl font-black text-emerald-500">100%</p>
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => {
                   setItems(items.map(i => ({ ...i, found: false })));
                   setScore(0);
@@ -325,7 +327,7 @@ export function FindTheGuardian() {
                 }}
                 className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest text-sm transition-colors"
               >
-                Jugar de Nuevo
+                {t('find_the_guardian.play_again', 'Jugar de Nuevo')}
               </button>
             </motion.div>
           )}
@@ -333,7 +335,7 @@ export function FindTheGuardian() {
 
         {/* Sidebar / List */}
         <div className="bg-zinc-900 rounded-3xl border border-white/10 p-6 flex flex-col h-full">
-          <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-6">Objetivos de Búsqueda</h3>
+          <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-6">{t('find_the_guardian.search_objectives', 'Objetivos de Búsqueda')}</h3>
           
           <div className="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             {items.map((item) => (
@@ -356,7 +358,7 @@ export function FindTheGuardian() {
                     <div className="flex items-center gap-2 mt-2">
                       <Star className={`w-3 h-3 ${item.found ? 'text-amber-500' : 'text-zinc-600'}`} />
                       <span className={`text-[10px] font-black uppercase tracking-widest ${item.found ? 'text-amber-500' : 'text-zinc-600'}`}>
-                        {item.points} pts
+                        {t('find_the_guardian.points_unit', '{{points}} pts', { points: item.points })}
                       </span>
                     </div>
                   </div>
@@ -369,7 +371,7 @@ export function FindTheGuardian() {
             <div className="flex items-start gap-3">
               <Shield className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
               <p className="text-xs text-indigo-300 font-medium leading-relaxed">
-                Explora la imagen, haz zoom si es necesario y haz clic en los riesgos o en el Guardián para ganar puntos.
+                {t('find_the_guardian.instructions', 'Explora la imagen, haz zoom si es necesario y haz clic en los riesgos o en el Guardián para ganar puntos.')}
               </p>
             </div>
           </div>
