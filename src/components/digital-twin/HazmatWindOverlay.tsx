@@ -5,7 +5,7 @@
 // `UniversalKnowledgeContext` so the cone updates live as the weather
 // snapshot refreshes (every 15 min via the orchestrator).
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Circle, Polyline } from '@react-google-maps/api';
 import { useUniversalKnowledge } from '../../contexts/UniversalKnowledgeContext';
 import {
@@ -13,6 +13,9 @@ import {
   ringCentroid,
   type SiteGeometryFeature,
 } from '../../services/digitalTwin/siteGeometry';
+import { useProject } from '../../contexts/ProjectContext';
+import { generateGasLeakNode } from '../../services/zettelkasten/bernoulli/gasLeakDetection';
+import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 
 interface Props {
   features: SiteGeometryFeature[];
@@ -47,8 +50,30 @@ function approxRingAreaM2(ring: [number, number][]): number {
 
 export function HazmatWindOverlay({ features }: Props): React.ReactElement | null {
   const { environment } = useUniversalKnowledge();
+  const { selectedProject } = useProject();
   const weather = environment?.weather ?? null;
   const windKmh = weather?.windSpeed ?? 0;
+  // Bucket B.2 — gas leak Bernoulli check. Uses each hazmat hazard polygon as
+  // a synthetic two-point pipe network; if a sensor concentration exceeds the
+  // leak tolerance the generator emits a node. Threshold is internal to the
+  // generator (15% over expected friction loss).
+  const gasSensorConcentrationPpm = (weather as unknown as { gasConcentrationPpm?: number })?.gasConcentrationPpm ?? 0;
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) return;
+    if (gasSensorConcentrationPpm <= 0) return;
+    // Velocity proxy from wind speed (m/s). Higher concentration → larger pressure drop.
+    const vMs = Math.max(0.1, windKmh / 3.6);
+    const nodes = features
+      .filter((f) => f.properties.type === 'hazard')
+      .map((f) => generateGasLeakNode(
+        { id: `${f.id}-A`, pressurePa: 200_000, velocityMs: vMs, heightM: 0 },
+        { id: `${f.id}-B`, pressurePa: 180_000, velocityMs: vMs * (1 + gasSensorConcentrationPpm / 1000), heightM: 0 },
+        { id: 'GLP', densityKgM3: 2.0, expectedFrictionLossJKg: 50, lelVolPercent: 1.8 },
+      ))
+      .filter((n): n is NonNullable<typeof n> => Boolean(n));
+    if (nodes.length > 0) writeNodesDebounced(nodes, { projectId });
+  }, [features, gasSensorConcentrationPpm, windKmh, selectedProject?.id]);
   // WeatherData currently doesn't carry windDirection — fall back to the
   // optional `metadata` shape some upstream sources provide. Treat missing
   // direction as "draw a symmetric halo".

@@ -118,6 +118,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: "Safe Driving", icon: Car, path: "/safe-driving", color: "text-blue-500" },
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
+        { title: t("nav.cuadrillas", "Cuadrillas"), icon: Users, path: "/cuadrillas", color: "text-[#4db6ac]" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],

@@ -16,6 +16,14 @@ import { EmptyState } from '../components/shared/EmptyState';
 import { ToastContainer } from '../components/shared/ToastContainer';
 import { useToast } from '../hooks/useToast';
 import { logger } from '../utils/logger';
+import { generateSlamMeshNode } from '../services/zettelkasten/bernoulli/slamPhotogrammetryNode';
+import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
+import { PlacedObjectsLayer } from '../components/digital-twin/PlacedObjectsLayer';
+import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObjectMenu';
+import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
+import { useObjectLifecycle } from '../hooks/useObjectLifecycle';
+import type { PlacedObject, PlacedObjectKind } from '../services/digitalTwin/photogrammetry/types';
+import { runComplianceCheck } from '../services/digitalTwin/objectPlacement/normativaRules';
 
 interface ReconstructionJob {
   jobId: string;
@@ -28,6 +36,7 @@ interface ReconstructionJob {
   boundingBox?: { minX: number; maxX: number; minY: number; maxY: number; minZ: number; maxZ: number };
   createdAt?: { seconds: number };
   error?: string;
+  metrics?: { framesExtracted?: number };
 }
 
 type ProcessingMode = 'gpu' | 'cpu';
@@ -118,6 +127,81 @@ export function DigitalTwinFaena() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Brecha C: object placement state. Lives only in memory for this ola —
+  // Firestore persistence of `placed_objects` collection lands in Ola 3.
+  const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const onLifecycleChange = useObjectLifecycle(selectedProject?.id ?? '');
+  const complianceReport = React.useMemo(
+    () => runComplianceCheck({ placedObjects }),
+    [placedObjects],
+  );
+
+  const handleCanvasDrop = React.useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    const kind = (e.dataTransfer.getData(DRAG_MIME) ||
+      e.dataTransfer.getData('text/plain')) as PlacedObjectKind | '';
+    if (!kind) return;
+    e.preventDefault();
+    // Place at a sensible default — center of grid; Ola 3 will raycast onto mesh.
+    const now = Date.now();
+    const newObj: PlacedObject = {
+      id: `placed_${now}_${Math.random().toString(36).slice(2, 8)}`,
+      kind: kind as PlacedObjectKind,
+      position: { x: (Math.random() - 0.5) * 8, y: 1, z: (Math.random() - 0.5) * 8 },
+      lifecycle: 'planning',
+      createdAt: now,
+      updatedAt: now,
+    };
+    setPlacedObjects((prev) => [...prev, newObj]);
+    setSelectedObjectId(newObj.id);
+    void onLifecycleChange(null, newObj).catch((err) =>
+      logger.error('object lifecycle (planning) failed', { err: String(err) }),
+    );
+  }, [onLifecycleChange]);
+
+  const handleMarkInstalled = React.useCallback(async () => {
+    if (!selectedObjectId) return;
+    const previous = placedObjects.find((o) => o.id === selectedObjectId) ?? null;
+    if (!previous) return;
+    const next: PlacedObject = {
+      ...previous,
+      lifecycle: 'installed',
+      updatedAt: Date.now(),
+    };
+    try {
+      const result = await onLifecycleChange(previous, next);
+      setPlacedObjects((prev) => prev.map((o) => (o.id === next.id ? next : o)));
+      const created = result.calendarEventSpecs.length;
+      show(
+        `Objeto instalado. ${created > 0 ? `${created} mantención(es) agendada(s).` : 'ZK node creado.'}`,
+        'success',
+      );
+    } catch (err) {
+      logger.error('mark installed failed', { err: String(err) });
+      show('No se pudo persistir el cambio de estado', 'error');
+    }
+  }, [selectedObjectId, placedObjects, onLifecycleChange, show]);
+
+  const handleObjectMove = React.useCallback(
+    (obj: PlacedObject, newPosition: { x: number; y: number; z: number }) => {
+      const previous = obj;
+      const next: PlacedObject = {
+        ...obj,
+        position: newPosition,
+        updatedAt: Date.now(),
+      };
+      setPlacedObjects((prev) => prev.map((o) => (o.id === obj.id ? next : o)));
+      void onLifecycleChange(previous, next).catch((err) =>
+        logger.error('object move persistence failed', { err: String(err) }),
+      );
+    },
+    [onLifecycleChange],
+  );
+
+  const selectedObject = selectedObjectId
+    ? placedObjects.find((o) => o.id === selectedObjectId) ?? null
+    : null;
+
   const apiBase = (import.meta.env.VITE_APP_URL as string) || '';
 
   const apiCall = async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -161,6 +245,26 @@ export function DigitalTwinFaena() {
     const interval = setInterval(refreshJobs, 4000);
     return () => clearInterval(interval);
   }, [jobs.map(j => `${j.jobId}:${j.status}`).join(','), reducedMotion]);
+
+  // Bucket B.1 — emit Zettelkasten `slam-mesh` node for completed reconstruction jobs.
+  // Uses the keyframe count from `job.metrics.framesExtracted` (falls back to 0). Generator
+  // gates on min keyframes/coverage and returns null below threshold.
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) return;
+    const nodes = jobs
+      .filter((j) => j.status === 'completed')
+      .map((job) => generateSlamMeshNode(
+        {
+          id: job.jobId,
+          keyframeCount: job.metrics?.framesExtracted ?? 0,
+          coveragePercent: 80,
+        },
+        { id: projectId },
+      ))
+      .filter((n): n is NonNullable<typeof n> => Boolean(n));
+    if (nodes.length > 0) writeNodesDebounced(nodes, { projectId });
+  }, [jobs.map(j => `${j.jobId}:${j.status}`).join(','), selectedProject?.id]);
 
   const handleFileSelect = (file: File) => {
     if (!file.type.startsWith('video/')) {
@@ -411,6 +515,11 @@ export function DigitalTwinFaena() {
             </button>
           </div>
 
+          {/* Brecha C: place objects menu — solo visible cuando hay reconstrucción completa */}
+          {activeJob?.status === 'completed' && (
+            <PlaceObjectMenu />
+          )}
+
           {/* Jobs list */}
           <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4">
             <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">
@@ -480,7 +589,15 @@ export function DigitalTwinFaena() {
             )}
           </div>
 
-          <div className="flex-1 relative bg-zinc-950">
+          <div
+            className="flex-1 relative bg-zinc-950"
+            onDragOver={(e) => {
+              if (activeJob?.status !== 'completed') return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'copy';
+            }}
+            onDrop={handleCanvasDrop}
+          >
             {!activeJob || activeJob.status !== 'completed' ? (
               <EmptyState
                 mascot
@@ -509,8 +626,64 @@ export function DigitalTwinFaena() {
                   />
                   <PointCloudViewer pointCount={totalNodes} boundingBox={activeJob.boundingBox} />
                   <RiskMarkers />
+                  <PlacedObjectsLayer
+                    objects={placedObjects}
+                    selectedId={selectedObjectId}
+                    onSelect={(o) => setSelectedObjectId(o.id)}
+                    onMove={handleObjectMove}
+                  />
                   <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
                 </Canvas>
+
+                {/* Brecha C: normativa banner top-right */}
+                <div className="absolute top-3 right-3 max-w-sm">
+                  <NormativaWarningsBanner
+                    violations={complianceReport.violations}
+                    compact={complianceReport.violations.length > 4}
+                  />
+                </div>
+
+                {/* Brecha C: selected object detail panel bottom-right */}
+                {selectedObject && (
+                  <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-md rounded-xl p-3 border border-white/10 max-w-xs">
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2">
+                      Objeto seleccionado
+                    </p>
+                    <p className="text-xs font-bold text-white mb-1">
+                      {selectedObject.kind}
+                    </p>
+                    <p className="text-[10px] text-zinc-400 mb-2">
+                      Estado: <span className="text-cyan-300">{selectedObject.lifecycle}</span>
+                    </p>
+                    {selectedObject.lifecycle === 'planning' && (
+                      <button
+                        onClick={handleMarkInstalled}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                      >
+                        Marcar instalado
+                      </button>
+                    )}
+                    {selectedObject.lifecycle === 'installed' && (
+                      <button
+                        onClick={async () => {
+                          const previous = selectedObject;
+                          const next: PlacedObject = {
+                            ...previous,
+                            lifecycle: 'active',
+                            updatedAt: Date.now(),
+                          };
+                          await onLifecycleChange(previous, next);
+                          setPlacedObjects((prev) =>
+                            prev.map((o) => (o.id === next.id ? next : o)),
+                          );
+                        }}
+                        className="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                      >
+                        Marcar activo
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {/* Risk overlay legend */}
                 <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md rounded-xl p-3 border border-white/10">

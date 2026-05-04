@@ -1,8 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileCheck, Download, X, Plus, ShieldCheck } from 'lucide-react';
+import { FileCheck, Download, X, Plus, ShieldCheck, Mountain, Loader2 } from 'lucide-react';
 import { MedicalIcon } from '../medical/MedicalIcon';
 import { generateAptitudeCertificate, AptitudeData } from '../../utils/aptitudeCertificate';
+import { generatePulmonaryNode } from '../../services/zettelkasten/bernoulli/pulmonaryAltitude';
+import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
+import { useProject } from '../../contexts/ProjectContext';
+import { Geolocation } from '@capacitor/geolocation';
+import { logger } from '../../utils/logger';
 
 const RESULT_OPTION_KEYS: { value: AptitudeData['result']; key: string; fallback: string; color: string }[] = [
   { value: 'apto', key: 'aptitude_certificate.result_apto', fallback: 'Apto', color: 'text-teal-400 dark:text-teal-400' },
@@ -39,6 +44,63 @@ export function AptitudeCertificateForm() {
     observations: '',
   });
   const [restrictionDraft, setRestrictionDraft] = useState('');
+
+  // Bucket B.5 — Pulmonary altitude wire (DS 594 Art. 49, DS 28/2012).
+  const { selectedProject } = useProject();
+  const [altitudeM, setAltitudeM] = useState<number | ''>('');
+  const [altitudeFetching, setAltitudeFetching] = useState(false);
+  const [altitudeStatus, setAltitudeStatus] = useState<string | null>(null);
+  const [pefLMin, setPefLMin] = useState<number | ''>(450);
+
+  const handleFetchAltitude = async () => {
+    setAltitudeFetching(true);
+    setAltitudeStatus(null);
+    try {
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 10_000 });
+      const { latitude, longitude } = pos.coords;
+      const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${latitude},${longitude}`);
+      if (!res.ok) throw new Error(`Open-Elevation HTTP ${res.status}`);
+      const json = await res.json();
+      const elev = Number(json?.results?.[0]?.elevation);
+      if (!Number.isFinite(elev)) throw new Error('Respuesta sin elevation');
+      setAltitudeM(Math.round(elev));
+      setAltitudeStatus(`Altitud detectada: ${Math.round(elev)} m s.n.m.`);
+    } catch (err) {
+      logger.warn('Pulmonary altitude geolocation falló — ingresa manualmente', { err: String(err) });
+      setAltitudeStatus('No se pudo obtener altitud automática. Ingresa manualmente.');
+    } finally {
+      setAltitudeFetching(false);
+    }
+  };
+
+  const handleEvalPulmonary = () => {
+    const projectId = selectedProject?.id;
+    const alt = Number(altitudeM);
+    const pef = Number(pefLMin);
+    if (!projectId) {
+      setAltitudeStatus('Selecciona un proyecto antes de evaluar.');
+      return;
+    }
+    if (!Number.isFinite(alt) || alt <= 0) {
+      setAltitudeStatus('Altitud inválida.');
+      return;
+    }
+    if (alt < 2400) {
+      setAltitudeStatus(`Altitud ${alt} m bajo umbral 2400 m — sin evaluación pulmonar.`);
+      return;
+    }
+    const node = generatePulmonaryNode(
+      { id: data.workerRut || data.workerName || 'worker', pefLMin: pef },
+      { masl: alt },
+      { id: 'mask-default', filterResistancePaSPerM3: 5_000_000, criticalDropPa: 250 },
+    );
+    if (node) {
+      writeNodesDebounced([node], { projectId });
+      setAltitudeStatus(`Riesgo pulmonar (${node.severity}) registrado en Zettelkasten.`);
+    } else {
+      setAltitudeStatus(`Altitud ${alt} m — sin riesgo pulmonar crítico para PEF ${pef} L/min.`);
+    }
+  };
 
   const update = <K extends keyof AptitudeData>(key: K, value: AptitudeData[K]) =>
     setData(prev => ({ ...prev, [key]: value }));
@@ -170,6 +232,53 @@ export function AptitudeCertificateForm() {
           rows={2}
           className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40 resize-none"
         />
+
+        {/* Bucket B.5 — Trabajo en altitud >2400 m (DS 594 Art. 49, DS 28/2012). */}
+        <div className="rounded-xl border border-teal-400/20 bg-teal-400/5 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Mountain className="w-4 h-4 text-teal-500 dark:text-teal-400" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">
+              {t('aptitude_certificate.section_altitude', 'Trabajo en altitud >2400 m')}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={altitudeM}
+                onChange={(e) => setAltitudeM(e.target.value ? Number(e.target.value) : '')}
+                placeholder="Altitud (m s.n.m.)"
+                className="flex-1 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
+              />
+              <button
+                type="button"
+                onClick={handleFetchAltitude}
+                disabled={altitudeFetching}
+                className="px-3 rounded-xl bg-teal-400/10 text-teal-600 dark:text-teal-400 border border-teal-400/20 hover:bg-teal-400/20 disabled:opacity-50 transition-colors"
+                aria-label="Detectar altitud por geolocalización"
+              >
+                {altitudeFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mountain className="w-4 h-4" />}
+              </button>
+            </div>
+            <input
+              type="number"
+              value={pefLMin}
+              onChange={(e) => setPefLMin(e.target.value ? Number(e.target.value) : '')}
+              placeholder="PEF (L/min)"
+              className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
+            />
+            <button
+              type="button"
+              onClick={handleEvalPulmonary}
+              className="px-3 py-2 rounded-xl bg-teal-400 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest transition-colors"
+            >
+              Evaluar pulmonar
+            </button>
+          </div>
+          {altitudeStatus && (
+            <p className="text-[10px] text-zinc-600 dark:text-zinc-400">{altitudeStatus}</p>
+          )}
+        </div>
 
         <button
           type="submit"

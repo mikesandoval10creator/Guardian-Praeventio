@@ -28,6 +28,8 @@ import { getHealthAdapter } from '../services/health';
 
 import { GamifiedHUD, type StatusEffect } from '../components/telemetry/GamifiedHUD';
 import { ActiveAlertsList } from '../components/telemetry/ActiveAlertsList';
+import { generateDikeNode } from '../services/zettelkasten/bernoulli/dikeHydrostaticMonitor';
+import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
 import {
   WeatherAndSeismicPanels,
   type Earthquake,
@@ -59,6 +61,39 @@ export function Telemetry() {
   const [health, setHealth] = useState(100);
   const [toxin, setToxin] = useState(0);
   const [effects, setEffects] = useState<StatusEffect[]>([]);
+
+  // Bucket B.3 — Dike hydrostatic monitor (DS 248/2007, Resolución 1500 SERNAGEOMIN).
+  const [dikeHeight, setDikeHeight] = useState<number | ''>(15);
+  const [dikePerimeter, setDikePerimeter] = useState<number | ''>(800);
+  const [piezoDepth, setPiezoDepth] = useState<number | ''>(10);
+  const [piezoPressureKpa, setPiezoPressureKpa] = useState<number | ''>(110);
+  const [dikeStatus, setDikeStatus] = useState<string | null>(null);
+
+  const handleDikeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      setDikeStatus('Selecciona un proyecto antes de evaluar.');
+      return;
+    }
+    const h = Number(dikeHeight);
+    const depth = Number(piezoDepth);
+    const pressurePa = Number(piezoPressureKpa) * 1000;
+    if (h <= 0 || depth <= 0 || pressurePa <= 0) {
+      setDikeStatus('Datos inválidos.');
+      return;
+    }
+    const node = generateDikeNode(
+      { id: `dike-${selectedProject?.name ?? projectId}`, heightM: h, fluidDensityKgM3: 1500 },
+      [{ id: `piezo-1`, depthM: depth, measuredPressurePa: pressurePa }],
+    );
+    if (node) {
+      writeNodesDebounced([node], { projectId });
+      setDikeStatus(`Anomalía piezométrica detectada (severidad: ${node.severity}). Nodo enviado al Zettelkasten.`);
+    } else {
+      setDikeStatus(`Lectura dentro de tolerancia (perímetro ${dikePerimeter} m). Sin alerta.`);
+    }
+  };
 
   // Default coordinates (Santiago, Chile) if project doesn't have specific ones
   const lat = -33.4569;
@@ -528,6 +563,78 @@ export function Telemetry() {
           onConnectBluetooth={handleConnectBluetooth}
           onConnectGoogleFit={handleConnectGoogleFit}
         />
+      </div>
+
+      {/* Bucket B.3 — Dike hydrostatic monitor */}
+      <div className="mt-6 bg-zinc-900/60 border border-white/5 rounded-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20">
+            <ThermometerSun className="w-4 h-4 text-cyan-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black uppercase tracking-widest text-white">Monitoreo de represas hidrostáticas</h3>
+            <p className="text-[10px] text-zinc-500">DS 248/2007 — Resolución 1500 SERNAGEOMIN</p>
+          </div>
+        </div>
+        <form onSubmit={handleDikeSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Altura del agua (m)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={dikeHeight}
+              onChange={(e) => setDikeHeight(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Perímetro (m)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={dikePerimeter}
+              onChange={(e) => setDikePerimeter(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Profundidad piezómetro (m)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={piezoDepth}
+              onChange={(e) => setPiezoDepth(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Presión medida (kPa)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={piezoPressureKpa}
+              onChange={(e) => setPiezoPressureKpa(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <div className="md:col-span-4">
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black uppercase tracking-widest transition-colors"
+            >
+              Evaluar lectura
+            </button>
+          </div>
+          {dikeStatus && (
+            <div className="md:col-span-4 p-3 rounded-lg bg-zinc-800/60 border border-white/5 text-xs text-zinc-300">
+              {dikeStatus}
+            </div>
+          )}
+        </form>
       </div>
 
       {/* Digital Twin 3D */}
