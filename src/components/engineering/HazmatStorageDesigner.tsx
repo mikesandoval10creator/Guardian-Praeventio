@@ -10,6 +10,7 @@ import {
   generateHazmatPipeNode,
   generateMiningExtractionNode,
 } from '../../services/zettelkasten/bernoulli';
+import { generateMistingNode } from '../../services/zettelkasten/bernoulli/mistingDustSuppression';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { useProject } from '../../contexts/ProjectContext';
 
@@ -46,6 +47,8 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [inletAreaA1, setInletAreaA1] = useState<number | ''>(0.4);
   const [throatAreaA2, setThroatAreaA2] = useState<number | ''>(0.1);
   const [deltaPPa, setDeltaPPa] = useState<number | ''>(50);
+  // Bucket B.4 — misting dust suppression (PM10 ambient → recommended nozzles).
+  const [pm10UgM3, setPm10UgM3] = useState<number | ''>(80);
   const { selectedProject } = useProject();
 
   const venturiResult = useMemo(() => {
@@ -99,6 +102,31 @@ export const HazmatStorageDesigner: React.FC = () => {
       return null;
     }
   }, [roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, materialClass, storageType, selectedProject?.id]);
+
+  // Bucket B.4 — misting dust suppression: recommend nozzle count from ambient PM10.
+  // OEL DS 594 Art. 65 (sílice respirable) ≈ 0.025 mg/m³; trigger generator if PM10 > 50 µg/m³.
+  const mistingResult = useMemo(() => {
+    const pm10 = Number(pm10UgM3);
+    if (!pm10UgM3 || pm10 <= 0) return null;
+    // Heuristic: 1 nozzle per 50 m³ of room when PM10 > OEL guidance, +1 every 50 µg/m³.
+    const baseNozzles = Math.max(1, Math.ceil(Number(roomVolumeM3 || 150) / 50));
+    const extraNozzles = Math.max(0, Math.floor((pm10 - 50) / 50));
+    const nozzleCount = baseNozzles + extraNozzles;
+
+    const node = generateMistingNode(
+      {
+        id: `misting-${storageType}`,
+        inletAreaM2: Number(inletAreaA1 || 0.4),
+        throatAreaM2: Number(throatAreaA2 || 0.1),
+        deltaPPa: Number(deltaPPa || 50),
+      },
+      { flowRateM3S: 0.0002 * nozzleCount, pressurePa: 300_000 },
+      { availableFlowM3S: 0.05 },
+    );
+    const projectId = selectedProject?.id;
+    if (node && projectId) writeNodesDebounced([node], { projectId });
+    return { nozzleCount, pm10, exceedsOel: pm10 > 50 };
+  }, [pm10UgM3, roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, storageType, selectedProject?.id]);
 
   const handleDesign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -339,6 +367,59 @@ export const HazmatStorageDesigner: React.FC = () => {
         <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
           {t('hazmat_designer.bernoulli_note')}
         </p>
+      </div>
+
+      {/* Bucket B.4 — Misting dust suppression (DS 594 Art. 65, ISO 14644). */}
+      <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+            <Wind className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Supresión de polvo (misting Venturi)</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Calcula boquillas mister según PM10 ambiente — DS 594 Art. 65, ISO 14644.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">PM10 ambiente (µg/m³)</label>
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={pm10UgM3}
+              onChange={(e) => setPm10UgM3(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white"
+            />
+          </div>
+          {mistingResult && (
+            <div className={`rounded-lg px-3 py-2 border ${
+              mistingResult.exceedsOel
+                ? 'bg-amber-500/10 border-amber-500/20'
+                : 'bg-emerald-500/10 border-emerald-500/20'
+            }`}>
+              <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
+                Boquillas mister recomendadas
+              </p>
+              <p className={`text-lg font-black ${
+                mistingResult.exceedsOel ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {mistingResult.nozzleCount}
+              </p>
+            </div>
+          )}
+        </div>
+        {mistingResult?.exceedsOel && (
+          <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              PM10 supera referencia OEL — activar misting Venturi para captar partículas finas.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
