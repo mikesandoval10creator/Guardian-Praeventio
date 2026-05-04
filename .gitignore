@@ -18,3 +18,7 @@ firebase-applet-config.json
 # Playwright local artifacts
 playwright-report/
 test-results/
+
+# Stryker mutation testing artifacts
+.stryker-tmp/
+reports/mutation/

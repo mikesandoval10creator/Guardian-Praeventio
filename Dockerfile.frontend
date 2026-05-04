@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.7
+# Guardian Praeventio — Frontend (static SPA) runtime image.
+#
+# Builds the Vite output and serves it from nginx:alpine on port 8080. Used
+# by the Cloud Build alternative path. The legacy ./Dockerfile keeps serving
+# the SPA from Express; this image lets us deploy the frontend independently
+# behind a CDN if desired.
+
+# ── Stage 1: build the Vite bundle ───────────────────────────────────────────
+FROM node:20-alpine AS build
+WORKDIR /app
+
+RUN apk add --no-cache python3 make g++ libc6-compat
+
+COPY package.json package-lock.json* ./
+RUN npm ci --legacy-peer-deps
+
+COPY . .
+RUN npm run build
+
+# ── Stage 2: nginx runtime ───────────────────────────────────────────────────
+FROM nginx:alpine AS runtime
+
+# nginx:alpine already runs the master as root and workers as `nginx`. We
+# replace the default site config with the conservative SPA-fallback one
+# checked into the repo.
+RUN rm -f /etc/nginx/conf.d/default.conf
+
+COPY nginx.conf /etc/nginx/conf.d/praeventio.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+# Cloud Run prefers ports >=1024 for non-root binding. We listen on 8080.
+EXPOSE 8080
+
+# nginx:alpine handles its own healthcheck/SIGTERM via the default entrypoint.
+# We do not add a HEALTHCHECK here because Cloud Run uses HTTP probes from
+# outside the container.
+
+# We do NOT add `USER nginx` here — nginx:alpine's standard model expects
+# the master process to drop to the `nginx` user via `user` directive in
+# nginx.conf rather than the container user. Switching the container user
+# breaks /var/cache/nginx writes. See:
+# https://github.com/nginxinc/docker-nginx/issues/660

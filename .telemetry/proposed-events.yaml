@@ -1,0 +1,455 @@
+# Proposed events — machine-readable manifest.
+# Source-of-truth: docs/tracking/TRACKING_PLAN.md
+# Catalog: docs/tracking/event-catalog.md
+# Glossary: docs/tracking/property-glossary.md
+#
+# Cardinality MUST equal the catalog row count. PRs adding/removing events
+# update both files in lockstep (TRACKING_PLAN §7).
+#
+# `requiredProps` lists ONLY event-specific required props plus the common
+# set (TRACKING_PLAN §4.8). `optionalProps` lists only event-specific
+# optional ones. `correlation_id` is a reserved system prop — not listed
+# per-event but always allowed.
+
+schemaVersion: 1
+generatedAt: '2026-05-04'
+planVersion: 1.0.0
+source: docs/tracking/TRACKING_PLAN.md
+
+commonRequiredProps:
+  - event_version
+  - app_version
+  - app_env
+  - app_mode
+  - locale
+  - device_class
+  - online
+  - timestamp_iso
+  - sample_rate
+
+# user_id_hash and project_id are common-but-context-conditional: required
+# whenever a session/project context exists. The wrapper drops them when
+# the context is absent (e.g., on the public landing page).
+
+classes:
+  - lifecycle
+  - engagement
+  - safety_critical
+  - commerce
+
+ownerTeams:
+  - identity
+  - platform
+  - safety
+  - compliance
+  - billing
+  - knowledge
+
+events:
+  # =================== Auth (5) ===================
+  - name: auth.user.signed_up
+    class: lifecycle
+    description: First successful auth (any provider). Fires once per user, ever.
+    requiredProps: [provider]
+    optionalProps: [invited_by_project_id]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: auth.user.signed_in
+    class: lifecycle
+    description: Successful auth where the user already existed.
+    requiredProps: [provider, mfa_used]
+    optionalProps: []
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: auth.user.signed_out
+    class: lifecycle
+    description: User-initiated signout. SDK reset() fires immediately after.
+    requiredProps: []
+    optionalProps: [signout_reason]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: auth.role.granted
+    class: lifecycle
+    description: A new role was attached to the user in users/{uid}.roles[].
+    requiredProps: [role, granted_by_user_id_hash]
+    optionalProps: []
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: auth.role.revoked
+    class: lifecycle
+    description: A role was removed.
+    requiredProps: [role, revoked_by_user_id_hash]
+    optionalProps: [revocation_reason]
+    ownerTeam: identity
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Project (5) ===================
+  - name: project.created
+    class: lifecycle
+    description: New project doc written under projects/.
+    requiredProps: [project_tier, industry_code]
+    optionalProps: []
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: project.member.invited
+    class: lifecycle
+    description: Invite link emitted via Firestore + FCM.
+    requiredProps: [target_role, invited_by_user_id_hash]
+    optionalProps: [invite_channel]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: project.member.accepted
+    class: lifecycle
+    description: Invite accepted; user now appears in projects/{id}.members.
+    requiredProps: [accepted_role]
+    optionalProps: [accept_latency_seconds]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: project.member.removed
+    class: lifecycle
+    description: Member removed from projects/{id}.members.
+    requiredProps: [target_user_id_hash, removed_by_user_id_hash]
+    optionalProps: [removal_reason]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: project.archived
+    class: lifecycle
+    description: Project moved to archived state.
+    requiredProps: [archived_by_user_id_hash]
+    optionalProps: [archive_reason]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Cuadrilla (3) ===================
+  - name: cuadrilla.created
+    class: lifecycle
+    description: New cuadrilla under projects/{id}/cuadrillas.
+    requiredProps: [cuadrilla_id, member_count]
+    optionalProps: [parent_proceso_id]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: cuadrilla.member.added
+    class: lifecycle
+    description: Worker assigned to a cuadrilla.
+    requiredProps: [cuadrilla_id, target_user_id_hash, member_role]
+    optionalProps: []
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: cuadrilla.member.swapped
+    class: lifecycle
+    description: One worker replaced by another within the same cuadrilla.
+    requiredProps: [cuadrilla_id, out_user_id_hash, in_user_id_hash]
+    optionalProps: [swap_reason]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Procesos & Tareas (4) ===================
+  - name: proceso.created
+    class: lifecycle
+    description: A new proceso under a project.
+    requiredProps: [proceso_id, proceso_template]
+    optionalProps: [parent_proceso_id]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: tarea.created
+    class: lifecycle
+    description: New tarea row.
+    requiredProps: [tarea_id, proceso_id, task_priority]
+    optionalProps: [created_from_risk_id]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: tarea.completed
+    class: lifecycle
+    description: Tarea marked complete.
+    requiredProps: [tarea_id, proceso_id, time_to_complete_seconds]
+    optionalProps: [closed_by_user_id_hash]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: tarea.blocked
+    class: lifecycle
+    description: Worker reports blocker on a tarea.
+    requiredProps: [tarea_id, proceso_id, block_reason_code]
+    optionalProps: [block_note_length]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Riesgos (3) ===================
+  - name: risk.detected.predictive
+    class: safety_critical
+    description: Predictive layer (IPER / PREXOR / TMERT / weather) flagged a risk.
+    requiredProps: [risk_id, risk_class, severity, detector_kind]
+    optionalProps: [confidence_pct, commune_code]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: risk.reported.manual
+    class: safety_critical
+    description: Worker manually reported a risk via the UI.
+    requiredProps: [risk_id, risk_class, severity]
+    optionalProps: [commune_code, reporter_role_hash]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: risk.resolved
+    class: safety_critical
+    description: Risk transitioned to resolved state.
+    requiredProps: [risk_id, risk_class, time_to_resolve_seconds, resolution_kind]
+    optionalProps: []
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Emergency (4) ===================
+  - name: emergency.sos.triggered
+    class: safety_critical
+    description: SOS button confirmed (3s long-press). Geo redacted to commune.
+    requiredProps: [sos_type, trigger_source, role_hash]
+    optionalProps: [commune_code, network_kind]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: emergency.fall.detected
+    class: safety_critical
+    description: Auto fall detection fired.
+    requiredProps: [confidence_pct, accel_window_ms, role_hash]
+    optionalProps: [commune_code]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: emergency.checkin.completed
+    class: safety_critical
+    description: Worker confirmed check-in (manual or scheduled).
+    requiredProps: [checkin_kind, status]
+    optionalProps: [scheduled_for_iso, delay_seconds]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: emergency.evacuation.started
+    class: safety_critical
+    description: Evacuation routine entered.
+    requiredProps: [evacuation_route_id, protocol_id]
+    optionalProps: []
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== SLM (5) ===================
+  - name: slm.query.online
+    class: engagement
+    description: Orchestrator routed a query to /api/ask-guardian.
+    requiredProps: [query_kind, latency_ms, prompt_token_count, success]
+    optionalProps: [model_id]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: slm.query.offline
+    class: engagement
+    description: Orchestrator routed a query to the on-device SLM.
+    requiredProps: [query_kind, latency_ms, model_id, prompt_token_count]
+    optionalProps: []
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: slm.queue.grew
+    class: engagement
+    description: Offline session enqueued (offline_sessions IndexedDB store).
+    requiredProps: [queue_depth_after, session_id]
+    optionalProps: []
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: slm.queue.reconciled
+    class: safety_critical
+    description: Reconciliation pass finished.
+    requiredProps: [attempted, succeeded, failed]
+    optionalProps: [pass_duration_ms]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: slm.model.downloaded
+    class: engagement
+    description: A registry-listed model finished downloading + cached.
+    requiredProps: [model_id, model_bytes, download_duration_ms]
+    optionalProps: [cache_origin]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Comité Paritario (3) ===================
+  - name: comite.meeting.scheduled
+    class: lifecycle
+    description: CPHS meeting added to the calendar (DS54 obligation).
+    requiredProps: [meeting_id, scheduled_for_iso]
+    optionalProps: [agenda_item_count]
+    ownerTeam: compliance
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: comite.minutes.drafted
+    class: lifecycle
+    description: Acta de reunión generated (Gemini-assisted or manual).
+    requiredProps: [meeting_id, drafted_by_kind]
+    optionalProps: []
+    ownerTeam: compliance
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: comite.action_item.assigned
+    class: lifecycle
+    description: New action item attached to a meeting.
+    requiredProps: [action_item_id, meeting_id, assignee_role_hash]
+    optionalProps: [due_in_days]
+    ownerTeam: compliance
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== SUSESO (3) ===================
+  - name: suseso.form.started
+    class: engagement
+    description: User opened a SUSESO/ISTAS21 questionnaire.
+    requiredProps: [form_kind]
+    optionalProps: []
+    ownerTeam: compliance
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: suseso.form.submitted
+    class: lifecycle
+    description: Form completed + submitted to the SUSESO API.
+    requiredProps: [form_kind, dimension_count, time_to_submit_seconds]
+    optionalProps: []
+    ownerTeam: compliance
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: suseso.form.rejected
+    class: safety_critical
+    description: SUSESO API responded with rejection.
+    requiredProps: [form_kind, rejection_code]
+    optionalProps: [retry_count]
+    ownerTeam: compliance
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Payments (3) ===================
+  - name: payment.checkout.started
+    class: commerce
+    description: Client kicked off checkout (Webpay/Khipu/MP/Play).
+    requiredProps: [gateway, plan_code, amount_clp]
+    optionalProps: []
+    ownerTeam: billing
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: payment.transaction.succeeded
+    class: commerce
+    description: Server-side webhook confirmed authorization. Server-emitted (not client).
+    requiredProps: [gateway, plan_code, amount_clp, transaction_id_hash]
+    optionalProps: [auth_latency_ms]
+    ownerTeam: billing
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: payment.transaction.failed
+    class: commerce
+    description: Authorization rejected or webhook returned a failure status. Server-emitted.
+    requiredProps: [gateway, plan_code, failure_code]
+    optionalProps: [amount_clp]
+    ownerTeam: billing
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== Knowledge (3) ===================
+  - name: knowledge.doc.viewed
+    class: engagement
+    description: A doc opened in the in-app reader.
+    requiredProps: [doc_id, doc_kind]
+    optionalProps: [view_duration_seconds_estimate]
+    ownerTeam: knowledge
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: knowledge.zk.node.created
+    class: lifecycle
+    description: New Zettelkasten node persisted (post-reconciliation, server-side).
+    requiredProps: [zk_node_id, zk_node_kind]
+    optionalProps: [source_session_id]
+    ownerTeam: knowledge
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: knowledge.zk.link.traversed
+    class: engagement
+    description: User followed a link between two ZK nodes via the SmartConnections panel.
+    requiredProps: [zk_node_id_from, zk_node_id_to, link_kind]
+    optionalProps: []
+    ownerTeam: knowledge
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  # =================== App shell (3) ===================
+  - name: app.opened
+    class: engagement
+    description: App boot. Includes cold/warm discriminator.
+    requiredProps: [boot_kind]
+    optionalProps: [last_open_delta_seconds]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: app.backgrounded
+    class: engagement
+    description: Page went visibilityState=hidden for >= 3s.
+    requiredProps: []
+    optionalProps: [foreground_duration_seconds]
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low
+
+  - name: app.mode.switched
+    class: engagement
+    description: useAppMode().setMode(...) called or auto-trigger fired.
+    requiredProps: [from_mode, to_mode, trigger_kind]
+    optionalProps: []
+    ownerTeam: platform
+    firstVersion: 1.0.0
+    piiRisk: low

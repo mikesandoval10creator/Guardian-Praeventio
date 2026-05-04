@@ -1,0 +1,81 @@
+# syntax=docker/dockerfile:1.7
+# Guardian Praeventio — API runtime image (multi-stage).
+#
+# This image powers the Express + tsx server (`server.ts` at repo root) when
+# deployed via Cloud Build → Artifact Registry → Cloud Run. It is independent
+# from the legacy monolithic ./Dockerfile (which bundles API + frontend in a
+# single image and is still wired into .github/workflows/deploy.yml).
+#
+# NOTE: This project runs the API with `tsx` at runtime (not a compiled
+# `dist/server/index.js`). Stage 3 keeps `tsx` in node_modules so the
+# entrypoint can execute `server.ts` directly.
+
+# ── Stage 1: deterministic prod dependency install ────────────────────────────
+FROM node:20-alpine AS deps
+WORKDIR /app
+
+# Build tools for native modules (e.g. better-sqlite3 transitives).
+RUN apk add --no-cache python3 make g++ libc6-compat
+
+COPY package.json package-lock.json* ./
+# Production deps only, but `tsx` is a devDependency that the runtime needs
+# (the API runs as `tsx server.ts` — no compiled JS entrypoint exists). We
+# therefore install prod deps deterministically and then add `tsx` on top.
+# Pinned to the same major as devDependencies/tsx in package.json (^4.21.0).
+RUN npm ci --omit=dev --legacy-peer-deps \
+ && npm install --no-save --no-audit --no-fund --legacy-peer-deps tsx@^4.21.0 \
+ && npm cache clean --force
+
+# ── Stage 2: full deps + typecheck + frontend build ──────────────────────────
+FROM node:20-alpine AS build
+WORKDIR /app
+
+RUN apk add --no-cache python3 make g++ libc6-compat
+
+COPY package.json package-lock.json* ./
+RUN npm ci --legacy-peer-deps
+
+COPY . .
+
+# Typecheck and build the frontend (vite outputs to /app/dist).
+# `typecheck:ci` already sets --max-old-space-size=4096 inside the script.
+RUN npm run typecheck:ci \
+ && npm run build
+
+# ── Stage 3: minimal runtime image ───────────────────────────────────────────
+FROM node:20-alpine AS runtime
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
+
+# wget already present in alpine; used by HEALTHCHECK below.
+
+# Copy production dependency tree.
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy server source (tsx runtime needs the .ts file at runtime — we do not
+# compile the API here) and built frontend assets.
+COPY --from=build /app/server.ts ./server.ts
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/src ./src
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package.json ./package.json
+# Optional config; the COPY will silently no-op if the file is absent.
+COPY --from=build /app/firebase-applet-config.json* ./
+
+# Drop privileges. The official node:20-alpine image ships a `node` user.
+RUN chown -R node:node /app
+USER node
+
+EXPOSE 3000
+
+# `/api/health` is exposed by server.ts (Round 16 R5 split preserved this path).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
+
+# Run via tsx so we don't need a separate API compile step. `tsx` was added
+# explicitly on top of `--omit=dev` in stage `deps`. The .bin shim works in
+# exec form on Linux (it's a symlink to tsx/dist/cli.mjs in alpine).
+ENTRYPOINT ["./node_modules/.bin/tsx", "server.ts"]

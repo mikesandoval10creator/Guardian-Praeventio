@@ -1,5 +1,8 @@
-# .dockerignore — applies to every `docker build` (legacy ./Dockerfile,
-# Dockerfile.api, Dockerfile.frontend). Keep the build context small.
+# .gcloudignore — keep the Cloud Build context lean.
+#
+# Cloud Build uploads the working directory minus everything matched here
+# (gitignore-style). Anything not needed at build time should be excluded.
+# Patterns roughly follow .gitignore + .dockerignore + extra build noise.
 
 # ── VCS / IDE ────────────────────────────────────────────────────────────
 .git
@@ -22,35 +25,38 @@ yarn-error.log*
 .npm/
 .eslintcache
 
-# ── Build artefacts produced inside the image ────────────────────────────
+# ── Build artefacts (generated inside the build) ─────────────────────────
 dist/
 build/
 out/
 .next/
 coverage/
 .nyc_output/
+.size-limit*.json.bak
 
-# ── Tests / dev tooling not needed at runtime ────────────────────────────
+# ── Tests / dev tooling not needed for image build ───────────────────────
 tests/
 e2e/
 playwright-report/
 test-results/
 .stryker-tmp/
 
-# ── Agent scratch / telemetry ────────────────────────────────────────────
+# ── Telemetry / agent scratch ────────────────────────────────────────────
 .claude/
 .telemetry/
 .cursor/
+.aider*
 
-# ── Docs ─────────────────────────────────────────────────────────────────
+# ── Docs (keep README.md only — image labels reference repo) ─────────────
 docs/
 *.md
 !README.md
 
-# ── Tools / scripts not needed at runtime ────────────────────────────────
+# ── Scripts intentionally NOT excluded (Dockerfile may reference scripts/)
+# Comment out the next line if you ever need to keep tools/ for an image:
 tools/
 
-# ── Mobile shells ────────────────────────────────────────────────────────
+# ── Mobile / native shells (Cloud Build does not produce APK/IPA) ────────
 android/
 ios/
 fastlane/

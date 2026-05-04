@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - uses: actions/setup-java@v4
@@ -51,8 +51,12 @@ jobs:
       # ONLY that the web build succeeds and the Capacitor CLI can parse the
       # config. Full Android build (Gradle + signed bundle) deferred to
       # Sprint 21+ once signing secrets + Fastlane are wired.
+      #
+      # `cap doctor` is the canonical Capacitor 8 health check: it loads
+      # capacitor.config.ts, resolves plugin metadata, and reports environment
+      # issues. No android/ folder required.
       - name: Capacitor config sanity
-        run: npx cap config --list
+        run: npx cap doctor
 
       # Sprint 21+: agregar android-build job real con Gradle + signing.
       # Sketch:
