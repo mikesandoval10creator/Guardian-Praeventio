@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { BookOpen, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Loader2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { generateTrainingQuiz } from '../../services/geminiService';
@@ -18,6 +19,7 @@ interface Question {
 }
 
 export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
+  const { t } = useTranslation();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -90,8 +92,8 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
               <BookOpen className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-tight">Desafío Normativo</h2>
-              <p className="text-xs text-indigo-400 font-bold uppercase tracking-widest">Quiz Generado por IA</p>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">{t('normative_quiz.title', 'Desafío Normativo')}</h2>
+              <p className="text-xs text-indigo-400 font-bold uppercase tracking-widest">{t('normative_quiz.subtitle', 'Quiz Generado por IA')}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-zinc-400 hover:text-white">
@@ -103,7 +105,7 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
           {isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center">
               <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mb-4" />
-              <p className="text-zinc-400 font-bold uppercase tracking-widest">Generando preguntas...</p>
+              <p className="text-zinc-400 font-bold uppercase tracking-widest">{t('normative_quiz.generating', 'Generando preguntas...')}</p>
             </div>
           ) : gameFinished ? (
             <motion.div
@@ -117,24 +119,24 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
                 {score === questions.length ? <Trophy className="w-12 h-12" /> : <AlertTriangle className="w-12 h-12" />}
               </div>
               <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
-                {score === questions.length ? '¡Puntaje Perfecto!' : '¡Quiz Completado!'}
+                {score === questions.length ? t('normative_quiz.perfect_score', '¡Puntaje Perfecto!') : t('normative_quiz.quiz_completed', '¡Quiz Completado!')}
               </h3>
               <p className="text-zinc-400 mb-8 text-lg">
-                Has respondido correctamente {score} de {questions.length} preguntas.
+                {t('normative_quiz.correct_answers', 'Has respondido correctamente {{score}} de {{total}} preguntas.', { score, total: questions.length })}
               </p>
               <button
                 onClick={handleComplete}
                 className="flex items-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest transition-colors"
               >
                 <CheckCircle2 className="w-5 h-5" />
-                Reclamar {Math.round((score / questions.length) * 200)} Puntos
+                {t('normative_quiz.claim_points', 'Reclamar {{points}} Puntos', { points: Math.round((score / questions.length) * 200) })}
               </button>
             </motion.div>
           ) : questions.length > 0 ? (
             <div className="flex flex-col h-full">
               <div className="flex justify-between items-center mb-6">
                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                  Pregunta {currentQuestionIndex + 1} de {questions.length}
+                  {t('normative_quiz.question_progress', 'Pregunta {{current}} de {{total}}', { current: currentQuestionIndex + 1, total: questions.length })}
                 </span>
                 <div className="flex gap-1">
                   {questions.map((_, idx) => (
@@ -196,7 +198,7 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
                     <p className={`text-sm ${
                       selectedOption === questions[currentQuestionIndex].correctIndex ? 'text-emerald-400' : 'text-amber-400'
                     }`}>
-                      <span className="font-bold uppercase tracking-widest mr-2">Explicación:</span>
+                      <span className="font-bold uppercase tracking-widest mr-2">{t('normative_quiz.explanation_label', 'Explicación:')}</span>
                       {questions[currentQuestionIndex].explanation}
                     </p>
                   </motion.div>
@@ -213,14 +215,14 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
                       : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                   }`}
                 >
-                  {currentQuestionIndex < questions.length - 1 ? 'Siguiente Pregunta' : 'Ver Resultados'}
+                  {currentQuestionIndex < questions.length - 1 ? t('normative_quiz.next_question', 'Siguiente Pregunta') : t('normative_quiz.view_results', 'Ver Resultados')}
                   <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center text-zinc-500">
-              No se pudieron cargar las preguntas.
+              {t('normative_quiz.load_failed', 'No se pudieron cargar las preguntas.')}
             </div>
           )}
         </div>

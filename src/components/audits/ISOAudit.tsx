@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   ClipboardCheck,
   Plus,
@@ -116,6 +117,7 @@ function getComplianceBg(pct: number) {
 // ---------------------------------------------------------------------------
 
 function ISOChecklist() {
+  const { t } = useTranslation();
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   const [openClause, setOpenClause] = useState<string>('4');
   const [saving, setSaving] = useState(false);
@@ -142,8 +144,8 @@ function ISOChecklist() {
     try {
       await addNode({
         type: NodeType.AUDIT,
-        title: `Auditoría ISO 45001 — ${compliancePct}% cumplimiento`,
-        description: `Inspección ISO 45001 realizada por ${user?.displayName || user?.email || 'Usuario'}. Preguntas respondidas: ${answeredCount}/${visibleQuestions.length}.`,
+        title: `${t('iso_audit.node_title_prefix', 'Auditoría ISO 45001')} — ${compliancePct}% ${t('iso_audit.compliance_word', 'cumplimiento')}`,
+        description: `${t('iso_audit.inspection_by', 'Inspección ISO 45001 realizada por')} ${user?.displayName || user?.email || t('iso_audit.user_fallback', 'Usuario')}. ${t('iso_audit.questions_answered', 'Preguntas respondidas')}: ${answeredCount}/${visibleQuestions.length}.`,
         tags: ['ISO', 'ISO 45001', 'Auditoría', 'SGSST'],
         metadata: {
           status: 'Completada',
@@ -160,7 +162,7 @@ function ISOChecklist() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
-      setSaveError('Error al guardar la auditoría. Verifica tu conexión e intenta nuevamente.');
+      setSaveError(t('iso_audit.save_error', 'Error al guardar la auditoría. Verifica tu conexión e intenta nuevamente.'));
     } finally {
       setSaving(false);
     }
@@ -172,11 +174,11 @@ function ISOChecklist() {
       <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Cumplimiento ISO 45001</p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{t('iso_audit.compliance_iso_45001', 'Cumplimiento ISO 45001')}</p>
             <p className={`text-3xl font-black tracking-tighter ${getComplianceColor(compliancePct)}`}>{compliancePct}%</p>
           </div>
           <div className="text-right">
-            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">Progreso</p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{t('iso_audit.progress', 'Progreso')}</p>
             <p className="text-sm font-black text-zinc-700 dark:text-zinc-300">{answeredCount} / {visibleQuestions.length}</p>
           </div>
         </div>
@@ -199,7 +201,7 @@ function ISOChecklist() {
                 disabled={saving}
                 className="flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
               >
-                <RefreshCw className="w-3 h-3" /> Reintentar
+                <RefreshCw className="w-3 h-3" /> {t('iso_audit.retry', 'Reintentar')}
               </button>
             )}
             <button
@@ -208,7 +210,7 @@ function ISOChecklist() {
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
             >
               {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : saved ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
-              {saved ? 'Guardado ✓' : 'Guardar Auditoría'}
+              {saved ? t('iso_audit.saved', 'Guardado ✓') : t('iso_audit.save_audit', 'Guardar Auditoría')}
             </button>
           </div>
         </div>
@@ -265,7 +267,7 @@ function ISOChecklist() {
                           {q.showWhen && <AlertCircle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />}
                           <p className="text-[11px] text-zinc-700 dark:text-zinc-300 leading-relaxed flex-1">{q.text}</p>
                           {(q.weight ?? 1) >= 3 && (
-                            <span className="shrink-0 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[8px] font-black uppercase tracking-wider">Crítico</span>
+                            <span className="shrink-0 px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[8px] font-black uppercase tracking-wider">{t('iso_audit.critical', 'Crítico')}</span>
                           )}
                         </div>
                         <div className="flex gap-2">
@@ -303,6 +305,7 @@ function ISOChecklist() {
 // ---------------------------------------------------------------------------
 
 export function ISOAudit() {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState<RiskNode | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -332,10 +335,10 @@ export function ISOAudit() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Total ISO', value: stats.total, icon: Award, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
-          { label: 'Planificadas', value: stats.planned, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-          { label: 'Completadas', value: stats.completed, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { label: 'Puntaje Prom.', value: `${stats.avgScore}%`, icon: Target, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+          { label: t('iso_audit.stat_total_iso', 'Total ISO'), value: stats.total, icon: Award, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+          { label: t('iso_audit.stat_planned', 'Planificadas'), value: stats.planned, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: t('iso_audit.stat_completed', 'Completadas'), value: stats.completed, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: t('iso_audit.stat_avg_score', 'Puntaje Prom.'), value: `${stats.avgScore}%`, icon: Target, color: 'text-blue-500', bg: 'bg-blue-500/10' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -362,7 +365,7 @@ export function ISOAudit() {
               view === 'history' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
-            <FileText className="w-3 h-3 inline mr-1.5" />Historial
+            <FileText className="w-3 h-3 inline mr-1.5" />{t('iso_audit.tab_history', 'Historial')}
           </button>
           <button
             onClick={() => setView('checklist')}
@@ -370,7 +373,7 @@ export function ISOAudit() {
               view === 'checklist' ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
-            <BarChart3 className="w-3 h-3 inline mr-1.5" />Inspección ISO 45001
+            <BarChart3 className="w-3 h-3 inline mr-1.5" />{t('iso_audit.tab_inspection', 'Inspección ISO 45001')}
           </button>
         </div>
 
@@ -382,7 +385,7 @@ export function ISOAudit() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar auditorías ISO..."
+                placeholder={t('iso_audit.search_placeholder', 'Buscar auditorías ISO...')}
                 className="w-full bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 rounded-xl pl-11 pr-4 py-2.5 text-xs text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all"
               />
             </div>
@@ -396,7 +399,7 @@ export function ISOAudit() {
               className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:bg-indigo-700 transition-colors group"
             >
               <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Planificar ISO</span>
+              <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">{t('iso_audit.plan_iso', 'Planificar ISO')}</span>
             </motion.button>
           </>
         )}
@@ -413,7 +416,7 @@ export function ISOAudit() {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Sincronizando Auditorías ISO...</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{t('iso_audit.syncing', 'Sincronizando Auditorías ISO...')}</p>
               </div>
             ) : isoAudits.length > 0 ? (
               isoAudits.map((audit, i) => (
@@ -446,12 +449,12 @@ export function ISOAudit() {
                       <div className="flex items-center gap-4 pt-1">
                         <div className="flex items-center gap-1.5">
                           <User className="w-3 h-3 text-zinc-400" />
-                          <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">{audit.metadata.auditor || 'N/A'}</span>
+                          <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">{audit.metadata.auditor || t('iso_audit.na', 'N/A')}</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Calendar className="w-3 h-3 text-zinc-400" />
                           <span className="text-[9px] font-bold text-zinc-600 dark:text-zinc-400 uppercase">
-                            {audit.metadata.date ? new Date(audit.metadata.date).toLocaleDateString('es-CL') : 'Sin fecha'}
+                            {audit.metadata.date ? new Date(audit.metadata.date).toLocaleDateString('es-CL') : t('iso_audit.no_date', 'Sin fecha')}
                           </span>
                         </div>
                       </div>
@@ -459,7 +462,7 @@ export function ISOAudit() {
                     <div className="flex flex-col items-end gap-3">
                       <div className="text-right">
                         <p className="text-[10px] font-black text-zinc-900 dark:text-white tracking-tighter">{audit.metadata.score || 0}%</p>
-                        <p className="text-[7px] font-bold text-zinc-400 uppercase tracking-widest">Cumplimiento</p>
+                        <p className="text-[7px] font-bold text-zinc-400 uppercase tracking-widest">{t('iso_audit.compliance_label', 'Cumplimiento')}</p>
                       </div>
                       <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
                     </div>
@@ -469,8 +472,8 @@ export function ISOAudit() {
             ) : (
               <div className="text-center py-12 bg-white/50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800">
                 <Award className="w-12 h-12 text-zinc-200 dark:text-zinc-700 mx-auto mb-4" />
-                <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">No hay auditorías ISO programadas</p>
-                <p className="text-[10px] text-zinc-400 mt-1">Usa "Inspección ISO 45001" para iniciar tu primera auditoría interactiva</p>
+                <p className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('iso_audit.empty_title', 'No hay auditorías ISO programadas')}</p>
+                <p className="text-[10px] text-zinc-400 mt-1">{t('iso_audit.empty_desc', 'Usa "Inspección ISO 45001" para iniciar tu primera auditoría interactiva')}</p>
               </div>
             )}
           </motion.div>

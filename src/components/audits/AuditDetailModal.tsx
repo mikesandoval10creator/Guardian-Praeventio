@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, ClipboardCheck, Calendar, User, Loader2, Save, CheckCircle2, FileText, Wand2, AlertTriangle, WifiOff } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../../types';
@@ -27,6 +28,7 @@ interface ISOItem {
 }
 
 export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [auditData, setAuditData] = useState<{ title: string; description: string; items: ISOItem[] } | null>(null);
@@ -213,7 +215,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                     }`}>
                       {audit.metadata.status}
                     </span>
-                    {audit.metadata.type} • {audit.metadata.date ? new Date(audit.metadata.date).toLocaleDateString('es-CL') : 'Sin fecha'}
+                    {audit.metadata.type} • {audit.metadata.date ? new Date(audit.metadata.date).toLocaleDateString('es-CL') : t('audit_detail.no_date', 'Sin fecha')}
                   </p>
                 </div>
               </div>
@@ -228,9 +230,9 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                 <div className="flex flex-col items-center justify-center py-12 gap-4 bg-zinc-50 dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/10">
                   <Wand2 className="w-12 h-12 text-indigo-500 dark:text-indigo-400" />
                   <div className="text-center">
-                    <h4 className="text-zinc-900 dark:text-white font-bold text-lg">Generar Checklist con IA</h4>
+                    <h4 className="text-zinc-900 dark:text-white font-bold text-lg">{t('audit_detail.generate_checklist_title', 'Generar Checklist con IA')}</h4>
                     <p className="text-zinc-400 text-sm mt-1 max-w-md">
-                      El sistema analizará el contexto del proyecto y generará un checklist específico para esta auditoría.
+                      {t('audit_detail.generate_checklist_desc', 'El sistema analizará el contexto del proyecto y generará un checklist específico para esta auditoría.')}
                     </p>
                   </div>
                   <button
@@ -239,7 +241,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                     className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all mt-2 ${!isOnline ? 'bg-zinc-700 text-zinc-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                   >
                     {!isOnline ? <WifiOff className="w-4 h-4" /> : <Wand2 className="w-4 h-4" />}
-                    {!isOnline ? 'Requiere Conexión' : 'Generar Checklist'}
+                    {!isOnline ? t('audit_detail.requires_connection', 'Requiere Conexión') : t('audit_detail.generate_checklist_btn', 'Generar Checklist')}
                   </button>
                 </div>
               )}
@@ -251,8 +253,8 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                     <Loader2 className="w-10 h-10 text-indigo-500 animate-spin relative z-10" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">Analizando Red Neuronal</p>
-                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Generando checklist adaptado a su proyecto...</p>
+                    <p className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest">{t('audit_detail.analyzing_network', 'Analizando Red Neuronal')}</p>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">{t('audit_detail.generating_checklist', 'Generando checklist adaptado a su proyecto...')}</p>
                   </div>
                 </div>
               )}
@@ -274,7 +276,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                           <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400">
-                                Ref: {item.reference}
+                                {t('audit_detail.ref_prefix', 'Ref:')} {item.reference}
                               </span>
                             </div>
                             <p className="text-sm font-bold text-zinc-900 dark:text-white leading-relaxed">{item.question}</p>
@@ -306,7 +308,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                                 value={item.observation}
                                 onChange={(e) => handleUpdateItem(item.id, { observation: e.target.value })}
                                 disabled={isCompleted}
-                                placeholder={item.status === 'No Cumple' ? "Describa la no conformidad (Requerido)..." : "Observaciones adicionales (Opcional)..."}
+                                placeholder={item.status === 'No Cumple' ? t('audit_detail.placeholder_non_compliance', 'Describa la no conformidad (Requerido)...') : t('audit_detail.placeholder_observations', 'Observaciones adicionales (Opcional)...')}
                                 className={`w-full bg-white dark:bg-zinc-900 border rounded-xl px-4 py-2 text-xs outline-none transition-colors disabled:opacity-70 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 ${
                                   item.status === 'No Cumple' && !item.observation 
                                     ? 'border-red-500/50 focus:border-red-500' 
@@ -317,12 +319,12 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                           </div>
                           {item.status === 'No Cumple' && (
                             <div className="animate-in fade-in slide-in-from-top-2">
-                              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Propuesta de Mejora (Trabajador)</label>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">{t('audit_detail.worker_proposal_label', 'Propuesta de Mejora (Trabajador)')}</label>
                               <textarea
                                 value={item.workerProposal || ''}
                                 onChange={(e) => handleUpdateItem(item.id, { workerProposal: e.target.value })}
                                 disabled={isCompleted}
-                                placeholder="¿Qué sugiere el equipo para solucionar esta no conformidad?"
+                                placeholder={t('audit_detail.worker_proposal_placeholder', '¿Qué sugiere el equipo para solucionar esta no conformidad?')}
                                 className="w-full bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-900/30 rounded-xl px-4 py-3 text-xs outline-none focus:border-indigo-500 resize-none h-20 disabled:opacity-70 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
                               />
                             </div>
@@ -352,7 +354,7 @@ export function AuditDetailModal({ audit, isOpen, onClose }: AuditDetailModalPro
                   }`}
                 >
                   {!isOnline ? <WifiOff className="w-4 h-4" /> : loading ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                  {!isOnline ? 'Requiere Conexión' : saved ? 'Auditoría Guardada' : 'Finalizar y Generar Plan de Acción'}
+                  {!isOnline ? t('audit_detail.requires_connection', 'Requiere Conexión') : saved ? t('audit_detail.audit_saved', 'Auditoría Guardada') : t('audit_detail.finalize_btn', 'Finalizar y Generar Plan de Acción')}
                 </button>
               </div>
             )}
