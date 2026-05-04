@@ -441,6 +441,15 @@ app.use('/api/emergency', emergencyRouter);
 // Converter server-side so the frontend can stay MIT-only — see ADR 0002).
 app.use('/api/cad', cadRouter);
 
+// Sprint 21 Ola 4 Bucket M.5 — set IANA-registered MIME for `.usdz` so iOS
+// Safari invokes AR Quick Look. Without this header the browser treats the
+// file as a generic download. Applies to BOTH dev (vite middleware) and
+// prod (express.static) — declared upstream so both paths inherit it.
+app.get(/^\/models\/ar\/.*\.usdz$/, (_req, res, next) => {
+  res.type('model/vnd.usdz+zip');
+  next();
+});
+
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");

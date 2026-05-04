@@ -137,6 +137,7 @@
     "@eslint/js": "^10.0.1",
     "@firebase/eslint-plugin-security-rules": "^0.0.1",
     "@firebase/rules-unit-testing": "^5.0.0",
+    "@gltf-transform/core": "^4.3.0",
     "@lhci/cli": "^0.14.0",
     "@playwright/test": "^1.50.0",
     "@size-limit/preset-app": "^11.1.6",
