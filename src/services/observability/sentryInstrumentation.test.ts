@@ -2,7 +2,7 @@
 //
 // Sprint 20 Bucket Mu Phase 2.
 //
-// We mock `@sentry/node` and verify that `withSentryScope`:
+// We mock `@sentry/core` and verify that `withSentryScope`:
 //   • Calls `Sentry.withScope` and forwards `setTag('module', ...)` plus
 //     `setContext('input', ...)` with the sanitised payload.
 //   • Captures exceptions via `Sentry.captureException` and rethrows the
@@ -16,7 +16,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Hoisted mock — vi.mock is hoisted above imports automatically.
-vi.mock('@sentry/node', () => {
+vi.mock('@sentry/core', () => {
   // The mock scope captures setTag/setContext calls so we can assert on them.
   const tagCalls: Array<[string, string]> = [];
   const contextCalls: Array<[string, Record<string, unknown>]> = [];
@@ -42,7 +42,7 @@ vi.mock('@sentry/node', () => {
   };
 });
 
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/core';
 import { withSentryScope, withSentryScopeSync } from './sentryInstrumentation';
 
 const sentryMockHandle = Sentry as unknown as {

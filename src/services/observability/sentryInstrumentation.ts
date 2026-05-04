@@ -17,20 +17,26 @@
 //     we still re-throw the ORIGINAL error so the caller's try/catch /
 //     control flow is untouched.
 //
-// This is a thin wrapper around `@sentry/node`'s `withScope` rather than
+// This is a thin wrapper around `@sentry/core`'s `withScope` rather than
 // going through `getErrorTracker()` because:
 //   1. The four target services (geminiBackend, webpayAdapter,
-//      predictionBackend, writeNode) all run server-side, so `@sentry/node`
-//      is the correct SDK.
-//   2. The adapter abstraction shines for boot/init; for per-call scope
+//      predictionBackend, writeNode) are imported BOTH server-side (Express
+//      routes) AND client-side (React calls back to those endpoints with
+//      shared types). Using `@sentry/core` keeps the helper browser-safe so
+//      Vite doesn't drag the full Node-only Sentry+OpenTelemetry tree into
+//      the frontend bundle.
+//   2. `withScope` + `captureException` live in `@sentry/core` and are
+//      re-exported by both `@sentry/node` (server) and `@sentry/react`
+//      (browser). Whichever SDK is initialised at boot picks them up.
+//   3. The adapter abstraction shines for boot/init; for per-call scope
 //      tagging the SDK's `withScope` is the canonical surface and our
-//      tests can mock the SDK directly.
+//      tests can mock the core API directly.
 //
 // PII NOTE: callers are responsible for sanitising the `context` payload.
 // Do NOT pass raw user input, prompts, or PII. Pass the LLM `action`,
 // projectId-prefixed shape, or counts — never the raw `prompt` string.
 
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/core';
 
 /** Module identifier — fixed enum to keep cardinality bounded in Sentry. */
 export type ObservabilityModule =
