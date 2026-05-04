@@ -32,6 +32,7 @@ export type MeshFormat = 'gltf' | 'glb' | 'obj' | 'ply';
  */
 export type PhotogrammetryEngine =
   | 'meshroom' // MPL2 license, free, CPU intensivo (Cloud Run worker)
+  | 'colmap' // BSD license, COLMAP open source en Cloud Run worker (CPU-only)
   | 'reality-capture' // CapturingReality cloud API, paid per minute
   | 'hyper3d' // MCP-mediated (text-to-3d / image-to-3d, beta)
   | 'mock'; // for tests + development sin internet
