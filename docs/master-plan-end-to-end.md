@@ -11,6 +11,15 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 - **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
 - Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
+### Sexta ola — 4 buckets (PR #34)
+
+- **Psi — @sentry/react client init** (2 commits, Fase 2 client-side): `54b2798` Sentry init endurecido con `replaysSessionSampleRate: 0.05` + `replaysOnErrorSampleRate: 1.0` + redacción PII (cookies/auth headers/user.email/contexts.user.email/request.cookies) + `redactPii()` helper exportable + idempotency guard · `baa3c11` `Sentry.ErrorBoundary` wrap + `ErrorFallback.tsx` reusable con i18n (`errors.unexpected`, `errors.team_notified`, `errors.event_id`, `common.retry`). 4 nuevos tests, 26 sentry total pass.
+- **Omega — Image optimization** (3 commits, Fase 5 parcial): `8764dd9` preload Inter weights en `index.html` (preconnect + preload-as-style pattern para Google Fonts) · `64c788a` `scripts/convert-to-webp.mjs` con `sharp@0.34` (transitive dep, no install) · `27ad938` `mascot.png` (931KB) → `mascot.webp` (86KB, **-90.7%**) en 3 call sites con `<picture>` fallback (ConsciousnessLoader + EmptyState + Login).
+- **A-prime — Accessibility shell** (3 commits, Fase 6): `2420550` `RootLayout` + `Sidebar` con skip link / `<main>` landmark / `<header role="banner">` / `<nav aria-label>` / `aria-current="page"` / `aria-expanded`+`aria-controls` en grupos · `01bc34c` `Settings` con accordion sections (`<button aria-expanded>`+`<div role="region">`), 10 toggles con `role="switch"`+`aria-checked`+`aria-label`, `aria-busy` en fall-detection load, `useId()` en 9 form fields · `848e2f7` `Login` con `<main role="main">` + `aria-busy` en submit + `<p role="alert">` + `aria-describedby` + `aria-label` botones (no hay register dedicada — todo OAuth/biometric).
+- **B-prime — i18n coverage cont.** (1 commit, Fase 6): `2e9b5ae` 7 componentes migrados (`CookieConsent` legal + `NormativaSwitch`+`NormativaMismatchBanner` normativa + `AddFindingModal` findings + `AddDocumentModal`+`EditDocumentModal` documents + `AssignEPPModal` epp + `CurrencyToggle` pricing/currency). 6 nuevos namespaces con keys es/en/pt-BR.
+
+Total 9 commits + master plan. **2028 tests pass / 0 fail / 88 skipped**. Build OK con preload fonts + WebP picture fallback.
+
 ### Quinta ola — 4 buckets (PR #32)
 
 - **Rho — `reconciliationRunner.ts`** (1 commit, completa lo deferido de Xi 4ta ola): `eae3ef4` adapter que mappea `QueuedSession → RiskNodePayload (type='safety-learning')` y llama `writeNodes` real del Zettelkasten. Único punto en `src/services/slm/` que importa de `../zettelkasten/`. 4 nuevos tests, 56 SLM total pass.
