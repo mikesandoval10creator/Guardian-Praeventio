@@ -19,3 +19,8 @@ export * from './polyhedronAchievements';     // Fase 10 — V - E + F = 2 gamif
 export * from './eulerianPath';               // Fase 2 — Hierholzer (caminos eulerianos)
 export * from './fftAnalyzer';                // Fase 5 — Cooley-Tukey FFT (identidad e^iπ+1=0)
 export * from './eulerLagrange';              // Fase 8 — variational calculus (camino de mínima acción)
+
+// Euler-3 modules
+export * from './inviscidFlow';               // Fase 4 — Ecuaciones de Euler de fluidos (1755)
+export * from './zettelkastenTopology';       // Fase 7 — clustering + betweenness + risk amplification
+// Fase 9 (φ Euler en RSA) es ADR-only — ver docs/architecture-decisions/0007-euler-phi-rsa-in-kms-envelope.md
