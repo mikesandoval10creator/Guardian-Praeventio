@@ -30,8 +30,35 @@ import crypto from 'crypto';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
+// 16th wave (Bucket B) analytics: server-side wire-points for
+// `project.member.invited`, `project.member.accepted`, and
+// `project.member.removed`. The `serverAnalytics` adapter mirrors the
+// browser surface but runs on Node primitives only — same pattern as
+// `auth.role.granted/revoked` from the 15th wave Bucket D admin routes.
+import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
+import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+/**
+ * Map the granular domain role (`gerente`, `prevencionista`, `supervisor`,
+ * `director_obra`, `medico_ocupacional`, `operario`, `contratista`) onto
+ * the coarse analytics `Role` enum. Mirrors `mapToAnalyticsRole` in
+ * `admin.ts` but inlined here to keep the projects route module
+ * self-contained. `gerente` is mapped to `executive` (the catalog row 23
+ * convention); unknown roles fall through to `worker` so dashboards stay
+ * cardinality-bounded (TRACKING_PLAN §7).
+ */
+function mapDomainRole(role: unknown): AnalyticsRole {
+  if (typeof role !== 'string') return 'worker';
+  if (role === 'gerente') return 'executive';
+  if (role === 'admin') return 'admin';
+  if (role === 'prevencionista') return 'prevencionista';
+  if (role === 'supervisor' || role === 'director_obra' || role === 'medico_ocupacional') {
+    return 'supervisor';
+  }
+  return 'worker';
+}
 
 function buildInviteEmailHtml({
   projectName,
@@ -169,6 +196,20 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       console.warn('Email delivery failed (invitation stored successfully):', emailErr);
     }
 
+    // 16th wave (Bucket B) analytics: `project.member.invited` — fires
+    // ONLY after the invitation row was successfully written to Firestore.
+    // Email delivery failure does not block the analytics emit; the catalog
+    // row reflects "invite link emitted" which is the Firestore write, not
+    // the email side-effect. `target_role` is the closed-set analytics
+    // `Role` enum mapped from the granular domain role.
+    try {
+      await serverAnalytics.track('project.member.invited', {
+        target_role: mapDomainRole(invitedRole),
+        invited_by_user_id_hash: callerUid,
+        invite_channel: 'email',
+      });
+    } catch { /* analytics must never break user flow */ }
+
     res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
     console.error('Error creating invitation:', error);
@@ -290,6 +331,21 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
       members: admin.firestore.FieldValue.arrayRemove(targetUid),
       [`memberRoles.${targetUid}`]: admin.firestore.FieldValue.delete(),
     });
+
+    // 16th wave (Bucket B) analytics: `project.member.removed` — fires after
+    // the Firestore arrayRemove succeeded so the analytics row reflects the
+    // committed mutation rather than a hypothetical attempt. The catalog
+    // requires hashed identifiers (`*_user_id_hash`); we emit raw uids here
+    // because server-side hashing every event would bottleneck the route
+    // (same trade-off as `auth.role.revoked` at line ~117 of admin.ts).
+    // `removal_reason` is omitted because the API doesn't carry one yet — a
+    // future PATCH could add a `reason` body field and forward it.
+    try {
+      await serverAnalytics.track('project.member.removed', {
+        target_user_id_hash: targetUid,
+        removed_by_user_id_hash: callerUid,
+      });
+    } catch { /* analytics must never break user flow */ }
 
     res.json({ success: true });
   } catch (error: any) {
@@ -472,6 +528,24 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
         acceptedAt: new Date().toISOString(),
       });
     });
+
+    // 16th wave (Bucket B) analytics: `project.member.accepted` — fires
+    // after the transaction committed (so we never emit on a rolled-back
+    // accept). The catalog optional `accept_latency_seconds` is the time
+    // between invite emission and acceptance; we compute it from the
+    // invitation's `createdAt` (best-effort — falls back to `undefined`
+    // when the field is missing or unparseable, which keeps the dashboard
+    // honest about historical rows that lack the timestamp).
+    try {
+      const createdAt = typeof invite.createdAt === 'string' ? Date.parse(invite.createdAt) : NaN;
+      const latency = Number.isFinite(createdAt) && createdAt > 0
+        ? Math.max(0, Math.floor((Date.now() - createdAt) / 1000))
+        : undefined;
+      await serverAnalytics.track('project.member.accepted', {
+        accepted_role: mapDomainRole(invite.invitedRole),
+        ...(latency !== undefined ? { accept_latency_seconds: latency } : {}),
+      });
+    } catch { /* analytics must never break user flow */ }
 
     res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
   } catch (error: any) {

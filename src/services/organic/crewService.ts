@@ -8,6 +8,13 @@
 // backed `CrewStore` adapter.
 
 import type { Crew, XpReason } from '../../types/organic';
+// 16th wave (Bucket B) analytics: wire `cuadrilla.created` and
+// `cuadrilla.member.added` at the persistence seam so every caller (UI,
+// scripts, tests) is covered without per-component edits. The track call
+// is fire-and-forget — wrapping it in try/catch keeps the analytics
+// constraint (TRACKING_PLAN §11: "MUST NOT break user flow") even when
+// the adapter is misconfigured.
+import { analytics } from '../analytics';
 
 export interface CrewStore {
   get(id: string): Promise<Crew | null>;
@@ -68,6 +75,14 @@ export async function createCrew(
     lastIncidentAt: null,
   };
   await store.create(crew);
+  // 16th wave analytics: catalog row 40 (`cuadrilla.created`). Fired after
+  // the store write resolves so the row tracks committed crews only.
+  try {
+    void analytics.track('cuadrilla.created', {
+      cuadrilla_id: crew.id,
+      member_count: crew.memberUids.length,
+    });
+  } catch { /* analytics must never break user flow */ }
   return crew;
 }
 
@@ -85,6 +100,19 @@ export async function addMemberToCrew(
   if (crew.memberUids.includes(uid)) return crew;
   const next = { ...crew, memberUids: [...crew.memberUids, uid] };
   await store.update(crewId, { memberUids: next.memberUids });
+  // 16th wave analytics: catalog row 41 (`cuadrilla.member.added`). The
+  // catalog requires `member_role` (analytics `Role` enum); we don't have
+  // role context inside this primitive, so we default to `worker` (the
+  // safe coarse role, matching the catalog row 23 fallback convention).
+  // Callers that know a more specific role can fire a follow-up event
+  // upstream.
+  try {
+    void analytics.track('cuadrilla.member.added', {
+      cuadrilla_id: crewId,
+      target_user_id_hash: uid,
+      member_role: 'worker',
+    });
+  } catch { /* analytics must never break user flow */ }
   return next;
 }
 

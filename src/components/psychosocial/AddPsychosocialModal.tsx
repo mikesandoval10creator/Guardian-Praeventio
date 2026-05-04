@@ -111,10 +111,20 @@ export function AddPsychosocialModal({ isOpen, onClose }: AddPsychosocialModalPr
   const { selectedProject } = useProject();
   // Wave-14 analytics: timestamp the user opened the SUSESO/ISTAS21 form so
   // `time_to_submit_seconds` (catalog row 94) can be derived at submit.
+  // 16th wave addition: also fire `suseso.form.started` (catalog row 93)
+  // exactly once per modal open. The track call happens inside the same
+  // effect so a single `isOpen=true` transition produces one started event,
+  // never duplicated on re-renders.
   const openedAtRef = useRef<number | null>(null);
   useEffect(() => {
-    if (isOpen) openedAtRef.current = Date.now();
-    else openedAtRef.current = null;
+    if (isOpen) {
+      openedAtRef.current = Date.now();
+      try {
+        analytics.track('suseso.form.started', { form_kind: 'istas21_short' });
+      } catch { /* analytics must never break user flow */ }
+    } else {
+      openedAtRef.current = null;
+    }
   }, [isOpen]);
 
   const [step, setStep] = useState<'meta' | number | 'summary'>('meta');

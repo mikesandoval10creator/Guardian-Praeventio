@@ -7,6 +7,12 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { logger } from '../utils/logger';
+// 16th wave (Bucket B) analytics: catalog row 69 — fire
+// `emergency.evacuation.started` when the A* route calculation kicks off,
+// regardless of whether it was auto-triggered (seismic event ≥6.0) or
+// manual. The "started" verb in the catalog row corresponds to the user
+// (or auto-trigger) committing to an evacuation flow.
+import { analytics } from '../services/analytics';
 
 interface Earthquake {
   id: string;
@@ -104,6 +110,19 @@ export function EvacuationRoutes() {
     setIsCalculating(true);
     setRouteCalculated(false);
     setPath([]);
+
+    // 16th wave analytics: catalog row 69 (`emergency.evacuation.started`).
+    // Required props are `evacuation_route_id` + `protocol_id`. The current
+    // page doesn't carry persisted route/protocol ids — we synthesise a
+    // stable per-session id and tag the auto vs manual trigger in the
+    // protocol id so dashboards can split. A future PR that persists
+    // routes can replace these with Firestore doc ids.
+    try {
+      void analytics.track('emergency.evacuation.started', {
+        evacuation_route_id: `client-route-${selectedProject?.id ?? 'unknown'}-${Date.now()}`,
+        protocol_id: isAuto ? 'auto-seismic-6plus' : 'manual-astar',
+      });
+    } catch { /* analytics must never break user flow */ }
 
     // Simulate A* algorithm calculation delay
     setTimeout(() => {

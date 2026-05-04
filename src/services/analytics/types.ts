@@ -94,7 +94,23 @@ export type EventName =
   | 'comite.minutes.drafted'
   | 'comite.action_item.assigned'
   | 'tarea.created'
-  | 'tarea.blocked';
+  | 'tarea.blocked'
+  // 16th wave additions — final 10 unwired catalog rows. After this wave
+  // EventName covers every row in docs/tracking/event-catalog.md (full 45/45
+  // typed coverage; 3 of these are typed-only and lack a sensible wire-point
+  // today — see commit description for which deferrals lack a surface).
+  // Source: docs/tracking/event-catalog.md (Project, Cuadrilla, Emergency,
+  // SUSESO sections) + property-glossary.md.
+  | 'project.member.accepted'
+  | 'project.member.removed'
+  | 'cuadrilla.created'
+  | 'cuadrilla.member.added'
+  | 'cuadrilla.member.swapped'
+  | 'emergency.sos.triggered'
+  | 'emergency.fall.detected'
+  | 'emergency.evacuation.started'
+  | 'suseso.form.started'
+  | 'suseso.form.rejected';
 
 /**
  * Common props attached to every event.
@@ -594,6 +610,116 @@ export interface ComiteActionItemAssignedProperties extends CommonProperties {
   due_in_days?: number;
 }
 
+// ---------------------------------------------------------------------------
+// 16th wave additions — final 10 catalog rows. After this wave the EventName
+// union matches docs/tracking/event-catalog.md row-for-row. Three rows are
+// typed but currently unwired (no sensible surface yet — see commit
+// description): `cuadrilla.member.swapped`, `suseso.form.rejected`, and
+// `project.archived` (already typed in 10th wave but lacks a UI archive
+// button). Property names + enums copied verbatim from
+// docs/tracking/property-glossary.md — drift hunt this wave was
+// `removal_reason` enum (`offboarding|policy_change|manual` from glossary
+// row 58 — NOT the broader `RevocationReason` enum) and `swap_reason` enum
+// (`vacation|injury|transfer|manual` from glossary row 71).
+// ---------------------------------------------------------------------------
+
+/** Why an invite was accepted as a particular role — same set as `role`. */
+export interface ProjectMemberAcceptedProperties extends CommonProperties {
+  accepted_role: Role;
+  /** Time between invite emission and acceptance (catalog optional). */
+  accept_latency_seconds?: number;
+}
+
+/**
+ * Why a member was removed. Glossary row 58 lists three values; we mirror
+ * those exactly so the dashboard column stays low-cardinality. Distinct
+ * from `RevocationReason` (used for role revokes, not member removals).
+ */
+export type RemovalReason = 'offboarding' | 'policy_change' | 'manual';
+
+export interface ProjectMemberRemovedProperties extends CommonProperties {
+  target_user_id_hash: string;
+  removed_by_user_id_hash: string;
+  removal_reason?: RemovalReason;
+}
+
+export interface CuadrillaCreatedProperties extends CommonProperties {
+  cuadrilla_id: string;
+  member_count: number;
+  parent_proceso_id?: string;
+}
+
+export interface CuadrillaMemberAddedProperties extends CommonProperties {
+  cuadrilla_id: string;
+  target_user_id_hash: string;
+  member_role: Role;
+}
+
+/**
+ * Why a worker was swapped. `injury` is flagged `low` PII risk in the
+ * glossary because it correlates with safety status; the rest are routine
+ * operational reasons.
+ */
+export type SwapReason = 'vacation' | 'injury' | 'transfer' | 'manual';
+
+export interface CuadrillaMemberSwappedProperties extends CommonProperties {
+  cuadrilla_id: string;
+  out_user_id_hash: string;
+  in_user_id_hash: string;
+  swap_reason?: SwapReason;
+}
+
+/**
+ * Reason the SOS button was activated. The catalog enum for `sos_type`
+ * mirrors the SOSButton payload keys — these collapse the freeform
+ * `type` field to a closed set so dashboards stay legible.
+ */
+export type SosType = 'medical' | 'accident' | 'evacuation' | 'assault' | 'unknown';
+
+/** How the SOS surface was reached — long-press vs auto-detection. */
+export type TriggerSource = 'long_press' | 'auto_fall' | 'auto_geofence' | 'voice';
+
+/** Network kind at the time of trigger — distinguishes mesh fallbacks. */
+export type NetworkKind = 'wifi' | 'cellular_4g' | 'cellular_5g' | 'bluetooth_mesh' | 'unknown';
+
+export interface EmergencySosTriggeredProperties extends CommonProperties {
+  sos_type: SosType;
+  trigger_source: TriggerSource;
+  /** sha256 hex of the worker's role label (never the raw role). */
+  role_hash: string;
+  commune_code?: string;
+  network_kind?: NetworkKind;
+}
+
+export interface EmergencyFallDetectedProperties extends CommonProperties {
+  /** Confidence score 0..100 from the accelerometer impact heuristic. */
+  confidence_pct: number;
+  /** Length of accelerometer window in ms that triggered the fall heuristic. */
+  accel_window_ms: number;
+  role_hash: string;
+  commune_code?: string;
+}
+
+export interface EmergencyEvacuationStartedProperties extends CommonProperties {
+  evacuation_route_id: string;
+  protocol_id: string;
+}
+
+export interface SusesoFormStartedProperties extends CommonProperties {
+  form_kind: SusesoFormKind;
+}
+
+/**
+ * SUSESO API rejection codes — the vocabulary lives in
+ * `services/normativa/`. Free-form string because gateway-style codes are
+ * not enumerable in advance (e.g. `E_INCOMPLETE`, `E_DUPLICATE`).
+ */
+export interface SusesoFormRejectedProperties extends CommonProperties {
+  form_kind: SusesoFormKind;
+  rejection_code: string;
+  retry_count?: number;
+}
+
 /**
  * Map from event name → its full property shape. Used by `Event<N>` below
  * so `analytics.track(name, props)` validates `props` against the right
@@ -642,6 +768,17 @@ export interface EventPropertiesMap {
   'comite.action_item.assigned': ComiteActionItemAssignedProperties;
   'tarea.created': TareaCreatedProperties;
   'tarea.blocked': TareaBlockedProperties;
+  // 16th wave additions — final 10 rows for full 45/45 type coverage
+  'project.member.accepted': ProjectMemberAcceptedProperties;
+  'project.member.removed': ProjectMemberRemovedProperties;
+  'cuadrilla.created': CuadrillaCreatedProperties;
+  'cuadrilla.member.added': CuadrillaMemberAddedProperties;
+  'cuadrilla.member.swapped': CuadrillaMemberSwappedProperties;
+  'emergency.sos.triggered': EmergencySosTriggeredProperties;
+  'emergency.fall.detected': EmergencyFallDetectedProperties;
+  'emergency.evacuation.started': EmergencyEvacuationStartedProperties;
+  'suseso.form.started': SusesoFormStartedProperties;
+  'suseso.form.rejected': SusesoFormRejectedProperties;
 }
 
 /**

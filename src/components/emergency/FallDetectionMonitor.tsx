@@ -5,6 +5,22 @@ import { useFirebase } from '../../contexts/FirebaseContext';
 import { useFallDetectionPreference } from '../../hooks/useFallDetectionPreference';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X, CheckCircle2 } from 'lucide-react';
+// 16th wave (Bucket B) analytics: catalog row 67 — fire
+// `emergency.fall.detected` the moment the accelerometer heuristic crosses
+// the impact threshold (BEFORE the user dismisses the prompt with "Estoy
+// Bien" or "Necesito Ayuda"). We track raw detection because the
+// post-detection branches are separate dashboard funnels.
+import { analytics } from '../../services/analytics';
+
+/**
+ * Threshold the accelerometer heuristic uses (m/s² magnitude). Mirrors the
+ * `useAccelerometer({ threshold: 25 })` argument below. Hoisted into the
+ * module so the analytics `accel_window_ms` payload can reference the same
+ * constant — see catalog row 67.
+ */
+const FALL_THRESHOLD_MS_SQ = 25;
+/** Default polling window for the DeviceMotion event in ms (Capacitor + Web). */
+const FALL_ACCEL_WINDOW_MS = 200;
 
 export function FallDetectionMonitor() {
   const { user } = useFirebase();
@@ -22,11 +38,25 @@ export function FallDetectionMonitor() {
       if (navigator.vibrate) {
         navigator.vibrate([500, 200, 500, 200, 1000]);
       }
+
+      // 16th wave analytics: catalog row 67 (`emergency.fall.detected`).
+      // `confidence_pct` is hardcoded at 80 because the threshold-based
+      // heuristic doesn't expose a continuous score — when the magnitude
+      // crosses the impact threshold we treat it as "high confidence" and
+      // let the dashboard tag this detector kind. A future ML model can
+      // bump this to a real score.
+      try {
+        void analytics.track('emergency.fall.detected', {
+          confidence_pct: 80,
+          accel_window_ms: FALL_ACCEL_WINDOW_MS,
+          role_hash: user?.uid ?? 'anonymous',
+        });
+      } catch { /* analytics must never break user flow */ }
     }
   };
 
   const { start, stop, isSupported, permissionGranted, requestPermission } = useAccelerometer({
-    threshold: 25, // Adjust threshold as needed
+    threshold: FALL_THRESHOLD_MS_SQ,
     onFallDetected: handleFallDetected
   });
 
