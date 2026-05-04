@@ -1,4 +1,4 @@
-// Praeventio Guard — Round 16 R5 Phase 1 split.
+// Praeventio Guard — Round 16 R5 Phase 1 split + Sprint 19 F-B05.
 //
 // Firebase Auth middleware. Verifies the Bearer ID token attached to the
 // request, attaches the decoded token to `req.user`, and short-circuits with
@@ -8,20 +8,73 @@
 //
 // Behavior contract (covered by I3 supertest harness in src/__tests__/server):
 //   • 401 + { error: "Unauthorized: No token provided" } when Authorization
-//     header is missing OR does not start with "Bearer ".
+//     header is missing OR uses a scheme other than "Bearer " (or "E2E " in
+//     non-production E2E mode).
 //   • 401 + { error: "Unauthorized: Invalid token" } when verifyIdToken
 //     throws (malformed / expired / revoked token).
 //   • Calls next() with `(req as any).user = decodedToken` on success.
 //
-// Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
-// (oauth/gemini) deferred to Round 17/18.
+// Sprint 19 — F-B05: E2E_MODE guard.
+//   When `process.env.E2E_MODE === '1'` AND `process.env.NODE_ENV !== 'production'`,
+//   the middleware additionally accepts `Authorization: E2E <secret>:<uid>` headers
+//   where `<secret>` matches `process.env.E2E_TEST_SECRET`. On match it populates
+//   req.user with a deterministic fixture so Playwright specs never need a real
+//   Firebase token. Production NODE_ENV makes the guard inert.
+//
+//   A startup-time guard throws if both `NODE_ENV=production` and `E2E_MODE=1`
+//   are set — that combination is a configuration error and we refuse to boot.
 
 import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
 
+// Startup guard: prod + E2E_MODE simultaneously is a CONFIG ERROR.
+// Module-level throw means the server refuses to boot in this state, even
+// if a misconfigured deploy accidentally injects E2E_MODE=1 into Cloud Run.
+if (process.env.NODE_ENV === 'production' && process.env.E2E_MODE === '1') {
+  throw new Error(
+    'FATAL: NODE_ENV=production with E2E_MODE=1 is a configuration error. ' +
+      'E2E_MODE bypasses Firebase auth and must NEVER be enabled in production.',
+  );
+}
+
+const isE2EModeEnabled = (): boolean =>
+  process.env.E2E_MODE === '1' && process.env.NODE_ENV !== 'production';
+
 export const verifyAuth = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+
+  // No header at all → 401 regardless of mode.
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Unauthorized: No token provided' });
+  }
+
+  // E2E_MODE branch: only active when NODE_ENV !== 'production'. Accepts
+  // "E2E <secret>:<uid>" tokens signed with E2E_TEST_SECRET.
+  if (isE2EModeEnabled() && authHeader.startsWith('E2E ')) {
+    const token = authHeader.slice('E2E '.length);
+    const secret = process.env.E2E_TEST_SECRET;
+    if (!secret) {
+      return res
+        .status(500)
+        .json({ error: 'E2E_MODE enabled but E2E_TEST_SECRET missing' });
+    }
+    const sepIdx = token.indexOf(':');
+    const providedSecret = sepIdx === -1 ? token : token.slice(0, sepIdx);
+    const providedUid = sepIdx === -1 ? '' : token.slice(sepIdx + 1);
+    if (providedSecret !== secret) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid E2E secret' });
+    }
+    (req as any).user = {
+      uid: providedUid || 'e2e-user-001',
+      email: 'e2e@praeventio.test',
+      displayName: 'E2E Test User',
+      tenantId: 'e2e-tenant',
+    };
+    return next();
+  }
+
+  // Production / default path: Bearer scheme only.
+  if (!authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized: No token provided' });
   }
 
