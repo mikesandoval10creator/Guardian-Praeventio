@@ -4,6 +4,7 @@
 // the user mark them complete, and exports an .ics with the daily set.
 
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Calendar, CheckCircle2, ChevronRight, Plus, Target, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ChallengePeriod } from './challengeUtils';
@@ -21,11 +22,11 @@ interface PlannerModalProps {
   onSyncCalendar: () => void;
 }
 
-const PERIOD_LABELS: Record<ChallengePeriod, string> = {
-  daily: 'Día',
-  weekly: 'Sem',
-  monthly: 'Mes',
-  annual: 'Año',
+const PERIOD_LABEL_KEYS: Record<ChallengePeriod, { key: string; fallback: string }> = {
+  daily: { key: 'planner.period_daily', fallback: 'Día' },
+  weekly: { key: 'planner.period_weekly', fallback: 'Sem' },
+  monthly: { key: 'planner.period_monthly', fallback: 'Mes' },
+  annual: { key: 'planner.period_annual', fallback: 'Año' },
 };
 
 export function PlannerModal({
@@ -40,6 +41,7 @@ export function PlannerModal({
   onToggleObjective,
   onSyncCalendar,
 }: PlannerModalProps) {
+  const { t } = useTranslation();
   return (
     <AnimatePresence>
       {isOpen && (
@@ -75,7 +77,7 @@ export function PlannerModal({
                     <Zap className="w-6 h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest leading-none truncate">Planificador</h3>
+                    <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest leading-none truncate">{t('planner.title', 'Planificador')}</h3>
                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest mt-1 truncate">{industry}</p>
                   </div>
                 </div>
@@ -93,7 +95,7 @@ export function PlannerModal({
                         : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-300'
                     }`}
                   >
-                    {PERIOD_LABELS[period]}
+                    {t(PERIOD_LABEL_KEYS[period].key, PERIOD_LABEL_KEYS[period].fallback)}
                   </button>
                 ))}
               </div>
@@ -101,14 +103,14 @@ export function PlannerModal({
               <div className="flex-1 overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between mb-3 shrink-0">
                   <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest">
-                    Objetivos ({completedCount}/{challenges.length})
+                    {t('planner.objectives_count', 'Objetivos ({{completed}}/{{total}})', { completed: completedCount, total: challenges.length })}
                   </p>
                   <button
                     onClick={onSyncCalendar}
                     className="p-1.5 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all flex items-center gap-1.5"
                   >
                     <Calendar className="w-4 h-4" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Sync</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest">{t('planner.sync', 'Sync')}</span>
                   </button>
                 </div>
                 <div className="grid grid-cols-1 gap-2 overflow-y-auto custom-scrollbar pr-2 flex-1">
@@ -142,11 +144,11 @@ export function PlannerModal({
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${completedCount === challenges.length ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
                   <span className="text-xs font-black text-amber-500 uppercase tracking-widest">
-                    {completedCount === challenges.length ? 'Completado' : 'Pendiente'}
+                    {completedCount === challenges.length ? t('planner.status_completed', 'Completado') : t('planner.status_pending', 'Pendiente')}
                   </span>
                 </div>
                 <Link to="/calendar" onClick={onClose} className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest hover:text-amber-500 transition-colors flex items-center gap-1.5">
-                  Calendario <ChevronRight className="w-4 h-4" />
+                  {t('planner.calendar_link', 'Calendario')} <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>

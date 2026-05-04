@@ -27,6 +27,7 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 // extracted from server.ts. Earlier phases moved admin/health/audit/push,
 // billing, curriculum/projects/oauth.
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
+import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 import adminRouter from "./src/server/routes/admin.js";
 import healthRouter from "./src/server/routes/health.js";
@@ -199,6 +200,17 @@ const cspDirectives = {
   objectSrc: ["'none'"],
   baseUri: ["'self'"],
 } as const;
+
+// Sprint 20 eleventh wave Bucket D — `securityHeaders` runs BEFORE helmet so
+// our CSP/X-Frame-Options/Permissions-Policy/HSTS directives win for the
+// headers we explicitly set. Helmet still provides the headers we don't
+// override (X-DNS-Prefetch-Control, X-Permitted-Cross-Domain-Policies,
+// Origin-Agent-Cluster, etc.). Mounted ABOVE auth/routes so 404s and
+// unauthenticated error paths still carry the headers. The legacy helmet
+// CSP block below is kept in report-only/dev mode as a fallback layer; the
+// canonical CSP source of truth is now docs/security/csp-policy.md +
+// src/server/middleware/securityHeaders.ts.
+app.use(securityHeaders);
 
 app.use(helmet({
   contentSecurityPolicy: process.env.NODE_ENV === 'production'

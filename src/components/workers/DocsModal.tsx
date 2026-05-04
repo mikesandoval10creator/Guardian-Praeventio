@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, Plus, Download, Trash2, Loader2, FileCheck, AlertCircle, ShieldCheck, AlertOctagon } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
@@ -6,6 +6,7 @@ import { db, collection, addDoc, onSnapshot, query, where, limit, handleFirestor
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { analyzeDocumentCompliance } from '../../services/geminiService';
 import { Worker, NodeType } from '../../types';
+import { analytics } from '../../services/analytics';
 
 interface WorkerDocument {
   id: string;
@@ -34,6 +35,22 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
   const [documents, setDocuments] = useState<WorkerDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  // Dedupe knowledge.doc.viewed across the SPA session (one fire per worker).
+  const trackedDocViewedRef = useRef<Set<string>>(new Set());
+
+  // Fire knowledge.doc.viewed once per worker per session when modal opens.
+  React.useEffect(() => {
+    if (!isOpen || !worker) return;
+    if (trackedDocViewedRef.current.has(worker.id)) return;
+    trackedDocViewedRef.current.add(worker.id);
+    try {
+      analytics.track('knowledge.doc.viewed', {
+        doc_id: worker.id,
+        doc_kind: 'regulatory',
+        project_id: projectId,
+      });
+    } catch {}
+  }, [isOpen, worker, projectId]);
 
   // Fetch documents for the worker
   React.useEffect(() => {
