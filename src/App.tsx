@@ -63,6 +63,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy').then(module => 
 const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ default: module.SunTracker })));
 const SafetyCoach = lazy(() => import('./pages/SafetyCoach').then(module => ({ default: module.SafetyCoach })));
 const Terms = lazy(() => import('./pages/Terms').then(module => ({ default: module.Terms })));
+const CuadrillasDashboard = lazy(() => import('./pages/CuadrillasDashboard').then(module => ({ default: module.CuadrillasDashboard })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -178,6 +179,7 @@ function AppRoutes() {
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
+                    <Route path="cuadrillas" element={<CuadrillasDashboard />} />
                     <Route path="sun-tracker" element={<SunTracker />} />
                     <Route path="safety-coach" element={<SafetyCoach />} />
                     <Route
