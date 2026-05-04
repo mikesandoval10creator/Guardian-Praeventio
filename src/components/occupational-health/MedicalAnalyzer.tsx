@@ -107,8 +107,8 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200/50 dark:border-white/5">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10">
-            <Brain className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+          <div className="p-2 rounded-xl bg-teal-400/10 dark:bg-gold-400/10">
+            <Brain className="w-4 h-4 text-teal-400 dark:text-gold-400" />
           </div>
           <div>
             <p className="text-sm font-black text-zinc-900 dark:text-white">Análisis Médico IA</p>
@@ -117,7 +117,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
             </p>
           </div>
           {/* Sprint 17c — Bioicons stethoscope + thoracic glyphs (decorative). */}
-          <div className="hidden sm:flex items-center gap-1.5 ml-3 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+          <div className="hidden sm:flex items-center gap-1.5 ml-3 text-teal-600 dark:text-gold-400" aria-hidden="true">
             <MedicalIcon name="stethoscope" size={20} alt="Estetoscopio" />
             <MedicalIcon name="lung-pair" size={20} alt="Pulmones" />
             <MedicalIcon name="heart-anatomical" size={20} alt="Corazón" />
@@ -139,7 +139,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
           <button
             onClick={runAnalysis}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#4db6ac] hover:bg-[#3a9e95] disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-teal-400 hover:bg-teal-500 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest transition-all"
           >
             {loading ? (
               <><Loader2 className="w-4 h-4 animate-spin" />Analizando lesiones...</>
@@ -177,8 +177,8 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
               </div>
 
               {/* Specialist */}
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-[#4db6ac]/5 dark:bg-[#d4af37]/5 border border-[#4db6ac]/10 dark:border-[#d4af37]/10">
-                <Stethoscope className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37] shrink-0 mt-0.5" />
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-teal-400/5 dark:bg-gold-400/5 border border-teal-400/10 dark:border-gold-400/10">
+                <Stethoscope className="w-4 h-4 text-teal-400 dark:text-gold-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-[10px] font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-0.5">Especialista recomendado</p>
                   <p className="text-sm font-bold text-zinc-900 dark:text-white">{analysis.specialistRequired}</p>
@@ -244,7 +244,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {analysis.ds594References.map(r => (
-                      <span key={r} className="px-2 py-0.5 rounded bg-[#4db6ac]/10 text-[#2a8a81] dark:text-[#4db6ac] text-[10px] font-bold border border-[#4db6ac]/20">{r}</span>
+                      <span key={r} className="px-2 py-0.5 rounded bg-teal-400/10 text-teal-600 dark:text-teal-400 text-[10px] font-bold border border-teal-400/20">{r}</span>
                     ))}
                     {analysis.diatCodes.map(c => (
                       <span key={c} className="px-2 py-0.5 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-bold border border-violet-500/20">DIAT {c}</span>
@@ -262,7 +262,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
                   {!illustration && !illustrationLoading && (
                     <button
                       onClick={runIllustration}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] text-[10px] font-black uppercase tracking-wider border border-[#4db6ac]/20 dark:border-[#d4af37]/20 hover:bg-[#4db6ac]/20 dark:hover:bg-[#d4af37]/20 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 text-[10px] font-black uppercase tracking-wider border border-teal-400/20 dark:border-gold-400/20 hover:bg-teal-400/20 dark:hover:bg-gold-400/20 transition-colors"
                     >
                       <Sparkles className="w-3 h-3" />Generar
                     </button>
@@ -270,7 +270,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
                 </div>
                 {illustrationLoading && (
                   <div className="flex flex-col items-center justify-center py-12 gap-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-white/5">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#4db6ac] dark:text-[#d4af37]" />
+                    <Loader2 className="w-6 h-6 animate-spin text-teal-400 dark:text-gold-400" />
                     <p className="text-xs text-zinc-500">Gemini generando ilustración médica...</p>
                   </div>
                 )}
@@ -284,7 +284,7 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
                   <div className="relative rounded-xl overflow-hidden bg-white border border-zinc-200/50 dark:border-white/5">
                     <img src={illustration} alt="Ilustración anatómica generada por IA" className="w-full h-auto" />
                     <div className="absolute bottom-2 right-2 px-2 py-1 rounded-md bg-zinc-900/80 text-[9px] font-black uppercase tracking-widest text-white flex items-center gap-1">
-                      <Sparkles className="w-2.5 h-2.5 text-[#d4af37]" />Gemini
+                      <Sparkles className="w-2.5 h-2.5 text-gold-400" />Gemini
                     </div>
                   </div>
                 )}
