@@ -10,8 +10,10 @@ import { describe, expect, it, vi } from 'vitest';
 // init at import time otherwise.
 vi.mock('../services/firebase', () => ({
   db: {} as unknown,
+  auth: { currentUser: null } as unknown,
   collection: vi.fn(),
   addDoc: vi.fn(),
+  updateDoc: vi.fn(),
   serverTimestamp: vi.fn(() => '__SERVER_TIMESTAMP__'),
 }));
 

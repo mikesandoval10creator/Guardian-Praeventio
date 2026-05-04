@@ -21,9 +21,16 @@ import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeN
 import { PlacedObjectsLayer } from '../components/digital-twin/PlacedObjectsLayer';
 import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObjectMenu';
 import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
+import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceStatusPanel';
+import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
 import { useObjectLifecycle } from '../hooks/useObjectLifecycle';
 import type { PlacedObject, PlacedObjectKind } from '../services/digitalTwin/photogrammetry/types';
 import { runComplianceCheck } from '../services/digitalTwin/objectPlacement/normativaRules';
+import {
+  savePlacedObject,
+  subscribePlacedObjects,
+  updatePlacedObject,
+} from '../services/digitalTwin/placedObjectsStore';
 
 interface ReconstructionJob {
   jobId: string;
@@ -127,11 +134,28 @@ export function DigitalTwinFaena() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Brecha C: object placement state. Lives only in memory for this ola —
-  // Firestore persistence of `placed_objects` collection lands in Ola 3.
+  // Sprint 21 Ola 3 Bucket J: object placement persistence end-to-end.
+  // - subscribePlacedObjects hidrata el state desde Firestore en realtime.
+  // - savePlacedObject + updatePlacedObject persisten cada mutación local.
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [arObject, setArObject] = useState<PlacedObject | null>(null);
   const onLifecycleChange = useObjectLifecycle(selectedProject?.id ?? '');
+
+  // Suscripción Firestore — limpia automáticamente al cambiar projectId.
+  useEffect(() => {
+    const projectId = selectedProject?.id;
+    if (!projectId) {
+      setPlacedObjects([]);
+      return;
+    }
+    const unsub = subscribePlacedObjects(
+      projectId,
+      (objs) => setPlacedObjects(objs),
+      (err) => logger.warn('placed_objects_subscription_error', { err: String(err) }),
+    );
+    return () => unsub();
+  }, [selectedProject?.id]);
   const complianceReport = React.useMemo(
     () => runComplianceCheck({ placedObjects }),
     [placedObjects],
@@ -154,10 +178,18 @@ export function DigitalTwinFaena() {
     };
     setPlacedObjects((prev) => [...prev, newObj]);
     setSelectedObjectId(newObj.id);
+    // Bucket J.2 — persistir en Firestore (best-effort; el subscribe lo
+    // re-hidratará igualmente al confirmar la escritura remota).
+    const projectId = selectedProject?.id;
+    if (projectId) {
+      void savePlacedObject(newObj, projectId).catch((err) =>
+        logger.warn('placed_object_save_failed', { err: String(err) }),
+      );
+    }
     void onLifecycleChange(null, newObj).catch((err) =>
       logger.error('object lifecycle (planning) failed', { err: String(err) }),
     );
-  }, [onLifecycleChange]);
+  }, [onLifecycleChange, selectedProject?.id]);
 
   const handleMarkInstalled = React.useCallback(async () => {
     if (!selectedObjectId) return;
@@ -169,6 +201,16 @@ export function DigitalTwinFaena() {
       updatedAt: Date.now(),
     };
     try {
+      // Bucket J.2 — escribir el patch a Firestore ANTES de invocar el
+      // lifecycle (que crea ZK + calendar). Si la escritura remota falla
+      // dejamos que el subscribe re-sincronice; el ZK + calendar siguen
+      // siendo source-of-truth de la auditoría.
+      const projectId = selectedProject?.id;
+      if (projectId) {
+        await updatePlacedObject(next.id, { lifecycle: 'installed' }, projectId).catch(
+          (err) => logger.warn('placed_object_update_failed', { err: String(err) }),
+        );
+      }
       const result = await onLifecycleChange(previous, next);
       setPlacedObjects((prev) => prev.map((o) => (o.id === next.id ? next : o)));
       const created = result.calendarEventSpecs.length;
@@ -180,7 +222,7 @@ export function DigitalTwinFaena() {
       logger.error('mark installed failed', { err: String(err) });
       show('No se pudo persistir el cambio de estado', 'error');
     }
-  }, [selectedObjectId, placedObjects, onLifecycleChange, show]);
+  }, [selectedObjectId, placedObjects, onLifecycleChange, show, selectedProject?.id]);
 
   const handleObjectMove = React.useCallback(
     (obj: PlacedObject, newPosition: { x: number; y: number; z: number }) => {
@@ -191,11 +233,18 @@ export function DigitalTwinFaena() {
         updatedAt: Date.now(),
       };
       setPlacedObjects((prev) => prev.map((o) => (o.id === obj.id ? next : o)));
+      // Bucket J.2 — persistir el move a Firestore además del lifecycle.
+      const projectId = selectedProject?.id;
+      if (projectId) {
+        void updatePlacedObject(obj.id, { position: newPosition }, projectId).catch(
+          (err) => logger.warn('placed_object_move_persist_failed', { err: String(err) }),
+        );
+      }
       void onLifecycleChange(previous, next).catch((err) =>
         logger.error('object move persistence failed', { err: String(err) }),
       );
     },
-    [onLifecycleChange],
+    [onLifecycleChange, selectedProject?.id],
   );
 
   const selectedObject = selectedObjectId
@@ -290,7 +339,17 @@ export function DigitalTwinFaena() {
       const videoUrl = await getDownloadURL(sRef);
       setUploading(false);
 
-      // 2. Submit reconstruction job
+      // 2. Submit reconstruction job.
+      //
+      // The "Vista previa" badge stays on while the backend resolves the
+      // adapter via `ColmapAdapter.fromEnv()` (Bucket H — see
+      // src/services/digitalTwin/photogrammetry/colmapAdapter.ts). When
+      // PHOTOGRAMMETRY_WORKER_URL + PHOTOGRAMMETRY_WORKER_TOKEN are set
+      // on the API runtime, the request hits the real COLMAP Cloud Run
+      // worker; otherwise the API falls back to the mock adapter and the
+      // page shows demo point clouds. The `mode` field below ('cpu'
+      // here) maps to ColmapAdapter on the backend, while 'gpu' is
+      // reserved for the Modal.run worker (Bucket I, separate adapter).
       setSubmitting(true);
       const result = await apiCall<{ jobId: string; status: string }>('/api/digitalTwin/reconstruct', {
         method: 'POST',
@@ -631,6 +690,7 @@ export function DigitalTwinFaena() {
                     selectedId={selectedObjectId}
                     onSelect={(o) => setSelectedObjectId(o.id)}
                     onMove={handleObjectMove}
+                    onRequestAr={(o) => setArObject(o)}
                   />
                   <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
                 </Canvas>
@@ -642,6 +702,18 @@ export function DigitalTwinFaena() {
                     compact={complianceReport.violations.length > 4}
                   />
                 </div>
+
+                {/* Bucket K.2 — Maintenance status panel (histórico ZK + próximos
+                    mantenimientos) anclado al top-right cuando hay objeto seleccionado. */}
+                {selectedObject && selectedProject?.id && (
+                  <div className="absolute top-3 right-3 max-h-[calc(100%-1.5rem)] overflow-y-auto z-10">
+                    <MaintenanceStatusPanel
+                      placedObject={selectedObject}
+                      projectId={selectedProject.id}
+                      onClose={() => setSelectedObjectId(null)}
+                    />
+                  </div>
+                )}
 
                 {/* Brecha C: selected object detail panel bottom-right */}
                 {selectedObject && (
@@ -682,6 +754,14 @@ export function DigitalTwinFaena() {
                         Marcar activo
                       </button>
                     )}
+                    {/* Bucket J.5 — AR overlay bridge (placeholder hasta Ola 4). */}
+                    <button
+                      type="button"
+                      onClick={() => setArObject(selectedObject)}
+                      className="w-full mt-2 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-white/10"
+                    >
+                      Ver en AR
+                    </button>
                   </div>
                 )}
 
@@ -708,6 +788,11 @@ export function DigitalTwinFaena() {
           </div>
         </section>
       </div>
+      )}
+
+      {/* Bucket J.5 — AR overlay (placeholder funcional, sesión WebXR real en Ola 4). */}
+      {arObject && (
+        <ARObjectOverlay object={arObject} onClose={() => setArObject(null)} />
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
