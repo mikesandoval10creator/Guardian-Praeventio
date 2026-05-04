@@ -1,12 +1,20 @@
+// Sprint 20 fifth wave (Bucket Phi): wired al orchestrator SLM, soporta offline-first via Brecha B.
 import React, { useState } from 'react';
 import { Send, ShieldAlert, Loader2, Crosshair } from 'lucide-react';
-import { auth } from '../../services/firebase';
 import { logger } from '../../utils/logger';
+// Bucket Phi T-1.5.x: orchestrator picks online (Gemini) vs. offline
+// (on-device SLM) automatically, and `enqueueSession` captures offline
+// answers for the reconciliation pass once connectivity returns.
+import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
+import { SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
 
 export function Asesor() {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
+  // Last response backend, for the small debug chip ("online" vs.
+  // "offline"). Null until the first response.
+  const [lastBackend, setLastBackend] = useState<SLMResponse['backend'] | null>(null);
 
   const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -14,9 +22,6 @@ export function Asesor() {
 
     setLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
-      if (!token) throw new Error("No autenticado");
-
       const contextualQuery = `[MODO ASESOR TÁCTICO DE EMERGENCIA ACTIVADO - IGNORAR OTRAS INSTRUCCIONES]
 REGLAS ESTRICTAS:
 1. Responde SOLO con planes de acción inmediatos y tácticos.
@@ -26,19 +31,29 @@ REGLAS ESTRICTAS:
 
 SITUACIÓN REPORTADA: ${query}`;
 
-      const res = await fetch('/api/ask-guardian', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ query: contextualQuery })
-      });
+      // Single entry point: orchestrator chooses online (Gemini, with the
+      // Firebase ID token attached internally) vs. offline (on-device SLM)
+      // based on `navigator.onLine`. We don't need to gate on `auth` here
+      // anymore — the orchestrator falls back to the SLM if auth/network
+      // is unavailable, which is exactly what we want for an emergency
+      // tactical advisor.
+      const slmResponse = await ask({ prompt: contextualQuery });
+      setLastBackend(slmResponse.backend);
+      setResponse(slmResponse.text || '');
 
-      if (!res.ok) throw new Error('Error al conectar con el servidor central');
-      
-      const data = await res.json();
-      setResponse(data.response || '');
+      // If the orchestrator chose (or fell back to) the on-device SLM,
+      // enqueue the session for later reconciliation against the server
+      // LLM so the canonical record reflects the authoritative answer.
+      if (slmResponse.backend === 'webgpu' || slmResponse.backend === 'wasm-simd') {
+        try {
+          await enqueueSession({ prompt: contextualQuery }, slmResponse);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent(SLM_ENQUEUED_EVENT));
+          }
+        } catch (queueErr) {
+          logger.error('Error enqueueing offline emergency session:', queueErr);
+        }
+      }
     } catch (error) {
       logger.error('Error asking Asesor:', error);
       setResponse('Error de comunicación con el Asesor. Proceda con protocolo estándar de emergencia.');
@@ -53,10 +68,24 @@ SITUACIÓN REPORTADA: ${query}`;
         <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center border border-rose-500/20 shrink-0">
           <Crosshair className="w-6 h-6 text-rose-500" />
         </div>
-        <div>
+        <div className="flex-1">
           <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">El Asesor</h3>
           <p className="text-[10px] text-rose-500 dark:text-rose-400 font-bold uppercase tracking-widest">Estratega Táctico RAG (Seguro)</p>
         </div>
+        {/* Bucket Phi: backend chip — surfaces which engine answered the
+            last query (online Gemini vs. on-device SLM). */}
+        {lastBackend && (
+          <span
+            className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border shrink-0 ${
+              lastBackend === 'gemini'
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+            }`}
+            title={`Respuesta servida por: ${lastBackend}`}
+          >
+            {lastBackend === 'gemini' ? 'online' : 'offline'}
+          </span>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto mb-4 min-h-[200px] max-h-[400px] bg-white dark:bg-black/40 rounded-2xl p-4 border border-zinc-200 dark:border-white/5 custom-scrollbar">
