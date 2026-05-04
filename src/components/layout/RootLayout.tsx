@@ -113,10 +113,15 @@ export function RootLayout() {
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#4db6ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-[#4db6ac]/30 flex flex-col transition-colors duration-300">
       {/* Skip link — first focusable element in the shell. Hidden until
-          keyboard focus per WCAG 2.4.1 (Bypass Blocks). */}
+          keyboard focus per WCAG 2.4.1 (Bypass Blocks). Uses
+          `focus-visible:` (not bare `focus:`) so the link only appears
+          for keyboard navigation; programmatic / mouse focus would not
+          trigger it. Palette pinned to teal-400 (#4db6ac) bg + white
+          text per `user_color_preferences.md` and the global focus
+          contrast guidance in `index.css`. */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-[#4db6ac] focus:text-white focus:rounded-xl focus:shadow-lg focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[100] focus-visible:px-4 focus-visible:py-2 focus-visible:bg-[#4db6ac] focus-visible:text-white focus-visible:font-bold focus-visible:rounded-md focus-visible:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
       >
         Saltar al contenido principal
       </a>

@@ -148,4 +148,13 @@ test.describe('Accessibility (axe-core)', () => {
   //   • /emergency      (EmergencyDashboard tabs + CrisisChat menu — A11Y-009)
   // Each will need a `test.skip(!process.env.E2E_FULL_STACK_AUTH)` until the
   // auth-fixture lands. Skipping for now — see docs/a11y/A11Y_AUDIT.md §2.
+  //
+  // Wave 12 Bucket C — A11Y-014 (focus rings) lands as a global
+  // `:focus-visible` rule in `src/index.css`. axe-core does NOT emit a
+  // violation for missing focus indicators (rule is out of scope for
+  // the engine), and the skip link / ModeSwitcher driving toggle live
+  // in RootLayout which only mounts post-login. The mitigations are
+  // verified by Tab-key inspection per the bucket's `verification.md`
+  // and will be exercised automatically by the auth-gated suites in
+  // Sprint 21 once the Firestore + Firebase Auth fixture lands.
 });
