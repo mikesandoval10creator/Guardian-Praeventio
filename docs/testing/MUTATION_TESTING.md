@@ -1,20 +1,27 @@
 # Mutation Testing (Stryker)
 
-## Latest baseline (2026-05-04, 16th wave Bucket A — Run #2)
+## Latest baseline (2026-05-04, 17th wave Bucket B — Run #3)
 
-Re-run after 15th-wave Bucket A added 26 targeted tests against the Run #1 top-3 surviving mutants per module:
+Extension of baseline coverage from 3 → 7 of the 14 modules in `stryker.config.json`. This run baselines four security + business-critical modules for the first time:
 
-- `src/server/middleware/verifyAuth.ts` — **76.19 %** (84 mutants, 64 killed, 12 survived, 8 no-cov, 40 s) — Δ +11.90 pp vs Run #1.
-- `src/services/slm/orchestrator.ts` — **43.59 %** (78 mutants, 34 killed, 36 survived, 8 no-cov, 15 s) — Δ +35.90 pp vs Run #1 (largest uplift; 16 NoCoverage mutants closed by the new tests).
-- `src/services/observability/sentryInstrumentation.ts` — **85.48 %** (62 mutants, 53 killed, 7 survived, 2 no-cov, 16 s) — Δ +12.90 pp vs Run #1.
+- `src/services/billing/webpayAdapter.ts` — **58.26 %** (218 mutants, 127 killed, 69 survived, 22 no-cov, 40 s) — first run.
+- `src/server/middleware/limiters.ts` — **3.05 %** (131 mutants, 4 killed, 94 survived, 33 no-cov, 45 s) — first run; largest test-gap uncovered to date.
+- `src/services/slm/offlineQueue.ts` — **60.44 %** (91 mutants, 55 killed, 33 survived, 3 no-cov, 58 s) — first run.
+- `src/services/slm/reconciliation.ts` — **81.48 %** (54 mutants, 44 killed, 10 survived, 0 no-cov, 14 s) — first run; strongest module on first-pass.
 
-Cumulative: 224 mutants, 151 killed → **67.86 %** (total) / 73.30 % (covered). Wall-clock 1 m 11 s on Windows host at concurrency=1.
+Run #3 subtotal: 494 mutants, 230 killed → **46.56 %** (total) / 52.75 % (covered). Wall-clock 2 m 37 s on Windows host at concurrency=1.
 
-Top-3 NEW surviving mutants per module, deltas vs Run #1, threshold ratchet recommendation (**no change** — orchestrator at 43.59 % still below `break: 50`; safe upper bound is module-min − 5 = 38.59 %), and the projected ratchet path are documented in the **Run #2** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+Cumulative across all 7 baselined modules (Runs #1 + #2 + #3): **53.06 %** (718 mutants, 381 killed). `limiters.ts` is the dominant pull-down; the remaining six modules average ~67 %.
 
-### Previous baseline (Run #1, 14th wave Bucket D)
+Top-3 surviving mutants per module, threshold ratchet recommendation (**no change** — `limiters.ts` at 3.05 % is now the floor; safe upper bound is module-min − 5 = -1.95 %), and the next-wave priorities are documented in the **Run #3** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
 
-For historical comparison: verifyAuth 64.29 %, orchestrator 7.69 %, sentryInstrumentation 72.58 %, cumulative 46.88 %. Wall-clock 1 m 29 s. Full breakdown remains in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md) "Run metadata" / "Per-module results" sections.
+### Previous baseline (Run #2, 16th wave Bucket A)
+
+Re-run after 15th-wave tests on the original 3 modules: verifyAuth 76.19 %, orchestrator 43.59 %, sentryInstrumentation 85.48 %, cumulative-3 67.86 %. Wall-clock 1 m 11 s. Full breakdown in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md) "Run #2" section.
+
+### Earlier baseline (Run #1, 14th wave Bucket D)
+
+For historical comparison: verifyAuth 64.29 %, orchestrator 7.69 %, sentryInstrumentation 72.58 %, cumulative-3 46.88 %. Wall-clock 1 m 29 s. Full breakdown in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md) "Run metadata" / "Per-module results" sections.
 
 ## Consolidation note (2026-05-04, 9th wave)
 

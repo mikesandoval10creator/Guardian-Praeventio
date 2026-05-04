@@ -255,9 +255,147 @@ Output should upload `reports/mutation/index.html` and `reports/mutation/report.
 5. **Trend persistence** — JSON report committed to a `reports/mutation/history/<date>.json` index so we can chart score evolution per module.
 6. **Sentry alert on score drop** — Praeventio Sentry org already wired in the 10th wave; emit a custom event on regression.
 
+## Run #3 — 2026-05-04 (extended modules)
+
+Branch: `dev/sprint-20-seventeenth-wave-multi-agent-2026-05-04`. Trigger: extending baseline coverage from 3 → 7 of the 14 modules in `stryker.config.json`. Adds the security + business-critical modules whose first run is documented here. The remaining 7 modules (ergonomics + protocols, all `excludedMutations: ["ArrayDeclaration"]` beneficiaries) are deferred to a future wave.
+
+### Per-module results (Run #3)
+
+| Module | Mutants | Killed | Survived | NoCoverage | Score (total) | Score (covered) | Time |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `src/services/billing/webpayAdapter.ts` | 218 | 127 | 69 | 22 | **58.26 %** | 64.80 % | 40 s |
+| `src/server/middleware/limiters.ts` | 131 | 4 | 94 | 33 | **3.05 %** | 4.08 % | 45 s |
+| `src/services/slm/offlineQueue.ts` | 91 | 55 | 33 | 3 | **60.44 %** | 62.50 % | 58 s |
+| `src/services/slm/reconciliation.ts` | 54 | 44 | 10 | 0 | **81.48 %** | 81.48 % | 14 s |
+| **Run #3 subtotal** | **494** | **230** | **206** | **58** | **46.56 %** | 52.75 % | 2 m 37 s |
+
+Notes on the numbers:
+
+- `webpayAdapter.ts` (58.26 %) — security + business-critical Webpay adapter for payment commit/return. 22 NoCoverage mutants concentrate on the `acquireWebpayIdempotencyLock` lock-stealing path and the `WEBPAY_IDEMPOTENCY_STALE_LOCK_MS` arithmetic; the existing tests reach the lock-acquire path but don't pin the time-window math. Score is **above** `break: 50`.
+- `limiters.ts` (3.05 %) — the sole module **deeply** under `break: 50`. Existing tests assert only the IPv6 keyGenerator smoke (R21 B4 / R20 R6 MEDIUM #2) and don't pin any rate-limit window, key construction, or 429 message body. The 33 NoCoverage mutants are the `geminiGlobalLimiter` / `slmTokenLimiter` blocks that the existing test suite never invokes. **This module's score is the largest blind-spot uncovered in this bucket.**
+- `offlineQueue.ts` (60.44 %) — IndexedDB queue with HMAC integrity. Survivors cluster on (a) the `sortKeysDeep` canonicalization (lines 133–141), which the existing tests exercise but don't compare-deep-equal across permutations; (b) the `crypto.randomUUID` fallback path (line 194); (c) the fire-and-forget `slm.queue.grew` analytics block (lines 243–250). Score is above `break: 50`.
+- `reconciliation.ts` (81.48 %) — the strongest of the four. The HMAC-mismatch drop path and the legacy-entry pass-through are well-covered; survivors cluster on Sentry-breadcrumb metadata strings (`'info'`, `'reconciling pre-HMAC queue entry'`, `'zettelkasten'`, `{ action: 'reconcile' }`) where the existing tests verify behaviour but don't pin the breadcrumb shape.
+
+### Top 3 surviving mutants per module (actionable)
+
+#### webpayAdapter.ts
+
+1. **`webpayAdapter.ts:197:7` — `ConditionalExpression` on `responseCode === 0 && responseStatus === 'AUTHORIZED'`**
+   - Survivor: `if (true && responseStatus === 'AUTHORIZED')` — the response-code half of the AUTHORIZED guard can be neutralized.
+   - **Why it matters:** the gate maps Transbank's commit response to our internal AUTHORIZED status. A surviving mutant means a malformed response with non-zero code but a wrongly-set `status: 'AUTHORIZED'` would map through. Companion mutants at `:200:5` and `:204:14` similarly neutralize the `typeof responseCode === 'number'` guard.
+   - **Fix:** parametric test on `(responseCode, responseStatus)` quadrants — `(0, 'AUTHORIZED') → AUTHORIZED`, `(0, 'OTHER') → FAILED`, `(-1, *) → REJECTED`, `(undefined, 'AUTHORIZED') → FAILED`.
+
+2. **`webpayAdapter.ts:220:11` — `MethodExpression` on `card_number.slice(-4)` mutated to `card_number`**
+   - Survivor: PAN truncation removed; full card number flows through to caller.
+   - **Why it matters:** PCI/PII boundary. Test asserts a card-detail response but doesn't check the resulting `lastFourDigits` field is exactly 4 chars long. A regression here would silently leak full PANs to logs.
+   - **Fix:** assert `expect(result.lastFourDigits).toMatch(/^\d{4}$/)` and `expect(result.lastFourDigits).toBe('4242')` for a fixture with `'1234567890124242'`.
+
+3. **`webpayAdapter.ts:142:28` — `StringLiteral` `'production'` mutated to `""`**
+   - Survivor: `config.environment === 'production'` becomes `config.environment === ""`, neutralizing the env-gate. Plus `EqualityOperator` flip at `:142:5` (`!==` instead of `===`).
+   - **Why it matters:** the prod env switch decides Integration vs Production Transbank endpoints. A mutated literal silently routes prod-config calls to Integration (or vice-versa). Companion to the verifyAuth Run #2 priority on `'production'` literal pinning.
+   - **Fix:** parametric assertion that `init({environment: 'production'})` constructs an `Options` with `Environment.Production`, and `init({environment: 'integration'})` constructs `Environment.Integration`. Pin the literal.
+
+#### limiters.ts
+
+1. **`limiters.ts:31:13` and `:45:13` — `ArithmeticOperator` on `windowMs: 15 * 60 * 1000`**
+   - 4 survivors: `15 * 60 / 1000` (= 0.9 ms), `15 / 60 * 1000` (= 250 ms), and similar variants. Both `geminiLimiter` and `invoiceStatusLimiter` accept these mutations because no test pins the window value.
+   - **Why it matters:** the entire rate-limit window can collapse to milliseconds without a test failure. Effectively disables throttling.
+   - **Fix:** assert that the `rateLimit()` call receives `windowMs: 900_000` (or 15 min in seconds × 60 × 1000) by introspecting the wrapped factory or by counting requests in 14 vs 16 minutes.
+
+2. **`limiters.ts:33:35` and `:47:35` — `ConditionalExpression` / `ArrowFunction` on `keyGenerator`**
+   - 6+ survivors: `keyGenerator: (req) => true`, `keyGenerator: () => undefined`, `keyGenerator: (req) => false`, plus `LogicalOperator` flips on the `||` chain `user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous'`.
+   - **Why it matters:** if `keyGenerator` returns a constant, ALL clients share a single bucket — global throttle for everyone. If it returns `undefined`, behavior is undefined per `express-rate-limit` docs.
+   - **Fix:** integration test that hits the limiter twice from two different IPs and asserts both succeed (per-IP isolation). Then a third call from the first IP should hit the limit.
+
+3. **`limiters.ts:36:21` / `:50:21` / `:185-187` — `StringLiteral` / `ObjectLiteral` on 429 `message` bodies**
+   - 8+ survivors: every limiter's `message: { error: '...' }` can be replaced by `message: {}` or have its strings emptied without a test failing.
+   - **Why it matters:** the 429 response body is the user-facing error contract. Mutated forms would still 429, but with empty/invalid JSON body — clients depending on the `error` discriminator would crash.
+   - **Fix:** integration test that asserts the 429 response body is exactly `{ error: 'gemini_global_cap_reached', message: '...' }` (or matching schema).
+
+#### offlineQueue.ts
+
+1. **`offlineQueue.ts:243-250` — `BlockStatement` / `StringLiteral` / `ObjectLiteral` on `slm.queue.grew` analytics emission**
+   - 5 survivors: the `void (async () => {})()` body, the inner `try {}` block, the event name `''`, and the payload `{}` all pass.
+   - **Why it matters:** silent loss of `slm.queue.grew` analytics breaks the product-tracking SLA wired in the 9va wave (HMAC integrity). Mirror of the orchestrator `slm.query.offline` survivor closed in 16va Bucket A.
+   - **Fix:** spy on `analytics.track` and assert `expect(spy).toHaveBeenCalledWith('slm.queue.grew', expect.objectContaining({ queue_depth_after: expect.any(Number), session_id: record.id }))`.
+
+2. **`offlineQueue.ts:194:7` — `ConditionalExpression` cluster on `crypto.randomUUID` feature-detect (5 mutants)**
+   - Survivors: `if (true)`, `if (false)`, `LogicalOperator` flips, `EqualityOperator` flips, `BlockStatement {}` on the `if (c && typeof c.randomUUID === 'function')` guard.
+   - **Why it matters:** the fallback path generates IDs via `Math.random().toString(36)` — much less collision-resistant. A surviving `if (false)` mutant means even browsers with native UUIDs would hit the weak fallback in tests where it doesn't matter, but in production the entropy gap matters.
+   - **Fix:** test that `generateSessionId()` in a context with `crypto.randomUUID` returns a 36-char UUID-shaped string, and in a context without it returns the `q_<base36>_<base36>` shape.
+
+3. **`offlineQueue.ts:301:7` — `ConditionalExpression` on `if (existing.reconciled) return;`**
+   - Survivor: `if (false) return;` — the early-return guard against re-marking a reconciled session is bypassed.
+   - **Why it matters:** without the guard, a double-reconcile call would re-write the row and could blow away analytics ordering or trigger duplicate Sentry breadcrumbs. The existing test only covers a single-reconcile path.
+   - **Fix:** test `markReconciled(id); markReconciled(id);` doesn't double-emit analytics or double-write.
+
+#### reconciliation.ts
+
+1. **`reconciliation.ts:106:43` — `ConditionalExpression` on `session.hmac.length === 0`**
+   - Survivor: `typeof session.hmac !== 'string' || false` — the empty-HMAC check is neutralized.
+   - **Why it matters:** an empty-string HMAC slipping through `verifyHmac` means a forged queue entry with `hmac: ''` would route to the legacy pre-HMAC path instead of being dropped as `mismatch`.
+   - **Fix:** test that an entry with `hmac: ''` (string but empty) is treated like `hmac: undefined` and drops with `'mismatch'`.
+
+2. **`reconciliation.ts:183:9` — `ConditionalExpression` on `if (integrity === 'legacy')` flipped to `if (true)`**
+   - Survivor: forces every entry through the legacy-pre-HMAC breadcrumb branch even when integrity is `'ok'` or `'mismatch'`.
+   - **Why it matters:** would emit `'reconciling pre-HMAC queue entry'` breadcrumbs for valid HMAC sessions, polluting Sentry telemetry.
+   - **Fix:** assert that for `integrity === 'ok'`, the legacy-entry breadcrumb is **not** emitted.
+
+3. **`reconciliation.ts:138-139` and `:191-193` — `StringLiteral` / `ObjectLiteral` on Sentry breadcrumb metadata**
+   - 5 survivors clustered on the breadcrumb `category: 'zettelkasten'`, `data: { action: 'reconcile' }`, `level: 'info'`, `message: 'reconciling pre-HMAC queue entry'`, `data: { sessionId: session.id }`.
+   - **Why it matters:** the breadcrumb shape is the contract Sentry queries match on. Empty strings/objects would break Sentry filtering rules without test failure.
+   - **Fix:** spy on `Sentry.addBreadcrumb` and assert exact `{ category, message, level, data }` shape.
+
+### Threshold ratchet recommendation (Run #3)
+
+**Recommendation: NO global ratchet on `break`.** Reasoning:
+
+- Per the documented safety rule "do not increase the `break` threshold above the lowest module's score − 5", the safe upper bound across the **7 baselined modules** is `min(76.19, 43.59, 85.48, 58.26, 3.05, 60.44, 81.48) − 5 = 3.05 − 5 = -1.95`. That is far below the current `break: 50`.
+- `limiters.ts` at 3.05 % is now the dominant constraint — it sits well below `break: 50`. The surgical `npm run test:mutation` against the full mutate list would exit non-zero on `limiters.ts` alone, exactly as `orchestrator.ts` did before 16va.
+- Two of seven modules now sit above 80 % (sentryInstrumentation 85.48, reconciliation 81.48); two more above 70 % (verifyAuth 76.19); the rest in the 43–60 band. Per-file thresholds remain blocked on Stryker 9.6.1 schema (R21 backlog item).
+- The deferred path "GLOBAL `break: 50 → 55` once orchestrator ≥ 55 %" from Run #2 is now compounded: even if orchestrator hits 55 %, `limiters.ts` at 3.05 % blocks the ratchet.
+
+**Per-module strategy (documentation only — config untouched)**:
+
+| Module | Run #3 score | Could individually support `break:` | Block on |
+|---|---:|---:|---|
+| verifyAuth | 76.19 % | 70 | regression below 70 |
+| orchestrator | 43.59 % | 38 | regression below 38 |
+| sentryInstrumentation | 85.48 % | 80 | regression below 80 |
+| webpayAdapter | 58.26 % | 53 | regression below 53 |
+| limiters | 3.05 % | n/a (test gap) | needs first-pass tests before any break threshold |
+| offlineQueue | 60.44 % | 55 | regression below 55 |
+| reconciliation | 81.48 % | 76 | regression below 76 |
+
+**For now: thresholds untouched.** The next bucket priority is `limiters.ts` test-spine — current 3.05 % means the existing IPv6 smoke test is the only thing keeping the file from being effectively unverified. Any of the Top 3 fixes above would more than triple the score in a single test file.
+
+### Cumulative across 7 modules baselined (Run #1 + Run #2 + Run #3)
+
+| Metric | Run #1 (3 modules) | Run #2 (re-run, 3 modules) | Run #3 (4 new modules) | Cumulative all 7 |
+|---|---:|---:|---:|---:|
+| Mutants total | 224 | 224 | 494 | **718** |
+| Killed | 105 | 151 | 230 | **381** |
+| Survived | 85 | 55 | 206 | **261** |
+| NoCoverage | 34 | 18 | 58 | **76** |
+| Score (total) | 46.88 % | 67.86 % | 46.56 % | **53.06 %** |
+| Wall-clock | 1 m 29 s | 1 m 11 s | 2 m 37 s | 5 m 17 s |
+
+The cumulative-7 score (53.06 %) sits just above `break: 50`. This is the floor the consolidated config currently enforces across the 7 baselined modules — and `limiters.ts` is the single largest pull-down. Bringing `limiters.ts` from 3.05 % to even 50 % would lift the cumulative-7 score to ~65 % without touching the other six.
+
+### What's next (18th wave or later)
+
+1. **`limiters.ts` test spine** — three small tests would target the three Top 3 clusters above (window arithmetic, keyGenerator, message bodies). Highest score lift per test-line.
+2. **`webpayAdapter.ts` AUTHORIZED quadrant** — parametric test on `(responseCode, responseStatus)` to kill the `:197:7` cluster.
+3. **`webpayAdapter.ts` PAN truncation** — single-line regex assertion to kill the PCI-relevant `:220:11` mutant.
+4. **`offlineQueue.ts` analytics spy** — mirror of the 16va orchestrator analytics fix, applied to `slm.queue.grew`.
+5. **`reconciliation.ts` Sentry breadcrumb shape** — single spy + 5-property `objectContaining` assertion to kill the breadcrumb-metadata cluster.
+
+Projected scores after these 5 fixes: limiters ~50 %, webpayAdapter ~70 %, offlineQueue ~70 %, reconciliation ~91 %, cumulative-7 ~65 %. At that point a global `break: 55` ratchet becomes safe.
+
 ## Cross-references
 
 - `docs/testing/MUTATION_TESTING.md` — top-level run guide, threshold policy, target rationale.
 - `stryker.config.json` — single canonical config (consolidated 9th wave).
 - 8th-wave Bucket C verification record — prior `verifyAuth` smoke run (84 mutants, 64.29 % score). This baseline reproduces it exactly on Windows.
 - Sprint 20 12th-wave commit `443ae08` — orchestrator analytics additions; explains the 24 NoCoverage mutants accumulated in that file.
+- Sprint 20 9va wave (HMAC integrity layer) — explains the offlineQueue HMAC tag and the reconciliation `verifyHmac` path baselined in Run #3.
