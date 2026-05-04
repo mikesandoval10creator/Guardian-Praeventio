@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -41,6 +41,17 @@ export function Settings() {
   const { enabled: fallDetectionEnabled, setEnabled: setFallDetectionEnabled, loading: fallDetectionLoading } = useFallDetectionPreference();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  // Stable IDs so each <label htmlFor> binds to the matching control
+  // and screen readers can announce the field name on focus.
+  const usernameId = useId();
+  const emailFieldId = useId();
+  const sessionTimeoutId = useId();
+  const aiDetailId = useId();
+  const themePrefId = useId();
+  const languageId = useId();
+  const timezoneId = useId();
+  const adminUidId = useId();
+  const adminRoleId = useId();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminTargetUid, setAdminTargetUid] = useState('');
   const [adminTargetRole, setAdminTargetRole] = useState('operario');
@@ -167,21 +178,23 @@ export function Settings() {
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nombre de Usuario</label>
-              <input 
-                type="text" 
-                disabled 
-                value={user?.displayName || 'Usuario Praeventio'} 
-                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed" 
+              <label htmlFor={usernameId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nombre de Usuario</label>
+              <input
+                id={usernameId}
+                type="text"
+                disabled
+                value={user?.displayName || 'Usuario Praeventio'}
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed"
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Correo Electrónico</label>
-              <input 
-                type="email" 
-                disabled 
-                value={user?.email || ''} 
-                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed" 
+              <label htmlFor={emailFieldId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Correo Electrónico</label>
+              <input
+                id={emailFieldId}
+                type="email"
+                disabled
+                value={user?.email || ''}
+                className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed"
               />
             </div>
             <p className="text-xs text-zinc-600 dark:text-zinc-500">Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.</p>
@@ -195,13 +208,20 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Autenticación de Dos Factores (2FA)</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Añade una capa extra de seguridad a tu cuenta.</p>
               </div>
-              <button onClick={() => setMfaEnabled(!mfaEnabled)} className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={mfaEnabled}
+                aria-label="Activar autenticación de dos factores"
+                onClick={() => setMfaEnabled(!mfaEnabled)}
+                className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+              >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${mfaEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Tiempo de Expiración de Sesión</label>
-              <select value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <label htmlFor={sessionTimeoutId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Tiempo de Expiración de Sesión</label>
+              <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="15">15 minutos de inactividad</option>
                 <option value="30">30 minutos de inactividad</option>
                 <option value="60">1 hora de inactividad</option>
@@ -222,6 +242,10 @@ export function Settings() {
                 </p>
               </div>
               <button
+                type="button"
+                role="switch"
+                aria-checked={fallDetectionEnabled}
+                aria-busy={fallDetectionLoading}
                 onClick={() => setFallDetectionEnabled(!fallDetectionEnabled)}
                 disabled={fallDetectionLoading}
                 aria-label={fallDetectionEnabled ? 'Desactivar detección de caída' : 'Activar detección de caída'}
@@ -240,7 +264,14 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Alertas por Correo Electrónico</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Resúmenes diarios y alertas críticas.</p>
               </div>
-              <button onClick={() => setEmailNotifs(!emailNotifs)} className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={emailNotifs}
+                aria-label="Activar alertas por correo electrónico"
+                onClick={() => setEmailNotifs(!emailNotifs)}
+                className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+              >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${emailNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -251,10 +282,17 @@ export function Settings() {
                   <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Notificaciones Push</h4>
                   <p className="text-xs text-zinc-600 dark:text-zinc-500">Recibe alertas instantáneas.</p>
                 </div>
-                <button onClick={() => {
-                  setPushNotifs(!pushNotifs);
-                  if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
-                }} className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={pushNotifs}
+                  aria-label="Activar notificaciones push"
+                  onClick={() => {
+                    setPushNotifs(!pushNotifs);
+                    if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
+                  }}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${pushNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                >
                   <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${pushNotifs ? 'translate-x-7' : 'translate-x-1'}`} />
                 </button>
               </div>
@@ -267,7 +305,15 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🚨 Emergencias (S.O.S)</h5>
                       <p className="text-[10px] text-zinc-500">Alertas de S.O.S, evacuación y clima extremo. (No se puede desactivar por seguridad)</p>
                     </div>
-                    <button disabled className="w-10 h-5 rounded-full bg-red-500 opacity-50 cursor-not-allowed relative">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={true}
+                      aria-disabled={true}
+                      aria-label="Alertas de emergencia (siempre activas por seguridad)"
+                      disabled
+                      className="w-10 h-5 rounded-full bg-red-500 opacity-50 cursor-not-allowed relative"
+                    >
                       <div className="w-3 h-3 rounded-full bg-white absolute top-1 translate-x-6" />
                     </button>
                   </div>
@@ -277,7 +323,14 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🩺 Exámenes Médicos</h5>
                       <p className="text-[10px] text-zinc-500">Recordatorios de vigencia y nuevos resultados médicos.</p>
                     </div>
-                    <button onClick={() => updateNotifPref('medical', !notifPrefs.medical)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.medical ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={notifPrefs.medical}
+                      aria-label="Notificaciones de exámenes médicos"
+                      onClick={() => updateNotifPref('medical', !notifPrefs.medical)}
+                      className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.medical ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                    >
                       <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.medical ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -287,7 +340,14 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">📚 Capacitaciones</h5>
                       <p className="text-[10px] text-zinc-500">Asignaciones de cursos, ODI y charlas programadas.</p>
                     </div>
-                    <button onClick={() => updateNotifPref('training', !notifPrefs.training)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.training ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={notifPrefs.training}
+                      aria-label="Notificaciones de capacitaciones"
+                      onClick={() => updateNotifPref('training', !notifPrefs.training)}
+                      className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.training ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                    >
                       <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.training ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -297,7 +357,14 @@ export function Settings() {
                       <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🤖 Asistente IA (Guardian)</h5>
                       <p className="text-[10px] text-zinc-500">Consejos predictivos y anomalías detectadas en terreno.</p>
                     </div>
-                    <button onClick={() => updateNotifPref('ai_alerts', !notifPrefs.ai_alerts)} className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.ai_alerts ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={notifPrefs.ai_alerts}
+                      aria-label="Notificaciones del asistente IA"
+                      onClick={() => updateNotifPref('ai_alerts', !notifPrefs.ai_alerts)}
+                      className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.ai_alerts ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+                    >
                       <div className={`w-3 h-3 rounded-full bg-white absolute top-1 transition-transform ${notifPrefs.ai_alerts ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
@@ -310,8 +377,8 @@ export function Settings() {
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nivel de Detalle del Asistente</label>
-              <select value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <label htmlFor={aiDetailId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nivel de Detalle del Asistente</label>
+              <select id={aiDetailId} value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="conciso">Conciso (Respuestas directas y cortas)</option>
                 <option value="equilibrado">Equilibrado (Recomendado)</option>
                 <option value="detallado">Detallado (Explicaciones exhaustivas y normativas)</option>
@@ -322,7 +389,14 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Análisis Predictivo Autónomo</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Permite a la IA analizar datos en segundo plano.</p>
               </div>
-              <button onClick={() => setAiProactive(!aiProactive)} className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={aiProactive}
+                aria-label="Activar análisis predictivo autónomo"
+                onClick={() => setAiProactive(!aiProactive)}
+                className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
+              >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${aiProactive ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
@@ -359,15 +433,16 @@ export function Settings() {
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Preferencia de Tema</label>
-              <select 
-                value={themePref} 
+              <label htmlFor={themePrefId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Preferencia de Tema</label>
+              <select
+                id={themePrefId}
+                value={themePref}
                 onChange={async (e) => {
                   const newPref = e.target.value;
                   setThemePref(newPref);
                   await set('theme_preference', newPref);
                   window.dispatchEvent(new Event('theme_preference_changed'));
-                }} 
+                }}
                 className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
               >
                 <option value="light">Claro (Fondo #4EB5AC)</option>
@@ -381,7 +456,11 @@ export function Settings() {
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Modo Oscuro Manual</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Alternar rápidamente (sobrescribe la preferencia)</p>
               </div>
-              <button 
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isDark}
+                aria-label="Alternar modo oscuro manual"
                 onClick={async () => {
                   const root = window.document.documentElement;
                   const isCurrentlyDark = root.classList.contains('dark');
@@ -389,7 +468,7 @@ export function Settings() {
                   await set('theme_preference', newMode);
                   window.dispatchEvent(new Event('theme_preference_changed'));
                   setIsDark(!isCurrentlyDark);
-                }} 
+                }}
                 className={`w-12 h-6 rounded-full transition-colors relative ${isDark ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${isDark ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -401,16 +480,16 @@ export function Settings() {
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
-              <select value={language} onChange={(e) => handleLanguageChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <label htmlFor={languageId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
+              <select id={languageId} value={language} onChange={(e) => handleLanguageChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="es">Español (Latinoamérica)</option>
                 <option value="en">English (US)</option>
                 <option value="pt">Português (Brasil)</option>
               </select>
             </div>
             <div>
-              <label className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
-              <select className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
+              <label htmlFor={timezoneId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
+              <select id={timezoneId} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="America/Santiago">America/Santiago (GMT-4)</option>
                 <option value="America/Lima">America/Lima (GMT-5)</option>
                 <option value="America/Bogota">America/Bogota (GMT-5)</option>
@@ -424,15 +503,19 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-6">
             {/* Set Role */}
             <div className="space-y-3">
-              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Asignar Rol a Usuario</p>
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest" id={`${adminUidId}-group-label`}>Asignar Rol a Usuario</p>
+              <label htmlFor={adminUidId} className="sr-only">UID del usuario (Firebase Auth)</label>
               <input
+                id={adminUidId}
                 type="text"
                 placeholder="UID del usuario (Firebase Auth)"
                 value={adminTargetUid}
                 onChange={e => { setAdminTargetUid(e.target.value); setAdminActionStatus(null); }}
                 className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
               />
+              <label htmlFor={adminRoleId} className="sr-only">Rol a asignar</label>
               <select
+                id={adminRoleId}
                 value={adminTargetRole}
                 onChange={e => setAdminTargetRole(e.target.value)}
                 className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
@@ -488,7 +571,11 @@ export function Settings() {
             </div>
 
             {adminActionStatus && (
-              <p className={`text-xs font-bold text-center ${adminActionStatus.startsWith('✓') ? 'text-emerald-500' : 'text-rose-400'}`}>
+              <p
+                role="status"
+                aria-live="polite"
+                className={`text-xs font-bold text-center ${adminActionStatus.startsWith('✓') ? 'text-emerald-500' : 'text-rose-400'}`}
+              >
                 {adminActionStatus}
               </p>
             )}
@@ -586,23 +673,26 @@ export function Settings() {
               transition={{ delay: index * 0.05 }}
               className={`bg-white/50 dark:bg-zinc-900/50 border rounded-xl sm:rounded-2xl transition-all ${isActive ? 'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-zinc-200 dark:border-white/10 hover:border-emerald-500/30'}`}
             >
-              <div 
+              <button
+                type="button"
                 onClick={() => handleSectionClick(section.title)}
-                className="p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group"
+                aria-expanded={isActive}
+                aria-controls={`settings-section-${section.title.replace(/\s+/g, '-').toLowerCase()}`}
+                className="w-full p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group text-left"
               >
                 <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1">
                   <div className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-lg sm:rounded-xl flex items-center justify-center transition-colors ${isActive ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-white/40 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-500 border border-zinc-200 dark:border-white/5 group-hover:bg-white/60 dark:group-hover:bg-zinc-800/80'}`}>
-                    <section.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+                    <section.icon className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{section.title}</h3>
+                    <h2 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{section.title}</h2>
                     <p className="text-zinc-600 dark:text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{section.description}</p>
                   </div>
                 </div>
-                <motion.div animate={{ rotate: isActive ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <motion.div animate={{ rotate: isActive ? 180 : 0 }} transition={{ duration: 0.2 }} aria-hidden="true">
                   <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-500' : 'text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-500'}`} />
                 </motion.div>
-              </div>
+              </button>
               
               <AnimatePresence>
                 {isActive && (
@@ -612,6 +702,9 @@ export function Settings() {
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2, ease: "easeInOut" }}
                     className="overflow-hidden"
+                    id={`settings-section-${section.title.replace(/\s+/g, '-').toLowerCase()}`}
+                    role="region"
+                    aria-label={section.title}
                   >
                     <div className="px-4 pb-4 sm:px-5 sm:pb-5">
                       {renderSectionContent(section.title)}
