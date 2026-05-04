@@ -218,7 +218,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       </AnimatePresence>
 
       {/* Sidebar */}
-      <div
+      <nav
+        aria-label="Navegación principal"
+        id="primary-navigation"
         className={`fixed top-0 left-0 bottom-0 w-[280px] sm:w-[300px] bg-[#4db6ac] dark:bg-zinc-950 border-r border-zinc-200/50 dark:border-white/10 z-[70] flex flex-col shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* Header */}
@@ -251,7 +253,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Cerrar menú de navegación"
             className="w-10 h-10 rounded-xl bg-white/20 dark:bg-white/5 flex items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/30 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-white transition-all lg:hidden"
           >
             <X className="w-5 h-5" />
@@ -274,7 +278,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
               return (
                 <div key={group.title} className="flex flex-col">
                   <button
+                    type="button"
                     onClick={() => toggleGroup(group.title)}
+                    aria-expanded={isGroupOpen}
+                    aria-controls={`nav-group-${group.title.replace(/\s+/g, '-').toLowerCase()}`}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                       isGroupOpen || hasActiveItem
                         ? "bg-white/30 dark:bg-zinc-800/50 text-zinc-900 dark:text-white shadow-inner border border-white/20 dark:border-white/5"
@@ -309,6 +316,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2, ease: "easeInOut" }}
                         className="overflow-hidden"
+                        id={`nav-group-${group.title.replace(/\s+/g, '-').toLowerCase()}`}
+                        role="region"
+                        aria-label={`Submenú ${group.title}`}
                       >
                         <div className="flex flex-col gap-1 pl-11 pr-2 py-2 relative">
                           {/* Left connecting line */}
@@ -321,6 +331,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                                 key={item.path}
                                 to={item.path}
                                 onClick={onClose}
+                                aria-current={isActive ? "page" : undefined}
                                 className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
                                   isActive
                                     ? "bg-white/40 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-white/30 dark:border-[#d4af37]/20 shadow-[0_0_15px_rgba(77,182,172,0.08)]"
@@ -410,7 +421,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
             </p>
           </div>
         </div>
-      </div>
+      </nav>
 
       {showSurvivalMode && (
         <SurvivalMode onClose={() => setShowSurvivalMode(false)} />
