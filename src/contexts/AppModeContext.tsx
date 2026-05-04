@@ -176,17 +176,25 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
     };
   }, [mode, emergencyAutoExpiresAt]);
 
+  // Mirror state into a ref so the auto-monitor callback (which captures
+  // the FIRST render's closures) can still read the current `mode`.
+  const modeRef = useRef<AppMode>(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
   // Mount the auto-emergency monitor once.
   useEffect(() => {
     const cleanup = startEmergencyMonitor((evt) => {
+      const previous = modeRef.current;
       setModeState('emergency');
       setEmergencyAutoExpiresAt(new Date(Date.now() + EMERGENCY_AUTO_TTL_MS));
       setEmergencyAutoEvent(evt ?? null);
+      void trackModeSwitch(previous, 'emergency', 'auto_emergency');
     });
     return cleanup;
   }, []);
 
   const setMode = useCallback((m: AppMode): void => {
+    const previous = modeRef.current;
     setModeState(m);
     // Manual switches never carry an auto-expiry.
     if (m !== 'emergency') {
@@ -198,6 +206,7 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
       setEmergencyAutoEvent(null);
     }
     persist({ mode: m, appearance });
+    void trackModeSwitch(previous, m, 'manual');
   }, [appearance]);
 
   const setAppearance = useCallback((a: AppAppearance): void => {
@@ -229,4 +238,24 @@ export function useAppMode(): AppModeContextValue {
   const ctx = useContext(AppModeContext);
   if (!ctx) throw new Error('useAppMode must be used inside <AppModeProvider>');
   return ctx;
+}
+
+// Fire-and-forget analytics for mode transitions. Dynamic import keeps the
+// SSR / unit-test path free of the analytics dependency and matches the
+// orchestrator's pattern. Self-transitions (a→a) are skipped because they
+// represent re-renders, not real user-visible mode changes.
+async function trackModeSwitch(
+  from: AppMode,
+  to: AppMode,
+  trigger: 'manual' | 'auto_emergency' | 'auto_driving' | 'auto_appearance',
+): Promise<void> {
+  if (from === to) return;
+  try {
+    const { analytics } = await import('../services/analytics');
+    analytics.track('app.mode.switched', {
+      from_mode: from,
+      to_mode: to,
+      trigger_kind: trigger,
+    });
+  } catch { /* analytics never blocks UX */ }
 }

@@ -95,6 +95,13 @@ export function EmergencyCheckIn() {
         status: status,
         timestamp: serverTimestamp()
       });
+      try {
+        const { analytics } = await import('../../services/analytics');
+        analytics.track('emergency.checkin.completed', {
+          checkin_kind: 'manual',
+          status,
+        });
+      } catch { /* analytics must never break check-in flow */ }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `projects/${selectedProject.id}/emergency_checkins`);
     }

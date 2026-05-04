@@ -24,15 +24,25 @@ export {
 export type { AnalyticsQueue, QueuedAnalyticsEvent } from './queue';
 export { consoleSink, noopSink, sentryBreadcrumbSink } from './sinks';
 export type {
+  AppModeName,
+  AppModeSwitchedProperties,
+  AppModeTriggerKind,
+  ArchiveReason,
   AuthProvider,
+  AuthUserSignedInProperties,
+  AuthUserSignedOutProperties,
   AuthUserSignedUpProperties,
+  CheckinKind,
+  CheckinStatus,
   CommonProperties,
+  EmergencyCheckinCompletedProperties,
   Event,
   EventInputProps,
   EventName,
   EventPropertiesMap,
   IndustryCode,
   InviteChannel,
+  ProjectArchivedProperties,
   ProjectCreatedProperties,
   ProjectMemberInvitedProperties,
   ProjectTier,
@@ -40,7 +50,11 @@ export type {
   RiskReportedManualProperties,
   Role,
   Severity,
+  SignoutReason,
   Sink,
+  SlmQueryKind,
+  SlmQueryOfflineProperties,
+  SlmQueryOnlineProperties,
   TareaCompletedProperties,
 } from './types';
 

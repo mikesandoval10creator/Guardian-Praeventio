@@ -68,6 +68,12 @@ export default function Login() {
             } catch { /* analytics must never break user flow */ }
           }
           if (userSnap.exists()) {
+             try {
+               analytics.track('auth.user.signed_in', {
+                 provider: 'google',
+                 mfa_used: false,
+               });
+             } catch { /* analytics must never break user flow */ }
              // Let's create a new passkey specifically for this new device session
              const credId = await registerBiometric(user.uid, user.email || 'user');
              localStorage.setItem('praeventio_biometric_id', credId);
