@@ -311,6 +311,58 @@ describe('AnalyticsAdapter (adapter.ts)', () => {
     expect(sink.calls.length >= 0).toBe(true);
   });
 
+  it('11th wave: payment.checkout.started narrows props to gateway/plan_code/amount_clp', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('payment.checkout.started', {
+      gateway: 'webpay',
+      plan_code: 'oro',
+      amount_clp: 49990,
+    });
+
+    // Bad gateway literal must fail to compile.
+    await adapter.track('payment.checkout.started', {
+      // @ts-expect-error — 'stripe' not in PaymentGateway enum
+      gateway: 'stripe',
+      plan_code: 'oro',
+      amount_clp: 49990,
+    });
+
+    expect(sink.calls).toHaveLength(2);
+    expect(sink.calls[0].name).toBe('payment.checkout.started');
+  });
+
+  it('11th wave: knowledge.doc.viewed requires doc_id + doc_kind', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('knowledge.doc.viewed', {
+      doc_id: 'wkr_123',
+      doc_kind: 'regulatory',
+    });
+
+    // Bad doc_kind literal must fail to compile.
+    await adapter.track('knowledge.doc.viewed', {
+      doc_id: 'wkr_123',
+      // @ts-expect-error — 'gossip' not in DocKind enum
+      doc_kind: 'gossip',
+    });
+
+    expect(sink.calls).toHaveLength(2);
+    expect(sink.calls[0].name).toBe('knowledge.doc.viewed');
+  });
+
   it('flush() with empty queue resolves quickly without invoking sinks', async () => {
     const sink = makeMockSink();
     const queue = makeMockQueue();

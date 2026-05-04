@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   CheckCircle2,
@@ -39,6 +39,7 @@ import {
 import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
 import { useInvoicePolling } from '../hooks/useInvoicePolling';
 import { logger } from '../utils/logger';
+import { analytics } from '../services/analytics';
 
 // Payments are processed exclusively through Google Play Billing on the native app.
 const isNative = () => typeof (window as any).Capacitor !== 'undefined';
@@ -433,6 +434,61 @@ function WebpayReturnBanner() {
   // `null` short-circuits to {kind:'idle'} with no fetch.
   const pollState = useInvoicePolling(initialStatus ? invoiceId : null);
 
+  // Dedupe to one analytics emit per banner instance (kind transitions are stable).
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (firedRef.current) return;
+    if (pollState.kind === 'settled') {
+      const inv = pollState.invoice;
+      let stash: { gateway?: string; plan_code?: string; amount_clp?: number } = {};
+      try {
+        const raw = sessionStorage.getItem('__praeventio_pending_checkout');
+        if (raw) stash = JSON.parse(raw);
+      } catch {}
+      const gateway = (stash.gateway === 'mercadopago' ? 'mercadopago' : 'webpay') as 'webpay' | 'mercadopago';
+      const plan_code = stash.plan_code ?? 'unknown';
+      if (inv.status === 'paid') {
+        try {
+          analytics.track('payment.transaction.succeeded', {
+            gateway,
+            plan_code,
+            amount_clp: inv.totals.total,
+            transaction_id_hash: inv.id,
+          });
+        } catch {}
+        firedRef.current = true;
+        try { sessionStorage.removeItem('__praeventio_pending_checkout'); } catch {}
+      } else if (inv.status === 'rejected' || inv.status === 'cancelled') {
+        try {
+          analytics.track('payment.transaction.failed', {
+            gateway,
+            plan_code,
+            failure_code: inv.rejectionReason ?? inv.status,
+            amount_clp: inv.totals.total,
+          });
+        } catch {}
+        firedRef.current = true;
+        try { sessionStorage.removeItem('__praeventio_pending_checkout'); } catch {}
+      }
+    } else if (pollState.kind === 'error') {
+      let stash: { gateway?: string; plan_code?: string } = {};
+      try {
+        const raw = sessionStorage.getItem('__praeventio_pending_checkout');
+        if (raw) stash = JSON.parse(raw);
+      } catch {}
+      const gateway = (stash.gateway === 'mercadopago' ? 'mercadopago' : 'webpay') as 'webpay' | 'mercadopago';
+      try {
+        analytics.track('payment.transaction.failed', {
+          gateway,
+          plan_code: stash.plan_code ?? 'unknown',
+          failure_code: 'poll_error',
+        });
+      } catch {}
+      firedRef.current = true;
+      try { sessionStorage.removeItem('__praeventio_pending_checkout'); } catch {}
+    }
+  }, [pollState]);
+
   if (!initialStatus) return null;
 
   // ────────────────────────────────────────────────────────────────────
@@ -680,6 +736,14 @@ function PricingInner() {
 
     setCheckoutError(null);
     setIsProcessing(legacyId);
+    // Stashed for the return banner to enrich payment.transaction.* events.
+    try {
+      sessionStorage.setItem(
+        '__praeventio_pending_checkout',
+        JSON.stringify({ gateway: 'webpay', plan_code: tier.id, amount_clp: tier.clpRegular }),
+      );
+    } catch {}
+    try { analytics.track('payment.checkout.started', { gateway: 'webpay', plan_code: tier.id, amount_clp: tier.clpRegular }); } catch {}
     try {
       const totalProjects = projects.length;
       const idToken = await user.getIdToken();
@@ -772,6 +836,13 @@ function PricingInner() {
 
     setCheckoutError(null);
     setIsProcessing(legacyId);
+    try {
+      sessionStorage.setItem(
+        '__praeventio_pending_checkout',
+        JSON.stringify({ gateway: 'mercadopago', plan_code: tier.id, amount_clp: tier.clpRegular }),
+      );
+    } catch {}
+    try { analytics.track('payment.checkout.started', { gateway: 'mercadopago', plan_code: tier.id, amount_clp: tier.clpRegular }); } catch {}
     try {
       const idToken = await user.getIdToken();
       const currency = MP_CURRENCY_BY_COUNTRY[country];

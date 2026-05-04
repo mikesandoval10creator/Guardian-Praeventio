@@ -54,7 +54,12 @@ export type EventName =
   | 'slm.query.online'
   | 'slm.query.offline'
   | 'app.mode.switched'
-  | 'emergency.checkin.completed';
+  | 'emergency.checkin.completed'
+  // 11th wave additions — see catalog rows 100–102, 108.
+  | 'payment.checkout.started'
+  | 'payment.transaction.succeeded'
+  | 'payment.transaction.failed'
+  | 'knowledge.doc.viewed';
 
 /**
  * Common props attached to every event.
@@ -238,6 +243,45 @@ export interface EmergencyCheckinCompletedProperties extends CommonProperties {
   delay_seconds?: number;
 }
 
+// ---------------------------------------------------------------------------
+// 11th wave additions — types matching catalog rows for the 4 new events.
+// Source-of-truth: docs/tracking/event-catalog.md (rows 100–102, 108) +
+// .telemetry/proposed-events.yaml.
+// ---------------------------------------------------------------------------
+
+/** Payment gateways — Stripe intentionally absent (project_business_decisions_2026-05-03). */
+export type PaymentGateway = 'webpay' | 'khipu' | 'mercadopago' | 'google_play';
+
+export interface PaymentCheckoutStartedProperties extends CommonProperties {
+  gateway: PaymentGateway;
+  plan_code: string;
+  amount_clp: number;
+}
+
+export interface PaymentTransactionSucceededProperties extends CommonProperties {
+  gateway: PaymentGateway;
+  plan_code: string;
+  amount_clp: number;
+  transaction_id_hash: string;
+  auth_latency_ms?: number;
+}
+
+export interface PaymentTransactionFailedProperties extends CommonProperties {
+  gateway: PaymentGateway;
+  plan_code: string;
+  failure_code: string;
+  amount_clp?: number;
+}
+
+/** Doc kinds — mirrors catalog enum exactly (property-glossary row 170). */
+export type DocKind = 'regulatory' | 'manual' | 'incident_report' | 'training' | 'other';
+
+export interface KnowledgeDocViewedProperties extends CommonProperties {
+  doc_id: string;
+  doc_kind: DocKind;
+  view_duration_seconds_estimate?: number;
+}
+
 /**
  * Map from event name → its full property shape. Used by `Event<N>` below
  * so `analytics.track(name, props)` validates `props` against the right
@@ -257,6 +301,11 @@ export interface EventPropertiesMap {
   'slm.query.offline': SlmQueryOfflineProperties;
   'app.mode.switched': AppModeSwitchedProperties;
   'emergency.checkin.completed': EmergencyCheckinCompletedProperties;
+  // 11th wave additions
+  'payment.checkout.started': PaymentCheckoutStartedProperties;
+  'payment.transaction.succeeded': PaymentTransactionSucceededProperties;
+  'payment.transaction.failed': PaymentTransactionFailedProperties;
+  'knowledge.doc.viewed': KnowledgeDocViewedProperties;
 }
 
 /**
