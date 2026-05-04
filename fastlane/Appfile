@@ -1,0 +1,15 @@
+# Sprint 21 Ola 6 — Bucket S — Fastlane Appfile (Android)
+#
+# Used by `bundle exec fastlane android <lane>` to identify the package and
+# the Google Play service account used by `upload_to_play_store`.
+#
+# - `package_name`: matches `appId` in capacitor.config.ts.
+# - `json_key_file`: path (relative to the repo root) to the Play Console
+#   service-account JSON. The CI workflow decodes
+#   `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` to this filename before
+#   invoking Fastlane (see .github/workflows/mobile-release.yml). Locally
+#   the same file is generated via `gcloud iam service-accounts keys
+#   create` (see docs/mobile-build-runbook.md §6).
+
+package_name 'com.praeventio.guard'
+json_key_file 'play-service-account.json'

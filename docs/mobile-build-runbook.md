@@ -126,19 +126,85 @@ pod install --repo-update
 
 ---
 
-## 6. CI/CD — deferred to Sprint 21+
+## 6. CI signing pipeline (Android — Sprint 21 Ola 6, Bucket S)
 
-Hosted CI (GitHub Actions) for full mobile builds is intentionally out of scope this Sprint. Reasons captured in [ADR-0006](architecture-decisions/0006-mobile-deferred-to-local-build.md):
+Hosted CI for **Android** mobile builds is now wired via Fastlane. iOS remains local-only until macOS runner cost is justified (see [ADR-0009](architecture-decisions/0009-mobile-ci-signing-supersedes-0006.md), which supersedes [ADR-0006](architecture-decisions/0006-mobile-deferred-to-local-build.md)).
 
-- Android: would need a Gradle build job + signing keystore secret + bundle/APK upload to Play Internal Testing.
-- iOS: needs `macos-latest` runners (paid minutes), an Apple Developer signing certificate (`.p12`), provisioning profile, and a Fastlane workflow for TestFlight.
-- For the first MVP store submission, **the product owner runs the build locally** following sections 2 + 3 above.
+**Workflow**: `.github/workflows/mobile-release.yml`
+**Fastlane lanes**: `fastlane/Fastfile` — `internal`, `production`, `build_only`
+**Ruby deps**: `Gemfile` (run `bundle install` once locally to generate `Gemfile.lock`).
 
-When Sprint 21+ schedules the automation, the recommended path is:
-- **Fastlane** for both platforms (`fastlane android internal`, `fastlane ios beta`).
-- Store the keystore + `.p12` + provisioning profile as encrypted GitHub Actions secrets.
-- A nightly + on-tag workflow that runs `fastlane`, uploads to Play Internal + TestFlight, and posts the install link to a Slack channel.
-- The current stub workflow (`.github/workflows/mobile-build-check.yml`) only validates that the **web bundle** still builds — it does NOT touch Gradle or Xcode.
+### 6.1 — One-time keystore setup
+
+Generated **once** on a developer machine; the resulting JKS becomes the canonical signing identity for every store build forever after. **Lose it and you cannot ship updates** — the new keystore would produce a different signing certificate, which Play Console rejects.
+
+```bash
+# 1. Generate the release keystore.
+keytool -genkey -v \
+  -keystore release.keystore \
+  -keyalg RSA -keysize 2048 \
+  -validity 10000 \
+  -alias praeventio
+
+# 2. Encode for GitHub Secrets (no trailing newline).
+base64 -i release.keystore | tr -d '\n' > release.keystore.b64
+
+# 3. Generate the Play service-account JSON via Google Cloud Console:
+#    Play Console → Setup → API access → Service accounts → Create.
+#    Download the JSON, then base64-encode the same way:
+base64 -i play-service-account.json | tr -d '\n' > play-service-account.json.b64
+```
+
+Store `release.keystore` itself in a password manager / sealed vault — **never** commit the JKS to git, and never paste it into a chat.
+
+### 6.2 — GitHub Secrets required
+
+Configure these under **Repo → Settings → Secrets and variables → Actions**:
+
+| Secret name | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | Output of `base64 -i release.keystore \| tr -d '\n'` |
+| `ANDROID_KEYSTORE_PASSWORD` | Store password from the `keytool` prompt |
+| `KEY_ALIAS` | Alias used in `keytool` (default: `praeventio`) |
+| `KEY_PASSWORD` | Key password from the `keytool` prompt |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` | Output of `base64 -i play-service-account.json \| tr -d '\n'` |
+
+The workflow decodes both base64 secrets back to files (`release.keystore`, `play-service-account.json`) inside the runner only.
+
+### 6.3 — Triggers
+
+- **Manual**: `workflow_dispatch` with a `track` input — choose `internal` (default), `production`, or `build_only`.
+- **Tag-driven production**: pushing a tag matching `mobile-v*` triggers a production track upload.
+- **Smoke test on PR**: the existing `.github/workflows/mobile-build-check.yml` still runs to validate the web bundle on every PR (it does NOT touch Gradle).
+
+### 6.4 — Local smoke test (recommended before merging Fastfile changes)
+
+```bash
+# One-time:
+gem install bundler
+bundle install   # generates Gemfile.lock (commit it)
+
+# Set the same env vars CI uses (KEYSTORE_PATH must be an absolute path):
+export KEYSTORE_PATH="$(pwd)/release.keystore"
+export ANDROID_KEYSTORE_PASSWORD="..."
+export KEY_ALIAS="praeventio"
+export KEY_PASSWORD="..."
+
+# Compiles + signs the AAB without uploading.
+bundle exec fastlane android build_only
+```
+
+> TODO: `Gemfile.lock` is not yet committed — generate it on a Ruby-enabled machine via `gem install bundler && bundle install` and commit alongside `Gemfile`. CI will work without it (bundler resolves on first run) but reproducibility benefits from pinning.
+
+### 6.5 — iOS deferral (still active)
+
+iOS automation requires:
+
+- `macos-latest` runner minutes (≈10× the cost of Linux).
+- Distribution `.p12` certificate + App Store provisioning profile.
+- App Store Connect API key (separate from Play service account).
+
+Until those are in place, iOS continues to follow sections 2 + 3 above (local Xcode archive). The `Fastfile` will gain a `platform :ios` block when iOS automation is activated.
 
 ---
 

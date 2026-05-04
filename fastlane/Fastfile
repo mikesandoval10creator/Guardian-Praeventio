@@ -1,0 +1,76 @@
+# Sprint 21 Ola 6 — Bucket S — Fastlane lanes for Android signing + Play upload
+#
+# Lanes:
+#   - `internal`     → signed AAB → upload to Play Internal Testing track.
+#   - `production`   → signed AAB → upload to Play Production track.
+#   - `build_only`   → signed AAB only, no upload (CI dry-run, smoke test).
+#
+# All lanes consume the same signing env vars provided by GHA secrets (or by
+# the local shell when running `bundle exec fastlane android <lane>` on a
+# developer machine):
+#   KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+#
+# The web bundle (`dist/`) and `npx cap sync android` are run BEFORE Fastlane
+# in the workflow — Fastlane itself only owns the Gradle + Play Store steps.
+#
+# ADR-0009 supersedes ADR-0006 (local-only mobile builds) for Android.
+
+default_platform(:android)
+
+# Shared signing properties block — DRY across the three lanes. Every Gradle
+# `bundle` invocation needs the same set of `android.injected.signing.*`
+# properties; pulling them into a helper avoids drift.
+def signing_properties
+  {
+    "android.injected.signing.store.file"     => ENV["KEYSTORE_PATH"],
+    "android.injected.signing.store.password" => ENV["ANDROID_KEYSTORE_PASSWORD"],
+    "android.injected.signing.key.alias"      => ENV["KEY_ALIAS"],
+    "android.injected.signing.key.password"   => ENV["KEY_PASSWORD"],
+  }
+end
+
+platform :android do
+  desc "Build signed AAB for internal track"
+  lane :internal do
+    gradle(task: "clean")
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      properties: signing_properties
+    )
+    upload_to_play_store(
+      track: "internal",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Build signed AAB for production track"
+  lane :production do
+    gradle(task: "clean")
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      properties: signing_properties
+    )
+    upload_to_play_store(
+      track: "production",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Build only (no upload) — CI dry-run / local smoke test"
+  lane :build_only do
+    gradle(task: "clean")
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      properties: signing_properties
+    )
+  end
+end
