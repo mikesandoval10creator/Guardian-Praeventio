@@ -85,6 +85,16 @@ fallback for the meantime.
   `package.json`).** Rejected — bundles libredwg WASM transitively,
   which is GPL-3.0. Declaring MIT at the wrapper layer does not
   launder the upstream license.
+* **`@mlightcad/three-renderer` + `@mlightcad/data-model` +
+  `@mlightcad/mtext-renderer` (declared MIT each).** Tested in
+  Sprint 17a and **rejected** — `npm install --package-lock-only`
+  brought `@mlightcad/dxf-json@1.0.8` (GPL-3.0) into the lockfile
+  as a transitive dep of the data-model package. The whole
+  mlightcad ecosystem is downstream of LibreDWG and inherits
+  GPL contamination. Removed all 4 + lock resync; frontend
+  remains 100% MIT/MPL with `dxf-parser` only as the DXF
+  rendering source. Sprint 18+ may evaluate `dxf-viewer` (MPL-2.0)
+  if richer entity support is required.
 * **Render DWG directly with our own WASM port.** Rejected — high
   engineering cost, no business value over the ODA File Converter
   server-side path, and risks re-deriving Autodesk's binary format

@@ -98,31 +98,15 @@ export function AutoCADViewer() {
     }
   };
 
-  // Sprint 17a — try to lazy-load the MIT-licensed @mlightcad/three-renderer
-  // for smoother large-scene rendering. If the package is unavailable in
-  // this build, we silently fall back to the inline SVG path below. This
-  // keeps the page functional while the dependency is being rolled out and
-  // protects us from any transitive load failure.
+  // Sprint 17a → reverted: el ecosistema @mlightcad/* trae @mlightcad/dxf-json
+  // GPL-3.0 transitivamente, que contaminaría todo el frontend.
+  // Frontend MIT-only definitivo: solo dxf-parser + render SVG inline. La
+  // versión "renderer 3D" se evalúa en Sprint 18+ con un fork puro o un
+  // alternativo MIT/MPL real (ej. dxf-viewer de vagran, MPL-2.0). Ver ADR
+  // docs/architecture-decisions/0002-cad-viewer-mit-only-no-gpl-contamination.md
+  // sección "Renderer descartados".
   useEffect(() => {
-    if (!parsed || !canvasRef.current) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        // @ts-expect-error — package may not be installed yet in offline CI.
-        const mod = await import(/* @vite-ignore */ '@mlightcad/three-renderer');
-        if (cancelled || !mod) return;
-        // Smoke check: just confirm the module loaded. A full Three.js
-        // scene wire-up lands in Sprint 17b once the package surface is
-        // stable across the team. The SVG fallback below remains the
-        // visual source of truth in the meantime.
-        setRendererReady(true);
-      } catch {
-        setRendererReady(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setRendererReady(false);
   }, [parsed]);
 
   const onUploadClick = () => fileInputRef.current?.click();
