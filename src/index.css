@@ -80,7 +80,7 @@
     --bg-elevated: #ffffff;
     --text-primary: #18181b;         /* zinc-900 */
     --text-secondary: #3f3f46;       /* zinc-700 */
-    --text-muted: #71717a;           /* zinc-500 */
+    --text-muted: #52525b;           /* zinc-600 — 7.51:1 on bg-zinc-50 (WCAG AA + AAA); was zinc-500 #71717a = 3.94:1 (failed AA) */
     --accent-primary: #4db6ac;       /* teal-400 — caballito de batalla */
     --accent-on-primary: #ffffff;
     --accent-warning: #f59e0b;       /* amber-500 */

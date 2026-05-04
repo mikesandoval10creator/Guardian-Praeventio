@@ -294,9 +294,11 @@ export function RootLayout() {
           </Link>
           
           {user ? (
-            <div
+            <button
+              type="button"
               onClick={() => navigate('/profile')}
-              className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm"
+              aria-label="Ir a mi perfil"
+              className="flex items-center gap-2 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 px-2 py-1.5 rounded-xl cursor-pointer hover:bg-white/50 dark:hover:bg-zinc-800 transition-all duration-300 relative shadow-sm m-0 text-left"
             >
               {mfaSetupCompleted === false && (
                 <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full border-2 border-white dark:border-zinc-950 animate-pulse" />
@@ -310,7 +312,7 @@ export function RootLayout() {
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
               </div>
-            </div>
+            </button>
           ) : (
             <button
               onClick={() => navigate('/login')}
