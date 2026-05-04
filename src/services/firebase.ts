@@ -59,6 +59,10 @@ export const logOut = async () => {
   // Capture uid before signOut clears auth.currentUser, so we can clear the
   // per-uid first-login key for the 8h-shift session expiry hook.
   const uid = auth.currentUser?.uid;
+  try {
+    const { analytics } = await import('./analytics');
+    analytics.track('auth.user.signed_out', { signout_reason: 'user_initiated' });
+  } catch { /* analytics must never break sign-out flow */ }
   await notifyServerLogout();
   try {
     if (uid) localStorage.removeItem('praeventio_first_login_' + uid);

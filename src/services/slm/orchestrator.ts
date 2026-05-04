@@ -196,11 +196,14 @@ export async function ask(
   const offline = shouldUseOffline(opts);
 
   if (offline) {
-    return slmComplete(query);
+    const resp = await slmComplete(query);
+    void trackQueryOffline(resp);
+    return resp;
   }
 
   const remote = await callOnlineBackend(query);
   if (remote !== null) {
+    void trackQueryOnline(remote);
     return remote;
   }
 
@@ -209,5 +212,36 @@ export async function ask(
   // enqueue this exchange to the offline queue here — that's the
   // responsibility of the call site that observes `backend !== 'gemini'`
   // and decides the answer needs reconciliation.
-  return slmComplete(query);
+  const fallback = await slmComplete(query);
+  void trackQueryOffline(fallback);
+  return fallback;
+}
+
+// Analytics tracking is fire-and-forget at this seam. The orchestrator is
+// the only place that knows online vs offline truthfully, so wiring here
+// avoids per-call-site duplication. Dynamic import keeps this module's
+// existing zero-dep contract under SSR / unit tests.
+async function trackQueryOnline(resp: SLMResponse): Promise<void> {
+  try {
+    const { analytics } = await import('../analytics');
+    analytics.track('slm.query.online', {
+      query_kind: 'general',
+      latency_ms: resp.latencyMs,
+      prompt_token_count: 0,
+      success: true,
+      model_id: resp.backend,
+    });
+  } catch { /* never break inference flow */ }
+}
+
+async function trackQueryOffline(resp: SLMResponse): Promise<void> {
+  try {
+    const { analytics } = await import('../analytics');
+    analytics.track('slm.query.offline', {
+      query_kind: 'general',
+      latency_ms: resp.latencyMs,
+      model_id: resp.backend,
+      prompt_token_count: 0,
+    });
+  } catch { /* never break inference flow */ }
 }

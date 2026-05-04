@@ -4,7 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Sun, Moon, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { AsesorChat } from '../shared/AsesorChat';
+// Sprint 20 tenth wave (Bucket Perf C — Fase 5): the chat widget is
+// loaded lazily so `react-markdown` + the SLM/Gemini orchestrator graph
+// no longer ship in the main bundle. The `AsesorChatLazy` wrapper holds
+// the `open-ai-chat` event listener until the chunk is fetched.
+import { AsesorChatLazy } from '../shared/AsesorChatLazy';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
@@ -184,8 +188,8 @@ export function RootLayout() {
         <div className="flex flex-1 max-w-xl mx-4 relative justify-end sm:justify-center">
           <div className="relative w-full max-w-[300px] sm:max-w-full flex items-center group hidden sm:flex">
             <Search className="absolute left-4 w-4 h-4 text-zinc-700 dark:text-zinc-500 group-focus-within:text-[#4db6ac] transition-colors" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
@@ -194,7 +198,8 @@ export function RootLayout() {
                   setSearchQuery('');
                 }
               }}
-              placeholder="Buscar o preguntar a la IA..." 
+              placeholder="Buscar o preguntar a la IA..."
+              aria-label="Buscar o preguntar a la IA"
               className="w-full bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-2xl py-2.5 pl-11 pr-12 text-sm focus:ring-2 focus:ring-[#4db6ac]/50 text-zinc-900 dark:text-white transition-all placeholder:text-zinc-700 dark:placeholder:text-zinc-500 shadow-inner"
             />
             <button 
@@ -239,8 +244,9 @@ export function RootLayout() {
             to="/safe-driving"
             className="hidden sm:flex w-10 h-10 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all duration-300 relative shadow-sm"
             title="Modo Conducción Segura"
+            aria-label="Modo Conducción Segura"
           >
-            <Map className="w-5 h-5" />
+            <Map className="w-5 h-5" aria-hidden="true" />
           </Link>
 
           <button 
@@ -355,7 +361,7 @@ export function RootLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
-      <AsesorChat />
+      <AsesorChatLazy />
       <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
       <SmartConnectionsPanel />
 

@@ -1,0 +1,108 @@
+{
+  "_comment_purpose": "Placeholder skeleton for Sentry dashboard 'Overview'. The exact shape Sentry's API expects on import is documented at https://docs.sentry.io/api/discover/ — that surface evolves so this file may need editing before import. Treat it as a starting artifact ops can iterate on, not a contract. The source of truth for widget intent is docs/observability/SENTRY_DASHBOARDS.md §2.",
+  "_comment_license": "Internal docs.",
+  "_comment_last_review": "2026-05-04 (Sprint 20, 10ª ola, Bucket B).",
+
+  "version": 2,
+  "title": "Overview",
+  "widgets": [
+    {
+      "_comment": "W1.1 — Error rate por módulo. 4-value bounded enum from sentryInstrumentation.ts:42-46. Adjust series shape to whatever Sentry Discover currently expects.",
+      "id": "W1.1",
+      "title": "Error rate por módulo",
+      "displayType": "line",
+      "interval": "5m",
+      "queries": [
+        {
+          "name": "Errors by module",
+          "fields": ["count()"],
+          "aggregates": ["count()"],
+          "columns": ["tags[module]"],
+          "conditions": "level:error environment:production",
+          "orderby": "-count()"
+        }
+      ]
+    },
+    {
+      "_comment": "W1.2 — Top issues this week.",
+      "id": "W1.2",
+      "title": "Top issues (7d)",
+      "displayType": "table",
+      "interval": "7d",
+      "queries": [
+        {
+          "name": "Top issues",
+          "fields": ["issue.title", "count()", "last_seen()"],
+          "aggregates": ["count()", "last_seen()"],
+          "columns": ["issue.title"],
+          "conditions": "environment:production",
+          "orderby": "-count()",
+          "limit": 10
+        }
+      ]
+    },
+    {
+      "_comment": "W1.3 — p95 latency por route (top 5).",
+      "id": "W1.3",
+      "title": "p95 latency por route (24h, top 5)",
+      "displayType": "line",
+      "interval": "5m",
+      "queries": [
+        {
+          "name": "p95 by route",
+          "fields": ["transaction", "p95(transaction.duration)"],
+          "aggregates": ["p95(transaction.duration)"],
+          "columns": ["transaction"],
+          "conditions": "event.type:transaction environment:production",
+          "orderby": "-p95(transaction.duration)",
+          "limit": 5
+        }
+      ]
+    },
+    {
+      "_comment": "W1.4 — Lighthouse scores. PLACEHOLDER: depends on Lighthouse → Sentry pipeline (Brecha D, ETA Sprint 21+). If no measurements yet, the widget will show 'No data'. Replace 'measurements.lh_*' with the real measurement keys once the pipeline is wired.",
+      "id": "W1.4",
+      "title": "Lighthouse scores trend",
+      "displayType": "big_number",
+      "interval": "1d",
+      "_status": "placeholder-pending-sprint-21",
+      "queries": [
+        {
+          "name": "Lighthouse Performance",
+          "fields": ["avg(measurements.lh_performance)"],
+          "aggregates": ["avg(measurements.lh_performance)"],
+          "columns": [],
+          "conditions": "environment:production",
+          "orderby": ""
+        }
+      ]
+    },
+    {
+      "_comment": "W1.5 — Fatal events (24h). Threshold visual in UI: red if > 0, gray if = 0.",
+      "id": "W1.5",
+      "title": "Fatal events (24h)",
+      "displayType": "big_number",
+      "interval": "24h",
+      "queries": [
+        {
+          "name": "Fatal count",
+          "fields": ["count()"],
+          "aggregates": ["count()"],
+          "columns": [],
+          "conditions": "level:fatal environment:production",
+          "orderby": ""
+        }
+      ]
+    }
+  ],
+  "projects": [],
+  "_comment_projects": "Leave empty so the dashboard inherits the active project filter, or fill with explicit project IDs once known.",
+
+  "_comment_import_notes": [
+    "1. Open Sentry → Dashboards → Create Dashboard.",
+    "2. If Sentry's UI supports JSON import on the create modal, paste this file (after editing the conditions to your environment values).",
+    "3. If not, recreate each widget manually using the queries above as the source of truth.",
+    "4. Validate against the Discover API: https://docs.sentry.io/api/discover/.",
+    "5. After import, save the dashboard with the exact title 'Overview' so the cross-references in SENTRY_DASHBOARDS.md still resolve."
+  ]
+}

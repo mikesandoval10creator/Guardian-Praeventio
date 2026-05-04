@@ -1,0 +1,258 @@
+# Sentry alert rules — Praeventio Guard
+#
+# This is the machine-readable mirror of `SENTRY_ALERTS.md`. Cardinality and
+# `id` values must match 1:1 with the document. When a rule changes:
+#   1. Edit `SENTRY_ALERTS.md` (source of truth).
+#   2. Regenerate this file by hand (no codegen yet).
+#   3. Verify with: `node -e "console.log(require('js-yaml').load(require('fs').readFileSync('docs/observability/sentry-alerts.yaml','utf8')).alerts.length)"`.
+#
+# License: internal docs.
+
+schemaVersion: 1
+generatedAt: 2026-05-04
+source: docs/observability/SENTRY_ALERTS.md
+notes:
+  - Each `query` field uses Sentry Search syntax; see https://docs.sentry.io/concepts/search/.
+  - Alerts that key on `breadcrumb.category` require Sentry Discover + Metric Alert.
+  - Channels are aspirational — PagerDuty arrives in Sprint 22, Slack workspace TBD.
+  - Until then, P0/P1 fall back to email + Telegram bot personal.
+
+defaults:
+  environment: production
+  enabled: true
+  ownerEmail: dahosandoval@gmail.com
+
+alerts:
+  # ──────────────────────────────────────────────
+  # P0 — page immediately
+  # ──────────────────────────────────────────────
+  - id: P0-slm-hmac-mismatch
+    name: SLM offline queue HMAC mismatch (tamper)
+    severity: P0
+    query: 'message:"slm.queue.hmac_mismatch" environment:production'
+    threshold:
+      count: 1
+      window: 1m
+    channels:
+      - pagerduty
+      - slack-praeventio-ops-here
+    runbook: docs/runbooks/INCIDENT_RESPONSE.md#51-security
+    relatedFinding: TM-T03
+    sourceFile: src/services/slm/reconciliation.ts:163
+    owner: security
+    enabled: true
+
+  - id: P0-webpay-error-spike
+    name: Webpay transaction errors spike
+    severity: P0
+    query: 'module:webpay level:error environment:production'
+    threshold:
+      count: 5
+      window: 5m
+    channels:
+      - pagerduty
+      - slack-praeventio-ops-here
+    runbook: docs/runbooks/INCIDENT_RESPONSE.md#54-billing-especial-webpay-return-endpoint-failures
+    sourceFile: src/services/billing/webpayAdapter.ts:276-326
+    owner: dev
+    enabled: true
+
+  - id: P0-kms-error
+    name: KMS error (descifrado/rotación)
+    severity: P0
+    query: '(message:*kms* OR message:*KeyManagementService* OR message:*cryptoKey*) level:[error,fatal] environment:production'
+    threshold:
+      count: 1
+      window: 5m
+    channels:
+      - pagerduty
+      - slack-praeventio-ops-here
+    runbook: docs/runbooks/KMS_ROTATION.md
+    owner: security
+    enabled: true
+
+  - id: P0-fatal-prod
+    name: Fatal-level error en producción
+    severity: P0
+    query: 'level:fatal environment:production'
+    threshold:
+      count: 1
+      window: 1m
+    channels:
+      - pagerduty
+      - slack-praeventio-ops-here
+    runbook: docs/runbooks/INCIDENT_RESPONSE.md#52-performance--availability
+    sourceFile: src/components/shared/ErrorBoundary.tsx:64
+    owner: dev
+    enabled: true
+
+  # ──────────────────────────────────────────────
+  # P1 — notify within 1h
+  # ──────────────────────────────────────────────
+  - id: P1-gemini-error-rate
+    name: Gemini module error rate spike
+    severity: P1
+    query: 'module:gemini level:error environment:production'
+    threshold:
+      multiplier: 5
+      baseline: rolling-7d
+      window: 15m
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/runbooks/INCIDENT_RESPONSE.md#55-slm-offline-especial-web-worker-crashes
+    sourceFile: src/services/geminiBackend.ts:187,228,293
+    owner: ai
+    enabled: true
+
+  - id: P1-prediction-error-rate
+    name: Prediction module error rate spike
+    severity: P1
+    query: 'module:prediction level:error environment:production'
+    threshold:
+      multiplier: 5
+      baseline: rolling-7d
+      window: 15m
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/runbooks/INCIDENT_RESPONSE.md#52-performance--availability
+    sourceFile: src/services/predictionBackend.ts:11,78
+    owner: dev
+    enabled: true
+
+  - id: P1-zettelkasten-error-rate
+    name: Zettelkasten write/reconcile errors
+    severity: P1
+    query: 'module:zettelkasten level:error environment:production'
+    threshold:
+      multiplier: 5
+      baseline: rolling-7d
+      window: 15m
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/runbooks/DR_RUNBOOK.md
+    sourceFile: src/services/zettelkasten/persistence/writeNode.ts:107
+    owner: dev
+    enabled: true
+
+  - id: P1-slm-unsigned-legacy
+    name: SLM legacy queue entries detected (TM-T03 follow-up)
+    severity: P1
+    query: 'breadcrumb.category:"slm.queue.unsigned_legacy" environment:production'
+    threshold:
+      count: 1
+      window: 1h
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/security/STRIDE_findings.md
+    relatedFinding: TM-T03
+    sourceFile: src/services/slm/reconciliation.ts:188-194
+    owner: security
+    enabled: true
+    notes: Expect zero hits after Sprint 22 flip from passthrough to drop.
+
+  - id: P1-webpay-create-failure
+    name: Webpay createTransaction failure
+    severity: P1
+    query: 'module:webpay error.type:WebpayAdapterError environment:production'
+    threshold:
+      count: 3
+      window: 10m
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/runbooks/INCIDENT_RESPONSE.md#54-billing-especial-webpay-return-endpoint-failures
+    sourceFile: src/services/billing/webpayAdapter.ts:289-291
+    owner: dev
+    enabled: true
+    notes: Less severe than P0-webpay-error-spike — catches sustained partial degradation.
+
+  # ──────────────────────────────────────────────
+  # P2 — review next business day
+  # ──────────────────────────────────────────────
+  - id: P2-pii-redaction-spike
+    name: PII redaction count anomaly
+    severity: P2
+    query: 'breadcrumb.category:"pii.redaction" environment:production'
+    threshold:
+      sumField: breadcrumb.data.count
+      multiplier: 3
+      baseline: rolling-7d
+      window: 1h
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/security/THREAT_MODEL.md
+    relatedFinding: TM-I03
+    sourceFile: src/services/geminiBackend.ts:34-39
+    owner: ai
+    enabled: true
+
+  - id: P2-hmac-verify-error
+    name: SLM HMAC verify environment fault
+    severity: P2
+    query: 'breadcrumb.category:"slm.queue.hmac_verify_error" environment:production'
+    threshold:
+      count: 10
+      window: 1h
+    channels:
+      - slack-praeventio-ops
+    runbook: docs/security/STRIDE_findings.md
+    relatedFinding: TM-T03
+    sourceFile: src/services/slm/hmac.ts:282-287
+    owner: dev
+    enabled: true
+
+  - id: P2-analytics-queue-overflow
+    name: Analytics queue overflow warnings
+    severity: P2
+    query: 'breadcrumb.category:"analytics.queue" level:warning environment:production'
+    threshold:
+      count: 50
+      window: 1h
+    channels:
+      - slack-praeventio-ops
+    runbook: null
+    sourceFile: src/services/analytics/queue.ts:91-96
+    owner: tracking
+    enabled: true
+    notes: Open a tracking-bucket runbook stub when this fires for the first time.
+
+  # ──────────────────────────────────────────────
+  # P3 — ticket only
+  # ──────────────────────────────────────────────
+  - id: P3-organic-process-anomaly
+    name: Organic process state transition anomaly
+    severity: P3
+    query: 'breadcrumb.category:"organic.process" environment:production'
+    threshold:
+      count: 1000
+      window: 24h
+    channels:
+      - email
+    runbook: null
+    sourceFile: src/server/routes/organic.ts:242-247
+    owner: product
+    enabled: true
+
+  - id: P3-deprecated-cookie-breadcrumb
+    name: Deprecated cookie breadcrumb usage
+    severity: P3
+    query: 'breadcrumb.category:"cookie" level:error environment:production'
+    threshold:
+      count: 1
+      window: 7d
+    channels:
+      - email
+    runbook: null
+    owner: dev
+    enabled: true
+    notes: Tracking deprecation pre-CSP tightening (TM-I05).
+
+# ──────────────────────────────────────────────
+# Suppression policy (mirrored from SENTRY_ALERTS.md §4)
+# ──────────────────────────────────────────────
+suppression:
+  snoozeAfterFirstAlert: 1h
+  ackPauseRepetition: 4h
+  autoResolveIfSilent: 24h
+  burstWarRoomThreshold:
+    distinctAlerts: 3
+    window: 60s

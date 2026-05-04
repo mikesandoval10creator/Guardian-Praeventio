@@ -8,8 +8,10 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+// Sprint 20 tenth wave (Bucket Perf C — Fase 5): `html2canvas` (~37 KB
+// brotli) and `jspdf` (~101 KB brotli) are loaded on demand from
+// `handleDownloadPDF` instead of at module evaluation. Users that read
+// the predictive analysis but never export the PDF do not pay the cost.
 import { logger } from '../../utils/logger';
 
 export function PredictiveAnalysis() {
@@ -67,13 +69,20 @@ Contexto Ambiental: ${envContext}
     if (!reportRef.current) return;
     setDownloading(true);
     try {
+      // Lazy-load html2canvas + jspdf — both are ~140 KB brotli combined and
+      // are only needed when the user actually exports the PDF. The dynamic
+      // imports run in parallel; Vite emits dedicated chunks already.
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
       const canvas = await html2canvas(reportRef.current, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#18181b' // zinc-900
       });
-      
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
