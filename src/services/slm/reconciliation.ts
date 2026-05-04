@@ -19,7 +19,14 @@
  *
  * Behaviour contract:
  *   - Calls `listPending()` from the queue.
- *   - For each session, invokes `zettelkastenWriteFn` with a typed payload.
+ *   - For each session, verifies the HMAC tag attached at enqueue time
+ *     (TM-T03 mitigation, ninth wave). Tampered entries are DROPPED
+ *     (deleted from the queue) and a Sentry warning is emitted; they
+ *     never reach `zettelkastenWriteFn`. Legacy entries (pre-mitigation,
+ *     no `hmac` field) emit a `slm.queue.unsigned_legacy` breadcrumb
+ *     and pass through one last time — TODO Sprint 22: flip to drop.
+ *   - For each verified session, invokes `zettelkastenWriteFn` with a
+ *     typed payload.
  *   - On success → `markReconciled(id)` flips the row.
  *   - On failure → leaves the row pending; records the error in the
  *     returned `failures[]` array. The next invocation will retry that id.
@@ -30,11 +37,17 @@
  * all-or-nothing semantics for an offline-recovery flow.
  */
 
+import * as Sentry from '@sentry/core';
+
 import {
+  canonicalForHmac,
+  deleteSession,
   listPending,
   markReconciled,
   type QueuedSession,
 } from './offlineQueue';
+import { verifyPayload } from './hmac';
+import { withSentryScope } from '../observability/sentryInstrumentation';
 
 /**
  * Aggregate result of one reconciliation pass.
@@ -78,6 +91,32 @@ export interface ReconcileOptions {
 }
 
 /**
+ * Verify a queued session's HMAC tag. Returns one of three states:
+ *   - `'ok'`         — tag present and verified.
+ *   - `'legacy'`     — no `hmac` field (pre-mitigation entry).
+ *   - `'mismatch'`   — tag present but verification failed (tampered).
+ *
+ * Legacy entries are tolerated for one sprint horizon — see the file-
+ * level docstring's TM-T03 note. Tampered entries should be dropped
+ * by the caller and reported to Sentry.
+ */
+async function checkIntegrity(
+  session: QueuedSession,
+): Promise<'ok' | 'legacy' | 'mismatch'> {
+  if (typeof session.hmac !== 'string' || session.hmac.length === 0) {
+    return 'legacy';
+  }
+  const canonical = canonicalForHmac({
+    id: session.id,
+    query: session.query,
+    response: session.response,
+    createdAt: session.createdAt,
+  });
+  const ok = await verifyPayload(canonical, session.hmac);
+  return ok ? 'ok' : 'mismatch';
+}
+
+/**
  * Drain the offline queue into the Zettelkasten.
  *
  * Iterates pending sessions in chronological order (the order in which
@@ -85,8 +124,24 @@ export interface ReconcileOptions {
  * each. Successes are marked reconciled; failures are accumulated and
  * surfaced via the result so the caller can decide whether to retry,
  * back off, or escalate.
+ *
+ * Integrity (TM-T03):
+ *   - HMAC mismatch → entry deleted from queue, counted as `failed`,
+ *     `Sentry.captureMessage('slm.queue.hmac_mismatch', ...)` fired.
+ *   - Legacy entry (no `hmac`) → breadcrumb emitted and entry treated
+ *     as a normal write candidate. TODO Sprint 22: flip to drop.
  */
 export async function reconcileOfflineSessions(
+  opts: ReconcileOptions,
+): Promise<ReconciliationResult> {
+  return withSentryScope(
+    'zettelkasten',
+    { action: 'reconcile' },
+    async () => reconcileOfflineSessionsImpl(opts),
+  );
+}
+
+async function reconcileOfflineSessionsImpl(
   opts: ReconcileOptions,
 ): Promise<ReconciliationResult> {
   const pending = await listPending();
@@ -98,6 +153,50 @@ export async function reconcileOfflineSessions(
   };
 
   for (const session of pending) {
+    const integrity = await checkIntegrity(session);
+
+    if (integrity === 'mismatch') {
+      // Tampered entry. Drop it from the queue so subsequent passes
+      // don't re-alert on the same record, count it as failed, and
+      // surface a Sentry warning so a human operator can investigate.
+      try {
+        Sentry.captureMessage('slm.queue.hmac_mismatch', {
+          level: 'warning',
+          extra: { sessionId: session.id },
+        });
+      } catch {
+        /* observability faults must not mask the drop */
+      }
+      try {
+        await deleteSession(session.id);
+      } catch {
+        /* swallow — best-effort cleanup, the next pass will retry */
+      }
+      result.failed += 1;
+      result.failures.push({
+        sessionId: session.id,
+        error: 'hmac_mismatch: queue entry dropped',
+      });
+      continue;
+    }
+
+    if (integrity === 'legacy') {
+      // TODO(sprint-22): flip this branch to drop legacy entries once
+      // any pre-mitigation queues have been drained. For now we
+      // breadcrumb so an operator can monitor whether the legacy
+      // population goes to zero before we tighten the rule.
+      try {
+        Sentry.addBreadcrumb({
+          category: 'slm.queue.unsigned_legacy',
+          level: 'info',
+          message: 'reconciling pre-HMAC queue entry',
+          data: { sessionId: session.id },
+        });
+      } catch {
+        /* swallow */
+      }
+    }
+
     try {
       await opts.zettelkastenWriteFn({
         type: 'slm-session',
