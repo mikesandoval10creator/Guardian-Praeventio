@@ -144,8 +144,12 @@ export function EmergencyDashboard() {
             <button className="px-6 sm:px-8 py-3 sm:py-4 bg-white text-rose-600 rounded-xl sm:rounded-2xl font-black uppercase tracking-widest text-[10px] sm:text-xs shadow-xl hover:bg-rose-50 transition-all active:scale-95">
               Solicitar Apoyo Externo
             </button>
-            <button className="p-3 sm:p-4 bg-rose-700/50 border border-white/20 rounded-xl sm:rounded-2xl hover:bg-rose-700 transition-all flex items-center justify-center">
-              <Phone className="w-5 h-5 sm:w-6 sm:h-6" />
+            <button
+              type="button"
+              aria-label="Llamar a contacto de emergencia"
+              className="p-3 sm:p-4 bg-rose-700/50 border border-white/20 rounded-xl sm:rounded-2xl hover:bg-rose-700 transition-all flex items-center justify-center"
+            >
+              <Phone className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
             </button>
           </div>
         </div>

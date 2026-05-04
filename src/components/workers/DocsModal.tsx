@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, Plus, Download, Trash2, Loader2, FileCheck, AlertCircle, ShieldCheck, AlertOctagon } from 'lucide-react';
 import { ConfirmDialog } from '../shared/ConfirmDialog';
-import { db, collection, addDoc, onSnapshot, query, where, handleFirestoreError, OperationType, deleteDoc, doc, updateDoc } from '../../services/firebase';
+import { db, collection, addDoc, onSnapshot, query, where, limit, handleFirestoreError, OperationType, deleteDoc, doc, updateDoc } from '../../services/firebase';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { analyzeDocumentCompliance } from '../../services/geminiService';
 import { Worker, NodeType } from '../../types';
@@ -40,8 +40,12 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
     if (!worker || !isOpen) return;
 
     const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
-    // TODO Sprint 20+: agregar where('archived', '==', false) y limit(50) — listener actual sin filtros, scaling risk si un worker acumula >100 docs.
-    const q = query(collection(db, path));
+    // Note: doc creation must set archived=false for this listener to surface it.
+    const q = query(
+      collection(db, path),
+      where('archived', '==', false),
+      limit(50),
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({

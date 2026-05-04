@@ -11,6 +11,13 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 - **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
 - Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
+### Cuarta ola — 4 buckets (PR #31)
+
+- **Nu — Wire SLM al app real** (2 commits): `83e28fa` SLMProvider con `isOnline`/`pendingCount`/`activeModelId` + listeners `online`/`offline` + poll `listPending()` + custom event `gp-slm-enqueued` · `938bff0` SLMShellOverlay (banner global fixed top, mode-aware vía `useAppMode`) integrado en `AppProviders.tsx`. 4 nuevos tests passing.
+- **Xi — Orchestrator online path** (1 commit, commiteado por orchestrator principal por timeout): `085ab42` `callOnlineBackend` real a `/api/ask-guardian` con Firebase ID token (dynamic import seguro), latency client-side, fallback al SLM si falla. `'gemini'` agregado al `SLMBackend` union. Pendiente del bucket: `reconciliationRunner.ts` (deferido a próxima ola).
+- **Omicron — Listeners onSnapshot refactor real** (1 commit, Fase 7 cerrada): `d6e9100` 4 listeners ahora con filtros — DocsModal `where('archived','==',false).limit(50)`, EmergencyCheckIn `where('timestamp','>=',last24h).orderBy.limit(100)`, EmergenciaAvanzada `limit(50)`, ControlsAndMaterials `where('active','==',true).limit(200)` ambas queries. TODOs Sprint 20+ removidos, replaced con schema contract notes.
+- **Pi — Accessibility (Fase 6 parcial)** (4 commits, último commiteado por orchestrator): `d666eca` `@axe-core/playwright` devDep · `386db7d` `tests/e2e/accessibility.spec.ts` con axe analysis (gated `E2E_FULL_STACK`) · `4663ef5` aria-label en icon-only buttons en CrisisChat + EmergencyDashboard · `b135f27` skip link `<a href="#main-content">` + `<main id="main-content" tabIndex={-1}>` landmark en LandingPage (WCAG 2.4.1).
+
 ### Tercera ola — 4 buckets (PR #30)
 
 - **Iota — T-1.3 ONNX inference real** (1 commit): `c648877` — `slmWorker.ts` con `ort.InferenceSession` (WebGPU/WASM fallback), greedy decoding, two-layer fallback al stub determinístico si init/generate fallan. 27/27 tests SLM pass.

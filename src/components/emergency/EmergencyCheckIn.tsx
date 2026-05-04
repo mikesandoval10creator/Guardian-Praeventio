@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
-import { db, collection, query, onSnapshot, doc, setDoc, getDocs, writeBatch, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
+import { db, collection, query, where, orderBy, limit, onSnapshot, doc, setDoc, getDocs, writeBatch, serverTimestamp, handleFirestoreError, OperationType } from '../../services/firebase';
+import { Timestamp } from 'firebase/firestore';
 
 interface WorkerStatus {
   id: string;
@@ -40,10 +41,17 @@ export function EmergencyCheckIn() {
       }
     });
 
-    // Listen to check-ins
-    // TODO Sprint 20+: envolver en query() con where('timestamp', '>=', last24h) y orderBy/limit(100) — listener actual sin filtros, scaling risk si volumen crece.
-    const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
-    const unsubscribeCheckins = onSnapshot(checkinsRef, (snapshot) => {
+    // Listen to check-ins (last 24h, capped at 100)
+    // Note: doc creation must set timestamp=serverTimestamp() for this listener to surface it.
+    // TODO Firestore: composite index needed for emergency_checkins (timestamp DESC) — Firestore auto-creates this single-field index, no manual entry required.
+    const last24h = Date.now() - 24 * 60 * 60 * 1000;
+    const checkinsQuery = query(
+      collection(db, `projects/${selectedProject.id}/emergency_checkins`),
+      where('timestamp', '>=', Timestamp.fromDate(new Date(last24h))),
+      orderBy('timestamp', 'desc'),
+      limit(100),
+    );
+    const unsubscribeCheckins = onSnapshot(checkinsQuery, (snapshot) => {
       const newWorkers = snapshot.docs.map(doc => {
         const data = doc.data();
         let timeString = '';

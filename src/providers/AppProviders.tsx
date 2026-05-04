@@ -8,6 +8,8 @@ import { SensorProvider } from "../contexts/SensorContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { AppModeProvider } from "../contexts/AppModeContext";
 import { NormativeProvider } from "../contexts/NormativeContext";
+import { SLMProvider } from "../components/slm/SLMProvider";
+import { SLMShellOverlay } from "../components/slm/SLMShellOverlay";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -26,6 +28,12 @@ export function AppProviders({ children }: AppProvidersProps) {
   // provider in this chain consumes `useUniversalKnowledge()` upstream of
   // it — verified by `grep -r useUniversalKnowledge src/` against the
   // ancestor providers below.
+  //
+  // Sprint 20 — Bucket Nu: `SLMProvider` is mounted inside `AppModeProvider`
+  // because `<SLMShellOverlay>` consumes both contexts to pick the
+  // banner's visual mode. Position is innermost above `SensorProvider`
+  // so consumers of every other context (theme, project, etc.) can
+  // also reach the SLM state.
   return (
     <AppModeProvider>
     <ThemeProvider>
@@ -36,7 +44,10 @@ export function AppProviders({ children }: AppProvidersProps) {
             <NotificationProvider>
               <EmergencyProvider>
                 <SensorProvider>
-                  {children}
+                  <SLMProvider>
+                    <SLMShellOverlay />
+                    {children}
+                  </SLMProvider>
                 </SensorProvider>
               </EmergencyProvider>
             </NotificationProvider>

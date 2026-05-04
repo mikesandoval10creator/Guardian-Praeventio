@@ -164,8 +164,13 @@ export function DynamicEvacuationMap() {
                         <span key={i} className="px-2 py-1 bg-rose-500/10 border border-rose-500/20 rounded text-[9px] sm:text-[10px] font-bold text-rose-400 uppercase flex items-center gap-1">
                           {area}
                           {userBlockedAreas.includes(area) && (
-                            <button onClick={() => handleRemoveBlockedArea(area)} className="hover:text-rose-300 ml-1">
-                              <XCircle className="w-3 h-3" />
+                            <button
+                              type="button"
+                              aria-label={`Quitar área bloqueada ${area}`}
+                              onClick={() => handleRemoveBlockedArea(area)}
+                              className="hover:text-rose-300 ml-1"
+                            >
+                              <XCircle className="w-3 h-3" aria-hidden="true" />
                             </button>
                           )}
                         </span>
@@ -183,10 +188,11 @@ export function DynamicEvacuationMap() {
                     />
                     <button
                       type="submit"
+                      aria-label="Agregar área bloqueada"
                       disabled={!newBlockedArea.trim() || isCalculating}
                       className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </form>
                 </div>
