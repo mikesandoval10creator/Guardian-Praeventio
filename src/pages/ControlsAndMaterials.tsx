@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Wrench, AlertTriangle, CheckCircle2, Plus, Search, Filter, Box } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
-import { db, collection, onSnapshot, query, where, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, collection, onSnapshot, query, where, limit, handleFirestoreError, OperationType } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 
 interface Control {
@@ -36,9 +36,18 @@ export function ControlsAndMaterials() {
     const controlsPath = `projects/${selectedProject.id}/controls`;
     const materialsPath = `projects/${selectedProject.id}/materials`;
 
-    // TODO Sprint 20+: agregar where('active', '==', true) y limit(200) en ambos queries — listeners actuales sin filtros, scaling risk si controls/materials crecen >500 docs por proyecto.
-    const qControls = query(collection(db, controlsPath));
-    const qMaterials = query(collection(db, materialsPath));
+    // Note: doc creation must set active=true for these listeners to surface it.
+    // TODO Firestore: composite index needed for (active ASC) — Firestore auto-creates single-field indexes, no manual entry required.
+    const qControls = query(
+      collection(db, controlsPath),
+      where('active', '==', true),
+      limit(200),
+    );
+    const qMaterials = query(
+      collection(db, materialsPath),
+      where('active', '==', true),
+      limit(200),
+    );
 
     const unsubscribeControls = onSnapshot(qControls, (snapshot) => {
       setControls(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Control[]);
