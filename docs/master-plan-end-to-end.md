@@ -13,6 +13,7 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 3. [Brechas estratégicas pendientes](#brechas-estrategicas-pendientes)
 4. [Mapa de fases](#mapa-de-fases)
 5. [Fase 1 — Sprint 20 · SLM offline (Brecha B)](#fase-1)
+5b. [Fase 1b — Sprint 20 paralelo · Iconografía médica generada (nano-banana + BioRender ref)](#fase-1b)
 6. [Fase 2 — Sprint 21 · Observability + tracking real](#fase-2)
 7. [Fase 3 — Sprint 22 · Hardening de deployment + secrets + DR](#fase-3)
 8. [Fase 4 — Sprint 23 · Mobile native (Capacitor sync, builds, store readiness)](#fase-4)
@@ -122,16 +123,17 @@ Este master plan asume que el código base actual ya tiene disciplina arquitect�
 ## 4. Mapa de fases
 
 ```
-Sprint 20 ─→ Fase 1: SLM offline (Brecha B)                    [18h core]
-Sprint 21 ─→ Fase 2: Observability + tracking real             [22h]
-Sprint 22 ─→ Fase 3: Deploy hardening + secrets + DR           [24h]
-Sprint 23 ─→ Fase 4: Mobile native (Capacitor sync, builds)    [26h]
-Sprint 24 ─→ Fase 5: Billing prod (Transbank+MP IPN+Play+SII)  [28h]
-Sprint 25 ─→ Fase 6: Performance + a11y WCAG 2.2 + i18n        [22h]
-Sprint 26 ─→ Fase 7: onSnapshot rearq. + indexes + cost budget [16h]
-Sprint 27 ─→ Fase 8: Security hardening + Ley 19628 + pen-test [20h]
-Sprint 28 ─→ Fase 9: Brecha C + medical iconography PNG real   [24h]
-Sprint 29 ─→ Fase 10: Polish final + GA + post-launch playbook [16h]
+Sprint 20 ─→ Fase 1:  SLM offline (Brecha B)                    [18h core + 6h opc]
+Sprint 20 ─→ Fase 1b: Iconografía médica nano-banana+BioRender  [4h paralelo a Fase 1]
+Sprint 21 ─→ Fase 2:  Observability + tracking real             [22h]
+Sprint 22 ─→ Fase 3:  Deploy hardening + secrets + DR           [24h]
+Sprint 23 ─→ Fase 4:  Mobile native (Capacitor sync, builds)    [26h]
+Sprint 24 ─→ Fase 5:  Billing prod (Transbank+MP IPN+Play+SII)  [28h]
+Sprint 25 ─→ Fase 6:  Performance + a11y WCAG 2.2 + i18n        [22h]
+Sprint 26 ─→ Fase 7:  onSnapshot rearq. + indexes + cost budget [16h]
+Sprint 27 ─→ Fase 8:  Security hardening + Ley 19628 + pen-test [20h]
+Sprint 28 ─→ Fase 9:  Brecha C (fotogrametría) + curation extra [20h - 4h movidos a 1b]
+Sprint 29 ─→ Fase 10: Polish final + GA + post-launch playbook  [16h]
                                                   TOTAL ≈ 216h
 ```
 
@@ -198,6 +200,57 @@ Cada fase es 1 sprint. Una fase puede tener sub-épicos paralelos. El orden est�
 1. Quota IndexedDB en mobile Capacitor (mitigación: `navigator.storage.estimate()` + persisted storage).
 2. WebGPU no en algunas WebView Capacitor 8 (mitigación: detect runtime + fallback WASM SIMD).
 3. Hallucinations en safety contexts (mitigación: SLM nunca toca decisiones binarias safety, system prompt con disclaimer "verificar con supervisor", test corpus 50 prompts safety).
+
+---
+
+<a name="fase-1b"></a>
+## 5b. Fase 1b — Sprint 20 paralelo · Iconografía médica generada (nano-banana + BioRender ref)
+
+**Objetivo**: cerrar el ciclo del Sprint 17c reemplazando los 33 placeholders SVG en `public/icons/biology/` por bocetos médicos originales generados con Gemini 2.5 Flash Image (alias Nano Banana), enriqueciendo cada prompt con la nomenclatura canónica que entrega BioRender via MCP — **sin copiar assets de BioRender, license-safe**.
+
+**Por qué paralelo a Fase 1**: el usuario solicitó explícitamente que la generación de imágenes "esté hecha" desde el inicio del nuevo ciclo. El SLM offline (Fase 1a) y la iconografía médica (Fase 1b) tocan namespaces disjuntos (`src/services/slm/` vs `scripts/` + `public/icons/biology/`), así que se ejecutan en paralelo sin coordinación de archivos. Ambos cierran en el mismo Sprint 20.
+
+**Estimación**: 4h (movido de Fase 9, donde quedaba como tail T-9.7..T-9.9).
+
+**Archivos a tocar/crear**:
+
+- `scripts/generate-medical-icons.mjs` (MODIFY) — pre-pasada de búsqueda BioRender via MCP `mcp__49cafb66-...__search-icons` con array de los 33 conceptos (`stethoscope`, `brain`, `lung-pair`, etc.). Por cada hit top-1, extraer `description` (referencia anatómica conceptual) y concatenar al prompt del manifest como "anatomical reference notes — use ONLY as conceptual guidance, generate ORIGINAL artwork". El asset de BioRender NUNCA se descarga.
+- `scripts/biorender-references.json` (CREATE) — cache del mapping concepto → descripciones canónicas BioRender, así no consultamos la API en cada `--force` regen.
+- `public/icons/biology/*.png` (33 archivos GENERADOS) — reemplazan los SVG placeholders. Resolución 512×512 (transparente), paleta brand teal+petroleum+gold.
+- `src/services/medical/iconLibrary.ts` (MODIFY) — agregar campo `format: 'svg' | 'png'` y migrar `publicPath` de los 33 entries a `.png`. Mantener la API pública sin cambios.
+- `src/components/medical/MedicalIcon.tsx` (MODIFY) — render `<img src={path}>` cuando format `png`, fallback graceful preservado (si la imagen no carga, render del placeholder anterior con `currentColor` stroke).
+- `src/services/medical/iconLibrary.test.ts` (MODIFY) — agregar caso "publicPath apunta a `.png` para los 33 entries de Bioicons primary".
+- `docs/architecture-decisions/0004-nano-banana-with-biorender-refs.md` (CREATE) — ADR documentando el flow license-safe: BioRender como referencia conceptual (nomenclatura, descripciones), nano-banana genera assets originales en estilo brand-aligned, sin copia de assets premium.
+
+**Tareas concretas**:
+
+- [ ] T-1b.1 — (30min) Modificar `generate-medical-icons.mjs`: agregar opción `--enrich-with-bioicons` que activa la pre-pasada. Implementar batch search via MCP (1 call con array de 33 queries) y guardar `scripts/biorender-references.json`. Skill: `simplify`. MCP: `mcp__49cafb66-...__search-icons`.
+- [ ] T-1b.2 — (30min) Concatenar descripciones BioRender al `STYLE_PREFIX + ICON_MANIFEST[i].prompt` con prefijo "Anatomical reference (conceptual only — generate ORIGINAL artwork): {desc}". Skill: `simplify`.
+- [ ] T-1b.3 — (1.5h) Ejecutar el script con `GEMINI_API_KEY` exportada en env del usuario. 33 imágenes × ~$0.039 = ~$1.30 total. Spaced 2s entre llamadas para evitar rate limit free tier. Validar visualmente uno por uno (rejection y `--force --name X` para regenerar). Skill: `superpowers:verification-before-completion`.
+- [ ] T-1b.4 — (45min) Modificar `iconLibrary.ts` agregando `format` field y migrando `publicPath`. Modificar `MedicalIcon.tsx` para render PNG con fallback. Tests RTL: `iconLibrary.test.ts` actualizado, `MedicalIcon.test.tsx` cubre PNG render. Skill: `superpowers:test-driven-development`.
+- [ ] T-1b.5 — (15min) Smoke test visual con Playwright MCP: navegar a 3 módulos médicos (HumanBodyViewer, AnatomyLibrary, MedicalAnalyzer), tomar screenshots y validar no-regresión. Skill: `frontend-design:frontend-design`. MCP: `mcp__plugin_playwright_playwright__browser_take_screenshot`.
+- [ ] T-1b.6 — (30min) ADR-0004 commit con razonamiento license-safe: por qué BioRender ref está OK (descripciones públicas vía API search), por qué nano-banana genera originales (estilo brand-aligned, no copia), trazabilidad para auditoría futura. Skill: `superpowers:writing-plans`.
+
+**Criterio de éxito**:
+
+- 33 PNG generados, sin watermarks, sin texto, sin logos copyrighted, paleta brand verificable.
+- `scripts/biorender-references.json` commiteado (cache de descripciones, no assets).
+- `npm run build` sin warnings nuevos de tamaño.
+- 11 módulos médicos renderizan los nuevos bocetos sin regresión visual (Playwright snapshots OK).
+- ADR-0004 commiteado con razonamiento license-aware.
+- `iconLibrary.test.ts` y `MedicalIcon.test.tsx` verdes con cobertura PNG.
+
+**Dependencies**: requiere `GEMINI_API_KEY` válida en env del usuario. La key compartida en sesión sigue válida; el script la lee de `process.env`. El BioRender MCP debe estar conectado (ya validado en Sprint 19 cuando hicimos el batch search exploratorio sobre 5 conceptos médicos).
+
+**Riesgos**: 
+
+1. Gemini Image puede generar imágenes con artefactos (mitigación: flag `--force --name X` para regenerar individuales).
+2. Rate limit Free Tier (mitigación: ejecución spaced 2s + manejo de 429 con backoff).
+3. BioRender API search no devuelve hits para algún concepto exotic (mitigación: el script igual genera con prompt estándar; el enrichment es opcional por icono).
+
+**TDD entry point**: `iconLibrary.test.ts` agregar test que asserta `MEDICAL_ICONS.every(i => i.publicPath.endsWith('.png'))` para Bioicons primary (excepto los CC-BY que pueden seguir siendo SVG si los hay).
+
+**Nota**: en Fase 9 (Sprint 28) original quedaban T-9.7..T-9.9 con esta misma generación. Esos items están MOVIDOS a esta Fase 1b — Fase 9 ahora cubre solo fotogrametría + curation real opcional de Bioicons CC-BY restantes si los hay.
 
 **TDD entry point**: `src/services/slm/registry.test.ts` con `it('exposes 3 model entries with valid HuggingFace Hub URLs')` falla porque `registry.ts` no existe → crear tipos + registry → pasa.
 
@@ -670,9 +723,9 @@ Cada fase es 1 sprint. Una fase puede tener sub-épicos paralelos. El orden est�
 - [ ] T-9.4 — (2h) `Site25DPanel.tsx` agregar tab "Mesh". Render según availability del scan. Skill: `frontend-design`.
 - [ ] T-9.5 — (3h) `PhotoScan.tsx` UI: instrucciones spiral pattern, gate cámara via Capacitor, upload progress, status polling cada 30s. Skill: `frontend-design` + TDD.
 - [ ] T-9.6 — (2h) ADR-0005: justificación NodeODM AGPL backend-only OK (no se distribuye al cliente), alternativas evaluadas (Reality Capture API, PostShot Gaussian Splatting), decisión final.
-- [ ] T-9.7 — (3h) Generar 33 PNG iconos médicos: ejecutar `scripts/generate-medical-icons.mjs` con `GEMINI_API_KEY` en sandbox de Daho. Validar visualmente uno por uno. Costo estimado: ~$1.30. Skill: `verification-before-completion`.
-- [ ] T-9.8 — (2h) Modificar `iconLibrary.ts` y `MedicalIcon.tsx` para soportar PNG. Tests RTL. Skill: TDD.
-- [ ] T-9.9 — (2h) (Opcional) Enriquecer `generate-medical-icons.mjs` con MCP `mcp__49cafb66-...__search-icons` que busca nomenclatura Bioicons antes de prompt Nano Banana. Pre-pasada de búsqueda solo lee nombre canónico (no copia asset). Skill: `code-review`.
+- [ ] T-9.7 — **MOVIDO a Fase 1b (Sprint 20 paralelo)** — generación 33 PNG médicos con nano-banana + BioRender ref ya cubierta antes de llegar a este sprint. Si quedan iconos CC-BY pendientes de curation visual (3 modos: outline + filled + accent), reservar 2h aquí.
+- [ ] T-9.8 — **MOVIDO a Fase 1b** — soporte PNG en iconLibrary + MedicalIcon ya wireado al inicio del master plan.
+- [ ] T-9.9 — **MOVIDO a Fase 1b** — enrichment BioRender vía MCP ya integrado al script desde el primer sprint.
 
 **Criterio de éxito**:
 
