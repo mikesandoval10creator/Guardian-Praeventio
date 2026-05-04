@@ -110,6 +110,22 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
         const j = await res.json().catch(() => ({}));
         setError(j?.error ?? `Error ${res.status}`);
       } else {
+        // 13th wave analytics: a `paused` transition is the canonical
+        // tarea/proceso escalation signal — the worker can't progress
+        // and is asking for supervisor attention. The `resume` path is
+        // de-escalation and is intentionally NOT instrumented here. The
+        // close path is wired separately under `tarea.completed`.
+        if (next === 'paused') {
+          try {
+            analytics.track('tarea.escalated', {
+              tarea_id: process.id,
+              proceso_id: process.id,
+              escalation_kind: 'pause',
+              from_status: process.status,
+              to_status: 'paused',
+            });
+          } catch { /* analytics must never break user flow */ }
+        }
         onStatusChanged?.({ ...process, status: next });
       }
     } catch (err: any) {

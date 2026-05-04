@@ -21,7 +21,28 @@ import { auth } from '../../firebase';
 import { saveForSync } from '../../../utils/pwa-offline';
 import { logger } from '../../../utils/logger';
 import { withSentryScope } from '../../observability/sentryInstrumentation';
+import { analytics } from '../../analytics';
+import type { ZkNodeKind } from '../../analytics';
 import type { RiskNodePayload } from '../types';
+
+// 13th wave analytics: domain `RiskNodePayload.type` strings → analytics
+// `ZkNodeKind` enum. Anything not mapped falls to `'other'` so a new
+// generator type doesn't drop the event.
+function toZkNodeKind(rawType: unknown): ZkNodeKind {
+  const t = String(rawType ?? '').toLowerCase();
+  if (t.includes('risk') || t === 'riesgo') return 'risk';
+  if (t.includes('finding') || t === 'hallazgo') return 'finding';
+  if (t.includes('incident')) return 'incident';
+  if (t.includes('control')) return 'control';
+  if (t.includes('normative') || t === 'norma') return 'normative';
+  if (t.includes('task') || t === 'tarea') return 'task';
+  if (t.includes('worker') || t === 'trabajador') return 'worker';
+  if (t.includes('project') || t === 'proyecto') return 'project';
+  if (t.includes('audit')) return 'audit';
+  if (t.includes('epp')) return 'epp';
+  if (t.includes('asset') || t === 'activo') return 'asset';
+  return 'other';
+}
 
 export interface WriteContext {
   projectId: string;
@@ -159,6 +180,20 @@ async function writeNodesImpl(
         logger.error('zettelkasten_write_http_error', { status: res.status, text });
         return { ok: false, status: res.status, error: text };
       }
+      // 13th wave analytics: emit `knowledge.zk.node.created` per node only
+      // on the success path (online + 2xx). Offline / queued writes do NOT
+      // fire here — the catalog defines this as "post-reconciliation"; a
+      // future enhancement can fire from the sync worker once a queued
+      // write lands on Firestore. Fire-and-forget; never block the POST.
+      try {
+        for (let i = 0; i < enriched.length; i += 1) {
+          const node = enriched[i];
+          void analytics.track('knowledge.zk.node.created', {
+            zk_node_id: ids[i],
+            zk_node_kind: toZkNodeKind(node.type),
+          });
+        }
+      } catch { /* analytics must never break user flow */ }
       return { ok: true, ids };
     } catch (err) {
       // Red caída entre el check `navigator.onLine` y el fetch. Encolamos.

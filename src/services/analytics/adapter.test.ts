@@ -422,6 +422,81 @@ describe('AnalyticsAdapter (adapter.ts)', () => {
     expect(sink.calls[0].name).toBe('slm.queue.reconciled');
   });
 
+  it('13th wave: auth.role.granted/revoked narrow `role` to the Role enum', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('auth.role.granted', {
+      role: 'supervisor',
+      granted_by_user_id_hash: 'hash_admin_1',
+    });
+    await adapter.track('auth.role.revoked', {
+      role: 'worker',
+      revoked_by_user_id_hash: 'hash_admin_1',
+      revocation_reason: 'role_change',
+    });
+
+    // Bad role literal must fail to compile.
+    await adapter.track('auth.role.granted', {
+      // @ts-expect-error — 'wizard' not in Role enum
+      role: 'wizard',
+      granted_by_user_id_hash: 'hash_admin_1',
+    });
+
+    expect(sink.calls).toHaveLength(3);
+    expect(sink.calls[0].name).toBe('auth.role.granted');
+    expect(sink.calls[1].name).toBe('auth.role.revoked');
+  });
+
+  it('13th wave: knowledge.zk.* + tarea.escalated narrow required props', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('knowledge.zk.node.created', {
+      zk_node_id: 'zk_abc123',
+      zk_node_kind: 'risk',
+    });
+    await adapter.track('knowledge.zk.link.traversed', {
+      zk_node_id_from: 'zk_a',
+      zk_node_id_to: 'zk_b',
+      link_kind: 'backlink',
+    });
+    await adapter.track('tarea.escalated', {
+      tarea_id: 'p1',
+      proceso_id: 'p1',
+      escalation_kind: 'pause',
+      from_status: 'active',
+      to_status: 'paused',
+    });
+
+    // Bad zk_node_kind literal must fail to compile.
+    await adapter.track('knowledge.zk.node.created', {
+      zk_node_id: 'zk_abc123',
+      // @ts-expect-error — 'gossip' not in ZkNodeKind enum
+      zk_node_kind: 'gossip',
+    });
+
+    // Missing required `escalation_kind` must fail to compile.
+    // @ts-expect-error — required prop `escalation_kind` missing
+    await adapter.track('tarea.escalated', {
+      tarea_id: 'p1',
+      proceso_id: 'p1',
+    });
+
+    expect(sink.calls.length).toBeGreaterThanOrEqual(3);
+    expect(sink.calls[0].name).toBe('knowledge.zk.node.created');
+  });
+
   it('flush() with empty queue resolves quickly without invoking sinks', async () => {
     const sink = makeMockSink();
     const queue = makeMockQueue();

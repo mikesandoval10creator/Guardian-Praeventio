@@ -34,7 +34,7 @@ The policy ships in two places:
 | Directive | Value | Rationale |
 |---|---|---|
 | `default-src` | `'self'` | Deny by default; everything else opts in. |
-| `script-src` | `'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com` | `'unsafe-inline'` required for Vite + React inline bootstrap (see Caveats). gstatic/apis hosts the Firebase JS SDK. The legacy `*.firebaseio.com` token was removed in Sprint 20 12th wave Bucket A — Firebase JS is served from `gstatic`, never from `firebaseio`. |
+| `script-src` | `'self' 'nonce-<per-request>' 'strict-dynamic' https://www.gstatic.com https://apis.google.com` | `'unsafe-inline'` was REMOVED in Sprint 20 13th wave Bucket C and replaced with a per-request 128-bit base64 nonce + `'strict-dynamic'`. `gstatic`/`apis.google` are kept as a fallback host allowlist for browsers that ignore `strict-dynamic` (see "Nonce strategy" below). The legacy `*.firebaseio.com` token was removed in Sprint 20 12th wave Bucket A — Firebase JS is served from `gstatic`, never from `firebaseio`. |
 | `style-src` | `'self' 'unsafe-inline' https://fonts.googleapis.com` | Tailwind injects styles at runtime; Google Fonts CSS imports the Inter family declared in `index.html`. |
 | `font-src` | `'self' https://fonts.gstatic.com data:` | Google Fonts files; `data:` allows inlined fallbacks. |
 | `img-src` | `'self' data: blob: https:` | Avatars, IPER photos (blob URLs from camera), generic `https:` for thumbnails — broad but read-only. |
@@ -76,17 +76,58 @@ The policy ships in two places:
 | `Permissions-Policy` | `camera=(self), microphone=(self), geolocation=(self), accelerometer=(self), gyroscope=(self)` | Self-only. The app legitimately uses each: SOSButton (mic+geo), fall detection (accelerometer/gyroscope), IPER photos (camera), commute tracking (geo). |
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains; preload` | HTTPS only — gated on `req.secure` OR `X-Forwarded-Proto: https` (Cloud Run). Skipped on plain HTTP so local dev does not pin browsers to HTTPS. |
 
-## Known caveats
+## Nonce strategy (Sprint 20 13th wave Bucket C)
 
-### `'unsafe-inline'` in `script-src`
+`'unsafe-inline'` is **gone** from `script-src`. Inline scripts now require
+a per-request base64 nonce that matches the `'nonce-<value>'` token in the
+CSP header. The flow:
 
-Vite + React's runtime bootstrap injects an inline script tag for module
-preload polyfilling. Removing `'unsafe-inline'` requires emitting a per-
-response nonce and threading it through to `index.html`. Tracker: **Sprint 22+**
-(see TODO.md). Until that lands, `'unsafe-inline'` stays.
+1. `securityHeaders` middleware (`src/server/middleware/securityHeaders.ts`)
+   calls `randomBytes(16).toString('base64')` and assigns the value to
+   `res.locals.cspNonce` on every request.
+2. The same value is embedded into `script-src` as `'nonce-<value>'`.
+3. The production SPA fallback in `server.ts` reads the cached
+   `dist/index.html` template and replaces every `__CSP_NONCE__` placeholder
+   with `res.locals.cspNonce` before sending the response.
+4. `index.html` template carries `nonce="__CSP_NONCE__"` on its inline
+   `<script>` tags. The browser sees `nonce="<base64>"` and matches it
+   against the CSP `script-src 'nonce-<base64>'` token.
 
-The mitigation today: every other directive is tight, the SPA does not accept
-unsanitized user HTML, and React auto-escapes JSX interpolations.
+### Why `'strict-dynamic'`
+
+The Vite production build emits one external entry script
+(`<script type="module" src="/assets/index-XXX.js">`) which lazily
+imports child chunks at runtime. With `'strict-dynamic'`, a script that
+the browser already trusts (because it bears a valid nonce or is
+same-origin via `'self'`) is allowed to load further scripts WITHOUT
+each child needing its own nonce. Without `'strict-dynamic'` the lazy
+chunks would all need explicit allowlisting.
+
+`'strict-dynamic'` is honoured by Chrome 52+, Firefox 52+, and Safari
+15.4+. Older browsers ignore it and fall back to the explicit host
+allowlist (`gstatic`, `apis.google`) plus `'self'` — that's why we keep
+those entries even though modern browsers no longer consult them.
+
+### How to add a new inline script
+
+1. Add the script to a server-rendered HTML template (today: `index.html`).
+2. Include `nonce="__CSP_NONCE__"` as an attribute. The middleware will
+   substitute the per-request nonce at serve time.
+3. Verify by running `curl -I http://localhost:3000/` and confirming the
+   `Content-Security-Policy` header contains `'nonce-<value>'` matching
+   the `nonce` attribute on the served HTML.
+
+### Dev-mode caveat
+
+In development (`npm run dev`), Vite's middleware-mode server serves
+`index.html` directly (HMR injection, no string-replace pass). The literal
+`__CSP_NONCE__` string therefore appears in the dev HTML's nonce attribute,
+which would not match any nonce in the CSP header. Inline scripts in dev
+rely on the same strict-dynamic / 'self' rules production uses, and the
+literal placeholder will simply be treated as an invalid nonce. Dev does
+not depend on inline scripts to function (the only inline-attributed tag
+is the entry module which loads from `/src/main.tsx`, satisfied by
+`'self'`), so this mismatch is invisible to the developer.
 
 ### `https:` blanket on `img-src`
 

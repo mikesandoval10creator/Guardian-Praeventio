@@ -178,45 +178,24 @@ const PORT = 3000;
 // Round 16 R5 Phase 1 split.
 
 // Security Middleware
-// CSP directives shared by prod (enforce) and dev (report-only). Reasonable for a
-// Vite + Firebase + Google APIs SPA: 'unsafe-inline' for styles is required by
-// Tailwind's runtime injection; img/media allow blob: + data: for previews.
-const cspDirectives = {
-  defaultSrc: ["'self'"],
-  // 'blob:' required for MediaPipe WASM workers (tasks-vision loads its
-  // worker scripts from Blob URLs at runtime in production).
-  scriptSrc: ["'self'", "blob:", "https://*.googleapis.com", "https://apis.google.com"],
-  styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-  fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-  imgSrc: ["'self'", "blob:", "data:", "https://*.googleapis.com", "https://*.gstatic.com"],
-  mediaSrc: ["'self'", "blob:", "data:"],
-  connectSrc: [
-    "'self'",
-    "https://*.googleapis.com",
-    "https://*.firebaseio.com",
-    "https://*.cloudfunctions.net",
-    "wss://*.firebaseio.com"
-  ],
-  frameSrc: ["'self'", "https://*.firebaseapp.com", "https://accounts.google.com"],
-  objectSrc: ["'none'"],
-  baseUri: ["'self'"],
-} as const;
-
+//
 // Sprint 20 eleventh wave Bucket D — `securityHeaders` runs BEFORE helmet so
 // our CSP/X-Frame-Options/Permissions-Policy/HSTS directives win for the
 // headers we explicitly set. Helmet still provides the headers we don't
 // override (X-DNS-Prefetch-Control, X-Permitted-Cross-Domain-Policies,
 // Origin-Agent-Cluster, etc.). Mounted ABOVE auth/routes so 404s and
-// unauthenticated error paths still carry the headers. The legacy helmet
-// CSP block below is kept in report-only/dev mode as a fallback layer; the
-// canonical CSP source of truth is now docs/security/csp-policy.md +
-// src/server/middleware/securityHeaders.ts.
+// unauthenticated error paths still carry the headers.
+//
+// Sprint 20 13th wave Bucket C — helmet's `contentSecurityPolicy` is now
+// DISABLED. Reason: helmet's CSP overwrote our per-request nonce-bearing
+// header with a static directive set every response, defeating the nonce
+// migration. The canonical CSP source of truth is now exclusively
+// `src/server/middleware/securityHeaders.ts` (per `docs/security/csp-policy.md`).
+// Helmet still runs for its other defaults; only the CSP plugin is off.
 app.use(securityHeaders);
 
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production'
-    ? { directives: cspDirectives as any }
-    : { reportOnly: true, directives: cspDirectives as any },
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
 
@@ -440,10 +419,37 @@ if (process.env.NODE_ENV !== "production") {
   });
   app.use(vite.middlewares);
 } else {
+  // Sprint 20 13th wave Bucket C — production index.html is read once at
+  // boot and cached; per-request work is just swapping the __CSP_NONCE__
+  // placeholder for the nonce that securityHeaders middleware put in
+  // res.locals.cspNonce. Re-reading the file every request would be a
+  // perf cliff for a high-traffic root route. If the file is missing
+  // (broken build), fall through to a 503 rather than serving the
+  // template literal placeholder to a real browser.
   const distPath = path.join(process.cwd(), 'dist');
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { index: false }));
+
+  let INDEX_HTML_TEMPLATE: string | null = null;
+  try {
+    INDEX_HTML_TEMPLATE = fs.readFileSync(
+      path.join(distPath, 'index.html'),
+      'utf8',
+    );
+  } catch (err) {
+    console.warn('[boot] dist/index.html not readable; SPA fallback will 503:', err);
+  }
+
   app.get('*', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
+    if (!INDEX_HTML_TEMPLATE) {
+      return res.status(503).type('text/plain').send('SPA bundle missing');
+    }
+    const nonce = (res.locals.cspNonce as string | undefined) ?? '';
+    // Global replace: even though there's only one __CSP_NONCE__ hit
+    // today, future template additions can include the placeholder
+    // anywhere and still get substituted in a single pass.
+    const html = INDEX_HTML_TEMPLATE.replace(/__CSP_NONCE__/g, nonce);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
   });
 }
 

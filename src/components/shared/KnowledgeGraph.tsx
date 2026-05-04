@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import { analyzeRootCauses } from '../../services/geminiService';
 import { QRCodeSVG } from 'qrcode.react';
 import { logger } from '../../utils/logger';
+import { analytics } from '../../services/analytics';
 
 // Sprint 20 Fase 5 anticipada (Bucket Eta): `react-force-graph-3d` is the
 // single biggest chunk dependency in this component (~250 KB brotli, plus
@@ -701,7 +702,20 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
                             <li key={bl.id}>
                               <button
                                 type="button"
-                                onClick={() => handleNodeClick(bl)}
+                                onClick={() => {
+                                  // 13th wave analytics: a backlink click IS a
+                                  // ZK link traversal between two nodes. Fire
+                                  // first so a slow handler never drops the
+                                  // event; the actual pivot follows.
+                                  try {
+                                    void analytics.track('knowledge.zk.link.traversed', {
+                                      zk_node_id_from: selectedNode.id,
+                                      zk_node_id_to: bl.id,
+                                      link_kind: 'backlink',
+                                    });
+                                  } catch { /* analytics must never break user flow */ }
+                                  handleNodeClick(bl);
+                                }}
                                 className="w-full flex items-center gap-2 px-2.5 py-2 bg-zinc-50 dark:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/10 rounded-lg sm:rounded-xl transition-colors text-left"
                               >
                                 <span

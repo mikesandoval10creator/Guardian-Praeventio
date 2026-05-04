@@ -234,14 +234,17 @@ export function CrisisChat() {
             </button>
             <AnimatePresence>
               {activeDropdown === 'menu' && (
-                <motion.div 
+                <motion.div
+                  role="menu"
+                  aria-label="Acciones del canal de crisis"
                   initial={{ opacity: 0, scale: 0.95, y: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: -10 }}
                   transition={{ duration: 0.15 }}
                   className="absolute right-0 mt-1 w-40 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-xl shadow-xl z-20 overflow-hidden"
                 >
-                  <button 
+                  <button
+                    role="menuitem"
                     onClick={(e) => {
                       e.stopPropagation();
                       // Handle mute
@@ -251,7 +254,8 @@ export function CrisisChat() {
                   >
                     Silenciar
                   </button>
-                  <button 
+                  <button
+                    role="menuitem"
                     onClick={(e) => {
                       e.stopPropagation();
                       // Handle close

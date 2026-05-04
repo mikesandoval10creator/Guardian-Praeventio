@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, FileText, Loader2 } from 'lucide-react';
@@ -30,6 +30,30 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isOnline = useOnlineStatus();
   const { toasts, show: showToast, dismiss } = useToast();
+
+  // A11Y-013 (13th wave): Esc-to-close + focus return on close. Focus
+  // trap deferred — would require `focus-trap-react` and the bucket
+  // forbids new deps. Stores the previously focused element when the
+  // modal opens and restores it on close so keyboard users land back on
+  // the trigger button (matches WAI-ARIA dialog pattern).
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      // Restore focus to the trigger that opened the modal so SR users
+      // are not stranded at <body>.
+      previouslyFocusedRef.current?.focus?.();
+    };
+  }, [isOpen, onClose]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -151,23 +175,28 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-doc-modal-title"
             className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-emerald-500/30 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl shadow-emerald-500/10 flex flex-col max-h-[90vh]"
           >
             <div className="p-6 border-b border-zinc-200 dark:border-white/5 flex items-center justify-between bg-emerald-50 dark:bg-gradient-to-r dark:from-emerald-500/10 dark:to-transparent shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-500 shrink-0">
-                  <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('documents.modal_add_title', 'Subir Documento')}</h2>
+                  <h2 id="add-doc-modal-title" className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('documents.modal_add_title', 'Subir Documento')}</h2>
                   <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">{t('documents.modal_add_subtitle', 'Añade un nuevo archivo al repositorio')}</p>
                 </div>
               </div>
-              <button 
+              <button
+                type="button"
                 onClick={onClose}
+                aria-label={t('documents.btn_cancel', 'Cancelar')}
                 className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white shrink-0"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
 

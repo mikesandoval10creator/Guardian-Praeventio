@@ -25,6 +25,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isValidRole, isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
+import * as Sentry from '@sentry/node';
 
 // Firebase Auth uid format constraint shared by privileged admin endpoints.
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
@@ -66,6 +67,27 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
+
+    // 13th wave analytics: `auth.role.revoked` — server-side seam. We emit
+    // a Sentry breadcrumb with the catalog-shaped payload because the
+    // browser-only `analytics` adapter (IndexedDB queue + localStorage
+    // opt-out + navigator) cannot run here. A future Node-compat shim can
+    // swap the breadcrumb for a real adapter without touching this site.
+    try {
+      Sentry.addBreadcrumb({
+        category: 'analytics.server.auth.role.revoked',
+        level: 'info',
+        message: 'auth.role.revoked',
+        data: {
+          // Targets are uid prefixes only; pre-hashing happens client-side.
+          revoked_by_user_id_hash: callerUid,
+          // We don't know the prior role here without a re-read; emit
+          // unknown so dashboards can still bucket by event count.
+          role: 'unknown',
+          revocation_reason: 'admin_action',
+        },
+      });
+    } catch { /* analytics must never break user flow */ }
 
     res.json({ success: true, message: `Access revoked for user ${targetUid}` });
   } catch (error) {
@@ -120,6 +142,35 @@ router.post('/set-role', verifyAuth, async (req, res) => {
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
+
+    // 13th wave analytics: `auth.role.granted` (or implicit revoke if the
+    // role changed). Server-side seam — Sentry breadcrumb because the
+    // client analytics adapter is browser-only. Emits granted always; if
+    // there was an oldRole we ALSO emit revoked for the prior role so
+    // dashboards see the full transition.
+    try {
+      Sentry.addBreadcrumb({
+        category: 'analytics.server.auth.role.granted',
+        level: 'info',
+        message: 'auth.role.granted',
+        data: {
+          role,
+          granted_by_user_id_hash: callerUid,
+        },
+      });
+      if (oldRole && oldRole !== role) {
+        Sentry.addBreadcrumb({
+          category: 'analytics.server.auth.role.revoked',
+          level: 'info',
+          message: 'auth.role.revoked',
+          data: {
+            role: oldRole,
+            revoked_by_user_id_hash: callerUid,
+            revocation_reason: 'role_change',
+          },
+        });
+      }
+    } catch { /* analytics must never break user flow */ }
 
     res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {

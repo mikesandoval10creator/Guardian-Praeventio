@@ -1,16 +1,45 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import {defineConfig, loadEnv, type Plugin} from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import viteCompression from 'vite-plugin-compression';
+
+/*
+ * Sprint 20 13th wave Bucket C — CSP nonce placeholder injection.
+ *
+ * Vite transforms the source `<script type="module" src="/src/main.tsx">`
+ * into the final `<script type="module" crossorigin src="/assets/index-XXX.js">`
+ * during the build, REPLACING the original tag. Any `nonce` attribute on the
+ * source tag is therefore lost — Vite owns the emit. This plugin runs after
+ * Vite emits its scripts and stamps `nonce="__CSP_NONCE__"` onto every
+ * `<script>` tag in the output HTML so the Express middleware's per-request
+ * substitution finds them. Idempotent: tags that already carry a nonce are
+ * left alone.
+ */
+function cspNoncePlaceholder(): Plugin {
+  return {
+    name: 'csp-nonce-placeholder',
+    enforce: 'post',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html: string): string {
+        return html.replace(
+          /<script(?![^>]*\snonce=)([^>]*)>/g,
+          '<script$1 nonce="__CSP_NONCE__">',
+        );
+      },
+    },
+  };
+}
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [
-      react(), 
+      react(),
       tailwindcss(),
+      cspNoncePlaceholder(),
       viteCompression({
         algorithm: 'brotliCompress',
         ext: '.br',

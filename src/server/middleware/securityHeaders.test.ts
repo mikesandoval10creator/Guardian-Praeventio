@@ -3,8 +3,9 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   securityHeaders,
   __buildCspStringForTests,
+  __generateNonceForTests,
   __connectSrcOriginsForTests,
-  __scriptSrcOriginsForTests,
+  __scriptSrcFallbackOriginsForTests,
 } from './securityHeaders.js';
 
 // Build a mock req/res/next triple. We assert via the recorded `setHeader`
@@ -12,20 +13,22 @@ import {
 // layer is irrelevant to what we're proving.
 function makeCtx(
   reqOverrides: Partial<Request> = {},
-): { req: Request; res: Response; next: NextFunction; headers: Record<string, string> } {
+): { req: Request; res: Response; next: NextFunction; headers: Record<string, string>; locals: Record<string, unknown> } {
   const headers: Record<string, string> = {};
+  const locals: Record<string, unknown> = {};
   const req = {
     headers: {},
     secure: false,
     ...reqOverrides,
   } as Request;
   const res = {
+    locals,
     setHeader: vi.fn((key: string, value: string) => {
       headers[key] = value;
     }),
   } as unknown as Response;
   const next = vi.fn() as NextFunction;
-  return { req, res, next, headers };
+  return { req, res, next, headers, locals };
 }
 
 describe('securityHeaders middleware', () => {
@@ -107,23 +110,31 @@ describe('securityHeaders middleware', () => {
     expect(next).toHaveBeenCalledWith();
   });
 
-  it('is idempotent across multiple invocations on the same response', () => {
+  it('keeps non-script directives stable across invocations (only the nonce varies)', () => {
+    // Sprint 20 13th wave Bucket C — the per-request nonce means the FULL
+    // CSP string is no longer byte-stable. We assert that the parts that
+    // SHOULD be deterministic (everything outside the script-src nonce
+    // token) are unchanged across calls. The nonce itself is asserted to
+    // VARY in the dedicated test below.
     const { req, res, next, headers } = makeCtx({
       headers: { 'x-forwarded-proto': 'https' },
     });
     securityHeaders(req, res, next);
     const firstCsp = headers['Content-Security-Policy'];
     const firstHsts = headers['Strict-Transport-Security'];
-
-    // Second call must produce identical headers (no mutation of module state).
     securityHeaders(req, res, next);
-    expect(headers['Content-Security-Policy']).toBe(firstCsp);
+    const secondCsp = headers['Content-Security-Policy'];
+
     expect(headers['Strict-Transport-Security']).toBe(firstHsts);
+    // Strip the nonce token from both and compare the remainder.
+    const stripNonce = (s: string) => s.replace(/'nonce-[A-Za-z0-9+/=]+'/, "'nonce-X'");
+    expect(stripNonce(secondCsp)).toBe(stripNonce(firstCsp));
     expect(next).toHaveBeenCalledTimes(2);
   });
 
   it('CSP string contains the required Firebase / Vertex AI / Sentry connect-src origins', () => {
-    const csp = __buildCspStringForTests();
+    // Pass a deterministic nonce; the assertions don't depend on it.
+    const csp = __buildCspStringForTests('test-nonce');
     // Assert origins listed in the threat-model TM-I03/TM-I05 are reachable
     // — explicit subdomain list, not wildcards (twelfth wave Bucket A).
     expect(csp).toContain('https://firestore.googleapis.com');
@@ -138,7 +149,7 @@ describe('securityHeaders middleware', () => {
   });
 
   it('CSP no longer carries the broad `*.googleapis.com` wildcard (TM-I05)', () => {
-    const csp = __buildCspStringForTests();
+    const csp = __buildCspStringForTests('test-nonce');
     // The whole point of the twelfth wave Bucket A is to NOT have this token.
     // Use a regex with word-ish boundaries so a future legitimate
     // `https://maps.googleapis.com` substring does not accidentally match.
@@ -149,7 +160,7 @@ describe('securityHeaders middleware', () => {
     // Firebase JS SDK loads from gstatic; the `*.firebaseio.com` in
     // script-src was a copy-paste from connect-src and never matched a
     // real script load. Removed in twelfth wave Bucket A.
-    expect(__scriptSrcOriginsForTests).not.toContain(
+    expect(__scriptSrcFallbackOriginsForTests).not.toContain(
       'https://*.firebaseio.com',
     );
   });
@@ -170,13 +181,78 @@ describe('securityHeaders middleware', () => {
   });
 
   it('declares report-uri /api/csp-report so violations land in Sentry', () => {
-    const csp = __buildCspStringForTests();
+    const csp = __buildCspStringForTests('test-nonce');
     expect(csp).toContain('report-uri /api/csp-report');
   });
 
   it('CSP forbids object embedding and arbitrary frame ancestors', () => {
-    const csp = __buildCspStringForTests();
+    const csp = __buildCspStringForTests('test-nonce');
     expect(csp).toMatch(/object-src 'none'/);
     expect(csp).toMatch(/frame-ancestors 'none'/);
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Sprint 20 13th wave Bucket C — nonce migration tests.
+  // ───────────────────────────────────────────────────────────────────────
+
+  it('script-src no longer contains \'unsafe-inline\' (Sprint 20 13th wave Bucket C)', () => {
+    // The whole point of the nonce migration is to remove this token.
+    // A regression that re-adds it for "convenience" must fail loudly.
+    const csp = __buildCspStringForTests('test-nonce');
+    // Match script-src segment specifically — 'unsafe-inline' may still
+    // appear in style-src (Tailwind runtime injects styles).
+    const scriptSrcSegment = csp.match(/script-src [^;]+/)?.[0] ?? '';
+    expect(scriptSrcSegment).not.toContain("'unsafe-inline'");
+  });
+
+  it('script-src declares a nonce + strict-dynamic + explicit fallback', () => {
+    const csp = __buildCspStringForTests('abc123');
+    const scriptSrcSegment = csp.match(/script-src [^;]+/)?.[0] ?? '';
+    expect(scriptSrcSegment).toContain("'self'");
+    expect(scriptSrcSegment).toContain("'nonce-abc123'");
+    expect(scriptSrcSegment).toContain("'strict-dynamic'");
+    // Fallback for browsers that ignore strict-dynamic.
+    expect(scriptSrcSegment).toContain('https://www.gstatic.com');
+    expect(scriptSrcSegment).toContain('https://apis.google.com');
+  });
+
+  it('each request gets a different nonce (per-request randomness)', () => {
+    const ctx1 = makeCtx();
+    const ctx2 = makeCtx();
+    securityHeaders(ctx1.req, ctx1.res, ctx1.next);
+    securityHeaders(ctx2.req, ctx2.res, ctx2.next);
+
+    const nonce1 = ctx1.locals.cspNonce as string;
+    const nonce2 = ctx2.locals.cspNonce as string;
+
+    expect(nonce1).toBeDefined();
+    expect(nonce2).toBeDefined();
+    // 16 random bytes have ≈2^128 entropy — collision is astronomical.
+    expect(nonce1).not.toBe(nonce2);
+
+    // The CSP header must embed the nonce that landed in res.locals so
+    // the HTML response can stamp the matching value into <script nonce="">.
+    expect(ctx1.headers['Content-Security-Policy']).toContain(`'nonce-${nonce1}'`);
+    expect(ctx2.headers['Content-Security-Policy']).toContain(`'nonce-${nonce2}'`);
+  });
+
+  it('nonce is at least 128 bits (≥22 base64 chars)', () => {
+    // CSP Level 3 §6.7.1 RECOMMENDS ≥128 bits. 16 random bytes base64-encode
+    // to 24 chars (with padding); without padding it's 22. Either is OK,
+    // but we MUST NOT regress to a shorter nonce.
+    for (let i = 0; i < 10; i++) {
+      const nonce = __generateNonceForTests();
+      expect(nonce.length).toBeGreaterThanOrEqual(22);
+      // Must be base64-charset only (no spaces, no quotes, no slashes
+      // would break the CSP token format).
+      expect(nonce).toMatch(/^[A-Za-z0-9+/=]+$/);
+    }
+  });
+
+  it('exposes the nonce on res.locals.cspNonce for HTML templates', () => {
+    const { req, res, next, locals } = makeCtx();
+    securityHeaders(req, res, next);
+    expect(typeof locals.cspNonce).toBe('string');
+    expect((locals.cspNonce as string).length).toBeGreaterThan(0);
   });
 });
