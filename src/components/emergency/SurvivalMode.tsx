@@ -190,8 +190,13 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
             </p>
           </div>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-          <X className="w-6 h-6 text-zinc-400" />
+        <button
+          type="button"
+          aria-label="Cerrar modo supervivencia"
+          onClick={onClose}
+          className="p-2 hover:bg-white/5 rounded-full transition-colors"
+        >
+          <X className="w-6 h-6 text-zinc-400" aria-hidden="true" />
         </button>
       </div>
 

@@ -83,8 +83,13 @@ export function VectorialEvacuationMap({ showDeadReckoning = false }: VectorialE
             {isActive ? `Nav ON · ${stepCount} pasos` : 'Navegación Inercial'}
           </button>
           {isActive && (
-            <button onClick={reset} className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-white bg-black/60 transition-colors">
-              <RotateCcw className="w-3 h-3" />
+            <button
+              type="button"
+              aria-label="Reiniciar contador de pasos de navegación inercial"
+              onClick={reset}
+              className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-white bg-black/60 transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" aria-hidden="true" />
             </button>
           )}
         </div>

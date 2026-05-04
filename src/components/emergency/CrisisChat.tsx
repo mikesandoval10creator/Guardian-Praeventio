@@ -211,18 +211,26 @@ export function CrisisChat() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors">
-            <Phone className="w-4 h-4" />
+          <button
+            type="button"
+            aria-label="Iniciar llamada de voz al canal"
+            className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
+          >
+            <Phone className="w-4 h-4" aria-hidden="true" />
           </button>
           <div className="relative dropdown-container">
-            <button 
+            <button
+              type="button"
+              aria-label="Más opciones del canal"
+              aria-haspopup="menu"
+              aria-expanded={activeDropdown === 'menu'}
               onClick={(e) => {
                 e.stopPropagation();
                 setActiveDropdown(activeDropdown === 'menu' ? null : 'menu');
               }}
               className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
             >
-              <MoreVertical className="w-4 h-4" />
+              <MoreVertical className="w-4 h-4" aria-hidden="true" />
             </button>
             <AnimatePresence>
               {activeDropdown === 'menu' && (
@@ -311,14 +319,16 @@ export function CrisisChat() {
       >
         <button
           type="button"
+          aria-label={isRecording ? 'Detener grabación de voz' : 'Grabar mensaje de voz'}
+          aria-pressed={isRecording}
           onClick={isRecording ? stopRecording : startRecording}
           className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
-            isRecording 
-              ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20 animate-pulse' 
+            isRecording
+              ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20 animate-pulse'
               : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
           }`}
         >
-          {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          {isRecording ? <Square className="w-5 h-5" aria-hidden="true" /> : <Mic className="w-5 h-5" aria-hidden="true" />}
         </button>
         <input
           type="text"
@@ -328,12 +338,13 @@ export function CrisisChat() {
           disabled={isRecording}
           className="flex-1 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-xl py-3 px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all disabled:opacity-50"
         />
-        <button 
+        <button
           type="submit"
+          aria-label="Enviar mensaje"
           disabled={!newMessage.trim() || isRecording}
           className="w-12 h-12 bg-rose-500 text-white rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/20 hover:bg-rose-600 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
         >
-          <Send className="w-5 h-5" />
+          <Send className="w-5 h-5" aria-hidden="true" />
         </button>
       </form>
 
