@@ -1,19 +1,30 @@
 # Mutation Testing (Stryker)
 
-## Latest baseline (2026-05-04, 17th wave Bucket B — Run #3)
+## Latest baseline (2026-05-04, 18th wave — Run #4)
 
-Extension of baseline coverage from 3 → 7 of the 14 modules in `stryker.config.json`. This run baselines four security + business-critical modules for the first time:
+Extension of baseline coverage from 7 → 11 of the 14 modules in `stryker.config.json`. This run baselines two safety wrappers + two protocol calculators for the first time:
+
+- `src/services/safety/ergonomicAssessments.ts` — **88.08 %** (151 mutants, 133 killed, 17 survived, 1 no-cov, 21 s) — first run.
+- `src/services/safety/iperAssessments.ts` — **88.05 %** (159 mutants, 140 killed, 18 survived, 1 no-cov, 21 s) — first run.
+- `src/services/protocols/tmert.ts` — **85.07 %** (67 mutants, 57 killed, 10 survived, 0 no-cov, 10 s) — first run.
+- `src/services/protocols/iper.ts` — **89.36 %** (47 mutants, 42 killed, 5 survived, 0 no-cov, 8 s) — first run; strongest module so far in single-run history.
+
+Run #4 subtotal: 424 mutants, 372 killed → **87.74 %** (total) / 88.15 % (covered). Wall-clock 1 m 0 s on Windows host at concurrency=1.
+
+Cumulative across all 11 baselined modules (Runs #1 + #2 + #3 + #4): **65.94 %** (1142 mutants, 753 killed). `limiters.ts` (3.05 %) remains the single dominant pull-down; the remaining 10 modules average ~72 %.
+
+Top-3 surviving mutants per module, threshold ratchet recommendation (**no change** — `limiters.ts` at 3.05 % is still the floor; safe upper bound is module-min − 5 = -1.95 %), and the next-wave priorities are documented in the **Run #4** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+
+### Previous baseline (Run #3, 17th wave Bucket B)
+
+Extension of baseline coverage from 3 → 7 of the 14 modules in `stryker.config.json`. This run baselined four security + business-critical modules for the first time:
 
 - `src/services/billing/webpayAdapter.ts` — **58.26 %** (218 mutants, 127 killed, 69 survived, 22 no-cov, 40 s) — first run.
 - `src/server/middleware/limiters.ts` — **3.05 %** (131 mutants, 4 killed, 94 survived, 33 no-cov, 45 s) — first run; largest test-gap uncovered to date.
 - `src/services/slm/offlineQueue.ts` — **60.44 %** (91 mutants, 55 killed, 33 survived, 3 no-cov, 58 s) — first run.
-- `src/services/slm/reconciliation.ts` — **81.48 %** (54 mutants, 44 killed, 10 survived, 0 no-cov, 14 s) — first run; strongest module on first-pass.
+- `src/services/slm/reconciliation.ts` — **81.48 %** (54 mutants, 44 killed, 10 survived, 0 no-cov, 14 s) — first run; strongest module on first-pass at the time.
 
 Run #3 subtotal: 494 mutants, 230 killed → **46.56 %** (total) / 52.75 % (covered). Wall-clock 2 m 37 s on Windows host at concurrency=1.
-
-Cumulative across all 7 baselined modules (Runs #1 + #2 + #3): **53.06 %** (718 mutants, 381 killed). `limiters.ts` is the dominant pull-down; the remaining six modules average ~67 %.
-
-Top-3 surviving mutants per module, threshold ratchet recommendation (**no change** — `limiters.ts` at 3.05 % is now the floor; safe upper bound is module-min − 5 = -1.95 %), and the next-wave priorities are documented in the **Run #3** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
 
 ### Previous baseline (Run #2, 16th wave Bucket A)
 

@@ -752,9 +752,23 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       } else if (commit.status === 'REJECTED') {
         outcome = 'rejected';
         await invoiceRef.set({ status: 'rejected' }, { merge: true });
+        // Sprint 20 18th-wave — TM-R02 closure. Mirror the production
+        // billing.ts: rejected branch now emits an explicit audit row.
+        await deps.firestore.collection('audit_logs').add({
+          action: 'billing.webpay-return.rejected',
+          module: 'billing',
+          details: { invoiceId, amount: commit.amount },
+        });
       } else {
         outcome = 'failed';
         await invoiceRef.set({ status: 'pending-payment' }, { merge: true });
+        // Sprint 20 18th-wave — TM-R02 closure. Mirror the production
+        // billing.ts: failed branch now emits an explicit audit row.
+        await deps.firestore.collection('audit_logs').add({
+          action: 'billing.webpay-return.failed',
+          module: 'billing',
+          details: { invoiceId, amount: commit.amount },
+        });
       }
       await lockRef.set({ status: 'done', outcome, invoiceId }, { merge: true });
       const inv = `?invoice=${encodeURIComponent(invoiceId)}`;

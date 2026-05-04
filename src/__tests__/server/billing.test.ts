@@ -325,6 +325,14 @@ describe('GET /billing/webpay/return', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/pricing/failed?invoice=inv_NO');
     expect((fs.store.get('invoices/inv_NO') as any).status).toBe('rejected');
+    // Sprint 20 18th-wave — TM-R02 closure. The rejected branch must
+    // emit a tamper-evident audit row matching the AUTHORIZED contract,
+    // so a customer dispute over a "card declined" outcome has a
+    // server-side trail.
+    expect(fs.audit.some((e) => e.action === 'billing.webpay-return.rejected')).toBe(true);
+    const rejectedRow = fs.audit.find((e) => e.action === 'billing.webpay-return.rejected');
+    expect(rejectedRow?.details?.invoiceId).toBe('inv_NO');
+    expect(rejectedRow?.details?.amount).toBe(11990);
   });
 
   it('FAILED → invoice stays pending-payment, redirect /pricing/retry', async () => {
@@ -337,6 +345,12 @@ describe('GET /billing/webpay/return', () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/pricing/retry?invoice=inv_TR');
     expect((fs.store.get('invoices/inv_TR') as any).status).toBe('pending-payment');
+    // Sprint 20 18th-wave — TM-R02 closure. The transient-failure branch
+    // gets its own action name so dashboards can split infra outages
+    // from card-side declines.
+    expect(fs.audit.some((e) => e.action === 'billing.webpay-return.failed')).toBe(true);
+    const failedRow = fs.audit.find((e) => e.action === 'billing.webpay-return.failed');
+    expect(failedRow?.details?.invoiceId).toBe('inv_TR');
   });
 
   it('idempotency replay: redelivered token_ws redirects to original outcome', async () => {
