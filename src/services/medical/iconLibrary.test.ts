@@ -48,3 +48,22 @@ describe('hasAnyCcByIcons', () => {
     expect(hasAnyCcByIcons()).toBe(false);
   });
 });
+
+describe('Sprint 20 Fase 1b — bundled icons offline-first', () => {
+  it('every entry has a publicPath that resolves under /icons/biology/', () => {
+    for (const entry of MEDICAL_ICON_REGISTRY) {
+      expect(entry.publicPath.startsWith('/icons/biology/')).toBe(true);
+    }
+  });
+
+  it('every SVG path has a known basename so the PNG candidate is computable', () => {
+    for (const entry of MEDICAL_ICON_REGISTRY) {
+      expect(entry.publicPath.endsWith('.svg')).toBe(true);
+      // The MedicalIcon component computes pngPathFor(entry) by replacing the
+      // trailing ".svg" with ".png". Pin the assumption.
+      const pngCandidate = entry.publicPath.slice(0, -4) + '.png';
+      expect(pngCandidate.endsWith('.png')).toBe(true);
+      expect(pngCandidate.startsWith('/icons/biology/')).toBe(true);
+    }
+  });
+});
