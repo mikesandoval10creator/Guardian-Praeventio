@@ -17,5 +17,5 @@ export * from './polyhedronAchievements';     // Fase 10 — V - E + F = 2 gamif
 
 // Euler-2 modules
 export * from './eulerianPath';               // Fase 2 — Hierholzer (caminos eulerianos)
-// export * from './fftAnalyzer';            // Fase 5 — DEFERRED, needs test file
-// export * from './eulerLagrange';          // Fase 8 — DEFERRED
+export * from './fftAnalyzer';                // Fase 5 — Cooley-Tukey FFT (identidad e^iπ+1=0)
+export * from './eulerLagrange';              // Fase 8 — variational calculus (camino de mínima acción)
