@@ -37,6 +37,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { Phone, AlertTriangle, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { useAppMode } from '../contexts/AppModeContext';
 import { useProject } from '../contexts/ProjectContext';
 import { useSpeedMonitor } from '../services/driving/speedTrigger';
@@ -65,10 +66,7 @@ export function Driving(): React.ReactElement {
 
   const [mapInstance, setMapInstance] = useState<google.maps.Map | null>(null);
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const onMapLoad = useCallback((m: google.maps.Map) => setMapInstance(m), []);
   const onMapUnmount = useCallback(() => setMapInstance(null), []);

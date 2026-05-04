@@ -77,8 +77,18 @@ export const MEDICAL_ICON_REGISTRY: ReadonlyArray<MedicalIconEntry> = [
   { name: 'cut-wound', publicPath: '/icons/biology/cut-wound.svg', license: 'CC0', category: 'injuries' },
 ];
 
+// Lazy-initialized index for O(1) lookup. The registry is frozen-shape, so the
+// Map is built once per process. Tested in iconLibrary.test.ts.
+let _index: Map<string, MedicalIconEntry> | null = null;
+function getIndex(): Map<string, MedicalIconEntry> {
+  if (_index === null) {
+    _index = new Map(MEDICAL_ICON_REGISTRY.map((entry) => [entry.name, entry]));
+  }
+  return _index;
+}
+
 export function findMedicalIcon(name: string): MedicalIconEntry | undefined {
-  return MEDICAL_ICON_REGISTRY.find((i) => i.name === name);
+  return getIndex().get(name);
 }
 
 /** Returns true if the registry contains any CC-BY-4.0 icon (drives footer mounting). */

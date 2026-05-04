@@ -36,6 +36,7 @@ export function ControlsAndMaterials() {
     const controlsPath = `projects/${selectedProject.id}/controls`;
     const materialsPath = `projects/${selectedProject.id}/materials`;
 
+    // TODO Sprint 20+: agregar where('active', '==', true) y limit(200) en ambos queries — listeners actuales sin filtros, scaling risk si controls/materials crecen >500 docs por proyecto.
     const qControls = query(collection(db, controlsPath));
     const qMaterials = query(collection(db, materialsPath));
 

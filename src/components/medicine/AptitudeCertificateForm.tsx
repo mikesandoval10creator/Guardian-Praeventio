@@ -4,7 +4,7 @@ import { MedicalIcon } from '../medical/MedicalIcon';
 import { generateAptitudeCertificate, AptitudeData } from '../../utils/aptitudeCertificate';
 
 const RESULT_OPTIONS: { value: AptitudeData['result']; label: string; color: string }[] = [
-  { value: 'apto', label: 'Apto', color: 'text-[#4db6ac] dark:text-[#4db6ac]' },
+  { value: 'apto', label: 'Apto', color: 'text-teal-400 dark:text-teal-400' },
   { value: 'apto_con_restricciones', label: 'Apto con restricciones', color: 'text-amber-600 dark:text-amber-400' },
   { value: 'no_apto', label: 'No apto', color: 'text-rose-600 dark:text-rose-400' },
 ];
@@ -61,20 +61,20 @@ export function AptitudeCertificateForm() {
   return (
     <form onSubmit={onGenerate} className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
       <div className="px-5 py-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10">
-          <FileCheck className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+        <div className="p-2 rounded-xl bg-teal-400/10 dark:bg-gold-400/10">
+          <FileCheck className="w-4 h-4 text-teal-400 dark:text-gold-400" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Certificado de Aptitud DS 109</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Genera PDF firmable conforme Ley 16.744</p>
         </div>
         {/* Sprint 17c — Bioicons exam-type cluster (vision / spirometry / audiometry). */}
-        <div className="hidden sm:flex items-center gap-2 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+        <div className="hidden sm:flex items-center gap-2 text-teal-600 dark:text-gold-400" aria-hidden="true">
           <MedicalIcon name="eye" size={20} alt="Examen visual" />
           <MedicalIcon name="spirometer" size={20} alt="Espirometría" />
           <MedicalIcon name="audiometer" size={20} alt="Audiometría" />
         </div>
-        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
+        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           Médico
         </span>
       </div>
@@ -83,22 +83,22 @@ export function AptitudeCertificateForm() {
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-2">Trabajador</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input required value={data.workerName} onChange={e => update('workerName', e.target.value)} placeholder="Nombre completo *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input required value={data.workerRut} onChange={e => update('workerRut', e.target.value)} placeholder="RUT *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input required value={data.workerOccupation} onChange={e => update('workerOccupation', e.target.value)} placeholder="Ocupación *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input type="number" value={data.workerAge ?? ''} onChange={e => update('workerAge', e.target.value ? parseInt(e.target.value, 10) : undefined)} placeholder="Edad" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input required value={data.projectName} onChange={e => update('projectName', e.target.value)} placeholder="Proyecto / Empresa *" className="sm:col-span-2 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
+            <input required value={data.workerName} onChange={e => update('workerName', e.target.value)} placeholder="Nombre completo *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input required value={data.workerRut} onChange={e => update('workerRut', e.target.value)} placeholder="RUT *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input required value={data.workerOccupation} onChange={e => update('workerOccupation', e.target.value)} placeholder="Ocupación *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input type="number" value={data.workerAge ?? ''} onChange={e => update('workerAge', e.target.value ? parseInt(e.target.value, 10) : undefined)} placeholder="Edad" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input required value={data.projectName} onChange={e => update('projectName', e.target.value)} placeholder="Proyecto / Empresa *" className="sm:col-span-2 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
           </div>
         </div>
 
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-2">Examen</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <select value={data.examType} onChange={e => update('examType', e.target.value as AptitudeData['examType'])} className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40">
+            <select value={data.examType} onChange={e => update('examType', e.target.value as AptitudeData['examType'])} className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40">
               {EXAM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            <input type="date" value={data.examDate} onChange={e => update('examDate', e.target.value)} className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input type="date" value={data.validUntil ?? ''} onChange={e => update('validUntil', e.target.value)} className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
+            <input type="date" value={data.examDate} onChange={e => update('examDate', e.target.value)} className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input type="date" value={data.validUntil ?? ''} onChange={e => update('validUntil', e.target.value)} className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
           </div>
         </div>
 
@@ -112,7 +112,7 @@ export function AptitudeCertificateForm() {
                 onClick={() => update('result', o.value)}
                 className={`py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
                   data.result === o.value
-                    ? `${o.color} bg-[#4db6ac]/5 dark:bg-[#d4af37]/5 border-[#4db6ac]/40 dark:border-[#d4af37]/40 shadow-sm`
+                    ? `${o.color} bg-teal-400/5 dark:bg-gold-400/5 border-teal-400/40 dark:border-gold-400/40 shadow-sm`
                     : 'text-zinc-500 border-zinc-200 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
                 }`}
               >
@@ -131,9 +131,9 @@ export function AptitudeCertificateForm() {
                 onChange={e => setRestrictionDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRestriction(); } }}
                 placeholder="Ej: No exposición a ruido >85dB"
-                className="flex-1 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40"
+                className="flex-1 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40"
               />
-              <button type="button" onClick={addRestriction} className="px-4 rounded-xl bg-[#4db6ac]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 hover:bg-[#4db6ac]/20 transition-colors">
+              <button type="button" onClick={addRestriction} className="px-4 rounded-xl bg-teal-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 hover:bg-teal-400/20 transition-colors">
                 <Plus className="w-4 h-4" />
               </button>
             </div>
@@ -155,9 +155,9 @@ export function AptitudeCertificateForm() {
         <div>
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-2">Médico responsable</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <input required value={data.doctorName} onChange={e => update('doctorName', e.target.value)} placeholder="Nombre Dr. *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input required value={data.doctorRut} onChange={e => update('doctorRut', e.target.value)} placeholder="RUT médico *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
-            <input required value={data.doctorRegistry} onChange={e => update('doctorRegistry', e.target.value)} placeholder="N° Reg. SuperSalud *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40" />
+            <input required value={data.doctorName} onChange={e => update('doctorName', e.target.value)} placeholder="Nombre Dr. *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input required value={data.doctorRut} onChange={e => update('doctorRut', e.target.value)} placeholder="RUT médico *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
+            <input required value={data.doctorRegistry} onChange={e => update('doctorRegistry', e.target.value)} placeholder="N° Reg. SuperSalud *" className="px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40" />
           </div>
         </div>
 
@@ -166,12 +166,12 @@ export function AptitudeCertificateForm() {
           onChange={e => update('observations', e.target.value)}
           placeholder="Observaciones clínicas (opcional)…"
           rows={2}
-          className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40 resize-none"
+          className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40 resize-none"
         />
 
         <button
           type="submit"
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#4db6ac] hover:bg-[#3a9e95] text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-[#4db6ac]/20"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-teal-400 hover:bg-teal-500 text-white text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-teal-400/20"
         >
           <Download className="w-4 h-4" />
           Generar y descargar certificado PDF

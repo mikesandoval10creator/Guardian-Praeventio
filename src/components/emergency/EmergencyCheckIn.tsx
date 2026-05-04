@@ -41,6 +41,7 @@ export function EmergencyCheckIn() {
     });
 
     // Listen to check-ins
+    // TODO Sprint 20+: envolver en query() con where('timestamp', '>=', last24h) y orderBy/limit(100) — listener actual sin filtros, scaling risk si volumen crece.
     const checkinsRef = collection(db, `projects/${selectedProject.id}/emergency_checkins`);
     const unsubscribeCheckins = onSnapshot(checkinsRef, (snapshot) => {
       const newWorkers = snapshot.docs.map(doc => {

@@ -162,3 +162,29 @@ export const erpSyncLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'rate_limited' },
 });
+
+/**
+ * Round 22 R1 — global daily cap on /api/gemini and /api/ask-guardian
+ * across ALL users. Per-uid limiter (geminiLimiter) caps individual abuse;
+ * this caps aggregate spend regardless of who is calling.
+ *
+ * Default: 1000 req/day total. Override with GEMINI_DAILY_GLOBAL_CAP.
+ *
+ * Mounted BEFORE geminiLimiter on the router so the cheaper check runs
+ * first on every request. When the cap is hit, returns 503 (Service
+ * Unavailable) to signal it's a quota issue, not auth or rate-limit.
+ */
+export const geminiGlobalDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24h sliding window
+  max: parseInt(process.env.GEMINI_DAILY_GLOBAL_CAP ?? '1000', 10),
+  // KEY: shared key so ALL traffic counts against the same bucket
+  keyGenerator: () => 'gemini-global-bucket',
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: 503,
+  message: {
+    error: 'gemini_global_cap_reached',
+    message: 'Cuota diaria global de IA alcanzada. Reintenta mañana o aumenta GEMINI_DAILY_GLOBAL_CAP.',
+  },
+  skipFailedRequests: true, // no contar requests fallados (4xx/5xx) hacia el cap
+});

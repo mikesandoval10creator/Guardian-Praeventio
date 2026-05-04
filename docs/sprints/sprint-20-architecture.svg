@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="768" viewBox="0 0 1024 768">
+  <!-- Sprint 20 Architecture — Brecha B: SLM Offline -->
+  <!-- Brand palette: petroleum #061f2d (background), teal #4db6ac (accent), gold #d4af37 (highlight) -->
+
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#061f2d;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#0a3040;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d3a4f;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#072936;stop-opacity:1"/>
+    </linearGradient>
+    <linearGradient id="boxGradHi" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#125565;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#0a3a4a;stop-opacity:1"/>
+    </linearGradient>
+    <marker id="arrowTeal" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4db6ac"/>
+    </marker>
+    <marker id="arrowGold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d4af37"/>
+    </marker>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#0a3040" stroke-width="0.5" opacity="0.5"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="768" fill="url(#bgGrad)"/>
+  <rect width="1024" height="768" fill="url(#grid)"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="1024" height="56" fill="#04121a"/>
+  <text x="512" y="36" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#4db6ac" text-anchor="middle">
+    Sprint 20 — Brecha B: SLM Offline Architecture
+  </text>
+  <line x1="0" y1="56" x2="1024" y2="56" stroke="#d4af37" stroke-width="2"/>
+
+  <!-- Footer -->
+  <text x="512" y="752" font-family="Helvetica, Arial, sans-serif" font-size="12" fill="#4db6ac" text-anchor="middle" opacity="0.7">
+    Praeventio · 2026-05-04 · ONNX Runtime Web · WebGPU · Phi-3 Mini int4 · IndexedDB · Service Worker
+  </text>
+
+  <!-- Tier 1: User & Device — top -->
+  <!-- Worker icon -->
+  <g transform="translate(60, 100)">
+    <rect x="0" y="0" width="180" height="160" rx="12" fill="url(#boxGrad)" stroke="#4db6ac" stroke-width="2"/>
+    <!-- helmet shape -->
+    <path d="M 90 30 Q 60 30 55 60 L 125 60 Q 120 30 90 30 Z" fill="#d4af37"/>
+    <rect x="50" y="60" width="80" height="8" fill="#d4af37"/>
+    <!-- face -->
+    <circle cx="90" cy="92" r="18" fill="#4db6ac" opacity="0.4"/>
+    <!-- offline badge -->
+    <circle cx="148" cy="42" r="14" fill="#0a3040" stroke="#ff6b6b" stroke-width="2"/>
+    <line x1="138" y1="32" x2="158" y2="52" stroke="#ff6b6b" stroke-width="2.5"/>
+    <text x="90" y="135" font-family="Helvetica" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">Operario en faena</text>
+    <text x="90" y="151" font-family="Helvetica" font-size="11" fill="#a0c8c4" text-anchor="middle">sin señal · zona remota</text>
+  </g>
+
+  <!-- Arrow worker → PWA -->
+  <line x1="240" y1="180" x2="290" y2="180" stroke="#4db6ac" stroke-width="2.5" marker-end="url(#arrowTeal)"/>
+  <text x="265" y="172" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">prompt</text>
+
+  <!-- PWA Shell -->
+  <g transform="translate(290, 100)">
+    <rect x="0" y="0" width="220" height="160" rx="12" fill="url(#boxGrad)" stroke="#4db6ac" stroke-width="2"/>
+    <text x="110" y="28" font-family="Helvetica" font-size="14" font-weight="700" fill="#d4af37" text-anchor="middle">PWA Shell</text>
+    <text x="110" y="46" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">Capacitor + Service Worker</text>
+    <line x1="20" y1="56" x2="200" y2="56" stroke="#4db6ac" stroke-width="0.5" opacity="0.4"/>
+    <!-- inner: SW box -->
+    <rect x="20" y="68" width="180" height="32" rx="6" fill="#04121a" stroke="#4db6ac" stroke-width="1"/>
+    <text x="110" y="89" font-family="Helvetica" font-size="11" fill="#4db6ac" text-anchor="middle">Service Worker (workbox)</text>
+    <!-- inner: IndexedDB box -->
+    <rect x="20" y="108" width="180" height="32" rx="6" fill="#04121a" stroke="#d4af37" stroke-width="1"/>
+    <text x="110" y="129" font-family="Helvetica" font-size="11" fill="#d4af37" text-anchor="middle">IndexedDB (idb) · model cache</text>
+  </g>
+
+  <!-- Arrow PWA → Worker -->
+  <line x1="510" y1="180" x2="560" y2="180" stroke="#4db6ac" stroke-width="2.5" marker-end="url(#arrowTeal)"/>
+  <text x="535" y="172" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">postMsg</text>
+
+  <!-- Web Worker Box -->
+  <g transform="translate(560, 100)">
+    <rect x="0" y="0" width="220" height="160" rx="12" fill="url(#boxGradHi)" stroke="#d4af37" stroke-width="2"/>
+    <text x="110" y="28" font-family="Helvetica" font-size="14" font-weight="700" fill="#d4af37" text-anchor="middle">Web Worker (off main)</text>
+    <text x="110" y="46" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">no UI block · stream tokens</text>
+    <line x1="20" y1="56" x2="200" y2="56" stroke="#d4af37" stroke-width="0.5" opacity="0.4"/>
+    <!-- ONNX Runtime -->
+    <rect x="20" y="68" width="180" height="32" rx="6" fill="#04121a" stroke="#4db6ac" stroke-width="1"/>
+    <text x="110" y="89" font-family="Helvetica" font-size="11" fill="#4db6ac" text-anchor="middle">ONNX Runtime Web v1.20+</text>
+    <!-- Model -->
+    <rect x="20" y="108" width="180" height="32" rx="6" fill="#04121a" stroke="#d4af37" stroke-width="1"/>
+    <text x="110" y="129" font-family="Helvetica" font-size="11" fill="#d4af37" text-anchor="middle">Phi-3 Mini int4 (~600MB)</text>
+  </g>
+
+  <!-- Arrow Worker → GPU -->
+  <line x1="670" y1="260" x2="670" y2="340" stroke="#d4af37" stroke-width="2.5" marker-end="url(#arrowGold)"/>
+  <text x="700" y="305" font-family="Helvetica" font-size="10" fill="#d4af37">execute</text>
+
+  <!-- GPU Accelerator -->
+  <g transform="translate(560, 340)">
+    <rect x="0" y="0" width="220" height="120" rx="12" fill="url(#boxGrad)" stroke="#4db6ac" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="110" y="28" font-family="Helvetica" font-size="14" font-weight="700" fill="#4db6ac" text-anchor="middle">WebGPU EP</text>
+    <text x="110" y="46" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">fallback: WASM SIMD CPU</text>
+    <!-- chip pattern -->
+    <g transform="translate(70, 60)">
+      <rect x="0" y="0" width="80" height="40" rx="4" fill="#04121a" stroke="#d4af37" stroke-width="1"/>
+      <line x1="-8" y1="10" x2="0" y2="10" stroke="#4db6ac" stroke-width="2"/>
+      <line x1="-8" y1="20" x2="0" y2="20" stroke="#4db6ac" stroke-width="2"/>
+      <line x1="-8" y1="30" x2="0" y2="30" stroke="#4db6ac" stroke-width="2"/>
+      <line x1="80" y1="10" x2="88" y2="10" stroke="#4db6ac" stroke-width="2"/>
+      <line x1="80" y1="20" x2="88" y2="20" stroke="#4db6ac" stroke-width="2"/>
+      <line x1="80" y1="30" x2="88" y2="30" stroke="#4db6ac" stroke-width="2"/>
+      <text x="40" y="25" font-family="Helvetica" font-size="9" fill="#d4af37" text-anchor="middle">GPU</text>
+    </g>
+  </g>
+
+  <!-- Arrow Worker → Response back -->
+  <path d="M 560 240 Q 540 240 520 220" fill="none" stroke="#4db6ac" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrowTeal)"/>
+  <text x="540" y="208" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">tokens</text>
+
+  <!-- Reconnect / Zettelkasten sync -->
+  <g transform="translate(60, 360)">
+    <rect x="0" y="0" width="450" height="100" rx="12" fill="url(#boxGrad)" stroke="#d4af37" stroke-width="2"/>
+    <text x="225" y="28" font-family="Helvetica" font-size="14" font-weight="700" fill="#d4af37" text-anchor="middle">Reconnect path · Zettelkasten Consolidation</text>
+    <text x="225" y="46" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">cuando vuelve la red — queue se vacía a Firestore</text>
+    <rect x="20" y="58" width="180" height="32" rx="6" fill="#04121a" stroke="#4db6ac" stroke-width="1"/>
+    <text x="110" y="79" font-family="Helvetica" font-size="11" fill="#4db6ac" text-anchor="middle">offline queue (idb)</text>
+    <text x="225" y="79" font-family="Helvetica" font-size="14" fill="#d4af37" text-anchor="middle">→</text>
+    <rect x="250" y="58" width="180" height="32" rx="6" fill="#04121a" stroke="#d4af37" stroke-width="1"/>
+    <text x="340" y="79" font-family="Helvetica" font-size="11" fill="#d4af37" text-anchor="middle">Firestore (Zettelkasten)</text>
+  </g>
+
+  <!-- Connector arrow PWA → Reconnect -->
+  <path d="M 400 260 Q 400 320 290 360" fill="none" stroke="#d4af37" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrowGold)"/>
+  <text x="350" y="318" font-family="Helvetica" font-size="10" fill="#d4af37">queue</text>
+
+  <!-- Tier 2: Flow Infinito phases -->
+  <g transform="translate(60, 510)">
+    <rect x="0" y="0" width="900" height="180" rx="12" fill="url(#boxGrad)" stroke="#4db6ac" stroke-width="1.5"/>
+    <text x="450" y="30" font-family="Helvetica" font-size="14" font-weight="700" fill="#4db6ac" text-anchor="middle">Flow Infinito · 3 fases (test mental aplicado a Brecha B)</text>
+    <line x1="20" y1="42" x2="880" y2="42" stroke="#4db6ac" stroke-width="0.5" opacity="0.4"/>
+
+    <!-- Fase 1 -->
+    <g transform="translate(30, 60)">
+      <rect x="0" y="0" width="270" height="100" rx="8" fill="#04121a" stroke="#4db6ac" stroke-width="1"/>
+      <text x="135" y="22" font-family="Helvetica" font-size="12" font-weight="700" fill="#4db6ac" text-anchor="middle">1 · Detección Predictiva</text>
+      <text x="135" y="48" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">SLM lee sensores Capacitor</text>
+      <text x="135" y="64" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">+ contexto local (turno, EPP)</text>
+      <text x="135" y="86" font-family="Helvetica" font-size="10" fill="#d4af37" text-anchor="middle">100% offline · zero latencia</text>
+    </g>
+
+    <!-- Fase 2 -->
+    <g transform="translate(315, 60)">
+      <rect x="0" y="0" width="270" height="100" rx="8" fill="#04121a" stroke="#d4af37" stroke-width="1"/>
+      <text x="135" y="22" font-family="Helvetica" font-size="12" font-weight="700" fill="#d4af37" text-anchor="middle">2 · Respuesta Adaptativa</text>
+      <text x="135" y="48" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">consejo sin red — EPP, ruta</text>
+      <text x="135" y="64" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">de evacuación, primer auxilio</text>
+      <text x="135" y="86" font-family="Helvetica" font-size="10" fill="#d4af37" text-anchor="middle">fallback: regla heurística</text>
+    </g>
+
+    <!-- Fase 3 -->
+    <g transform="translate(600, 60)">
+      <rect x="0" y="0" width="270" height="100" rx="8" fill="#04121a" stroke="#4db6ac" stroke-width="1"/>
+      <text x="135" y="22" font-family="Helvetica" font-size="12" font-weight="700" fill="#4db6ac" text-anchor="middle">3 · Consolidación</text>
+      <text x="135" y="48" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">al reconectar → Zettelkasten</text>
+      <text x="135" y="64" font-family="Helvetica" font-size="10" fill="#a0c8c4" text-anchor="middle">Gemini summary + nodeIdFor</text>
+      <text x="135" y="86" font-family="Helvetica" font-size="10" fill="#d4af37" text-anchor="middle">idempotente · safe retry</text>
+    </g>
+  </g>
+
+  <!-- legend -->
+  <g transform="translate(800, 100)">
+    <rect x="0" y="0" width="180" height="160" rx="8" fill="#04121a" stroke="#4db6ac" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="90" y="20" font-family="Helvetica" font-size="11" font-weight="700" fill="#d4af37" text-anchor="middle">Stack</text>
+    <text x="14" y="42" font-family="Helvetica" font-size="9" fill="#a0c8c4">• ONNX Runtime Web (MIT)</text>
+    <text x="14" y="58" font-family="Helvetica" font-size="9" fill="#a0c8c4">• transformers.js v3 (Apache)</text>
+    <text x="14" y="74" font-family="Helvetica" font-size="9" fill="#a0c8c4">• Phi-3 Mini int4 (MIT)</text>
+    <text x="14" y="90" font-family="Helvetica" font-size="9" fill="#a0c8c4">• Capacitor 8 (MIT)</text>
+    <text x="14" y="106" font-family="Helvetica" font-size="9" fill="#a0c8c4">• idb (ISC)</text>
+    <text x="14" y="122" font-family="Helvetica" font-size="9" fill="#a0c8c4">• workbox-build (MIT)</text>
+    <text x="14" y="142" font-family="Helvetica" font-size="9" fill="#d4af37">100% MIT/Apache · zero AGPL</text>
+  </g>
+</svg>

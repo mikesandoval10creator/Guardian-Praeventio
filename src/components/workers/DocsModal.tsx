@@ -40,8 +40,9 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
     if (!worker || !isOpen) return;
 
     const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
+    // TODO Sprint 20+: agregar where('archived', '==', false) y limit(50) — listener actual sin filtros, scaling risk si un worker acumula >100 docs.
     const q = query(collection(db, path));
-    
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
         id: doc.id,

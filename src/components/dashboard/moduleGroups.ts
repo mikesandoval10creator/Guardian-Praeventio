@@ -29,7 +29,7 @@ export const moduleGroups: ModuleGroup[] = [
     id: 'main',
     title: 'Principal',
     icon: Home,
-    color: 'bg-[#10B981]',
+    color: 'bg-emerald-500',
     items: [
       { title: 'Red Neuronal', icon: Network, path: '/risk-network', color: 'text-emerald-500' },
       { title: 'Proyectos', icon: Briefcase, path: '/projects', color: 'text-blue-500' },
@@ -41,7 +41,7 @@ export const moduleGroups: ModuleGroup[] = [
     id: 'operations',
     title: 'Gestión Operativa',
     icon: Briefcase,
-    color: 'bg-[#3B82F6]',
+    color: 'bg-blue-500',
     items: [
       { title: 'Trabajadores', icon: Users, path: '/workers', color: 'text-violet-500' },
       { title: 'Documentos', icon: Folder, path: '/documents', color: 'text-violet-500' },
@@ -109,7 +109,7 @@ export const moduleGroups: ModuleGroup[] = [
     id: 'training',
     title: 'Capacitación',
     icon: BookOpen,
-    color: 'bg-[#3B82F6]',
+    color: 'bg-blue-500',
     items: [
       { title: 'Capacitaciones', icon: BookOpen, path: '/training', color: 'text-zinc-400' },
       { title: 'Gamificación', icon: Award, path: '/gamification', color: 'text-zinc-400' },
@@ -120,7 +120,7 @@ export const moduleGroups: ModuleGroup[] = [
     id: 'reports',
     title: 'Reportes',
     icon: BarChart3,
-    color: 'bg-[#10B981]',
+    color: 'bg-emerald-500',
     items: [
       { title: 'Reportabilidad', icon: BarChart3, path: '/analytics', color: 'text-zinc-400' },
       { title: 'Historia', icon: Clock, path: '/history', color: 'text-zinc-400' },

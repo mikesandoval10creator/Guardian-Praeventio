@@ -88,6 +88,7 @@ export function EmergenciaAvanzada() {
   // Real-time worker safety statuses
   useEffect(() => {
     if (!selectedProject) return;
+    // TODO Sprint 20+: envolver en query() con limit(50) — listener actual sin filtros, scaling risk si la cuadrilla supera 50 trabajadores.
     return onSnapshot(
       collection(db, `projects/${selectedProject.id}/emergency_safety`),
       snap => {

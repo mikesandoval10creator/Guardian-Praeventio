@@ -69,20 +69,20 @@ export function DifferentialDiagnosis() {
   return (
     <div className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
       <div className="px-5 py-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10">
-          <Brain className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+        <div className="p-2 rounded-xl bg-teal-400/10 dark:bg-gold-400/10">
+          <Brain className="w-4 h-4 text-teal-400 dark:text-gold-400" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Diagnóstico Diferencial IA</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Gemini · CIE-10 + Ley 16.744 + DS 594</p>
         </div>
         {/* Sprint 17c — Bioicons system glyphs preview the differential domain. */}
-        <div className="hidden sm:flex items-center gap-1.5 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+        <div className="hidden sm:flex items-center gap-1.5 text-teal-600 dark:text-gold-400" aria-hidden="true">
           <MedicalIcon name="lung-pair" size={20} alt="Pulmones" />
           <MedicalIcon name="heart-anatomical" size={20} alt="Corazón" />
           <MedicalIcon name="brain" size={20} alt="Cerebro" />
         </div>
-        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
+        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           Médico
         </span>
       </div>
@@ -98,7 +98,7 @@ export function DifferentialDiagnosis() {
             placeholder="Ej: tos persistente con expectoración hace 3 semanas, disnea de esfuerzo, dolor torácico ocasional"
             rows={3}
             required
-            className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40 resize-none"
+            className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40 resize-none"
           />
         </div>
 
@@ -110,7 +110,7 @@ export function DifferentialDiagnosis() {
               value={age}
               onChange={(e) => setAge(e.target.value)}
               placeholder="42"
-              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40"
+              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-400/40"
             />
           </div>
           <div>
@@ -118,7 +118,7 @@ export function DifferentialDiagnosis() {
             <select
               value={sex}
               onChange={(e) => setSex(e.target.value as 'M' | 'F' | 'O' | '')}
-              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40"
+              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-400/40"
             >
               <option value="">—</option>
               <option value="M">M</option>
@@ -132,7 +132,7 @@ export function DifferentialDiagnosis() {
               value={occupation}
               onChange={(e) => setOccupation(e.target.value)}
               placeholder="Soldador, minero subterráneo, operador grúa…"
-              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40"
+              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
             />
           </div>
         </div>
@@ -144,7 +144,7 @@ export function DifferentialDiagnosis() {
               value={exposures}
               onChange={(e) => setExposures(e.target.value)}
               placeholder="Sílice, ruido >85dB, vibración, asbesto…"
-              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40"
+              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
             />
           </div>
           <div>
@@ -153,7 +153,7 @@ export function DifferentialDiagnosis() {
               value={vitals}
               onChange={(e) => setVitals(e.target.value)}
               placeholder="PA 130/85, FC 88, SpO2 95%, T° 37.2"
-              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40"
+              className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
             />
           </div>
         </div>
@@ -161,7 +161,7 @@ export function DifferentialDiagnosis() {
         <button
           type="submit"
           disabled={loading || !symptoms.trim()}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#4db6ac] hover:bg-[#3a9e95] disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest transition-all"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-teal-400 hover:bg-teal-500 disabled:opacity-60 text-white text-xs font-black uppercase tracking-widest transition-all"
         >
           {loading ? (
             <><Loader2 className="w-4 h-4 animate-spin" />Analizando con IA…</>
@@ -227,8 +227,8 @@ export function DifferentialDiagnosis() {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {/* Occupational relevance */}
-                <div className="p-3 rounded-xl bg-[#4db6ac]/5 dark:bg-[#d4af37]/5 border border-[#4db6ac]/20 dark:border-[#d4af37]/20">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-[#2a8a81] dark:text-[#d4af37] mb-1.5 flex items-center gap-1">
+                <div className="p-3 rounded-xl bg-teal-400/5 dark:bg-gold-400/5 border border-teal-400/20 dark:border-gold-400/20">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-teal-600 dark:text-gold-400 mb-1.5 flex items-center gap-1">
                     <ShieldAlert className="w-3 h-3" />Enfermedad profesional
                   </p>
                   <p className="text-xs text-zinc-700 dark:text-zinc-300">{result.occupationalRelevance}</p>

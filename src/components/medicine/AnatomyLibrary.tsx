@@ -142,14 +142,14 @@ export function AnatomyLibrary() {
   return (
     <div className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
       <div className="px-5 py-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10">
-          <ImageIcon className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+        <div className="p-2 rounded-xl bg-teal-400/10 dark:bg-gold-400/10">
+          <ImageIcon className="w-4 h-4 text-teal-400 dark:text-gold-400" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Librería Anatómica</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Ilustraciones BioRender-style por sistema · Gemini bajo demanda</p>
         </div>
-        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
+        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           Médico
         </span>
       </div>
@@ -181,7 +181,7 @@ export function AnatomyLibrary() {
                   />
                 ) : isGen ? (
                   <div className="flex flex-col items-center gap-2 text-zinc-400">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#4db6ac] dark:text-[#d4af37]" />
+                    <Loader2 className="w-8 h-8 animate-spin text-teal-400 dark:text-gold-400" />
                     <p className="text-[10px] uppercase tracking-widest">Generando…</p>
                   </div>
                 ) : (
@@ -210,7 +210,7 @@ export function AnatomyLibrary() {
                 <button
                   onClick={() => generateFor(topic)}
                   disabled={isGen}
-                  className="mt-auto w-full py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 hover:bg-[#4db6ac]/20 dark:hover:bg-[#d4af37]/20 transition-colors disabled:opacity-40 flex items-center justify-center gap-1"
+                  className="mt-auto w-full py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 hover:bg-teal-400/20 dark:hover:bg-gold-400/20 transition-colors disabled:opacity-40 flex items-center justify-center gap-1"
                 >
                   {isGen ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                   {cached ? 'Regenerar' : 'Generar IA'}

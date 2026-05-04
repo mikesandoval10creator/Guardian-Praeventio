@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, OverlayView, DirectionsService, DirectionsRenderer } from '@react-google-maps/api';
-import { 
-  Map as MapIcon, 
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
+import {
+  Map as MapIcon,
   Navigation, 
   Shield, 
   AlertCircle, 
@@ -62,10 +63,7 @@ export function Evacuation() {
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
   const { addNode } = useRiskEngine();
   
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [activeRoute, setActiveRoute] = useState<string | null>(null);
