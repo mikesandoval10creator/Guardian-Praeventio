@@ -363,6 +363,65 @@ describe('AnalyticsAdapter (adapter.ts)', () => {
     expect(sink.calls[0].name).toBe('knowledge.doc.viewed');
   });
 
+  it('12th wave: app.opened narrows boot_kind to cold/warm/pwa_resume', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('app.opened', { boot_kind: 'cold' });
+    await adapter.track('app.opened', { boot_kind: 'warm', last_open_delta_seconds: 360 });
+    await adapter.track('app.opened', { boot_kind: 'pwa_resume' });
+
+    // Bad boot_kind literal must fail to compile.
+    await adapter.track('app.opened', {
+      // @ts-expect-error — 'launch' not in BootKind enum
+      boot_kind: 'launch',
+    });
+
+    expect(sink.calls).toHaveLength(4);
+    expect(sink.calls[0].name).toBe('app.opened');
+  });
+
+  it('12th wave: slm.queue.reconciled + slm.model.downloaded narrow required props', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('slm.queue.reconciled', {
+      attempted: 4,
+      succeeded: 3,
+      failed: 1,
+      pass_duration_ms: 820,
+    });
+
+    // Missing required `failed` must fail to compile.
+    // @ts-expect-error — required prop `failed` missing
+    await adapter.track('slm.queue.reconciled', {
+      attempted: 4,
+      succeeded: 4,
+    });
+
+    // Wrong cache_origin literal on the sibling event must also fail.
+    await adapter.track('slm.model.downloaded', {
+      model_id: 'slm-es-cl-2026Q1',
+      model_bytes: 12_582_912,
+      download_duration_ms: 980,
+      // @ts-expect-error — 'network' not in CacheOrigin enum
+      cache_origin: 'network',
+    });
+
+    expect(sink.calls.length).toBeGreaterThanOrEqual(2);
+    expect(sink.calls[0].name).toBe('slm.queue.reconciled');
+  });
+
   it('flush() with empty queue resolves quickly without invoking sinks', async () => {
     const sink = makeMockSink();
     const queue = makeMockQueue();

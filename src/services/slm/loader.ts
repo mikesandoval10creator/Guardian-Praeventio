@@ -56,9 +56,25 @@ export async function loadModel(
   model: ModelDescriptor,
   opts: LoadModelOptions = {},
 ): Promise<ArrayBuffer> {
+  // 12th wave analytics — `slm.model.downloaded` covers BOTH branches
+  // (cache hit + fresh download). Catalog row 78 description is "finished
+  // downloading + cached"; we read that as "the bytes are usable now",
+  // which a cache hit also satisfies. The `cache_origin` enum disambiguates:
+  // `pre_packaged` for cache hits, `cdn` for live fetches.
+  const startedAt =
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+
   // 1. Cache lookup.
   const cached = await loadCachedModel(model.id);
   if (cached) {
+    void emitModelDownloaded({
+      model_id: model.id,
+      model_bytes: cached.byteLength,
+      download_duration_ms: durationSince(startedAt),
+      cache_origin: 'pre_packaged',
+    });
     return cached;
   }
 
@@ -120,5 +136,40 @@ export async function loadModel(
   // 3. Persist for next launch.
   await cacheModel(model.id, bytes);
 
+  void emitModelDownloaded({
+    model_id: model.id,
+    model_bytes: bytes.byteLength,
+    download_duration_ms: durationSince(startedAt),
+    cache_origin: 'cdn',
+  });
+
   return bytes;
+}
+
+function durationSince(startedAt: number): number {
+  const now =
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+  return Math.max(0, Math.round(now - startedAt));
+}
+
+/**
+ * Fire-and-forget analytics emit. Dynamic import keeps the loader's
+ * import graph minimal and matches the orchestrator's pattern (see
+ * `orchestrator.ts`); failures are swallowed because a missed event must
+ * never break model availability.
+ */
+async function emitModelDownloaded(props: {
+  model_id: string;
+  model_bytes: number;
+  download_duration_ms: number;
+  cache_origin: 'cdn' | 'pre_packaged';
+}): Promise<void> {
+  try {
+    const { analytics } = await import('../analytics');
+    await analytics.track('slm.model.downloaded', props);
+  } catch {
+    /* swallow */
+  }
 }

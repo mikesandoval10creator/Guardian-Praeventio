@@ -148,7 +148,7 @@
     --accent-warning: #dc2626;       /* red-600 — secondary alert */
     --accent-hazard: #b91c1c;        /* red-700 — terminal hazard */
     --accent-success: #15803d;
-    --accent-info: #4db6ac;          /* teal demoted: route line only */
+    --accent-info: #2e8079;          /* WCAG 1.4.11 (A11Y-006): teal-600 ratio 4.86:1 on white, replaces #4db6ac (2.53:1) for non-text route line */
     --border-default: rgba(0, 0, 0, 0.20);
     --border-strong: rgba(0, 0, 0, 0.45);
     --border-subtle: rgba(0, 0, 0, 0.08);
@@ -216,6 +216,29 @@
 
   .dark .hover\:border-white\/20:hover {
     border-color: rgba(212, 175, 55, 0.5) !important;
+  }
+
+  /* WCAG 2.4.7 (Focus Visible) — keyboard-only focus indicator on
+     interactive elements. Tailwind's reset suppresses the browser
+     default outline; we restore it via :focus-visible so mouse clicks
+     don't show the ring but keyboard navigation does. Color matches
+     the teal-400 brand token (#4db6ac, "caballito de batalla"). The
+     2px outline + 2px offset combo meets WCAG 2.4.13 (Focus Appearance)
+     thickness/contrast guidance against most surface colors. Authors
+     are free to override per element when the underlying contrast
+     ratio demands a different focus color (e.g. driving / emergency
+     mode docks may swap to amber/white). */
+  button:focus-visible,
+  a:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible,
+  [role="switch"]:focus-visible,
+  [role="link"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="menuitem"]:focus-visible {
+    outline: 2px solid #4db6ac;
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 }
 

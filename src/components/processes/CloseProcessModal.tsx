@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, PartyPopper, ShieldCheck, AlertTriangle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { Process } from '../../types/organic';
@@ -33,6 +34,7 @@ export function computeAutoCompliance(p: Pick<Process, 'incidentsDuringProcess' 
 }
 
 export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseProcessModalProps) {
+  const { t } = useTranslation();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +52,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) {
-        setError('Sesión no disponible.');
+        setError(t('processes.error_no_session_short', 'Sesión no disponible.'));
         setSubmitting(false);
         return;
       }
@@ -83,7 +85,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
       onClosed?.(j.xpAwarded ?? previewXp);
       onClose();
     } catch (err: any) {
-      setError(err?.message ?? 'Error de red');
+      setError(err?.message ?? t('processes.error_network', 'Error de red'));
     } finally {
       setSubmitting(false);
     }
@@ -108,37 +110,37 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
           <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Cerrar proceso</h3>
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-white">{t('processes.close_title', 'Cerrar proceso')}</h3>
             </div>
-            <button onClick={onClose} aria-label="Cerrar" className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <button onClick={onClose} aria-label={t('common.close', 'Cerrar')} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">
               <X className="w-4 h-4 text-zinc-500" />
             </button>
           </div>
 
           <div className="p-5 space-y-4">
             <div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Proceso</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('processes.process_label', 'Proceso')}</p>
               <p className="text-sm font-semibold text-zinc-900 dark:text-white">{process.name}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3">
-                <p className="text-zinc-500 dark:text-zinc-400">Incidentes</p>
+                <p className="text-zinc-500 dark:text-zinc-400">{t('processes.incidents', 'Incidentes')}</p>
                 <p className="text-base font-bold text-zinc-900 dark:text-white">{process.incidentsDuringProcess}</p>
               </div>
               <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3">
-                <p className="text-zinc-500 dark:text-zinc-400">Alertas atendidas</p>
+                <p className="text-zinc-500 dark:text-zinc-400">{t('processes.alerts_responded', 'Alertas atendidas')}</p>
                 <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">+{process.alertsResponded}</p>
               </div>
             </div>
 
             <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
-              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Cumplimiento auto-calculado</p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">{t('processes.compliance_auto', 'Cumplimiento auto-calculado')}</p>
               <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{auto} / 100</p>
               <p className="mt-2 text-[11px] text-emerald-700 dark:text-emerald-300">
-                XP estimado para la cuadrilla:{' '}
+                {t('processes.crew_xp_estimate', 'XP estimado para la cuadrilla')}:{' '}
                 <span className="font-mono font-bold">+{previewXp}</span>{' '}
-                <span className="text-zinc-500 dark:text-zinc-400">(base {baseXpForProcessType(process.type)})</span>
+                <span className="text-zinc-500 dark:text-zinc-400">({t('processes.base_xp_label', 'base')} {baseXpForProcessType(process.type)})</span>
               </p>
             </div>
 
@@ -146,8 +148,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
               <div className="flex items-start gap-2 text-[11px] text-amber-700 dark:text-amber-400">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>
-                  Hubo incidentes durante el proceso. La cuadrilla mantiene su XP por las
-                  respuestas atendidas — la gamificación es siempre positiva.
+                  {t('processes.incidents_warning', 'Hubo incidentes durante el proceso. La cuadrilla mantiene su XP por las respuestas atendidas — la gamificación es siempre positiva.')}
                 </span>
               </div>
             )}
@@ -162,7 +163,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
               onClick={onClose}
               className="rounded-md px-3 py-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              Cancelar
+              {t('common.cancel', 'Cancelar')}
             </button>
             <button
               disabled={submitting}
@@ -170,7 +171,7 @@ export function CloseProcessModal({ isOpen, process, onClose, onClosed }: CloseP
               className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 inline-flex items-center gap-1.5"
             >
               <PartyPopper className="w-3.5 h-3.5" />
-              {submitting ? 'Cerrando…' : 'Cerrar y celebrar'}
+              {submitting ? t('processes.closing', 'Cerrando…') : t('processes.close_celebrate', 'Cerrar y celebrar')}
             </button>
           </div>
         </motion.div>

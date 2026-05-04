@@ -8,22 +8,25 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, Hammer } from 'lucide-react';
 import type { ProcessType } from '../../types/organic';
 import { auth } from '../../services/firebase';
 
-const PROCESS_TYPES: { value: ProcessType; label: string }[] = [
-  { value: 'concreto', label: 'Concreto' },
-  { value: 'fachada', label: 'Fachada' },
-  { value: 'movimiento_tierras', label: 'Movimiento de tierras' },
-  { value: 'soldadura', label: 'Soldadura' },
-  { value: 'mantenimiento', label: 'Mantenimiento' },
-  { value: 'demolicion', label: 'Demolición' },
-  { value: 'instalacion_electrica', label: 'Instalación eléctrica' },
-  { value: 'pintura', label: 'Pintura' },
-  { value: 'topografia', label: 'Topografía' },
-  { value: 'transporte', label: 'Transporte' },
-  { value: 'otro', label: 'Otro' },
+// NOTE: ProcessType values are stable identifiers persisted to Firestore.
+// Only the display labels are localised via processTypeLabel below.
+const PROCESS_TYPE_VALUES: ProcessType[] = [
+  'concreto',
+  'fachada',
+  'movimiento_tierras',
+  'soldadura',
+  'mantenimiento',
+  'demolicion',
+  'instalacion_electrica',
+  'pintura',
+  'topografia',
+  'transporte',
+  'otro',
 ];
 
 export interface StartProcessModalProps {
@@ -36,6 +39,7 @@ export interface StartProcessModalProps {
 }
 
 export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose, onCreated }: StartProcessModalProps) {
+  const { t } = useTranslation();
   const [type, setType] = useState<ProcessType>('concreto');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -43,19 +47,36 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const processTypeLabel = (value: ProcessType): string => {
+    switch (value) {
+      case 'concreto': return t('processes.type_concrete', 'Concreto');
+      case 'fachada': return t('processes.type_facade', 'Fachada');
+      case 'movimiento_tierras': return t('processes.type_earthworks', 'Movimiento de tierras');
+      case 'soldadura': return t('processes.type_welding', 'Soldadura');
+      case 'mantenimiento': return t('processes.type_maintenance', 'Mantenimiento');
+      case 'demolicion': return t('processes.type_demolition', 'Demolición');
+      case 'instalacion_electrica': return t('processes.type_electrical', 'Instalación eléctrica');
+      case 'pintura': return t('processes.type_painting', 'Pintura');
+      case 'topografia': return t('processes.type_surveying', 'Topografía');
+      case 'transporte': return t('processes.type_transport', 'Transporte');
+      case 'otro': return t('processes.type_other', 'Otro');
+      default: return value;
+    }
+  };
+
   if (!isOpen) return null;
 
   const submit = async () => {
     setError(null);
     if (!name.trim()) {
-      setError('El nombre es obligatorio.');
+      setError(t('processes.error_name_required', 'El nombre es obligatorio.'));
       return;
     }
     setSubmitting(true);
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) {
-        setError('Sesión no disponible. Reintenta en un momento.');
+        setError(t('processes.error_no_session', 'Sesión no disponible. Reintenta en un momento.'));
         setSubmitting(false);
         return;
       }
@@ -88,7 +109,7 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
       setPlannedEndDate('');
       onClose();
     } catch (err: any) {
-      setError(err?.message ?? 'Error de red');
+      setError(err?.message ?? t('processes.error_network', 'Error de red'));
     } finally {
       setSubmitting(false);
     }
@@ -113,9 +134,9 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
           <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center gap-2">
               <Hammer className="w-4 h-4 text-[var(--accent-primary,#4db6ac)]" />
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Iniciar proceso</h3>
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-white">{t('processes.start_title', 'Iniciar proceso')}</h3>
             </div>
-            <button onClick={onClose} aria-label="Cerrar" className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <button onClick={onClose} aria-label={t('common.close', 'Cerrar')} className="p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-800">
               <X className="w-4 h-4 text-zinc-500" />
             </button>
           </div>
@@ -123,36 +144,36 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
           <div className="p-5 space-y-3">
             {crewName && (
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Cuadrilla: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{crewName}</span>
+                {t('processes.crew_label', 'Cuadrilla')}: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{crewName}</span>
               </p>
             )}
 
             <label className="block text-xs">
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">Tipo de proceso</span>
+              <span className="text-zinc-700 dark:text-zinc-300 font-medium">{t('processes.field_type', 'Tipo de proceso')}</span>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as ProcessType)}
                 className="mt-1 w-full rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm"
               >
-                {PROCESS_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                {PROCESS_TYPE_VALUES.map((value) => (
+                  <option key={value} value={value}>{processTypeLabel(value)}</option>
                 ))}
               </select>
             </label>
 
             <label className="block text-xs">
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">Nombre</span>
+              <span className="text-zinc-700 dark:text-zinc-300 font-medium">{t('processes.field_name', 'Nombre')}</span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="p.ej. Hormigonado losa nivel 3"
+                placeholder={t('processes.field_name_placeholder', 'p.ej. Hormigonado losa nivel 3')}
                 className="mt-1 w-full rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-sm"
                 maxLength={120}
               />
             </label>
 
             <label className="block text-xs">
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">Descripción</span>
+              <span className="text-zinc-700 dark:text-zinc-300 font-medium">{t('processes.field_description', 'Descripción')}</span>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -163,7 +184,7 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
             </label>
 
             <label className="block text-xs">
-              <span className="text-zinc-700 dark:text-zinc-300 font-medium">Fecha estimada de cierre</span>
+              <span className="text-zinc-700 dark:text-zinc-300 font-medium">{t('processes.field_planned_end_date', 'Fecha estimada de cierre')}</span>
               <input
                 type="date"
                 value={plannedEndDate}
@@ -182,14 +203,14 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
               onClick={onClose}
               className="rounded-md px-3 py-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              Cancelar
+              {t('common.cancel', 'Cancelar')}
             </button>
             <button
               disabled={submitting}
               onClick={submit}
               className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
             >
-              {submitting ? 'Iniciando…' : 'Iniciar'}
+              {submitting ? t('processes.starting', 'Iniciando…') : t('processes.start_button', 'Iniciar')}
             </button>
           </div>
         </motion.div>

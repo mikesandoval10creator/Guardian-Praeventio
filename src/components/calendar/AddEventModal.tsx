@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, Calendar, Clock, MapPin, Type, FileText, Loader2, AlertTriangle } from 'lucide-react';
 import { useProject } from '../../contexts/ProjectContext';
 import { db, serverTimestamp } from '../../services/firebase';
@@ -14,10 +15,13 @@ interface AddEventModalProps {
 }
 
 export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
+  const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
   const [loading, setLoading] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
   const { toasts, show: showToast, dismiss } = useToast();
+  // NOTE: type values are stable identifiers persisted to Firestore — the
+  // localised label is rendered via eventTypeLabel below.
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -26,6 +30,16 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
     location: '',
     type: 'Reunión' as 'Capacitación' | 'Inspección' | 'Auditoría' | 'Reunión'
   });
+
+  const eventTypeLabel = (value: typeof formData.type): string => {
+    switch (value) {
+      case 'Reunión': return t('calendar.event_type_meeting', 'Reunión');
+      case 'Capacitación': return t('calendar.event_type_training', 'Capacitación');
+      case 'Inspección': return t('calendar.event_type_inspection', 'Inspección');
+      case 'Auditoría': return t('calendar.event_type_audit', 'Auditoría');
+      default: return value;
+    }
+  };
 
   const checkOverlaps = async () => {
     const overlapPromises = projects.map(async (project) => {
@@ -66,7 +80,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
     if (navigator.onLine) {
       const overlaps = await checkOverlaps();
       if (overlaps.length > 0) {
-        setConflictError(`Conflicto detectado: Tienes eventos agendados a la misma hora en: ${overlaps.join(', ')}.`);
+        setConflictError(t('calendar.conflict_detected', { projects: overlaps.join(', '), defaultValue: 'Conflicto detectado: Tienes eventos agendados a la misma hora en: {{projects}}.' }));
         setLoading(false);
         return; // Detenemos la creación
       }
@@ -89,7 +103,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
       });
     } catch (error) {
       logger.error('Error adding event:', error);
-      showToast('Error al guardar el evento', 'error');
+      showToast(t('calendar.error_saving', 'Error al guardar el evento'), 'error');
     } finally {
       setLoading(false);
     }
@@ -121,8 +135,8 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                   <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Agendar Evento</h2>
-                  <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">Añade un nuevo evento al calendario</p>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('calendar.modal_title', 'Agendar Evento')}</h2>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">{t('calendar.modal_subtitle', 'Añade un nuevo evento al calendario')}</p>
                 </div>
               </div>
               <button
@@ -153,7 +167,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                    Título del Evento
+                    {t('calendar.field_title', 'Título del Evento')}
                   </label>
                   <div className="relative">
                     <Type className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -163,7 +177,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                      placeholder="Ej: Inspección de Seguridad"
+                      placeholder={t('calendar.field_title_placeholder', 'Ej: Inspección de Seguridad')}
                     />
                   </div>
                 </div>
@@ -171,7 +185,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Fecha
+                      {t('calendar.field_date', 'Fecha')}
                     </label>
                     <div className="relative">
                       <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -186,7 +200,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                      Hora
+                      {t('calendar.field_time', 'Hora')}
                     </label>
                     <div className="relative">
                       <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -203,7 +217,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                    Ubicación
+                    {t('calendar.field_location', 'Ubicación')}
                   </label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -213,30 +227,30 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-                      placeholder="Ej: Sala de Reuniones 1"
+                      placeholder={t('calendar.field_location_placeholder', 'Ej: Sala de Reuniones 1')}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                    Tipo de Evento
+                    {t('calendar.field_type', 'Tipo de Evento')}
                   </label>
                   <select
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                     className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none"
                   >
-                    <option value="Reunión">Reunión</option>
-                    <option value="Capacitación">Capacitación</option>
-                    <option value="Inspección">Inspección</option>
-                    <option value="Auditoría">Auditoría</option>
+                    <option value="Reunión">{eventTypeLabel('Reunión')}</option>
+                    <option value="Capacitación">{eventTypeLabel('Capacitación')}</option>
+                    <option value="Inspección">{eventTypeLabel('Inspección')}</option>
+                    <option value="Auditoría">{eventTypeLabel('Auditoría')}</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">
-                    Descripción
+                    {t('calendar.field_description', 'Descripción')}
                   </label>
                   <div className="relative">
                     <FileText className="absolute left-4 top-4 w-4 h-4 text-zinc-500" />
@@ -245,7 +259,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all min-h-[100px] resize-none"
-                      placeholder="Detalles del evento..."
+                      placeholder={t('calendar.field_description_placeholder', 'Detalles del evento...')}
                     />
                   </div>
                 </div>
@@ -258,7 +272,7 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                 onClick={onClose}
                 className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-zinc-700 dark:text-white bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancelar')}
               </button>
               <button
                 type="submit"
@@ -269,10 +283,10 @@ export function AddEventModal({ isOpen, onClose }: AddEventModalProps) {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Guardando...</span>
+                    <span>{t('calendar.saving', 'Guardando...')}</span>
                   </>
                 ) : (
-                  <span>Guardar Evento</span>
+                  <span>{t('calendar.save_event', 'Guardar Evento')}</span>
                 )}
               </button>
             </div>

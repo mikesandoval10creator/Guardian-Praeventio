@@ -32,6 +32,103 @@ const updateSW = registerSW({
   },
 });
 
+// 12th wave — lifecycle analytics. Module-level state so the diff between
+// `app.opened` and `app.backgrounded` is reliable across StrictMode's
+// double-invocation and any future re-mounts. Dynamic import keeps the
+// analytics module off the critical path: if it fails to load, bootstrap
+// continues unaffected.
+let appOpenedAt: number | null = null;
+let appOpenedFired = false;
+
+/**
+ * Detect launch kind (cold / warm / pwa_resume) at first mount.
+ *
+ *  - `pwa_resume`  → installed PWA (display-mode: standalone or minimal-ui).
+ *  - `warm`        → page restored from bfcache or `performance.navigation.type === 2`
+ *                    (back/forward navigation).
+ *  - `cold`        → everything else (fresh navigation, reload, fallback).
+ */
+function detectBootKind(): 'cold' | 'warm' | 'pwa_resume' {
+  try {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: minimal-ui)').matches ||
+        // iOS Safari uses a non-standard navigator.standalone flag.
+        (navigator as unknown as { standalone?: boolean }).standalone === true;
+      if (isStandalone) return 'pwa_resume';
+    }
+  } catch {
+    /* matchMedia may be unavailable in test environments */
+  }
+  // Modern Navigation Timing Level 2: PerformanceNavigationTiming.type
+  // ('navigate' | 'reload' | 'back_forward' | 'prerender'). Fall back to
+  // the legacy `performance.navigation` shape for older browsers.
+  try {
+    const entries =
+      typeof performance !== 'undefined' && typeof performance.getEntriesByType === 'function'
+        ? performance.getEntriesByType('navigation')
+        : [];
+    const nav = entries[0] as (PerformanceNavigationTiming & { type?: string }) | undefined;
+    if (nav?.type === 'back_forward') return 'warm';
+    const legacy = (performance as unknown as { navigation?: { type?: number } }).navigation;
+    if (legacy?.type === 2) return 'warm';
+  } catch {
+    /* swallow — analytics MUST NOT break bootstrap */
+  }
+  return 'cold';
+}
+
+async function fireAppOpened(): Promise<void> {
+  if (appOpenedFired) return;
+  appOpenedFired = true;
+  appOpenedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  try {
+    const { analytics } = await import('./services/analytics');
+    analytics.track('app.opened', { boot_kind: detectBootKind() });
+  } catch {
+    /* swallow — lifecycle telemetry must never block first paint */
+  }
+}
+
+async function fireAppBackgrounded(): Promise<void> {
+  if (appOpenedAt === null) return;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const foreground_duration_seconds = Math.max(0, Math.round((now - appOpenedAt) / 1000));
+  // Reset the start so subsequent visibility cycles measure fresh foreground time.
+  appOpenedAt = null;
+  try {
+    const { analytics } = await import('./services/analytics');
+    analytics.track('app.backgrounded', { foreground_duration_seconds });
+  } catch {
+    /* swallow */
+  }
+}
+
+if (typeof document !== 'undefined') {
+  // Visibility transitions are the closest cross-browser signal for
+  // "user moved away from the tab/app" — `pagehide` is mobile-Safari-only,
+  // and `beforeunload` doesn't fire on mobile. visibilitychange covers both.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      void fireAppBackgrounded();
+    } else if (!appOpenedFired) {
+      // Edge case: SW pre-rendered the document while hidden, then it
+      // becomes visible. Treat that first visible moment as the open.
+      void fireAppOpened();
+    } else {
+      // Foreground re-entry — restart the foreground timer so the next
+      // backgrounded event reports time-since-resume rather than the
+      // stale pre-hide timestamp.
+      appOpenedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    }
+  });
+}
+
+// Fire `app.opened` once on first bootstrap. Don't await — analytics is
+// fire-and-forget and React rendering must not block on it.
+void fireAppOpened();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Sentry.ErrorBoundary

@@ -1,6 +1,6 @@
 import express from "express";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // vite is imported dynamically inside the dev-only block below to avoid breaking production where vite is not installedimport path from "path";
 import path from "path";
 import cookieParser from "cookie-parser";
@@ -30,6 +30,7 @@ import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 import adminRouter from "./src/server/routes/admin.js";
+import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
@@ -226,6 +227,51 @@ app.use(helmet({
 // unthrottled. Handler extracted to src/server/routes/health.ts in
 // Round 16 R5 Phase 1 split. Final path is preserved: GET /api/health.
 app.use("/api", healthRouter);
+
+// Sprint 20 twelfth wave Bucket A (TM-I05) — CSP violation reports.
+//
+// Mounted ABOVE `verifyAuth` because browsers fire these reports without
+// any auth context (the violation can happen pre-login). We do not let
+// them count against the global `/api/` 100 req / 15 min bucket either —
+// a noisy violation rate from one tenant must not starve real traffic
+// from another.
+//
+// Per-IP throttle of 50 req/min keeps this endpoint cheap for an attacker
+// to flood; cheap to flood at this rate but easy to drown in noise. The
+// route MUST come BEFORE the global `app.use("/api/", limiter)` line so
+// the cspReport-only limiter is the one that fires.
+//
+// Body parser scope: `express.json({ type: ['application/csp-report',
+// 'application/json'] })` only on this single route, so the global
+// `express.json({ limit: '64kb' })` further down stays narrow. Browsers
+// ship reports as `application/csp-report`, but we accept JSON too in
+// case a tester runs it via curl.
+const cspReportLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 50,
+  // Per-IP key — the request is unauthenticated, so uid is unavailable.
+  // `ipKeyGenerator` normalises IPv6 into /64 buckets so a single client
+  // cannot bypass the limit by hopping addresses inside its prefix.
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? '') || 'unknown',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // 204 even on rate-limit so the browser does not retry — it never reads
+  // a body for csp-report POSTs anyway.
+  statusCode: 204,
+  message: '',
+});
+app.post(
+  '/api/csp-report',
+  cspReportLimiter,
+  express.json({
+    // Browsers honour either MIME — accept both so tests + real traffic
+    // both land on the JSON parser. The 16kb cap is tight: a real CSP
+    // report is well under 1 KB; anything larger is a flood.
+    type: ['application/csp-report', 'application/json'],
+    limit: '16kb',
+  }),
+  cspReportHandler,
+);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

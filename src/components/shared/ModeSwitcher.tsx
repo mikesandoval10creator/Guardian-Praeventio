@@ -11,6 +11,13 @@ import { useAppMode, AppMode, AppAppearance } from '../../contexts/AppModeContex
 interface SlotDef {
   key: 'normal-light' | 'normal-dark' | 'driving' | 'emergency';
   label: string;
+  /**
+   * Verbose `aria-label` describing the action the button performs and
+   * the target mode. Required for WCAG 4.1.2 (Name, Role, Value):
+   * `<title>` and `<span class="sr-only">` alone are not consistently
+   * announced as the button's accessible name across screen readers.
+   */
+  ariaLabel: string;
   Icon: typeof Sun;
   mode: AppMode;
   appearance?: AppAppearance;
@@ -18,10 +25,10 @@ interface SlotDef {
 }
 
 const SLOTS: SlotDef[] = [
-  { key: 'normal-light', label: 'Claro',     Icon: Sun,           mode: 'normal',    appearance: 'light' },
-  { key: 'normal-dark',  label: 'Oscuro',    Icon: Moon,          mode: 'normal',    appearance: 'dark'  },
-  { key: 'driving',      label: 'Conducir',  Icon: Car,           mode: 'driving',                       hint: 'Auto día/noche' },
-  { key: 'emergency',    label: 'Emergencia',Icon: AlertOctagon,  mode: 'emergency'                      },
+  { key: 'normal-light', label: 'Claro',     ariaLabel: 'Activar modo claro',                             Icon: Sun,           mode: 'normal',    appearance: 'light' },
+  { key: 'normal-dark',  label: 'Oscuro',    ariaLabel: 'Activar modo oscuro',                            Icon: Moon,          mode: 'normal',    appearance: 'dark'  },
+  { key: 'driving',      label: 'Conducir',  ariaLabel: 'Activar modo conducción (día/noche automático)', Icon: Car,           mode: 'driving',                       hint: 'Auto día/noche' },
+  { key: 'emergency',    label: 'Emergencia',ariaLabel: 'Activar modo emergencia',                        Icon: AlertOctagon,  mode: 'emergency'                      },
 ];
 
 function isActive(slot: SlotDef, mode: AppMode, appearance: AppAppearance): boolean {
@@ -64,6 +71,7 @@ export function ModeSwitcher(): ReactElement {
               type="button"
               onClick={() => handleSelect(slot)}
               aria-pressed={active}
+              aria-label={slot.ariaLabel}
               title={slot.label}
               className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
                 isEmergencySlot && active ? 'animate-pulse' : ''

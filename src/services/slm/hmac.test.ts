@@ -69,13 +69,16 @@ describe('hmac.ts — sign/verify primitives', () => {
     expect(await verifyPayload('tampered payload', tag)).toBe(false);
   });
 
-  it('verify rejects a tampered tag (mutated last char)', async () => {
+  it('verify rejects a tampered tag (mutated middle char)', async () => {
     const original = await signPayload('payload');
-    // Flip the last base64url char to a different valid base64url char
-    // so the bytes change but the encoding stays valid.
-    const lastChar = original.slice(-1);
-    const replacement = lastChar === 'A' ? 'B' : 'A';
-    const tampered = original.slice(0, -1) + replacement;
+    // Mutate a character in the middle of the tag (not last) — the last
+    // base64url char only encodes a partial byte, so flipping it can be
+    // a no-op at the byte level. Middle chars always change real bytes.
+    const midIdx = Math.floor(original.length / 2);
+    const midChar = original[midIdx];
+    const replacement = midChar === 'A' ? 'B' : 'A';
+    const tampered =
+      original.slice(0, midIdx) + replacement + original.slice(midIdx + 1);
     expect(tampered).not.toBe(original);
     expect(await verifyPayload('payload', tampered)).toBe(false);
   });
