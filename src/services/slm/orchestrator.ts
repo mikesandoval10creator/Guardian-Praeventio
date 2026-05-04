@@ -1,9 +1,11 @@
 /**
  * Online/offline orchestrator for AI inference.
  *
- * Fase 1 (Sprint 20, Bucket Kappa, T-1.4). Single entry point that
- * decides whether a query should go to the server LLM (Gemini, via
- * `geminiAdapter`) or to the on-device SLM (`slmAdapter`).
+ * Fase 1 (Sprint 20, Bucket Kappa, T-1.4) — wired to the real Gemini
+ * backend in T-1.4.1 (Sprint 20 fourth wave, Bucket Xi). Single entry
+ * point that decides whether a query should go to the server LLM
+ * (`POST /api/ask-guardian`, served by `src/server/routes/gemini.ts`)
+ * or to the on-device SLM (`slmAdapter`).
  *
  * Decision rule, in order:
  *   1. `opts.forceOffline === true`  → SLM (debug / tests)
@@ -11,24 +13,35 @@
  *   3. `navigator.onLine === false`  → SLM
  *   4. otherwise                     → server-side path
  *
- * Stub-network path: the production wiring to `geminiAdapter` is left as
- * a TODO in T-1.4.1 because the existing `getAiAdapter()` surface returns
- * a generic `AiGenerateResponse` (not an `SLMResponse`), and the prompt-
- * shape mapping has to be coordinated with the prompt-engineering pass
- * shipping in a separate ticket. For now the online path falls through
- * to the SLM as well, which keeps this module testable end-to-end
- * without a network mock and preserves the contract that `ask()`
- * always resolves with an `SLMResponse`.
+ * The server-side path (`callOnlineBackend`) does ONE fetch against
+ * `/api/ask-guardian`, attaches the Firebase ID token when an authed
+ * user is available (mirroring `Asesor.tsx` / `AsesorChat.tsx`), and
+ * wraps the JSON response into the same `SLMResponse` shape the SLM
+ * adapter returns. Any network or non-2xx outcome falls back to the
+ * on-device SLM so the caller still gets *some* answer — the orchestrator
+ * is the only place that knows about both halves of the system, so it's
+ * the only correct place for that fallback.
+ *
+ * Why we do not import Sentry here: the rest of the SLM namespace is
+ * Sentry-instrumented at higher layers (Bucket Mu owns the
+ * `withSentryScope` wrappers). Adding a Sentry call inside the
+ * orchestrator would double-report the same fetch failure.
  *
  * What this module is deliberately NOT:
  *   - It does NOT enqueue offline sessions — that's `offlineQueue.ts`.
  *   - It does NOT reconcile pending sessions when the network returns —
- *     that's `reconciliation.ts`.
+ *     that's `reconciliation.ts` / `reconciliationRunner.ts`.
  *   - It does NOT touch UI state (toasts, badges) — call sites do that.
  */
 
 import { complete as slmComplete } from './slmAdapter';
 import type { SLMQuery, SLMResponse } from './types';
+
+/**
+ * Endpoint path. Kept as a constant so tests can spy on `fetch` calls
+ * without having to duplicate the literal in two places.
+ */
+const ASK_GUARDIAN_ENDPOINT = '/api/ask-guardian';
 
 /**
  * Optional overrides for the online/offline decision.
@@ -72,15 +85,109 @@ function shouldUseOffline(opts: OrchestratorOptions): boolean {
 }
 
 /**
+ * Best-effort Firebase ID token retrieval.
+ *
+ * Mirrors the call sites in `Asesor.tsx` / `AsesorChat.tsx`: we want a
+ * Bearer token if the user is signed in, but we tolerate the unauthed
+ * case (the endpoint will 401 and we'll fall back to the SLM). The
+ * import is dynamic so this module stays import-safe under SSR / unit
+ * tests that don't bootstrap Firebase.
+ */
+async function tryGetIdToken(): Promise<string | null> {
+  try {
+    // Dynamic import avoids pulling Firebase into worker / SSR bundles
+    // that don't need it, and keeps the orchestrator unit-testable
+    // without a Firebase mock (the import simply never runs because
+    // `forceOnline` tests stub `fetch` before reaching this branch, and
+    // `navigator.onLine===false` tests never enter this code path).
+    const mod = await import('../firebase');
+    const token = await mod.auth.currentUser?.getIdToken();
+    return typeof token === 'string' && token.length > 0 ? token : null;
+  } catch {
+    // No Firebase available (SSR / test env) — proceed without auth.
+    return null;
+  }
+}
+
+/**
+ * Issue one POST to `/api/ask-guardian` and translate the JSON shape
+ * into an `SLMResponse`.
+ *
+ * Returns `null` if the call fails (network error, non-2xx, malformed
+ * body). The caller is expected to fall back to the SLM in that case.
+ *
+ * Latency is captured client-side from the call site's perspective —
+ * it includes RTT + server time, which is exactly what we want to
+ * surface to UI / telemetry. `tokensGenerated` is set to 0 because the
+ * /ask-guardian response shape doesn't currently carry that count;
+ * leaving it at 0 (rather than guessing from `text.length`) signals
+ * "unknown" and matches the documented contract that this field
+ * reflects the *actual* number of generated tokens.
+ */
+async function callOnlineBackend(
+  query: SLMQuery,
+): Promise<SLMResponse | null> {
+  const start = Date.now();
+  try {
+    const token = await tryGetIdToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const res = await fetch(ASK_GUARDIAN_ENDPOINT, {
+      method: 'POST',
+      headers,
+      // The endpoint accepts `{ query, projectId?, stream?, ... }` —
+      // we send only `query` here. `stream:false` is the implicit default
+      // server-side and gives us a JSON body to parse below.
+      body: JSON.stringify({ query: query.prompt }),
+    });
+
+    if (!res.ok) {
+      // 4xx (auth, rate limit) and 5xx alike → caller falls back to SLM.
+      return null;
+    }
+
+    // The server returns `{ response: string, contextUsed?: boolean,
+    // envContextUsed?: boolean }` (see src/server/routes/gemini.ts).
+    // Some legacy paths under the same endpoint also return `answer` —
+    // we honor either shape so a future server tweak doesn't crash us.
+    const data = (await res.json()) as {
+      response?: string;
+      answer?: string;
+    };
+    const text = data.response ?? data.answer ?? '';
+    return {
+      text,
+      latencyMs: Date.now() - start,
+      tokensGenerated: 0,
+      backend: 'gemini',
+    };
+  } catch {
+    // Network error, abort, JSON parse failure, etc. — caller falls
+    // back to the SLM. We deliberately swallow the underlying error
+    // here: the orchestrator's contract is "always resolve with an
+    // SLMResponse", and the SLM fallback is the better signal than a
+    // thrown network error.
+    return null;
+  }
+}
+
+/**
  * Run a single inference call, choosing online or offline transparently.
  *
  * The return type is `SLMResponse` for both paths so call sites have a
- * uniform shape to depend on; the online path will (in T-1.4.1) wrap
- * the Gemini response into the same shape.
+ * uniform shape to depend on; the online path wraps the Gemini response
+ * into the same shape with `backend: 'gemini'`.
  *
- * Throws whatever the underlying adapter throws — the orchestrator does
- * not retry or wrap errors, by design. The caller decides whether to
- * fall back, retry, or surface to the user.
+ * If the online path is selected but the fetch fails for any reason
+ * (network error, 4xx/5xx, malformed JSON), the orchestrator transparently
+ * falls back to the on-device SLM so the caller always gets a usable
+ * answer. The offline path never falls back online — by definition it's
+ * the path you take when the network is gone.
  */
 export async function ask(
   query: SLMQuery,
@@ -92,12 +199,15 @@ export async function ask(
     return slmComplete(query);
   }
 
-  // TODO T-1.4.1: wire to existing geminiAdapter / askGuardian endpoint.
-  //   const adapter = getAiAdapter();
-  //   const r = await adapter.generate({ prompt: query.prompt, ... });
-  //   return { text: r.text, latencyMs: ..., tokensGenerated: ..., backend: 'wasm-simd' };
-  //
-  // For now both paths fall through to the SLM so the orchestrator
-  // surface stays testable without a network mock.
+  const remote = await callOnlineBackend(query);
+  if (remote !== null) {
+    return remote;
+  }
+
+  // Online path failed (network / 4xx / 5xx / parse). Fall back to
+  // the on-device SLM so the caller still gets an answer. We do NOT
+  // enqueue this exchange to the offline queue here — that's the
+  // responsibility of the call site that observes `backend !== 'gemini'`
+  // and decides the answer needs reconciliation.
   return slmComplete(query);
 }

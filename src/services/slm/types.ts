@@ -12,11 +12,14 @@
  */
 
 /**
- * Backends supported by the on-device runtime. WebGPU is preferred when
- * available; wasm-simd is the universal fallback (works in any modern
- * browser, including iOS Safari before WebGPU GA).
+ * Backends that can service an `SLMResponse`. The first two cover the
+ * on-device runtime (WebGPU preferred, wasm-simd as the universal
+ * fallback). `'gemini'` is added in T-1.4.1 so the orchestrator can
+ * surface server-side Gemini answers through the same `SLMResponse`
+ * shape — call sites stay backend-agnostic but telemetry / debug UI
+ * can still distinguish online vs. on-device traffic.
  */
-export type SLMBackend = 'webgpu' | 'wasm-simd';
+export type SLMBackend = 'webgpu' | 'wasm-simd' | 'gemini';
 
 /**
  * Quantization scheme for the model weights. Only int4 is supported in
