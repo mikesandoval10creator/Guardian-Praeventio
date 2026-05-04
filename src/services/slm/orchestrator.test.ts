@@ -105,3 +105,117 @@ describe('SLM orchestrator (orchestrator.ts)', () => {
     expect(slmCompleteMock).toHaveBeenCalledWith({ prompt: 'forced offline' });
   });
 });
+
+// 15th wave Bucket A — kill 6 surviving ConditionalExpression /
+// EqualityOperator / BooleanLiteral mutants on `shouldUseOffline`
+// (orchestrator.ts:75-76). The 14th wave baseline only had 3 smoke tests
+// over the decision matrix; the strict `=== true` checks were trivially
+// mutatable. We exhaustively pin all 4 quadrants of the (forceOffline,
+// forceOnline) matrix plus the navigator.onLine fall-through.
+describe('SLM orchestrator — shouldUseOffline decision matrix (4 quadrants)', () => {
+  // Spy on global fetch so the online path doesn't attempt a real HTTP
+  // call. Returning `null` from json() trips `data.response ?? data.answer
+  // ?? ''` → empty string. We assert *which* mock was called rather than
+  // the response payload, so an empty body is fine.
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.mocked(slmCompleteMock).mockClear();
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ response: 'online-stub' }),
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('quadrant 1: (forceOffline=true, forceOnline=false) → SLM (offline wins)', async () => {
+    setNavigatorOnline(true);
+
+    await ask(
+      { prompt: 'q1' },
+      { forceOffline: true, forceOnline: false },
+    );
+
+    // Offline path: slmAdapter.complete is called, fetch is NOT.
+    expect(slmCompleteMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('quadrant 2: (forceOffline=false, forceOnline=true) → online path', async () => {
+    setNavigatorOnline(false); // even with browser offline, forceOnline wins
+
+    await ask(
+      { prompt: 'q2' },
+      { forceOffline: false, forceOnline: true },
+    );
+
+    // Online path: fetch is called, slmAdapter.complete is NOT (response was ok).
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(slmCompleteMock).not.toHaveBeenCalled();
+  });
+
+  it('quadrant 3: (forceOffline=true, forceOnline=true) → SLM (forceOffline wins per docstring)', async () => {
+    setNavigatorOnline(true);
+
+    await ask(
+      { prompt: 'q3' },
+      { forceOffline: true, forceOnline: true },
+    );
+
+    // Per `OrchestratorOptions.forceOffline` JSDoc:
+    //   "Wins over `forceOnline` if both are set."
+    // So slmAdapter.complete fires; fetch must not.
+    expect(slmCompleteMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('quadrant 4a: (forceOffline=false, forceOnline=false) + navigator.onLine=true → online', async () => {
+    setNavigatorOnline(true);
+
+    await ask(
+      { prompt: 'q4a' },
+      { forceOffline: false, forceOnline: false },
+    );
+
+    // Falls through to navigator.onLine === true → online path.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(slmCompleteMock).not.toHaveBeenCalled();
+  });
+
+  it('quadrant 4b: (forceOffline=false, forceOnline=false) + navigator.onLine=false → SLM', async () => {
+    setNavigatorOnline(false);
+
+    await ask(
+      { prompt: 'q4b' },
+      { forceOffline: false, forceOnline: false },
+    );
+
+    // Falls through to navigator.onLine === false → SLM path.
+    expect(slmCompleteMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Edge guard: the `=== true` strictness means non-boolean truthy values
+  // must NOT trigger the override. This kills the BooleanLiteral mutant
+  // that flips `=== true` to `=== false` (which would also pass with
+  // booleans alone but fails with truthy non-bools like a string).
+  it('forceOffline as non-true truthy value (string "true") does NOT override navigator.onLine=true', async () => {
+    setNavigatorOnline(true);
+
+    // Cast through unknown — forceOffline accepts only boolean per the
+    // type, but we want to prove the runtime check is strict equality.
+    await ask(
+      { prompt: 'edge' },
+      { forceOffline: 'true' as unknown as boolean },
+    );
+
+    // Strict `=== true` → string "true" does NOT match → online path.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(slmCompleteMock).not.toHaveBeenCalled();
+  });
+});
