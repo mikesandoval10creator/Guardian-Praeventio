@@ -746,5 +746,47 @@
     "resend_link": "Reenviar link",
     "verified_on": "Verificado em {{date}}",
     "expires_on": "Expira em {{date}} se não for concluído."
+  },
+  "epp_character": {
+    "guardian_title": "Guardião Praeventio",
+    "subtitle_complete": "Seu equipamento de proteção individual está completo e verificado para as condições atuais."
+  },
+  "epp_required": {
+    "badge": "EPI Requerido",
+    "helmet": "Capacete",
+    "gloves": "Luvas",
+    "brand": "Praeventio",
+    "goggles": "Óculos",
+    "boots": "Botas"
+  },
+  "dashboard_actions": {
+    "fast_check": "Fast Check",
+    "planner": "Planejador",
+    "emergency": "Emergência",
+    "live_map": "Mapa Vivo"
+  },
+  "realtime_status": {
+    "operational_state": "Estado Operacional",
+    "operational_state_with_kind": "Estado Operacional: {{kind}}",
+    "kind_emergency": "Emergência",
+    "kind_alert": "Alerta",
+    "view_protocol": "Ver Protocolo",
+    "normal_operation": "Operação Normal",
+    "recommendation_label": "Recomendação",
+    "recommendation_mining": "Verifique sistemas de ventilação e fortificação. Monitore a fadiga em operadores de máquinas pesadas.",
+    "recommendation_construction": "Inspecione andaimes e linhas de vida. Garanta o uso correto de cintos em trabalhos em altura.",
+    "recommendation_manufacturing": "Revise guardas de segurança em maquinário móvel. Mantenha corredores livres de obstáculos.",
+    "recommendation_agriculture": "Garanta hidratação constante e pausas à sombra. Verifique EPI para aplicação de agroquímicos.",
+    "recommendation_energy": "Confirme bloqueios de energia (LOTO) antes de intervenções. Use EPI dielétrico certificado.",
+    "recommendation_default": "Mantenha as áreas de trabalho ordenadas e limpas. Faça pausas ativas a cada 2 horas."
+  },
+  "ai_insights": {
+    "title": "Análise Preditiva IA",
+    "subtitle": "Avaliação de riscos globais",
+    "incident_probability": "Probabilidade de Incidente",
+    "risk_level": "Nível de Risco",
+    "main_predictions": "Principais Predições",
+    "probability_label": "{{value}}% Prob.",
+    "suggested_mitigation": "Mitigação Sugerida"
   }
 }

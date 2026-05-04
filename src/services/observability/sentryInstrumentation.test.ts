@@ -43,7 +43,12 @@ vi.mock('@sentry/core', () => {
 });
 
 import * as Sentry from '@sentry/core';
-import { withSentryScope, withSentryScopeSync } from './sentryInstrumentation';
+import {
+  REDACT_KEYS,
+  sanitizeContext,
+  withSentryScope,
+  withSentryScopeSync,
+} from './sentryInstrumentation';
 
 const sentryMockHandle = Sentry as unknown as {
   __scope: { setTag: ReturnType<typeof vi.fn>; setContext: ReturnType<typeof vi.fn> };
@@ -170,5 +175,69 @@ describe('withSentryScopeSync', () => {
       boom,
       expect.objectContaining({ level: 'error' }),
     );
+  });
+});
+
+// 15th wave Bucket A — kill 11 surviving StringLiteral mutants on REDACT_KEYS.
+// Stryker baseline (14th wave Bucket D) showed every key in REDACT_KEYS could
+// be mutated to "" without any test failing. The mock-based tests above only
+// assert three keys (token, apiKey, prompt) explicitly. We pin every key
+// individually here, plus one control non-listed key to catch the inverse
+// regression (i.e. accidentally redacting safe data).
+describe('REDACT_KEYS — parametric per-key assertion', () => {
+  // Source-of-truth list — pulled from the exported set so adding a key in
+  // sentryInstrumentation.ts auto-extends this loop without hidden drift.
+  const KEYS = Array.from(REDACT_KEYS);
+
+  // Sanity check that the set hasn't been silently emptied — without this,
+  // a `REDACT_KEYS = new Set([])` mutation would skip every iteration and
+  // pass the suite vacuously.
+  it('REDACT_KEYS contains the documented 11 PII-bearing keys', () => {
+    expect(KEYS).toHaveLength(11);
+    expect(KEYS).toEqual(
+      expect.arrayContaining([
+        'authorization',
+        'cookie',
+        'token',
+        'apiKey',
+        'api_key',
+        'sessionId',
+        'session',
+        'password',
+        'prompt',
+        'rawPrompt',
+        'userInput',
+      ]),
+    );
+  });
+
+  for (const key of KEYS) {
+    it(`redacts the "${key}" key in context payload`, () => {
+      // Sentinel value distinct from the [REDACTED] marker so a no-op
+      // sanitize would visibly leak the secret into the assertion.
+      const out = sanitizeContext({
+        [key]: 'secret-value-that-must-not-leak',
+        safeNeighbour: 'keep',
+      });
+      expect(out[key]).toBe('[REDACTED]');
+      // The non-listed neighbour key MUST survive intact — guards against
+      // an over-broad redactor that wipes everything.
+      expect(out.safeNeighbour).toBe('keep');
+    });
+  }
+
+  it('does NOT redact a non-listed safe key', () => {
+    const out = sanitizeContext({ industryCode: 'mining', action: 'fastCheck' });
+    expect(out.industryCode).toBe('mining');
+    expect(out.action).toBe('fastCheck');
+  });
+
+  it('returns a fresh shallow copy (does not mutate the input payload)', () => {
+    // Documented contract in the source: "The mutation is non-destructive
+    // — we return a fresh shallow copy." Pin it.
+    const input = { token: 'leak-1', industry: 'construction' };
+    const out = sanitizeContext(input);
+    expect(input.token).toBe('leak-1');
+    expect(out).not.toBe(input);
   });
 });

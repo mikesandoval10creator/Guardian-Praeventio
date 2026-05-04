@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
 import { NodeType } from '../../types';
 import { AlertTriangle, CheckCircle2, ShieldAlert, Activity } from 'lucide-react';
 
 export const RealTimeStatusWidget: React.FC = () => {
+  const { t } = useTranslation();
   const { nodes } = useRiskEngine();
   const { selectedProject } = useProject();
 
@@ -39,17 +41,17 @@ export const RealTimeStatusWidget: React.FC = () => {
   const getRecommendation = (industry: string) => {
     switch (industry) {
       case 'Minería':
-        return 'Verifique sistemas de ventilación y fortificación. Monitoree fatiga en operadores de maquinaria pesada.';
+        return t('realtime_status.recommendation_mining', 'Verifique sistemas de ventilación y fortificación. Monitoree fatiga en operadores de maquinaria pesada.');
       case 'Construcción':
-        return 'Inspeccione andamios y líneas de vida. Asegure el uso correcto de arneses en trabajos en altura.';
+        return t('realtime_status.recommendation_construction', 'Inspeccione andamios y líneas de vida. Asegure el uso correcto de arneses en trabajos en altura.');
       case 'Manufactura':
-        return 'Revise guardas de seguridad en maquinaria móvil. Mantenga pasillos despejados de obstáculos.';
+        return t('realtime_status.recommendation_manufacturing', 'Revise guardas de seguridad en maquinaria móvil. Mantenga pasillos despejados de obstáculos.');
       case 'Agricultura':
-        return 'Asegure hidratación constante y pausas bajo sombra. Verifique EPP para aplicación de agroquímicos.';
+        return t('realtime_status.recommendation_agriculture', 'Asegure hidratación constante y pausas bajo sombra. Verifique EPP para aplicación de agroquímicos.');
       case 'Energía':
-        return 'Confirme bloqueos de energía (LOTO) antes de intervenciones. Use EPP dieléctrico certificado.';
+        return t('realtime_status.recommendation_energy', 'Confirme bloqueos de energía (LOTO) antes de intervenciones. Use EPP dieléctrico certificado.');
       default:
-        return 'Mantenga las áreas de trabajo ordenadas y limpias. Realice pausas activas cada 2 horas.';
+        return t('realtime_status.recommendation_default', 'Mantenga las áreas de trabajo ordenadas y limpias. Realice pausas activas cada 2 horas.');
     }
   };
 
@@ -66,7 +68,7 @@ export const RealTimeStatusWidget: React.FC = () => {
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-0.5 sm:mb-1">
               <span className="bg-rose-500 text-white text-[7px] sm:text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">
-                Estado Operativo: {status.node.type === NodeType.EMERGENCY ? 'Emergencia' : 'Alerta'}
+                {t('realtime_status.operational_state_with_kind', 'Estado Operativo: {{kind}}', { kind: status.node.type === NodeType.EMERGENCY ? t('realtime_status.kind_emergency', 'Emergencia') : t('realtime_status.kind_alert', 'Alerta') })}
               </span>
               <span className="text-[7px] sm:text-[10px] text-rose-600 dark:text-rose-400 font-bold">
                 {new Date(status.node.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
@@ -81,7 +83,7 @@ export const RealTimeStatusWidget: React.FC = () => {
           </div>
           <div className="shrink-0">
             <Link to="/emergency" className="bg-rose-500 hover:bg-rose-600 text-white text-[7px] sm:text-[9px] font-black uppercase tracking-widest px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg transition-colors shadow-sm whitespace-nowrap inline-block">
-              Ver Protocolo
+              {t('realtime_status.view_protocol', 'Ver Protocolo')}
             </Link>
           </div>
         </div>
@@ -101,14 +103,14 @@ export const RealTimeStatusWidget: React.FC = () => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1 sm:gap-1.5 mb-0.5 sm:mb-1">
             <span className="bg-indigo-500 text-white text-[7px] sm:text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">
-              Estado Operativo
+              {t('realtime_status.operational_state', 'Estado Operativo')}
             </span>
             <span className="text-[7px] sm:text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
-              Faena Normal
+              {t('realtime_status.normal_operation', 'Faena Normal')}
             </span>
           </div>
           <h3 className="text-[9px] sm:text-xs font-black text-zinc-900 dark:text-white leading-tight mb-0.5 truncate">
-            Recomendación
+            {t('realtime_status.recommendation_label', 'Recomendación')}
           </h3>
           <p className="text-[8px] sm:text-[10px] text-zinc-600 dark:text-zinc-300 leading-snug line-clamp-1 sm:line-clamp-none">
             {getRecommendation(industry)}

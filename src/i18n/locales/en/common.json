@@ -746,5 +746,47 @@
     "resend_link": "Resend link",
     "verified_on": "Verified on {{date}}",
     "expires_on": "Expires on {{date}} if not completed."
+  },
+  "epp_character": {
+    "guardian_title": "Praeventio Guardian",
+    "subtitle_complete": "Your personal protective equipment is complete and verified for current conditions."
+  },
+  "epp_required": {
+    "badge": "PPE Required",
+    "helmet": "Helmet",
+    "gloves": "Gloves",
+    "brand": "Praeventio",
+    "goggles": "Goggles",
+    "boots": "Boots"
+  },
+  "dashboard_actions": {
+    "fast_check": "Fast Check",
+    "planner": "Planner",
+    "emergency": "Emergency",
+    "live_map": "Live Map"
+  },
+  "realtime_status": {
+    "operational_state": "Operational State",
+    "operational_state_with_kind": "Operational State: {{kind}}",
+    "kind_emergency": "Emergency",
+    "kind_alert": "Alert",
+    "view_protocol": "View Protocol",
+    "normal_operation": "Normal Operation",
+    "recommendation_label": "Recommendation",
+    "recommendation_mining": "Check ventilation and ground-support systems. Monitor fatigue in heavy-machinery operators.",
+    "recommendation_construction": "Inspect scaffolding and lifelines. Ensure correct harness use for work at height.",
+    "recommendation_manufacturing": "Review safety guards on moving machinery. Keep aisles clear of obstacles.",
+    "recommendation_agriculture": "Ensure constant hydration and breaks in the shade. Check PPE for agrochemical application.",
+    "recommendation_energy": "Confirm energy lockouts (LOTO) before interventions. Use certified dielectric PPE.",
+    "recommendation_default": "Keep work areas tidy and clean. Take active breaks every 2 hours."
+  },
+  "ai_insights": {
+    "title": "AI Predictive Analysis",
+    "subtitle": "Global risk assessment",
+    "incident_probability": "Incident Probability",
+    "risk_level": "Risk Level",
+    "main_predictions": "Top Predictions",
+    "probability_label": "{{value}}% Prob.",
+    "suggested_mitigation": "Suggested Mitigation"
   }
 }

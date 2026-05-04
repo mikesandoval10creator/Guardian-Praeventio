@@ -149,7 +149,11 @@ export function withSentryScopeSync<T>(
  * `apiKey`) is a one-liner. The mutation is non-destructive — we return
  * a fresh shallow copy.
  */
-const REDACT_KEYS: ReadonlySet<string> = new Set([
+// EXPORTED for the parametric REDACT_KEYS test (15th wave Bucket A — close
+// Stryker mutant gaps from the 14th wave baseline). Each StringLiteral here
+// was a surviving mutant; per-key tests need to enumerate this set directly
+// rather than hardcoding a duplicate list that could drift from the source.
+export const REDACT_KEYS: ReadonlySet<string> = new Set([
   'authorization',
   'cookie',
   'token',
@@ -163,7 +167,12 @@ const REDACT_KEYS: ReadonlySet<string> = new Set([
   'userInput',
 ]);
 
-function sanitizeContext(ctx: SentryContextPayload): SentryContextPayload {
+// EXPORTED for direct unit testing — the 14th wave Stryker baseline showed
+// 11 surviving StringLiteral mutants on REDACT_KEYS that were unreachable
+// through `withSentryScope` alone (mock plumbing made per-key assertions
+// fragile). Exposing the pure function lets the parametric test cover all
+// 11 keys + a non-listed control with one round-trip per key.
+export function sanitizeContext(ctx: SentryContextPayload): SentryContextPayload {
   const out: SentryContextPayload = {};
   for (const [k, v] of Object.entries(ctx)) {
     if (REDACT_KEYS.has(k)) {
