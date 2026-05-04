@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Cylinder, Text, Float } from '@react-three/drei';
+import { useTranslation } from 'react-i18next';
 
 function Medal({ title, color }: { title: string, color: string }) {
   const meshRef = useRef<any>(null);
@@ -34,14 +35,16 @@ function Medal({ title, color }: { title: string, color: string }) {
   );
 }
 
-export function Medal3DViewer({ title = "SEMANA INVICTA", color = "#fbbf24" }: { title?: string, color?: string }) {
+export function Medal3DViewer({ title, color = "#fbbf24" }: { title?: string, color?: string }) {
+  const { t } = useTranslation();
+  const medalTitle = title ?? t('medal_viewer.default_title');
   return (
     <div className="w-full h-48 relative cursor-grab active:cursor-grabbing">
       <Canvas camera={{ position: [0, 0, 5], fov: 50 }} gl={{ powerPreference: 'low-power' }}>
         <ambientLight intensity={0.5} />
         <directionalLight position={[10, 10, 5]} intensity={1.5} />
         <pointLight position={[-10, -10, -5]} intensity={0.5} />
-        <Medal title={title} color={color} />
+        <Medal title={medalTitle} color={color} />
       </Canvas>
     </div>
   );

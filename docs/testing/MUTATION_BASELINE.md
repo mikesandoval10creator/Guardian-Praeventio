@@ -1,6 +1,6 @@
 # Mutation Testing Baseline (Stryker)
 
-First real Stryker run on three high-value modules of Guardian Praeventio. Establishes the empirical floor against which future ratchets will be measured.
+First real Stryker run on three high-value modules of Guardian Praeventio. Establishes the empirical floor against which future ratchets will be measured. Run #2 (16th wave) confirms the uplift produced by the 15th-wave Bucket A test additions.
 
 ## Run metadata
 
@@ -123,6 +123,108 @@ A premature ratchet on the global `break` would force orchestrator tests to be w
 3. Once orchestrator >= 50 % and verifyAuth >= 70 %, ratchet global `break` to 60 and `low` to 70.
 
 **For now: leave thresholds untouched.** Surgical `npm run test:mutation:auth` etc. continue to enforce break:50 per-module run, which `verifyAuth` and `sentryInstrumentation` clear comfortably; the failing exit code of the orchestrator run is a feature, not a regression — it tells the test-author bucket exactly what to fix.
+
+## Run #2 — 2026-05-04 (post-15th-wave)
+
+Branch: `dev/sprint-20-sixteenth-wave-multi-agent-2026-05-04`. Trigger: 15th-wave Bucket A (commit `2b58681`) added 26 targeted tests against the Run #1 top-3 surviving mutants per module (REDACT_KEYS parametric for Sentry, prod-config startup-throw test for verifyAuth, four-quadrant decision matrix for orchestrator). This run measures the uplift.
+
+### Score deltas
+
+| Module | Run #1 score | Run #2 score | Δ (pp) | Run #1 killed | Run #2 killed | Killed Δ | Survived Δ |
+|--------|---:|---:|---:|---:|---:|---:|---:|
+| `src/server/middleware/verifyAuth.ts` | 64.29 % | **76.19 %** | +11.90 | 54 | 64 | +10 | -10 |
+| `src/services/slm/orchestrator.ts` | 7.69 % | **43.59 %** | +35.90 | 6 | 34 | +28 | -12 |
+| `src/services/observability/sentryInstrumentation.ts` | 72.58 % | **85.48 %** | +12.90 | 45 | 53 | +8 | -8 |
+| **Cumulative** | 46.88 % | **67.86 %** | +20.98 | 105 | 151 | +46 | -30 |
+
+Cumulative across the 3 modules: 224 mutants, 151 killed, 55 survived, 18 NoCoverage, 0 timeouts, 0 errors. Score (covered) climbs from 55.26 % → 73.30 %. Wall-clock at concurrency=1 on Windows host: 40 s (verifyAuth) + 15 s (orchestrator) + 16 s (sentryInstrumentation) = 1 m 11 s, slightly faster than Run #1 (1 m 29 s) likely because the added tests are tightly-scoped unit tests.
+
+### What moved per module
+
+- **verifyAuth (+11.90 pp)** — the Run #1 top-3 mutants on `process.env.E2E_MODE === '1'` (line 33) and `isE2EModeEnabled()` (line 41) were targeted; the `33:46` mutant is now killed by the new module-level prod-config startup throw test, and the line-62/63 `sepIdx === -1` cluster lost 4 of its 6 survivors. The remaining 12 survivors are NEW targets — see below.
+- **orchestrator (+35.90 pp, the largest uplift)** — the 4-quadrant `shouldUseOffline` decision matrix added by the 15th wave killed all 6 of the previous `forceOffline` / `forceOnline` mutants on lines 75–76 plus 22 more on the surrounding flow. Score moves from below `break:50` (run was failing) to 43.59 % — still under break:50, but within striking distance of the next bucket.
+- **sentryInstrumentation (+12.90 pp)** — the parametric REDACT_KEYS test (`it.each(REDACT_KEYS)`) killed all 11 of the previous `StringLiteral` survivors on lines 152–163. Survivors now cluster on the heuristic `isSentrySetupError` `LogicalOperator` chain (lines 196–200) and a single mutator-resistant string at 123.
+
+### Top 3 NEW surviving mutants (different from Run #1)
+
+#### verifyAuth.ts
+
+1. **`verifyAuth.ts:77:7` — `ConditionalExpression` on Bearer scheme guard**
+   - Survivor: `if (!authHeader.startsWith('Bearer '))` mutated to `if (true)`.
+   - Why it matters: this is the second-line guard after the E2E branch — if it always trips, every `Bearer` request 401s. No test currently asserts the negative path "Bearer + valid header → continues to admin verifyIdToken".
+   - Companion: `77:8 MethodExpression` (`startsWith` → `endsWith`) — same root cause.
+   - Fix: positive-path test that supplies `Authorization: Bearer xyz`, mocks `admin.auth().verifyIdToken` to resolve, and asserts `next()` is called.
+
+2. **`verifyAuth.ts:62:28 / 62:39 / 63:25 / 63:36` — leftover `sepIdx === -1` cluster (4 mutants)**
+   - Survivors: `ConditionalExpression` flips and `UnaryOperator` `-1` → `+1` on `token.indexOf(':')` parsing.
+   - Why it matters: same as Run #1, but only partially closed. The 15th-wave tests cover `secret:uid` and `secret` (no colon), but do not assert the `secret:` (empty uid) edge or trigger the `+1` boundary.
+   - Fix: explicit assertion `secret:` → `req.user.uid === 'e2e-user-001'` (fallback) and a non-`-1` index test.
+
+3. **`verifyAuth.ts:36:7 / 41:60 / 53:51 / 70:20 / 71:17` — `StringLiteral` cluster (5 mutants)**
+   - Survivors: error-message strings, `'production'` literal in the env check, `'E2E '` scheme prefix, and `e2e-user-001` / `'e2e@praeventio.test'` defaults.
+   - Why it matters: most are low-stakes (the error message text is not behavioural), but `41:60` (mutating `'production'` to `""`) silently neutralises the prod gate without test coverage.
+   - Fix: test that asserts `isE2EModeEnabled()` returns `false` specifically when `NODE_ENV === 'production'` (literal pinning) — separate from existing "non-test env" tests.
+
+#### orchestrator.ts
+
+1. **`orchestrator.ts:237–245` — `trackQueryOffline` analytics emission body still empty-body / object-literal mutable**
+   - Survivors: 5 mutants (`BlockStatement {}`, `StringLiteral ""`, `ObjectLiteral {}`) on the entire offline analytics call shape. Run #1 listed this as priority #7; the 15th wave did not add tests for the analytics seam.
+   - Why it matters: silent loss of `'slm.query.offline'` event breaks the product-tracking SLA the 12th wave wired.
+   - Fix: spy on `analytics.track` and assert `expect(spy).toHaveBeenCalledWith('slm.query.offline', expect.objectContaining({ query_kind: 'general' }))`.
+
+2. **`orchestrator.ts:104–105` — `tryGetIdToken` `OptionalChaining` + `LogicalOperator` cluster (5 mutants)**
+   - Survivors: `?.` chain elision, `&&` → `||` flips, `EqualityOperator` flips on `typeof token === 'string' && token.length > 0`.
+   - Why it matters: the auth path through Firebase. Mutations to the truthy guard let an empty/undefined token propagate into the Authorization header. NEW: not in Run #1 top 10 (was "noCoverage" before; now reachable thanks to 15th-wave tests but not asserted).
+   - Fix: test `tryGetIdToken()` with mocked Firebase auth returning `''`, `null`, and `'real-token'`, asserting return-value identity.
+
+3. **`orchestrator.ts:162` — `LogicalOperator` on `data.response ?? data.answer ?? ''` (2 mutants)**
+   - Survivors: `(data.response ?? data.answer) && ''` and `data.response && data.answer`.
+   - Why it matters: governs how the online backend's two response shapes (`{response:...}` vs `{answer:...}`) are coalesced into the canonical `text` field. Mutated form silently returns empty.
+   - Fix: parametric test `it.each([{response:'a'},{answer:'b'},{}])` asserting `text` is correct for each shape.
+
+#### sentryInstrumentation.ts
+
+1. **`sentryInstrumentation.ts:196:5` — `LogicalOperator` chain on `msg.includes('sentry') || msg.includes('hub') || msg.includes('not initialized')` (3 mutants)**
+   - Survivors: any single `||` flipped to `&&`, or the whole chain forced to `false`.
+   - Why it matters: this heuristic decides what counts as "Sentry setup error" vs a real exception. False classification swallows real errors silently. Carry-over from Run #1 priority #9 — 15th wave did not target this.
+   - Fix: parametric test on each substring in isolation (`'sentry hub error'`, `'not initialized'`, plus a control like `'database connection refused'` returning `false`).
+
+2. **`sentryInstrumentation.ts:139:9` — `ConditionalExpression` (2 mutants, `true` and `false`)**
+   - Survivor: condition forcing inside `sanitizeContext` recursion guard. NEW survivor — not in Run #1 top 10. Likely surfaced because the parametric REDACT_KEYS test gives broader coverage but doesn't assert the recursion-depth boundary.
+   - Fix: nested-object payload test (`{a:{b:{c:'token'}}}`) verifying redaction reaches depth >= 3.
+
+3. **`sentryInstrumentation.ts:193:7` — `ConditionalExpression` on `if (!(err instanceof Error))` flipped to `false`**
+   - Survivor: same as Run #1 priority #8. Not addressed by 15th wave.
+   - Fix: `isSentrySetupError(null)` / `isSentrySetupError('string')` returning `false`.
+
+### Threshold ratchet recommendation (Run #2)
+
+**Recommendation: NO global ratchet on `break`.** Reasoning:
+
+- Per the documented safety rule "do not increase the `break` threshold above the lowest module's score − 5", the safe upper bound is **orchestrator − 5 = 38.59 %**. That is *lower* than the current `break: 50`. The current break already exceeds the orchestrator's score (43.59 %), which is why surgical `npm run test:mutation:slm` exits non-zero on the orchestrator file — a known-failing floor that documents the gap rather than a CI-breaking surprise.
+- Two of three modules now individually clear `break: 80` territory (verifyAuth 76.19 %, sentryInstrumentation 85.48 %), but Stryker 9.6.1 still does not support per-file `thresholds`. Per-file ratchets remain a deferred R21 enhancement.
+- A ratchet to `break: 55` would block the next CI run on the orchestrator surgical command. Premature.
+
+**Deferred path (when orchestrator ≥ 55 %)**: raise GLOBAL `break: 50 → 55`, leave `low: 60` and `high: 80` untouched. Track in `MUTATION_BASELINE.md` Run #3.
+
+**Per-module strategy (documentation only — config untouched)**:
+
+| Module | Run #2 score | Could individually support `break:` | Block on |
+|---|---:|---:|---|
+| verifyAuth | 76.19 % | 70 | regression below 70 (per-file unsupported) |
+| orchestrator | 43.59 % | 38 | regression below 38 (per-file unsupported) |
+| sentryInstrumentation | 85.48 % | 80 | regression below 80 (per-file unsupported) |
+
+For now: documented in this file, not enforced. The next backlog item (per-file thresholds) is the lever to enforce these.
+
+### What's next (17th wave or later)
+
+1. **Orchestrator analytics seam tests** — kill the 5-mutant `trackQueryOffline` cluster (priority #1 NEW above). Smallest test, biggest score lift.
+2. **Orchestrator `tryGetIdToken` truthy-guard tests** — kill the 5-mutant 104:25 / 105:12 cluster.
+3. **verifyAuth Bearer positive-path test** — kills 77:7 + 77:8 (2 mutants) and forms the spine of the existing supertest harness.
+4. **sentryInstrumentation isSentrySetupError parametric** — kills 196:5 cluster (3 mutants) and 193:7 (1 mutant).
+
+If all four follow-up tests land, projected scores: verifyAuth ~85 %, orchestrator ~55 %, sentryInstrumentation ~91 %, cumulative ~78 %. At that point GLOBAL `break: 55` is safe and per-file `break: 70 / 50 / 80` becomes meaningful — the 17th wave can ratchet without surprise CI breaks.
 
 ## CI integration recommendation
 

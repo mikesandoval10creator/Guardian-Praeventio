@@ -7,9 +7,9 @@ Every event in this catalog has a 1:1 entry in the YAML manifest. Cardinality is
 
 Common properties (sent on every event, see TRACKING_PLAN §4.8) are not repeated per row: `event_version`, `app_version`, `app_env`, `app_mode`, `user_id_hash`, `project_id`, `locale`, `device_class`, `online`, `timestamp_iso`, `sample_rate`. The `Required props` and `Optional props` columns list event-specific additions only.
 
-Total: **45 events** across **12 surfaces**.
+Total: **46 events** across **12 surfaces**.
 
-Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 4.
+Counts by class: lifecycle 23, engagement 10, safety_critical 9, commerce 4.
 
 ---
 
@@ -123,7 +123,7 @@ Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 4.
 
 ## Cross-checks (manual until codegen runs)
 
-- Row count above (excluding the headline rows): 45. Matches the YAML manifest.
+- Row count above (excluding the headline rows): 46. Matches the YAML manifest.
 - Every `Owner` is one of: `identity`, `platform`, `safety`, `compliance`, `billing`, `knowledge`.
 - Every event in the `safety_critical` class is sampled at 100% (TRACKING_PLAN §4.7) and retained 24 months (§8.1).
 - Three events that pulled extra discussion (see PR description / agent return message): `app.opened`, `slm.queue.reconciled`, `comite.minutes.drafted` — see TRACKING_PLAN §10 open questions.

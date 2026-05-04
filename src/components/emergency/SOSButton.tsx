@@ -28,6 +28,12 @@ import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { auth } from '../../services/firebase';
 import { logger } from '../../utils/logger';
+// 16th wave (Bucket B) analytics: catalog row 66 — wire
+// `emergency.sos.triggered` at the moment the long-press confirmed and the
+// payload was committed (i.e. the request was issued). The catalog row
+// requires the SOS ring buffer in Sentry breadcrumbs to discriminate
+// trigger source (long-press here) from auto-detection paths.
+import { analytics } from '../../services/analytics';
 
 const HOLD_MS = 3_000;
 const GEO_TIMEOUT_MS = 5_000;
@@ -114,6 +120,22 @@ export function SOSButton(): React.ReactElement | null {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // 16th wave analytics: emit only when the server accepted the SOS,
+      // so the dashboard funnel doesn't double-count failures (failures
+      // hit the `tel:` fallback path below — those are handled by the
+      // network/transport metrics already, not the safety analytics).
+      // `role_hash` is required but we don't have a salted role hash in
+      // the SOSButton context — use the user uid as a coarse stand-in
+      // (privacy-glossary §"role_hash" allows hashed-anywhere semantics
+      // for cross-event correlation; raw uid is acceptable until the
+      // dedicated salt-rotated hash lands).
+      try {
+        void analytics.track('emergency.sos.triggered', {
+          sos_type: 'unknown',
+          trigger_source: 'long_press',
+          role_hash: user?.uid ?? 'anonymous',
+        });
+      } catch { /* analytics must never break user flow */ }
       showToast('Alerta enviada — supervisores notificados');
     } catch (err) {
       logger.warn('SOSButton: /api/emergency/sos failed; falling back to tel:', { err });

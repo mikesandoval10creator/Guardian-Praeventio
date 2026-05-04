@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { Upload, MapPin, ZoomIn, ZoomOut, Maximize, AlertTriangle, Flame, DoorOpen, Save, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { db, storage, ref, uploadBytes, getDownloadURL, collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where, handleFirestoreError, OperationType } from '../../services/firebase';
@@ -18,6 +19,7 @@ interface Marker {
 }
 
 export const BlueprintViewer: React.FC = () => {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export const BlueprintViewer: React.FC = () => {
         });
       }
 
-      showToast('Plano guardado exitosamente', 'success');
+      showToast(t('blueprint_viewer.save_success'), 'success');
       loadBlueprints();
     } catch (error) {
       logger.error("Error saving blueprint:", error);
@@ -127,7 +129,7 @@ export const BlueprintViewer: React.FC = () => {
       x,
       y,
       type: activeMarkerType,
-      label: `Marcador ${markers.length + 1}`
+      label: t('blueprint_viewer.marker_default_label', { num: markers.length + 1 })
     };
 
     setMarkers([...markers, newMarker]);
@@ -148,21 +150,21 @@ export const BlueprintViewer: React.FC = () => {
         <div>
           <h3 className="text-xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
             <MapPin className="w-6 h-6 text-blue-500 dark:text-blue-400" />
-            Visor de Planos y Mapas
+            {t('blueprint_viewer.title')}
           </h3>
           <p className="text-zinc-500 dark:text-zinc-400 text-sm mt-1">
-            Carga planos (exportados desde AutoCAD en formato imagen) para ubicar riesgos y recursos.
+            {t('blueprint_viewer.subtitle')}
           </p>
         </div>
-        
+
         {!imageSrc && (
           <label className="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
             <Upload className="w-4 h-4" />
-            Cargar Plano (PNG/JPG)
-            <input 
-              type="file" 
-              accept="image/png, image/jpeg, image/svg+xml" 
-              className="hidden" 
+            {t('blueprint_viewer.upload_btn')}
+            <input
+              type="file"
+              accept="image/png, image/jpeg, image/svg+xml"
+              className="hidden"
               onChange={handleImageUpload}
             />
           </label>
@@ -181,7 +183,7 @@ export const BlueprintViewer: React.FC = () => {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'risk' && isAddingMarker ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-transparent'}`}
               >
-                <AlertTriangle className="w-4 h-4" /> Riesgo
+                <AlertTriangle className="w-4 h-4" /> {t('blueprint_viewer.marker_risk')}
               </button>
               <button
                 onClick={() => {
@@ -190,7 +192,7 @@ export const BlueprintViewer: React.FC = () => {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'extinguisher' && isAddingMarker ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-transparent'}`}
               >
-                <Flame className="w-4 h-4" /> Extintor
+                <Flame className="w-4 h-4" /> {t('blueprint_viewer.marker_extinguisher')}
               </button>
               <button
                 onClick={() => {
@@ -199,15 +201,15 @@ export const BlueprintViewer: React.FC = () => {
                 }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors ${activeMarkerType === 'exit' && isAddingMarker ? 'bg-green-500/20 text-green-600 dark:text-green-400 border border-green-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-transparent'}`}
               >
-                <DoorOpen className="w-4 h-4" /> Salida
+                <DoorOpen className="w-4 h-4" /> {t('blueprint_viewer.marker_exit')}
               </button>
               {isAddingMarker && (
                 <span className="text-xs text-blue-500 dark:text-blue-400 ml-2 animate-pulse">
-                  Haz clic en el plano para ubicar...
+                  {t('blueprint_viewer.click_to_place')}
                 </span>
               )}
             </div>
-            
+
             <button
               onClick={() => {
                 setImageSrc(null);
@@ -216,14 +218,14 @@ export const BlueprintViewer: React.FC = () => {
               }}
               className="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white text-sm"
             >
-              Cambiar Plano
+              {t('blueprint_viewer.change_blueprint')}
             </button>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4">
             <input
               type="text"
-              placeholder="Nombre del plano (ej. Piso 1 - Bodega)"
+              placeholder={t('blueprint_viewer.name_placeholder')}
               value={blueprintName}
               onChange={(e) => setBlueprintName(e.target.value)}
               className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg px-4 py-2 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
@@ -234,7 +236,7 @@ export const BlueprintViewer: React.FC = () => {
               className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Guardar Plano
+              {t('blueprint_viewer.save_btn')}
             </button>
           </div>
 
@@ -263,10 +265,10 @@ export const BlueprintViewer: React.FC = () => {
 
                   <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
                     <div className="relative inline-block">
-                      <img 
+                      <img
                         ref={imageRef}
-                        src={imageSrc} 
-                        alt="Plano" 
+                        src={imageSrc}
+                        alt={t('blueprint_viewer.image_alt')}
                         className={`max-w-none ${isAddingMarker ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'}`}
                         onClick={handleImageClick}
                         draggable={false}
@@ -305,13 +307,13 @@ export const BlueprintViewer: React.FC = () => {
         <div className="space-y-6">
           <div className="h-64 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-500">
             <MapPin className="w-12 h-12 mb-4 opacity-50" />
-            <p>Sube un plano en formato imagen para comenzar</p>
-            <p className="text-xs mt-2 opacity-70">Soporta PNG, JPG, SVG exportados desde AutoCAD o Revit</p>
+            <p>{t('blueprint_viewer.empty_state')}</p>
+            <p className="text-xs mt-2 opacity-70">{t('blueprint_viewer.empty_state_hint')}</p>
           </div>
-          
+
           {savedBlueprints.length > 0 && (
             <div className="mt-8">
-              <h4 className="text-zinc-900 dark:text-white font-medium mb-4">Planos Guardados</h4>
+              <h4 className="text-zinc-900 dark:text-white font-medium mb-4">{t('blueprint_viewer.saved_title')}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {savedBlueprints.map(bp => (
                   <div 
@@ -325,7 +327,7 @@ export const BlueprintViewer: React.FC = () => {
                       </div>
                       <div>
                         <h5 className="text-zinc-900 dark:text-white font-medium">{bp.name}</h5>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{bp.markers?.length || 0} marcadores</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('blueprint_viewer.markers_count', { count: bp.markers?.length || 0 })}</p>
                       </div>
                     </div>
                   </div>
