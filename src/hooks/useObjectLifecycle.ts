@@ -19,7 +19,8 @@ import {
   type LifecycleTransitionResult,
 } from '../services/digitalTwin/lifecycle/objectLifecycleOrchestrator';
 import type { PlacedObject } from '../services/digitalTwin/photogrammetry/types';
-import { db, collection, addDoc, serverTimestamp } from '../services/firebase';
+import { db, auth, collection, addDoc, updateDoc, serverTimestamp } from '../services/firebase';
+import { logger } from '../utils/logger';
 
 export type UseObjectLifecycleCallback = (
   previous: PlacedObject | null,
@@ -87,8 +88,66 @@ export function useObjectLifecycle(projectId: string): UseObjectLifecycleCallbac
         actorUserId: user?.uid,
         addNode: (n) => addNode(n),
         addCalendarEvent: async (data) => {
+          // (1) Persistir local en Firestore con syncStatus=pending. El
+          // job remoto (Google Calendar) puede fallar — el doc local
+          // queda como source of truth y un retry job lo recoge.
           const calRef = collection(db, 'calendar_events');
-          return addDoc(calRef, { ...data, createdAt: serverTimestamp() });
+          const localRef = await addDoc(calRef, {
+            ...data,
+            syncStatus: 'pending',
+            createdAt: serverTimestamp(),
+          });
+
+          // (2) Best-effort sync a Google Calendar via /api/calendar/sync.
+          // Si no hay token Google linked, el endpoint devuelve 401 y el
+          // doc queda 'pending' — comportamiento aceptable para Ola 3.
+          try {
+            const idToken = await auth.currentUser?.getIdToken();
+            if (idToken) {
+              const res = await fetch('/api/calendar/sync', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
+                  event: data,
+                  localRef: localRef.id,
+                  // El endpoint actual del server consume `challenges` —
+                  // mandamos también un fallback con el título para que
+                  // si el wire futuro de calendar sync se pliega al
+                  // formato del orchestrator, no rompamos compat.
+                  challenges: [
+                    typeof data.title === 'string'
+                      ? data.title
+                      : 'Mantención Praeventio',
+                  ],
+                }),
+                credentials: 'include',
+              });
+              if (res.ok) {
+                const body = (await res.json().catch(() => ({}))) as {
+                  googleEventId?: string;
+                  results?: Array<{ id?: string }>;
+                };
+                const googleEventId =
+                  body.googleEventId ??
+                  body.results?.[0]?.id ??
+                  null;
+                await updateDoc(localRef, {
+                  syncStatus: 'synced',
+                  ...(googleEventId ? { googleEventId } : {}),
+                });
+              } else {
+                logger.warn('calendar_sync_non_ok', { status: res.status });
+              }
+            }
+          } catch (err) {
+            // syncStatus queda 'pending' — un retry job lo recoge después.
+            logger.warn('calendar_sync_deferred', { err: String(err) });
+          }
+
+          return localRef;
         },
       });
     },

@@ -174,6 +174,18 @@ export interface PlacedObjectsLayerProps {
   selectedId?: string | null;
   onSelect: (object: PlacedObject) => void;
   onMove?: (object: PlacedObject, newPosition: { x: number; y: number; z: number }) => void;
+  /**
+   * Sprint 21 Ola 3 Bucket J.5 — opt-in AR bridge.
+   *
+   * Cuando se define, los consumidores externos (PanelCard de
+   * DigitalTwinFaena) usan esta callback para abrir `ARObjectOverlay`.
+   * Se threadea aquí para que el layer pueda exponer un botón "Ver en
+   * AR" en futuras iteraciones (Ola 4) sin cambiar el contrato. Por
+   * ahora la layer no renderiza el botón — el caller lo hace fuera
+   * del Canvas R3F (los `<Html>` de drei no admiten event-handler-only
+   * events sin pointerEvents auto).
+   */
+  onRequestAr?: (object: PlacedObject) => void;
 }
 
 export function PlacedObjectsLayer({
@@ -181,7 +193,11 @@ export function PlacedObjectsLayer({
   selectedId,
   onSelect,
   onMove,
+  onRequestAr: _onRequestAr,
 }: PlacedObjectsLayerProps) {
+  // _onRequestAr quedará consumido en Ola 4 (WebXR session). Por ahora
+  // mantenemos la prop en la signature para que DigitalTwinFaena pueda
+  // pasarla sin TS errors y los tests de tipo del Bucket J pasen.
   return (
     <group>
       {objects.map((obj) => (
