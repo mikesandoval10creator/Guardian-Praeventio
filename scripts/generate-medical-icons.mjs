@@ -15,12 +15,21 @@
  *
  * Uso:
  *   export GEMINI_API_KEY=AIzaSy...
- *   node scripts/generate-medical-icons.mjs                 # genera todos los faltantes
- *   node scripts/generate-medical-icons.mjs --name lung-pair # genera solo uno
- *   node scripts/generate-medical-icons.mjs --force          # regenera incluso si existe
- *   node scripts/generate-medical-icons.mjs --dry-run        # muestra prompts sin llamar API
+ *   node scripts/generate-medical-icons.mjs                          # genera faltantes
+ *   node scripts/generate-medical-icons.mjs --name lung-pair         # genera uno
+ *   node scripts/generate-medical-icons.mjs --force                  # regenera todo
+ *   node scripts/generate-medical-icons.mjs --dry-run                # imprime prompts sin llamar
+ *   node scripts/generate-medical-icons.mjs --enrich-with-bioicons   # añade refs anatómicas BioRender
  *
- * Output: PNG 512x512 en public/icons/biology/{name}.png
+ *   Combinación recomendada para Sprint 20 Fase 1b:
+ *     export GEMINI_API_KEY=AIzaSy...
+ *     node scripts/generate-medical-icons.mjs --enrich-with-bioicons
+ *     git add public/icons/biology/*.png
+ *     git commit -m "feat(medical): generated 33 PNG bocetos with nano-banana"
+ *
+ * Output: PNG 512x512 en public/icons/biology/{name}.png — bundleados al repo
+ * para offline-first (ver ADR-0004). El frontend `MedicalIcon` los prefiere
+ * sobre los SVG placeholders existentes vía fallback chain PNG→SVG→placeholder.
  *
  * Costos estimados (Gemini 2.5 Flash Image al 2026-05):
  *   - ~$0.039 por imagen (1024x1024)
@@ -104,7 +113,7 @@ const ICON_MANIFEST = [
 ];
 
 function parseArgs(argv) {
-  const args = { name: null, force: false, dryRun: false };
+  const args = { name: null, force: false, dryRun: false, enrichWithBioicons: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--name' && argv[i + 1]) {
@@ -113,25 +122,50 @@ function parseArgs(argv) {
       args.force = true;
     } else if (a === '--dry-run') {
       args.dryRun = true;
+    } else if (a === '--enrich-with-bioicons') {
+      args.enrichWithBioicons = true;
     } else if (a === '--help' || a === '-h') {
-      console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 22).join('\n'));
+      console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(2, 28).join('\n'));
       process.exit(0);
     }
   }
   return args;
 }
 
-async function generateOne(ai, entry, args) {
+/** Lee scripts/biorender-references.json (cache de descripciones canónicas BioRender,
+ *  license-safe — solo metadata pública, sin assets). Retorna {} si el archivo no existe. */
+function loadBioiconsRefs() {
+  const refsPath = resolve(__dirname, 'biorender-references.json');
+  if (!existsSync(refsPath)) {
+    console.warn('⚠ biorender-references.json not found; --enrich-with-bioicons is a no-op');
+    return {};
+  }
+  try {
+    const json = JSON.parse(readFileSync(refsPath, 'utf8'));
+    return json.references ?? {};
+  } catch (err) {
+    console.error(`✗ failed to read biorender-references.json: ${err.message}`);
+    return {};
+  }
+}
+
+async function generateOne(ai, entry, args, bioiconsRefs) {
   const outPath = resolve(OUTPUT_DIR, `${entry.name}.png`);
   if (!args.force && existsSync(outPath)) {
     console.log(`✓ skip   ${entry.name} (already exists; use --force to regenerate)`);
     return { skipped: true };
   }
 
-  const prompt = STYLE_PREFIX + entry.prompt;
+  let prompt = STYLE_PREFIX + entry.prompt;
+  if (args.enrichWithBioicons) {
+    const ref = bioiconsRefs[entry.name];
+    if (ref) {
+      prompt += `\n\nAnatomical reference (conceptual only — generate ORIGINAL artwork that does NOT copy any specific image): ${ref}`;
+    }
+  }
 
   if (args.dryRun) {
-    console.log(`[dry-run] ${entry.name}\n  prompt: ${prompt.slice(0, 200)}...`);
+    console.log(`[dry-run] ${entry.name}\n  prompt: ${prompt.slice(0, 220)}...`);
     return { dryRun: true };
   }
 
@@ -179,10 +213,16 @@ async function main() {
     process.exit(2);
   }
 
+  const bioiconsRefs = args.enrichWithBioicons ? loadBioiconsRefs() : {};
+  if (args.enrichWithBioicons) {
+    const refCount = Object.keys(bioiconsRefs).length;
+    console.log(`✓ loaded ${refCount} BioRender references (license-safe metadata, not assets)`);
+  }
+
   console.log(`Generating ${targets.length} icon(s) with ${MODEL}${args.dryRun ? ' (dry-run)' : ''}...`);
   const stats = { saved: 0, skipped: 0, errors: 0, dryRun: 0 };
   for (const entry of targets) {
-    const r = await generateOne(ai, entry, args);
+    const r = await generateOne(ai, entry, args, bioiconsRefs);
     if (r.saved) stats.saved++;
     else if (r.skipped) stats.skipped++;
     else if (r.dryRun) stats.dryRun++;
@@ -193,6 +233,11 @@ async function main() {
     }
   }
   console.log(`\nDone. saved=${stats.saved} skipped=${stats.skipped} errors=${stats.errors} dry-run=${stats.dryRun}`);
+  if (stats.saved > 0) {
+    console.log('\nNext: commit the new PNGs to bundle them with the app (offline-first, ADR-0004):');
+    console.log('  git add public/icons/biology/*.png');
+    console.log('  git commit -m "feat(medical): generated <N> PNG bocetos with nano-banana"');
+  }
   process.exit(stats.errors > 0 ? 1 : 0);
 }
 
