@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Bioicons placeholder - replace with real SVG from bioicons.com when curated. License: CC0 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <rect x='4' y='8' width='16' height='8' rx='2'/>
+  <path d='M4 10h16M4 12h16M4 14h16'/>
+  <path d='M2 9l2 1M22 9l-2 1M2 15l2-1M22 15l-2-1'/>
+</svg>
