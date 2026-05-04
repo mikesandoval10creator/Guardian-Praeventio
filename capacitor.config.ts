@@ -1,5 +1,15 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+// Sprint 20 mobile-prep validation (Brecha A — Fase 4):
+// - appId / appName / webDir are the canonical fields required for `cap add`.
+// - `bundledWebRuntime` was removed in Capacitor 4+; the CLI now auto-injects
+//   the runtime, so we deliberately do NOT set it. Verified against
+//   @capacitor/cli@^8.3.0 in package.json.
+// - Native folders (`android/`, `ios/`) are NOT generated yet. See
+//   `docs/mobile-build-runbook.md` for the local-build flow and
+//   `docs/architecture-decisions/0006-mobile-deferred-to-local-build.md`
+//   for the rationale.
+
 const isProd = process.env.NODE_ENV === 'production';
 
 const config: CapacitorConfig = {
