@@ -3,6 +3,8 @@ import type { Request, Response, NextFunction } from 'express';
 import {
   securityHeaders,
   __buildCspStringForTests,
+  __connectSrcOriginsForTests,
+  __scriptSrcOriginsForTests,
 } from './securityHeaders.js';
 
 // Build a mock req/res/next triple. We assert via the recorded `setHeader`
@@ -120,14 +122,56 @@ describe('securityHeaders middleware', () => {
     expect(next).toHaveBeenCalledTimes(2);
   });
 
-  it('CSP string contains required Vertex AI / Firebase / Sentry connect-src origins', () => {
+  it('CSP string contains the required Firebase / Vertex AI / Sentry connect-src origins', () => {
     const csp = __buildCspStringForTests();
-    // Assert origins listed in the threat-model TM-I03/TM-I05 are reachable.
-    expect(csp).toContain('https://*.googleapis.com');
-    expect(csp).toContain('https://*.firebaseio.com');
-    expect(csp).toContain('wss://*.firebaseio.com');
+    // Assert origins listed in the threat-model TM-I03/TM-I05 are reachable
+    // — explicit subdomain list, not wildcards (twelfth wave Bucket A).
+    expect(csp).toContain('https://firestore.googleapis.com');
+    expect(csp).toContain('https://identitytoolkit.googleapis.com');
+    expect(csp).toContain('https://securetoken.googleapis.com');
+    expect(csp).toContain('https://storage.googleapis.com');
     expect(csp).toContain('https://generativelanguage.googleapis.com');
+    expect(csp).toContain('https://aiplatform.googleapis.com');
+    expect(csp).toContain('https://oauth2.googleapis.com');
     expect(csp).toContain('https://*.sentry.io');
+    expect(csp).toContain('wss://*.firebaseio.com');
+  });
+
+  it('CSP no longer carries the broad `*.googleapis.com` wildcard (TM-I05)', () => {
+    const csp = __buildCspStringForTests();
+    // The whole point of the twelfth wave Bucket A is to NOT have this token.
+    // Use a regex with word-ish boundaries so a future legitimate
+    // `https://maps.googleapis.com` substring does not accidentally match.
+    expect(csp).not.toMatch(/\*\.googleapis\.com/);
+  });
+
+  it('script-src no longer carries the `*.firebaseio.com` token (was unreachable)', () => {
+    // Firebase JS SDK loads from gstatic; the `*.firebaseio.com` in
+    // script-src was a copy-paste from connect-src and never matched a
+    // real script load. Removed in twelfth wave Bucket A.
+    expect(__scriptSrcOriginsForTests).not.toContain(
+      'https://*.firebaseio.com',
+    );
+  });
+
+  it('every connect-src origin is either an exact host or an explicitly-allowed wildcard', () => {
+    // Belt-and-braces: any future copy-paste of `https://*.googleapis.com`
+    // into the list will fail this test. The only wildcards we tolerate
+    // are sentry.io (multi-region ingest) and firebaseio websockets.
+    const ALLOWED_WILDCARDS = new Set([
+      'https://*.sentry.io',
+      'wss://*.firebaseio.com',
+    ]);
+    for (const origin of __connectSrcOriginsForTests) {
+      if (origin.includes('*')) {
+        expect(ALLOWED_WILDCARDS.has(origin)).toBe(true);
+      }
+    }
+  });
+
+  it('declares report-uri /api/csp-report so violations land in Sentry', () => {
+    const csp = __buildCspStringForTests();
+    expect(csp).toContain('report-uri /api/csp-report');
   });
 
   it('CSP forbids object embedding and arbitrary frame ancestors', () => {

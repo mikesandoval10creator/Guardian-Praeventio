@@ -34,17 +34,37 @@ The policy ships in two places:
 | Directive | Value | Rationale |
 |---|---|---|
 | `default-src` | `'self'` | Deny by default; everything else opts in. |
-| `script-src` | `'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://*.firebaseio.com` | `'unsafe-inline'` required for Vite + React inline bootstrap (see Caveats). gstatic/apis hosts Firebase JS SDK. |
+| `script-src` | `'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com` | `'unsafe-inline'` required for Vite + React inline bootstrap (see Caveats). gstatic/apis hosts the Firebase JS SDK. The legacy `*.firebaseio.com` token was removed in Sprint 20 12th wave Bucket A — Firebase JS is served from `gstatic`, never from `firebaseio`. |
 | `style-src` | `'self' 'unsafe-inline' https://fonts.googleapis.com` | Tailwind injects styles at runtime; Google Fonts CSS imports the Inter family declared in `index.html`. |
 | `font-src` | `'self' https://fonts.gstatic.com data:` | Google Fonts files; `data:` allows inlined fallbacks. |
 | `img-src` | `'self' data: blob: https:` | Avatars, IPER photos (blob URLs from camera), generic `https:` for thumbnails — broad but read-only. |
-| `connect-src` | `'self' https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://*.sentry.io wss://*.firebaseio.com https://generativelanguage.googleapis.com` | Firestore, Identity Toolkit, Vertex AI Gemini, Sentry ingest, Realtime DB websockets. |
+| `connect-src` | _Explicit allow-list — see "connect-src allow-list" below._ | Wildcard `https://*.googleapis.com` was retired in Sprint 20 12th wave Bucket A (TM-I05). |
 | `frame-src` | `'self' https://accounts.google.com` | Google OAuth consent dialog when applicable. |
 | `frame-ancestors` | `'none'` | Clickjacking defense — no site may embed us. |
 | `object-src` | `'none'` | Bans `<object>`/`<embed>` (legacy XSS vector). |
 | `base-uri` | `'self'` | Prevents `<base href>` redirection of relative URLs. |
 | `form-action` | `'self'` | Forms POST only to our own origin. |
 | `upgrade-insecure-requests` | enabled | Browser-level upgrade of any stray http:// URL. |
+| `report-uri` | `/api/csp-report` | Browsers POST violation reports here; the route hands them to Sentry as a breadcrumb so a regression that clips a legitimate origin shows up in the issue feed. |
+
+### connect-src allow-list
+
+| Origin | Reason |
+|---|---|
+| `'self'` | Same-origin Express + Vite endpoints. |
+| `https://firestore.googleapis.com` | Firestore REST + Listen channels (`src/services/firebase.ts`). |
+| `https://identitytoolkit.googleapis.com` | Firebase Auth sign-in / sign-up / email verification. |
+| `https://securetoken.googleapis.com` | Firebase Auth ID-token refresh (called every ~50 min). |
+| `https://storage.googleapis.com` | Firebase Storage downloads (IPER photos, attachments). |
+| `https://firebaseinstallations.googleapis.com` | FCM / Installations registration. |
+| `https://firebaseremoteconfig.googleapis.com` | Remote Config fetches (kept defensively; cheap). |
+| `https://fcmregistrations.googleapis.com` | FCM token registration on sign-in. |
+| `https://generativelanguage.googleapis.com` | Gemini API direct calls. |
+| `https://aiplatform.googleapis.com` | Vertex AI Gemini (per `VERTEX_MIGRATION.md`). |
+| `https://oauth2.googleapis.com` | OAuth token exchange (`src/services/oauthTokenStore.ts:195`). |
+| `https://maps.googleapis.com` | Geocoding for normativa lookup (`src/services/normativa/locationNormativa.ts:250`). |
+| `https://*.sentry.io` | Sentry ingest — multi-region wildcard is unavoidable (`o<org>.ingest.<region>.sentry.io`). |
+| `wss://*.firebaseio.com` | Realtime DB websockets — kept until full Firestore-only audit. |
 
 ## Other security headers
 
@@ -75,14 +95,51 @@ illustrations referenced from internal links. Tightening this would require a
 proxy or an allowlist of cdn hostnames; deferred until we have real CSP
 violation reports against it.
 
-### Wildcard on `*.googleapis.com` in `connect-src`
+### `*.googleapis.com` wildcard removed (Sprint 20 12th wave Bucket A)
 
-Tracked as **TM-I05** in [`STRIDE_findings.md`](./STRIDE_findings.md).
-Replacing the wildcard with an explicit list (`firestore.googleapis.com`,
-`identitytoolkit.googleapis.com`, `aiplatform.googleapis.com`,
-`maps.googleapis.com`, `firebase-installations.googleapis.com`) requires a
-smoke test pass against every Firebase product the app uses. Bucket D in the
-11th wave installs the middleware; a follow-up bucket runs the tightening.
+Done. The wildcard token is gone from `connect-src`; explicit subdomains are
+listed in the allow-list table above. Tracked as **TM-I05** in
+[`STRIDE_findings.md`](./STRIDE_findings.md). If a Firebase / Google Cloud
+product is added later that needs a new origin, follow "How to add a new
+origin" below — it's now a one-line edit instead of a wildcard relaxation.
+
+### Two retained wildcards
+
+`https://*.sentry.io` and `wss://*.firebaseio.com` remain because:
+
+- Sentry ingest hostnames embed the org-id and ingest region
+  (`o<org-id>.ingest.<region>.sentry.io`). Hard-coding our specific
+  region would break a future failover.
+- Firebase Realtime DB opens a websocket against the project-derived
+  `<project>-<region>.firebaseio.com` — no fixed subdomain. This is on
+  the audit list to drop entirely if the project goes Firestore-only
+  (see `progress.md` in the bucket output).
+
+## CSP violation reporting
+
+`report-uri /api/csp-report` is part of the directive map. The route is
+defined in [`src/server/routes/cspReport.ts`](../../src/server/routes/cspReport.ts):
+
+- Mounted before the global rate limiter and `verifyAuth` (browsers fire
+  reports without auth context). Per-IP throttle of 50 req/min via a
+  dedicated `cspReportLimiter` defends the endpoint from being used to
+  burn Sentry quota.
+- Body size capped at 16 KB, parsed for both `application/csp-report`
+  (the spec MIME) and `application/json` (so curl-based smoke tests work).
+- Always responds with `204 No Content`. Never returns a body so an
+  attacker cannot use the response shape as an oracle.
+- For each report we strip query string + fragment from `blocked-uri`,
+  `document-uri`, and `source-file` before logging — a third-party form
+  may have included PII in the URL we just blocked.
+- Sentry receives both an `addBreadcrumb` (so any error that follows in
+  the same session shows the violation on its timeline) and a
+  `captureMessage('csp.violation')` for dashboard counting.
+
+To find recent violations in Sentry, search for the message `csp.violation`
+or filter on the `security.csp` breadcrumb category. The breadcrumb
+payload lists `violated`, `blocked`, `document`, `source`, `line`,
+`column`, and `disposition` — enough to reproduce without needing to
+re-derive the user's session.
 
 ## How to add a new origin
 
