@@ -11,6 +11,15 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 - **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
 - Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
+### Séptima ola — 4 buckets (PR #35)
+
+- **Mobile-prep — Brecha A docs + CI stub** (4 commits): `0581970` capacitor.config.ts validation header · `0e85538` `docs/mobile-build-runbook.md` con plugins permissions matrix (11 plugins) · `0c52d6a` `.github/workflows/mobile-build-check.yml` stub workflow no-required · `436af97` ADR-0006 mobile deferred to local con plan Sprint 21+ Fastlane.
+- **Tracking-audit — CC-1 inicial** (1 commit): `ef73331` skill `product-tracking-audit-current-tracking` invocado · `.telemetry/current-state.yaml` + `audits/2026-05-04.md` + `current-implementation.md` documentan greenfield para product analytics (solo Sentry instalado, cero eventos custom). Próximo paso natural: `design-tracking-plan`.
+- **Runbooks — Fase 11 parcial** (1 commit): `2b3470d` 3 runbooks (1121 LOC totales): `DR_RUNBOOK.md` (RTO/RPO por collection, backups daily, failover us-east1) · `KMS_ROTATION.md` (5 secciones: setup, post-rotation verify, emergency rotation, Terraform idempotente, monitoring) · `INCIDENT_RESPONSE.md` (P0-P3 SLAs, war room single-dev, post-mortem blameless, 5 categorías, escalation Daho→ACHS→GCP). Anclajes Chile: Ley 16.744, Ley 21.719 art. 50, southamerica-west1, no Stripe.
+- **i18n-shell — Fase 6 cont.** (1 commit): `7c04d5f` 7 componentes shell (layout: EmergencyAlertBanner, PendingInvitesBanner, ReloadPrompt, ProjectSelector + dashboard: WeatherBulletin, ComplianceCard, PredictiveAlertWidget). 42 keys × 3 idiomas = 126 entradas. Bonus: fix `$$ALERTA PREDICTIVA$$` placeholder bug (rendereaba literal).
+
+Total 7 commits + master plan. **2028 tests pass / 0 fail / 88 skipped**. Build y typecheck clean.
+
 ### Sexta ola — 4 buckets (PR #34)
 
 - **Psi — @sentry/react client init** (2 commits, Fase 2 client-side): `54b2798` Sentry init endurecido con `replaysSessionSampleRate: 0.05` + `replaysOnErrorSampleRate: 1.0` + redacción PII (cookies/auth headers/user.email/contexts.user.email/request.cookies) + `redactPii()` helper exportable + idempotency guard · `baa3c11` `Sentry.ErrorBoundary` wrap + `ErrorFallback.tsx` reusable con i18n (`errors.unexpected`, `errors.team_notified`, `errors.event_id`, `common.retry`). 4 nuevos tests, 26 sentry total pass.
