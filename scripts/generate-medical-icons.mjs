@@ -149,6 +149,43 @@ function loadBioiconsRefs() {
   }
 }
 
+/** Extracts the API-suggested retry delay (in seconds) from a 429 error message.
+ *  Gemini errors include a `retryDelay` field like "7.5s" or "0s". Returns 0 if
+ *  not parseable. Caller adds a small buffer. */
+function parseRetryDelaySeconds(errMessage) {
+  if (typeof errMessage !== 'string') return 0;
+  const m = errMessage.match(/retryDelay"\s*:\s*"(\d+(?:\.\d+)?)s"/);
+  if (m) return parseFloat(m[1]);
+  // Some SDK wrappers stringify with retry delay in different shape — also try plain "Please retry in Ns"
+  const alt = errMessage.match(/[Rr]etry\s+in\s+(\d+(?:\.\d+)?)s/);
+  if (alt) return parseFloat(alt[1]);
+  return 0;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function generateOneWithRetry(ai, entry, args, prompt, attempt = 1, maxAttempts = 4) {
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL,
+      contents: prompt,
+    });
+    return { ok: true, response };
+  } catch (err) {
+    const msg = String(err?.message ?? err);
+    const is429 = msg.includes('"code":429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429 Too Many Requests');
+    if (is429 && attempt < maxAttempts) {
+      const apiDelay = parseRetryDelaySeconds(msg);
+      const fallbackDelay = Math.pow(2, attempt) * 30; // 60, 120, 240s as exponential backoff
+      const waitS = Math.max(apiDelay, fallbackDelay) + 5; // +5s buffer
+      console.log(`  ⏳ ${entry.name}: 429 — attempt ${attempt}/${maxAttempts}, waiting ${waitS}s (API said ${apiDelay}s, fallback ${fallbackDelay}s)`);
+      await sleep(waitS * 1000);
+      return generateOneWithRetry(ai, entry, args, prompt, attempt + 1, maxAttempts);
+    }
+    return { ok: false, err: msg };
+  }
+}
+
 async function generateOne(ai, entry, args, bioiconsRefs) {
   const outPath = resolve(OUTPUT_DIR, `${entry.name}.png`);
   if (!args.force && existsSync(outPath)) {
@@ -170,27 +207,24 @@ async function generateOne(ai, entry, args, bioiconsRefs) {
   }
 
   console.log(`→ generating ${entry.name}...`);
-  try {
-    const response = await ai.models.generateContent({
-      model: MODEL,
-      contents: prompt,
-    });
-    // Gemini 2.5 Flash Image returns parts[].inlineData with base64 PNG.
-    const parts = response?.candidates?.[0]?.content?.parts ?? [];
-    const imagePart = parts.find((p) => p.inlineData?.mimeType?.startsWith('image/'));
-    if (!imagePart) {
-      console.error(`✗ ${entry.name}: response had no image part`);
-      return { error: 'no-image-part' };
-    }
-    const buf = Buffer.from(imagePart.inlineData.data, 'base64');
-    if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
-    writeFileSync(outPath, buf);
-    console.log(`✓ saved  ${entry.name}.png (${(buf.length / 1024).toFixed(1)} kB)`);
-    return { saved: true, bytes: buf.length };
-  } catch (err) {
-    console.error(`✗ ${entry.name}: ${err?.message ?? err}`);
-    return { error: String(err?.message ?? err) };
+  const result = await generateOneWithRetry(ai, entry, args, prompt);
+  if (!result.ok) {
+    console.error(`✗ ${entry.name}: ${result.err}`);
+    return { error: result.err };
   }
+  const response = result.response;
+  // Gemini 2.5 Flash Image returns parts[].inlineData with base64 PNG.
+  const parts = response?.candidates?.[0]?.content?.parts ?? [];
+  const imagePart = parts.find((p) => p.inlineData?.mimeType?.startsWith('image/'));
+  if (!imagePart) {
+    console.error(`✗ ${entry.name}: response had no image part`);
+    return { error: 'no-image-part' };
+  }
+  const buf = Buffer.from(imagePart.inlineData.data, 'base64');
+  if (!existsSync(OUTPUT_DIR)) mkdirSync(OUTPUT_DIR, { recursive: true });
+  writeFileSync(outPath, buf);
+  console.log(`✓ saved  ${entry.name}.png (${(buf.length / 1024).toFixed(1)} kB)`);
+  return { saved: true, bytes: buf.length };
 }
 
 async function main() {
@@ -227,9 +261,9 @@ async function main() {
     else if (r.skipped) stats.skipped++;
     else if (r.dryRun) stats.dryRun++;
     else stats.errors++;
-    // Gentle pacing for the API (avoid burst)
-    if (!args.dryRun && targets.length > 1) {
-      await new Promise((r) => setTimeout(r, 300));
+    // Gentle pacing for free tier (slower than 300ms — respects RPM)
+    if (!args.dryRun && r.saved && targets.length > 1) {
+      await sleep(35_000);
     }
   }
   console.log(`\nDone. saved=${stats.saved} skipped=${stats.skipped} errors=${stats.errors} dry-run=${stats.dryRun}`);
