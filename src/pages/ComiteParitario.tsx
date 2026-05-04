@@ -197,9 +197,44 @@ export function ComiteParitario() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-zinc-200 dark:border-white/10 pb-4">
+      {/* Tabs — WCAG 4.1.2 (A11Y-012, 13th wave). Implements the
+          ARIA tablist pattern with roving tabindex + arrow-key cycling
+          (ArrowLeft/Right + Home/End) so SR users hear "selected, tab N
+          of 2" instead of just "button" and keyboard users can move
+          between tabs without first tabbing through the rest of the
+          panel. */}
+      <div
+        role="tablist"
+        aria-label="Vistas del comité paritario"
+        className="flex gap-4 border-b border-zinc-200 dark:border-white/10 pb-4"
+        onKeyDown={(e) => {
+          // Roving-tabindex arrow handler. Cycle through the two tabs;
+          // Home/End jump to first/last (matches ARIA APG tablist).
+          const order: Array<'actas' | 'acuerdos'> = ['actas', 'acuerdos'];
+          const currentIdx = order.indexOf(activeTab);
+          let nextIdx = currentIdx;
+          if (e.key === 'ArrowRight') nextIdx = (currentIdx + 1) % order.length;
+          else if (e.key === 'ArrowLeft') nextIdx = (currentIdx - 1 + order.length) % order.length;
+          else if (e.key === 'Home') nextIdx = 0;
+          else if (e.key === 'End') nextIdx = order.length - 1;
+          else return;
+          e.preventDefault();
+          setActiveTab(order[nextIdx]);
+          // Move focus to the newly selected tab so the screen reader
+          // re-announces selection state.
+          const next = e.currentTarget.querySelector<HTMLButtonElement>(
+            `[data-tab-id="${order[nextIdx]}"]`,
+          );
+          next?.focus();
+        }}
+      >
         <button
+          role="tab"
+          id="comite-tab-actas"
+          data-tab-id="actas"
+          aria-selected={activeTab === 'actas'}
+          aria-controls="comite-panel-actas"
+          tabIndex={activeTab === 'actas' ? 0 : -1}
           onClick={() => setActiveTab('actas')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
             activeTab === 'actas'
@@ -207,10 +242,16 @@ export function ComiteParitario() {
               : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/5'
           }`}
         >
-          <FileText className="w-4 h-4" />
+          <FileText className="w-4 h-4" aria-hidden="true" />
           Actas de Reunión
         </button>
         <button
+          role="tab"
+          id="comite-tab-acuerdos"
+          data-tab-id="acuerdos"
+          aria-selected={activeTab === 'acuerdos'}
+          aria-controls="comite-panel-acuerdos"
+          tabIndex={activeTab === 'acuerdos' ? 0 : -1}
           onClick={() => setActiveTab('acuerdos')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
             activeTab === 'acuerdos'
@@ -218,13 +259,19 @@ export function ComiteParitario() {
               : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/5'
           }`}
         >
-          <CheckCircle className="w-4 h-4" />
+          <CheckCircle className="w-4 h-4" aria-hidden="true" />
           Seguimiento de Acuerdos
         </button>
       </div>
 
       {/* Content */}
-      <div className="grid gap-6">
+      <div
+        role="tabpanel"
+        id={`comite-panel-${activeTab}`}
+        aria-labelledby={`comite-tab-${activeTab}`}
+        tabIndex={0}
+        className="grid gap-6 focus:outline-none"
+      >
         {activeTab === 'actas' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {actas?.length === 0 ? (
