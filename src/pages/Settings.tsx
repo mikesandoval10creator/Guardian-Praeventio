@@ -25,6 +25,7 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference';
 import { BunkerManager } from '../components/BunkerManager';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
@@ -37,6 +38,7 @@ export function Settings() {
   const navigate = useNavigate();
   const { user, isAdmin } = useFirebase();
   const { authenticate, isSupported } = useBiometricAuth();
+  const { enabled: fallDetectionEnabled, setEnabled: setFallDetectionEnabled, loading: fallDetectionLoading } = useFallDetectionPreference();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -209,6 +211,25 @@ export function Settings() {
             <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
               Cambiar Contraseña
             </button>
+            <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
+              <div className="flex-1 pr-4">
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Detección de Hombre Caído</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-1">
+                  Activa el monitoreo continuo del acelerómetro para detectar caídas. Recomendado solo si tu trabajo expone a riesgos de altura, andamios, techos o espacios confinados con desnivel.
+                </p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 font-semibold">
+                  ⚠ Consume batería en segundo plano. Manténlo apagado si tu rubro no lo requiere.
+                </p>
+              </div>
+              <button
+                onClick={() => setFallDetectionEnabled(!fallDetectionEnabled)}
+                disabled={fallDetectionLoading}
+                aria-label={fallDetectionEnabled ? 'Desactivar detección de caída' : 'Activar detección de caída'}
+                className={`w-12 h-6 rounded-full transition-colors relative shrink-0 mt-1 ${fallDetectionEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'} ${fallDetectionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${fallDetectionEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
           </div>
         );
       case 'Notificaciones':

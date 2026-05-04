@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useFallDetectionPreference } from '../../hooks/useFallDetectionPreference';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 
 export function FallDetectionMonitor() {
   const { user } = useFirebase();
   const { addNotification } = useNotifications();
+  const { enabled: fdEnabled, loading: fdLoading } = useFallDetectionPreference();
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(15);
 
@@ -15,7 +17,7 @@ export function FallDetectionMonitor() {
     if (!showModal) {
       setShowModal(true);
       setCountdown(15);
-      
+
       // Vibrate to alert the user
       if (navigator.vibrate) {
         navigator.vibrate([500, 200, 500, 200, 1000]);
@@ -29,13 +31,16 @@ export function FallDetectionMonitor() {
   });
 
   useEffect(() => {
-    if (user) {
+    // Opt-in: solo arrancamos el acelerómetro si el usuario activó
+    // explícitamente la detección de caída en Settings. Default OFF
+    // protege la batería de trabajadores no expuestos a altura.
+    if (user && fdEnabled && !fdLoading) {
       start();
     } else {
       stop();
     }
     return () => stop();
-  }, [user, start, stop]);
+  }, [user, fdEnabled, fdLoading, start, stop]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
