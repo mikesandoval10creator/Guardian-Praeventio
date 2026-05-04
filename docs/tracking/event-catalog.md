@@ -41,7 +41,7 @@ Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 3.
 | `cuadrilla.member.added` | lifecycle | Worker assigned to a cuadrilla. | `cuadrilla_id`, `target_user_id_hash`, `member_role` |  | safety | 1.0.0 |
 | `cuadrilla.member.swapped` | lifecycle | One worker replaced by another within the same cuadrilla. | `cuadrilla_id`, `out_user_id_hash`, `in_user_id_hash` | `swap_reason` | safety | 1.0.0 |
 
-## Procesos & Tareas (4)
+## Procesos & Tareas (5)
 
 | Event | Class | Description | Required props | Optional props | Owner | First version |
 |---|---|---|---|---|---|---|
@@ -49,6 +49,7 @@ Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 3.
 | `tarea.created` | lifecycle | New tarea row. | `tarea_id`, `proceso_id`, `task_priority` | `created_from_risk_id` | safety | 1.0.0 |
 | `tarea.completed` | lifecycle | Tarea marked complete. | `tarea_id`, `proceso_id`, `time_to_complete_seconds` | `closed_by_user_id_hash` | safety | 1.0.0 |
 | `tarea.blocked` | lifecycle | Worker reports blocker on a tarea. | `tarea_id`, `proceso_id`, `block_reason_code` | `block_note_length` | safety | 1.0.0 |
+| `tarea.escalated` | lifecycle | Tarea/proceso escalated for supervisor attention (e.g. paused mid-execution). | `tarea_id`, `proceso_id`, `escalation_kind` | `from_status`, `to_status` | safety | 1.0.0 |
 
 ## Riesgos (3)
 

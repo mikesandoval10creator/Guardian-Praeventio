@@ -31,6 +31,8 @@ export type {
   AppOpenedProperties,
   ArchiveReason,
   AuthProvider,
+  AuthRoleGrantedProperties,
+  AuthRoleRevokedProperties,
   AuthUserSignedInProperties,
   AuthUserSignedOutProperties,
   AuthUserSignedUpProperties,
@@ -48,6 +50,8 @@ export type {
   IndustryCode,
   InviteChannel,
   KnowledgeDocViewedProperties,
+  KnowledgeZkLinkTraversedProperties,
+  KnowledgeZkNodeCreatedProperties,
   PaymentCheckoutStartedProperties,
   PaymentGateway,
   PaymentTransactionFailedProperties,
@@ -56,6 +60,7 @@ export type {
   ProjectCreatedProperties,
   ProjectMemberInvitedProperties,
   ProjectTier,
+  RevocationReason,
   RiskClass,
   RiskReportedManualProperties,
   Role,
@@ -69,6 +74,10 @@ export type {
   SlmQueueGrewProperties,
   SlmQueueReconciledProperties,
   TareaCompletedProperties,
+  TareaEscalatedProperties,
+  TareaEscalationKind,
+  ZkLinkKind,
+  ZkNodeKind,
 } from './types';
 
 /**

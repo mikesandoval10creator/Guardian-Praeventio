@@ -65,7 +65,15 @@ export type EventName =
   | 'app.backgrounded'
   | 'slm.queue.grew'
   | 'slm.queue.reconciled'
-  | 'slm.model.downloaded';
+  | 'slm.model.downloaded'
+  // 13th wave additions — see catalog rows 23–24 (auth.role.*),
+  // 109–110 (knowledge.zk.*) plus a new `tarea.escalated` row added in
+  // this wave to docs/tracking/event-catalog.md + .telemetry/proposed-events.yaml.
+  | 'auth.role.granted'
+  | 'auth.role.revoked'
+  | 'knowledge.zk.node.created'
+  | 'knowledge.zk.link.traversed'
+  | 'tarea.escalated';
 
 /**
  * Common props attached to every event.
@@ -335,6 +343,86 @@ export interface SlmModelDownloadedProperties extends CommonProperties {
   cache_origin?: CacheOrigin;
 }
 
+// ---------------------------------------------------------------------------
+// 13th wave additions — types matching catalog rows for the 5 new events.
+// Source-of-truth: docs/tracking/event-catalog.md (rows 23–24 for auth.role.*,
+// 109–110 for knowledge.zk.*) + .telemetry/proposed-events.yaml. The
+// `tarea.escalated` row is brand-new — added to both manifests in this wave
+// (the catalog had only created/completed/blocked under Tarea; escalation
+// was the implicit gap).
+// ---------------------------------------------------------------------------
+
+export interface AuthRoleGrantedProperties extends CommonProperties {
+  role: Role;
+  granted_by_user_id_hash: string;
+}
+
+/** Why a role was revoked — narrow enum keeps the column low-cardinality. */
+export type RevocationReason = 'admin_action' | 'role_change' | 'user_left' | 'security_incident' | 'other';
+
+export interface AuthRoleRevokedProperties extends CommonProperties {
+  role: Role;
+  revoked_by_user_id_hash: string;
+  revocation_reason?: RevocationReason;
+}
+
+/**
+ * Zettelkasten node kinds — coarse-grained taxonomy that mirrors the
+ * `NodeType` runtime enum without coupling analytics to the entire
+ * domain enum (which leaks UI labels). Add new kinds here only if the
+ * catalog row is bumped.
+ */
+export type ZkNodeKind =
+  | 'risk'
+  | 'finding'
+  | 'incident'
+  | 'control'
+  | 'normative'
+  | 'task'
+  | 'worker'
+  | 'project'
+  | 'audit'
+  | 'epp'
+  | 'asset'
+  | 'other';
+
+export interface KnowledgeZkNodeCreatedProperties extends CommonProperties {
+  zk_node_id: string;
+  zk_node_kind: ZkNodeKind;
+  source_session_id?: string;
+}
+
+/** How the user reached the link — click vs keyboard nav vs deep-link. */
+export type ZkLinkKind = 'backlink' | 'forward' | 'smart_action' | 'deep_link';
+
+export interface KnowledgeZkLinkTraversedProperties extends CommonProperties {
+  zk_node_id_from: string;
+  zk_node_id_to: string;
+  link_kind: ZkLinkKind;
+}
+
+/**
+ * Why a tarea was escalated. `pause` covers the worker-pauses-and-asks-for-help
+ * path; `block_unresolved` is when a `tarea.blocked` lingers past SLA;
+ * `manual_supervisor_request` is when the worker explicitly asks for help
+ * via UI; `auto_sla` is reserved for future server-side timers.
+ */
+export type TareaEscalationKind =
+  | 'pause'
+  | 'block_unresolved'
+  | 'manual_supervisor_request'
+  | 'auto_sla';
+
+export interface TareaEscalatedProperties extends CommonProperties {
+  tarea_id: string;
+  proceso_id: string;
+  escalation_kind: TareaEscalationKind;
+  /** Process status before the escalation fired (org domain enum). */
+  from_status?: string;
+  /** Process status after the escalation fired. */
+  to_status?: string;
+}
+
 /**
  * Map from event name → its full property shape. Used by `Event<N>` below
  * so `analytics.track(name, props)` validates `props` against the right
@@ -365,6 +453,12 @@ export interface EventPropertiesMap {
   'slm.queue.grew': SlmQueueGrewProperties;
   'slm.queue.reconciled': SlmQueueReconciledProperties;
   'slm.model.downloaded': SlmModelDownloadedProperties;
+  // 13th wave additions
+  'auth.role.granted': AuthRoleGrantedProperties;
+  'auth.role.revoked': AuthRoleRevokedProperties;
+  'knowledge.zk.node.created': KnowledgeZkNodeCreatedProperties;
+  'knowledge.zk.link.traversed': KnowledgeZkLinkTraversedProperties;
+  'tarea.escalated': TareaEscalatedProperties;
 }
 
 /**

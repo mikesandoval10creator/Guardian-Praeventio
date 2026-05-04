@@ -203,6 +203,15 @@ events:
     firstVersion: 1.0.0
     piiRisk: low
 
+  - name: tarea.escalated
+    class: lifecycle
+    description: Tarea/proceso escalated for supervisor attention (e.g. paused mid-execution).
+    requiredProps: [tarea_id, proceso_id, escalation_kind]
+    optionalProps: [from_status, to_status]
+    ownerTeam: safety
+    firstVersion: 1.0.0
+    piiRisk: low
+
   # =================== Riesgos (3) ===================
   - name: risk.detected.predictive
     class: safety_critical
