@@ -28,6 +28,7 @@
 // even though tsc accepts them. Import the default and destructure to
 // stay compatible with both module systems.
 import transbankSdk from 'transbank-sdk';
+import { withSentryScope } from '../observability/sentryInstrumentation';
 const { Environment, IntegrationApiKeys, IntegrationCommerceCodes, Options, WebpayPlus } =
   transbankSdk;
 type TransbankOptions = InstanceType<typeof Options>;
@@ -267,36 +268,61 @@ export const webpayAdapter: WebpayAdapter = {
     );
   },
   async createTransaction(tx: WebpayTransaction): Promise<WebpayCreateResult> {
-    try {
-      const txService = new WebpayPlus.Transaction(resolveOptions());
-      const response = await txService.create(
-        tx.buyOrder,
-        tx.sessionId,
-        tx.amount,
-        tx.returnUrl,
-      );
-      return { token: response.token, url: response.url };
-    } catch (err) {
-      throw new WebpayAdapterError('createTransaction', err);
-    }
+    // Sprint 20 Bucket Mu Phase 2 — Sentry context: this captures
+    // `buyOrder` + `amount` so a failed createTransaction issue in Sentry
+    // shows the invoice id and CLP amount on the issue page. We
+    // intentionally OMIT `sessionId` (auth-correlated) and `returnUrl`
+    // (may carry route-level routing tokens).
+    return withSentryScope(
+      'webpay',
+      { action: 'createTransaction', buyOrder: tx.buyOrder, amount: tx.amount },
+      async () => {
+        try {
+          const txService = new WebpayPlus.Transaction(resolveOptions());
+          const response = await txService.create(
+            tx.buyOrder,
+            tx.sessionId,
+            tx.amount,
+            tx.returnUrl,
+          );
+          return { token: response.token, url: response.url };
+        } catch (err) {
+          throw new WebpayAdapterError('createTransaction', err);
+        }
+      },
+    );
   },
   async commitTransaction(token: string): Promise<WebpayCommitResult> {
-    try {
-      const txService = new WebpayPlus.Transaction(resolveOptions());
-      const response = await txService.commit(token);
-      return mapCommitResponse(response);
-    } catch (err) {
-      throw new WebpayAdapterError('commitTransaction', err);
-    }
+    // PII NOTE: `token` is a Transbank token_ws short-lived value; we
+    // attach only its length to the Sentry context, never the value.
+    return withSentryScope(
+      'webpay',
+      { action: 'commitTransaction', tokenLength: token?.length ?? 0 },
+      async () => {
+        try {
+          const txService = new WebpayPlus.Transaction(resolveOptions());
+          const response = await txService.commit(token);
+          return mapCommitResponse(response);
+        } catch (err) {
+          throw new WebpayAdapterError('commitTransaction', err);
+        }
+      },
+    );
   },
   async refundTransaction(token: string, amount: number): Promise<WebpayRefundResult> {
-    try {
-      const txService = new WebpayPlus.Transaction(resolveOptions());
-      const response = await txService.refund(token, amount);
-      return mapRefundResponse(response, amount);
-    } catch (err) {
-      throw new WebpayAdapterError('refundTransaction', err);
-    }
+    return withSentryScope(
+      'webpay',
+      { action: 'refundTransaction', amount, tokenLength: token?.length ?? 0 },
+      async () => {
+        try {
+          const txService = new WebpayPlus.Transaction(resolveOptions());
+          const response = await txService.refund(token, amount);
+          return mapRefundResponse(response, amount);
+        } catch (err) {
+          throw new WebpayAdapterError('refundTransaction', err);
+        }
+      },
+    );
   },
 };
 
