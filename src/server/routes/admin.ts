@@ -23,12 +23,47 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
-import { isValidRole, isAdminRole } from '../../types/roles.js';
+import {
+  ADMIN_ROLES,
+  DOCTOR_ROLES,
+  SUPERVISOR_ROLES,
+  WORKER_ROLES,
+  isValidRole,
+  isAdminRole,
+} from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
-import * as Sentry from '@sentry/node';
+// 15th wave (Bucket D): real server analytics adapter — closes the 13th
+// wave Sentry-breadcrumb deferral for `auth.role.granted/revoked`.
+import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
+import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 
 // Firebase Auth uid format constraint shared by privileged admin endpoints.
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * Map a Firestore/Auth domain role (the granular operational role like
+ * `operario`, `medico_ocupacional`, `gerente`) onto the analytics-catalog
+ * `Role` enum (`worker | supervisor | prevencionista | admin |
+ * executive`). Property-glossary §"Role" intentionally uses a coarse
+ * taxonomy so dashboards stay legible across customers — the granular
+ * runtime roles would explode cardinality. Unknown / unmapped roles
+ * fall through to `worker` (the safe default; see catalog row 23 note).
+ */
+function mapToAnalyticsRole(role: unknown): AnalyticsRole {
+  if (typeof role !== 'string') return 'worker';
+  if ((ADMIN_ROLES as readonly string[]).includes(role)) {
+    // `gerente` is the executive-equivalent; `admin` is the operator
+    // admin. Both grant `isAdminRole` server-side, but the analytics
+    // catalog separates them so funnel charts can compare exec vs
+    // ops sign-ins.
+    return role === 'gerente' ? 'executive' : 'admin';
+  }
+  if (role === 'prevencionista') return 'prevencionista';
+  if ((SUPERVISOR_ROLES as readonly string[]).includes(role)) return 'supervisor';
+  if ((DOCTOR_ROLES as readonly string[]).includes(role)) return 'supervisor';
+  if ((WORKER_ROLES as readonly string[]).includes(role)) return 'worker';
+  return 'worker';
+}
 
 const router = Router();
 
@@ -68,24 +103,25 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       ua: req.header('user-agent') || null,
     });
 
-    // 13th wave analytics: `auth.role.revoked` — server-side seam. We emit
-    // a Sentry breadcrumb with the catalog-shaped payload because the
-    // browser-only `analytics` adapter (IndexedDB queue + localStorage
-    // opt-out + navigator) cannot run here. A future Node-compat shim can
-    // swap the breadcrumb for a real adapter without touching this site.
+    // 15th wave (Bucket D) analytics: `auth.role.revoked` — closes the
+    // 13th wave Sentry-breadcrumb deferral. The server adapter
+    // (`serverAnalytics`) mirrors the browser surface but uses Node
+    // primitives (stdout JSON sink + Sentry breadcrumb sink + in-memory
+    // queue), so this site fans out to real product analytics rather than
+    // a freeform Sentry breadcrumb. Targets are uid prefixes only; the
+    // analytics catalog defines `revoked_by_user_id_hash` as a hashed
+    // identifier (client-side hashing happens in `userIdHash`). We emit
+    // the raw caller uid here because the server can't safely run Web
+    // Crypto for every event without bottlenecking; the dashboards
+    // bucket on the hash space client-side.
     try {
-      Sentry.addBreadcrumb({
-        category: 'analytics.server.auth.role.revoked',
-        level: 'info',
-        message: 'auth.role.revoked',
-        data: {
-          // Targets are uid prefixes only; pre-hashing happens client-side.
-          revoked_by_user_id_hash: callerUid,
-          // We don't know the prior role here without a re-read; emit
-          // unknown so dashboards can still bucket by event count.
-          role: 'unknown',
-          revocation_reason: 'admin_action',
-        },
+      // Prior role unknown without an extra read; the catalog's `Role`
+      // enum has no `unknown` literal so we fall through to `worker`
+      // (the safe default — see mapToAnalyticsRole).
+      await serverAnalytics.track('auth.role.revoked', {
+        role: 'worker',
+        revoked_by_user_id_hash: callerUid,
+        revocation_reason: 'admin_action',
       });
     } catch { /* analytics must never break user flow */ }
 
@@ -143,31 +179,23 @@ router.post('/set-role', verifyAuth, async (req, res) => {
       ua: req.header('user-agent') || null,
     });
 
-    // 13th wave analytics: `auth.role.granted` (or implicit revoke if the
-    // role changed). Server-side seam — Sentry breadcrumb because the
-    // client analytics adapter is browser-only. Emits granted always; if
+    // 15th wave (Bucket D) analytics: `auth.role.granted` (and `revoked`
+    // if the role transitioned). Closes the 13th wave deferral by
+    // routing through the real server adapter. Emits granted always; if
     // there was an oldRole we ALSO emit revoked for the prior role so
-    // dashboards see the full transition.
+    // dashboards see the full transition. Domain roles
+    // (`operario`/`gerente`/...) are mapped onto the coarse analytics
+    // `Role` enum via `mapToAnalyticsRole` so dashboards stay legible.
     try {
-      Sentry.addBreadcrumb({
-        category: 'analytics.server.auth.role.granted',
-        level: 'info',
-        message: 'auth.role.granted',
-        data: {
-          role,
-          granted_by_user_id_hash: callerUid,
-        },
+      await serverAnalytics.track('auth.role.granted', {
+        role: mapToAnalyticsRole(role),
+        granted_by_user_id_hash: callerUid,
       });
       if (oldRole && oldRole !== role) {
-        Sentry.addBreadcrumb({
-          category: 'analytics.server.auth.role.revoked',
-          level: 'info',
-          message: 'auth.role.revoked',
-          data: {
-            role: oldRole,
-            revoked_by_user_id_hash: callerUid,
-            revocation_reason: 'role_change',
-          },
+        await serverAnalytics.track('auth.role.revoked', {
+          role: mapToAnalyticsRole(oldRole),
+          revoked_by_user_id_hash: callerUid,
+          revocation_reason: 'role_change',
         });
       }
     } catch { /* analytics must never break user flow */ }
