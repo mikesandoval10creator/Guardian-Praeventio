@@ -168,6 +168,137 @@ async function emitSafetyLearningNode(args: {
 
 // ------------------------------ routes ------------------------------
 
+// ------------------------------ Sprint 17a: stats / engagement ------------------------------
+
+/**
+ * Pure aggregator: takes the wisdom_capsules docs for a given project +
+ * date range and the totalMembers count, returns the per-day ack-rate
+ * series + the top-engaged crew label.
+ *
+ * Extracted as a pure function so the cache + Firestore wiring can
+ * remain trivially testable (see wisdomCapsule.test.ts).
+ */
+export interface CapsuleStatsRow {
+  date: string;
+  ackedCount: number;
+  totalMembers: number;
+  ackRate: number;
+}
+
+export interface CapsuleStatsResult {
+  byDate: CapsuleStatsRow[];
+  topCrew: string | null;
+}
+
+export function aggregateCapsuleStats(
+  capsules: Array<{ date: string; ackedBy?: string[] }>,
+  totalMembers: number,
+  crewMembership: Array<{ crewName: string; uids: string[] }>
+): CapsuleStatsResult {
+  const byDate: CapsuleStatsRow[] = capsules
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((c) => {
+      const ackedCount = Array.isArray(c.ackedBy) ? c.ackedBy.length : 0;
+      const ackRate = totalMembers > 0 ? ackedCount / totalMembers : 0;
+      return { date: c.date, ackedCount, totalMembers, ackRate };
+    });
+
+  // Top crew = the crew whose members account for the most acks across
+  // the whole window. Ties broken by alphabetical crew name for
+  // determinism in tests.
+  const ackUidCounts = new Map<string, number>();
+  for (const cap of capsules) {
+    for (const uid of cap.ackedBy ?? []) {
+      ackUidCounts.set(uid, (ackUidCounts.get(uid) ?? 0) + 1);
+    }
+  }
+  let topCrew: string | null = null;
+  let topScore = -1;
+  for (const { crewName, uids } of crewMembership.slice().sort((a, b) =>
+    a.crewName.localeCompare(b.crewName)
+  )) {
+    const score = uids.reduce((acc, uid) => acc + (ackUidCounts.get(uid) ?? 0), 0);
+    if (score > topScore) {
+      topScore = score;
+      topCrew = crewName;
+    }
+  }
+  if (topScore <= 0) topCrew = null;
+  return { byDate, topCrew };
+}
+
+// In-memory TTL cache (1h) keyed on `${projectId}|${dateFrom}|${dateTo}`.
+// Process-local — fine for the engagement dashboard since it is bound by
+// the Cloud Run instance lifetime and the data is not authoritative
+// (Firestore remains the source of truth).
+const STATS_CACHE_TTL_MS = 60 * 60 * 1000;
+const statsCache = new Map<string, { at: number; value: CapsuleStatsResult }>();
+
+export function _clearCapsuleStatsCacheForTests() {
+  statsCache.clear();
+}
+
+router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
+  const uid = (req as any).user.uid;
+  const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
+  const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : '';
+  const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : '';
+  if (!projectId) return res.status(400).json({ error: 'projectId required' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+    return res.status(400).json({ error: 'dateFrom/dateTo must be YYYY-MM-DD' });
+  }
+  if (dateFrom > dateTo) {
+    return res.status(400).json({ error: 'dateFrom must be <= dateTo' });
+  }
+  try {
+    const db = admin.firestore();
+    await assertProjectMember(uid, projectId, db);
+
+    const cacheKey = `${projectId}|${dateFrom}|${dateTo}`;
+    const hit = statsCache.get(cacheKey);
+    if (hit && Date.now() - hit.at < STATS_CACHE_TTL_MS) {
+      return res.json({ success: true, ...hit.value, cached: true });
+    }
+
+    const [capsulesSnap, crewsSnap, projectSnap] = await Promise.all([
+      db
+        .collection('wisdom_capsules')
+        .where('projectId', '==', projectId)
+        .where('date', '>=', dateFrom)
+        .where('date', '<=', dateTo)
+        .limit(400)
+        .get()
+        .catch(() => ({ docs: [] as any[] })),
+      db.collection('crews').where('projectId', '==', projectId).limit(50).get().catch(() => ({ docs: [] as any[] })),
+      db.collection('projects').doc(projectId).get().catch(() => ({ exists: false, data: () => ({}) } as any)),
+    ]);
+
+    const capsules = (capsulesSnap as any).docs.map((d: any) => {
+      const data = d.data();
+      return { date: String(data.date ?? ''), ackedBy: Array.isArray(data.ackedBy) ? data.ackedBy : [] };
+    });
+    const crewMembership = (crewsSnap as any).docs.map((d: any) => {
+      const data = d.data();
+      return {
+        crewName: String(data.name ?? d.id),
+        uids: Array.isArray(data.memberUids) ? data.memberUids : [],
+      };
+    });
+    const projData = (projectSnap as any).exists ? (projectSnap as any).data() : {};
+    const totalMembers = Array.isArray(projData?.members) ? projData.members.length : 0;
+
+    const result = aggregateCapsuleStats(capsules, totalMembers, crewMembership);
+    statsCache.set(cacheKey, { at: Date.now(), value: result });
+    res.json({ success: true, ...result, cached: false });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    res.status(500).json({ error: err?.message ?? 'internal' });
+  }
+});
+
 router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
   const uid = (req as any).user.uid;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
