@@ -1,12 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
 /**
  * Sprint 20 Fase 6 — A11y baseline en E2E con axe-core.
+ * Sprint 20 Fase 6 (Wave 10, Bucket D) — extendido a Login (no-auth).
  *
  * Estrategia:
- *   1. Cargamos la landing pública (`/`) — única superficie sin auth.
- *   2. Corremos `axe.analyze()` con tags WCAG 2.1 A + AA.
+ *   1. Cargamos cada superficie pública sin auth.
+ *   2. Corremos `axe.analyze()` con tags WCAG 2.1 A + AA + 2.2.
  *   3. Aserto duro: cero violations `serious` ni `critical`. Si aparece
  *      una nueva violación de ese nivel, el test rompe el build (es la
  *      única forma de gatear regresiones de a11y antes de prod).
@@ -18,8 +19,57 @@ import AxeBuilder from '@axe-core/playwright';
  * monta ErrorBoundary "Sistema Interrumpido"). Cuando CI inyecte
  * secrets de un proyecto Firebase de test, podemos quitar el gate.
  *
+ * TODO Sprint 21 — surfaces auth-gated (Dashboard, Settings, Driving,
+ * Documents, Medicine, ComiteParitario, EmergencyDashboard) requieren
+ * fixture de Firebase Auth + Firestore poblada. Queda como TODO, no
+ * spec dummy.
+ *
  * Licencia axe-core MPL-2.0 — uso solo en tests, no se bundlea a prod.
  */
+
+// Helper compartido — corre axe en la página y enforza el contrato.
+async function runAxe(page: Page, testInfo: TestInfo, surface: string): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+
+  const blocking = results.violations.filter(
+    (v) => v.impact === 'serious' || v.impact === 'critical',
+  );
+  const minor = results.violations.filter(
+    (v) => v.impact === 'minor' || v.impact === 'moderate',
+  );
+
+  if (minor.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[a11y] ${minor.length} minor/moderate violations on ${surface}:`,
+      minor.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
+    );
+    await testInfo.attach(`axe-minor-${surface.replace(/[^a-z0-9]/gi, '_')}.json`, {
+      body: JSON.stringify(minor, null, 2),
+      contentType: 'application/json',
+    });
+  }
+
+  if (blocking.length > 0) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[a11y] BLOCKING violations on ${surface}:`,
+      blocking.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length })),
+    );
+    await testInfo.attach(`axe-blocking-${surface.replace(/[^a-z0-9]/gi, '_')}.json`, {
+      body: JSON.stringify(blocking, null, 2),
+      contentType: 'application/json',
+    });
+  }
+
+  expect(
+    blocking,
+    `serious/critical a11y violations on ${surface}: ${blocking.map((v) => v.id).join(', ')}`,
+  ).toHaveLength(0);
+}
+
 test.describe('Accessibility (axe-core)', () => {
   test('landing page has no serious/critical a11y violations', async ({ page }, testInfo) => {
     test.skip(
@@ -32,43 +82,7 @@ test.describe('Accessibility (axe-core)', () => {
     // un DOM en mid-render y reportar fantasmas.
     await page.waitForLoadState('networkidle');
 
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    const blocking = results.violations.filter(
-      (v) => v.impact === 'serious' || v.impact === 'critical',
-    );
-    const minor = results.violations.filter(
-      (v) => v.impact === 'minor' || v.impact === 'moderate',
-    );
-
-    if (minor.length > 0) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[a11y] ${minor.length} minor/moderate violations on /:`,
-        minor.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
-      );
-      // Adjuntamos el detalle al reporte HTML de Playwright para triaging.
-      await testInfo.attach('axe-minor-violations.json', {
-        body: JSON.stringify(minor, null, 2),
-        contentType: 'application/json',
-      });
-    }
-
-    if (blocking.length > 0) {
-      // eslint-disable-next-line no-console
-      console.error(
-        `[a11y] BLOCKING violations on /:`,
-        blocking.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length })),
-      );
-      await testInfo.attach('axe-blocking-violations.json', {
-        body: JSON.stringify(blocking, null, 2),
-        contentType: 'application/json',
-      });
-    }
-
-    expect(blocking, `serious/critical a11y violations: ${blocking.map((v) => v.id).join(', ')}`).toHaveLength(0);
+    await runAxe(page, testInfo, '/');
   });
 
   test('landing page exposes a main landmark and a top-level heading', async ({ page }) => {
@@ -89,4 +103,49 @@ test.describe('Accessibility (axe-core)', () => {
     const h1 = page.locator('h1').first();
     await expect(h1).toBeVisible();
   });
+
+  // Wave 10 Bucket D — extiende cobertura a /login. La página es alcanzable
+  // sin auth (es el punto de entrada) y permite verificar el shell que comparten
+  // el resto de pages logueadas: heading, role="alert" en errores, role="main".
+  test('login page has no serious/critical a11y violations', async ({ page }, testInfo) => {
+    test.skip(
+      process.env.E2E_FULL_STACK !== '1',
+      'Requires full E2E stack (preview server). Run `npm run test:e2e:full`.',
+    );
+
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle');
+
+    await runAxe(page, testInfo, '/login');
+  });
+
+  test('login page exposes a main landmark and labelled heading', async ({ page }) => {
+    test.skip(
+      process.env.E2E_FULL_STACK !== '1',
+      'Requires full E2E stack (preview server). Run `npm run test:e2e:full`.',
+    );
+
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle');
+
+    // Login.tsx wires `aria-labelledby="login-heading"` to the <main>.
+    // The heading must exist and have text — covers WCAG 2.4.6 + 1.3.1.
+    const main = page.locator('main, [role="main"]').first();
+    await expect(main).toHaveCount(1);
+
+    const heading = page.locator('#login-heading');
+    await expect(heading).toBeVisible();
+    await expect(heading).not.toHaveText('');
+  });
+
+  // TODO Sprint 21 — once a Firebase Auth test fixture exists, extend to:
+  //   • /dashboard      (RootLayout shell — sidebar, header, ModeSwitcher dock)
+  //   • /settings       (forms with useId/htmlFor, role=switch toggles)
+  //   • /driving        (route-level driving shell, gated by useAppMode)
+  //   • /documents      (icon-only buttons, dropdown menus — A11Y-011)
+  //   • /comite         (tab semantics regression — A11Y-012)
+  //   • /medicine       (HumanBodyViewer target sizes — A11Y-010)
+  //   • /emergency      (EmergencyDashboard tabs + CrisisChat menu — A11Y-009)
+  // Each will need a `test.skip(!process.env.E2E_FULL_STACK_AUTH)` until the
+  // auth-fixture lands. Skipping for now — see docs/a11y/A11Y_AUDIT.md §2.
 });

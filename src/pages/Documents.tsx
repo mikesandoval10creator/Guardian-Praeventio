@@ -234,12 +234,13 @@ export function Documents() {
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-1 sm:gap-2">
-                        <button 
+                        <button
                           onClick={() => navigate(`/documents/${doc.id}`)}
                           className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
                           title="Ver Documento"
+                          aria-label={`Ver documento ${doc.name}`}
                         >
-                          <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                          <FileText className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
                         </button>
                         {doc.url ? (
                           <a 
@@ -257,14 +258,17 @@ export function Documents() {
                           </button>
                         )}
                         <div className="relative dropdown-container">
-                          <button 
+                          <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveDropdown(activeDropdown === doc.id ? null : doc.id);
                             }}
                             className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                            aria-label={`Más opciones para ${doc.name}`}
+                            aria-haspopup="menu"
+                            aria-expanded={activeDropdown === doc.id}
                           >
-                            <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <MoreVertical className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
                           </button>
                           <AnimatePresence>
                             {activeDropdown === doc.id && (
