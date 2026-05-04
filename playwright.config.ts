@@ -59,11 +59,34 @@ export default defineConfig({
 
   webServer: process.env.E2E_NO_SERVER
     ? undefined
-    : {
-        // Para CI: build estático sirve preview. En local-dev podés usar npm run dev (puerto 3000).
-        command: 'npm run preview',
-        url: 'http://localhost:4173',
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-      },
+    : process.env.E2E_FULL_STACK === '1'
+      ? [
+          {
+            command: 'npm run preview',
+            url: 'http://localhost:4173',
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+          },
+          {
+            // Express con E2E_MODE=1 — tests que tocan /api/*.
+            command: 'npx cross-env NODE_ENV=test E2E_MODE=1 E2E_TEST_SECRET=e2e-test-secret-do-not-use-in-prod PORT=3000 npx tsx server.ts',
+            url: 'http://localhost:3000/health',
+            reuseExistingServer: !process.env.CI,
+            timeout: 90_000,
+          },
+          {
+            // Firestore Emulator — tests que escriben docs reales.
+            command: 'npx firebase emulators:start --only firestore --project demo-test',
+            url: 'http://localhost:8080',
+            reuseExistingServer: !process.env.CI,
+            timeout: 90_000,
+          },
+        ]
+      : {
+          // Default (CI básico + dev rápido): solo preview estático en :4173.
+          command: 'npm run preview',
+          url: 'http://localhost:4173',
+          reuseExistingServer: !process.env.CI,
+          timeout: 120_000,
+        },
 });
