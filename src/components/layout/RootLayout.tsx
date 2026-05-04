@@ -4,7 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { Home, Menu, ArrowLeft, User as UserIcon, Bell, Sun, Moon, Map, WifiOff, Search, Sparkles, Cloud } from 'lucide-react';
 import { Sidebar } from './Sidebar';
-import { AsesorChat } from '../shared/AsesorChat';
+// Sprint 20 tenth wave (Bucket Perf C — Fase 5): the chat widget is
+// loaded lazily so `react-markdown` + the SLM/Gemini orchestrator graph
+// no longer ship in the main bundle. The `AsesorChatLazy` wrapper holds
+// the `open-ai-chat` event listener until the chunk is fetched.
+import { AsesorChatLazy } from '../shared/AsesorChatLazy';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { EmergencyAlertBanner } from './EmergencyAlertBanner';
 import { PendingInvitesBanner } from './PendingInvitesBanner';
@@ -355,7 +359,7 @@ export function RootLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
-      <AsesorChat />
+      <AsesorChatLazy />
       <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
       <SmartConnectionsPanel />
 
