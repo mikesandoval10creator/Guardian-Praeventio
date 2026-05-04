@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, Package, Calendar, Loader2 } from 'lucide-react';
 import { db, serverTimestamp, storage, ref, uploadBytes, getDownloadURL } from '../../services/firebase';
@@ -18,6 +19,7 @@ interface AssignEPPModalProps {
 }
 
 export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }: AssignEPPModalProps) {
+  const { t } = useTranslation();
   const [selectedWorker, setSelectedWorker] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
@@ -178,8 +180,8 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                   <Package className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Asignar EPP</h2>
-                  <p className="text-xs font-medium text-emerald-500">Generación de Acta</p>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">{t('epp.assign_title', 'Asignar EPP')}</h2>
+                  <p className="text-xs font-medium text-emerald-500">{t('epp.assign_subtitle', 'Generación de Acta')}</p>
                 </div>
               </div>
               <button 
@@ -195,7 +197,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 ml-1 flex items-center gap-2">
                     <User className="w-4 h-4" />
-                    Trabajador
+                    {t('epp.field_worker', 'Trabajador')}
                   </label>
                   <select
                     required
@@ -203,7 +205,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                     onChange={e => setSelectedWorker(e.target.value)}
                     className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   >
-                    <option value="">Seleccionar trabajador...</option>
+                    <option value="">{t('epp.select_worker', 'Seleccionar trabajador...')}</option>
                     {workers.map(worker => (
                       <option key={worker.id} value={worker.id}>{worker.name} - {worker.role}</option>
                     ))}
@@ -213,7 +215,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 ml-1 flex items-center gap-2">
                     <Package className="w-4 h-4" />
-                    Item EPP
+                    {t('epp.field_item', 'Item EPP')}
                   </label>
                   <select
                     required
@@ -221,9 +223,9 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                     onChange={e => setSelectedItem(e.target.value)}
                     className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
                   >
-                    <option value="">Seleccionar item...</option>
+                    <option value="">{t('epp.select_item', 'Seleccionar item...')}</option>
                     {eppItems.filter(item => item.stock > 0).map(item => (
-                      <option key={item.id} value={item.id}>{item.name} (Stock: {item.stock})</option>
+                      <option key={item.id} value={item.id}>{item.name} ({t('epp.stock_label', 'Stock')}: {item.stock})</option>
                     ))}
                   </select>
                 </div>
@@ -231,7 +233,7 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                 <div>
                   <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 ml-1 flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Fecha de Vencimiento (Opcional)
+                    {t('epp.field_expires', 'Fecha de Vencimiento (Opcional)')}
                   </label>
                   <input
                     type="date"
@@ -245,12 +247,12 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
 
             {/* Footer */}
             <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900 shrink-0 flex justify-end gap-3">
-              <button 
+              <button
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-white font-medium text-sm hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
-                Cancelar
+                {t('epp.btn_cancel', 'Cancelar')}
               </button>
               <button
                 type="submit"
@@ -261,10 +263,10 @@ export function AssignEPPModal({ isOpen, onClose, projectId, eppItems, workers }
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Generando Acta...</span>
+                    <span>{t('epp.btn_generating', 'Generando Acta...')}</span>
                   </>
                 ) : (
-                  <span>Confirmar Asignación</span>
+                  <span>{t('epp.btn_confirm', 'Confirmar Asignación')}</span>
                 )}
               </button>
             </div>

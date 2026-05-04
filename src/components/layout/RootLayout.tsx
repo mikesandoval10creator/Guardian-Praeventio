@@ -108,6 +108,14 @@ export function RootLayout() {
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-[#4db6ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-[#4db6ac]/30 flex flex-col transition-colors duration-300">
+      {/* Skip link — first focusable element in the shell. Hidden until
+          keyboard focus per WCAG 2.4.1 (Bypass Blocks). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-[#4db6ac] focus:text-white focus:rounded-xl focus:shadow-lg focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-white"
+      >
+        Saltar al contenido principal
+      </a>
       <CookieConsent />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
       <div className="lg:ml-[300px] lg:w-[calc(100%-300px)]">
@@ -132,7 +140,11 @@ export function RootLayout() {
       </div>
       <ReloadPrompt />
 
-      <header className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-[#4db6ac]/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200/50 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm">
+      <header
+        role="banner"
+        aria-label="Encabezado principal"
+        className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-[#4db6ac]/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200/50 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm"
+      >
         {/* Left: Menu & Logo */}
         <div className="flex items-center gap-3 shrink-0">
           <button 
@@ -323,7 +335,13 @@ export function RootLayout() {
         isForced={isMfaForced}
       />
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar w-full px-2 sm:px-4 py-2 pb-2 flex flex-col lg:ml-[300px] lg:w-[calc(100%-300px)]">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        role="main"
+        aria-label="Contenido principal"
+        className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar w-full px-2 sm:px-4 py-2 pb-2 flex flex-col lg:ml-[300px] lg:w-[calc(100%-300px)] focus:outline-none"
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

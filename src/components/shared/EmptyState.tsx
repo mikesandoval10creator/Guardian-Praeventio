@@ -24,13 +24,16 @@ export function EmptyState({ icon: Icon, title, description, action, className =
       className={`flex flex-col items-center justify-center text-center ${compact ? 'py-8 px-4' : 'py-16 px-6'} ${className}`}
     >
       {mascot ? (
-        <motion.img
-          src="/mascot.png"
-          alt="Guardian Praeventio"
-          className={`${compact ? 'w-16 h-16' : 'w-24 h-24'} object-contain drop-shadow-lg mb-4`}
-          animate={{ y: [0, -6, 0] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-        />
+        <picture>
+          <source srcSet="/mascot.webp" type="image/webp" />
+          <motion.img
+            src="/mascot.png"
+            alt="Guardian Praeventio"
+            className={`${compact ? 'w-16 h-16' : 'w-24 h-24'} object-contain drop-shadow-lg mb-4`}
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </picture>
       ) : Icon ? (
         <div className={`${compact ? 'w-10 h-10' : 'w-14 h-14'} rounded-2xl bg-zinc-800/60 border border-white/5 flex items-center justify-center mb-4`}>
           <Icon className={`${compact ? 'w-5 h-5' : 'w-6 h-6'} text-zinc-500`} />

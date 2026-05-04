@@ -9,7 +9,7 @@
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="manifest" href="/manifest.json" />
-    
+
     <!-- DNS Prefetch & Preconnect for Firebase and Google APIs -->
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
@@ -17,6 +17,12 @@
     <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
     <link rel="preconnect" href="https://generativelanguage.googleapis.com" crossorigin />
     <link rel="dns-prefetch" href="https://generativelanguage.googleapis.com" />
+
+    <!-- Preconnect + preload critical fonts (Inter shell weights 400/700) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" media="print" onload="this.media='all'" />
 
     <title>Praeventio Guard</title>
 

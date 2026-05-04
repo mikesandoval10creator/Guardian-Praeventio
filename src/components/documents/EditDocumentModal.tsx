@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, FileText, Loader2 } from 'lucide-react';
 import { db, doc, updateDoc, handleFirestoreError, OperationType } from '../../services/firebase';
@@ -28,6 +29,7 @@ interface EditDocumentModalProps {
 }
 
 export function EditDocumentModal({ isOpen, onClose, document, projectId }: EditDocumentModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const isOnline = useOnlineStatus();
   const { toasts, show: showToast, dismiss } = useToast();
@@ -67,7 +69,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
             updatedAt: new Date().toISOString()
           }
         });
-        showToast('Edición guardada para sincronización cuando haya conexión.', 'info');
+        showToast(t('documents.toast_offline_edited', 'Edición guardada para sincronización cuando haya conexión.'), 'info');
       } else {
         const docRef = doc(db, `projects/${projectId}/documents`, document.id);
         await updateDoc(docRef, {
@@ -112,8 +114,8 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                   <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Editar Documento</h2>
-                  <p className="text-[10px] text-indigo-600 dark:text-indigo-300 font-bold uppercase tracking-widest truncate">Actualiza la información del archivo</p>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('documents.modal_edit_title', 'Editar Documento')}</h2>
+                  <p className="text-[10px] text-indigo-600 dark:text-indigo-300 font-bold uppercase tracking-widest truncate">{t('documents.modal_edit_subtitle', 'Actualiza la información del archivo')}</p>
                 </div>
               </div>
               <button 
@@ -128,7 +130,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
               <form id="edit-doc-form" onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">
-                    Nombre del Documento
+                    {t('documents.field_name', 'Nombre del Documento')}
                   </label>
                   <input
                     type="text"
@@ -136,39 +138,39 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                    placeholder="Ej. Matriz IPERC 2024"
+                    placeholder={t('documents.field_name_placeholder_edit', 'Ej. Matriz IPERC 2024')}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">
-                      Categoría
+                      {t('documents.field_category', 'Categoría')}
                     </label>
                     <select
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all appearance-none"
                     >
-                      <option value="Legal">Legal</option>
-                      <option value="Técnico">Técnico</option>
-                      <option value="SST">SST</option>
-                      <option value="Administrativo">Administrativo</option>
+                      <option value="Legal">{t('documents.category_legal', 'Legal')}</option>
+                      <option value="Técnico">{t('documents.category_technical', 'Técnico')}</option>
+                      <option value="SST">{t('documents.category_sst', 'SST')}</option>
+                      <option value="Administrativo">{t('documents.category_administrative', 'Administrativo')}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">
-                      Tipo
+                      {t('documents.field_type', 'Tipo')}
                     </label>
                     <select
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all appearance-none"
                     >
-                      <option value="PDF">PDF</option>
-                      <option value="DOCX">Word (DOCX)</option>
-                      <option value="XLSX">Excel (XLSX)</option>
-                      <option value="IMG">Imagen</option>
+                      <option value="PDF">{t('documents.type_pdf', 'PDF')}</option>
+                      <option value="DOCX">{t('documents.type_docx', 'Word (DOCX)')}</option>
+                      <option value="XLSX">{t('documents.type_xlsx', 'Excel (XLSX)')}</option>
+                      <option value="IMG">{t('documents.type_img', 'Imagen')}</option>
                     </select>
                   </div>
                 </div>
@@ -176,7 +178,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">
-                      Versión
+                      {t('documents.field_version', 'Versión')}
                     </label>
                     <input
                       type="text"
@@ -184,21 +186,21 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                       value={formData.version}
                       onChange={(e) => setFormData({ ...formData, version: e.target.value })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                      placeholder="1.0"
+                      placeholder={t('documents.field_version_placeholder_edit', '1.0')}
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-black text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-2">
-                      Estado
+                      {t('documents.field_status', 'Estado')}
                     </label>
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as 'Vigente' | 'Vencido' | 'Pendiente' })}
                       className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all appearance-none"
                     >
-                      <option value="Vigente">Vigente</option>
-                      <option value="Pendiente">Pendiente</option>
-                      <option value="Vencido">Vencido</option>
+                      <option value="Vigente">{t('documents.status_active', 'Vigente')}</option>
+                      <option value="Pendiente">{t('documents.status_pending', 'Pendiente')}</option>
+                      <option value="Vencido">{t('documents.status_expired', 'Vencido')}</option>
                     </select>
                   </div>
                 </div>
@@ -212,7 +214,7 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                   onClick={onClose}
                   className="flex-1 px-4 py-3 rounded-xl text-xs font-black text-zinc-600 dark:text-white uppercase tracking-widest hover:bg-zinc-200 dark:hover:bg-white/5 transition-colors"
                 >
-                  Cancelar
+                  {t('documents.btn_cancel', 'Cancelar')}
                 </button>
                 <button
                   type="submit"
@@ -223,9 +225,9 @@ export function EditDocumentModal({ isOpen, onClose, document, projectId }: Edit
                   {loading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : !isOnline ? (
-                    'Guardar Offline'
+                    t('documents.btn_save_offline', 'Guardar Offline')
                   ) : (
-                    'Guardar Cambios'
+                    t('documents.btn_save_changes', 'Guardar Cambios')
                   )}
                 </button>
               </div>

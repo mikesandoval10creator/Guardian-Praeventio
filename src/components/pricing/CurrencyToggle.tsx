@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { DollarSign, Globe } from 'lucide-react';
 import type { Currency } from '../../services/pricing/tiers';
 
@@ -97,13 +98,14 @@ interface CurrencyToggleProps {
 }
 
 export function CurrencyToggle({ className = '' }: CurrencyToggleProps) {
+  const { t } = useTranslation();
   const { currency, setCurrency } = useCurrency();
   const isCLP = currency === 'CLP';
 
   return (
     <div
       role="group"
-      aria-label="Selector de moneda"
+      aria-label={t('currency.selector_aria', 'Selector de moneda')}
       className={`inline-flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-full p-1 text-xs font-bold ${className}`}
     >
       <button

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, FileText, Loader2 } from 'lucide-react';
 import { db, storage, collection, addDoc, serverTimestamp, ref, uploadBytes, getDownloadURL, handleFirestoreError, OperationType } from '../../services/firebase';
@@ -16,6 +17,7 @@ interface AddDocumentModalProps {
 }
 
 export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const { addNode } = useRiskEngine();
@@ -83,7 +85,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
           file: file
         });
         
-        showToast('Documento guardado para sincronización cuando haya conexión.', 'info');
+        showToast(t('documents.toast_offline_added', 'Documento guardado para sincronización cuando haya conexión.'), 'info');
       } else {
         // 1. Upload file to Firebase Storage
         const storageRef = ref(storage, storagePath);
@@ -157,8 +159,8 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
                   <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Subir Documento</h2>
-                  <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">Añade un nuevo archivo al repositorio</p>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('documents.modal_add_title', 'Subir Documento')}</h2>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-300 font-bold uppercase tracking-widest truncate">{t('documents.modal_add_subtitle', 'Añade un nuevo archivo al repositorio')}</p>
                 </div>
               </div>
               <button 
@@ -194,62 +196,62 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
                 ) : (
                   <div className="flex flex-col items-center gap-2">
                     <Upload className="w-8 h-8 text-zinc-400 dark:text-zinc-500" />
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white">Haz clic para seleccionar un archivo</p>
-                    <p className="text-xs text-zinc-500">PDF, Word, Excel, JPG, PNG (Max 10MB)</p>
+                    <p className="text-sm font-bold text-zinc-900 dark:text-white">{t('documents.drop_select', 'Haz clic para seleccionar un archivo')}</p>
+                    <p className="text-xs text-zinc-500">{t('documents.drop_hint', 'PDF, Word, Excel, JPG, PNG (Max 10MB)')}</p>
                   </div>
                 )}
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Nombre del Documento</label>
+                  <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">{t('documents.field_name', 'Nombre del Documento')}</label>
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
-                    placeholder="Ej. Matriz de Riesgos 2026"
+                    placeholder={t('documents.field_name_placeholder_add', 'Ej. Matriz de Riesgos 2026')}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Categoría</label>
+                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">{t('documents.field_category', 'Categoría')}</label>
                     <select
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none shadow-sm"
                     >
-                      <option value="Legal">Legal</option>
-                      <option value="Técnico">Técnico</option>
-                      <option value="SST">SST</option>
-                      <option value="Administrativo">Administrativo</option>
+                      <option value="Legal">{t('documents.category_legal', 'Legal')}</option>
+                      <option value="Técnico">{t('documents.category_technical', 'Técnico')}</option>
+                      <option value="SST">{t('documents.category_sst', 'SST')}</option>
+                      <option value="Administrativo">{t('documents.category_administrative', 'Administrativo')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Versión</label>
+                    <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">{t('documents.field_version', 'Versión')}</label>
                     <input
                       type="text"
                       required
                       value={formData.version}
                       onChange={(e) => setFormData({ ...formData, version: e.target.value })}
                       className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
-                      placeholder="Ej. 1.0"
+                      placeholder={t('documents.field_version_placeholder_add', 'Ej. 1.0')}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">Estado</label>
+                  <label className="block text-xs font-black text-zinc-500 uppercase tracking-widest mb-2">{t('documents.field_status', 'Estado')}</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
                     className="w-full bg-white dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none shadow-sm"
                   >
-                    <option value="Vigente">Vigente</option>
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Vencido">Vencido</option>
+                    <option value="Vigente">{t('documents.status_active', 'Vigente')}</option>
+                    <option value="Pendiente">{t('documents.status_pending', 'Pendiente')}</option>
+                    <option value="Vencido">{t('documents.status_expired', 'Vencido')}</option>
                   </select>
                 </div>
               </div>
@@ -260,7 +262,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
                 onClick={onClose}
                 className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-zinc-700 dark:text-white bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
-                Cancelar
+                {t('documents.btn_cancel', 'Cancelar')}
               </button>
               <button
                 type="submit"
@@ -271,12 +273,12 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Subiendo...</span>
+                    <span>{t('documents.btn_uploading', 'Subiendo...')}</span>
                   </>
                 ) : !isOnline ? (
-                  <span>Guardar Offline</span>
+                  <span>{t('documents.btn_save_offline', 'Guardar Offline')}</span>
                 ) : (
-                  <span>Subir Documento</span>
+                  <span>{t('documents.btn_upload', 'Subir Documento')}</span>
                 )}
               </button>
             </div>
