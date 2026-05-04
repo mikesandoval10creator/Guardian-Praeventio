@@ -129,8 +129,12 @@ export function Driving(): React.ReactElement {
 
       {/* Speedometer (top-center) */}
       <div className="relative z-10 flex justify-center pt-8 pointer-events-none">
+        {/* WCAG 1.4.10 (Reflow) A11Y-019 — `max-w-[280px]` keeps the
+            badge inside a 320px viewport (Galaxy Fold cover screen) and
+            the responsive `text-5xl sm:text-6xl md:text-7xl` ramp shrinks
+            the digits below 640px so they don't push the border off-screen. */}
         <div
-          className="px-8 py-4 rounded-3xl backdrop-blur-md"
+          className="px-8 py-4 rounded-3xl backdrop-blur-md max-w-[280px] mx-auto"
           style={{
             background: 'color-mix(in oklab, var(--bg-canvas, #0a0a0a) 70%, transparent)',
             border: `2px solid ${color}`,
@@ -139,7 +143,7 @@ export function Driving(): React.ReactElement {
           aria-label={`Velocidad actual ${speedKmh} kilómetros por hora`}
         >
           <div
-            className="text-7xl font-black tabular-nums leading-none"
+            className="text-5xl sm:text-6xl md:text-7xl font-black tabular-nums leading-none"
             style={{ color }}
             data-testid="speedometer"
           >
