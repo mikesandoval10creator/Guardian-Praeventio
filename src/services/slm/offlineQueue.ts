@@ -44,6 +44,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 
 import { signPayload } from './hmac';
 import type { SLMQuery, SLMResponse } from './types';
+import { randomId } from '../../utils/randomId';
 
 /**
  * Database name. Identical to the model cache so all SLM-related
@@ -183,19 +184,14 @@ export function __resetOfflineQueueForTests(): void {
 /**
  * Generate a stable id for a new queued session.
  *
- * Prefers `crypto.randomUUID()` (available in Node 16+ and all modern
- * browsers). Falls back to a timestamp + random-suffix string in the
- * unlikely event we're on a runtime without it — collision-resistant
- * enough for our use case (per-device queue with ~tens of entries) and
- * keeps this module dependency-free (no nanoid).
+ * Sprint 20 nineteenth wave: feature-detect + Math.random fallback are
+ * now centralized in the shared `randomId` helper. See
+ * src/utils/randomId.ts for the rationale (deliberate non-secure
+ * fallback so a missing WebCrypto API is observable rather than
+ * silently polyfilled).
  */
 function newId(): string {
-  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
-  if (c && typeof c.randomUUID === 'function') {
-    return c.randomUUID();
-  }
-  // Fallback: hex-ish id with enough entropy for our scale.
-  return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  return randomId();
 }
 
 /**

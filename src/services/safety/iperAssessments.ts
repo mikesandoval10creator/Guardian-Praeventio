@@ -10,6 +10,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logAuditAction } from '../auditService';
+import { randomId } from '../../utils/randomId';
 
 export interface IperAssessmentInputs {
   probability: 1 | 2 | 3 | 4 | 5;
@@ -77,10 +78,9 @@ function validate(payload: IperAssessmentPayload): void {
 }
 
 function newId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `iper_${globalThis.crypto.randomUUID()}`;
+  // Sprint 20 nineteenth wave: feature-detect + fallback consolidated
+  // into the shared `randomId` helper. See src/utils/randomId.ts.
+  return randomId();
 }
 
 export async function recordIperAssessment(
