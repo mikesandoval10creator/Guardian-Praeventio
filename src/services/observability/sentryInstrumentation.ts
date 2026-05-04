@@ -42,6 +42,7 @@ import * as Sentry from '@sentry/core';
 export type ObservabilityModule =
   | 'gemini'
   | 'webpay'
+  | 'khipu'
   | 'prediction'
   | 'zettelkasten';
 

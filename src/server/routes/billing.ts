@@ -31,7 +31,7 @@
 // Phase 3 (curriculum/projects) and Phase 4 (oauth/gemini) deferred to
 // Round 18.
 
-import { Router } from 'express';
+import express, { Router } from 'express';
 import admin from 'firebase-admin';
 import { performance } from 'node:perf_hooks';
 import { randomUUID } from 'node:crypto';
@@ -56,6 +56,7 @@ import {
   finalizeWebpayIdempotencyLock,
   type WebpayReturnOutcome,
 } from '../../services/billing/webpayAdapter.js';
+import { KhipuAdapter } from '../../services/billing/khipuAdapter.js';
 import { stripeAdapter } from '../../services/billing/stripeAdapter.js';
 import { withIdempotency } from '../../services/billing/idempotency.js';
 import { recordWebpayReturnLatency } from '../../services/billing/webpayMetrics.js';
@@ -1147,3 +1148,146 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
     return res.redirect(`/pricing/failed?error=webpay`);
   }
 });
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/billing/khipu/webhook — Khipu IPN endpoint.
+//
+// Public route (no verifyAuth) — trust comes from the HMAC-SHA256 signature
+// on the `X-Khipu-Signature` header (`t=<unix-seconds>,s=<hex>`). Body is
+// parsed as RAW so the signature input matches exactly what Khipu signed
+// — going through `express.json()` would re-serialise and break the HMAC.
+//
+// Idempotency: shared `withIdempotency` helper keyed on the Khipu
+// `payment_id` (or `notification_id`/`api_request_id` if present), mirroring
+// the MercadoPago IPN pattern. The work() block is intentionally minimal:
+// after authenticating the producer, we re-fetch canonical state via
+// `getPaymentStatus()` (the IPN body is informational only — never trust
+// status fields from a webhook payload directly), update the invoice, and
+// write an audit log row.
+//
+// Mounted on the API router (NOT the /billing/webpay/* router) because
+// Khipu is the producer and they choose the URL — we control it with our
+// own commerce config rather than Transbank's.
+// ───────────────────────────────────────────────────────────────────────────
+billingApiRouter.post(
+  '/khipu/webhook',
+  express.raw({ type: 'application/json', limit: '10kb' }),
+  async (req, res) => {
+    const signature = req.header('x-khipu-signature') ?? '';
+    // express.raw gives us a Buffer; decode once and reuse for both the
+    // HMAC input and the JSON parse.
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body.toString('utf8')
+      : typeof req.body === 'string'
+      ? req.body
+      : '';
+
+    const adapter = KhipuAdapter.fromEnv();
+    if (!adapter.verifyWebhookSignature(rawBody, signature)) {
+      // Do NOT echo the signature or rawBody back; ops can correlate via
+      // request id + remote IP in the access log.
+      return res.status(401).json({ error: 'invalid_signature' });
+    }
+
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return res.status(400).json({ error: 'invalid_json' });
+    }
+
+    const paymentId: string | undefined =
+      typeof payload?.payment_id === 'string' ? payload.payment_id : undefined;
+    const notificationId: string | undefined =
+      typeof payload?.notification_id === 'string'
+        ? payload.notification_id
+        : typeof payload?.api_request_id === 'string'
+        ? payload.api_request_id
+        : undefined;
+    const dedupeKey = notificationId ?? paymentId;
+
+    if (!paymentId || !dedupeKey) {
+      // Without a stable id we can't dedupe; ack 200 to suppress retries
+      // (mirrors the RTDN handler's missing-messageId behaviour).
+      logger.warn('khipu_ipn_missing_id');
+      return res.status(200).json({ received: true });
+    }
+
+    const db = admin.firestore();
+
+    try {
+      const outcome = await withIdempotency(
+        db,
+        { collection: 'processed_khipu', key: dedupeKey },
+        async () => {
+          // Re-fetch canonical state — never trust status fields from the
+          // webhook body alone (they're informational; the producer might
+          // be fooled by a downstream replay).
+          const status = await adapter.getPaymentStatus(paymentId);
+          const invoiceId = status.buyOrder;
+          if (!invoiceId) {
+            logger.warn('khipu_ipn_no_transaction_id', { paymentId });
+            return { ok: false as const };
+          }
+          const invoiceRef = db.collection('invoices').doc(invoiceId);
+
+          if (status.status === 'completed') {
+            await invoiceRef.set(
+              {
+                status: 'paid',
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                paymentSource: 'khipu',
+                khipuPaymentId: paymentId,
+              },
+              { merge: true },
+            );
+            await db.collection('audit_logs').add({
+              action: 'billing.khipu-ipn.completed',
+              module: 'billing',
+              details: { invoiceId, amount: status.amount, paymentId },
+              userId: null,
+              userEmail: null,
+              projectId: null,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              ip: req.ip ?? null,
+              userAgent: req.header('user-agent') ?? null,
+            });
+          } else if (status.status === 'cancelled' || status.status === 'expired') {
+            await invoiceRef.set(
+              { status: 'rejected', khipuPaymentId: paymentId },
+              { merge: true },
+            );
+            await db.collection('audit_logs').add({
+              action: `billing.khipu-ipn.${status.status}`,
+              module: 'billing',
+              details: { invoiceId, amount: status.amount, paymentId },
+              userId: null,
+              userEmail: null,
+              projectId: null,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              ip: req.ip ?? null,
+              userAgent: req.header('user-agent') ?? null,
+            });
+          }
+          // 'pending' / 'verifying' → leave invoice as 'pending-payment';
+          // a later IPN will fire when the bank confirms.
+
+          return { ok: true as const, status: status.status };
+        },
+      );
+
+      if (outcome.kind === 'in-flight') {
+        logger.info('khipu_ipn_in_progress_skip', { dedupeKey });
+      } else if (outcome.kind === 'stale-retry') {
+        logger.warn('khipu_ipn_stale_lock_stealing', { dedupeKey });
+      }
+
+      return res.status(200).json({ received: true });
+    } catch (err) {
+      logger.error('khipu_ipn_failed', err, { dedupeKey, paymentId });
+      // 500 keeps the IPN retry loop alive on the Khipu side; the
+      // staleness window will grant the next redelivery a fresh attempt.
+      return res.status(500).json({ error: 'ipn_processing_failed' });
+    }
+  },
+);

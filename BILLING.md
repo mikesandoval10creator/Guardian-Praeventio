@@ -24,7 +24,7 @@ What is now landed:
 What is **not** here yet:
 
 - No `stripe` npm install (y nunca lo habrá — D3).
-- No Khipu adapter aún (pendiente — pasarela CL alternativa a Webpay).
+- Khipu adapter implementado en `src/services/billing/khipuAdapter.ts` (sandbox por default; webhook IPN en `POST /api/billing/khipu/webhook` con HMAC-SHA256 + ventana de drift ±300s + idempotencia `processed_khipu/{id}`).
 - No SII boleta electrónica integration.
 - No `firestore.rules` change for `invoices/{id}` (intentional — the
   collection is admin-only and the default-deny rule keeps it that way).
@@ -69,7 +69,10 @@ What is **not** here yet:
 The Webpay redirect/return URL flow
 (`/billing/webpay/return` ← Transbank ← cardholder browser) is implemented,
 including `processed_webpay/{token_ws}` lock-then-complete idempotency.
-The Khipu and Google Play Billing redirect/webhook flows are still pending.
+The Khipu IPN webhook (`POST /api/billing/khipu/webhook`) is also
+implemented, with HMAC-SHA256 signature verification and
+`processed_khipu/{notification_id}` idempotency. Google Play Billing
+redirect/webhook flow is still pending.
 
 ---
 
@@ -209,17 +212,33 @@ plumbed straight through to jose's `clockTolerance`.
 
 ## Khipu setup (CL web alternativa a Webpay)
 
-### Pendiente — pasarela CL alternativa
+### Implementation status
+
+- ✅ `KhipuAdapter` real implementation in `src/services/billing/khipuAdapter.ts`:
+  - `createPayment` → `POST /v3/payments` (REST; Khipu does not publish a Node SDK).
+  - `getPaymentStatus` → `GET /v3/payments/{id}` for canonical state re-fetch.
+  - `verifyWebhookSignature` → HMAC-SHA256 over `${timestamp}.${rawBody}`,
+    constant-time compare via `crypto.timingSafeEqual`, ±300 s drift window.
+  - Errors wrapped in `KhipuAdapterError`; failures emit through
+    `withSentryScope('khipu', ...)`.
+- ✅ Sandbox credentials (`KhipuAdapter.SANDBOX_DEFAULTS`) are the default —
+  dev / CI / E2E never touch a real merchant.
+- ✅ `POST /api/billing/khipu/webhook` route shipped in `src/server/routes/billing.ts`.
+  Reads raw body for HMAC, dedupes via `processed_khipu/{notification_id}`
+  (lock-then-complete via the shared `withIdempotency` helper), re-fetches
+  canonical state, updates `invoices/{id}.status` to `paid` / `rejected`,
+  writes an `audit_logs` row.
+- ✅ Unit tests with mocked `fetch` (`khipuAdapter.test.ts`, 20 cases).
+- ⚠️ Production credentials require Khipu cobrador onboarding (KYC).
 
 Khipu permite pagos por transferencia bancaria CL sin pasar por la red
 de tarjetas (menores comisiones, ideal para B2B Titanio+ que ya usan
-transferencia manual). Cuando se implemente:
+transferencia manual). Pasos para producción:
 
 1. Crear cuenta Khipu Cobros (<https://khipu.com/>).
 2. Generar `receiver_id` + `secret` (sandbox primero).
-3. Implementar `src/services/billing/khipuAdapter.ts` con
-   `createPayment()` (devuelve URL de pago) y `verifyNotification()`
-   (HMAC sobre payload del webhook Khipu).
+3. ~~Implementar `src/services/billing/khipuAdapter.ts`~~ ✅ ya hecho
+   (`createPayment`, `getPaymentStatus`, `verifyWebhookSignature`).
 4. Variables de entorno:
 
    ```bash
