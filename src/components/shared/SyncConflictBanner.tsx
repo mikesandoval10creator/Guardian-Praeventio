@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GitMerge, X, AlertTriangle, ExternalLink, RotateCcw, Check } from 'lucide-react';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip on the icon-only "X" dismiss button. The other
+// title= attributes here duplicated the visible label and were
+// deleted (the visible text is the primary semantic).
+import { Tooltip } from './Tooltip';
 
 interface ConflictEvent {
   collection: string;
@@ -103,17 +108,18 @@ export function SyncConflictBanner({ onOpenRecord, onRestoreServerVersion }: Syn
               <button
                 onClick={() => setExpanded(v => !v)}
                 className="shrink-0 px-2 py-0.5 text-[10px] font-bold hover:bg-amber-500/20 rounded transition-colors"
-                title="Ver detalles"
               >
                 {expanded ? 'Ocultar' : 'Ver detalles'}
               </button>
-              <button
-                onClick={() => setDismissed(true)}
-                className="shrink-0 p-1 hover:bg-amber-500/20 rounded-lg transition-colors"
-                title="Descartar"
-              >
-                <X className="w-3 h-3" />
-              </button>
+              <Tooltip content="Descartar">
+                <button
+                  onClick={() => setDismissed(true)}
+                  aria-label="Descartar"
+                  className="shrink-0 p-1 hover:bg-amber-500/20 rounded-lg transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Tooltip>
             </div>
 
             {expanded && (
@@ -128,7 +134,6 @@ export function SyncConflictBanner({ onOpenRecord, onRestoreServerVersion }: Syn
                     <button
                       onClick={() => dismissOne(idx)}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded hover:bg-amber-500/20 transition-colors"
-                      title="Mantener mi versión (ya aplicada)"
                     >
                       <Check className="w-3 h-3" />
                       Mantener mi versión
@@ -142,7 +147,6 @@ export function SyncConflictBanner({ onOpenRecord, onRestoreServerVersion }: Syn
                           dismissOne(idx);
                         }}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded hover:bg-amber-500/20 transition-colors"
-                        title="Restaurar versión del servidor"
                       >
                         <RotateCcw className="w-3 h-3" />
                         Restaurar versión del servidor
@@ -153,7 +157,6 @@ export function SyncConflictBanner({ onOpenRecord, onRestoreServerVersion }: Syn
                       <button
                         onClick={() => onOpenRecord(c.collection, c.id)}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded hover:bg-amber-500/20 transition-colors"
-                        title="Abrir registro"
                       >
                         <ExternalLink className="w-3 h-3" />
                         Abrir registro

@@ -7,6 +7,7 @@
 // All UI strings are Spanish-CL.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   GoogleMap,
   useJsApiLoader,
@@ -104,6 +105,7 @@ function polygonOptions(type: SiteGeometryType): google.maps.PolygonOptions {
 }
 
 export function Site25DPanel(): React.ReactElement {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const tenantId = auth.currentUser?.tenantId ?? 'default';
   const projectId = selectedProject?.id ?? null;
@@ -163,7 +165,7 @@ export function Site25DPanel(): React.ReactElement {
         setDrawingType(null);
       } catch (err) {
         logger.error('savePolygon failed', { err: String(err) });
-        setSaveError('No se pudo guardar el polígono. Reintenta.');
+        setSaveError(t('site_25d.save_polygon_failed', 'No se pudo guardar el polígono. Reintenta.'));
       }
     },
     [projectId, tenantId, drawingType],
@@ -173,7 +175,7 @@ export function Site25DPanel(): React.ReactElement {
     return (
       <div className="flex items-center justify-center h-full min-h-[480px] text-zinc-500">
         <Loader2 className="w-5 h-5 animate-spin mr-2" aria-hidden="true" />
-        <span className="text-xs">Cargando mapa…</span>
+        <span className="text-xs">{t('site_25d.loading_map', 'Cargando mapa…')}</span>
       </div>
     );
   }
@@ -258,11 +260,11 @@ export function Site25DPanel(): React.ReactElement {
         <div className="flex items-center gap-2 mb-2">
           <MapIcon className="w-3.5 h-3.5 text-cyan-400" aria-hidden="true" />
           <p className="text-[10px] font-black text-zinc-200 uppercase tracking-widest">
-            Mapa 2.5D del sitio
+            {t('site_25d.map_title', 'Mapa 2.5D del sitio')}
           </p>
         </div>
         <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">
-          Dibujar perímetro
+          {t('site_25d.draw_perimeter', 'Dibujar perímetro')}
         </p>
         <div className="grid grid-cols-1 gap-1">
           {DRAWER_OPTIONS.map((opt) => {
@@ -292,7 +294,7 @@ export function Site25DPanel(): React.ReactElement {
         </div>
         {drawingType && (
           <p className="mt-2 text-[10px] text-cyan-300/80 leading-snug">
-            Click en el mapa para marcar vértices. Doble click para cerrar.
+            {t('site_25d.draw_instructions', 'Click en el mapa para marcar vértices. Doble click para cerrar.')}
           </p>
         )}
         {saveError && (
@@ -300,7 +302,7 @@ export function Site25DPanel(): React.ReactElement {
         )}
         {!projectId && (
           <p className="mt-2 text-[10px] text-amber-400 font-bold">
-            Selecciona un proyecto para dibujar.
+            {t('site_25d.select_project', 'Selecciona un proyecto para dibujar.')}
           </p>
         )}
       </div>
@@ -308,7 +310,7 @@ export function Site25DPanel(): React.ReactElement {
       {/* Legend */}
       <div className="absolute bottom-3 left-3 bg-black/75 backdrop-blur-md rounded-xl p-3 border border-white/10">
         <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5">
-          Leyenda
+          {t('site_25d.legend', 'Leyenda')}
         </p>
         <div className="space-y-1">
           {DRAWER_OPTIONS.map((opt) => (

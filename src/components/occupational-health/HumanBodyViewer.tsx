@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { ChevronDown, RotateCcw, FileText, X, Info } from 'lucide-react';
 import { MedicalIcon } from '../medical/MedicalIcon';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip on the icon-only "clear selection" reset button.
+import { Tooltip } from '../shared/Tooltip';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -426,13 +429,15 @@ export function HumanBodyViewer({ value, onChange, readOnly = false, compact = f
 
         {/* Reset button */}
         {!readOnly && selectedRegions.length > 0 && (
-          <button
-            onClick={handleReset}
-            className="absolute top-4 left-4 p-1.5 rounded-lg bg-[#0F1E35] border border-[#1A3050] text-[#4a6080] hover:text-rose-400 hover:border-rose-500/30 transition-all z-10"
-            title="Limpiar selección"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+          <Tooltip content="Limpiar selección">
+            <button
+              onClick={handleReset}
+              aria-label="Limpiar selección de regiones corporales"
+              className="absolute top-4 left-4 p-1.5 rounded-lg bg-[#0F1E35] border border-[#1A3050] text-[#4a6080] hover:text-rose-400 hover:border-rose-500/30 transition-all z-10"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
         )}
 
         {/* SVG Body */}

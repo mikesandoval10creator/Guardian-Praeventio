@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mountain, Wind, Thermometer, Droplets, AlertTriangle, Loader2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip on the icon-only "Update with AI" refresh button.
+import { Tooltip } from './shared/Tooltip';
 
 interface WeatherData {
   temp?: number;
@@ -178,14 +181,16 @@ export function WeatherSafetyRecommendations({ weather, className = '' }: Props)
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={e => { e.stopPropagation(); fetchAIRecs(); }}
-            disabled={loading || !weather}
-            className="p-1 rounded-lg hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-white disabled:opacity-40"
-            title="Actualizar con IA"
-          >
-            {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-          </button>
+          <Tooltip content="Actualizar con IA">
+            <button
+              onClick={e => { e.stopPropagation(); fetchAIRecs(); }}
+              disabled={loading || !weather}
+              aria-label="Actualizar recomendaciones con IA"
+              className="p-1 rounded-lg hover:bg-zinc-700 transition-colors text-zinc-400 hover:text-white disabled:opacity-40"
+            >
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+            </button>
+          </Tooltip>
           {expanded ? <ChevronUp className="w-4 h-4 text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-zinc-500" />}
         </div>
       </button>

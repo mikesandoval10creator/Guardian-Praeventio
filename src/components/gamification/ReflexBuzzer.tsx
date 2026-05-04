@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Zap, Play, RotateCcw, Trophy, AlertCircle, X } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
@@ -10,6 +11,7 @@ interface ReflexBuzzerProps {
 }
 
 export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
+  const { t } = useTranslation();
   const [gameState, setGameState] = useState<'start' | 'waiting' | 'ready' | 'finished'>('start');
   const [reactionTime, setReactionTime] = useState<number | null>(null);
   const [bestTime, setBestTime] = useState<number | null>(null);
@@ -36,7 +38,7 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
       // Too early!
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       setGameState('start');
-      showToast('¡Demasiado pronto! Espera a que la pantalla se ponga verde.', 'warning');
+      showToast(t('reflex_buzzer.toast_too_early', '¡Demasiado pronto! Espera a que la pantalla se ponga verde.'), 'warning');
     } else if (gameState === 'ready') {
       // Good reaction
       const time = Date.now() - startTimeRef.current;
@@ -88,8 +90,8 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
               <Zap className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-tight">Buzzer de Reflejos</h2>
-              <p className="text-sm text-zinc-400">Evalúa tu capacidad de respuesta antes del turno</p>
+              <h2 className="text-xl font-black text-white uppercase tracking-tight">{t('reflex_buzzer.title', 'Buzzer de Reflejos')}</h2>
+              <p className="text-sm text-zinc-400">{t('reflex_buzzer.subtitle', 'Evalúa tu capacidad de respuesta antes del turno')}</p>
             </div>
           </div>
           <button 
@@ -111,16 +113,16 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
                 className="text-center space-y-8"
               >
                 <div className="max-w-md mx-auto text-zinc-400 text-sm leading-relaxed">
-                  <p>Cuando hagas clic en "Comenzar", la pantalla se pondrá roja.</p>
-                  <p className="mt-2 text-white font-bold">Espera a que se ponga VERDE y haz clic lo más rápido posible.</p>
+                  <p>{t('reflex_buzzer.intro_line1', 'Cuando hagas clic en "Comenzar", la pantalla se pondrá roja.')}</p>
+                  <p className="mt-2 text-white font-bold">{t('reflex_buzzer.intro_line2', 'Espera a que se ponga VERDE y haz clic lo más rápido posible.')}</p>
                 </div>
-                
+
                 <button
                   onClick={startGame}
                   className="px-8 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest text-lg transition-all flex items-center gap-3 mx-auto"
                 >
                   <Play className="w-6 h-6 fill-current" />
-                  Comenzar Prueba
+                  {t('reflex_buzzer.start_test', 'Comenzar Prueba')}
                 </button>
               </motion.div>
             )}
@@ -134,7 +136,7 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
                 onClick={handleInteraction}
                 className="absolute inset-0 bg-rose-500 flex items-center justify-center cursor-pointer"
               >
-                <h3 className="text-4xl font-black text-white uppercase tracking-widest">Espera...</h3>
+                <h3 className="text-4xl font-black text-white uppercase tracking-widest">{t('reflex_buzzer.waiting', 'Espera...')}</h3>
               </motion.div>
             )}
 
@@ -147,7 +149,7 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
                 onClick={handleInteraction}
                 className="absolute inset-0 bg-emerald-500 flex items-center justify-center cursor-pointer"
               >
-                <h3 className="text-6xl font-black text-white uppercase tracking-widest">¡AHORA!</h3>
+                <h3 className="text-6xl font-black text-white uppercase tracking-widest">{t('reflex_buzzer.now', '¡AHORA!')}</h3>
               </motion.div>
             )}
 
@@ -160,15 +162,15 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
                 className="text-center space-y-8 w-full"
               >
                 <div className="bg-zinc-800/50 border border-white/10 rounded-3xl p-8">
-                  <h3 className="text-zinc-400 font-bold uppercase tracking-widest mb-2">Tiempo de Reacción</h3>
+                  <h3 className="text-zinc-400 font-bold uppercase tracking-widest mb-2">{t('reflex_buzzer.reaction_time', 'Tiempo de Reacción')}</h3>
                   <div className="text-6xl font-black text-white tracking-tighter">
-                    {reactionTime} <span className="text-2xl text-zinc-500">ms</span>
+                    {reactionTime} <span className="text-2xl text-zinc-500">{t('reflex_buzzer.ms', 'ms')}</span>
                   </div>
-                  
+
                   {bestTime && (
                     <div className="mt-4 inline-flex items-center gap-2 text-amber-500 bg-amber-500/10 px-4 py-2 rounded-xl font-bold">
                       <Trophy className="w-4 h-4" />
-                      Mejor tiempo: {bestTime} ms
+                      {t('reflex_buzzer.best_time', 'Mejor tiempo')}: {bestTime} {t('reflex_buzzer.ms', 'ms')}
                     </div>
                   )}
                 </div>
@@ -179,14 +181,14 @@ export function ReflexBuzzer({ onComplete, onClose }: ReflexBuzzerProps) {
                     className="w-full sm:w-auto px-8 py-4 bg-zinc-800 hover:bg-zinc-700 text-white rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3"
                   >
                     <RotateCcw className="w-5 h-5" />
-                    Intentar de nuevo
+                    {t('reflex_buzzer.try_again', 'Intentar de nuevo')}
                   </button>
                   <button
                     onClick={handleFinish}
                     className="w-full sm:w-auto px-8 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3"
                   >
                     <Trophy className="w-5 h-5" />
-                    Finalizar y Reclamar
+                    {t('reflex_buzzer.finish_and_claim', 'Finalizar y Reclamar')}
                   </button>
                 </div>
               </motion.div>

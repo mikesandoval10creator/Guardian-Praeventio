@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { analyzeRiskWithAI, generateActionPlan } from '../../services/geminiService';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
@@ -33,6 +34,7 @@ const INDUSTRY_PREFILL: Record<string, string> = {
 const DEFAULT_PREFILL = 'Manejo manual de cargas pesadas (>25kg) con posturas forzadas y movimientos repetitivos.';
 
 export function IPERCAnalysis(_props: IPERCAnalysisProps) {
+  const { t } = useTranslation();
   const [description, setDescription] = useState('');
   // P×S drive `calculateIper`; the matrix is the only legal classifier
   // (SUSESO DS 40 + ACHS). LLM flow only suggests controls.
@@ -105,7 +107,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
       });
     } catch (err) {
       logger.error('Error analyzing risk', err);
-      setError('No se pudieron generar sugerencias con IA. La clasificación IPER ya está disponible.');
+      setError(t('iperc.error_ai', 'No se pudieron generar sugerencias con IA. La clasificación IPER ya está disponible.'));
     } finally {
       setLoadingAi(false);
     }
@@ -127,11 +129,11 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
   const handleSaveToMatrix = async () => {
     if (!iperResult || !description) return;
     if (!user) {
-      setError('Debes iniciar sesión para guardar la evaluación.');
+      setError(t('iperc.error_login', 'Debes iniciar sesión para guardar la evaluación.'));
       return;
     }
     if (!selectedProject?.id) {
-      setError('Seleccioná un proyecto antes de guardar la evaluación IPER.');
+      setError(t('iperc.error_no_project', 'Seleccioná un proyecto antes de guardar la evaluación IPER.'));
       return;
     }
     setLoadingAi(true);
@@ -265,7 +267,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
       setSaved(true);
     } catch (err) {
       logger.error('Error saving nodes', err);
-      setError(err instanceof Error ? err.message : 'No se pudo guardar la matriz IPER.');
+      setError(err instanceof Error ? err.message : t('iperc.error_save', 'No se pudo guardar la matriz IPER.'));
     } finally {
       setLoadingAi(false);
     }
@@ -284,12 +286,12 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
         <label className="text-xs font-bold uppercase tracking-wider text-zinc-500 ml-1">
-          Descripción de la Tarea o Peligro
+          {t('iperc.task_description', 'Descripción de la Tarea o Peligro')}
         </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Ej: Trabajos en altura sobre 1.8m en andamios móviles..."
+          placeholder={t('iperc.task_placeholder', 'Ej: Trabajos en altura sobre 1.8m en andamios móviles...')}
           className="w-full h-32 p-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 rounded-xl text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all resize-none"
         />
 
@@ -297,7 +299,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
           <div className="p-4 bg-amber-500/10 rounded-xl border border-amber-500/20 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-amber-500 flex items-center gap-2">
               <BrainCircuit className="w-4 h-4" />
-              Conocimiento Similar en la Red Neuronal
+              {t('iperc.similar_knowledge', 'Conocimiento Similar en la Red Neuronal')}
             </h4>
             <div className="space-y-3">
               {similarRisks.map((risk) => (
@@ -339,7 +341,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
                 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500'
                 : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:bg-zinc-700'
             }`}
-            title="Capturar Entorno"
+            title={t('iperc.capture_environment', 'Capturar Entorno')}
           >
             <Camera className="w-5 h-5" />
           </button>
@@ -355,17 +357,17 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
             {!isOnline ? (
               <>
                 <WifiOff className="w-5 h-5" />
-                <span>Requiere Conexión</span>
+                <span>{t('iperc.requires_connection', 'Requiere Conexión')}</span>
               </>
             ) : loadingAi ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>Sugiriendo controles...</span>
+                <span>{t('iperc.suggesting_controls', 'Sugiriendo controles...')}</span>
               </>
             ) : (
               <>
                 <Zap className="w-5 h-5" />
-                <span>Sugerir controles con IA</span>
+                <span>{t('iperc.suggest_with_ai', 'Sugerir controles con IA')}</span>
               </>
             )}
           </button>
@@ -374,7 +376,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
         {isCameraActive && (
           <div className="relative w-full h-48 bg-black rounded-xl overflow-hidden border border-zinc-800">
             <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-zinc-500 text-sm">Cámara Activa (Simulación)</p>
+              <p className="text-zinc-500 text-sm">{t('iperc.camera_active', 'Cámara Activa (Simulación)')}</p>
             </div>
             <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-xl pointer-events-none"></div>
             <div className="absolute top-2 right-2 bg-black/50 px-2 py-1 rounded text-[10px] text-emerald-500 font-mono">
@@ -404,12 +406,12 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
               {saved ? (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Enviado a Revisión</span>
+                  <span>{t('iperc.sent_review', 'Enviado a Revisión')}</span>
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  <span>Guardar IPER en la Matriz</span>
+                  <span>{t('iperc.save_to_matrix', 'Guardar IPER en la Matriz')}</span>
                 </>
               )}
             </button>
@@ -422,8 +424,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
           <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
             <BrainCircuit className="w-4 h-4 shrink-0 mt-0.5" />
             <span>
-              Sugerencias de la IA. La clasificación legal del riesgo
-              (nivel IPER) la determina la matriz P×S, no este modelo.
+              {t('iperc.ai_disclaimer', 'Sugerencias de la IA. La clasificación legal del riesgo (nivel IPER) la determina la matriz P×S, no este modelo.')}
             </span>
           </div>
 
@@ -431,7 +432,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2 ml-1">
                 <Shield className="w-4 h-4" />
-                Controles Sugeridos por IA
+                {t('iperc.controls_suggested', 'Controles Sugeridos por IA')}
               </h4>
               <div className="space-y-2">
                 {aiAdvice.controles.map((control, i) => (
@@ -445,7 +446,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2 ml-1">
                 <Plus className="w-4 h-4" />
-                Recomendaciones
+                {t('iperc.recommendations', 'Recomendaciones')}
               </h4>
               <div className="space-y-2">
                 {aiAdvice.recomendaciones.map((rec, i) => (
@@ -460,7 +461,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
           {aiAdvice.normativa && (
             <div className="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
               <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-2 flex items-center gap-2">
-                Normativa Aplicable (Chile)
+                {t('iperc.applicable_regulation', 'Normativa Aplicable (Chile)')}
               </h4>
               <p className="text-sm text-blue-200 leading-relaxed">
                 <GlossaryText text={aiAdvice.normativa} />
@@ -472,7 +473,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2 ml-1">
                 <ListChecks className="w-4 h-4" />
-                Plan de Acción IA
+                {t('iperc.action_plan', 'Plan de Acción IA')}
               </h4>
               {!actionPlan && (
                 <button
@@ -481,7 +482,7 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
                   className={`bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-colors border border-zinc-200 dark:border-white/10 ${!isOnline ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {!isOnline ? <WifiOff className="w-4 h-4" /> : generatingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  {!isOnline ? 'Offline' : 'Generar Tareas'}
+                  {!isOnline ? t('iperc.offline', 'Offline') : t('iperc.generate_tasks', 'Generar Tareas')}
                 </button>
               )}
             </div>
@@ -499,10 +500,10 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
                           task.priority === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/20' :
                           'bg-blue-500/20 text-blue-400 border border-blue-500/20'
                         }`}>
-                          Prioridad: {task.priority}
+                          {t('iperc.priority_label', 'Prioridad')}: {task.priority}
                         </span>
                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-                          Plazo: {task.deadline}
+                          {t('iperc.deadline_label', 'Plazo')}: {task.deadline}
                         </span>
                       </div>
                     </div>

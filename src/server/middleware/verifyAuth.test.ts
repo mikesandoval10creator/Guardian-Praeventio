@@ -151,3 +151,267 @@ describe('verifyAuth — prod-config guard (Stryker mutants line 33 / 41)', () =
     expect(res.body.uid).toBe('user-42');
   });
 });
+
+// 17th wave Bucket A — kill the Run #2 NEW surviving mutants per
+// MUTATION_BASELINE.md (Run #2, post-15th-wave):
+//
+//   • verifyAuth.ts:77:7 ConditionalExpression on Bearer scheme guard
+//     (`if (!authHeader.startsWith('Bearer '))` — NO test currently
+//     asserts the POSITIVE path "valid Bearer header → next() called").
+//   • verifyAuth.ts:62:28 / 62:39 / 63:25 / 63:36 sepIdx cluster
+//     (4 leftover mutants on `token.indexOf(':')` parsing — `secret:`
+//     empty-uid edge and the +1 boundary not asserted).
+//   • verifyAuth.ts:36:7 / 41:60 / 53:51 / 70:20 / 71:17 StringLiteral
+//     cluster (5 mutants on error-message text + literal env / scheme
+//     prefixes / e2e fixture defaults).
+//
+// Pattern: `vi.mock('firebase-admin')` is HOISTED, but we want each test
+// to control verifyIdToken's resolution independently. We expose a
+// shared `verifyIdTokenMock` that the suite mutates per-test.
+describe('verifyAuth — Bearer positive path + sepIdx cluster + StringLiteral pinning (Run #2 mutants)', () => {
+  const ORIGINAL_ENV = { ...process.env };
+  const verifyIdTokenMock = vi.fn();
+
+  // Hoisted mock for firebase-admin. The middleware calls
+  // `admin.auth().verifyIdToken(token)`; we route that through
+  // `verifyIdTokenMock` so the Bearer-positive-path tests can pin the
+  // resolved value (or rejection) without booting the real SDK.
+  vi.doMock('firebase-admin', () => ({
+    default: {
+      auth: () => ({ verifyIdToken: verifyIdTokenMock }),
+    },
+  }));
+
+  beforeEach(() => {
+    vi.resetModules();
+    verifyIdTokenMock.mockReset();
+    // Force non-prod so the startup guard is benign and isE2EModeEnabled
+    // is irrelevant for the Bearer-path subject. We re-mock firebase-admin
+    // INSIDE beforeEach so resetModules() doesn't drop the mock.
+    process.env.NODE_ENV = 'test';
+    delete process.env.E2E_MODE;
+    vi.doMock('firebase-admin', () => ({
+      default: {
+        auth: () => ({ verifyIdToken: verifyIdTokenMock }),
+      },
+    }));
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.resetModules();
+    vi.doUnmock('firebase-admin');
+  });
+
+  // ─── Bearer-scheme POSITIVE path (line 77 — Run #2 priority #1) ───
+
+  it('Bearer-scheme positive path: valid token → req.user populated and next() called', async () => {
+    // Pins the FALSE branch of `if (!authHeader.startsWith('Bearer '))`.
+    // A mutation that flips this to `if (true)` would 401 even on a valid
+    // Bearer header — this test would fail under that mutant.
+    verifyIdTokenMock.mockResolvedValueOnce({
+      uid: 'firebase-uid-positive',
+      email: 'positive@example.com',
+    });
+
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (req, res) => {
+      res.json({ uid: (req as any).user.uid, email: (req as any).user.email });
+    });
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'Bearer abc123');
+
+    expect(res.status).toBe(200);
+    expect(res.body.uid).toBe('firebase-uid-positive');
+    expect(res.body.email).toBe('positive@example.com');
+    // verifyIdToken received the slice after "Bearer ". Pins the
+    // `authHeader.split('Bearer ')[1]` extraction.
+    expect(verifyIdTokenMock).toHaveBeenCalledWith('abc123');
+  });
+
+  it('Bearer with empty token (header value gets trimmed to "Bearer") → 401 no-token rejection', async () => {
+    // Note: HTTP transport (supertest/Node) strips trailing whitespace from
+    // header values, so "Bearer " arrives at the middleware as "Bearer".
+    // That means `startsWith('Bearer ')` is FALSE and we hit the
+    // non-Bearer rejection branch — exactly the conservative behavior we
+    // want documented. This pins that an effectively-empty Bearer token
+    // does NOT degrade to verifyIdToken('') silently.
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'Bearer ');
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/no token provided/i);
+    // Critical: we never reached the firebase-admin call path with an
+    // empty token. A mutation that loosened `startsWith('Bearer ')` to
+    // a less-strict prefix could let "Bearer" (no space) through and
+    // verifyIdToken('') would fire — this assertion catches that.
+    expect(verifyIdTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('lowercase "bearer abc" is rejected (case-sensitive scheme check pinned)', async () => {
+    // Pins that `startsWith('Bearer ')` is CASE-SENSITIVE. A mutation
+    // that swapped the literal "Bearer " (line 77 cluster) to "bearer "
+    // would silently accept lowercase. We assert the rejection.
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'bearer abc');
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/no token provided/i);
+    expect(verifyIdTokenMock).not.toHaveBeenCalled();
+  });
+
+  // ─── sepIdx cluster (lines 62–63 — Run #2 priority #2) ───
+
+  it('E2E header "secret:" (empty uid after colon) falls back to e2e-user-001 default', async () => {
+    // Pins line 63: `sepIdx === -1 ? '' : token.slice(sepIdx + 1)` and
+    // the `providedUid || 'e2e-user-001'` defaulting. A mutation on
+    // `+1` → `-1` would slice a longer-than-empty uid back, breaking the
+    // fixture default. A mutation on the empty-string default would
+    // also fail this assertion.
+    process.env.E2E_MODE = '1';
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_SECRET = 'shared-secret';
+
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (req, res) => {
+      res.json({
+        uid: (req as any).user.uid,
+        email: (req as any).user.email,
+        displayName: (req as any).user.displayName,
+        tenantId: (req as any).user.tenantId,
+      });
+    });
+
+    // "shared-secret:" → sepIdx === 13, providedUid === '' → fallback.
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'E2E shared-secret:');
+
+    expect(res.status).toBe(200);
+    // StringLiteral pin: line 70 default uid 'e2e-user-001'.
+    expect(res.body.uid).toBe('e2e-user-001');
+    // StringLiteral pin: line 71 fixture email 'e2e@praeventio.test'.
+    expect(res.body.email).toBe('e2e@praeventio.test');
+    // StringLiteral pins on the displayName + tenantId fixture defaults
+    // (close adjacent StringLiteral mutants on lines 70–72).
+    expect(res.body.displayName).toBe('E2E Test User');
+    expect(res.body.tenantId).toBe('e2e-tenant');
+  });
+
+  it('E2E header without colon (no separator) → providedSecret === full token, providedUid empty → uses fallback uid', async () => {
+    // Pins line 62: `sepIdx === -1 ? token : token.slice(0, sepIdx)`.
+    // When the token contains no ':', sepIdx is -1 → providedSecret is
+    // the entire token, providedUid is the empty fallback. A
+    // ConditionalExpression mutant that flips the ternary would slice
+    // off the secret incorrectly and break the secret comparison.
+    process.env.E2E_MODE = '1';
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_SECRET = 'shared-secret';
+
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (req, res) => {
+      res.json({ uid: (req as any).user.uid });
+    });
+
+    // No colon in payload — secret comparison must still succeed.
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'E2E shared-secret');
+
+    expect(res.status).toBe(200);
+    expect(res.body.uid).toBe('e2e-user-001');
+  });
+
+  it('E2E header with colon at non-zero index "secret:custom-uid" parses both halves correctly (kills sepIdx +1 boundary mutant)', async () => {
+    // Explicitly pins the non-(-1) branch of the ternary and the +1
+    // boundary on `slice(sepIdx + 1)`. Mutating +1 → -1 would shift the
+    // uid by one character, e.g. yielding ":custom-uid" or "custom-ui".
+    process.env.E2E_MODE = '1';
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_SECRET = 'shared-secret';
+
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (req, res) => {
+      res.json({ uid: (req as any).user.uid });
+    });
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'E2E shared-secret:custom-uid');
+
+    expect(res.status).toBe(200);
+    // Strict identity — any +1 boundary regression yields a different uid.
+    expect(res.body.uid).toBe('custom-uid');
+  });
+
+  // ─── StringLiteral cluster (lines 36 / 41 / 53 / 70 / 71 — Run #2 priority #3) ───
+
+  it('E2E header rejection error pins the literal "Invalid E2E secret" message (line 65 / line 70-71 string proximity)', async () => {
+    // Pins the rejection path's StringLiteral. Mutations that empty the
+    // error string would silently neutralise the error reason.
+    process.env.E2E_MODE = '1';
+    process.env.NODE_ENV = 'test';
+    process.env.E2E_TEST_SECRET = 'real-secret';
+
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'E2E wrong-secret:user');
+
+    expect(res.status).toBe(401);
+    // Substring + case-insensitive — a mutation that empties the literal
+    // would yield an empty `error` field, failing this match.
+    expect(res.body.error).toMatch(/invalid e2e secret/i);
+  });
+
+  it('No-token-provided rejection pins the literal "No token provided" message (line 48)', async () => {
+    // Two emit sites for "No token provided": (a) absent header (line 48),
+    // (b) non-Bearer + non-E2E header (line 78). We test (a) here; the
+    // lowercase-"bearer" test above covers (b). Together they pin both
+    // StringLiteral occurrences.
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app).get('/protected');
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/no token provided/i);
+  });
+
+  it('Invalid-token rejection pins the literal "Invalid token" message (line 88)', async () => {
+    // Pins the StringLiteral on line 88's error payload. A mutation that
+    // empties the literal would change the surfaced error reason.
+    verifyIdTokenMock.mockRejectedValueOnce(new Error('decoded token expired'));
+
+    const { verifyAuth } = await import('./verifyAuth.js');
+    const app = express();
+    app.get('/protected', verifyAuth, (_req, res) => res.json({ ok: true }));
+
+    const res = await request(app)
+      .get('/protected')
+      .set('Authorization', 'Bearer expired-token');
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/invalid token/i);
+  });
+});

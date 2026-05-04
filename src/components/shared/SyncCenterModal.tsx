@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CloudOff, RefreshCw, Trash2, CheckCircle2, AlertCircle, Plus, Edit2, Upload, FileText } from 'lucide-react';
 import { ConfirmDialog } from './ConfirmDialog';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip replaces the native `title=` on icon-only action
+// buttons (clear-all, retry, delete-action).
+import { Tooltip } from './Tooltip';
 import { getPendingActions, removeSyncedAction, SyncAction, syncWithFirebase } from '../../utils/pwa-offline';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
@@ -189,13 +193,15 @@ export function SyncCenterModal({ isOpen, onClose }: SyncCenterModalProps) {
             </div>
             <div className="flex items-center gap-2">
               {pendingActions.length > 0 && (
-                <button
-                  onClick={handleClearAll}
-                  className="p-2 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
-                  title="Eliminar todas las acciones"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
+                <Tooltip content="Eliminar todas las acciones">
+                  <button
+                    onClick={handleClearAll}
+                    aria-label="Eliminar todas las acciones"
+                    className="p-2 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </Tooltip>
               )}
               <button
                 onClick={onClose}
@@ -260,21 +266,25 @@ export function SyncCenterModal({ isOpen, onClose }: SyncCenterModalProps) {
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         {action.id && failedActions[action.id] && isOnline && (
-                          <button
-                            onClick={() => handleRetry(action)}
-                            className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
-                            title="Reintentar sincronización"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </button>
+                          <Tooltip content="Reintentar sincronización">
+                            <button
+                              onClick={() => handleRetry(action)}
+                              aria-label="Reintentar sincronización"
+                              className="p-2 text-zinc-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                            >
+                              <RefreshCw className="w-4 h-4" />
+                            </button>
+                          </Tooltip>
                         )}
-                        <button
-                          onClick={() => action.id && handleDelete(action.id)}
-                          className="p-2 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
-                          title="Eliminar acción (no se sincronizará)"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <Tooltip content="Eliminar acción (no se sincronizará)">
+                          <button
+                            onClick={() => action.id && handleDelete(action.id)}
+                            aria-label="Eliminar acción (no se sincronizará)"
+                            className="p-2 text-zinc-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </Tooltip>
                       </div>
                     </div>
                     {action.id && failedActions[action.id] && (

@@ -18,6 +18,10 @@ import { logger } from '../../utils/logger';
 // reconciliation pass once connectivity returns.
 import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
 import { useSLM, SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip replaces the native `title=` on the per-message
+// thumbs up/down feedback buttons (icon-only).
+import { Tooltip } from './Tooltip';
 
 interface Message {
   id: string;
@@ -378,20 +382,24 @@ export function AsesorChat() {
                       {msg.role === 'assistant' && !msg.isOffline && (
                         <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-white/5 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => handleFeedback(msg.id, msg.content, 'up')}
-                              title="Útil"
-                              className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'up' ? 'text-emerald-500 bg-emerald-500/10' : 'text-zinc-400 hover:text-emerald-500 hover:bg-emerald-500/10'}`}
-                            >
-                              <ThumbsUp className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => handleFeedback(msg.id, msg.content, 'down')}
-                              title="No útil"
-                              className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'down' ? 'text-rose-500 bg-rose-500/10' : 'text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
-                            >
-                              <ThumbsDown className="w-3 h-3" />
-                            </button>
+                            <Tooltip content="Útil">
+                              <button
+                                onClick={() => handleFeedback(msg.id, msg.content, 'up')}
+                                aria-label="Marcar respuesta como útil"
+                                className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'up' ? 'text-emerald-500 bg-emerald-500/10' : 'text-zinc-400 hover:text-emerald-500 hover:bg-emerald-500/10'}`}
+                              >
+                                <ThumbsUp className="w-3 h-3" />
+                              </button>
+                            </Tooltip>
+                            <Tooltip content="No útil">
+                              <button
+                                onClick={() => handleFeedback(msg.id, msg.content, 'down')}
+                                aria-label="Marcar respuesta como no útil"
+                                className={`p-1 rounded-md transition-all ${messageFeedback[msg.id] === 'down' ? 'text-rose-500 bg-rose-500/10' : 'text-zinc-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
+                              >
+                                <ThumbsDown className="w-3 h-3" />
+                              </button>
+                            </Tooltip>
                           </div>
                           <button
                             onClick={() => handleSaveToRiskNetwork(msg.content, lastTopic)}
