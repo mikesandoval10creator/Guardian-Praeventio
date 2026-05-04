@@ -22,5 +22,5 @@ export * from './eulerLagrange';              // Fase 8 — variational calculus
 
 // Euler-3 modules
 export * from './inviscidFlow';               // Fase 4 — Ecuaciones de Euler de fluidos (1755)
-// Fase 7 (topología Zettelkasten) reusa graphConnectivity (ya exportado)
+export * from './zettelkastenTopology';       // Fase 7 — clustering + betweenness + risk amplification
 // Fase 9 (φ Euler en RSA) es ADR-only — ver docs/architecture-decisions/0007-euler-phi-rsa-in-kms-envelope.md
