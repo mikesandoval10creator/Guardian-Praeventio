@@ -10,8 +10,8 @@
 //   Euler-3 (final): Fases 4, 7, 9 + documentación maestra
 
 export * from './graphConnectivity';
+export * from './criticalLoad';
 
 // Future Euler-1 modules will land here:
-// export * from './criticalLoad';        // Fase 3 — pandeo P_cr
 // export * from './odeIntegrator';       // Fase 6 — método de Euler para ODEs
 // export * from './polyhedronAchievements'; // Fase 10 — V - E + F = 2 gamificación
