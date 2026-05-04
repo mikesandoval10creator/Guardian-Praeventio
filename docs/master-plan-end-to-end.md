@@ -212,43 +212,47 @@ Cada fase es 1 sprint. Una fase puede tener sub-épicos paralelos. El orden est�
 
 **Estimación**: 4h (movido de Fase 9, donde quedaba como tail T-9.7..T-9.9).
 
-**Archivos a tocar/crear**:
+**Archivos a tocar/crear** (decisión arquitectónica del usuario 2026-05-04 — los iconos se BUNDLEAN al repo para offline-first; reemplaza una versión previa que proponía hosting en GCS, descartada — ver ADR-0004):
 
-- `scripts/generate-medical-icons.mjs` (MODIFY) — pre-pasada de búsqueda BioRender via MCP `mcp__49cafb66-...__search-icons` con array de los 33 conceptos (`stethoscope`, `brain`, `lung-pair`, etc.). Por cada hit top-1, extraer `description` (referencia anatómica conceptual) y concatenar al prompt del manifest como "anatomical reference notes — use ONLY as conceptual guidance, generate ORIGINAL artwork". El asset de BioRender NUNCA se descarga.
-- `scripts/biorender-references.json` (CREATE) — cache del mapping concepto → descripciones canónicas BioRender, así no consultamos la API en cada `--force` regen.
-- `public/icons/biology/*.png` (33 archivos GENERADOS) — reemplazan los SVG placeholders. Resolución 512×512 (transparente), paleta brand teal+petroleum+gold.
-- `src/services/medical/iconLibrary.ts` (MODIFY) — agregar campo `format: 'svg' | 'png'` y migrar `publicPath` de los 33 entries a `.png`. Mantener la API pública sin cambios.
-- `src/components/medical/MedicalIcon.tsx` (MODIFY) — render `<img src={path}>` cuando format `png`, fallback graceful preservado (si la imagen no carga, render del placeholder anterior con `currentColor` stroke).
-- `src/services/medical/iconLibrary.test.ts` (MODIFY) — agregar caso "publicPath apunta a `.png` para los 33 entries de Bioicons primary".
-- `docs/architecture-decisions/0004-nano-banana-with-biorender-refs.md` (CREATE) — ADR documentando el flow license-safe: BioRender como referencia conceptual (nomenclatura, descripciones), nano-banana genera assets originales en estilo brand-aligned, sin copia de assets premium.
+- `scripts/generate-medical-icons.mjs` (MODIFY) — flag `--enrich-with-bioicons` que lee `scripts/biorender-references.json` (cache 33 descripciones canónicas) y concatena al prompt como "anatomical reference (conceptual only — generate ORIGINAL artwork)". El asset de BioRender NUNCA se descarga.
+- `scripts/biorender-references.json` (CREATE) — cache del mapping concepto → descripciones canónicas BioRender, license-safe (solo metadata pública).
+- `public/icons/biology/*.png` (33 archivos GENERADOS y COMMITEADOS al repo) — bundleados con la app. Bundle crece ~1.65MB, aceptable por la decisión force "subir a lo necesario para SLM/iconos, no hay problema".
+- `src/services/medical/iconLibrary.ts` **SIN CAMBIOS** — los paths siguen siendo `.svg`. El componente `MedicalIcon` computa el PNG candidate del path SVG transparentemente.
+- `src/components/medical/MedicalIcon.tsx` (MODIFY) — fallback chain `PNG → SVG → placeholder graceful`. Helper exportado `pngPathFor(entry)` para tests. State machine `'png' | 'svg' | 'placeholder'`.
+- `src/services/medical/iconLibrary.test.ts` (MODIFY) — 2 nuevos casos (cada entry resuelve bajo `/icons/biology/`, cada SVG path tiene basename computable a PNG candidate).
+- `docs/architecture-decisions/0004-medical-icons-bundled-for-offline.md` (CREATE) — ADR documentando offline-first + license-safe (BioRender descripciones públicas como referencia conceptual, nano-banana genera originales).
 
-**Tareas concretas**:
+**Tareas concretas** (estado actualizado 2026-05-04):
 
-- [ ] T-1b.1 — (30min) Modificar `generate-medical-icons.mjs`: agregar opción `--enrich-with-bioicons` que activa la pre-pasada. Implementar batch search via MCP (1 call con array de 33 queries) y guardar `scripts/biorender-references.json`. Skill: `simplify`. MCP: `mcp__49cafb66-...__search-icons`.
-- [ ] T-1b.2 — (30min) Concatenar descripciones BioRender al `STYLE_PREFIX + ICON_MANIFEST[i].prompt` con prefijo "Anatomical reference (conceptual only — generate ORIGINAL artwork): {desc}". Skill: `simplify`.
-- [ ] T-1b.3 — (1.5h) Ejecutar el script con `GEMINI_API_KEY` exportada en env del usuario. 33 imágenes × ~$0.039 = ~$1.30 total. Spaced 2s entre llamadas para evitar rate limit free tier. Validar visualmente uno por uno (rejection y `--force --name X` para regenerar). Skill: `superpowers:verification-before-completion`.
-- [ ] T-1b.4 — (45min) Modificar `iconLibrary.ts` agregando `format` field y migrando `publicPath`. Modificar `MedicalIcon.tsx` para render PNG con fallback. Tests RTL: `iconLibrary.test.ts` actualizado, `MedicalIcon.test.tsx` cubre PNG render. Skill: `superpowers:test-driven-development`.
-- [ ] T-1b.5 — (15min) Smoke test visual con Playwright MCP: navegar a 3 módulos médicos (HumanBodyViewer, AnatomyLibrary, MedicalAnalyzer), tomar screenshots y validar no-regresión. Skill: `frontend-design:frontend-design`. MCP: `mcp__plugin_playwright_playwright__browser_take_screenshot`.
-- [ ] T-1b.6 — (30min) ADR-0004 commit con razonamiento license-safe: por qué BioRender ref está OK (descripciones públicas vía API search), por qué nano-banana genera originales (estilo brand-aligned, no copia), trazabilidad para auditoría futura. Skill: `superpowers:writing-plans`.
+- [x] T-1b.1 — Script con `--enrich-with-bioicons` (sin `--upload`, descartado por offline-first). ✅
+- [x] T-1b.2 — `scripts/biorender-references.json` con 33 descripciones canónicas. ✅
+- [x] T-1b.3 — `MedicalIcon.tsx` con fallback chain PNG→SVG→placeholder + helper `pngPathFor`. ✅
+- [x] T-1b.4 — `iconLibrary.test.ts` extendido con 2 nuevos casos (paths bajo `/icons/biology/`, PNG candidate computable). ✅ 9 tests verdes.
+- [x] T-1b.5 — ADR-0004 commit con razonamiento offline-first + license-safe. ✅
+- [ ] T-1b.6 — **Acción del usuario**: ejecutar `export GEMINI_API_KEY=... && node scripts/generate-medical-icons.mjs --enrich-with-bioicons`. Genera los 33 PNG en `public/icons/biology/`. Costo ~$1.30. Tiempo ~5-10 min wall-clock.
+- [ ] T-1b.7 — **Acción del usuario**: `git add public/icons/biology/*.png && git commit -m "feat(medical): generated 33 PNG bocetos with nano-banana"`. Bundle crece ~1.65MB.
+- [ ] T-1b.8 — Smoke test visual post-deploy con Playwright MCP: navegar a 3 módulos médicos (HumanBodyViewer, AnatomyLibrary, MedicalAnalyzer), tomar screenshots y validar que `data-medical-icon-stage="png"` (los PNG cargan, no caen al SVG fallback). MCP: `mcp__plugin_playwright_playwright__browser_take_screenshot`.
 
 **Criterio de éxito**:
 
-- 33 PNG generados, sin watermarks, sin texto, sin logos copyrighted, paleta brand verificable.
+- 33 PNG bundleados al repo, sin watermarks, sin texto, sin logos copyrighted, paleta brand verificable.
 - `scripts/biorender-references.json` commiteado (cache de descripciones, no assets).
-- `npm run build` sin warnings nuevos de tamaño.
+- `npm run build` no rompe el bundle budget (PNG son assets estáticos, no contribuyen al budget JS).
 - 11 módulos médicos renderizan los nuevos bocetos sin regresión visual (Playwright snapshots OK).
-- ADR-0004 commiteado con razonamiento license-aware.
+- ADR-0004 commiteado con razonamiento offline-first + license-aware.
 - `iconLibrary.test.ts` y `MedicalIcon.test.tsx` verdes con cobertura PNG.
+- Operario en faena sin red ve los iconos (PNG bundleados; sin red el browser no hace requests externos).
 
-**Dependencies**: requiere `GEMINI_API_KEY` válida en env del usuario. La key compartida en sesión sigue válida; el script la lee de `process.env`. El BioRender MCP debe estar conectado (ya validado en Sprint 19 cuando hicimos el batch search exploratorio sobre 5 conceptos médicos).
+**Dependencies**: requiere `GEMINI_API_KEY` válida en env del usuario. NO requiere `gcloud auth` ni acceso a buckets GCS (decisión revertida por offline-first).
 
 **Riesgos**: 
 
 1. Gemini Image puede generar imágenes con artefactos (mitigación: flag `--force --name X` para regenerar individuales).
 2. Rate limit Free Tier (mitigación: ejecución spaced 2s + manejo de 429 con backoff).
 3. BioRender API search no devuelve hits para algún concepto exotic (mitigación: el script igual genera con prompt estándar; el enrichment es opcional por icono).
+4. El primer load de la app descarga +1.65MB extra (33 PNG). Mitigación: los iconos son `<img loading="lazy">` — no contribuyen al LCP. Se descargan cuando el usuario navega a un módulo médico, no en el shell inicial.
 
-**TDD entry point**: `iconLibrary.test.ts` agregar test que asserta `MEDICAL_ICONS.every(i => i.publicPath.endsWith('.png'))` para Bioicons primary (excepto los CC-BY que pueden seguir siendo SVG si los hay).
+**TDD entry point**: `iconLibrary.test.ts` con caso "every SVG path has a known basename so the PNG candidate is computable" (✅ en este PR).
 
 **Nota**: en Fase 9 (Sprint 28) original quedaban T-9.7..T-9.9 con esta misma generación. Esos items están MOVIDOS a esta Fase 1b — Fase 9 ahora cubre solo fotogrametría + curation real opcional de Bioicons CC-BY restantes si los hay.
 
