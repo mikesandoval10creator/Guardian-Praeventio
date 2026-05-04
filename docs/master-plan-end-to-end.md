@@ -11,6 +11,35 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 - **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
 - Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
+### Decimosexta ola — 4 buckets (PR #44)
+
+- **Bucket A — Stryker Run #2 + threshold ratchet rec** (1 commit): `66e44bc` `MUTATION_BASELINE.md` Run #2 section con per-module score deltas confirmando uplift de 15va ola Bucket A: **verifyAuth 64.29% → 76.19% (+11.90, +10 killed) · orchestrator 7.69% → 43.59% (+35.90, +28 killed — largest uplift) · sentryInstrumentation 72.58% → 85.48% (+12.90, +8 killed) · Cumulative 46.88% → 67.86% (+20.98, +46 killed total)**. **Threshold ratchet: NO** — orchestrator 43.59% < lowest-module-floor 50, deferred trigger documented "raise global break:50→55 cuando orchestrator ≥55%". Top 3 NEW surviving mutants identificados per módulo (Bearer-scheme positive-path en verifyAuth, trackQueryOffline analytics seam en orchestrator, isSentrySetupError LogicalOperator chain en sentry). Reproducibility deterministic con concurrency=1 — Windows Bash `&` background lost output, switched a PowerShell Tee-Object.
+- **Bucket B — Final analytics events: 43/46 wired + 3 deferred typed** (1 commit): `cbdaef6` 9 wire-points landed:  
+  | Event | File:Line |  
+  |---|---|  
+  | `project.member.invited` | `src/server/routes/projects.ts:206` (server-side) |  
+  | `project.member.removed` | `src/server/routes/projects.ts:344` |  
+  | `project.member.accepted` | `src/server/routes/projects.ts:544` |  
+  | `cuadrilla.created` | `src/services/organic/crewService.ts:81` |  
+  | `cuadrilla.member.added` | `src/services/organic/crewService.ts:110` |  
+  | `emergency.sos.triggered` | `src/components/emergency/SOSButton.tsx:133` |  
+  | `emergency.fall.detected` | `src/components/emergency/FallDetectionMonitor.tsx:49` |  
+  | `emergency.evacuation.started` | `src/pages/EvacuationRoutes.tsx:121` |  
+  | `suseso.form.started` | `src/components/psychosocial/AddPsychosocialModal.tsx:123` |  
+  3 typed-only deferrals (no surface yet): `cuadrilla.member.swapped` (crewService no atomic swap), `suseso.form.rejected` (AddPsychosocialModal escribe local ZK; susesoBackend solo metadata via Gemini, never POSTs SUSESO API), `project.archived` (ProjectContext lacks archive mutation). Catalog header drift fixed 45→46. **Final state: 43/46 wired + 3 typed defer = 46/46 typed coverage. analytics.track call sites: 46.**
+- **Bucket C — i18n batch 16va** (1 commit): `6c91a5c` 7 components migrated — `ComplianceModal.tsx`, `BlueprintViewer.tsx`, `MorningCheckIn.tsx`, `StructuralCalculator.tsx`, `HazmatStorageDesigner.tsx`, `RiskNodeMarkers.tsx`, `Medal3DViewer.tsx`. **114 unique keys × 3 locales = 342 entries**. Locale sizes 700→812 each, cardinality OK. Glossary aplicado: EPP→PPE/EPI + chilean regulatory verbatim (DS 40, DS 43, DS 594, NCh 432, NCh 382, OGUC, ASTM A325/A490). MorningCheckIn `declarationText`/`legalStatus` deliberately kept in Spanish (Declaración Jurada Simple — legal record canonical regardless de UI locale, comment inline). **i18n NOT closed yet — quedan ~6 components**: AuditDetailModal, ISOAudit, ISOManagement, Site25DPanel, IPERCAnalysis, 4 gamification (ExtinguisherSimulator, FindTheGuardian, NormativeQuiz, ReflexBuzzer). HazmatWindOverlay no tiene user-visible strings (Google Maps overlays only).
+- **Bucket D — A11Y-015 tooltip primitive** (1 commit, **closes último partial críticamente bloqueado por dep**): `e136c27` `@radix-ui/react-tooltip@1.2.8` (MIT, ~5KB gzipped — within budget headroom 14.6KB) · `Tooltip.tsx` wrapper con petroleum-800 bubble + semantic tokens · `RootLayout.tsx` 3 icon buttons migrated `title=` → `<Tooltip>` (Sync con nuevo `aria-label="Centro de Sincronización"`, Theme con dynamic light/dark hint, Driving link). 6 nuevos tests con `fireEvent` + `ResizeObserver` polyfill (jsdom 25 lacks it, radix needs it; project doesn't have `@testing-library/user-event`). **WCAG estado FINAL: 0 fail / 1 partial / 19 mitigated** (era 0/2/18). El partial restante es A11Y-016 focus-not-obscured monitoring state (no code change needed).
+
+Total 4 commits + master plan. **2155 tests pass / 0 fail / 88 skipped** (+6 vs 15va: +6 Tooltip). Typecheck + build clean. Bundle main 285.37/300 KB gzipped within budget.
+
+**Estado deuda técnica tras 16 olas**:
+- A11Y: **0 fail / 1 partial (monitoring) / 19 mitigated** ✅
+- Analytics: **46/46 catalog typed coverage** (43 wired + 3 surface-deferred)
+- i18n: ~6 components restantes, ~95% migrated
+- STRIDE: **19 mitigated / 4 partial / 1 open** (TM-E02 ops only)
+- Stryker: cumulative **67.86%** (was 47% baseline) — orchestrator ratchet trigger en ≥55%
+- CSP: nonce + strict-dynamic, `'unsafe-inline'` REMOVED de script-src
+
 ### Decimoquinta ola — 4 buckets (PR #43)
 
 - **Bucket A — Stryker test gaps closure** (1 commit): `99b158c` cierra los top 3 surviving mutants identificados en la baseline 14va: (1) `sentryInstrumentation.ts` REDACT_KEYS — parametric per-key test 11 keys + 1 control + set-cardinality sanity (kills 11 StringLiteral survivors); (2) `verifyAuth.ts:33,41` — 6 isolated env-permutation tests cover ambas conditional halves de los AND para production+E2E startup guard + isE2EModeEnabled; (3) `orchestrator.ts:75-76` — exhaustive 4-quadrant matrix de (forceOffline, forceOnline) + strict-equality string-vs-boolean edge case que pin `=== true` (kills 6 survivors). 1-line export de `REDACT_KEYS` + `sanitizeContext` desde sentryInstrumentation.ts (única source change). Test count delta: sentryInstrumentation 8→22 (+14), orchestrator 9→15 (+6), verifyAuth 6→12 (+6) = **+26 tests**. Mutation score uplift expected (pendiente Stryker re-run): sentryInstrumentation 73→90+%, verifyAuth 64→75+%, orchestrator 8→30+%.
