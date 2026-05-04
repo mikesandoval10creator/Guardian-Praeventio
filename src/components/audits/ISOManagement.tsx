@@ -13,7 +13,6 @@ import {
   Clock,
   XCircle,
   Loader2,
-  RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
 import { addDoc, collection } from 'firebase/firestore';
@@ -24,6 +23,8 @@ import { useFirestoreCollection } from '../../hooks/useFirestoreCollection';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { ISOAudit } from './ISOAudit';
 import { NodeType } from '../../types';
+import { ISOManagementHeader } from './ISOManagementHeader';
+import { ISOManagementFilters } from './ISOManagementFilters';
 
 // ─── Local Types ─────────────────────────────────────────────────────────────
 
@@ -85,103 +86,16 @@ function statusBadge(estado: string) {
 }
 
 // ─── Dashboard Tab ────────────────────────────────────────────────────────────
+// The dashboard summary (KPIs + ISO 45001 progress card) lives in
+// ISOManagementHeader.tsx. This wrapper exists only to feed it data.
 
-function DashboardTab({
-  docs,
-  improvements,
-  auditCount,
-  isoRiskCount,
-}: {
+function DashboardTab(props: {
   docs: ISODocument[];
   improvements: ISOImprovement[];
   auditCount: number;
   isoRiskCount: number;
 }) {
-  const inProgress = improvements.filter(i => i.status === 'in_progress').length;
-
-  const kpis = [
-    {
-      label: 'Total Documentos',
-      value: docs.length,
-      icon: FileText,
-      color: 'text-[#4db6ac]',
-      bg: 'bg-[#4db6ac]/10',
-    },
-    {
-      label: 'Auditorías Completadas',
-      value: auditCount,
-      icon: CheckCircle2,
-      color: 'text-blue-500',
-      bg: 'bg-blue-500/10',
-    },
-    {
-      label: 'Mejoras en Progreso',
-      value: inProgress,
-      icon: RefreshCw,
-      color: 'text-amber-500',
-      bg: 'bg-amber-500/10',
-    },
-    {
-      label: 'Riesgos ISO Altos',
-      value: isoRiskCount,
-      icon: AlertTriangle,
-      color: 'text-red-500',
-      bg: 'bg-red-500/10',
-    },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {kpis.map((kpi, i) => (
-          <motion.div
-            key={kpi.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.08 }}
-            className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm"
-          >
-            <div className={`w-8 h-8 rounded-xl ${kpi.bg} flex items-center justify-center mb-3`}>
-              <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
-            </div>
-            <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">{kpi.label}</p>
-            <p className="text-2xl font-black text-zinc-900 dark:text-white tracking-tighter">{kpi.value}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* ISO 45001 Summary Card */}
-      <div className="bg-white/80 dark:bg-zinc-900/80 rounded-2xl p-5 border border-zinc-200/50 dark:border-zinc-800/50 shadow-sm">
-        <div className="flex items-center gap-3 mb-4">
-          <ShieldCheck className="w-5 h-5" style={{ color: TEAL }} />
-          <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-            Sistema de Gestión ISO 45001
-          </h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {[
-            { label: 'Documentos Vigentes', value: docs.filter(d => d.estado === 'Vigente').length, total: docs.length },
-            { label: 'Mejoras Completadas', value: improvements.filter(i => i.status === 'done').length, total: improvements.length },
-            { label: 'Cobertura Auditorías', value: auditCount, total: auditCount + 2 },
-          ].map(item => {
-            const pct = item.total > 0 ? Math.round((item.value / item.total) * 100) : 0;
-            return (
-              <div key={item.label} className="space-y-1.5">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">{item.label}</p>
-                <p className="text-lg font-black text-zinc-900 dark:text-white">{item.value}<span className="text-xs text-zinc-400">/{item.total}</span></p>
-                <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ width: `${pct}%`, backgroundColor: TEAL }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
+  return <ISOManagementHeader {...props} />;
 }
 
 // ─── Documentos Tab ───────────────────────────────────────────────────────────
@@ -230,88 +144,15 @@ function DocumentosTab({ projectId }: { projectId: string }) {
         </button>
       </div>
 
-      {/* Inline add form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="bg-white/80 dark:bg-zinc-900/80 rounded-2xl p-4 border border-zinc-200/50 dark:border-zinc-800/50 space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: TEAL }}>Nuevo Documento ISO</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Nombre *</label>
-                  <input
-                    value={form.nombre}
-                    onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/30"
-                    placeholder="Manual de Seguridad ISO 45001..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Tipo</label>
-                  <input
-                    value={form.tipo}
-                    onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none"
-                    placeholder="Manual / Procedimiento..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Versión</label>
-                  <input
-                    value={form.version}
-                    onChange={e => setForm(f => ({ ...f, version: e.target.value }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none"
-                    placeholder="1.0"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Fecha</label>
-                  <input
-                    type="date"
-                    value={form.fecha}
-                    onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-bold uppercase tracking-widest text-zinc-500 mb-1">Estado</label>
-                  <select
-                    value={form.estado}
-                    onChange={e => setForm(f => ({ ...f, estado: e.target.value as ISODocument['estado'] }))}
-                    className="w-full bg-zinc-50 dark:bg-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-900 dark:text-white border border-zinc-200 dark:border-zinc-700 focus:outline-none"
-                  >
-                    <option value="Vigente">Vigente</option>
-                    <option value="En revisión">En revisión</option>
-                    <option value="Obsoleto">Obsoleto</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end pt-1">
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-zinc-800 dark:hover:text-white transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleAddDoc}
-                  disabled={saving || !form.nombre.trim()}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-50 transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: TEAL }}
-                >
-                  {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                  Guardar
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Inline add form (extracted to ISOManagementFilters) */}
+      <ISOManagementFilters
+        show={showForm}
+        saving={saving}
+        form={form}
+        onChange={setForm}
+        onCancel={() => setShowForm(false)}
+        onSubmit={handleAddDoc}
+      />
 
       {/* Table */}
       {loading ? (
