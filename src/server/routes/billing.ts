@@ -1291,3 +1291,140 @@ billingApiRouter.post(
     }
   },
 );
+
+// ───────────────────────────────────────────────────────────────────────────
+// Sprint 21 Ola 6 Bucket T — IAP receipt validation stubs.
+//
+// The Capacitor IAP plugin (used by Pricing.tsx on android/ios) returns a
+// purchase receipt to the client. The client POSTs that receipt here so
+// the server has a fraud-signal hook AND an audit trail of the attempt.
+//
+// IMPORTANT — these endpoints DO NOT grant the subscription benefit on
+// their own. The authoritative grant flow is:
+//   • Google Play → RTDN webhook at POST /api/billing/webhook (this file
+//     line 278) which re-fetches the canonical subscription state from
+//     the Google Play Developer API (`purchases.subscriptions.get`).
+//   • App Store → App Store Server Notifications (SSN) v2 webhook
+//     (TODO: ship in a follow-up bucket alongside the App Store Connect
+//     entitlement flow).
+//
+// Granting on the strength of the client-supplied receipt alone would
+// open us to replay / forged-receipt fraud (App Store sandbox receipts
+// are well-documented as forgeable). The client receipt is informational.
+//
+// Both endpoints return 202 Accepted to signal "we'll grant when the
+// store confirms server-to-server" without lying about completion.
+// ───────────────────────────────────────────────────────────────────────────
+
+billingApiRouter.post(
+  '/google-play/validate-receipt',
+  verifyAuth,
+  async (req, res) => {
+    const { productId, tierId, receiptId } = (req.body ?? {}) as {
+      productId?: string;
+      tierId?: string;
+      receiptId?: string;
+    };
+    const uid = (req as any).user?.uid;
+
+    if (!productId || !receiptId) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    try {
+      // TODO: implement receipt validation against Google servers when
+      // production secrets ready. The hook point is `playDeveloperApi.
+      // purchases.subscriptions.get({ packageName, subscriptionId:
+      // productId, token: receiptId })` (same call the RTDN handler
+      // makes on each notification). For now we just persist the
+      // attempt so ops can correlate with the eventual RTDN.
+      const db = admin.firestore();
+      await db.collection('iap_receipt_attempts').add({
+        provider: 'google-play',
+        userId: uid ?? null,
+        productId,
+        tierId: tierId ?? null,
+        receiptIdHash: receiptId.slice(0, 16) + '…',
+        // Never store the full receipt — it carries token-equivalent
+        // material that could be replayed. The hashing here is a coarse
+        // "first 16 chars" preview; ops uses Sentry breadcrumbs for the
+        // full signal under access control.
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+
+      logger.info('iap_validate_receipt_recorded', {
+        provider: 'google-play',
+        productId,
+        tierId: tierId ?? null,
+      });
+
+      return res.status(202).json({
+        accepted: true,
+        message:
+          'Receipt logged. Subscription benefit will activate once the ' +
+          'Google Play RTDN webhook confirms the purchase server-to-server.',
+      });
+    } catch (err) {
+      logger.error('iap_validate_receipt_failed', err, {
+        provider: 'google-play',
+      });
+      return res.status(500).json({ error: 'iap_receipt_log_failed' });
+    }
+  },
+);
+
+billingApiRouter.post(
+  '/app-store/validate-receipt',
+  verifyAuth,
+  async (req, res) => {
+    const { productId, tierId, receiptId } = (req.body ?? {}) as {
+      productId?: string;
+      tierId?: string;
+      receiptId?: string;
+    };
+    const uid = (req as any).user?.uid;
+
+    if (!productId || !receiptId) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    try {
+      // TODO: implement receipt validation against Apple servers when
+      // production secrets ready. The hook point is the App Store
+      // Server API (`/inApps/v1/transactions/{transactionId}` or the
+      // legacy `/verifyReceipt` endpoint). Sandbox vs production routing
+      // and JWS signature verification (Apple Root CA chain) belong here.
+      const db = admin.firestore();
+      await db.collection('iap_receipt_attempts').add({
+        provider: 'app-store',
+        userId: uid ?? null,
+        productId,
+        tierId: tierId ?? null,
+        receiptIdHash: receiptId.slice(0, 16) + '…',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+
+      logger.info('iap_validate_receipt_recorded', {
+        provider: 'app-store',
+        productId,
+        tierId: tierId ?? null,
+      });
+
+      return res.status(202).json({
+        accepted: true,
+        message:
+          'Receipt logged. Subscription benefit will activate once the ' +
+          'App Store Server Notification confirms the purchase server-to-server.',
+      });
+    } catch (err) {
+      logger.error('iap_validate_receipt_failed', err, {
+        provider: 'app-store',
+      });
+      return res.status(500).json({ error: 'iap_receipt_log_failed' });
+    }
+  },
+);

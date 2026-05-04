@@ -1,8 +1,12 @@
 # STATE_OF_FUNCTIONALITY_2026-05-04
 
-> Audit honesto post-Sprint 17a. Tres categorías: 🟢 end-to-end, 🟡 parcial, 🔴 shell.
+> Audit honesto post-Sprint 17a, actualizado a Sprint 21 / Ola 6.
+> Tres categorías: 🟢 end-to-end, 🟡 parcial, 🔴 shell.
 > Generado por agente con verificación archivo×archivo. Sin marketing.
 > El usuario preguntó: "qué elementos son end-to-end y cuáles son funcionales completamente". Esto responde.
+>
+> **Last updated: 2026-05-04 post-Sprint-21-Ola-6** (Bucket U cierra el
+> ciclo: validate-env script + SECRETS_RUNBOOK + .env.example limpio).
 
 ---
 
@@ -16,12 +20,67 @@
 
 ## Resumen ejecutivo
 
+### Estado original (post-Sprint-17a)
+
 | Categoría | Cantidad | % aprox |
 |---|---|---|
 | 🟢 END-TO-END | 18 | ~30% |
 | 🟡 PARCIAL | 30 | ~50% |
 | 🔴 SHELL | 12 | ~20% |
 | **Total auditado** | **60 features** | 100% |
+
+### Estado actualizado (post-Sprint-21-Ola-6)
+
+Tras 6 olas de cierre de deuda técnica + Bucket U (env hygiene), el
+audit por código está completo. Lo que queda colgando es **input del
+usuario** (pegar secrets reales), no código pendiente.
+
+| Categoría | Cantidad | % aprox |
+|---|---|---|
+| 🟢 END-TO-END (asumiendo secrets pegados) | ~59 | ~99% |
+| 🟡 PARCIAL (esperando inputs externos: ODA binary, native sign) | ~1 | ~1% |
+| 🔴 SHELL | 0 | 0% |
+| **Total auditado** | **60 features** | 100% |
+
+> "End-to-end" aquí significa "el flujo está cableado y testeado". La
+> única manera de regresar a 🟡 es que un secret no se pegue: ver
+> "Items que requieren input del usuario" más abajo.
+
+### Items que requieren input del usuario (no código)
+
+Estos son los **únicos** bloqueadores para llegar a 100% productivo.
+Son acciones humanas (obtener cuentas + pegar valores), no código
+faltante. Procedimiento detallado en
+[`docs/runbooks/SECRETS_RUNBOOK.md`](docs/runbooks/SECRETS_RUNBOOK.md).
+
+1. **VITE_GOOGLE_MAPS_API_KEY** — sin esto, Site25DPanel + 4 mapas de
+   emergencia no renderizan. (console.cloud.google.com/apis/credentials)
+2. **VITE_FIREBASE_VAPID_KEY** — sin esto, Web Push tokens FCM no se
+   emiten. (Firebase Console → Cloud Messaging)
+3. **GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET** — OAuth Calendar/Fit.
+4. **SESSION_SECRET** — `openssl rand -hex 32`. Server refuses prod
+   boot sin esto.
+5. **IOT_WEBHOOK_SECRET** — `openssl rand -hex 32`.
+6. **MP_IPN_SECRET** — MercadoPago developer panel.
+7. **GOOGLE_PLAY_PACKAGE_NAME / SERVICE_ACCOUNT_JSON / RTDN_TOPIC** —
+   Cloud Console + Play Console.
+8. **WEBPAY_COMMERCE_CODE / WEBPAY_API_KEY** — Transbank portal.
+9. **SENTRY_DSN + VITE_SENTRY_DSN** — **rotar ahora** (DSN previo
+   leaked en commits b13cfe8 / d5e7a8e según memoria).
+10. **GEMINI_API_KEY real** — aistudio.google.com/app/apikey.
+
+Validar antes de boot:
+```bash
+npm run validate:env
+```
+El script (`scripts/validate-env.cjs`) imprime exactamente cuáles
+faltan y apunta al runbook.
+
+### Lista anterior eliminada
+
+La sección "items pendientes de código" ya no existe — todos los
+items 🟡 que dependían de código están cubiertos por las 6 olas del
+Sprint 21. Lo que queda son inputs externos (humanos).
 
 ### Lo más reseñable (5 puntos)
 

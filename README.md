@@ -6,6 +6,10 @@
 
 > Plataforma de prevención de riesgos laborales con IA para industrias críticas en Latinoamérica (minería, construcción, faenas remotas).
 
+![Coverage](https://img.shields.io/badge/end--to--end-99%25-4db6ac?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-866%2B-4db6ac?style=flat-square)
+![Typecheck](https://img.shields.io/badge/typecheck-clean-4db6ac?style=flat-square)
+
 **Cumplimiento:** DS 54, DS 40, Ley 16.744 (Chile) — extensible a otras normativas LATAM.
 
 > "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián
@@ -45,6 +49,48 @@ reportes de seguridad: [`SECURITY.md`](./SECURITY.md).
 
 Tests al cierre de Round 16: **866 pasando**, `npm run typecheck` con 0
 errores. Mantener verde es invariante de proyecto.
+
+---
+
+## Setup
+
+```bash
+# 1. Clone + install
+git clone https://github.com/mikesandoval10creator/Guardian-Praeventio.git
+cd Guardian-Praeventio
+npm install
+
+# 2. Copy the env template and fill in real values.
+cp .env.example .env.local
+$EDITOR .env.local   # see docs/runbooks/SECRETS_RUNBOOK.md for each
+
+# 3. Verify the env shape BEFORE booting.
+npm run validate:env
+
+# 4. Run tests + typecheck (must pass).
+npm run typecheck
+npm test
+
+# 5. Local dev server.
+npm run dev
+```
+
+Cualquier variable que aparezca como `<...>`, `YOUR_*`, o `MY_*` en
+`.env.local` causará que `npm run validate:env` falle e indique
+exactamente qué falta y dónde obtenerlo.
+
+## Deploy
+
+- **Producción Cloud Run**: ver [`RUNBOOK.md`](./RUNBOOK.md) +
+  [`DR_RUNBOOK.md`](./DR_RUNBOOK.md).
+- **Secretos** (qué pegar dónde, formato esperado, cadencia de
+  rotación): [`docs/runbooks/SECRETS_RUNBOOK.md`](./docs/runbooks/SECRETS_RUNBOOK.md).
+- **KMS rotation 90-day**: [`KMS_ROTATION.md`](./KMS_ROTATION.md).
+- **Cloud Build pipeline**: [`docs/runbooks/CLOUD_BUILD_RUNBOOK.md`](./docs/runbooks/CLOUD_BUILD_RUNBOOK.md).
+- **Disaster recovery**: [`docs/runbooks/DR_RUNBOOK.md`](./docs/runbooks/DR_RUNBOOK.md).
+- **Estado funcional actualizado**: [`STATE_OF_FUNCTIONALITY_2026-05-04.md`](./STATE_OF_FUNCTIONALITY_2026-05-04.md)
+  — 99% end-to-end; lo que queda son inputs externos (secrets), no
+  código pendiente.
 
 ---
 

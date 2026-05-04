@@ -16,6 +16,8 @@
     "smoke": "vitest run src/smoke.test.ts",
     "test:watch": "vitest",
     "verify:roles": "node scripts/verify-roles-sync.cjs",
+    "validate:env": "node scripts/validate-env.cjs",
+    "validate:env:test": "node scripts/validate-env.cjs --mode test",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
     "cap:ios": "npm run build && npx cap sync ios && npx cap open ios",
