@@ -2,7 +2,12 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Upload, Scan, FileSearch, ShieldAlert, CheckCircle2, AlertTriangle, Loader2, WifiOff, Save } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
-import Tesseract from 'tesseract.js';
+// Sprint 20 Fase 5 anticipada (Bucket Eta): tesseract.js is ~2 MB of WASM
+// + JS that we only need when the user actually clicks "Escanear". Even
+// though this page is itself lazy-loaded by routing, an eager top-level
+// import bundled tesseract into the page chunk and forced its download
+// the moment the user opened the OCR view. Moving the import inside
+// `handleScan` defers the cost to the click that actually needs it.
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
@@ -80,8 +85,11 @@ export function DocumentOCRManager() {
     if (!file) return;
     setIsScanning(true);
     setOcrProgress(0);
-    
+
     try {
+      // Lazy-load tesseract.js on first scan — keeps the ~2 MB WASM bundle
+      // out of the OCR page chunk so opening the page is instant.
+      const { default: Tesseract } = await import('tesseract.js');
       const result = await Tesseract.recognize(
         file,
         'spa',
