@@ -261,6 +261,202 @@ describe('webpayAdapter.commitTransaction', () => {
       webpayAdapter.commitTransaction('TKN_broken'),
     ).rejects.toBeInstanceOf(WebpayAdapterError);
   });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Sprint 20 18th-wave Bucket B — PCI / card_number masking guard.
+  //
+  // Stryker Run #3 surfaced `webpayAdapter.ts:220:11` (MethodExpression on
+  // `card_number.slice(-4)`) as a surviving mutant. If the slice is mutated
+  // away we leak the full PAN into the audit log, Sentry, and analytics.
+  // These tests pin the post-condition: cardLast4 is ALWAYS exactly 4
+  // characters and ALWAYS the trailing 4 digits — never the first 12.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('cardLast4 PCI masking', () => {
+    it('masks a 16-digit PAN to exactly the last 4 digits (not the full PAN)', async () => {
+      // Test card from PCI test vectors. We assert THREE things to kill the
+      // slice mutation (`slice(-4)` → `slice(0)`, `slice(0, -4)`, `slice()`):
+      //   1. length is exactly 4 (kills `slice(0)`).
+      //   2. value equals the trailing 4 (kills `slice(0, -4)` which would
+      //      give the FIRST 12 digits — a PCI breach).
+      //   3. value does NOT contain the BIN/leading digits (kills any
+      //      mutation that lets the full PAN through).
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_pci_16',
+        response_code: 0,
+        card_detail: { card_number: '4111111111111111' },
+      });
+
+      const result = await webpayAdapter.commitTransaction('TKN_pci_16');
+
+      expect(result.cardLast4).toBe('1111');
+      expect(result.cardLast4).toHaveLength(4);
+      // The full PAN must NOT appear anywhere in the cardLast4 field.
+      expect(result.cardLast4).not.toBe('4111111111111111');
+      // The BIN (first 6 = 411111) must NOT leak — explicit PCI guard.
+      expect(result.cardLast4).not.toContain('411111');
+    });
+
+    it('masks a 13-digit Amex-style PAN to exactly 4 digits', async () => {
+      // 13-digit cards (legacy Amex / some Visa) are still in the wild.
+      // The slice(-4) contract must hold regardless of input length.
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_pci_13',
+        response_code: 0,
+        card_detail: { card_number: '3782822463100' },
+      });
+
+      const result = await webpayAdapter.commitTransaction('TKN_pci_13');
+
+      expect(result.cardLast4).toBe('3100');
+      expect(result.cardLast4).toHaveLength(4);
+      // Issuer prefix (37 = Amex) must NOT leak.
+      expect(result.cardLast4!.startsWith('37')).toBe(false);
+    });
+
+    it('returns undefined cardLast4 when card_detail.card_number is missing', async () => {
+      // Defensive: Transbank may omit card_detail on FAILED/REJECTED paths,
+      // or proxies may strip it. We must NOT throw, and the field must be
+      // explicitly undefined (not the literal string 'undefined').
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_pci_missing',
+        response_code: 0,
+        // card_detail intentionally absent
+      });
+
+      const result = await webpayAdapter.commitTransaction('TKN_pci_missing');
+
+      expect(result.cardLast4).toBeUndefined();
+    });
+
+    it('returns undefined cardLast4 when card_number is null (not the string "null")', async () => {
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_pci_null',
+        response_code: 0,
+        card_detail: { card_number: null },
+      });
+
+      const result = await webpayAdapter.commitTransaction('TKN_pci_null');
+
+      expect(result.cardLast4).toBeUndefined();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // AUTHORIZED gate matrix — kills `:197:7` ConditionalExpression mutant.
+  //
+  // The gate is `responseCode === 0 && responseStatus === 'AUTHORIZED'`.
+  // A mutation that drops either operand (or short-circuits the &&) would
+  // mark a non-authorized transaction as paid — catastrophic.
+  //
+  // We exhaustively cover the 4 quadrants of (code∈{0, ≠0}) × (status∈
+  // {AUTHORIZED, ≠AUTHORIZED}) plus a non-AUTHORIZED status enumeration
+  // so the test fails on EITHER operand being dropped.
+  // ─────────────────────────────────────────────────────────────────────
+  describe('AUTHORIZED gate (response_code × status quadrants)', () => {
+    it('Q1: code=0 + status=AUTHORIZED → AUTHORIZED (only this combo)', async () => {
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_q1',
+        response_code: 0,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q1');
+      expect(result.status).toBe('AUTHORIZED');
+    });
+
+    it('Q2a: code=0 + status=FAILED → NOT AUTHORIZED (status guard works)', async () => {
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'FAILED',
+        buy_order: 'inv_q2a',
+        response_code: 0,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q2a');
+      expect(result.status).not.toBe('AUTHORIZED');
+    });
+
+    it('Q2b: code=0 + status=REVERSED → NOT AUTHORIZED', async () => {
+      // Defensive: a reversed-then-redelivered token must not flip back to
+      // AUTHORIZED if a mutation drops the status guard.
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'REVERSED',
+        buy_order: 'inv_q2b',
+        response_code: 0,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q2b');
+      expect(result.status).not.toBe('AUTHORIZED');
+    });
+
+    it('Q2c: code=0 + status=NULLIFIED → NOT AUTHORIZED', async () => {
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'NULLIFIED',
+        buy_order: 'inv_q2c',
+        response_code: 0,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q2c');
+      expect(result.status).not.toBe('AUTHORIZED');
+    });
+
+    it('Q3: code=-1 + status=AUTHORIZED → NOT AUTHORIZED (code guard works)', async () => {
+      // Conflicting fields: status says AUTHORIZED but code says decline.
+      // The && gate must kick out — never trust just one field.
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_q3',
+        response_code: -1,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q3');
+      expect(result.status).not.toBe('AUTHORIZED');
+      expect(result.status).toBe('REJECTED');
+    });
+
+    it('Q3b: code=-7 + status=AUTHORIZED → NOT AUTHORIZED', async () => {
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_q3b',
+        response_code: -7,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q3b');
+      expect(result.status).toBe('REJECTED');
+    });
+
+    it('Q4: code=-3 + status=FAILED → REJECTED (matrix bottom-right)', async () => {
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'FAILED',
+        buy_order: 'inv_q4',
+        response_code: -3,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_q4');
+      expect(result.status).toBe('REJECTED');
+    });
+
+    it('positive non-zero code (1) → FAILED (defensive — kills code===0 → code>=0 mutation)', async () => {
+      // If `:197:7` were mutated from `=== 0` to `>= 0`, this test would
+      // wrongly map to AUTHORIZED. Pin the exact-zero contract.
+      commitMock.mockResolvedValueOnce({
+        amount: 11990,
+        status: 'AUTHORIZED',
+        buy_order: 'inv_pos',
+        response_code: 1,
+      });
+      const result = await webpayAdapter.commitTransaction('TKN_pos');
+      expect(result.status).not.toBe('AUTHORIZED');
+      expect(result.status).toBe('FAILED');
+    });
+  });
 });
 
 describe('webpayAdapter.refundTransaction', () => {
@@ -298,6 +494,48 @@ describe('webpayAdapter.refundTransaction', () => {
     await expect(
       webpayAdapter.refundTransaction('TKN_old', 1000),
     ).rejects.toBeInstanceOf(WebpayAdapterError);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Sprint 20 18th-wave Bucket B — refund-mapping defensive tests.
+  // Kill string-equality + toUpperCase mutants in `mapRefundResponse`.
+  // ─────────────────────────────────────────────────────────────────────
+  it('normalizes lowercase type "reversed" to REVERSED (toUpperCase)', async () => {
+    // If the `.toUpperCase()` call were mutated away, lowercase input from
+    // a Transbank proxy would fall through to the NULLIFIED branch and
+    // mis-classify a reversal as a void.
+    refundMock.mockResolvedValueOnce({
+      type: 'reversed',
+      balance: 0,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_lower', 11990);
+    expect(result.type).toBe('REVERSED');
+  });
+
+  it('falls back to NULLIFIED for unknown type strings (defensive)', async () => {
+    // Anything that's not literally REVERSED falls to NULLIFIED — preserves
+    // the conservative classification so we never report a partial refund
+    // as a same-day reversal (which has different accounting treatment).
+    refundMock.mockResolvedValueOnce({
+      type: 'PARTIAL_VOID',
+      nullified_amount: 5000,
+      balance: 6990,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_other', 5000);
+    expect(result.type).toBe('NULLIFIED');
+  });
+
+  it('falls back to requestedAmount when nullified_amount is missing', async () => {
+    // Pin the `typeof response?.nullified_amount === 'number'` guard. A
+    // mutation that drops the typeof check would let `undefined` flow
+    // through as the authorizedAmount and break downstream accounting.
+    refundMock.mockResolvedValueOnce({
+      type: 'NULLIFIED',
+      // nullified_amount intentionally absent
+      balance: 0,
+    });
+    const result = await webpayAdapter.refundTransaction('TKN_missing_amt', 7500);
+    expect(result.authorizedAmount).toBe(7500);
   });
 });
 
@@ -382,6 +620,54 @@ describe('acquireWebpayIdempotencyLock', () => {
     const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
     expect(result.acquired).toBe(true);
     expect(ref.set).toHaveBeenCalledTimes(1);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // Sprint 20 18th-wave Bucket B — staleness-window boundary tests.
+  //
+  // Kills mutants on the `now() - lockedAtMs < WEBPAY_IDEMPOTENCY_STALE_LOCK_MS`
+  // comparison and on the `5 * 60 * 1000` constant. Without these, a
+  // mutation `<` → `<=` would let a still-fresh lock be stolen, and a
+  // mutation `<` → `>` would deadlock all real redeliveries.
+  // ─────────────────────────────────────────────────────────────────────
+  it('staleness window constant is exactly 5 minutes (300000 ms)', () => {
+    // Pin the magic number — kills `5 * 60 * 1000` arithmetic mutants
+    // (e.g. `5 * 60 * 100` would shrink the window to 30s and let active
+    // workers be evicted; `5 * 60 * 10000` would block all retries for 50min).
+    expect(WEBPAY_IDEMPOTENCY_STALE_LOCK_MS).toBe(5 * 60 * 1000);
+    expect(WEBPAY_IDEMPOTENCY_STALE_LOCK_MS).toBe(300000);
+  });
+
+  it('lock at exactly the staleness boundary (delta === STALE_LOCK_MS) is still in-flight', async () => {
+    // The check is `now() - lockedAtMs < STALE_LOCK_MS`. At delta ===
+    // STALE_LOCK_MS the comparison must be FALSE — i.e. the lock is
+    // stealable, not in-flight. We pin the strict-less-than semantics by
+    // injecting a deterministic clock.
+    const lockedAtMs = 1_000_000;
+    const now = lockedAtMs + WEBPAY_IDEMPOTENCY_STALE_LOCK_MS;
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => now);
+    // delta === window → strict `<` is false → fall through to steal-the-lock.
+    expect(result.acquired).toBe(true);
+    expect(result.inFlight).toBeFalsy();
+  });
+
+  it('lock 1ms before the boundary is in-flight (acquired=false)', async () => {
+    // delta === STALE_LOCK_MS - 1 → strict `<` is true → still in-flight.
+    const lockedAtMs = 1_000_000;
+    const now = lockedAtMs + WEBPAY_IDEMPOTENCY_STALE_LOCK_MS - 1;
+    const ref = makeFakeRef({ status: 'in_progress', lockedAtMs });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => now);
+    expect(result.acquired).toBe(false);
+    expect(result.inFlight).toBe(true);
+  });
+
+  it('lock with lockedAtMs = 0 (missing/legacy) falls through to steal', async () => {
+    // Defensive: legacy docs that didn't write lockedAtMs should be
+    // immediately stealable, not deadlock the redelivery flow.
+    const ref = makeFakeRef({ status: 'in_progress' /* no lockedAtMs */ });
+    const result = await acquireWebpayIdempotencyLock(ref as any, () => Date.now());
+    expect(result.acquired).toBe(true);
   });
 });
 

@@ -1093,6 +1093,17 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         { status: 'rejected', webpayToken: tokenWs },
         { merge: true },
       );
+      // Sprint 20 18th-wave — TM-R02 closure. Mirror the AUTHORIZED audit
+      // row so a customer dispute on a "rejected" outcome has a tamper-
+      // evident server-side trail (Repudiation threat in STRIDE).
+      await db.collection('audit_logs').add({
+        action: 'billing.webpay-return.rejected',
+        module: 'billing',
+        details: { invoiceId, amount: commit.amount },
+        userId: null, userEmail: null, projectId: null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
+      });
     } else {
       // FAILED (-96/-97/-98 or malformed). Transient. Keep status
       // 'pending-payment' so the user can retry the same card.
@@ -1101,6 +1112,17 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         { status: 'pending-payment', webpayToken: tokenWs },
         { merge: true },
       );
+      // Sprint 20 18th-wave — TM-R02 closure. Same audit-row contract as
+      // the REJECTED branch; distinguishes transient infra failures from
+      // card-side declines for ops dashboards.
+      await db.collection('audit_logs').add({
+        action: 'billing.webpay-return.failed',
+        module: 'billing',
+        details: { invoiceId, amount: commit.amount },
+        userId: null, userEmail: null, projectId: null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
+      });
     }
 
     // Step 3: finalize the lock so a redelivery can replay the redirect.
