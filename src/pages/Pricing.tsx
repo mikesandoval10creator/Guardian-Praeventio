@@ -40,9 +40,14 @@ import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
 import { useInvoicePolling } from '../hooks/useInvoicePolling';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analytics';
+import { IapAdapter, iapAdapter, type BillingProvider } from '../services/billing/iapAdapter';
 
-// Payments are processed exclusively through Google Play Billing on the native app.
-const isNative = () => typeof (window as any).Capacitor !== 'undefined';
+// Sprint 21 Bucket T — payments now route through `IapAdapter`. Web keeps the
+// existing Webpay/MP/Khipu surface; Android/iOS hit the store rails (Google
+// Play / App Store) per platform compliance policy. The `isNative()` helper
+// is kept as a thin convenience around the adapter's platform detection.
+const isNative = () => IapAdapter.getPlatform() !== 'web';
+const getIapPlatform = () => IapAdapter.getPlatform();
 
 // LATAM countries we route through MercadoPago. Chile stays on Webpay
 // (existing path); everything else falls back to Stripe (USD). See
@@ -970,32 +975,107 @@ function PricingInner() {
       return;
     }
 
-    // ── Round 16 (R1) — Google Play IAP gated behind a feature flag ──
+    // ── Sprint 21 Ola 6 Bucket T — native IAP via `IapAdapter` ──
     //
-    // The legacy implementation read `(window as any).__pendingPurchaseToken`
-    // and shipped that empty string to `verifyGooglePlayPurchase`, which
-    // then failed silently with a generic error. The token was never set
-    // anywhere in `src/`; the real Google Play Billing wiring (Capacitor
-    // plugin + Play Console SKU configuration + signed receipt flow) is
-    // out of scope for this round. Instead of pretending the path works
-    // we expose a feature flag (`canUseGooglePlayIAP`) — currently false
-    // everywhere — and surface a clear "use Webpay / MercadoPago" error
-    // when a native build hits the button. This keeps the UI honest until
-    // the real IAP integration lands (deferred to a future round).
-    const canUseGooglePlayIAP = false;
+    // Replaces the previous feature-flag stub (Round 16 R1). Android and
+    // iOS now flow through `@capacitor-community/in-app-purchases`; the
+    // server-side benefit grant still waits for the RTDN / App Store
+    // Server Notification webhook, NOT the client receipt. We do call the
+    // `validate-receipt` endpoint so the server has a chance to log the
+    // attempt and surface obvious fraud (mismatched signature) early.
+    const platform = getIapPlatform();
+    const provider: BillingProvider =
+      platform === 'android' ? 'google-play' : 'app-store';
 
-    if (!canUseGooglePlayIAP) {
+    setIsProcessing(legacyId);
+    setCheckoutError(null);
+    try {
+      sessionStorage.setItem(
+        '__praeventio_pending_checkout',
+        JSON.stringify({ gateway: provider, plan_code: tier.id, amount_clp: tier.clpRegular }),
+      );
+    } catch {}
+    // Analytics enum uses underscore form `google_play` and does not yet
+    // include `app-store`; fall back to `google_play` for iOS so we still
+    // get a payment.checkout.started event, but include the actual
+    // provider in the event payload via plan_code suffix once dashboards
+    // need iOS-specific funnels (TODO: extend analytics.types.PaymentGateway).
+    const analyticsGateway: 'google_play' = 'google_play';
+    try {
+      analytics.track('payment.checkout.started', {
+        gateway: analyticsGateway,
+        plan_code: tier.id,
+        amount_clp: tier.clpRegular,
+      });
+    } catch {}
+
+    try {
+      // SKU id mapping: tier id → store SKU. For now we use a single
+      // monthly product; future rounds may add per-tier SKUs once Play
+      // Console / App Store Connect entries are configured.
+      const productId = 'praeventio_premium_monthly';
+      const result = await iapAdapter.purchase(productId, provider);
+
+      if (!result.success || !result.receiptId) {
+        const message =
+          result.errorMessage ?? 'No pudimos completar la compra en la tienda.';
+        setCheckoutError(message);
+        addNotification({
+          title: 'Compra no completada',
+          message,
+          type: 'error',
+        });
+        setIsProcessing(null);
+        return;
+      }
+
+      // Best-effort receipt-validate ping. The server returns 202 here
+      // because the authoritative grant flows through the store webhook;
+      // this call is for fraud signal + audit trail.
+      try {
+        const idToken = await user.getIdToken();
+        const endpoint =
+          provider === 'google-play'
+            ? '/api/billing/google-play/validate-receipt'
+            : '/api/billing/app-store/validate-receipt';
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            productId,
+            tierId: tier.id,
+            receiptId: result.receiptId,
+          }),
+        });
+      } catch (err) {
+        // Best-effort — never block the UI on this.
+        logger.warn('iap_receipt_ping_failed', { provider, tier: tier.id });
+      }
+
       addNotification({
-        title: 'Compras Google Play no disponibles',
+        title: 'Compra recibida',
         message:
-          'Google Play IAP no disponible en esta versión. Usá Webpay (CL) o MercadoPago (LATAM) desde la versión web.',
+          'Estamos confirmando tu suscripción con la tienda. Esto suele tardar unos segundos.',
+        type: 'success',
+      });
+      setIsProcessing(null);
+    } catch (err) {
+      logger.error('iap_purchase_failed', err, { tierId: tier.id });
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'No pudimos iniciar el pago en la tienda.';
+      setCheckoutError(message);
+      addNotification({
+        title: 'Error al iniciar el pago',
+        message,
         type: 'error',
       });
-      return;
+      setIsProcessing(null);
     }
-
-    /* istanbul ignore next — gated until Google Play Billing ships. */
-    setIsProcessing(legacyId);
   };
 
   const handleContactSales = (tier: Tier) => {
@@ -1055,18 +1135,45 @@ function PricingInner() {
         </div>
       </div>
 
-      {!isNative() && (
+      {!isNative() ? (
         <div className="flex items-start gap-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-5">
           <Smartphone className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">
-              Pagas con Webpay (Transbank) — boleta electrónica incluida
+              Pagas con Webpay, MercadoPago o Khipu — boleta electrónica incluida
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-              Selecciona tu plan y serás redirigido a Webpay para completar el cargo en
-              CLP. Para planes B2B (Titanio en adelante) usa el botón{' '}
-              <strong>Hablar con ventas</strong>. La app móvil de Google Play sigue
-              disponible para suscripciones consumer.
+              CL → Webpay (Transbank). LATAM (PE/AR/CO/MX/BR) → MercadoPago. B2B
+              transferencia bancaria → Khipu. Para planes Titanio en adelante usa{' '}
+              <strong>Hablar con ventas</strong>.
+            </p>
+          </div>
+        </div>
+      ) : getIapPlatform() === 'android' ? (
+        <div className="flex items-start gap-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-500/30 rounded-2xl p-5">
+          <Smartphone className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
+              Compra con Google Play
+            </p>
+            <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
+              Tu suscripción se cobra y se gestiona desde tu cuenta Google Play.
+              Puedes cancelar en cualquier momento desde Play Store ›
+              Suscripciones.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start gap-4 bg-zinc-100 dark:bg-zinc-900/40 border border-zinc-300 dark:border-white/10 rounded-2xl p-5">
+          <Smartphone className="w-6 h-6 text-zinc-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
+              Compra con Apple App Store
+            </p>
+            <p className="text-xs text-zinc-700 dark:text-zinc-400 mt-1">
+              Tu suscripción se cobra y se gestiona desde tu Apple ID. Puedes
+              cancelar o restaurar compras anteriores desde Ajustes ›
+              Suscripciones.
             </p>
           </div>
         </div>
