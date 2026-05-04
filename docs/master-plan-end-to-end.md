@@ -11,6 +11,13 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 - **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
 - Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
+### Tercera ola — 4 buckets (PR #30)
+
+- **Iota — T-1.3 ONNX inference real** (1 commit): `c648877` — `slmWorker.ts` con `ort.InferenceSession` (WebGPU/WASM fallback), greedy decoding, two-layer fallback al stub determinístico si init/generate fallan. 27/27 tests SLM pass.
+- **Kappa — T-1.4 adapter + orchestrator + queue + reconciliation** (5 commits): `57361d1` slmAdapter facade · `8973bbc` orchestrator selector online/offline · `e040af7` offlineQueue IndexedDB v2 · `7f92807` reconciliation con writeFn inyectado · `0c5527b` index barrel re-exports. 36 tests SLM pass.
+- **Lambda — T-1.5 SLM UI** (3 commits): `7e35fe5` SLMStatusPanel · `71d7d7e` SLMModelPicker · `d1780f9` OfflineSLMBanner con 4-mode tokens + framer-motion. 12/12 tests pass.
+- **Mu — Fase 2 Sentry instrumentación** (archivos en `0c5527b` por race con Kappa, +1 fix): `withSentryScope` helper en `@sentry/core` (browser-safe vs `@sentry/node` que rompía bundle frontend), 4 servicios instrumentados (gemini/webpay/prediction/zettelkasten), 8 tests. Fix en `99c3e3f` para resolver build.
+
 ### Segunda ola — 3 buckets (PR #29)
 
 - **Delta — ISOManagement split F-C14** (Fase 4 anticipada): `059665d` — ISOManagement 773 → 614 LOC, ISOManagementHeader.tsx (128 LOC) + ISOManagementFilters.tsx (130 LOC) extraídos.
