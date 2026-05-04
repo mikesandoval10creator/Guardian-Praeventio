@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing for Praeventio — high-value modules only.",
+  "packageManager": "npm",
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.config.ts" },
+  "coverageAnalysis": "perTest",
+  "concurrency": 4,
+  "timeoutMS": 30000,
+  "thresholds": { "high": 80, "low": 60, "break": 50 },
+  "mutate": [
+    "src/server/middleware/verifyAuth.ts",
+    "src/server/middleware/limiters.ts",
+    "src/services/slm/orchestrator.ts",
+    "src/services/slm/offlineQueue.ts",
+    "src/services/slm/reconciliation.ts",
+    "src/services/observability/sentryInstrumentation.ts",
+    "src/services/billing/webpayAdapter.ts"
+  ],
+  "ignorePatterns": ["dist", "build", "coverage", ".stryker-tmp"],
+  "tempDirName": ".stryker-tmp",
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/report.json" },
+  "logLevel": "info"
+}
