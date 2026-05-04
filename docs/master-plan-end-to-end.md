@@ -2,6 +2,19 @@
 
 Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-04` · Sucesor de `auditoria777.md` y `auditoria777-parte2.md` · Predecesor del Sprint 20 ejecutivo.
 
+## Progreso Sprint 20 multi-agent execution (2026-05-04)
+
+3 buckets paralelos completados (orchestrator pattern de Sprint 19 reutilizado):
+
+- **Alpha — KMS bug fix** (Fase 11 anticipada, 1 commit): `e1e121b fix(deploy): use cloud-kms adapter in production Cloud Run env`. Cambia `KMS_ADAPTER=in-memory-dev` → `cloud-kms` en `.github/workflows/deploy.yml:68` + agrega `KMS_KEY_RESOURCE_NAME` env var. Operator follow-up requerido: provisionar el secret `KMS_KEY_RESOURCE_NAME` en GitHub Actions antes del próximo prod deploy con el output de `terraform output -raw kms_key_resource_name`.
+- **Beta — IPERC split (F-C13)** (Fase 4 anticipada, 1 commit): `1cf53f0 refactor(risks): extract IPERCMatrix subcomponent from IPERCAnalysis`. IPERCAnalysis 634 → 519 LOC. IPERCMatrix.tsx nuevo 145 LOC. 84/84 tests pass.
+- **Gamma — SLM scaffolding (Fase 1 T-1.1)** (1 commit): `7c02ead feat(slm): scaffolding types + model registry (Fase 1 T-1.1)`. 4 archivos nuevos en `src/services/slm/` (types, registry, index, tests). 8 tests pass. Sin Web Worker ni inferencia aún (T-1.2+ pendiente). Nota: `'Gemma'` agregado al union de license para mantener type-safety (no es MIT/Apache puro).
+- **Bonus — script retry/backoff** (1 commit): `8b004c1 chore(scripts): retry/backoff for 429 + slower pacing in generate-medical-icons`. Pacing 35s entre llamadas + parse de `retryDelay` del 429 + max 4 attempts con exponential backoff 60→120→240s. Respeta free tier de Gemini.
+
+**Bloqueador conocido**: la generación de los 33 PNG médicos requiere billing activado en Gemini API (free tier tiene `limit: 0` para `gemini-2.5-flash-image`). Acción del usuario para destrabar: enable billing en https://aistudio.google.com/app/apikey o usar key de proyecto GCP con billing.
+
+
+
 > Este documento define cómo llevamos el repo de "MVP avanzado con disciplina arquitectónica" (post Sprint 19) a "producción real con confianza" (deployable, observable, monetizable, multi-plataforma, accesible). El audit 777 cerró el cleanup post-Sprint 19; este plan cubre los próximos 6 a 8 sprints. Tono: positivo, ambicioso, ejecutable.
 
 ---
