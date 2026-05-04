@@ -9,6 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { Marker, InfoWindow } from '@react-google-maps/api';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   db,
   collection,
@@ -67,6 +68,7 @@ function pickCoords(doc: RiskNodeDoc): { lat: number; lng: number } | null {
 }
 
 export function RiskNodeMarkers({ tenantId, projectId }: Props): React.ReactElement | null {
+  const { t } = useTranslation();
   const [nodes, setNodes] = useState<RiskNodeDoc[]>([]);
   const [active, setActive] = useState<RiskNodeDoc | null>(null);
 
@@ -149,7 +151,7 @@ export function RiskNodeMarkers({ tenantId, projectId }: Props): React.ReactElem
                 {active.title}
               </p>
               <button
-                aria-label="Cerrar"
+                aria-label={t('common.close')}
                 onClick={() => setActive(null)}
                 className="text-zinc-500 hover:text-zinc-800"
               >

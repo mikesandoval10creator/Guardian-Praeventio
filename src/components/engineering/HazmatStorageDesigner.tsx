@@ -3,6 +3,7 @@ import { designHazmatStorage } from '../../services/geminiService';
 import { Building2, ShieldAlert, Loader2, CheckCircle2, Wind, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../../utils/logger';
 import { venturiFlowRate } from '../../services/physics/bernoulliEngine';
 import {
@@ -22,10 +23,21 @@ const formatEs = (value: number, fractionDigits = 2): string =>
     maximumFractionDigits: fractionDigits,
   }).format(value);
 
+const STORAGE_TYPES = ['exclusive_warehouse', 'separated_warehouse', 'surface_tank', 'open_yard'] as const;
+const MATERIAL_CLASSES = [
+  'class_2_gases',
+  'class_3_flammable_liquids',
+  'class_4_flammable_solids',
+  'class_5_oxidizing',
+  'class_6_toxic',
+  'class_8_corrosive',
+] as const;
+
 export const HazmatStorageDesigner: React.FC = () => {
-  const [storageType, setStorageType] = useState('Bodega Exclusiva');
+  const { t } = useTranslation();
+  const [storageType, setStorageType] = useState<string>(STORAGE_TYPES[0]);
   const [volume, setVolume] = useState<number | ''>('');
-  const [materialClass, setMaterialClass] = useState('Clase 3 (Líquidos Inflamables)');
+  const [materialClass, setMaterialClass] = useState<string>(MATERIAL_CLASSES[1]);
   const [result, setResult] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -94,11 +106,17 @@ export const HazmatStorageDesigner: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await designHazmatStorage(storageType, Number(volume), materialClass);
+      // Backend receives the localized labels so the model has concrete
+      // descriptions to reason about.
+      const response = await designHazmatStorage(
+        t(`hazmat_designer.storage_${storageType}`),
+        Number(volume),
+        t(`hazmat_designer.material_${materialClass}`),
+      );
       setResult(response);
     } catch (error) {
       logger.error(error);
-      setResult('Error al diseñar la instalación. Intente nuevamente.');
+      setResult(t('hazmat_designer.error_design'));
     } finally {
       setIsLoading(false);
     }
@@ -111,8 +129,8 @@ export const HazmatStorageDesigner: React.FC = () => {
           <Building2 className="w-6 h-6 text-orange-500 dark:text-orange-400" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Diseñador de Instalaciones (OGUC / DS 43)</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">Diseño normativo para bodegas de sustancias peligrosas.</p>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t('hazmat_designer.title')}</h3>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">{t('hazmat_designer.subtitle')}</p>
         </div>
       </div>
 
@@ -121,44 +139,40 @@ export const HazmatStorageDesigner: React.FC = () => {
         <div className="space-y-4">
           <form onSubmit={handleDesign} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Instalación</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.installation_type')}</label>
               <select
                 value={storageType}
                 onChange={(e) => setStorageType(e.target.value)}
                 className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
               >
-                <option value="Bodega Exclusiva">Bodega Exclusiva Adyacente</option>
-                <option value="Bodega Separada">Bodega Separada (Aislada)</option>
-                <option value="Estanque Sobre Superficie">Estanque Sobre Superficie</option>
-                <option value="Patio de Almacenamiento">Patio de Almacenamiento Abierto</option>
+                {STORAGE_TYPES.map((key) => (
+                  <option key={key} value={key}>{t(`hazmat_designer.storage_${key}`)}</option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Volumen Estimado (Toneladas o Litros)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.volume_label')}</label>
               <input
                 type="number"
                 value={volume}
                 onChange={(e) => setVolume(e.target.value ? Number(e.target.value) : '')}
-                placeholder="Ej: 5000"
+                placeholder={t('hazmat_designer.volume_placeholder')}
                 className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Clase de Sustancia (NCh382)</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.material_class')}</label>
               <select
                 value={materialClass}
                 onChange={(e) => setMaterialClass(e.target.value)}
                 className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
               >
-                <option value="Clase 2 (Gases)">Clase 2 (Gases Comprimidos)</option>
-                <option value="Clase 3 (Líquidos Inflamables)">Clase 3 (Líquidos Inflamables)</option>
-                <option value="Clase 4 (Sólidos Inflamables)">Clase 4 (Sólidos Inflamables)</option>
-                <option value="Clase 5 (Sustancias Comburentes)">Clase 5 (Sustancias Comburentes y Peróxidos)</option>
-                <option value="Clase 6 (Sustancias Tóxicas)">Clase 6 (Sustancias Tóxicas e Infecciosas)</option>
-                <option value="Clase 8 (Sustancias Corrosivas)">Clase 8 (Sustancias Corrosivas)</option>
+                {MATERIAL_CLASSES.map((key) => (
+                  <option key={key} value={key}>{t(`hazmat_designer.material_${key}`)}</option>
+                ))}
               </select>
             </div>
 
@@ -172,7 +186,7 @@ export const HazmatStorageDesigner: React.FC = () => {
               ) : (
                 <ShieldAlert className="w-5 h-5" />
               )}
-              {isLoading ? 'Diseñando Instalación...' : 'Generar Diseño Normativo'}
+              {isLoading ? t('hazmat_designer.designing') : t('hazmat_designer.generate_btn')}
             </button>
           </form>
         </div>
@@ -189,7 +203,7 @@ export const HazmatStorageDesigner: React.FC = () => {
                 className="h-full flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 space-y-4 py-12"
               >
                 <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
-                <p>Analizando OGUC y DS 43...</p>
+                <p>{t('hazmat_designer.analyzing')}</p>
               </motion.div>
             ) : result ? (
               <motion.div
@@ -200,7 +214,7 @@ export const HazmatStorageDesigner: React.FC = () => {
               >
                 <div className="flex items-center gap-2 mb-4 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-400/10 px-3 py-2 rounded-lg border border-emerald-500/20 dark:border-emerald-400/20 w-fit">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span className="text-sm font-medium">Diseño Normativo Generado</span>
+                  <span className="text-sm font-medium">{t('hazmat_designer.generated')}</span>
                 </div>
                 <div className="markdown-body text-sm">
                   <ReactMarkdown>{result}</ReactMarkdown>
@@ -215,7 +229,7 @@ export const HazmatStorageDesigner: React.FC = () => {
               >
                 <Building2 className="w-12 h-12 opacity-20" />
                 <p className="text-center max-w-xs">
-                  Ingresa los parámetros de almacenamiento para generar los requisitos constructivos y de seguridad.
+                  {t('hazmat_designer.empty_prompt')}
                 </p>
               </motion.div>
             )}
@@ -230,16 +244,16 @@ export const HazmatStorageDesigner: React.FC = () => {
             <Wind className="w-5 h-5 text-sky-500 dark:text-sky-400" />
           </div>
           <div>
-            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Ventilación por Venturi (DS 594)</h4>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">{t('hazmat_designer.venturi_title')}</h4>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Cálculo local (Bernoulli) de extracción de aire para bodegas químicas. Ref.: DS 594 Art. 35.
+              {t('hazmat_designer.venturi_subtitle')}
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Volumen sala (m³)</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.room_volume')}</label>
             <input
               type="number"
               min="0"
@@ -250,7 +264,7 @@ export const HazmatStorageDesigner: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">A₁ entrada (m²)</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.inlet_area')}</label>
             <input
               type="number"
               min="0"
@@ -261,7 +275,7 @@ export const HazmatStorageDesigner: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">A₂ garganta (m²)</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.throat_area')}</label>
             <input
               type="number"
               min="0"
@@ -272,7 +286,7 @@ export const HazmatStorageDesigner: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">ΔP (Pa)</label>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{t('hazmat_designer.delta_p')}</label>
             <input
               type="number"
               min="0"
@@ -288,7 +302,7 @@ export const HazmatStorageDesigner: React.FC = () => {
           <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 rounded-lg px-3 py-2">
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">Q extracción</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-bold">{t('hazmat_designer.q_extraction')}</p>
                 <p className="text-lg font-black text-slate-900 dark:text-white">
                   {formatEs(venturiResult.q, 4)} <span className="text-xs font-medium text-slate-500">m³/s</span>
                 </p>
@@ -299,7 +313,7 @@ export const HazmatStorageDesigner: React.FC = () => {
                   : 'bg-rose-500/10 border-rose-500/20'
               }`}>
                 <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
-                  Renovaciones aire / hora (ACH)
+                  {t('hazmat_designer.ach_label')}
                 </p>
                 <p className={`text-lg font-black ${
                   venturiResult.compliant ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
@@ -312,19 +326,18 @@ export const HazmatStorageDesigner: React.FC = () => {
               <div className="flex items-start gap-2 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
                 <AlertTriangle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-rose-700 dark:text-rose-300">
-                  ACH inferior al mínimo de {ACH_MIN_DS594} exigido por DS 594 Art. 35 para almacenamiento químico.
-                  Aumentar A₂, ΔP o reducir volumen.
+                  {t('hazmat_designer.ach_warning', { minAch: ACH_MIN_DS594 })}
                 </p>
               </div>
             )}
           </div>
         ) : (
           <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-            Ingresa parámetros válidos (A₁ &gt; A₂, ΔP ≥ 0) para calcular la extracción.
+            {t('hazmat_designer.invalid_params')}
           </p>
         )}
         <p className="mt-3 text-[10px] text-slate-400 dark:text-slate-500">
-          Cálculo local mediante ecuación de Bernoulli/Venturi (ρ aire = 1,225 kg/m³). Ref.: DS 594 Art. 35.
+          {t('hazmat_designer.bernoulli_note')}
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, ShieldCheck, HeartPulse, Brain, CheckCircle2, Award, X, Salad, Droplets, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Card, Button } from '../shared/Card';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
@@ -15,6 +16,7 @@ interface MorningCheckInProps {
 }
 
 export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const [step, setStep] = useState(1);
@@ -50,6 +52,8 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
       // Save affidavit via server-side audit log endpoint. The server stamps
       // the actor uid + timestamp from the verified token; client-side direct
       // writes to /audit_logs are denied by firestore.rules.
+      // Note: declarationText/legalStatus are persisted in Spanish for legal
+      // record-keeping (Chilean affidavit), independent of UI locale.
       await logAuditAction('MORNING_CHECKIN_AFFIDAVIT', 'Gamification', {
         eppChecked,
         psychosocialMood: mood,
@@ -67,7 +71,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
       setShowReward(true);
       awardPoints('morning_checkin');
       // Fetch nutrition suggestion in background; auto-close after 6s if suggestion loads
-      getNutritionSuggestion(mood ?? 3, user.displayName ?? 'Trabajador')
+      getNutritionSuggestion(mood ?? 3, user.displayName ?? t('morning_checkin.fallback_worker'))
         .then(setNutrition)
         .catch(() => {});
       setTimeout(() => {
@@ -106,14 +110,14 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-white uppercase tracking-tight">
-                      Despertar Matutino
+                      {t('morning_checkin.title')}
                     </h2>
                     <p className="text-xs text-zinc-400 font-medium">
-                      Sincronización de Turno
+                      {t('morning_checkin.subtitle')}
                     </p>
                   </div>
                 </div>
-                <button onClick={onComplete} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                <button onClick={onComplete} className="p-2 hover:bg-white/5 rounded-full transition-colors" aria-label={t('common.close')}>
                   <X className="w-5 h-5 text-zinc-500" />
                 </button>
               </div>
@@ -127,33 +131,33 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                 >
                   <div className="flex items-center gap-2 text-emerald-400 mb-4">
                     <ShieldCheck className="w-5 h-5" />
-                    <h3 className="font-bold uppercase tracking-wider text-sm">Verificación EPP</h3>
+                    <h3 className="font-bold uppercase tracking-wider text-sm">{t('morning_checkin.epp_check_title')}</h3>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     {Object.entries(eppChecked).map(([item, isChecked]) => (
                       <button
                         key={item}
                         onClick={() => setEppChecked(prev => ({ ...prev, [item]: !isChecked }))}
                         className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${
-                          isChecked 
-                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' 
+                          isChecked
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
                             : 'border-zinc-800 bg-zinc-900/50 text-zinc-500 hover:border-zinc-700'
                         }`}
                       >
                         {isChecked ? <CheckCircle2 className="w-6 h-6" /> : <div className="w-6 h-6 rounded-full border-2 border-current opacity-50" />}
-                        <span className="text-xs font-bold uppercase tracking-wider">{item}</span>
+                        <span className="text-xs font-bold uppercase tracking-wider">{t(`morning_checkin.epp_${item}`)}</span>
                       </button>
                     ))}
                   </div>
 
-                  <Button 
-                    variant="primary" 
+                  <Button
+                    variant="primary"
                     className="w-full mt-6"
                     disabled={!allEppChecked}
                     onClick={() => setStep(2)}
                   >
-                    Siguiente Fase
+                    {t('morning_checkin.next_phase')}
                   </Button>
                 </motion.div>
               )}
@@ -167,20 +171,20 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                 >
                   <div className="flex items-center gap-2 text-violet-400 mb-4">
                     <Brain className="w-5 h-5" />
-                    <h3 className="font-bold uppercase tracking-wider text-sm">Estado Psicosocial</h3>
+                    <h3 className="font-bold uppercase tracking-wider text-sm">{t('morning_checkin.psychosocial_title')}</h3>
                   </div>
-                  
+
                   <p className="text-sm text-zinc-400 text-center mb-6">
-                    ¿Cómo te sientes para afrontar el turno de hoy, {user?.displayName?.split(' ')[0] || 'Guardián'}?
+                    {t('morning_checkin.psychosocial_prompt', { name: user?.displayName?.split(' ')[0] || t('morning_checkin.fallback_guardian') })}
                   </p>
 
                   <div className="flex justify-between gap-2">
                     {[
-                      { value: 1, emoji: '😫', label: 'Agotado' },
-                      { value: 2, emoji: '🥱', label: 'Cansado' },
-                      { value: 3, emoji: '😐', label: 'Normal' },
-                      { value: 4, emoji: '🙂', label: 'Bien' },
-                      { value: 5, emoji: '🚀', label: 'Óptimo' },
+                      { value: 1, emoji: '😫', labelKey: 'mood_exhausted' },
+                      { value: 2, emoji: '🥱', labelKey: 'mood_tired' },
+                      { value: 3, emoji: '😐', labelKey: 'mood_normal' },
+                      { value: 4, emoji: '🙂', labelKey: 'mood_good' },
+                      { value: 5, emoji: '🚀', labelKey: 'mood_optimal' },
                     ].map((state) => (
                       <button
                         key={state.value}
@@ -192,22 +196,22 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                         }`}
                       >
                         <span className="text-2xl">{state.emoji}</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">{state.label}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-zinc-400">{t(`morning_checkin.${state.labelKey}`)}</span>
                       </button>
                     ))}
                   </div>
 
                   <div className="flex gap-3 mt-8">
                     <Button variant="outline" onClick={() => setStep(1)} className="flex-1" disabled={isSaving}>
-                      Atrás
+                      {t('morning_checkin.back')}
                     </Button>
-                    <Button 
-                      variant="primary" 
+                    <Button
+                      variant="primary"
                       className="flex-1"
                       disabled={!mood || isSaving}
                       onClick={handleComplete}
                     >
-                      {isSaving ? 'Registrando...' : 'Firmar y Sincronizar'}
+                      {isSaving ? t('morning_checkin.saving') : t('morning_checkin.submit')}
                     </Button>
                   </div>
                 </motion.div>
@@ -225,10 +229,10 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
               <Award className="w-12 h-12 text-emerald-400" />
             </div>
             <h2 className="text-3xl font-black text-white uppercase tracking-tight mb-2">
-              ¡Sincronización Exitosa!
+              {t('morning_checkin.reward_title')}
             </h2>
             <p className="text-emerald-400 font-bold tracking-widest uppercase text-sm mb-6">
-              +50 XP Obtenidos
+              {t('morning_checkin.reward_xp', { amount: 50 })}
             </p>
 
             <AnimatePresence>
@@ -240,7 +244,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Salad className="w-4 h-4 text-emerald-400" />
-                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Nutrición Recomendada IA</span>
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">{t('morning_checkin.nutrition_label')}</span>
                   </div>
                   <p className="text-sm text-zinc-300 leading-relaxed">{nutrition.suggestion}</p>
                   <div className="flex items-center gap-2 pt-1 border-t border-zinc-800">
@@ -249,7 +253,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                   </div>
                   <div className="flex items-center gap-2">
                     <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <p className="text-xs text-zinc-400">Energía esperada: <span className="font-bold text-amber-400">{nutrition.energy}</span></p>
+                    <p className="text-xs text-zinc-400">{t('morning_checkin.energy_expected')} <span className="font-bold text-amber-400">{nutrition.energy}</span></p>
                   </div>
                 </motion.div>
               ) : (
@@ -258,7 +262,7 @@ export function MorningCheckIn({ onComplete }: MorningCheckInProps) {
                   animate={{ opacity: 1 }}
                   className="text-zinc-500 text-xs"
                 >
-                  Calculando sugerencia nutricional...
+                  {t('morning_checkin.calculating_nutrition')}
                 </motion.p>
               )}
             </AnimatePresence>
