@@ -179,14 +179,14 @@ Cada fase es 1 sprint. Una fase puede tener sub-épicos paralelos. El orden est�
 - [ ] T-1.8 — (opcional, 2h) Fase 8: localización ES-CL del modelo (system prompt en chileno minero, glosario faena/cuadrilla/EPP).
 - [ ] T-1.9 — (opcional, 2h) Fase 9: Capacitor Health Connect → SLM context bridge para fatiga del operario.
 
-**Criterio de éxito**:
+**Criterio de éxito** (decisión arquitectónica del usuario 2026-05-04 — bundle SLM puede crecer lo necesario):
 
 - Latencia P50 SLM (WebGPU, prompt 50 tokens, response 256 tokens) < 500ms.
 - Latencia P95 SLM (WebGPU) < 1500ms.
 - Latencia P95 SLM (WASM SIMD fallback) < 8000ms.
-- Tamaño chunk `slm-runtime` minified+gz < 1MB.
-- Shell sin SLM mantiene presupuesto < 250KB minified+gz.
-- Lighthouse PWA score ≥ 90 (sin regresión).
+- Tamaño chunk `slm-runtime` **sin cap rígido** — el usuario aprobó subir lo necesario para tener SLM funcionando correctamente. ONNX Runtime Web ~3MB sin minificar (~800KB minified+gz) más Web Worker tooling (`comlink` ~6KB) más fixtures de runtime es aceptable. El modelo (~600MB Phi-3 / ~280MB Qwen) NO se bundlea — descarga progresiva a IndexedDB en primer launch.
+- Shell **sin SLM** mantiene presupuesto < 250KB minified+gz (lazy split del chunk slm-runtime, solo se descarga cuando el usuario activa el asistente offline).
+- Lighthouse PWA score ≥ 90 (sin regresión — el chunk SLM se descarga solo on-demand).
 - ≥ 30 tests unitarios nuevos pasando.
 - ≥ 4 tests E2E Playwright nuevos (offline flow happy path + 3 edge cases).
 - Cobertura archivos nuevos `src/services/slm/` ≥ 85%.
@@ -212,24 +212,30 @@ Cada fase es 1 sprint. Una fase puede tener sub-épicos paralelos. El orden est�
 
 **Estimación**: 4h (movido de Fase 9, donde quedaba como tail T-9.7..T-9.9).
 
-**Archivos a tocar/crear**:
+**Archivos a tocar/crear** (decisión arquitectónica del usuario 2026-05-04 — los iconos NO se bundlean al repo, se hostean en server Praeventio para que los usuarios accedan cuando quieran sin inflar la app):
 
-- `scripts/generate-medical-icons.mjs` (MODIFY) — pre-pasada de búsqueda BioRender via MCP `mcp__49cafb66-...__search-icons` con array de los 33 conceptos (`stethoscope`, `brain`, `lung-pair`, etc.). Por cada hit top-1, extraer `description` (referencia anatómica conceptual) y concatenar al prompt del manifest como "anatomical reference notes — use ONLY as conceptual guidance, generate ORIGINAL artwork". El asset de BioRender NUNCA se descarga.
-- `scripts/biorender-references.json` (CREATE) — cache del mapping concepto → descripciones canónicas BioRender, así no consultamos la API en cada `--force` regen.
-- `public/icons/biology/*.png` (33 archivos GENERADOS) — reemplazan los SVG placeholders. Resolución 512×512 (transparente), paleta brand teal+petroleum+gold.
-- `src/services/medical/iconLibrary.ts` (MODIFY) — agregar campo `format: 'svg' | 'png'` y migrar `publicPath` de los 33 entries a `.png`. Mantener la API pública sin cambios.
-- `src/components/medical/MedicalIcon.tsx` (MODIFY) — render `<img src={path}>` cuando format `png`, fallback graceful preservado (si la imagen no carga, render del placeholder anterior con `currentColor` stroke).
-- `src/services/medical/iconLibrary.test.ts` (MODIFY) — agregar caso "publicPath apunta a `.png` para los 33 entries de Bioicons primary".
-- `docs/architecture-decisions/0004-nano-banana-with-biorender-refs.md` (CREATE) — ADR documentando el flow license-safe: BioRender como referencia conceptual (nomenclatura, descripciones), nano-banana genera assets originales en estilo brand-aligned, sin copia de assets premium.
+- `scripts/generate-medical-icons.mjs` (MODIFY) — pre-pasada de búsqueda BioRender via MCP `mcp__49cafb66-...__search-icons` con array de los 33 conceptos. Por cada hit top-1, extraer `description` (referencia anatómica conceptual) y concatenar al prompt como "anatomical reference notes — use ONLY as conceptual guidance, generate ORIGINAL artwork". El asset de BioRender NUNCA se descarga. Plus: nuevo modo `--upload` que sube cada PNG a `gs://praeventio-public-assets/medical-icons/v1/` via `gsutil cp` con `Cache-Control: public, max-age=31536000, immutable`.
+- `scripts/biorender-references.json` (CREATE) — cache del mapping concepto → descripciones canónicas BioRender, license-safe (solo metadata pública).
+- `public/icons/biology/*.svg` (preservados como fallback graceful) — los 33 SVG placeholders existentes se mantienen para que el operario sin red, o si el bucket no responde, vea un icono en vez de blanco.
+- ~~`public/icons/biology/*.png`~~ **NO commiteados al repo**. Los PNG generados viven en `gs://praeventio-public-assets/medical-icons/v1/{name}.png` (URL pública via storage.googleapis.com o futuro `assets.praeventio.net`).
+- `src/services/medical/iconLibrary.ts` (MODIFY) — agregar campo `format: 'svg' | 'png'` (todos `'png'` post-Sprint 20), helper `resolveIconUrl(entry)` que lee `VITE_MEDICAL_ICONS_BASE_URL` y compone la URL hosted, fallback al SVG local cuando el env var no está seteado.
+- `src/components/medical/MedicalIcon.tsx` (MODIFY) — preferir URL hosted; `onError` cae a SVG local. Una sola network call fallida por icono.
+- `src/services/medical/iconLibrary.test.ts` (MODIFY) — 5 nuevos casos de `resolveIconUrl` (env presente/ausente, trailing slash, todos format=png).
+- `docs/architecture-decisions/0004-medical-icons-hosted-on-server.md` (CREATE) — ADR documentando el flow license-safe + hosted-on-server (bundle no crece, regeneración sin redeploy, fallback offline preservado).
+- `.env.example` (MODIFY, deferred a Fase 3) — documentar `VITE_MEDICAL_ICONS_BASE_URL=https://storage.googleapis.com/praeventio-public-assets/medical-icons/v1`.
 
-**Tareas concretas**:
+**Tareas concretas** (estado actualizado 2026-05-04, gran parte ejecutado en este PR):
 
-- [ ] T-1b.1 — (30min) Modificar `generate-medical-icons.mjs`: agregar opción `--enrich-with-bioicons` que activa la pre-pasada. Implementar batch search via MCP (1 call con array de 33 queries) y guardar `scripts/biorender-references.json`. Skill: `simplify`. MCP: `mcp__49cafb66-...__search-icons`.
-- [ ] T-1b.2 — (30min) Concatenar descripciones BioRender al `STYLE_PREFIX + ICON_MANIFEST[i].prompt` con prefijo "Anatomical reference (conceptual only — generate ORIGINAL artwork): {desc}". Skill: `simplify`.
-- [ ] T-1b.3 — (1.5h) Ejecutar el script con `GEMINI_API_KEY` exportada en env del usuario. 33 imágenes × ~$0.039 = ~$1.30 total. Spaced 2s entre llamadas para evitar rate limit free tier. Validar visualmente uno por uno (rejection y `--force --name X` para regenerar). Skill: `superpowers:verification-before-completion`.
-- [ ] T-1b.4 — (45min) Modificar `iconLibrary.ts` agregando `format` field y migrando `publicPath`. Modificar `MedicalIcon.tsx` para render PNG con fallback. Tests RTL: `iconLibrary.test.ts` actualizado, `MedicalIcon.test.tsx` cubre PNG render. Skill: `superpowers:test-driven-development`.
-- [ ] T-1b.5 — (15min) Smoke test visual con Playwright MCP: navegar a 3 módulos médicos (HumanBodyViewer, AnatomyLibrary, MedicalAnalyzer), tomar screenshots y validar no-regresión. Skill: `frontend-design:frontend-design`. MCP: `mcp__plugin_playwright_playwright__browser_take_screenshot`.
-- [ ] T-1b.6 — (30min) ADR-0004 commit con razonamiento license-safe: por qué BioRender ref está OK (descripciones públicas vía API search), por qué nano-banana genera originales (estilo brand-aligned, no copia), trazabilidad para auditoría futura. Skill: `superpowers:writing-plans`.
+- [x] T-1b.1 — Modificar `generate-medical-icons.mjs`: agregado `--enrich-with-bioicons` que lee `scripts/biorender-references.json`. ✅ commit incluido.
+- [x] T-1b.2 — Modificar `generate-medical-icons.mjs`: agregado `--upload` que sube cada PNG via `gsutil cp` al bucket público con `Cache-Control` immutable. ✅ commit incluido.
+- [x] T-1b.3 — `scripts/biorender-references.json` creado con 33 descripciones canónicas obtenidas vía MCP `search-icons` (4 batch queries). ✅
+- [x] T-1b.4 — `iconLibrary.ts` migrado: `format: 'svg' | 'png'` field, helpers `resolveIconUrl` y `readMedicalIconsBaseUrl` con env var support y fallback local. ✅
+- [x] T-1b.5 — `MedicalIcon.tsx` migrado: prefer URL hosted, `onError` cae a SVG local con state guard para evitar loops. ✅
+- [x] T-1b.6 — Tests: 5 nuevos casos en `iconLibrary.test.ts` (env presente/ausente, trailing slash, todos format=png). ✅ 12 tests verdes.
+- [x] T-1b.7 — `docs/architecture-decisions/0004-medical-icons-hosted-on-server.md` creado con razonamiento license-safe + hosted-on-server. ✅
+- [ ] T-1b.8 — **Acción del usuario**: ejecutar `gcloud auth login` + `export GEMINI_API_KEY=...` + `node scripts/generate-medical-icons.mjs --enrich-with-bioicons --upload` para generar los 33 PNG, subirlos al bucket, y validar visualmente. Costo ~$1.30. Tiempo ~5-10 min.
+- [ ] T-1b.9 — **Acción del usuario**: setear `VITE_MEDICAL_ICONS_BASE_URL=https://storage.googleapis.com/praeventio-public-assets/medical-icons/v1` en `.env.production` (o equivalente Cloud Run env vars), redeploy.
+- [ ] T-1b.10 — Smoke test visual post-deploy con Playwright MCP: navegar a 3 módulos médicos (HumanBodyViewer, AnatomyLibrary, MedicalAnalyzer), tomar screenshots y validar que los iconos cargan desde el bucket (verificar `data-medical-icon-source="hosted"` en DOM). MCP: `mcp__plugin_playwright_playwright__browser_take_screenshot`.
 
 **Criterio de éxito**:
 
