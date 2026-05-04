@@ -1,3 +1,4 @@
+// Sprint 20 fifth wave (Bucket Phi): wired al orchestrator SLM, soporta offline-first via Brecha B.
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';
@@ -12,6 +13,11 @@ import { getComprehensiveNormativeContext } from '../../contexts/NormativeContex
 import { fetchWeatherData, fetchSeismicData } from '../../services/orchestratorService';
 import { auth } from '../../services/firebase';
 import { logger } from '../../utils/logger';
+// Bucket Phi T-1.5.x: orchestrator drives the AI call (online Gemini vs.
+// offline on-device SLM); enqueueSession captures offline answers for the
+// reconciliation pass once connectivity returns.
+import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
+import { useSLM, SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
 
 interface Message {
   id: string;
@@ -56,6 +62,13 @@ export function AsesorChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { nodes, addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+  // Pending count surfaced as a badge in the header. Provider polls every
+  // 30s and refreshes immediately on `gp-slm-enqueued`, so the count
+  // reflects offline answers we ourselves push below.
+  const { pendingCount } = useSLM();
+  // Last response backend, surfaced as a debug chip ("gemini" vs.
+  // "webgpu"/"wasm-simd"). Cleared between sends; null means no chip.
+  const [lastBackend, setLastBackend] = useState<SLMResponse['backend'] | null>(null);
 
   const handleSaveToRiskNetwork = async (content: string, topic: string) => {
     if (!selectedProject) return;
@@ -142,30 +155,11 @@ export function AsesorChat() {
     setInput('');
     setLoading(true);
 
-    if (!isOnline) {
-      // Handle Offline Mode
-      setTimeout(async () => {
-        const offlineResponse = getOfflineResponse(currentInput, nodes);
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: offlineResponse,
-          timestamp: new Date(),
-          isOffline: true
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-        setPendingQueries(prev => [...prev, currentInput]);
-        await savePendingOfflineQuery(currentInput);
-        setLoading(false);
-      }, 600);
-      return;
-    }
-
     try {
       // Determine if this is a continuation to increase depth
       const isContinuation = /m[aá]s|detalle|profundiza|ampl[ií]a|contin[uú]a|ejemplo|explica|profundidad/i.test(currentInput);
       let newDetailLevel = detailLevel;
-      
+
       if (isContinuation) {
         newDetailLevel = Math.min(detailLevel + 1, 3);
       } else {
@@ -176,9 +170,11 @@ export function AsesorChat() {
 
       const searchQuery = isContinuation ? `${lastTopic} ${currentInput}` : currentInput;
 
-      const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
-
-      // Enrich with normative + live environment context in parallel
+      // Enrich with normative + live environment context in parallel.
+      // The orchestrator's `ask()` accepts only a flat prompt string, so we
+      // splice the context directly into the prompt — same payload Gemini
+      // used to receive via the `normativeContext` / `environmentContext`
+      // body fields, just rolled into the text the model sees.
       const lat = (selectedProject as any)?.coordinates?.lat ?? -33.4489;
       const lon = (selectedProject as any)?.coordinates?.lng ?? -70.6693;
       const [weatherData, seismicData] = await Promise.allSettled([
@@ -193,75 +189,67 @@ export function AsesorChat() {
         seismic ? `Sismo reciente: Magnitud ${seismic.magnitude} — Nivel de alerta: ${seismic.alertLevel}.` : '',
       ].filter(Boolean).join(' ');
 
-      const response = await fetch('/api/ask-guardian', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          query: searchQuery,
-          projectId: selectedProject?.id,
-          stream: true,
-          normativeContext: getComprehensiveNormativeContext(),
-          environmentContext: environmentContext || undefined,
-        })
-      });
+      const normativeContext = getComprehensiveNormativeContext();
+      const promptParts = [
+        normativeContext ? `[Contexto normativo]\n${normativeContext}` : '',
+        environmentContext ? `[Contexto ambiental]\n${environmentContext}` : '',
+        `[Consulta del usuario]\n${searchQuery}`,
+      ].filter(Boolean);
+      const prompt = promptParts.join('\n\n');
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
+      // Single entry point: orchestrator picks online (Gemini) vs. offline
+      // (on-device SLM) based on `navigator.onLine`. We do NOT need the
+      // explicit `if (!isOnline)` branch anymore — the orchestrator
+      // handles that decision and any silent fallback on network failure.
+      const response = await ask({ prompt });
+      setLastBackend(response.backend);
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantMessageContent = '';
+      const isOfflineBackend = response.backend === 'webgpu' || response.backend === 'wasm-simd';
 
       const assistantMessageId = (Date.now() + 1).toString();
       setMessages(prev => [...prev, {
         id: assistantMessageId,
         role: 'assistant',
-        content: '',
-        timestamp: new Date()
+        content: response.text,
+        timestamp: new Date(),
+        isOffline: isOfflineBackend,
       }]);
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.slice(6);
-              if (dataStr === '[DONE]') break;
-              
-              try {
-                const data = JSON.parse(dataStr);
-                assistantMessageContent += data.text;
-                
-                setMessages(prev => prev.map(m => 
-                  m.id === assistantMessageId 
-                    ? { ...m, content: assistantMessageContent }
-                    : m
-                ));
-              } catch (e) {
-                logger.error("Error parsing SSE data", e);
-              }
-            }
+      // If the orchestrator chose (or fell back to) the on-device SLM,
+      // capture the {query, response} pair in the offline queue so the
+      // reconciliation pass can replay it against the server LLM once
+      // connectivity returns. We also fire the SLMProvider's enqueue
+      // event so the pending-count badge updates immediately.
+      if (isOfflineBackend) {
+        try {
+          await enqueueSession({ prompt }, response);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent(SLM_ENQUEUED_EVENT));
           }
+          // Mirror into the legacy `pendingQueries` list so the existing
+          // "consultas pendientes" reconnection prompt still fires.
+          setPendingQueries(prev => [...prev, currentInput]);
+          await savePendingOfflineQuery(currentInput);
+        } catch (queueErr) {
+          logger.error('Error enqueueing offline session:', queueErr);
         }
       }
     } catch (error) {
       logger.error('Error in chat:', error);
+      // Last-resort fallback: orchestrator threw despite its own internal
+      // catch — surface the canned offline response so the user still
+      // gets *something* useful.
+      const offlineResponse = getOfflineResponse(currentInput, nodes);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Lo siento, he tenido un problema al procesar tu consulta. Por favor, intenta de nuevo.',
-        timestamp: new Date()
+        content: offlineResponse,
+        timestamp: new Date(),
+        isOffline: true,
       };
       setMessages(prev => [...prev, errorMessage]);
+      setPendingQueries(prev => [...prev, currentInput]);
+      await savePendingOfflineQuery(currentInput);
     } finally {
       setLoading(false);
     }
@@ -330,12 +318,39 @@ export function AsesorChat() {
                   </div>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsOpen(false)}
-                className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                {/* Bucket Phi: backend chip — surfaces which engine answered the
+                    last query (online Gemini vs. on-device SLM). Cleared on next
+                    send. Hidden until the first response. */}
+                {lastBackend && (
+                  <span
+                    className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full border ${
+                      lastBackend === 'gemini'
+                        ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                    }`}
+                    title={`Respuesta servida por: ${lastBackend}`}
+                  >
+                    {lastBackend === 'gemini' ? 'online' : 'offline'}
+                  </span>
+                )}
+                {/* Bucket Phi: pending-count badge — shown only when the offline
+                    queue actually has entries waiting to be reconciled. */}
+                {pendingCount > 0 && (
+                  <span
+                    className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                    title={`${pendingCount} consulta(s) pendiente(s) de sincronizar`}
+                  >
+                    {pendingCount} pend.
+                  </span>
+                )}
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Messages */}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   FileText,
   AlertTriangle,
@@ -40,32 +41,33 @@ export function ISOManagementHeader({
   auditCount,
   isoRiskCount,
 }: ISOManagementHeaderProps) {
+  const { t } = useTranslation();
   const inProgress = improvements.filter(i => i.status === 'in_progress').length;
 
   const kpis = [
     {
-      label: 'Total Documentos',
+      label: t('audits.kpi_total_documents', 'Total Documentos'),
       value: docs.length,
       icon: FileText,
       color: 'text-[#4db6ac]',
       bg: 'bg-[#4db6ac]/10',
     },
     {
-      label: 'Auditorías Completadas',
+      label: t('audits.kpi_completed_audits', 'Auditorías Completadas'),
       value: auditCount,
       icon: CheckCircle2,
       color: 'text-blue-500',
       bg: 'bg-blue-500/10',
     },
     {
-      label: 'Mejoras en Progreso',
+      label: t('audits.kpi_in_progress_improvements', 'Mejoras en Progreso'),
       value: inProgress,
       icon: RefreshCw,
       color: 'text-amber-500',
       bg: 'bg-amber-500/10',
     },
     {
-      label: 'Riesgos ISO Altos',
+      label: t('audits.kpi_high_iso_risks', 'Riesgos ISO Altos'),
       value: isoRiskCount,
       icon: AlertTriangle,
       color: 'text-red-500',
@@ -98,14 +100,14 @@ export function ISOManagementHeader({
         <div className="flex items-center gap-3 mb-4">
           <ShieldCheck className="w-5 h-5" style={{ color: TEAL }} />
           <h3 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-            Sistema de Gestión ISO 45001
+            {t('audits.iso_summary_title', 'Sistema de Gestión ISO 45001')}
           </h3>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {[
-            { label: 'Documentos Vigentes', value: docs.filter(d => d.estado === 'Vigente').length, total: docs.length },
-            { label: 'Mejoras Completadas', value: improvements.filter(i => i.status === 'done').length, total: improvements.length },
-            { label: 'Cobertura Auditorías', value: auditCount, total: auditCount + 2 },
+            { label: t('audits.iso_active_documents', 'Documentos Vigentes'), value: docs.filter(d => d.estado === 'Vigente').length, total: docs.length },
+            { label: t('audits.iso_completed_improvements', 'Mejoras Completadas'), value: improvements.filter(i => i.status === 'done').length, total: improvements.length },
+            { label: t('audits.iso_audit_coverage', 'Cobertura Auditorías'), value: auditCount, total: auditCount + 2 },
           ].map(item => {
             const pct = item.total > 0 ? Math.round((item.value / item.total) * 100) : 0;
             return (

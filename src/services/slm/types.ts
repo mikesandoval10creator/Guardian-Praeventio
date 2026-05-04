@@ -55,6 +55,17 @@ export interface ModelDescriptor {
   size: number;
   /** HTTPS URL for the model bundle (typically a HuggingFace Hub path). */
   url: string;
+  /**
+   * Optional HuggingFace Hub repo id (e.g. `microsoft/Phi-3-mini-4k-instruct-onnx-web`)
+   * used by `@huggingface/transformers` `AutoTokenizer.from_pretrained()` to
+   * load the model's real BPE tokenizer in T-1.3.1. When absent, the worker
+   * falls back to the naïve whitespace tokenizer from T-1.3.
+   *
+   * NOTE: this is a HF *repo id*, not a full URL — the transformers library
+   * resolves `tokenizer.json` from the canonical Hub layout. The `url` field
+   * above continues to point at the model weight bundle.
+   */
+  tokenizerUrl?: string;
   /** Weight container format. Pinned to onnx-int4 for Fase 1. */
   format: SLMFormat;
   /** SPDX-style license tag (or 'Gemma' for the bespoke Gemma terms). */

@@ -48,6 +48,7 @@
     "@google-cloud/kms": "^5.4.0",
     "@google/genai": "^1.46.0",
     "@gsap/react": "^2.1.2",
+    "@huggingface/transformers": "^3.8.1",
     "@kiwi-health/capacitor-health-connect": "^0.0.40",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/tasks-vision": "^0.10.34",

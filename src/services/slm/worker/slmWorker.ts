@@ -37,6 +37,11 @@
 // TODO T-1.3: enable strict types after the worker tsconfig split.
 
 import * as Comlink from 'comlink';
+// `@huggingface/transformers` is the high-level façade we use only for
+// its tokenizer (T-1.3.1). Inference still goes through onnxruntime-web
+// directly so we keep full control over the session, providers, and
+// memory shape. The library is intentionally imported lazily inside
+// init() so test environments that don't need it can mock it cleanly.
 import * as ort from 'onnxruntime-web';
 
 import type { ModelDescriptor, SLMBackend, SLMQuery, SLMResponse } from '../types';
@@ -70,25 +75,37 @@ let activeSession: any | null = null;
  * preferred but unavailable.
  */
 let activeBackend: SLMBackend | null = null;
+/**
+ * The real BPE tokenizer loaded from the model's `tokenizerUrl` via
+ * `AutoTokenizer.from_pretrained()` (T-1.3.1). `null` means either:
+ *   - the model has no `tokenizerUrl` set (fallback to naïve), or
+ *   - the load failed mid-init (fallback to naïve, error already logged).
+ *
+ * Shape: `{ encode(text) -> number[], decode(ids, opts) -> string }`.
+ * We type it as `any` because `@huggingface/transformers` doesn't ship
+ * a stable public type for the tokenizer instance (the library re-exports
+ * subclasses of PreTrainedTokenizer) and we already have `// @ts-nocheck`.
+ */
+let activeTokenizer: any | null = null;
 
 /** Default decoding budget when the caller doesn't supply `maxTokens`. */
 const DEFAULT_MAX_TOKENS = 64;
 
 /**
- * Naïve tokenizer used as the fallback when the model's real
- * tokenizer JSON has not been wired up yet. Deterministic + reversible
- * for any single prompt, which is enough to make `generate()` produce
- * coherent-with-prompt output rather than gibberish.
+ * Naïve tokenizer used as the **fallback** when the model's real BPE
+ * tokenizer is unavailable (descriptor lacks `tokenizerUrl`, network
+ * failure, or `@huggingface/transformers` rejects the repo). Deterministic
+ * + reversible for any single prompt, which is enough to make
+ * `generate()` produce coherent-with-prompt output rather than gibberish.
  *
  * The vocab is built lazily per-call from the prompt itself plus a
  * tiny set of reserved control ids, so we never need to ship a
  * vocabulary file. Each unique whitespace-delimited token gets a
  * fresh id starting at 32 (leaving 0..31 reserved for control / EOS).
  *
- * TODO T-1.3.1: replace with the model's published tokenizer
- * (Phi-3 ships a `tokenizer.json` alongside `model_q4f16.onnx` —
- * loader needs to fetch it via `model.tokenizerUrl` and we should
- * use `@huggingface/transformers` Tokenizer or a small JS port).
+ * Real BPE tokenizer (T-1.3.1) is loaded in `init()` via
+ * `AutoTokenizer.from_pretrained(model.tokenizerUrl)` and stored in
+ * `activeTokenizer`. `generate()` prefers it when present.
  */
 const RESERVED_EOS_ID = 2;
 const RESERVED_BASE = 32;
@@ -208,6 +225,7 @@ const slmWorkerApi: SlmWorkerApi = {
     activeModel = model;
     activeSession = null;
     activeBackend = null;
+    activeTokenizer = null;
 
     // Pick the provider order. WebGPU first (when preferred) gives
     // us the fast path on modern Chrome / Edge; WASM SIMD is the
@@ -250,6 +268,60 @@ const slmWorkerApi: SlmWorkerApi = {
       // failure reason so the proxy can distinguish session-load
       // failures from per-call inference failures.
     }
+
+    // Real BPE tokenizer load (T-1.3.1).
+    //
+    // We try this *after* the session create so a tokenizer-load
+    // failure can never block a session that did succeed. The
+    // tokenizer load is independent: it talks to the HuggingFace
+    // Hub via `@huggingface/transformers` and caches into its own
+    // IndexedDB store (separate from `modelCache.ts`).
+    //
+    // Failures (no tokenizerUrl, network down, repo missing
+    // tokenizer.json, library rejects shape) all degrade gracefully
+    // to the naïve tokenizer in `generate()`.
+    if (model.tokenizerUrl) {
+      try {
+        // Dynamic import keeps `@huggingface/transformers` out of
+        // the cold-start path until we actually need a tokenizer,
+        // and lets the test environment mock it via `vi.mock`.
+        const transformers = await import('@huggingface/transformers');
+        const AutoTokenizer = (transformers as any).AutoTokenizer;
+        if (
+          !AutoTokenizer ||
+          typeof AutoTokenizer.from_pretrained !== 'function'
+        ) {
+          throw new Error(
+            'AutoTokenizer.from_pretrained not exported by @huggingface/transformers',
+          );
+        }
+        // TODO Sigma: confirm AutoTokenizer.from_pretrained signature —
+        // the library accepts a HF repo id and resolves tokenizer.json /
+        // tokenizer_config.json from the canonical Hub layout. If the
+        // ONNX-only fork lacks those files, swap `tokenizerUrl` to the
+        // upstream non-ONNX repo (e.g. `microsoft/Phi-3-mini-4k-instruct`).
+        const tokenizer = await AutoTokenizer.from_pretrained(
+          model.tokenizerUrl,
+        );
+        activeTokenizer = tokenizer;
+        try {
+          // eslint-disable-next-line no-console
+          console.info('[slmWorker] real tokenizer loaded', {
+            model: model.id,
+            tokenizerUrl: model.tokenizerUrl,
+          });
+        } catch {
+          // Logging must never break init.
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          '[slmWorker] AutoTokenizer.from_pretrained failed — falling back to naïve tokenizer',
+          err,
+        );
+        activeTokenizer = null;
+      }
+    }
   },
 
   /**
@@ -279,8 +351,29 @@ const slmWorkerApi: SlmWorkerApi = {
     const maxTokens = Math.max(1, query.maxTokens ?? DEFAULT_MAX_TOKENS);
 
     try {
-      const tokenizer = buildNaiveTokenizer(query.prompt);
-      const promptIds = tokenizer.encode(query.prompt);
+      // Prefer the real BPE tokenizer when init() managed to load it.
+      // Naïve tokenizer is the deterministic fallback when activeTokenizer
+      // is null (no tokenizerUrl on the descriptor, or load failed).
+      const useReal = activeTokenizer != null;
+      const naive = buildNaiveTokenizer(query.prompt);
+
+      let promptIds: number[];
+      if (useReal) {
+        // `@huggingface/transformers` tokenizers expose `encode(text)`
+        // as a callable that returns a plain `number[]`. Some versions
+        // wrap into `{ input_ids: number[] }`; we accept either shape.
+        const raw = activeTokenizer.encode(query.prompt);
+        if (Array.isArray(raw)) {
+          promptIds = raw.map((n: any) => Number(n));
+        } else if (raw && Array.isArray(raw.input_ids)) {
+          promptIds = raw.input_ids.map((n: any) => Number(n));
+        } else {
+          // Unknown shape — fall back to naïve so we don't fail the call.
+          promptIds = naive.encode(query.prompt);
+        }
+      } else {
+        promptIds = naive.encode(query.prompt);
+      }
       if (promptIds.length === 0) {
         return buildStubResponse(activeModel, query, start);
       }
@@ -331,7 +424,27 @@ const slmWorkerApi: SlmWorkerApi = {
         currentIds = currentIds.concat(bestId);
       }
 
-      const text = tokenizer.decode(generated);
+      // Decode with the same tokenizer we encoded with. Real tokenizer
+      // accepts a `{ skip_special_tokens: true }` option to strip BOS /
+      // EOS from the output text; the naïve fallback ignores opts.
+      let text: string;
+      if (useReal) {
+        try {
+          text = activeTokenizer.decode(generated, {
+            skip_special_tokens: true,
+          });
+          if (typeof text !== 'string') text = String(text ?? '');
+        } catch (decodeErr) {
+          // eslint-disable-next-line no-console
+          console.error(
+            '[slmWorker] real tokenizer decode failed — falling back to naïve',
+            decodeErr,
+          );
+          text = naive.decode(generated);
+        }
+      } else {
+        text = naive.decode(generated);
+      }
 
       const end =
         typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -368,6 +481,10 @@ const slmWorkerApi: SlmWorkerApi = {
     activeSession = null;
     activeBackend = null;
     activeModel = null;
+    // The HF tokenizer doesn't ship a release() — drop the reference
+    // and let the GC reclaim. Its IndexedDB cache persists, which is
+    // intentional (next init() reuses it).
+    activeTokenizer = null;
   },
 };
 
