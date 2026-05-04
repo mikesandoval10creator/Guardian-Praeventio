@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Quote, MapPin, X, QrCode } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { WisdomCapsuleData } from '../../hooks/useWisdomCapsules';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip on the QR-toggle icon button.
+import { Tooltip } from './Tooltip';
 
 const quotes = [
   "El riesgo se neutraliza en el diseño, no en la reacción.",
@@ -50,13 +53,15 @@ export function WisdomCapsule({ capsule, onDismiss }: WisdomCapsuleProps = {}) {
               </div>
               <div className="flex items-center gap-2">
                 {capsule.nodeId && (
-                  <button
-                    onClick={() => setShowQR(v => !v)}
-                    className="p-1 hover:bg-white/5 rounded-lg transition-colors"
-                    title="Ver QR de máquina"
-                  >
-                    <QrCode className="w-4 h-4 text-zinc-400 hover:text-white" />
-                  </button>
+                  <Tooltip content="Ver QR de máquina">
+                    <button
+                      onClick={() => setShowQR(v => !v)}
+                      aria-label="Ver QR de máquina"
+                      className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+                    >
+                      <QrCode className="w-4 h-4 text-zinc-400 hover:text-white" />
+                    </button>
+                  </Tooltip>
                 )}
                 {onDismiss && (
                   <button onClick={onDismiss} className="p-1 hover:bg-white/5 rounded-lg transition-colors">

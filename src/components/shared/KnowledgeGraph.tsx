@@ -25,6 +25,9 @@ import { analyzeRootCauses } from '../../services/geminiService';
 import { QRCodeSVG } from 'qrcode.react';
 import { logger } from '../../utils/logger';
 import { analytics } from '../../services/analytics';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip on the Zen-mode and 2D/3D toggle (icon-only).
+import { Tooltip } from './Tooltip';
 
 // Sprint 20 Fase 5 anticipada (Bucket Eta): `react-force-graph-3d` is the
 // single biggest chunk dependency in this component (~250 KB brotli, plus
@@ -430,20 +433,24 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
               className="pl-9 sm:pl-11 pr-3 sm:pr-4 py-2 sm:py-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-all w-full sm:w-48 sm:focus:w-64"
             />
           </div>
-          <button
-            onClick={() => setIsZenMode(!isZenMode)}
-            className={`p-2 sm:p-3 backdrop-blur-md border rounded-xl sm:rounded-2xl transition-all ${isZenMode ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white/80 dark:bg-zinc-900/80 border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
-            title="Modo Zen"
-          >
-            <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-          <button
-            onClick={() => setIs3D(!is3D)}
-            className={`p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl transition-all shrink-0 ${is3D ? 'text-emerald-500 border-emerald-500/50' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}
-            title={is3D ? "Cambiar a vista 2D" : "Cambiar a vista 3D"}
-          >
-            <Box className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
+          <Tooltip content="Modo Zen">
+            <button
+              onClick={() => setIsZenMode(!isZenMode)}
+              aria-label="Modo Zen"
+              className={`p-2 sm:p-3 backdrop-blur-md border rounded-xl sm:rounded-2xl transition-all ${isZenMode ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white/80 dark:bg-zinc-900/80 border-zinc-200 dark:border-white/10 text-zinc-500 hover:text-zinc-900 dark:hover:text-white'}`}
+            >
+              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          </Tooltip>
+          <Tooltip content={is3D ? 'Cambiar a vista 2D' : 'Cambiar a vista 3D'}>
+            <button
+              onClick={() => setIs3D(!is3D)}
+              aria-label={is3D ? 'Cambiar a vista 2D' : 'Cambiar a vista 3D'}
+              className={`p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl transition-all shrink-0 ${is3D ? 'text-emerald-500 border-emerald-500/50' : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white'}`}
+            >
+              <Box className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+          </Tooltip>
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
             className="p-2 sm:p-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all shrink-0"

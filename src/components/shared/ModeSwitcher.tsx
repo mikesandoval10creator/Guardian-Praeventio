@@ -101,7 +101,6 @@ export function ModeSwitcher(): ReactElement {
           <button
             type="button"
             onClick={dismissEmergency}
-            title="Cancelar emergencia"
             aria-label="Cancelar emergencia"
             className="flex h-10 w-8 items-center justify-center rounded-xl transition-all"
             style={{

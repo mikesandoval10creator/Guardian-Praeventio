@@ -2,6 +2,9 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Brain, Mic, MicOff, RotateCcw, Coffee } from 'lucide-react';
 import { useSensoryFatigue } from '../../hooks/useSensoryFatigue';
+// Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
+// compliant tooltip on the icon-only "reset" button.
+import { Tooltip } from '../shared/Tooltip';
 
 export function SensoryFatigueMonitor() {
   const { fatigueIndex, shouldRest, noiseLevel, isListening, startListening, stopListening, reset } =
@@ -32,13 +35,15 @@ export function SensoryFatigueMonitor() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={reset}
-            className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-zinc-300 transition-colors"
-            title="Reiniciar"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          <Tooltip content="Reiniciar">
+            <button
+              onClick={reset}
+              aria-label="Reiniciar carga sensorial"
+              className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          </Tooltip>
           <button
             onClick={isListening ? stopListening : startListening}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors ${
