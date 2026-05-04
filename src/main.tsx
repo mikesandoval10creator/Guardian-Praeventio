@@ -7,6 +7,8 @@ import './i18n';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as Sentry from '@sentry/react';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import App from './App.tsx';
 import './index.css';
 import './lib/i18n';
@@ -14,9 +16,45 @@ import { initSentry } from './lib/sentry';
 import { registerSW } from 'virtual:pwa-register';
 import { logger } from './utils/logger';
 import { ErrorFallback } from './components/shared/ErrorFallback';
+import { DEEP_LINK_EVENT_NAME } from './components/shared/DeepLinkHandler';
 
 // Init error monitoring before anything else so startup errors are captured
 initSentry();
+
+// Sprint 21 — Bucket G: Universal Links (iOS) / App Links (Android).
+//
+// On native platforms, register a Capacitor `appUrlOpen` listener that
+// fires when the OS hands an `https://praeventio.app/...` URL to the app
+// (because the AASA / assetlinks.json association is verified). We
+// translate the absolute URL into an in-app slug and dispatch a
+// `praeventio:deep-link` CustomEvent — the `<DeepLinkHandler>` component
+// (mounted inside `<BrowserRouter>` in `App.tsx`) listens for it and
+// calls React Router's `navigate(slug)`. We can't call `useNavigate`
+// here because we're outside the React tree; the CustomEvent bridge is
+// the cleanest way across that boundary.
+if (Capacitor.isNativePlatform()) {
+  CapacitorApp.addListener('appUrlOpen', (event) => {
+    try {
+      // event.url example: 'https://praeventio.app/sos?lat=-33.4&lng=-70.6'.
+      // Use URL parsing so we get pathname+search+hash even if the host
+      // changes (staging domain, custom dev tunnel, etc.).
+      const parsed = new URL(event.url);
+      const slug = `${parsed.pathname}${parsed.search}${parsed.hash}` || '/';
+      window.dispatchEvent(
+        new CustomEvent(DEEP_LINK_EVENT_NAME, { detail: { url: slug } }),
+      );
+    } catch (err) {
+      logger.warn('appUrlOpen: failed to parse incoming URL', {
+        url: event.url,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }).catch((err) => {
+    logger.warn('appUrlOpen: failed to register listener', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
 
 const updateSW = registerSW({
   onNeedRefresh() {

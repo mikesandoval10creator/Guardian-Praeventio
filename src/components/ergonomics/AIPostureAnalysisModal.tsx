@@ -1,6 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Camera, Upload, Loader2, AlertTriangle, Activity, CheckCircle2, ScanFace, BrainCircuit, WifiOff } from 'lucide-react';
+import {
+  X,
+  Camera,
+  Loader2,
+  AlertTriangle,
+  Activity,
+  CheckCircle2,
+  ScanFace,
+  BrainCircuit,
+  WifiOff,
+  Cpu,
+} from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { analyzePostureWithAI } from '../../services/geminiService';
@@ -8,6 +19,14 @@ import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
+import { useMediaPipePose, type PoseLandmark } from '../../hooks/useMediaPipePose';
+import {
+  landmarksToRebaInput,
+  landmarksToRulaInput,
+  LM,
+} from '../../services/ergonomics/landmarksToScore';
+import { calculateReba } from '../../services/ergonomics/reba';
+import { calculateRula } from '../../services/ergonomics/rula';
 
 interface AIPostureAnalysisModalProps {
   isOpen: boolean;
@@ -15,18 +34,99 @@ interface AIPostureAnalysisModalProps {
   projectId?: string;
 }
 
-export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPostureAnalysisModalProps) {
+// Resultado unificado mostrado al usuario, sin importar la fuente.
+interface UnifiedResult {
+  source: 'mediapipe' | 'gemini';
+  /** Score normalizado 1..10 para la UI heredada. */
+  score: number;
+  findings: string[];
+  recommendations: string[];
+  bodyParts: { neck: string; trunk: string; arms: string; legs: string };
+  // Detalle MediaPipe / determinista.
+  reba?: number;
+  rebaLevel?: string;
+  rula?: number;
+  rulaLevel?: number;
+  landmarks?: PoseLandmark[];
+}
+
+/** Map del actionLevel REBA a un score 1..10 visible. */
+function rebaToVisualScore(reba: number): number {
+  // REBA 1..15 → 1..10. Redondea conservadoramente.
+  return Math.min(10, Math.max(1, Math.round((reba / 15) * 10)));
+}
+
+export function AIPostureAnalysisModal({
+  isOpen,
+  onClose,
+  projectId,
+}: AIPostureAnalysisModalProps) {
   const { addNode } = useRiskEngine();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [imageMimeType, setImageMimeType] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<UnifiedResult | null>(null);
   const [workstation, setWorkstation] = useState('');
+  const [loadKg, setLoadKg] = useState<number>(0);
+  const [statusLine, setStatusLine] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const isOnline = useOnlineStatus();
   const { toasts, show: showToast, dismiss } = useToast();
+  const { analyzeImage, error: poseError } = useMediaPipePose();
+
+  // Re-pinta el overlay del esqueleto cuando se actualizan los landmarks.
+  useEffect(() => {
+    const lms = analysisResult?.landmarks;
+    const canvas = overlayCanvasRef.current;
+    const img = imgRef.current;
+    if (!lms || !canvas || !img) return;
+    const w = img.clientWidth;
+    const h = img.clientHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#10b981';
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2;
+    // Conexiones clave (subset de POSE_CONNECTIONS para esqueleto principal).
+    const PAIRS: [number, number][] = [
+      [LM.L_SHOULDER, LM.R_SHOULDER],
+      [LM.L_SHOULDER, LM.L_ELBOW],
+      [LM.L_ELBOW, LM.L_WRIST],
+      [LM.R_SHOULDER, LM.R_ELBOW],
+      [LM.R_ELBOW, LM.R_WRIST],
+      [LM.L_SHOULDER, LM.L_HIP],
+      [LM.R_SHOULDER, LM.R_HIP],
+      [LM.L_HIP, LM.R_HIP],
+      [LM.L_HIP, LM.L_KNEE],
+      [LM.L_KNEE, LM.L_ANKLE],
+      [LM.R_HIP, LM.R_KNEE],
+      [LM.R_KNEE, LM.R_ANKLE],
+      [LM.NOSE, LM.L_SHOULDER],
+      [LM.NOSE, LM.R_SHOULDER],
+    ];
+    for (const [a, b] of PAIRS) {
+      const la = lms[a];
+      const lb = lms[b];
+      if (!la || !lb) continue;
+      ctx.beginPath();
+      ctx.moveTo(la.x * w, la.y * h);
+      ctx.lineTo(lb.x * w, lb.y * h);
+      ctx.stroke();
+    }
+    for (const lm of lms) {
+      if (!lm || (lm.visibility ?? 0) < 0.4) continue;
+      ctx.beginPath();
+      ctx.arc(lm.x * w, lm.y * h, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [analysisResult]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -35,57 +135,150 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
       reader.onloadend = () => {
         const base64String = reader.result as string;
         setImagePreview(base64String);
-        
-        // Extract base64 data and mime type
         const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
           setImageMimeType(matches[1]);
           setImageBase64(matches[2]);
         }
-        setAnalysisResult(null); // Reset previous analysis
+        setAnalysisResult(null);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  /** Path primario: MediaPipe Pose Landmarker → REBA + RULA. */
+  const analyzeWithMediaPipe = async (): Promise<UnifiedResult | null> => {
+    if (!imgRef.current || !imgRef.current.complete) return null;
+    setStatusLine('Cargando modelo MediaPipe Pose…');
+    const pose = await analyzeImage(imgRef.current);
+    setStatusLine('Calculando REBA / RULA…');
+
+    const rebaInput = landmarksToRebaInput(pose.landmarks, { loadKg });
+    const rulaInput = landmarksToRulaInput(pose.landmarks, { loadKg });
+    const reba = calculateReba(rebaInput);
+    const rula = calculateRula(rulaInput);
+
+    const findings: string[] = [];
+    if (rebaInput.trunk.flexionDeg > 20)
+      findings.push(`Tronco flexionado ${Math.round(rebaInput.trunk.flexionDeg)}°`);
+    if (rebaInput.neck.flexionDeg > 20)
+      findings.push(`Cuello flexionado ${Math.round(rebaInput.neck.flexionDeg)}°`);
+    if (rebaInput.upperArm.flexionDeg > 45)
+      findings.push(
+        `Brazo elevado ${Math.round(rebaInput.upperArm.flexionDeg)}° (peor lado)`
+      );
+    if (rebaInput.legs.kneeFlexionDeg > 30)
+      findings.push(`Rodilla flexionada ${Math.round(rebaInput.legs.kneeFlexionDeg)}°`);
+    if (!rebaInput.legs.bilateralSupport)
+      findings.push('Apoyo unilateral / piernas desbalanceadas');
+    if (findings.length === 0) findings.push('Sin desviaciones articulares relevantes');
+
+    return {
+      source: 'mediapipe',
+      score: rebaToVisualScore(reba.finalScore),
+      findings,
+      recommendations: [reba.recommendation, rula.recommendation],
+      bodyParts: {
+        neck: `Cuello flex ${Math.round(rebaInput.neck.flexionDeg)}° (REBA neck score)`,
+        trunk: `Tronco flex ${Math.round(rebaInput.trunk.flexionDeg)}°`,
+        arms: `Brazo flex ${Math.round(rebaInput.upperArm.flexionDeg)}° / codo ${Math.round(rebaInput.lowerArm.flexionDeg)}°`,
+        legs: rebaInput.legs.bilateralSupport
+          ? `Apoyo bilateral, rodilla ${Math.round(rebaInput.legs.kneeFlexionDeg)}°`
+          : 'Apoyo unilateral',
+      },
+      reba: reba.finalScore,
+      rebaLevel: reba.actionLevel,
+      rula: rula.finalScore,
+      rulaLevel: rula.actionLevel,
+      landmarks: pose.landmarks,
+    };
+  };
+
+  /** Fallback: Gemini Vision si MediaPipe falla. */
+  const analyzeWithGemini = async (): Promise<UnifiedResult | null> => {
+    if (!imageBase64 || !imageMimeType) return null;
+    if (!isOnline) return null;
+    setStatusLine('Fallback Gemini Vision…');
+    const result = await analyzePostureWithAI(imageBase64, imageMimeType);
+    return {
+      source: 'gemini',
+      score: result.score,
+      findings: result.findings,
+      recommendations: result.recommendations,
+      bodyParts: result.bodyParts,
+    };
+  };
+
   const handleAnalyze = async () => {
-    if (!imageBase64 || !imageMimeType || !isOnline) return;
-    
+    if (!imageBase64 || !imageMimeType) return;
     setLoading(true);
     try {
-      const result = await analyzePostureWithAI(imageBase64, imageMimeType);
+      let result: UnifiedResult | null = null;
+      try {
+        result = await analyzeWithMediaPipe();
+      } catch (e) {
+        logger.warn('MediaPipe analysis failed, falling back to Gemini', e);
+        showToast('No se detectó la pose. Usando análisis IA de respaldo…', 'info');
+      }
+      if (!result) {
+        result = await analyzeWithGemini();
+      }
+      if (!result) {
+        showToast(
+          'No se pudo analizar la postura. Verifica conexión e intenta otra foto.',
+          'error'
+        );
+        return;
+      }
       setAnalysisResult(result);
     } catch (error) {
       logger.error('Error analyzing posture:', error);
       showToast('Hubo un error al analizar la imagen. Por favor, intenta de nuevo.', 'error');
     } finally {
       setLoading(false);
+      setStatusLine('');
     }
   };
 
   const handleSave = async () => {
     if (!analysisResult || !workstation) return;
-    
+
     setSaving(true);
     try {
-      const riskLevel = analysisResult.score >= 7 ? 'high' : analysisResult.score >= 4 ? 'medium' : 'low';
-      
+      const riskLevel =
+        analysisResult.score >= 7 ? 'high' : analysisResult.score >= 4 ? 'medium' : 'low';
+
+      const tags = ['ergonomia', 'postura', riskLevel, analysisResult.source];
+      if (analysisResult.reba != null)
+        tags.push(`reba-${analysisResult.reba}`);
+      if (analysisResult.rula != null)
+        tags.push(`rula-${analysisResult.rula}`);
+
       await addNode({
         type: NodeType.ERGONOMICS,
-        title: `Análisis IA - ${workstation}`,
-        description: `Evaluación postural asistida por IA en el puesto ${workstation}. Puntuación de riesgo: ${analysisResult.score}/10. Hallazgos: ${analysisResult.findings.join(', ')}`,
-        tags: ['ergonomia', 'ia', 'postura', riskLevel],
+        title: `Análisis Postural - ${workstation}`,
+        description: `Evaluación postural en ${workstation}. Fuente: ${analysisResult.source === 'mediapipe' ? 'MediaPipe + REBA/RULA' : 'Gemini Vision (fallback)'}. Score: ${analysisResult.score}/10. Hallazgos: ${analysisResult.findings.join(', ')}`,
+        tags,
         metadata: {
-          workstation: workstation,
-          assessmentType: 'Evaluación IA (RULA/REBA)',
+          workstation,
+          assessmentType:
+            analysisResult.source === 'mediapipe'
+              ? 'MediaPipe Pose + REBA/RULA determinista'
+              : 'Gemini Vision (fallback)',
           risk: riskLevel,
           observations: `Hallazgos: ${analysisResult.findings.join('. ')}\n\nRecomendaciones: ${analysisResult.recommendations.join('. ')}\n\nEstado Corporal:\n- Cuello: ${analysisResult.bodyParts.neck}\n- Tronco: ${analysisResult.bodyParts.trunk}\n- Brazos: ${analysisResult.bodyParts.arms}\n- Piernas: ${analysisResult.bodyParts.legs}`,
           status: 'completed',
           date: new Date().toISOString().split('T')[0],
-          aiScore: analysisResult.score
+          aiScore: analysisResult.score,
+          rebaScore: analysisResult.reba,
+          rebaLevel: analysisResult.rebaLevel,
+          rulaScore: analysisResult.rula,
+          rulaLevel: analysisResult.rulaLevel,
+          loadKg,
+          source: analysisResult.source,
         },
         connections: [],
-        projectId: projectId
+        projectId,
       });
 
       handleClose();
@@ -102,6 +295,8 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
     setImageMimeType(null);
     setAnalysisResult(null);
     setWorkstation('');
+    setLoadKg(0);
+    setStatusLine('');
     onClose();
   };
 
@@ -131,11 +326,15 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                   <BrainCircuit className="w-5 h-5 text-indigo-400" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Bio-Análisis IA</h2>
-                  <p className="text-sm text-zinc-400">Evaluación postural mediante Computer Vision</p>
+                  <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
+                    Bio-Análisis Postural
+                  </h2>
+                  <p className="text-sm text-zinc-400">
+                    MediaPipe Pose + REBA / RULA determinista
+                  </p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={handleClose}
                 className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-xl transition-colors text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
               >
@@ -145,7 +344,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
 
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
               {!imagePreview ? (
-                <div 
+                <div
                   onClick={() => fileInputRef.current?.click()}
                   className="border-2 border-dashed border-white/10 rounded-xl p-12 flex flex-col items-center justify-center gap-4 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all cursor-pointer group"
                 >
@@ -153,18 +352,30 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                     <Camera className="w-8 h-8 text-zinc-400 group-hover:text-indigo-400" />
                   </div>
                   <div className="text-center">
-                    <p className="text-zinc-900 dark:text-white font-medium">Sube una foto del trabajador</p>
-                    <p className="text-sm text-zinc-500 mt-1">Formatos soportados: JPG, PNG</p>
+                    <p className="text-zinc-900 dark:text-white font-medium">
+                      Sube una foto del trabajador (cuerpo completo)
+                    </p>
+                    <p className="text-sm text-zinc-500 mt-1">
+                      Formatos: JPG, PNG. El esqueleto se detecta on-device.
+                    </p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-6">
                   <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-white/10">
-                    <img 
-                      src={imagePreview} 
-                      alt="Preview" 
+                    <img
+                      ref={imgRef}
+                      src={imagePreview}
+                      alt="Preview"
                       className="max-w-full max-h-full object-contain"
+                      crossOrigin="anonymous"
                     />
+                    {analysisResult?.source === 'mediapipe' && (
+                      <canvas
+                        ref={overlayCanvasRef}
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                      />
+                    )}
                     {!analysisResult && !loading && (
                       <button
                         onClick={() => fileInputRef.current?.click()}
@@ -176,54 +387,94 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                   </div>
 
                   {!analysisResult ? (
-                    <button
-                      onClick={handleAnalyze}
-                      disabled={loading || !isOnline}
-                      className={`w-full py-3 rounded-xl font-medium text-sm transition-all shadow-lg flex items-center justify-center gap-2 ${
-                        !isOnline 
-                          ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
-                          : 'bg-indigo-500 text-white hover:bg-indigo-600 shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
-                      }`}
-                    >
-                      {!isOnline ? (
-                        <>
-                          <WifiOff className="w-5 h-5" />
-                          <span>Requiere Conexión</span>
-                        </>
-                      ) : loading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>Analizando Postura...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ScanFace className="w-5 h-5" />
-                          <span>Iniciar Bio-Análisis</span>
-                        </>
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                            Carga manipulada (kg, opcional)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            value={loadKg}
+                            onChange={(e) => setLoadKg(Number(e.target.value) || 0)}
+                            className="mt-2 w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-lg py-2.5 px-3 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all text-sm"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleAnalyze}
+                        disabled={loading}
+                        className="w-full py-3 rounded-xl font-medium text-sm transition-all shadow-lg flex items-center justify-center gap-2 bg-indigo-500 text-white hover:bg-indigo-600 shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>{statusLine || 'Analizando…'}</span>
+                          </>
+                        ) : (
+                          <>
+                            <ScanFace className="w-5 h-5" />
+                            <span>Iniciar Bio-Análisis</span>
+                          </>
+                        )}
+                      </button>
+                      {!isOnline && (
+                        <p className="text-xs text-amber-500 flex items-center gap-2">
+                          <WifiOff className="w-4 h-4" />
+                          Sin conexión: solo MediaPipe local; el fallback Gemini queda inactivo.
+                        </p>
                       )}
-                    </button>
+                      {poseError && (
+                        <p className="text-xs text-rose-500">
+                          MediaPipe error previo: {poseError}
+                        </p>
+                      )}
+                    </>
                   ) : (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="space-y-6"
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="bg-zinc-800/50 rounded-xl p-4 border border-white/5">
-                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Puntuación de Riesgo</h3>
-                          <div className="flex items-end gap-2">
-                            <span className={`text-4xl font-black ${
-                              analysisResult.score >= 7 ? 'text-rose-500' : 
-                              analysisResult.score >= 4 ? 'text-amber-500' : 'text-emerald-500'
-                            }`}>
+                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                            {analysisResult.source === 'mediapipe' ? (
+                              <Cpu className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <BrainCircuit className="w-3 h-3 text-indigo-400" />
+                            )}
+                            {analysisResult.source === 'mediapipe'
+                              ? 'REBA / RULA (on-device)'
+                              : 'Gemini fallback'}
+                          </h3>
+                          <div className="flex items-end gap-3">
+                            <span
+                              className={`text-4xl font-black ${
+                                analysisResult.score >= 7
+                                  ? 'text-rose-500'
+                                  : analysisResult.score >= 4
+                                    ? 'text-amber-500'
+                                    : 'text-emerald-500'
+                              }`}
+                            >
                               {analysisResult.score}
                             </span>
                             <span className="text-zinc-500 mb-1 font-medium">/ 10</span>
+                            {analysisResult.reba != null && (
+                              <span className="text-xs text-zinc-400 mb-1">
+                                REBA {analysisResult.reba} · RULA {analysisResult.rula}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        
+
                         <div className="bg-zinc-800/50 rounded-xl p-4 border border-white/5">
-                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Puesto de Trabajo</h3>
+                          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                            Puesto de Trabajo
+                          </h3>
                           <input
                             type="text"
                             value={workstation}
@@ -241,8 +492,11 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                             Hallazgos
                           </h3>
                           <ul className="space-y-2">
-                            {analysisResult.findings.map((finding: string, i: number) => (
-                              <li key={i} className="text-sm text-zinc-400 bg-zinc-800/30 p-3 rounded-xl border border-white/5">
+                            {analysisResult.findings.map((finding, i) => (
+                              <li
+                                key={i}
+                                className="text-sm text-zinc-400 bg-zinc-800/30 p-3 rounded-xl border border-white/5"
+                              >
                                 {finding}
                               </li>
                             ))}
@@ -254,8 +508,11 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                             Recomendaciones
                           </h3>
                           <ul className="space-y-2">
-                            {analysisResult.recommendations.map((rec: string, i: number) => (
-                              <li key={i} className="text-sm text-zinc-400 bg-zinc-800/30 p-3 rounded-xl border border-white/5">
+                            {analysisResult.recommendations.map((rec, i) => (
+                              <li
+                                key={i}
+                                className="text-sm text-zinc-400 bg-zinc-800/30 p-3 rounded-xl border border-white/5"
+                              >
                                 {rec}
                               </li>
                             ))}
@@ -292,7 +549,7 @@ export function AIPostureAnalysisModal({ isOpen, onClose, projectId }: AIPosture
                 </div>
               )}
             </div>
-            
+
             {analysisResult && (
               <div className="p-6 border-t border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-900/50 shrink-0 flex justify-end gap-3">
                 <button

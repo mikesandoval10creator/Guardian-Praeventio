@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.praeventio.guard",
+      "sha256_cert_fingerprints": [
+        "REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD"
+      ]
+    }
+  }
+]

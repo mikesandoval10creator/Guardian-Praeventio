@@ -24,12 +24,15 @@ import { AptitudeCertificateForm } from '../components/medicine/AptitudeCertific
 import { AnatomyLibrary } from '../components/medicine/AnatomyLibrary';
 import { VigilanciaScheduler } from '../components/medicine/VigilanciaScheduler';
 import { DrugInteractions } from '../components/medicine/DrugInteractions';
+import { Ds109Modal } from '../components/medicine/Ds109Modal';
+import { FileCheck } from 'lucide-react';
 
 export function Medicine() {
   const { selectedProject } = useProject();
   const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [ds109Open, setDs109Open] = useState(false);
   const [bodyRegions, setBodyRegions] = useState<BodyRegion[]>([]);
   const [activeTab, setActiveTab] = useState<'visor' | 'diagnostico' | 'aptitud' | 'anatomia' | 'vigilancia' | 'farmacos'>('visor');
 
@@ -61,13 +64,23 @@ export function Medicine() {
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">Gestión de salud, exámenes médicos y vigilancia epidemiológica</p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl font-medium transition-all shadow-lg shadow-rose-500/20 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nueva Consulta</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setDs109Open(true)}
+            className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95"
+            title="Generar formulario DS 109 (calificación de enfermedad profesional)"
+          >
+            <FileCheck className="w-5 h-5 text-teal-500 dark:text-gold-400" />
+            <span>Calificación DS 109</span>
+          </button>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl font-medium transition-all shadow-lg shadow-rose-500/20 active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nueva Consulta</span>
+          </button>
+        </div>
       </div>
 
       {/* Doctor's Workstation — tabbed AI tools */}
@@ -245,11 +258,13 @@ export function Medicine() {
         </div>
       </div>
 
-      <AddMedicineModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <AddMedicineModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         projectId={selectedProject?.id}
       />
+
+      <Ds109Modal isOpen={ds109Open} onClose={() => setDs109Open(false)} />
     </div>
   );
 }

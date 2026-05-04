@@ -28,12 +28,42 @@ const config: CapacitorConfig = {
     backgroundColor: '#18181b',
     allowMixedContent: false,
     webContentsDebuggingEnabled: !isProd,
+    // Sprint 21 — Bucket G: Android App Links (auto-verify via
+    // /.well-known/assetlinks.json on https://praeventio.app).
+    //
+    // NOTE: `intentFilters` is NOT part of the Capacitor 8
+    // `CapacitorConfig.android` type — Capacitor does not currently
+    // expose an API to inject custom intent filters via the config
+    // object. The filter below MUST therefore be added MANUALLY to
+    // `android/app/src/main/AndroidManifest.xml` AFTER `npx cap add
+    // android`. Add it inside the existing `<activity android:name=
+    // ".MainActivity" ...>` block:
+    //
+    //   <intent-filter android:autoVerify="true">
+    //     <action android:name="android.intent.action.VIEW" />
+    //     <category android:name="android.intent.category.DEFAULT" />
+    //     <category android:name="android.intent.category.BROWSABLE" />
+    //     <data android:scheme="https"
+    //           android:host="praeventio.app" />
+    //   </intent-filter>
+    //
+    // See `docs/deep-linking-runbook.md` for the full activation flow
+    // (keystore fingerprint → assetlinks.json → store build).
   },
   ios: {
     backgroundColor: '#18181b',
     contentInset: 'automatic',
     scrollEnabled: true,
     limitsNavigationsToAppBoundDomains: true,
+    // Sprint 21 — Bucket G: Universal Links.
+    //
+    // iOS has no equivalent config field; Universal Links require:
+    //   1. The `Associated Domains` capability on the Xcode App target,
+    //      with the entitlement value `applinks:praeventio.app`.
+    //   2. The AASA file at https://praeventio.app/.well-known/
+    //      apple-app-site-association (served by `server.ts`,
+    //      content-type `application/json`, no redirects).
+    // Both steps are documented in `docs/deep-linking-runbook.md`.
   },
   plugins: {
     // Note: @perfood/capacitor-healthkit (v1.3.2) does NOT accept a
