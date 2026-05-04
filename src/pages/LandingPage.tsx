@@ -146,6 +146,15 @@ export function LandingPage({ onEnter }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans overflow-x-hidden">
 
+      {/* Skip link — primer foco al pulsar Tab. Visible solo cuando recibe
+          foco gracias a `sr-only focus:not-sr-only`. WCAG 2.1 (2.4.1). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-teal-400 focus:text-zinc-950 focus:font-black focus:text-xs focus:uppercase focus:tracking-widest focus:shadow-2xl"
+      >
+        Saltar al contenido
+      </a>
+
       {/* ── NAV ─────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-5 sm:px-10 py-4 bg-zinc-950/90 backdrop-blur-xl border-b border-white/5">
         <div className="flex items-center gap-2">
@@ -171,6 +180,8 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </button>
         </div>
       </nav>
+
+      <main id="main-content" tabIndex={-1}>
 
       {/* ── HERO ────────────────────────────────────────────────────── */}
       <motion.section
@@ -458,6 +469,8 @@ export function LandingPage({ onEnter }: LandingPageProps) {
           </motion.button>
         </div>
       </motion.section>
+
+      </main>
 
       {/* ── FOOTER ──────────────────────────────────────────────────── */}
       <footer className="border-t border-white/5 py-10 px-5 sm:px-10">
