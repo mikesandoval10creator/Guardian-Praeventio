@@ -7,9 +7,9 @@ Every event in this catalog has a 1:1 entry in the YAML manifest. Cardinality is
 
 Common properties (sent on every event, see TRACKING_PLAN §4.8) are not repeated per row: `event_version`, `app_version`, `app_env`, `app_mode`, `user_id_hash`, `project_id`, `locale`, `device_class`, `online`, `timestamp_iso`, `sample_rate`. The `Required props` and `Optional props` columns list event-specific additions only.
 
-Total: **44 events** across **12 surfaces**.
+Total: **45 events** across **12 surfaces**.
 
-Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 3.
+Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 4.
 
 ---
 
@@ -94,11 +94,12 @@ Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 3.
 | `suseso.form.submitted` | lifecycle | Form completed + submitted to the SUSESO API. | `form_kind`, `dimension_count`, `time_to_submit_seconds` |  | compliance | 1.0.0 |
 | `suseso.form.rejected` | safety_critical | SUSESO API responded with rejection. | `form_kind`, `rejection_code` | `retry_count` | compliance | 1.0.0 |
 
-## Payments (3)
+## Payments (4)
 
 | Event | Class | Description | Required props | Optional props | Owner | First version |
 |---|---|---|---|---|---|---|
 | `payment.checkout.started` | commerce | Client kicked off checkout (Webpay create / Khipu cobro / MP preference / Play purchase flow). | `gateway`, `plan_code`, `amount_clp` |  | billing | 1.0.0 |
+| `payment.checkout.cancelled` | commerce | User explicitly cancelled checkout before authorisation (back / close / cancel button). Distinct from `payment.transaction.failed` which is gateway rejection. | `gateway`, `plan_code` | `amount_clp` | billing | 1.0.0 |
 | `payment.transaction.succeeded` | commerce | Server-side webhook confirmed authorization. Server-emitted (not client). | `gateway`, `plan_code`, `amount_clp`, `transaction_id_hash` | `auth_latency_ms` | billing | 1.0.0 |
 | `payment.transaction.failed` | commerce | Authorization rejected or webhook returned a failure status. Server-emitted. | `gateway`, `plan_code`, `failure_code` | `amount_clp` | billing | 1.0.0 |
 
@@ -122,7 +123,7 @@ Counts by class: lifecycle 22, engagement 10, safety_critical 9, commerce 3.
 
 ## Cross-checks (manual until codegen runs)
 
-- Row count above (excluding the headline rows): 44. Matches the YAML manifest.
+- Row count above (excluding the headline rows): 45. Matches the YAML manifest.
 - Every `Owner` is one of: `identity`, `platform`, `safety`, `compliance`, `billing`, `knowledge`.
 - Every event in the `safety_critical` class is sampled at 100% (TRACKING_PLAN §4.7) and retained 24 months (§8.1).
 - Three events that pulled extra discussion (see PR description / agent return message): `app.opened`, `slm.queue.reconciled`, `comite.minutes.drafted` — see TRACKING_PLAN §10 open questions.

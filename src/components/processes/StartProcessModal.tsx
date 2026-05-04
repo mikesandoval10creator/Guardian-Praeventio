@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 import { X, Hammer } from 'lucide-react';
 import type { ProcessType } from '../../types/organic';
 import { auth } from '../../services/firebase';
+import { analytics } from '../../services/analytics';
+import type { ProcesoTemplate } from '../../services/analytics';
 
 // NOTE: ProcessType values are stable identifiers persisted to Firestore.
 // Only the display labels are localised via processTypeLabel below.
@@ -102,6 +104,19 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
         return;
       }
       const j = await res.json();
+      // Wave-14 analytics: a freshly-created proceso is the canonical
+      // `proceso.created` signal (catalog row 48). The org-domain
+      // `ProcessType` is a concrete work class (concreto, fachada, …) —
+      // not the protocol-kind enum the catalog asks for, so we collapse
+      // to `custom` here. When IPER/PREXOR/TMERT-driven creation is
+      // wired (Sprint 21+) this mapping should bubble the protocol id up.
+      try {
+        const procesoTemplate: ProcesoTemplate = 'custom';
+        analytics.track('proceso.created', {
+          proceso_id: j.id,
+          proceso_template: procesoTemplate,
+        });
+      } catch { /* analytics must never break user flow */ }
       onCreated?.(j.id);
       // Reset
       setName('');

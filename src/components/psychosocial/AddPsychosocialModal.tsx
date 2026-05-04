@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Brain, Calendar, User, Loader2, Shield, ChevronRight, ChevronLeft, BarChart3 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 import { logger } from '../../utils/logger';
+import { analytics } from '../../services/analytics';
 
 interface AddPsychosocialModalProps {
   isOpen: boolean;
@@ -108,6 +109,13 @@ export function AddPsychosocialModal({ isOpen, onClose }: AddPsychosocialModalPr
   const [loading, setLoading] = useState(false);
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
+  // Wave-14 analytics: timestamp the user opened the SUSESO/ISTAS21 form so
+  // `time_to_submit_seconds` (catalog row 94) can be derived at submit.
+  const openedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (isOpen) openedAtRef.current = Date.now();
+    else openedAtRef.current = null;
+  }, [isOpen]);
 
   const [step, setStep] = useState<'meta' | number | 'summary'>('meta');
   const [meta, setMeta] = useState({ title: '', department: '', date: new Date().toISOString().split('T')[0] });
@@ -160,6 +168,17 @@ export function AddPsychosocialModal({ isOpen, onClose }: AddPsychosocialModalPr
           createdAt: new Date().toISOString(),
         },
       });
+      // Wave-14 analytics: SUSESO/ISTAS21 form submit succeeded. The 20-item
+      // questionnaire is the `istas21_short` variant (the full instrument
+      // is reserved for a future expanded form). Catalog row 94.
+      try {
+        const startedMs = openedAtRef.current ?? Date.now();
+        analytics.track('suseso.form.submitted', {
+          form_kind: 'istas21_short',
+          dimension_count: DIMENSIONS.length,
+          time_to_submit_seconds: Math.max(0, Math.floor((Date.now() - startedMs) / 1000)),
+        });
+      } catch { /* analytics must never break user flow */ }
       handleClose();
     } catch (error) {
       logger.error('Error saving ISTAS21 evaluation:', error);

@@ -73,7 +73,16 @@ export type EventName =
   | 'auth.role.revoked'
   | 'knowledge.zk.node.created'
   | 'knowledge.zk.link.traversed'
-  | 'tarea.escalated';
+  | 'tarea.escalated'
+  // 14th wave additions — see catalog rows 48 (proceso.created), 58–60
+  // (risk.detected.predictive + risk.resolved), 94 (suseso.form.submitted)
+  // plus a new `payment.checkout.cancelled` row added in this wave to
+  // docs/tracking/event-catalog.md + .telemetry/proposed-events.yaml.
+  | 'suseso.form.submitted'
+  | 'proceso.created'
+  | 'risk.detected.predictive'
+  | 'risk.resolved'
+  | 'payment.checkout.cancelled';
 
 /**
  * Common props attached to every event.
@@ -423,6 +432,91 @@ export interface TareaEscalatedProperties extends CommonProperties {
   to_status?: string;
 }
 
+// ---------------------------------------------------------------------------
+// 14th wave additions — types matching catalog rows for the 5 new events.
+// Source-of-truth: docs/tracking/event-catalog.md (rows 48, 58, 60, 94)
+// + .telemetry/proposed-events.yaml. The `payment.checkout.cancelled` row
+// is brand-new — added to both manifests in this wave (the catalog had
+// only checkout.started + transaction.{succeeded,failed} under Payments;
+// explicit user-cancellation was the gap, distinct from gateway rejection
+// because the user never reached authorisation).
+// Property names match property-glossary.md verbatim — drift hunt this
+// wave was `proceso_template` enum (iper|prexor|tmert|custom) and
+// `resolution_kind` enum (tarea_completed|protocol_applied|escalated|
+// false_positive). `detector_kind` shares the seven-value enum from the
+// glossary (iper|prexor|tmert|weather|seismic|wearable|cv_model).
+// ---------------------------------------------------------------------------
+
+/** SUSESO form variant — only istas21 short/full are in scope at v1. */
+export type SusesoFormKind = 'istas21_short' | 'istas21_full';
+
+export interface SusesoFormSubmittedProperties extends CommonProperties {
+  form_kind: SusesoFormKind;
+  dimension_count: number;
+  time_to_submit_seconds: number;
+}
+
+/** Proceso template — coarse taxonomy mirroring services/protocols/. */
+export type ProcesoTemplate = 'iper' | 'prexor' | 'tmert' | 'custom';
+
+export interface ProcesoCreatedProperties extends CommonProperties {
+  proceso_id: string;
+  proceso_template: ProcesoTemplate;
+  parent_proceso_id?: string;
+}
+
+/** Detector kind for predictive risk — mirrors property-glossary "Risk". */
+export type DetectorKind =
+  | 'iper'
+  | 'prexor'
+  | 'tmert'
+  | 'weather'
+  | 'seismic'
+  | 'wearable'
+  | 'cv_model';
+
+export interface RiskDetectedPredictiveProperties extends CommonProperties {
+  risk_id: string;
+  risk_class: RiskClass;
+  severity: Severity;
+  detector_kind: DetectorKind;
+  confidence_pct?: number;
+  commune_code?: string;
+}
+
+/**
+ * How the risk was resolved. `tarea_completed` is the canonical "fixed
+ * via task work"; `protocol_applied` covers ack-only paths (e.g. Man Down
+ * widget) where a protocol was followed without a discrete tarea;
+ * `escalated` is when ownership moved up; `false_positive` retires a
+ * detector hit that turned out to be noise.
+ */
+export type ResolutionKind =
+  | 'tarea_completed'
+  | 'protocol_applied'
+  | 'escalated'
+  | 'false_positive';
+
+export interface RiskResolvedProperties extends CommonProperties {
+  risk_id: string;
+  risk_class: RiskClass;
+  time_to_resolve_seconds: number;
+  resolution_kind: ResolutionKind;
+}
+
+/**
+ * User-initiated checkout cancellation — distinct from
+ * `payment.transaction.failed` (gateway rejection) because the user
+ * abandoned BEFORE authorisation. `amount_clp` is optional because the
+ * cancellation can happen before the user picked a tier total in some
+ * gateways (e.g. Khipu QR scan timeout).
+ */
+export interface PaymentCheckoutCancelledProperties extends CommonProperties {
+  gateway: PaymentGateway;
+  plan_code: string;
+  amount_clp?: number;
+}
+
 /**
  * Map from event name → its full property shape. Used by `Event<N>` below
  * so `analytics.track(name, props)` validates `props` against the right
@@ -459,6 +553,12 @@ export interface EventPropertiesMap {
   'knowledge.zk.node.created': KnowledgeZkNodeCreatedProperties;
   'knowledge.zk.link.traversed': KnowledgeZkLinkTraversedProperties;
   'tarea.escalated': TareaEscalatedProperties;
+  // 14th wave additions
+  'suseso.form.submitted': SusesoFormSubmittedProperties;
+  'proceso.created': ProcesoCreatedProperties;
+  'risk.detected.predictive': RiskDetectedPredictiveProperties;
+  'risk.resolved': RiskResolvedProperties;
+  'payment.checkout.cancelled': PaymentCheckoutCancelledProperties;
 }
 
 /**

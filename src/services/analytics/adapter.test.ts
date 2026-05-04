@@ -497,6 +497,93 @@ describe('AnalyticsAdapter (adapter.ts)', () => {
     expect(sink.calls[0].name).toBe('knowledge.zk.node.created');
   });
 
+  it('14th wave: risk.detected.predictive narrows detector_kind + risk_class enums', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('risk.detected.predictive', {
+      risk_id: 'predictive:scaffold-uplift:2026-05-04T13:00:00Z',
+      risk_class: 'fall',
+      severity: 'critical',
+      detector_kind: 'cv_model',
+    });
+    await adapter.track('risk.resolved', {
+      risk_id: 'mandown_evt_1',
+      risk_class: 'fall',
+      time_to_resolve_seconds: 42,
+      resolution_kind: 'protocol_applied',
+    });
+
+    // Bad detector_kind literal must fail to compile.
+    await adapter.track('risk.detected.predictive', {
+      risk_id: 'predictive:foo',
+      risk_class: 'fall',
+      severity: 'high',
+      // @ts-expect-error — 'oracle' not in DetectorKind enum
+      detector_kind: 'oracle',
+    });
+    // Bad resolution_kind literal must fail to compile.
+    await adapter.track('risk.resolved', {
+      risk_id: 'r2',
+      risk_class: 'fall',
+      time_to_resolve_seconds: 1,
+      // @ts-expect-error — 'magic_wand' not in ResolutionKind enum
+      resolution_kind: 'magic_wand',
+    });
+
+    expect(sink.calls.length).toBeGreaterThanOrEqual(2);
+    expect(sink.calls[0].name).toBe('risk.detected.predictive');
+    expect(sink.calls[1].name).toBe('risk.resolved');
+  });
+
+  it('14th wave: suseso/proceso/payment.cancelled narrow required props', async () => {
+    const sink = makeMockSink();
+    const adapter = new AnalyticsAdapter({
+      sinks: [sink],
+      queue: makeMockQueue(),
+      isOptedOut: () => false,
+      getCommonProps: () => fakeCommonProps(),
+    });
+
+    await adapter.track('suseso.form.submitted', {
+      form_kind: 'istas21_short',
+      dimension_count: 5,
+      time_to_submit_seconds: 600,
+    });
+    await adapter.track('proceso.created', {
+      proceso_id: 'proc_abc',
+      proceso_template: 'custom',
+    });
+    await adapter.track('payment.checkout.cancelled', {
+      gateway: 'webpay',
+      plan_code: 'oro',
+      amount_clp: 49990,
+    });
+
+    // Bad form_kind literal must fail to compile.
+    await adapter.track('suseso.form.submitted', {
+      // @ts-expect-error — 'istas21_xl' not in SusesoFormKind enum
+      form_kind: 'istas21_xl',
+      dimension_count: 5,
+      time_to_submit_seconds: 1,
+    });
+    // Bad proceso_template must fail to compile.
+    await adapter.track('proceso.created', {
+      proceso_id: 'proc_x',
+      // @ts-expect-error — 'freeform' not in ProcesoTemplate enum
+      proceso_template: 'freeform',
+    });
+
+    expect(sink.calls.length).toBeGreaterThanOrEqual(3);
+    expect(sink.calls[0].name).toBe('suseso.form.submitted');
+    expect(sink.calls[2].name).toBe('payment.checkout.cancelled');
+  });
+
   it('flush() with empty queue resolves quickly without invoking sinks', async () => {
     const sink = makeMockSink();
     const queue = makeMockQueue();

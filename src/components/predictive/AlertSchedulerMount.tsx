@@ -17,9 +17,37 @@
 import { useEffect, useRef, useState } from 'react';
 import { evaluateProbes, buildPushPayload, type GeneratorProbe, type ScheduledAlert } from '../../services/predictiveAlerts/alertScheduler';
 import { auth } from '../../services/firebase';
+import { analytics } from '../../services/analytics';
+import type { DetectorKind, RiskClass, Severity } from '../../services/analytics';
 
 const POLL_MS = 60_000;
 const MIN_LEAD_TIME_MIN = 5;
+
+/**
+ * Wave-14 analytics mapping: Bernoulli generator id → catalog `risk_class`
+ * enum (closed nine-value set in property-glossary "Risk"). Keys mirror
+ * `RECOMMENDED_ACTIONS_ES` in windowedTrigger.ts. Default is `weather`
+ * (most generators are wind/atmosphere driven). The risk class influences
+ * dashboard fan-out, so a coarse-but-stable mapping beats inventing new
+ * classes that aren't in the catalog.
+ */
+const GENERATOR_TO_RISK_CLASS: Record<string, RiskClass> = {
+  'scaffold-uplift': 'fall',
+  'structural-wind': 'mechanical',
+  'gas-leak-anomaly': 'chemical',
+  'gas-dispersion': 'chemical',
+  'confined-space-vent': 'chemical',
+  'hazmat-pipe': 'chemical',
+  'hidrante-pressure': 'mechanical',
+  'misting-suppression': 'chemical',
+  'mining-extraction': 'mechanical',
+  'respirator-fatigue': 'ergonomic',
+  'pulmonary-altitude': 'ergonomic',
+  'micro-wind-energy': 'electrical',
+  'slope-stability': 'fall',
+  'slam-mesh': 'mechanical',
+  'dike-hydrostatic': 'weather',
+};
 
 export interface AlertSchedulerMountProps {
   projectId: string;
@@ -102,6 +130,30 @@ export function AlertSchedulerMount({ projectId, crewId, probes, notify = defaul
         } catch {
           // ignore notifier failures
         }
+        // Wave-14 analytics: a fired predictive alert is the canonical
+        // `risk.detected.predictive` signal (catalog row 58). The lead
+        // time bucket maps to severity (5–10 min ⇒ critical, 10–20 ⇒
+        // high, 20+ ⇒ medium) since the catalog has no separate
+        // confidence field and the closer the materialisation, the more
+        // urgent the dashboard surfaces it.
+        try {
+          const riskClass: RiskClass = GENERATOR_TO_RISK_CLASS[a.generatorId] ?? 'weather';
+          const lead = a.decision.leadTimeMin;
+          const severity: Severity = lead < 10 ? 'critical' : lead < 20 ? 'high' : 'medium';
+          // `cv_model` is the closest catalog-allowed kind for the
+          // Bernoulli probe family — they are model-driven anomaly
+          // detectors, not directly any of iper/prexor/tmert/weather/
+          // seismic/wearable. When a probe is unambiguously weather-fed
+          // we narrow accordingly.
+          const detectorKind: DetectorKind =
+            riskClass === 'weather' ? 'weather' : 'cv_model';
+          analytics.track('risk.detected.predictive', {
+            risk_id: `predictive:${a.generatorId}:${a.scheduledAt}`,
+            risk_class: riskClass,
+            severity,
+            detector_kind: detectorKind,
+          });
+        } catch { /* analytics must never break user flow */ }
         out.push(a);
       }
       if (out.length > 0) setLastAlerts(out);

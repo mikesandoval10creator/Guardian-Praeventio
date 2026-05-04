@@ -467,6 +467,21 @@ function WebpayReturnBanner() {
             amount_clp: inv.totals.total,
           });
         } catch {}
+        // Wave-14 analytics: when the user explicitly cancelled (came back
+        // from Webpay without authorising), also fire `payment.checkout.
+        // cancelled` so dashboards can split funnel-abandonment from
+        // gateway-rejection. `failed` covers the transaction outcome;
+        // `cancelled` covers the user behaviour. Catalog Payments
+        // section, new row added in the 14th wave.
+        if (inv.status === 'cancelled') {
+          try {
+            analytics.track('payment.checkout.cancelled', {
+              gateway,
+              plan_code,
+              amount_clp: inv.totals.total,
+            });
+          } catch {}
+        }
         firedRef.current = true;
         try { sessionStorage.removeItem('__praeventio_pending_checkout'); } catch {}
       }
