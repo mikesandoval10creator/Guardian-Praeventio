@@ -528,6 +528,131 @@ The cumulative-11 score (**65.94 %**) sits comfortably above `break: 50` and abo
 
 Projected scores after #2/#3/#4 above + final 3 modules baselined: cumulative-14 lands around 70 % depending on prexor/reba/rula. Once `limiters.ts` ≥ 55 %, `break: 50 → 55` ratchet becomes safe globally.
 
+## Run #5 — 2026-05-04 (FINAL 3 modules — 14/14 baseline COMPLETE)
+
+Branch: `dev/sprint-20-nineteenth-wave-multi-agent-2026-05-04`. Trigger: closing baseline coverage from 11 → 14 of the 14 modules in `stryker.config.json`. **All Stryker config targets now have an initial mutation score.** Adds the final 3 modules: PREXOR thermal/noise calculator and the canonical RULA + REBA ergonomics scorers (both with `excludedMutations: ["ArrayDeclaration"]` honoring McAtamney 1993 / Hignett 2000 tables).
+
+### Per-module results (Run #5)
+
+| Module | Mutants | Killed | Survived | NoCoverage | Score (total) | Score (covered) | Time |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `src/services/protocols/prexor.ts` | 82 | 67 | 15 | 0 | **81.71 %** | 81.71 % | 15 s |
+| `src/services/ergonomics/reba.ts` | 310 | 241 | 61 | 8 | **77.74 %** | 79.80 % | 1 m 29 s |
+| `src/services/ergonomics/rula.ts` | 225 | 212 | 13 | 0 | **94.22 %** | 94.22 % | 1 m 18 s |
+| **Run #5 subtotal** | **617** | **520** | **89** | **8** | **84.28 %** | 85.39 % | 3 m 2 s |
+
+Notes on the numbers:
+
+- All three modules clear `break: 50` by a wide margin and two of three (prexor, rula) also clear `high: 80`. `rula.ts` (94.22 %) is the **strongest module ever baselined**, edging past the previous champion `iper.ts` (89.36 % from Run #4). The `excludedMutations: ["ArrayDeclaration"]` setting strips noise from the canonical TABLE_A/B/C lookups; what's left is the boundary-arithmetic and recommendation-text logic the parametric per-cell tests already exercise heavily.
+- `prexor.ts` (81.71 %) — survivors cluster on (a) Spanish recommendation `StringLiteral`/`ConditionalExpression` cases for `'alto'` / `'significativo'` (lines 80–83, 4 mutants) — same pattern as tmert/iper Run #4; (b) validation `EqualityOperator` boundary flips (`<` → `<=`, `>` → `>=`) on lines 62, 90, 95, 109 (5 mutants); (c) `ConditionalExpression` / `LogicalOperator` on the `Number.isFinite(t) && t > 0` guard at line 109 (4 mutants); (d) `StringLiteral` on validation throw messages (2 mutants, low-stakes).
+- `reba.ts` (77.74 %) — the lowest of the three because its branch surface is wider (5 segment scoring functions × multiple flexion/extension boundaries each). Survivors cluster on (a) per-segment `flex` / `kg` boundary `EqualityOperator` flips on lines 167–234 (~25 mutants — `>=` ↔ `>`, `<=` ↔ `<`, `< -20` ↔ `<= -20` on the body-angle bands); (b) input-validation `ConditionalExpression` / `LogicalOperator` on lines 288–319 (~10 mutants on `!input.trunk || !input.neck || !input.legs`); (c) the field-name `StringLiteral` cluster in the validation array on lines 302–306 (`'trunk.flexionDeg'` → `""`, 5 mutants); (d) Spanish recommendation strings (`low: 'Riesgo bajo...'`, `medium: 'Riesgo medio...'`, `high: 'Riesgo alto...'`, `very_high: 'Riesgo muy alto...'`) on lines 277–280 (4 mutants); (e) the `if (u.supported) base -= 1` `AssignmentOperator` flip to `+=` on line 212 (single high-impact mutant).
+- `rula.ts` (94.22 %) — only 13 survivors out of 225 mutants. They split into (a) recommendation `StringLiteral` / `ConditionalExpression` on the `getRecommendation` switch at lines 240–241 (action levels 2 and 3 — 4 mutants); (b) action-level `EqualityOperator` boundary flips at lines 231–232 (`final <= 2` ↔ `final < 2`, `final <= 4` ↔ `final < 4` — 2 mutants); (c) trunk extension boundary at line 131 (`flex < -20` ↔ `flex <= -20` and `< -20` ↔ `< +20` — 3 mutants, mirror of REBA `:170`/`:206`); (d) neck extension boundary at line 169 (`f < 0` ↔ `f <= 0` — 1 mutant); (e) muscle-pattern `'repeated'` `StringLiteral` at line 206 (`pattern === 'repeated'` ↔ `pattern === ""` — 1 mutant); (f) `RangeError` message text at line 121 (1 mutant, low-stakes); (g) the `'static'` short-circuit `ConditionalExpression` on line 206 (1 mutant). The TABLE_A/B/C canonical-cell snapshot tests + the parametric per-quadrant tests give this module its high baseline.
+
+### Top 3 surviving mutants per module (actionable)
+
+#### protocols/prexor.ts
+
+1. **`prexor.ts:109:9` and `:109:31` — `ConditionalExpression` / `LogicalOperator` / `EqualityOperator` cluster on `Number.isFinite(t) && t > 0` (4 mutants)**
+   - Survivors: `if (true)`, `if (Number.isFinite(t) || t > 0)`, `if (Number.isFinite(t) && true)`, `if (Number.isFinite(t) && t >= 0)`.
+   - **Why it matters:** the per-measurement guard inside the dose loop. A surviving mutant lets a `durationHours: 0` or `Infinity` measurement contribute to the cumulative dose, silently inflating the noise-exposure assessment. The guard is the last line of defence against bad inputs that already passed the outer validation.
+   - **Fix:** parametric test on the dose path with measurements `[{durationHours: 0, levelDbA: 90}, {durationHours: Infinity, levelDbA: 90}]` and assert the dose equals 0 (both excluded).
+
+2. **`prexor.ts:62:7 / :90:44 / :95:39` — `EqualityOperator` flips on `<` ↔ `<=` boundary cluster (3 mutants)**
+   - Survivors: `levelDbA < COUNTING_THRESHOLD_DBA` ↔ `<=`, `m.durationHours < 0` ↔ `<=`, `m.levelDbA < 0` ↔ `<=`.
+   - **Why it matters:** the validation layer says `≥ 0` is allowed, so `0` exactly should NOT throw. A surviving `<=` mutant would force a throw on the boundary. Companion to the tmert Run #4 priority on `hours > 24` ↔ `>= 24`.
+   - **Fix:** explicit boundary test `calculatePrexor({measurement: [{durationHours: 0, levelDbA: 0}]})` succeeds (does not throw); `calculatePrexor({measurement: [{durationHours: -0.001, ...}]})` throws.
+
+3. **`prexor.ts:80:5 / :80:10 / :81:14 / :82:5 / :82:10 / :83:14` — `StringLiteral` / `ConditionalExpression` on `'alto'` / `'significativo'` recommendation cases (4 mutants)**
+   - Survivors: switch case literal mutated to `""`, recommendation text mutated to `""`, plus `ConditionalExpression` flipping the `case` body to fall through.
+   - **Why it matters:** identical pattern to tmert + iper Run #4 priority — Spanish recommendation text unverified. Mutated forms emit the wrong guidance text for the most consequential risk levels.
+   - **Fix:** parametric test on each `(dose, level)` quadrant asserting the recommendation matches the documented text per risk level (`expect(result.recommendation).toMatch(/^Riesgo alto/)` on a high-dose fixture, etc.).
+
+#### ergonomics/reba.ts
+
+1. **`reba.ts:167–234` — segment scoring `EqualityOperator` boundary flip cluster (≈25 mutants)**
+   - Survivors: every `>=` / `<=` / `<` / `>` per-segment flexion-angle boundary across trunk / neck / upper-arm / lower-arm / wrist / load can be flipped without test failure. Examples: `flex >= 0 && flex <= 20` ↔ `flex > 0`, `f > 45 && f <= 90` ↔ `f >= 45`, `l.kg < 5` ↔ `l.kg <= 5`, `l.kg <= 10` ↔ `l.kg < 10`.
+   - **Why it matters:** these are the canonical Hignett 2000 boundaries. Tests cover the *interior* of each band but don't pin the exact boundary value (e.g. `flex = 20` → trunk score 2 vs 3). Boundary regressions silently bump risk classifications across the band threshold.
+   - **Fix:** parametric per-boundary test — for each segment, evaluate at `boundary - 0.001`, `boundary`, and `boundary + 0.001` and assert the segment score matches the documented band assignment. ~12 boundaries × 3 evaluations = ~36 assertions in one parametric `it.each`.
+
+2. **`reba.ts:288–319` — input-validation `ConditionalExpression` / `LogicalOperator` cluster (~10 mutants)**
+   - Survivors: `!input || typeof input !== 'object'` second-half neutralized; `!input.trunk || !input.neck || !input.legs` flipped to `&&`; `!input.upperArm || !input.lowerArm || !input.wrist` similar; standalone `if (!input.load)` / `if (!input.coupling)` / `if (!input.activity)` forced to `false`.
+   - **Why it matters:** the validation layer is the contract for every front-end call. A surviving `&&` mutant means a partial payload (e.g. `{trunk: {...}, neck: undefined, legs: undefined}`) would NOT throw — it would silently produce `NaN`-tainted scores or crash deeper in the pipeline.
+   - **Fix:** parametric test passing every individual missing-required-field permutation (`{...minimal, trunk: undefined}` etc.) and asserting each one throws with the documented message.
+
+3. **`reba.ts:212:20` — `AssignmentOperator` `-=` ↔ `+=` on `if (u.supported) base -= 1`**
+   - Survivor: supported-arm bonus inverted from a -1 reduction to a +1 addition. Single high-impact mutant.
+   - **Why it matters:** the `supported` flag for upper-arm posture should *reduce* the score (arm rest reduces fatigue). A surviving `+=` mutant would *increase* the score for supported arms — silent reversal of the assistive-equipment benefit calculation.
+   - **Fix:** test that `evaluateReba({...fixture, upperArm: {...arm, supported: true}})` produces a strictly LOWER `upperArmScore` than the same fixture with `supported: false`.
+
+#### ergonomics/rula.ts
+
+1. **`rula.ts:240:5 / :240:20 / :241:5 / :241:20` — `ConditionalExpression` / `StringLiteral` on `getRecommendation` action levels 2 and 3 (4 mutants)**
+   - Survivors: `case 2:` body falls through, `case 3:` body falls through, both recommendation strings mutated to `""`.
+   - **Why it matters:** action levels 2 ('Investigation needed') and 3 ('Investigation and changes soon') are the most common practical outcomes for ergonomic assessments. A surviving mutant returns empty text — silent UX regression. Mirror of tmert / iper / reba recommendation-text pattern.
+   - **Fix:** parametric `(finalScore → expectedRecommendation)` test asserting the documented text per action level: `(2, /investigación/)`, `(5, /pronto/)`, `(7, /investigación e implementar cambios ahora/)`.
+
+2. **`rula.ts:131:12 / :131:16 / :169:9` — trunk + neck extension boundary cluster (4 mutants)**
+   - Survivors: `flex < -20` ↔ `<=`, `flex < -20` ↔ `< +20` (UnaryOperator), `f < 0` ↔ `<=` on the neck score.
+   - **Why it matters:** the back/neck extension boundary is the defining safety threshold (negative flex = extension). The `+20` mutation is particularly insidious — flexion ≥ 20° (which is the more harmful direction) would NOT trigger the +1 bonus, while extension < 20° would. Mirror of REBA Run #5 priority #1 boundary cluster.
+   - **Fix:** explicit boundary test at `flex = -20` (boundary) and `flex = -19.9` (just inside flexion band) with documented score assertions.
+
+3. **`rula.ts:206:31 / :206:43` — `ConditionalExpression` / `StringLiteral` on `pattern === 'static' || pattern === 'repeated'` (2 mutants)**
+   - Survivors: `pattern === 'repeated'` short-circuited to `false`, `'repeated'` string mutated to `""`.
+   - **Why it matters:** the muscle-use pattern (`'static'` or `'repeated'`) adds +1 to the muscle score per the McAtamney 1993 protocol. A surviving mutant means `'repeated'` patterns silently miss the +1, under-scoring repetitive-motion risk.
+   - **Fix:** test `evaluateRula({...fixture, muscle: {pattern: 'repeated', ...}})` produces a `muscleScore` exactly 1 higher than `pattern: 'occasional'` baseline.
+
+### Threshold ratchet recommendation (Run #5)
+
+**Recommendation: NO global ratchet on `break`.** Reasoning:
+
+- Per the documented safety rule "do not increase the `break` threshold above the lowest module's score − 5", the safe upper bound across the **14 baselined modules** is `min(76.19, 43.59, 85.48, 58.26, 3.05, 60.44, 81.48, 88.08, 88.05, 85.07, 89.36, 81.71, 77.74, 94.22) − 5 = 3.05 − 5 = -1.95`. `limiters.ts` at 3.05 % remains the dominant constraint — Run #5 does not change the calculus.
+- The Run #5 modules **all** sit above 77 % (one above 94 %, two above 80 %). They individually could support `break: 70`, but per-file thresholds remain blocked on Stryker 9.6.1 schema (R21 backlog item).
+- Honest call: the 18va wave's tests promised in the Run #4 "next steps" (limiters spine, crypto.randomUUID coverage, Spanish recommendation pinning) are **not** reflected in this run because the Stryker re-run on those files is pending CI. So the cumulative-14 number reflects the test state circa Run #4 — it does not yet capture any uplift from the limiters work.
+
+**Per-module strategy (documentation only — config untouched)**:
+
+| Module | Run | Score | Could individually support `break:` | Block on |
+|---|---|---:|---:|---|
+| verifyAuth | #2 | 76.19 % | 70 | regression below 70 |
+| orchestrator | #2 | 43.59 % | 38 | regression below 38 |
+| sentryInstrumentation | #2 | 85.48 % | 80 | regression below 80 |
+| webpayAdapter | #3 | 58.26 % | 53 | regression below 53 |
+| limiters | #3 | 3.05 % | n/a (test gap) | needs first-pass tests before any break threshold |
+| offlineQueue | #3 | 60.44 % | 55 | regression below 55 |
+| reconciliation | #3 | 81.48 % | 76 | regression below 76 |
+| ergonomicAssessments | #4 | 88.08 % | 80 | regression below 80 |
+| iperAssessments | #4 | 88.05 % | 80 | regression below 80 |
+| protocols/tmert | #4 | 85.07 % | 80 | regression below 80 |
+| protocols/iper | #4 | 89.36 % | 80 | regression below 80 |
+| **protocols/prexor** | **#5** | **81.71 %** | **76** | regression below 76 |
+| **ergonomics/reba** | **#5** | **77.74 %** | **70** | regression below 70 |
+| **ergonomics/rula** | **#5** | **94.22 %** | **89** | regression below 89 |
+
+**For now: thresholds untouched.** All three Run #5 modules clear `break: 50` comfortably; rula.ts even clears `break: 90` territory. The Run #3 `limiters.ts` follow-up remains the gate on a global ratchet; Run #5 doesn't change that calculus.
+
+### Cumulative across 14 modules baselined (Run #2 + Run #3 + Run #4 + Run #5 — 14/14 COMPLETE)
+
+| Metric | Run #2 (3 modules, re-run) | Run #3 (4 new modules) | Run #4 (4 new modules) | Run #5 (3 new modules) | Cumulative all 14 |
+|---|---:|---:|---:|---:|---:|
+| Mutants total | 224 | 494 | 424 | 617 | **1759** |
+| Killed | 151 | 230 | 372 | 520 | **1273** |
+| Survived | 55 | 206 | 50 | 89 | **400** |
+| NoCoverage | 18 | 58 | 2 | 8 | **86** |
+| Score (total) | 67.86 % | 46.56 % | 87.74 % | 84.28 % | **72.37 %** |
+| Wall-clock | 1 m 11 s | 2 m 37 s | 1 m 0 s | 3 m 2 s | 7 m 50 s |
+
+The cumulative-14 score (**72.37 %**) sits comfortably above `break: 50` and above `low: 60`, well below `high: 80`. Run #5 added 3 modules averaging 84.6 % (rula 94.22 % pulls the average up; reba 77.74 % pulls it back), which lifted the cumulative from Run #4's 65.94 % (cumulative-11) to 72.37 % (cumulative-14) — a **+6.43 pp** uplift. `limiters.ts` at 3.05 % remains the single dragging score: removing it from the cumulative-14 average would push the score to ~77.5 %.
+
+### 14/14 baseline COMPLETE — what's next
+
+1. **CI cron weekly mutation run on the 14 modules** — `.github/workflows/mutation.yml` proposed in Run #1 / Run #2 backlog. Now that all 14 modules have a baseline, the workflow can compare scores PR-over-cron and emit Sentry alerts on regressions ≥ 3 pp. This should be the **next bucket** — it converts the static baseline into a regression gate.
+2. **`limiters.ts` test spine** — still the priority for any meaningful global ratchet. See Run #3 priorities. Bringing limiters from 3.05 % to even 50 % would lift cumulative-14 from 72.37 % to ~77 %.
+3. **Boundary `EqualityOperator` cluster — REBA + RULA + PREXOR** — single shared parametric test pattern (per-boundary `value-1, value, value+1` triple) would close the ~25 REBA mutants + 3 RULA mutants + 3 PREXOR mutants in one bucket. Highest mutant-kills-per-test-line ratio of any open backlog item.
+4. **Spanish recommendation text pinning — universal** — tmert + iper + prexor + reba + rula all share the same un-asserted recommendation-text pattern. A single shared parametric `(risk_level → text_match)` pattern across 5 files would close ~16 mutants in one bucket.
+5. **Per-file thresholds** — Stryker 9.6.1 still does not support `thresholds` at file level; track upstream issue. Once supported, the per-module `break:` column above becomes the enforced contract.
+
+After items #2/#3/#4: projected cumulative-14 ~85 %. At that point a global `break: 60` ratchet becomes safe and `low: 70` / `high: 85` becomes a reasonable target band.
+
 ## Cross-references
 
 - `docs/testing/MUTATION_TESTING.md` — top-level run guide, threshold policy, target rationale.
@@ -535,3 +660,5 @@ Projected scores after #2/#3/#4 above + final 3 modules baselined: cumulative-14
 - 8th-wave Bucket C verification record — prior `verifyAuth` smoke run (84 mutants, 64.29 % score). This baseline reproduces it exactly on Windows.
 - Sprint 20 12th-wave commit `443ae08` — orchestrator analytics additions; explains the 24 NoCoverage mutants accumulated in that file.
 - Sprint 20 9va wave (HMAC integrity layer) — explains the offlineQueue HMAC tag and the reconciliation `verifyHmac` path baselined in Run #3.
+- McAtamney L., Corlett E.N. (1993) — RULA canonical TABLE_A/B/C source. `excludedMutations: ["ArrayDeclaration"]` honors the canonical-table contract.
+- Hignett S., McAtamney L. (2000) — REBA canonical TABLE_A/B/C source. Same exclusion rationale.

@@ -31,6 +31,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logAuditAction } from '../auditService';
+import { randomId } from '../../utils/randomId';
 
 export type ErgonomicAssessmentType = 'REBA' | 'RULA';
 
@@ -95,11 +96,9 @@ function validate(payload: ErgonomicAssessmentPayload): void {
 }
 
 function newId(): string {
-  // Mirror useRiskEngine.ts: rely on Web Crypto when available, else timestamp.
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `asmt_${globalThis.crypto.randomUUID()}`;
+  // Sprint 20 nineteenth wave: feature-detect + fallback consolidated
+  // into the shared `randomId` helper. See src/utils/randomId.ts.
+  return randomId();
 }
 
 /**

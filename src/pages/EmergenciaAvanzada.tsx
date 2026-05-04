@@ -17,6 +17,7 @@ import {
 } from "../services/firebase";
 import { Worker } from "../types";
 import { ConfirmDialog } from "../components/shared/ConfirmDialog";
+import { Tooltip } from "../components/shared/Tooltip";
 
 interface EmergencyEvent {
   id: string;
@@ -489,20 +490,25 @@ export function EmergenciaAvanzada() {
                         <div className="flex items-center gap-2 shrink-0">
                           {activeEmergency ? (
                             <>
-                              <button
-                                onClick={() => markWorker(w.id, 'safe')}
-                                className={`p-1.5 rounded-lg transition-colors ${status === 'safe' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'}`}
-                                title="Marcar seguro"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => markWorker(w.id, 'danger')}
-                                className={`p-1.5 rounded-lg transition-colors ${status === 'danger' ? 'bg-red-500 text-white' : 'bg-red-500/10 hover:bg-red-500/20 text-red-400'}`}
-                                title="Marcar en peligro"
-                              >
-                                <UserX className="w-3.5 h-3.5" />
-                              </button>
+                              {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
+                              <Tooltip content="Marcar seguro">
+                                <button
+                                  onClick={() => markWorker(w.id, 'safe')}
+                                  aria-label={`Marcar a ${w.name} como seguro`}
+                                  className={`p-1.5 rounded-lg transition-colors ${status === 'safe' ? 'bg-emerald-500 text-white' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'}`}
+                                >
+                                  <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                                </button>
+                              </Tooltip>
+                              <Tooltip content="Marcar en peligro">
+                                <button
+                                  onClick={() => markWorker(w.id, 'danger')}
+                                  aria-label={`Marcar a ${w.name} en peligro`}
+                                  className={`p-1.5 rounded-lg transition-colors ${status === 'danger' ? 'bg-red-500 text-white' : 'bg-red-500/10 hover:bg-red-500/20 text-red-400'}`}
+                                >
+                                  <UserX className="w-3.5 h-3.5" aria-hidden="true" />
+                                </button>
+                              </Tooltip>
                             </>
                           ) : (
                             <span className="text-[10px] text-zinc-400 italic">Sin emergencia activa</span>

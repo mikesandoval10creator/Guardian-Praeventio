@@ -25,6 +25,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { AddDocumentModal } from '../components/documents/AddDocumentModal';
 import { EditDocumentModal } from '../components/documents/EditDocumentModal';
 import { ConfirmDialog } from '../components/shared/ConfirmDialog';
+import { Tooltip } from '../components/shared/Tooltip';
 
 interface Document {
   id: string;
@@ -234,28 +235,34 @@ export function Documents() {
                     </td>
                     <td className="px-4 sm:px-6 py-3 sm:py-4">
                       <div className="flex items-center gap-1 sm:gap-2">
-                        <button
-                          onClick={() => navigate(`/documents/${doc.id}`)}
-                          className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
-                          title="Ver Documento"
-                          aria-label={`Ver documento ${doc.name}`}
-                        >
-                          <FileText className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
-                        </button>
-                        {doc.url ? (
-                          <a 
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label preserved as primary SR semantic. */}
+                        <Tooltip content="Ver Documento">
+                          <button
+                            onClick={() => navigate(`/documents/${doc.id}`)}
                             className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
-                            title="Descargar Original"
+                            aria-label={`Ver documento ${doc.name}`}
                           >
-                            <Download className="w-3 h-3 sm:w-4 sm:h-4" />
-                          </a>
-                        ) : (
-                          <button disabled className="p-1.5 sm:p-2 rounded-lg text-zinc-400 dark:text-zinc-600 cursor-not-allowed" title="Sin archivo original">
-                            <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <FileText className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
                           </button>
+                        </Tooltip>
+                        {doc.url ? (
+                          <Tooltip content="Descargar Original">
+                            <a
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 sm:p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all"
+                              aria-label={`Descargar archivo original de ${doc.name}`}
+                            >
+                              <Download className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
+                            </a>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip content="Sin archivo original">
+                            <button disabled className="p-1.5 sm:p-2 rounded-lg text-zinc-400 dark:text-zinc-600 cursor-not-allowed" aria-label="Sin archivo original disponible">
+                              <Download className="w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
+                            </button>
+                          </Tooltip>
                         )}
                         <div className="relative dropdown-container">
                           <button

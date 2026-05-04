@@ -13,6 +13,7 @@ import {
 
 import { useNotifications } from '../contexts/NotificationContext';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { Tooltip } from '../components/shared/Tooltip';
 
 export function Notifications() {
   const { notifications, markAsRead, markAllAsRead, clearAll } = useNotifications();
@@ -34,20 +35,25 @@ export function Notifications() {
               Activar Notificaciones Push
             </button>
           )}
-          <button 
-            onClick={markAllAsRead}
-            className="p-2 bg-zinc-900/50 border border-white/10 rounded-xl text-zinc-500 hover:text-white transition-colors" 
-            title="Marcar todas como leídas"
-          >
-            <Check className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          <button 
-            onClick={clearAll}
-            className="p-2 bg-zinc-900/50 border border-white/10 rounded-xl text-zinc-500 hover:text-rose-500 transition-colors" 
-            title="Eliminar todas"
-          >
-            <Trash2 className="w-4 h-4 sm:w-5 h-5" />
-          </button>
+          {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label preserved as primary SR semantic. */}
+          <Tooltip content="Marcar todas como leídas">
+            <button
+              onClick={markAllAsRead}
+              aria-label="Marcar todas las notificaciones como leídas"
+              className="p-2 bg-zinc-900/50 border border-white/10 rounded-xl text-zinc-500 hover:text-white transition-colors"
+            >
+              <Check className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
+            </button>
+          </Tooltip>
+          <Tooltip content="Eliminar todas">
+            <button
+              onClick={clearAll}
+              aria-label="Eliminar todas las notificaciones"
+              className="p-2 bg-zinc-900/50 border border-white/10 rounded-xl text-zinc-500 hover:text-rose-500 transition-colors"
+            >
+              <Trash2 className="w-4 h-4 sm:w-5 h-5" aria-hidden="true" />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
