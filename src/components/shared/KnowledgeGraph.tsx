@@ -1,6 +1,5 @@
-import React, { useRef, useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
-import ForceGraph3D from 'react-force-graph-3d';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../../types';
 import {
@@ -23,9 +22,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import * as THREE from 'three';
 import { analyzeRootCauses } from '../../services/geminiService';
-import jsPDF from 'jspdf';
 import { QRCodeSVG } from 'qrcode.react';
 import { logger } from '../../utils/logger';
+
+// Sprint 20 Fase 5 anticipada (Bucket Eta): `react-force-graph-3d` is the
+// single biggest chunk dependency in this component (~250 KB brotli, plus
+// it transitively pulls the full `three` examples). The user lands on the
+// 2D view by default and only ever loads the 3D bundle if they click the
+// "Box" toggle — so we lazy-load it via React.lazy and gate the render
+// behind <Suspense>. The 2D path stays eager because it's the primary
+// experience and the chunk is much smaller (~80 KB brotli).
+const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
 
 /**
  * Props for {@link KnowledgeGraph}.
@@ -273,9 +280,13 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     }
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!selectedNode) return;
-    
+
+    // Sprint 20 Fase 5 anticipada (Bucket Eta): jspdf is only needed when
+    // the user clicks "Exportar PDF" on the node drawer. Dynamic import
+    // keeps the ~150 KB jspdf chunk out of the KnowledgeGraph bundle.
+    const { default: jsPDF } = await import('jspdf');
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
     
@@ -441,8 +452,18 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
         </div>
       </div>
 
-      {/* Graph Canvas */}
+      {/* Graph Canvas — 3D path is wrapped in Suspense because ForceGraph3D
+          is React.lazy'd (see import at top of file). Fallback mirrors the
+          loader UX of the page-level Suspense for visual consistency. */}
       {is3D ? (
+        <Suspense fallback={
+          <div className="w-full h-full flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Cargando vista 3D...</span>
+            </div>
+          </div>
+        }>
         <ForceGraph3D
           ref={graph3DRef}
           graphData={graphData}
@@ -515,6 +536,7 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
             return mesh;
           }}
         />
+        </Suspense>
       ) : (
         <ForceGraph2D
           ref={graphRef}
