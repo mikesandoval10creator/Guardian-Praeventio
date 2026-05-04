@@ -94,6 +94,59 @@ These are the Capacitor plugins already wired in `package.json` plus the runtime
 | `@perfood/capacitor-healthkit` | n/a (iOS only) | `NSHealthShareUsageDescription`, `NSHealthUpdateUsageDescription` + HealthKit capability + provisioning-profile entitlement (see `IOS_BUILD.md`) |
 | `@kiwi-health/capacitor-health-connect` | `android.permission.health.READ_*` cluster (heart rate, steps, sleep, etc. — declare only what you read) | n/a (Android only). Also requires Health Connect APK pre-installed on Android 13; bundled in Android 14+. See `HEALTH_CONNECT_MIGRATION.md`. |
 
+### 4.1 Health permissions (HealthKit + Health Connect)
+
+Sprint 21 — Bucket P. The native facade in
+[`src/services/health/healthFacadeNative.ts`](../src/services/health/healthFacadeNative.ts)
+exposes a 4-metric API (steps, heartRate, activeEnergy, distance) to
+`WearablesPanel`. Native config required before the OS will surface a
+permission sheet:
+
+**iOS (HealthKit)**
+1. In Xcode, App target → **Signing & Capabilities** → `+ Capability` → **HealthKit**.
+2. `ios/App/App/App.entitlements` will gain `com.apple.developer.healthkit`.
+3. `ios/App/App/Info.plist` MUST include both keys verbatim (the strings are
+   surfaced in the permission sheet — keep them human-readable):
+
+   ```xml
+   <key>NSHealthShareUsageDescription</key>
+   <string>Praeventio Guard usa tus datos de salud para detectar fatiga y riesgos ergonómicos.</string>
+   <key>NSHealthUpdateUsageDescription</key>
+   <string>Permite registrar entrenamientos de seguridad.</string>
+   ```
+
+4. Run `npx cap sync ios` after editing the manifest.
+5. `@perfood/capacitor-healthkit` does NOT accept a `CapacitorHealthkit`
+   block in `capacitor.config.ts` — see the comment in `capacitor.config.ts`
+   `plugins` block. All iOS-side config is the Xcode/`Info.plist` step above.
+
+**Android (Health Connect)**
+1. Pre-install the Health Connect APK on Android 13 testers; on Android 14+
+   it ships with the OS.
+2. `android/app/src/main/AndroidManifest.xml` — declare every read scope you
+   actually call. The 4-metric facade reads at minimum:
+
+   ```xml
+   <uses-permission android:name="android.permission.health.READ_STEPS" />
+   <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+   <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+   <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+   ```
+
+3. Inside `<manifest>`, also declare the Health Connect package query so the
+   plugin's availability check works on Android 13:
+
+   ```xml
+   <queries>
+     <package android:name="com.google.android.apps.healthdata" />
+   </queries>
+   ```
+
+4. `MainActivity.kt` registers the Health Connect permission contract per
+   `HEALTH_CONNECT_MIGRATION.md` (no change for Bucket P — the facade only
+   wraps the JS surface).
+5. Run `npx cap sync android` after editing the manifest.
+
 ---
 
 ## 5. Troubleshooting
