@@ -342,5 +342,61 @@
   },
   "currency": {
     "selector_aria": "Currency selector"
+  },
+  "emergency_alert": {
+    "title": "Seismic Alert Detected",
+    "magnitude_prefix": "Mag",
+    "view_details": "View Details",
+    "dismiss_aria": "Dismiss alert"
+  },
+  "pending_invites": {
+    "single_prefix": "You have a pending invitation to ",
+    "multiple_prefix": "You have ",
+    "multiple_suffix": " pending team invitations",
+    "cta_view": "View",
+    "dismiss_aria": "Dismiss"
+  },
+  "reload_prompt": {
+    "offline_title": "App ready to work offline",
+    "update_title": "New update available",
+    "offline_description": "The application has been downloaded and can be used without an internet connection.",
+    "update_description": "A new version of Praeventio Guard is available. Update to get the latest improvements.",
+    "close_aria": "Close notice",
+    "update_now": "Update now",
+    "close": "Close"
+  },
+  "project_selector": {
+    "active_project": "Active Project",
+    "select_project": "Select Project",
+    "requires_internet_title": "Requires internet connection",
+    "requires_connection": "Requires Connection",
+    "new_project": "New Project"
+  },
+  "weather": {
+    "title": "Weather bulletin",
+    "default_city": "Santiago",
+    "temp": "Temp",
+    "condition": "Condition",
+    "wind": "Wind",
+    "humidity": "Humidity",
+    "alert_wind": "Wind Alert",
+    "alert_heat": "Heat Stress",
+    "alert_rain": "Rain",
+    "alert_optimal": "Optimal"
+  },
+  "compliance_card": {
+    "title": "Compliance",
+    "optimize": "Optimize",
+    "level_optimal": "Optimal Level",
+    "level_acceptable": "Acceptable Level",
+    "level_needs_attention": "Needs Attention",
+    "remaining": "{{remaining}}% remaining"
+  },
+  "predictive_alert": {
+    "title": "Predictive Alert",
+    "dismiss_aria": "Dismiss alert",
+    "imminent_risk": "Imminent Risk",
+    "probability_label": "Probability:",
+    "automated_action": "Automated Action"
   }
 }

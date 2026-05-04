@@ -1,11 +1,13 @@
 import { useProject } from '../../contexts/ProjectContext';
 import { ChevronDown, Briefcase, Plus, WifiOff } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { useNavigate } from 'react-router-dom';
 
 export function ProjectSelector() {
+  const { t } = useTranslation();
   const { projects, selectedProject, setSelectedProject, loading } = useProject();
   const [isOpen, setIsOpen] = useState(false);
   const isOnline = useOnlineStatus();
@@ -25,9 +27,9 @@ export function ProjectSelector() {
           <Briefcase className="w-5 h-5" />
         </div>
         <div className="flex-1 text-left overflow-hidden">
-          <p className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest leading-none mb-1">Proyecto Activo</p>
+          <p className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest leading-none mb-1">{t('project_selector.active_project', 'Proyecto Activo')}</p>
           <p className="text-sm font-bold tracking-tight truncate text-zinc-900 dark:text-white">
-            {selectedProject?.name || 'Seleccionar Proyecto'}
+            {selectedProject?.name || t('project_selector.select_project', 'Seleccionar Proyecto')}
           </p>
         </div>
         <motion.div
@@ -69,13 +71,13 @@ export function ProjectSelector() {
                   </button>
                 ))}
                 
-                <button 
+                <button
                   disabled={!isOnline}
                   onClick={() => {
                     setIsOpen(false);
                     navigate('/projects');
                   }}
-                  title={!isOnline ? 'Requiere conexión a internet' : ''}
+                  title={!isOnline ? t('project_selector.requires_internet_title', 'Requiere conexión a internet') : ''}
                   className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 border-t border-zinc-200 dark:border-white/5 mt-2 pt-3 ${
                     !isOnline ? 'text-zinc-400 dark:text-zinc-600 cursor-not-allowed' : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
                   }`}
@@ -84,7 +86,9 @@ export function ProjectSelector() {
                     {!isOnline ? <WifiOff className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-widest">
-                    {!isOnline ? 'Requiere Conexión' : 'Nuevo Proyecto'}
+                    {!isOnline
+                      ? t('project_selector.requires_connection', 'Requiere Conexión')
+                      : t('project_selector.new_project', 'Nuevo Proyecto')}
                   </span>
                 </button>
               </div>

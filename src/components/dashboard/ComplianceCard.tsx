@@ -4,6 +4,7 @@
 // ComplianceModal on click. Owns no state; the parent passes data + handler.
 
 import { Briefcase, Target, TrendingUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ComplianceCardProps {
   percentage: number;
@@ -12,6 +13,7 @@ interface ComplianceCardProps {
 }
 
 export function ComplianceCard({ percentage, label, onClick }: ComplianceCardProps) {
+  const { t } = useTranslation();
   return (
     <section
       onClick={onClick}
@@ -32,12 +34,12 @@ export function ComplianceCard({ percentage, label, onClick }: ComplianceCardPro
             <span className="text-[7px] font-black text-zinc-900 dark:text-white relative z-10">{percentage}%</span>
           </div>
           <div className="flex flex-col">
-            <h2 className="text-[9px] font-black text-zinc-900 dark:text-white uppercase leading-tight">Cumplimiento</h2>
+            <h2 className="text-[9px] font-black text-zinc-900 dark:text-white uppercase leading-tight">{t('compliance_card.title', 'Cumplimiento')}</h2>
             <p className="text-[7px] text-zinc-500 dark:text-zinc-400 truncate max-w-[100px]">{label}</p>
           </div>
         </div>
         <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded text-[7px] font-bold uppercase tracking-widest">
-          Optimizar
+          {t('compliance_card.optimize', 'Optimizar')}
         </div>
       </div>
 
@@ -45,7 +47,7 @@ export function ComplianceCard({ percentage, label, onClick }: ComplianceCardPro
       <div className="hidden sm:flex flex-col justify-between h-full relative z-10 w-full">
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">Cumplimiento</h2>
+            <h2 className="text-sm font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">{t('compliance_card.title', 'Cumplimiento')}</h2>
             <p className="text-xs text-zinc-600 dark:text-zinc-400 flex items-center gap-1 truncate max-w-[150px]">
               <Briefcase className="w-3 h-3" /> {label}
             </p>
@@ -64,18 +66,22 @@ export function ComplianceCard({ percentage, label, onClick }: ComplianceCardPro
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-zinc-900 dark:text-white leading-tight truncate">
-              {percentage >= 90 ? 'Nivel Óptimo' : percentage >= 70 ? 'Nivel Aceptable' : 'Requiere Atención'}
+              {percentage >= 90
+                ? t('compliance_card.level_optimal', 'Nivel Óptimo')
+                : percentage >= 70
+                  ? t('compliance_card.level_acceptable', 'Nivel Aceptable')
+                  : t('compliance_card.level_needs_attention', 'Requiere Atención')}
             </p>
             <div className="flex items-center gap-1 mt-1">
               <div className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400 truncate">
-                Falta {100 - percentage}%
+                {t('compliance_card.remaining', 'Falta {{remaining}}%', { remaining: 100 - percentage })}
               </div>
             </div>
           </div>
         </div>
 
         <div className="mt-2 flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest shadow-sm w-fit">
-          <TrendingUp className="w-3 h-3" /> Optimizar
+          <TrendingUp className="w-3 h-3" /> {t('compliance_card.optimize', 'Optimizar')}
         </div>
       </div>
     </section>

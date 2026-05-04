@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, AlertTriangle, Wind, ThermometerSun, Zap, ArrowRight, X } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
@@ -9,6 +10,7 @@ import { cacheAIResponse, getCachedAIResponse } from '../../utils/pwa-offline';
 import { logger } from '../../utils/logger';
 
 export function PredictiveAlertWidget() {
+  const { t } = useTranslation();
   const { nodes } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
   const [insights, setInsights] = useState<any>(null);
@@ -111,14 +113,15 @@ export function PredictiveAlertWidget() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2 sm:gap-4 mb-1">
                 <h3 className={`text-[10px] sm:text-sm font-black ${styles.title} uppercase tracking-widest flex items-center gap-1 sm:gap-2`}>
-                  $$ALERTA PREDICTIVA$$
+                  {t('predictive_alert.title', 'Alerta Predictiva')}
                   <span className={`px-1.5 sm:px-2 py-0.5 rounded-full ${styles.badge} text-[7px] sm:text-[9px] tracking-widest`}>
                     {insights.nivelRiesgo}
                   </span>
                 </h3>
-                <button 
+                <button
                   onClick={() => setDismissed(true)}
                   className="text-zinc-500 hover:text-zinc-900 dark:hover:text-white transition-colors p-0.5 sm:p-1"
+                  aria-label={t('predictive_alert.dismiss_aria', 'Descartar alerta')}
                 >
                   <X className="w-3 h-3 sm:w-4 sm:h-4" />
                 </button>
@@ -131,14 +134,14 @@ export function PredictiveAlertWidget() {
               <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-2">
                 <div className={`flex-1 ${styles.box1} border rounded-lg p-2 sm:p-3`}>
                   <p className={`text-[8px] sm:text-[10px] font-bold ${styles.box1Title} uppercase tracking-widest mb-0.5 sm:mb-1 flex items-center gap-1`}>
-                    <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Riesgo Inminente
+                    <AlertTriangle className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t('predictive_alert.imminent_risk', 'Riesgo Inminente')}
                   </p>
-                  <p className={`text-[9px] sm:text-xs ${styles.box1Text}`}>Probabilidad: <strong className="text-zinc-900 dark:text-white">{topPrediction.probabilidad}%</strong></p>
+                  <p className={`text-[9px] sm:text-xs ${styles.box1Text}`}>{t('predictive_alert.probability_label', 'Probabilidad:')} <strong className="text-zinc-900 dark:text-white">{topPrediction.probabilidad}%</strong></p>
                 </div>
-                
+
                 <div className="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 sm:p-3">
                   <p className="text-[8px] sm:text-[10px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-widest mb-0.5 sm:mb-1 flex items-center gap-1">
-                    <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Acción Automatizada
+                    <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {t('predictive_alert.automated_action', 'Acción Automatizada')}
                   </p>
                   <p className="text-[9px] sm:text-xs text-emerald-800 dark:text-emerald-100/80 leading-snug">{topPrediction.mitigacionSugerida}</p>
                 </div>

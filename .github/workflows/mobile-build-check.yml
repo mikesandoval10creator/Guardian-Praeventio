@@ -1,0 +1,73 @@
+name: Mobile build check (Android only — iOS requires macOS runner)
+
+# Sprint 20 Brecha A — Capacitor mobile preparation.
+# This workflow is a STUB. It does NOT run a real Android Gradle build because
+# the android/ folder is intentionally not committed yet (see ADR-0006). What
+# it DOES validate on every PR that touches mobile-relevant files:
+#   1. The web bundle still builds (npm ci + npm run build).
+#   2. capacitor.config.ts is parseable by the Capacitor CLI.
+#
+# It is deliberately wired to `pull_request` (paths-filtered) + `workflow_dispatch`,
+# NOT to push events on main, and is NOT marked as a required check in branch
+# protection. Sprint 21+ will replace this with a real Gradle + Fastlane job
+# once the signing keystore + Play console are wired.
+
+on:
+  pull_request:
+    paths:
+      - 'capacitor.config.ts'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/mobile-build-check.yml'
+  workflow_dispatch:
+
+jobs:
+  android-build-check:
+    name: Web bundle + Capacitor config sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      # `cap sync` requires android/ to exist on disk; this workflow validates
+      # ONLY that the web build succeeds and the Capacitor CLI can parse the
+      # config. Full Android build (Gradle + signed bundle) deferred to
+      # Sprint 21+ once signing secrets + Fastlane are wired.
+      - name: Capacitor config sanity
+        run: npx cap config --list
+
+      # Sprint 21+: agregar android-build job real con Gradle + signing.
+      # Sketch:
+      #   - run: npx cap add android  (once android/ is committed, drop this)
+      #   - run: npx cap sync android
+      #   - working-directory: android
+      #     run: ./gradlew assembleRelease
+      #     env:
+      #       SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+      #       SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      #       SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      #       SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      #   - uses: r0adkll/upload-google-play@v1
+      #     with:
+      #       serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      #       packageName: com.praeventio.guard
+      #       releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+      #       track: internal

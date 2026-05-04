@@ -342,5 +342,61 @@
   },
   "currency": {
     "selector_aria": "Selector de moneda"
+  },
+  "emergency_alert": {
+    "title": "Alerta Sísmica Detectada",
+    "magnitude_prefix": "Mag",
+    "view_details": "Ver Detalles",
+    "dismiss_aria": "Descartar alerta"
+  },
+  "pending_invites": {
+    "single_prefix": "Tienes una invitación pendiente a ",
+    "multiple_prefix": "Tienes ",
+    "multiple_suffix": " invitaciones de equipo pendientes",
+    "cta_view": "Ver",
+    "dismiss_aria": "Descartar"
+  },
+  "reload_prompt": {
+    "offline_title": "App lista para trabajar offline",
+    "update_title": "Nueva actualización disponible",
+    "offline_description": "La aplicación ha sido descargada y puede usarse sin conexión a internet.",
+    "update_description": "Hay una nueva versión de Praeventio Guard. Actualiza para obtener las últimas mejoras.",
+    "close_aria": "Cerrar aviso",
+    "update_now": "Actualizar ahora",
+    "close": "Cerrar"
+  },
+  "project_selector": {
+    "active_project": "Proyecto Activo",
+    "select_project": "Seleccionar Proyecto",
+    "requires_internet_title": "Requiere conexión a internet",
+    "requires_connection": "Requiere Conexión",
+    "new_project": "Nuevo Proyecto"
+  },
+  "weather": {
+    "title": "Boletín climático",
+    "default_city": "Santiago",
+    "temp": "Temp",
+    "condition": "Condición",
+    "wind": "Viento",
+    "humidity": "Humedad",
+    "alert_wind": "Alerta Viento",
+    "alert_heat": "Estrés Térmico",
+    "alert_rain": "Lluvia",
+    "alert_optimal": "Óptimo"
+  },
+  "compliance_card": {
+    "title": "Cumplimiento",
+    "optimize": "Optimizar",
+    "level_optimal": "Nivel Óptimo",
+    "level_acceptable": "Nivel Aceptable",
+    "level_needs_attention": "Requiere Atención",
+    "remaining": "Falta {{remaining}}%"
+  },
+  "predictive_alert": {
+    "title": "Alerta Predictiva",
+    "dismiss_aria": "Descartar alerta",
+    "imminent_risk": "Riesgo Inminente",
+    "probability_label": "Probabilidad:",
+    "automated_action": "Acción Automatizada"
   }
 }

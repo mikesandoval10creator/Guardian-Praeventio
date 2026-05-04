@@ -1,0 +1,105 @@
+# Current State: Guardian Praeventio tracking inventory
+# Scanned: 2026-05-04
+# Branch: dev/sprint-20-seventh-wave-multi-agent-2026-05-04
+# Repo: guardian-praeventio
+# SDK (product analytics): none — greenfield for product telemetry
+# SDK (error tracking only): @sentry/node, @sentry/react
+
+audit:
+  scanned_at: '2026-05-04'
+  scanner: product-tracking-skills:product-tracking-audit-current-tracking
+  scope: src/**/*.{ts,tsx,js,jsx} + package.json
+  product_analytics_detected: false
+  notes: >-
+    No product analytics SDK is installed (Segment, Amplitude, Mixpanel,
+    PostHog, Accoil, Firebase Analytics, GA, Vercel Analytics, Heap, Plausible,
+    Pendo, Hotjar, June, Rudderstack — all absent from package.json).
+    Only Sentry (@sentry/node, @sentry/react) is wired, and it is used
+    for error tracking + tracing + replay, not product event tracking.
+    Treat this audit as a greenfield baseline.
+
+state:
+  sdks_installed:
+    - name: '@sentry/node'
+      version: ^10.51.0
+      purpose: server-side error tracking + tracing
+      adapter: src/services/observability/sentryAdapter.ts
+      pii_redaction: beforeSend strips authorization/cookie headers + redacts sensitive query params (token_ws, code, token, session, state)
+      sample_rate_traces: 0.1
+    - name: '@sentry/react'
+      version: ^10.51.0
+      purpose: browser error tracking + tracing + session replay
+      adapter: src/lib/sentry.ts
+      pii_redaction: beforeSend deletes user.email/username/ip_address, redacts Cookie/Authorization headers, scrubs lat/lng from breadcrumbs
+      sample_rate_traces: 0.1
+      sample_rate_replay_session: 0.05
+      sample_rate_replay_on_error: 1.0
+      replay_options:
+        maskAllText: true
+        blockAllMedia: true
+
+  product_events:
+    count: 0
+    list: []  # No analytics.track / capture / logEvent / trackEvent / mixpanel.track / amplitude.track / posthog.capture calls anywhere in src/**
+
+  identity_management:
+    primary_provider: Firebase Auth
+    auth_files:
+      - path: src/services/firebase.ts
+        notes: getAuth(app) + GoogleAuthProvider + signInWithPopup + signOut + onAuthStateChanged
+      - path: src/contexts/FirebaseContext.tsx
+        notes: subscribes to onAuthStateChanged, holds currentUser in React context
+      - path: src/hooks/useSessionExpiry.ts
+        notes: secondary onAuthStateChanged subscriber for session-expiry policing
+    sentry_user_context:
+      bridge_method: ErrorTrackingAdapter.setUserContext(userId, additionalProps)
+      sentry_setUser_call_shape: '{ id: userId, ...additionalProps }'
+      defined_in:
+        - src/services/observability/sentryAdapter.ts (real)
+        - src/services/observability/noopErrorTrackingAdapter.ts (noop fallback with ALS-scoped uid)
+        - src/services/observability/cloudErrorReportingAdapter.ts (no-op stub)
+      production_call_sites_in_src: 0  # only invoked from .test.ts files; no runtime auth code calls setUserContext
+      observation: bridge from Firebase Auth uid → Sentry setUser exists in the adapter interface but is not invoked from the React auth context or the server middleware. Sentry receives uid only when a captureException/Message call passes context.userId.
+    page_or_screen_calls: 0
+    group_or_groupCall: 0
+    reset_on_logout: 0  # no Sentry.setUser(null) / equivalent on signOut found
+
+  internal_logging_only:  # NOT analytics — internal observability logs that could become event sources later
+    billing_adapters:
+      - src/services/billing/webpayAdapter.ts
+      - src/services/billing/mercadoPagoAdapter.ts
+      - src/services/billing/mercadoPagoIpn.ts
+      - src/services/billingService.ts
+      - src/services/billing/idempotency.ts
+      - src/services/billing/webpayMetrics.ts
+    sii_adapter:
+      - src/services/sii/siiAdapter.ts
+    health_adapters:
+      - src/services/health/googleFitAdapter.ts
+    method: logger.* + getMetrics() (Praeventio Guard internal observability facade), not analytics SDK
+    note: >-
+      These adapters log structured internal events (latency, success/fail,
+      idempotency hits) via the local logger + metrics adapter pair. None of
+      this flows to a product analytics destination today.
+
+  patterns:
+    naming_style: n/a  # no event names exist yet
+    centralized_wrapper: n/a  # no analytics wrapper exists; only an ErrorTrackingAdapter facade for Sentry
+    observability_facade_present: true
+    observability_facade_path: src/services/observability/index.ts
+    observability_facade_exports: [getErrorTracker, getMetrics]
+    observability_pattern: >-
+      Adapter pattern with env-based selection (ERROR_TRACKER=sentry|noop)
+      and silent degradation when DSN is missing. Worth preserving as the
+      shape for any future product-analytics adapter.
+
+  hygiene_observations:
+    - PII redaction is implemented at two distinct sites (src/lib/sentry.ts beforeSend for browser, src/services/observability/sentryAdapter.ts beforeSend for server) with different redaction logic; both strip auth headers, only the server one redacts query params, only the browser one scrubs GPS lat/lng from breadcrumbs.
+    - Sentry user-context bridge exists (setUserContext method) but no production code path calls it — only test files exercise it.
+    - No reset/logout handler clears Sentry user context after Firebase signOut.
+    - No page() / screen() / route-change events.
+    - No group() calls; the product has multi-tenant entities (project, cuadrilla) but tenant context is not attached to telemetry today.
+
+orphaned_events: []  # not applicable: no event definitions exist
+
+recommendations_for_design_phase: []  # by design: this audit is non-prescriptive

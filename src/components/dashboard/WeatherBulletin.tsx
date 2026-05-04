@@ -6,6 +6,7 @@
 import {
   Map, Sun, Moon, Wind, Droplets, AlertTriangle, CheckCircle2, RefreshCw,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Skeleton } from '../shared/Skeleton';
 
 export interface WeatherSnapshot {
@@ -23,15 +24,16 @@ interface WeatherBulletinProps {
 }
 
 export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
+  const { t } = useTranslation();
   return (
     <section className="bg-[#bbf7d0] dark:bg-emerald-900/20 rounded-xl sm:rounded-2xl p-1.5 sm:p-5 shadow-sm relative overflow-hidden border border-emerald-500/10">
       <div className="flex flex-col sm:flex-row justify-between gap-1.5 sm:gap-5 relative z-10">
         <div className="flex-1">
           <div className="flex justify-between items-start mb-1.5 sm:mb-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-[10px] sm:text-base font-black text-zinc-900 dark:text-emerald-50 tracking-tight leading-none uppercase">Boletín climático</h2>
+              <h2 className="text-[10px] sm:text-base font-black text-zinc-900 dark:text-emerald-50 tracking-tight leading-none uppercase">{t('weather.title', 'Boletín climático')}</h2>
               <p className="text-[8px] sm:text-xs text-zinc-600 dark:text-emerald-200/70 flex items-center gap-1">
-                <Map className="w-2.5 h-2.5 sm:w-4 sm:h-4" /> Santiago
+                <Map className="w-2.5 h-2.5 sm:w-4 sm:h-4" /> {t('weather.default_city', 'Santiago')}
               </p>
             </div>
             <RefreshCw
@@ -54,46 +56,46 @@ export function WeatherBulletin({ weather, loading }: WeatherBulletinProps) {
             ) : weather ? (
               <div className="grid grid-cols-4 gap-1 sm:gap-3 flex-1 w-full">
                 <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
-                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Temp</span>
+                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('weather.temp', 'Temp')}</span>
                   <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none mt-0.5 sm:mt-1">{Math.round(weather.temp ?? 0)}°C</span>
                 </div>
                 <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
-                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Condición</span>
+                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('weather.condition', 'Condición')}</span>
                   <span className="text-[9px] sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none truncate mt-0.5 sm:mt-1 max-w-full" title={weather.condition}>{weather.condition}</span>
                 </div>
                 <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
-                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Viento</span>
+                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('weather.wind', 'Viento')}</span>
                   <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none mt-0.5 sm:mt-1">{Math.round(weather.windSpeed || 0)} <span className="text-[6px] sm:text-xs">km/h</span></span>
                 </div>
                 <div className="flex flex-col bg-white/40 dark:bg-black/20 p-1 sm:p-3 rounded-lg sm:rounded-xl items-center sm:items-start text-center sm:text-left">
-                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">Humedad</span>
+                  <span className="text-[7px] sm:text-xs font-bold text-zinc-500 uppercase tracking-wider">{t('weather.humidity', 'Humedad')}</span>
                   <span className="text-xs sm:text-lg font-black text-zinc-900 dark:text-emerald-50 leading-none mt-0.5 sm:mt-1">{weather.humidity}%</span>
                 </div>
               </div>
             ) : (
-              <p className="text-[10px] sm:text-sm text-zinc-500">Cargando...</p>
+              <p className="text-[10px] sm:text-sm text-zinc-500">{t('common.loading', 'Cargando...')}</p>
             )}
           </div>
 
           <div className="flex flex-wrap gap-1 mt-1.5 sm:mt-4">
             {weather?.windSpeed && weather.windSpeed > 40 && (
               <span className="flex items-center gap-1 bg-rose-100 dark:bg-rose-500 text-rose-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
-                <Wind className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Alerta Viento
+                <Wind className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> {t('weather.alert_wind', 'Alerta Viento')}
               </span>
             )}
             {weather?.temp && weather.temp > 30 && (
               <span className="flex items-center gap-1 bg-rose-100 dark:bg-rose-500 text-rose-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
-                <AlertTriangle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Estrés Térmico
+                <AlertTriangle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> {t('weather.alert_heat', 'Estrés Térmico')}
               </span>
             )}
             {String(weather?.condition || '').toLowerCase().includes('lluvia') && (
               <span className="flex items-center gap-1 bg-blue-100 dark:bg-blue-500 text-blue-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
-                <Droplets className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Lluvia
+                <Droplets className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> {t('weather.alert_rain', 'Lluvia')}
               </span>
             )}
             {weather?.temp && weather.temp <= 30 && (!weather.windSpeed || weather.windSpeed <= 40) && (!String(weather?.condition || '').toLowerCase().includes('lluvia')) && (
               <span className="flex items-center gap-1 bg-emerald-100 dark:bg-emerald-500 text-emerald-600 dark:text-white px-1.5 sm:px-2.5 py-0.5 sm:py-1.5 rounded text-[8px] sm:text-xs font-bold uppercase tracking-widest shadow-sm">
-                <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> Óptimo
+                <CheckCircle2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" /> {t('weather.alert_optimal', 'Óptimo')}
               </span>
             )}
           </div>
