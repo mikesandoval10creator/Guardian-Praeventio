@@ -1,0 +1,487 @@
+{
+  "_meta": {
+    "name": "Catálogo farmacológico — subset SST Chile",
+    "version": "1.0.0",
+    "license": "CC0 (códigos ATC son de dominio público — WHO Collaborating Centre)",
+    "source": "WHO ATC/DDD Index 2024 + DrugBank Open Data v5.1 (CC0 subset) + Vademécum ISP Chile (referencia clínica). Interacciones farmacológicas: BNF + Stockley's (referencia bibliográfica).",
+    "scope": "~70 fármacos relevantes a salud ocupacional: broncodilatadores, analgésicos, antialérgicos, ATB primera línea, antihipertensivos, antidepresivos, antiparkinsonianos.",
+    "disclaimer": "Información orientativa. Verificar siempre con Vademécum oficial (ISP Chile) antes de prescribir. Las interacciones aquí listadas son las clínicamente más relevantes — no son exhaustivas.",
+    "lastUpdated": "2026-05-04"
+  },
+  "data": [
+    {
+      "name": "Salbutamol",
+      "atc": "R03AC02",
+      "category": "broncodilatador",
+      "occupationalRelevance": "Tratamiento de asma ocupacional aguda. Riesgo de tolerancia con uso prolongado.",
+      "interactions": ["betabloqueadores no selectivos (propranolol)", "diuréticos tiazídicos (hipokalemia)", "IMAO"]
+    },
+    {
+      "name": "Bromuro de ipratropio",
+      "atc": "R03BB01",
+      "category": "broncodilatador",
+      "occupationalRelevance": "EPOC ocupacional. Anticolinérgico inhalado.",
+      "interactions": ["otros anticolinérgicos sistémicos"]
+    },
+    {
+      "name": "Budesonida",
+      "atc": "R03BA02",
+      "category": "corticoide inhalado",
+      "occupationalRelevance": "Asma persistente. Mantenimiento.",
+      "interactions": ["ketoconazol", "ritonavir", "claritromicina"]
+    },
+    {
+      "name": "Prednisona",
+      "atc": "H02AB07",
+      "category": "corticoide sistémico",
+      "occupationalRelevance": "Reagudizaciones asma severa. Dermatitis severa. Cuidado uso prolongado.",
+      "interactions": ["AINEs (úlcera)", "warfarina", "vacunas vivas", "diuréticos (hipokalemia)"]
+    },
+    {
+      "name": "Loratadina",
+      "atc": "R06AX13",
+      "category": "antihistamínico",
+      "occupationalRelevance": "Rinitis alérgica ocupacional. No sedante (apto para conducir).",
+      "interactions": ["ketoconazol", "eritromicina (aumenta niveles)"]
+    },
+    {
+      "name": "Cetirizina",
+      "atc": "R06AE07",
+      "category": "antihistamínico",
+      "occupationalRelevance": "Rinitis y urticaria ocupacional. Sedación leve.",
+      "interactions": ["alcohol", "depresores SNC"]
+    },
+    {
+      "name": "Clorfenamina",
+      "atc": "R06AB04",
+      "category": "antihistamínico",
+      "occupationalRelevance": "Reacciones agudas. SEDA — no para conductores.",
+      "interactions": ["alcohol", "benzodiazepinas", "opioides", "IMAO"]
+    },
+    {
+      "name": "Paracetamol",
+      "atc": "N02BE01",
+      "category": "analgésico",
+      "occupationalRelevance": "Dolor leve-moderado. Primera línea en lumbalgia inespecífica.",
+      "interactions": ["warfarina (uso prolongado)", "alcohol (hepatotoxicidad)", "isoniacida"]
+    },
+    {
+      "name": "Ibuprofeno",
+      "atc": "M01AE01",
+      "category": "AINE",
+      "occupationalRelevance": "TMERT. Tendinopatías. Lumbago. Riesgo gástrico y renal.",
+      "interactions": ["warfarina", "ASS", "IECA", "litio", "metotrexato", "diuréticos"]
+    },
+    {
+      "name": "Naproxeno",
+      "atc": "M01AE02",
+      "category": "AINE",
+      "occupationalRelevance": "Dolor musculoesquelético. Vida media larga.",
+      "interactions": ["warfarina", "litio", "diuréticos", "IECA", "alcohol"]
+    },
+    {
+      "name": "Diclofenaco",
+      "atc": "M01AB05",
+      "category": "AINE",
+      "occupationalRelevance": "Tendinopatías. TMERT. Riesgo CV elevado uso prolongado.",
+      "interactions": ["warfarina", "litio", "metotrexato", "ciclosporina"]
+    },
+    {
+      "name": "Ketorolaco",
+      "atc": "M01AB15",
+      "category": "AINE potente",
+      "occupationalRelevance": "Dolor agudo postraumático. Máximo 5 días.",
+      "interactions": ["warfarina", "ASS", "IECA", "litio", "probenecid"]
+    },
+    {
+      "name": "Tramadol",
+      "atc": "N02AX02",
+      "category": "opioide débil",
+      "occupationalRelevance": "Dolor moderado-severo refractario. Restricción para conductores.",
+      "interactions": ["IMAO", "ISRS (sd serotoninérgico)", "alcohol", "carbamazepina"]
+    },
+    {
+      "name": "Codeína",
+      "atc": "R05DA04",
+      "category": "opioide débil",
+      "occupationalRelevance": "Antitusivo. Sedante — restricción conducción.",
+      "interactions": ["IMAO", "alcohol", "depresores SNC"]
+    },
+    {
+      "name": "Morfina",
+      "atc": "N02AA01",
+      "category": "opioide fuerte",
+      "occupationalRelevance": "Dolor severo agudo (politraumatismo). Sólo intrahospitalario.",
+      "interactions": ["IMAO", "alcohol", "benzodiazepinas (depresión respiratoria)"]
+    },
+    {
+      "name": "Omeprazol",
+      "atc": "A02BC01",
+      "category": "IBP",
+      "occupationalRelevance": "Gastroprotección con AINEs. ERGE.",
+      "interactions": ["clopidogrel", "warfarina", "metotrexato", "atazanavir"]
+    },
+    {
+      "name": "Pantoprazol",
+      "atc": "A02BC02",
+      "category": "IBP",
+      "occupationalRelevance": "Alternativa a omeprazol con menos interacciones.",
+      "interactions": ["metotrexato", "atazanavir"]
+    },
+    {
+      "name": "Ranitidina",
+      "atc": "A02BA02",
+      "category": "anti-H2",
+      "occupationalRelevance": "Retirada en muchos países por NDMA. Verificar en Chile.",
+      "interactions": ["warfarina (mínima)"]
+    },
+    {
+      "name": "Amoxicilina",
+      "atc": "J01CA04",
+      "category": "antibiótico",
+      "occupationalRelevance": "Infecciones respiratorias bacterianas. ITU no complicadas.",
+      "interactions": ["anticonceptivos orales", "warfarina", "alopurinol (rash)"]
+    },
+    {
+      "name": "Amoxicilina/clavulánico",
+      "atc": "J01CR02",
+      "category": "antibiótico",
+      "occupationalRelevance": "Infecciones respiratorias resistentes. Heridas contaminadas.",
+      "interactions": ["anticonceptivos orales", "warfarina", "alopurinol"]
+    },
+    {
+      "name": "Azitromicina",
+      "atc": "J01FA10",
+      "category": "macrólido",
+      "occupationalRelevance": "Neumonía atípica. Bronquitis. QT prolongado.",
+      "interactions": ["warfarina", "digoxina", "fármacos QT-prolongadores", "estatinas"]
+    },
+    {
+      "name": "Ciprofloxacino",
+      "atc": "J01MA02",
+      "category": "fluoroquinolona",
+      "occupationalRelevance": "ITU complicadas. Osteomielitis. Riesgo tendinopatía aquílea.",
+      "interactions": ["warfarina", "teofilina", "antiácidos", "tizanidina"]
+    },
+    {
+      "name": "Cefadroxilo",
+      "atc": "J01DB05",
+      "category": "cefalosporina",
+      "occupationalRelevance": "Infecciones piel-tejidos blandos. Heridas.",
+      "interactions": ["probenecid", "anticoagulantes orales"]
+    },
+    {
+      "name": "Doxiciclina",
+      "atc": "J01AA02",
+      "category": "tetraciclina",
+      "occupationalRelevance": "Brucelosis ocupacional. Leptospirosis. Foto-sensibilidad.",
+      "interactions": ["antiácidos (Ca/Mg/Al)", "warfarina", "anticonceptivos", "isotretinoína"]
+    },
+    {
+      "name": "Enalapril",
+      "atc": "C09AA02",
+      "category": "IECA",
+      "occupationalRelevance": "HTA. Tos seca como efecto adverso (afecta operadores radio).",
+      "interactions": ["AINEs", "diuréticos ahorradores K", "litio", "alopurinol"]
+    },
+    {
+      "name": "Losartán",
+      "atc": "C09CA01",
+      "category": "ARA II",
+      "occupationalRelevance": "HTA. Mejor tolerancia que IECA. Sin tos.",
+      "interactions": ["AINEs", "diuréticos ahorradores K", "litio"]
+    },
+    {
+      "name": "Atenolol",
+      "atc": "C07AB03",
+      "category": "betabloqueador",
+      "occupationalRelevance": "HTA, angina. Contraindicado en asma ocupacional.",
+      "interactions": ["salbutamol (antagonismo)", "verapamilo", "insulina (enmascara hipoglicemia)", "AINEs"]
+    },
+    {
+      "name": "Carvedilol",
+      "atc": "C07AG02",
+      "category": "betabloqueador α/β",
+      "occupationalRelevance": "Insuficiencia cardiaca. Riesgo broncoespasmo.",
+      "interactions": ["salbutamol", "diltiazem", "ciclosporina", "rifampicina"]
+    },
+    {
+      "name": "Amlodipino",
+      "atc": "C08CA01",
+      "category": "calcioantagonista",
+      "occupationalRelevance": "HTA. Pocos efectos sobre el rendimiento físico.",
+      "interactions": ["simvastatina (max 20mg)", "claritromicina", "ciclosporina"]
+    },
+    {
+      "name": "Hidroclorotiazida",
+      "atc": "C03AA03",
+      "category": "diurético",
+      "occupationalRelevance": "HTA. Hipokalemia (riesgo en altas temperaturas).",
+      "interactions": ["digoxina", "litio", "AINEs", "corticoides (hipokalemia aditiva)"]
+    },
+    {
+      "name": "Furosemida",
+      "atc": "C03CA01",
+      "category": "diurético de asa",
+      "occupationalRelevance": "Edema. Insuficiencia cardiaca.",
+      "interactions": ["aminoglucósidos (ototoxicidad — relevante en PREXOR)", "AINEs", "litio"]
+    },
+    {
+      "name": "Aspirina",
+      "atc": "B01AC06",
+      "category": "antiagregante",
+      "occupationalRelevance": "Prevención CV secundaria. Riesgo gástrico + hemorrágico.",
+      "interactions": ["warfarina", "AINEs", "metotrexato", "alcohol"]
+    },
+    {
+      "name": "Clopidogrel",
+      "atc": "B01AC04",
+      "category": "antiagregante",
+      "occupationalRelevance": "Post-IAM, post-stent. Riesgo hemorrágico ante traumatismos.",
+      "interactions": ["omeprazol (reduce eficacia)", "warfarina", "AINEs"]
+    },
+    {
+      "name": "Warfarina",
+      "atc": "B01AA03",
+      "category": "anticoagulante",
+      "occupationalRelevance": "TVP/TEP, FA. Riesgo hemorrágico — restricción trabajo riesgo trauma.",
+      "interactions": ["AINEs", "amiodarona", "metronidazol", "antibióticos macrólidos", "alimentos vit K"]
+    },
+    {
+      "name": "Metformina",
+      "atc": "A10BA02",
+      "category": "antidiabético",
+      "occupationalRelevance": "DM2. Sin riesgo de hipoglicemia (apto operadores).",
+      "interactions": ["alcohol (acidosis láctica)", "contrastes yodados", "diuréticos"]
+    },
+    {
+      "name": "Insulina NPH",
+      "atc": "A10AC01",
+      "category": "antidiabético",
+      "occupationalRelevance": "DM. Riesgo de hipoglicemia — restricción operadores maquinaria pesada.",
+      "interactions": ["betabloqueadores (enmascaran hipo)", "alcohol", "corticoides"]
+    },
+    {
+      "name": "Levotiroxina",
+      "atc": "H03AA01",
+      "category": "hormona tiroidea",
+      "occupationalRelevance": "Hipotiroidismo.",
+      "interactions": ["calcio", "hierro", "warfarina", "antiácidos"]
+    },
+    {
+      "name": "Sertralina",
+      "atc": "N06AB06",
+      "category": "ISRS",
+      "occupationalRelevance": "Depresión laboral. EVAST. Bajo perfil sedación.",
+      "interactions": ["IMAO", "tramadol (sd serotoninérgico)", "warfarina", "AINEs"]
+    },
+    {
+      "name": "Fluoxetina",
+      "atc": "N06AB03",
+      "category": "ISRS",
+      "occupationalRelevance": "Depresión. Vida media larga.",
+      "interactions": ["IMAO", "tramadol", "warfarina", "metoprolol"]
+    },
+    {
+      "name": "Escitalopram",
+      "atc": "N06AB10",
+      "category": "ISRS",
+      "occupationalRelevance": "Depresión, TAG. QT prolongado dependiente de dosis.",
+      "interactions": ["IMAO", "fármacos QT-prolongadores", "tramadol"]
+    },
+    {
+      "name": "Diazepam",
+      "atc": "N05BA01",
+      "category": "benzodiazepina",
+      "occupationalRelevance": "Ansiedad aguda. Restricción operadores. Sedación marcada.",
+      "interactions": ["alcohol", "opioides", "antidepresivos sedantes", "ketoconazol"]
+    },
+    {
+      "name": "Alprazolam",
+      "atc": "N05BA12",
+      "category": "benzodiazepina",
+      "occupationalRelevance": "Ansiedad. Restricción conductores y maquinaria pesada.",
+      "interactions": ["alcohol", "opioides", "ketoconazol", "fluconazol"]
+    },
+    {
+      "name": "Clonazepam",
+      "atc": "N03AE01",
+      "category": "benzodiazepina",
+      "occupationalRelevance": "Ansiedad, epilepsia. Sedación.",
+      "interactions": ["alcohol", "opioides", "valproato", "fenitoína"]
+    },
+    {
+      "name": "Atorvastatina",
+      "atc": "C10AA05",
+      "category": "estatina",
+      "occupationalRelevance": "Dislipidemia. Riesgo miopatía (interfiere con dolor TMERT).",
+      "interactions": ["claritromicina", "ciclosporina", "amiodarona", "fibratos", "jugo pomelo"]
+    },
+    {
+      "name": "Simvastatina",
+      "atc": "C10AA01",
+      "category": "estatina",
+      "occupationalRelevance": "Dislipidemia. Mayor riesgo miopatía vs atorvastatina.",
+      "interactions": ["amlodipino (max 20mg)", "amiodarona", "verapamilo", "claritromicina"]
+    },
+    {
+      "name": "Levofloxacino",
+      "atc": "J01MA12",
+      "category": "fluoroquinolona",
+      "occupationalRelevance": "Neumonía. ITU. Riesgo tendinopatía aquílea (TMERT).",
+      "interactions": ["antiácidos", "warfarina", "fármacos QT-prolongadores"]
+    },
+    {
+      "name": "Metronidazol",
+      "atc": "J01XD01",
+      "category": "antibiótico",
+      "occupationalRelevance": "Anaerobios. Heridas con tierra. Reacción disulfiram con alcohol.",
+      "interactions": ["alcohol (efecto antabús)", "warfarina", "litio", "fenitoína"]
+    },
+    {
+      "name": "Aciclovir",
+      "atc": "J05AB01",
+      "category": "antiviral",
+      "occupationalRelevance": "Herpes zóster. Herpes simple. Personal de salud.",
+      "interactions": ["probenecid", "ciclosporina", "metotrexato"]
+    },
+    {
+      "name": "Lidocaína",
+      "atc": "N01BB02",
+      "category": "anestésico local",
+      "occupationalRelevance": "Sutura heridas. Bloqueo local.",
+      "interactions": ["betabloqueadores", "cimetidina", "amiodarona"]
+    },
+    {
+      "name": "Tétanos toxoide (vacuna)",
+      "atc": "J07AM01",
+      "category": "vacuna",
+      "occupationalRelevance": "Profilaxis post-herida. Calendario laboral construcción/agricultura.",
+      "interactions": ["inmunosupresores"]
+    },
+    {
+      "name": "Hepatitis B (vacuna)",
+      "atc": "J07BC01",
+      "category": "vacuna",
+      "occupationalRelevance": "Obligatoria personal salud (DS 594 Art. 68).",
+      "interactions": ["inmunosupresores"]
+    },
+    {
+      "name": "Carbón activado",
+      "atc": "A07BA01",
+      "category": "antídoto",
+      "occupationalRelevance": "Intoxicaciones agudas — primeras 1-2 horas.",
+      "interactions": ["interfiere con casi todos los medicamentos VO"]
+    },
+    {
+      "name": "Atropina",
+      "atc": "A03BA01",
+      "category": "antídoto",
+      "occupationalRelevance": "Intoxicación organofosforados (RAPLA Chile).",
+      "interactions": ["anticolinérgicos", "antihistamínicos sedantes"]
+    },
+    {
+      "name": "Pralidoxima",
+      "atc": "V03AB04",
+      "category": "antídoto",
+      "occupationalRelevance": "Intoxicación organofosforados — reactivador colinesterasa.",
+      "interactions": ["bloqueadores neuromusculares"]
+    },
+    {
+      "name": "Naloxona",
+      "atc": "V03AB15",
+      "category": "antídoto",
+      "occupationalRelevance": "Sobredosis opioides. Botiquín ATEP.",
+      "interactions": ["opioides (revierte)", "buprenorfina (parcialmente)"]
+    },
+    {
+      "name": "Adrenalina (epinefrina)",
+      "atc": "C01CA24",
+      "category": "vasopresor",
+      "occupationalRelevance": "Anafilaxia ocupacional (látex, picaduras). EPP esencial.",
+      "interactions": ["betabloqueadores", "antidepresivos tricíclicos", "IMAO"]
+    },
+    {
+      "name": "Difenhidramina",
+      "atc": "R06AA02",
+      "category": "antihistamínico H1",
+      "occupationalRelevance": "Reacciones agudas. Sedación marcada — restricción conducción.",
+      "interactions": ["alcohol", "depresores SNC", "IMAO"]
+    },
+    {
+      "name": "Hidrocortisona",
+      "atc": "H02AB09",
+      "category": "corticoide",
+      "occupationalRelevance": "Anafilaxia. Reacciones alérgicas severas.",
+      "interactions": ["AINEs", "diuréticos", "warfarina", "vacunas vivas"]
+    },
+    {
+      "name": "Metilprednisolona",
+      "atc": "H02AB04",
+      "category": "corticoide",
+      "occupationalRelevance": "Reagudizaciones EPOC ocupacional. Reacciones severas.",
+      "interactions": ["AINEs", "diuréticos", "warfarina", "rifampicina"]
+    },
+    {
+      "name": "Vitamina B12 (cianocobalamina)",
+      "atc": "B03BA01",
+      "category": "vitamina",
+      "occupationalRelevance": "Neuropatías ocupacionales. Anemia.",
+      "interactions": ["IBP (reducen absorción crónica)", "metformina"]
+    },
+    {
+      "name": "Hierro (sulfato ferroso)",
+      "atc": "B03AA07",
+      "category": "mineral",
+      "occupationalRelevance": "Anemia ferropénica. Trabajadores en altura.",
+      "interactions": ["levotiroxina", "antiácidos", "doxiciclina", "café/té"]
+    },
+    {
+      "name": "Acetazolamida",
+      "atc": "S01EC01",
+      "category": "diurético",
+      "occupationalRelevance": "Profilaxis mal de altura (MAM) en trabajos minería altura.",
+      "interactions": ["aspirina (acidosis)", "litio"]
+    },
+    {
+      "name": "Dimenhidrinato",
+      "atc": "R06AA02",
+      "category": "antiemético",
+      "occupationalRelevance": "Cinetosis (transporte minero). Sedación.",
+      "interactions": ["alcohol", "depresores SNC", "anticolinérgicos"]
+    },
+    {
+      "name": "Ondansetrón",
+      "atc": "A04AA01",
+      "category": "antiemético",
+      "occupationalRelevance": "Náuseas severas. QT prolongado.",
+      "interactions": ["fármacos QT-prolongadores", "tramadol", "ISRS"]
+    },
+    {
+      "name": "Loperamida",
+      "atc": "A07DA03",
+      "category": "antidiarréico",
+      "occupationalRelevance": "Diarrea aguda. Cuidado en intoxicaciones.",
+      "interactions": ["fármacos QT-prolongadores (a dosis altas)"]
+    },
+    {
+      "name": "Sales de rehidratación oral",
+      "atc": "A07CA",
+      "category": "rehidratante",
+      "occupationalRelevance": "Trabajadores con calor extremo. Golpe de calor."
+    },
+    {
+      "name": "Suero fisiológico 0.9%",
+      "atc": "B05BB01",
+      "category": "fluido IV",
+      "occupationalRelevance": "Reposición volumen — emergencias ATEP."
+    },
+    {
+      "name": "Oxígeno medicinal",
+      "atc": "V03AN01",
+      "category": "gas medicinal",
+      "occupationalRelevance": "Emergencias respiratorias. Espacios confinados (CO).",
+      "interactions": ["bleomicina (toxicidad pulmonar)"]
+    }
+  ]
+}

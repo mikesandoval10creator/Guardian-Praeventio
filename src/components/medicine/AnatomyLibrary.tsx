@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { generateMedicalIllustration } from '../../services/geminiService';
 import { MedicalIcon } from '../medical/MedicalIcon';
+import { CatalogBrowser } from './CatalogBrowser';
+import { anatomy, anatomyMeta, type AnatomyEntry } from '../../data/medical';
 
 interface AnatomyTopic {
   id: string;
@@ -165,6 +167,67 @@ export function AnatomyLibrary() {
           {error}
         </div>
       )}
+
+      {/* Sprint 21 — Bucket R · Catálogo anatómico offline-first (mapping SST). */}
+      <div className="px-5 pt-4 pb-2">
+        <CatalogBrowser<AnatomyEntry>
+          title={t('medicine.anatomy_catalog_title', 'Atlas anatómico SST')}
+          badge="CC BY-SA"
+          items={anatomy}
+          searchKeys={['name', 'system', 'occupationalRisks', 'commonInjuries', 'description']}
+          getPrimary={(a) => a.system.slice(0, 6).toUpperCase()}
+          getLabel={(a) => a.name}
+          placeholder={t('medicine.anatomy_catalog_placeholder', 'Buscar parte del cuerpo, sistema o riesgo (ej: columna, ruido, sílice)')}
+          metaFooter={`${anatomyMeta.license} · ${anatomyMeta.source}`}
+          renderDetail={(a) => (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700/60 text-[9px] font-bold text-zinc-600 dark:text-zinc-300 uppercase">
+                  {a.system}
+                </span>
+              </div>
+              <p className="text-sm font-black text-zinc-900 dark:text-white">{a.name}</p>
+              <p className="text-[11px] text-zinc-600 dark:text-zinc-400">{a.description}</p>
+              {a.occupationalRisks.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1">
+                    {t('medicine.anatomy_catalog_risks', 'Riesgos ocupacionales')}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {a.occupationalRisks.map((r) => (
+                      <span key={r} className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold border border-amber-500/20">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {a.commonInjuries.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1">
+                    {t('medicine.anatomy_catalog_injuries', 'Lesiones frecuentes')}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {a.commonInjuries.map((it) => (
+                      <li key={it} className="text-[10px] text-zinc-700 dark:text-zinc-300">• {it}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {a.wikipediaUrl && (
+                <a
+                  href={a.wikipediaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-teal-600 dark:text-gold-400 hover:underline"
+                >
+                  {t('medicine.anatomy_catalog_wiki_link', 'Ver más en Wikipedia →')}
+                </a>
+              )}
+            </div>
+          )}
+        />
+      </div>
 
       <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {TOPICS.map(topic => {

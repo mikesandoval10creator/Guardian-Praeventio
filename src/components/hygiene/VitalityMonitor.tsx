@@ -1,7 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Battery, Droplets, ThermometerSun, Mountain, Hammer } from 'lucide-react';
+import { Battery, Droplets, ThermometerSun, Mountain, Hammer, AlertTriangle } from 'lucide-react';
 import { Card } from '../shared/Card';
+import { diagnoses } from '../../data/medical';
+
+// Sprint 21 — Bucket R · Mapeo offline-first condición ambiental → CIE-10 relevantes.
+// Pre-filtramos el catálogo por agente de riesgo conocido (sin llamadas a IA).
+// TODO Ola 5b — wire con health facade Bucket P para vitales reales.
+const RISK_AGENT_KEYWORDS: Record<string, RegExp> = {
+  heat: /calor|sol|temperatura/i,
+  altitude: /altit|altura|hipoxia/i,
+  load: /levantamiento|manual|carga|vibrac/i,
+};
+const findRelatedDiagnoses = (agent: keyof typeof RISK_AGENT_KEYWORDS) => {
+  const re = RISK_AGENT_KEYWORDS[agent];
+  return diagnoses
+    .filter((d) => d.riskAgents.some((r) => re.test(r)) || re.test(d.description))
+    .slice(0, 3);
+};
 
 export function VitalityMonitor() {
   const [temperature, setTemperature] = useState(25);
@@ -38,6 +54,15 @@ export function VitalityMonitor() {
     setVitality(Math.min(100, vitality + 30));
     setHydrationNeeded(false);
   };
+
+  // Diagnósticos potenciales según condición ambiental (catálogo CIE-10 SST).
+  const environmentalAlerts = useMemo(() => {
+    const alerts: Array<{ trigger: string; diagnoses: typeof diagnoses }> = [];
+    if (temperature > 30) alerts.push({ trigger: `Calor ${temperature}°C`, diagnoses: findRelatedDiagnoses('heat') });
+    if (altitude > 2500) alerts.push({ trigger: `Altitud ${altitude}m`, diagnoses: findRelatedDiagnoses('altitude') });
+    if (toolWeight > 10) alerts.push({ trigger: `Carga ${toolWeight}kg`, diagnoses: findRelatedDiagnoses('load') });
+    return alerts;
+  }, [temperature, altitude, toolWeight]);
 
   const getBatteryColor = () => {
     if (vitality > 70) return 'text-emerald-500 bg-emerald-500';
@@ -107,6 +132,35 @@ export function VitalityMonitor() {
           transition={{ duration: 0.5 }}
         />
       </div>
+
+      {/* Sprint 21 — Bucket R · Diagnósticos potenciales por exposición ambiental. */}
+      {environmentalAlerts.length > 0 && (
+        <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-1.5">
+            <AlertTriangle className="w-3 h-3" />
+            Riesgos clínicos asociados (CIE-10)
+          </p>
+          {environmentalAlerts.map((a) => (
+            <div key={a.trigger} className="space-y-1">
+              <p className="text-[10px] font-bold text-zinc-300">{a.trigger}</p>
+              <ul className="space-y-0.5 pl-2">
+                {a.diagnoses.length === 0 ? (
+                  <li className="text-[10px] text-zinc-500 italic">Sin diagnósticos catalogados.</li>
+                ) : (
+                  a.diagnoses.map((d) => (
+                    <li key={d.code} className="text-[10px] text-zinc-400">
+                      <span className="font-mono text-violet-400">{d.code}</span> — {d.name}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          ))}
+          <p className="text-[9px] text-zinc-500 italic pt-1">
+            Mapeo orientativo offline. NO sustituye juicio clínico.
+          </p>
+        </div>
+      )}
 
       {hydrationNeeded && (
         <motion.div 

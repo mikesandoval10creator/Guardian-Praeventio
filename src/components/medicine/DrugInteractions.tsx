@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { checkDrugInteractions } from '../../services/geminiService';
 import { MedicalIcon } from '../medical/MedicalIcon';
+import { CatalogBrowser } from './CatalogBrowser';
+import { drugs as drugsCatalog, drugsMeta, type DrugEntry } from '../../data/medical';
 
 interface InteractionResult {
   drugs: string[];
@@ -108,6 +110,49 @@ export function DrugInteractions() {
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           {t('drug_interactions.badge_gemini', 'Gemini IA')}
         </span>
+      </div>
+
+      {/* Sprint 21 — Bucket R · Catálogo ATC/Vademécum offline-first. */}
+      <div className="px-5 pt-4 pb-2">
+        <CatalogBrowser<DrugEntry>
+          title={t('drug_interactions.catalog_title', 'Vademécum ATC SST')}
+          badge="CC0"
+          items={drugsCatalog}
+          searchKeys={['name', 'atc', 'category', 'occupationalRelevance', 'interactions']}
+          getPrimary={(d) => d.atc}
+          getLabel={(d) => d.name}
+          placeholder={t('drug_interactions.catalog_placeholder', 'Buscar fármaco, código ATC o categoría (ej: salbutamol, broncodilatador)')}
+          metaFooter={`${drugsMeta.license} · ${drugsMeta.source}`}
+          renderDetail={(d) => (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-mono font-black tracking-widest border border-violet-500/20">
+                  {d.atc}
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700/60 text-[9px] font-bold text-zinc-600 dark:text-zinc-300 uppercase">
+                  {d.category}
+                </span>
+              </div>
+              <p className="text-sm font-black text-zinc-900 dark:text-white">{d.name}</p>
+              <p className="text-[11px] text-zinc-600 dark:text-zinc-400">{d.occupationalRelevance}</p>
+              {d.interactions && d.interactions.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1">
+                    {t('drug_interactions.catalog_interactions', 'Interacciones clínicas relevantes')}
+                  </p>
+                  <ul className="space-y-1">
+                    {d.interactions.map((it) => (
+                      <li key={it} className="text-[10px] text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                        <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                        <span>{it}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        />
       </div>
 
       <div className="p-5 space-y-4">
