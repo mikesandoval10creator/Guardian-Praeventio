@@ -9,9 +9,13 @@
 //   Euler-2 (siguiente): Fases 2, 5, 8
 //   Euler-3 (final): Fases 4, 7, 9 + documentación maestra
 
-export * from './graphConnectivity';
-export * from './criticalLoad';
+// Euler-1 modules
+export * from './graphConnectivity';         // Fase 1 — teoría de grafos (Königsberg)
+export * from './criticalLoad';               // Fase 3 — pandeo P_cr
+export * from './odeIntegrator';              // Fase 6 — método de Euler para ODEs
+export * from './polyhedronAchievements';     // Fase 10 — V - E + F = 2 gamificación
 
-// Future Euler-1 modules will land here:
-// export * from './odeIntegrator';       // Fase 6 — método de Euler para ODEs
-// export * from './polyhedronAchievements'; // Fase 10 — V - E + F = 2 gamificación
+// Euler-2 modules
+export * from './eulerianPath';               // Fase 2 — Hierholzer (caminos eulerianos)
+export * from './fftAnalyzer';                // Fase 5 — Cooley-Tukey FFT (identidad e^iπ+1=0)
+export * from './eulerLagrange';              // Fase 8 — variational calculus (camino de mínima acción)
