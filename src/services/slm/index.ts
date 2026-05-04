@@ -85,3 +85,10 @@ export type {
   ReconcileOptions,
   ZettelkastenWriteFn,
 } from './reconciliation';
+
+// T-1.4.1 (Sprint 20 fifth wave, Bucket Rho) — production runner that
+// wires `reconcileOfflineSessions` to the real `writeNodes`. This is
+// the ONLY symbol in this barrel that pulls in the Zettelkasten
+// dependency graph; the rest stays free of it.
+export { runReconciliation } from './reconciliationRunner';
+export type { RunReconciliationOptions } from './reconciliationRunner';
