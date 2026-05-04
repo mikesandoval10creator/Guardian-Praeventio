@@ -1,25 +1,27 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Box, Upload, ShieldAlert, Layers, ZoomIn, ZoomOut, Maximize, AlertTriangle, FileCode2, X } from 'lucide-react';
+import { Box, Upload, ShieldAlert, Layers, ZoomIn, ZoomOut, Maximize, AlertTriangle, FileCode2, X, Info } from 'lucide-react';
 import DxfParser from 'dxf-parser';
-import { Card, Button } from '../components/shared/Card';
+import { Card } from '../components/shared/Card';
+import {
+  adaptEntities,
+  computeAdapterBounds,
+  type DrawableEntity,
+  type AdapterBounds,
+} from '../services/cad/dxfAdapter';
 
-interface DxfEntity {
-  type: string;
-  layer?: string;
-  vertices?: { x: number; y: number }[];
-  startPoint?: { x: number; y: number };
-  endPoint?: { x: number; y: number };
-  center?: { x: number; y: number };
-  radius?: number;
-  position?: { x: number; y: number };
-  text?: string;
-}
+// Sprint 17a — MIT-only CAD viewer. AutoCAD is an Autodesk trademark; we
+// drop the brand from user-facing copy and avoid GPL contamination from
+// libredwg-* by ONLY rendering DXF (text). DWG is deferred to a server-side
+// converter (ODA File Converter, Sprint 18). See ADR 0002.
+//
+// File path is unchanged (`AutoCADViewer.tsx`) so existing routes/imports
+// still work; the export name is unchanged for the same reason.
 
 interface ParsedDxf {
-  entities: DxfEntity[];
+  drawables: DrawableEntity[];
   layers: { name: string; color?: number; visible: boolean }[];
-  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  bounds: AdapterBounds;
 }
 
 const LAYER_COLORS: Record<number, string> = {
@@ -32,29 +34,6 @@ function colorFor(colorIdx?: number, fallback = '#4db6ac'): string {
   return LAYER_COLORS[colorIdx] ?? fallback;
 }
 
-function computeBounds(entities: DxfEntity[]): ParsedDxf['bounds'] {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  const consider = (x: number, y: number) => {
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
-  };
-  for (const e of entities) {
-    e.vertices?.forEach(v => consider(v.x, v.y));
-    if (e.startPoint) consider(e.startPoint.x, e.startPoint.y);
-    if (e.endPoint) consider(e.endPoint.x, e.endPoint.y);
-    if (e.position) consider(e.position.x, e.position.y);
-    if (e.center && e.radius) {
-      consider(e.center.x - e.radius, e.center.y - e.radius);
-      consider(e.center.x + e.radius, e.center.y + e.radius);
-    }
-  }
-  if (!Number.isFinite(minX)) return { minX: 0, minY: 0, maxX: 100, maxY: 100 };
-  return { minX, minY, maxX, maxY };
-}
-
 export function AutoCADViewer() {
   const [parsed, setParsed] = useState<ParsedDxf | null>(null);
   const [isParsing, setIsParsing] = useState(false);
@@ -62,7 +41,9 @@ export function AutoCADViewer() {
   const [fileName, setFileName] = useState<string>('');
   const [zoom, setZoom] = useState(1);
   const [hiddenLayers, setHiddenLayers] = useState<Set<string>>(new Set());
+  const [rendererReady, setRendererReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleFile = async (file: File) => {
     setParseError(null);
@@ -75,7 +56,9 @@ export function AutoCADViewer() {
       }
       const ext = file.name.toLowerCase().split('.').pop();
       if (ext === 'dwg') {
-        throw new Error('DWG es formato binario propietario. Convierte a DXF primero (Autodesk: Save As → AutoCAD DXF).');
+        throw new Error(
+          'DWG es un formato binario propietario. Próximamente lo convertiremos automáticamente server-side. Mientras tanto, exporta tu DWG a DXF (Save As → AutoCAD DXF) o usa Autodesk DWG TrueView.'
+        );
       }
       if (ext !== 'dxf') {
         throw new Error('Formato no soportado. Usa .DXF (texto).');
@@ -89,18 +72,23 @@ export function AutoCADViewer() {
         throw new Error('DXF inválido o vacío');
       }
 
-      const entities = dxf.entities as DxfEntity[];
-      const layerNames = Array.from(new Set(entities.map(e => e.layer ?? '0')));
-      const layers = layerNames.map(name => ({
+      const rawEntities = dxf.entities as any[];
+      const layerColorMap: Record<string, number | undefined> = {};
+      const layerNames = Array.from(new Set(rawEntities.map((e) => e.layer ?? '0')));
+      for (const name of layerNames) {
+        layerColorMap[name] = dxf.tables?.layer?.layers?.[name]?.color;
+      }
+      const drawables = adaptEntities(rawEntities, layerColorMap);
+      const layers = layerNames.map((name) => ({
         name,
-        color: dxf.tables?.layer?.layers?.[name]?.color,
+        color: layerColorMap[name],
         visible: true,
       }));
 
       setParsed({
-        entities,
+        drawables,
         layers,
-        bounds: computeBounds(entities),
+        bounds: computeAdapterBounds(drawables),
       });
     } catch (err: any) {
       setParseError(err?.message ?? 'Error al procesar archivo');
@@ -110,6 +98,17 @@ export function AutoCADViewer() {
     }
   };
 
+  // Sprint 17a → reverted: el ecosistema @mlightcad/* trae @mlightcad/dxf-json
+  // GPL-3.0 transitivamente, que contaminaría todo el frontend.
+  // Frontend MIT-only definitivo: solo dxf-parser + render SVG inline. La
+  // versión "renderer 3D" se evalúa en Sprint 18+ con un fork puro o un
+  // alternativo MIT/MPL real (ej. dxf-viewer de vagran, MPL-2.0). Ver ADR
+  // docs/architecture-decisions/0002-cad-viewer-mit-only-no-gpl-contamination.md
+  // sección "Renderer descartados".
+  useEffect(() => {
+    setRendererReady(false);
+  }, [parsed]);
+
   const onUploadClick = () => fileInputRef.current?.click();
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,7 +116,7 @@ export function AutoCADViewer() {
   };
 
   const toggleLayer = (name: string) => {
-    setHiddenLayers(prev => {
+    setHiddenLayers((prev) => {
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
@@ -131,6 +130,7 @@ export function AutoCADViewer() {
     setFileName('');
     setZoom(1);
     setHiddenLayers(new Set());
+    setRendererReady(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -144,32 +144,65 @@ export function AutoCADViewer() {
     return `${minX - padX} ${minY - padY} ${w + padX * 2} ${h + padY * 2}`;
   }, [parsed]);
 
-  const renderEntity = (e: DxfEntity, i: number) => {
-    if (e.layer && hiddenLayers.has(e.layer)) return null;
-    const layerColor = parsed?.layers.find(l => l.name === e.layer)?.color;
-    const color = colorFor(layerColor);
+  const renderDrawable = (e: DrawableEntity) => {
+    if (hiddenLayers.has(e.layer)) return null;
+    const color = e.color ?? '#4db6ac';
     const sw = (parsed!.bounds.maxX - parsed!.bounds.minX) * 0.001 || 0.5;
 
     switch (e.type) {
-      case 'LINE':
-        if (!e.vertices || e.vertices.length < 2) return null;
-        return <line key={i} x1={e.vertices[0].x} y1={-e.vertices[0].y} x2={e.vertices[1].x} y2={-e.vertices[1].y} stroke={color} strokeWidth={sw} />;
-      case 'LWPOLYLINE':
-      case 'POLYLINE': {
-        const pts = (e.vertices ?? []).map(v => `${v.x},${-v.y}`).join(' ');
-        return <polyline key={i} points={pts} fill="none" stroke={color} strokeWidth={sw} />;
+      case 'line':
+        return (
+          <line
+            key={e.id}
+            x1={e.points[0].x}
+            y1={-e.points[0].y}
+            x2={e.points[1].x}
+            y2={-e.points[1].y}
+            stroke={color}
+            strokeWidth={sw}
+          />
+        );
+      case 'polyline': {
+        const pts = e.points.map((v) => `${v.x},${-v.y}`).join(' ');
+        return <polyline key={e.id} points={pts} fill="none" stroke={color} strokeWidth={sw} />;
       }
-      case 'CIRCLE':
-        if (!e.center || e.radius == null) return null;
-        return <circle key={i} cx={e.center.x} cy={-e.center.y} r={e.radius} fill="none" stroke={color} strokeWidth={sw} />;
-      case 'ARC': {
-        if (!e.center || e.radius == null) return null;
-        return <circle key={i} cx={e.center.x} cy={-e.center.y} r={e.radius} fill="none" stroke={color} strokeWidth={sw} strokeDasharray={`${sw * 4},${sw * 2}`} />;
-      }
-      case 'TEXT':
-      case 'MTEXT':
-        if (!e.position) return null;
-        return <text key={i} x={e.position.x} y={-e.position.y} fontSize={(e as any).height ?? sw * 8} fill={color}>{e.text ?? ''}</text>;
+      case 'circle':
+        return (
+          <circle
+            key={e.id}
+            cx={e.points[0].x}
+            cy={-e.points[0].y}
+            r={e.radius ?? 0}
+            fill="none"
+            stroke={color}
+            strokeWidth={sw}
+          />
+        );
+      case 'arc':
+        return (
+          <circle
+            key={e.id}
+            cx={e.points[0].x}
+            cy={-e.points[0].y}
+            r={e.radius ?? 0}
+            fill="none"
+            stroke={color}
+            strokeWidth={sw}
+            strokeDasharray={`${sw * 4},${sw * 2}`}
+          />
+        );
+      case 'text':
+        return (
+          <text
+            key={e.id}
+            x={e.points[0].x}
+            y={-e.points[0].y}
+            fontSize={e.textHeight ?? sw * 8}
+            fill={color}
+          >
+            {e.text}
+          </text>
+        );
       default:
         return null;
     }
@@ -181,16 +214,26 @@ export function AutoCADViewer() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Box className="w-8 h-8 text-[#4db6ac] dark:text-[#d4af37]" />
-            Visor AutoCAD (DXF)
+            Visor de Planos CAD
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Integración de Planos Estructurales · Parser real DXF
+            Integración de Planos Estructurales · Parser DXF · MIT-only stack
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-[#4db6ac] dark:text-[#d4af37] bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 border-[#4db6ac]/20 dark:border-[#d4af37]/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">Nivel: Enterprise</span>
         </div>
+      </div>
+
+      {/* Sprint 17a — informational banner: trademark-safe, GPL-safe scope. */}
+      <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/20 flex gap-3">
+        <Info className="w-5 h-5 text-sky-500 shrink-0 mt-0.5" />
+        <p className="text-xs sm:text-sm text-sky-700 dark:text-sky-300 leading-relaxed">
+          Soporta archivos <strong>DXF</strong> (texto). Para archivos <strong>DWG</strong> (binario), próximamente
+          añadiremos conversión automática server-side. Mientras tanto: exporta tu DWG a DXF desde tu programa CAD
+          (<em>Save As → DXF</em>) o usa el visor gratuito <strong>Autodesk DWG TrueView</strong>.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -201,7 +244,7 @@ export function AutoCADViewer() {
               <FileCode2 className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mb-4" />
               <h3 className="text-lg font-bold text-zinc-700 dark:text-white mb-2">Sube un archivo .DXF</h3>
               <p className="text-sm text-zinc-500 max-w-md">
-                Parser real client-side: las entidades CAD (LINE, POLYLINE, CIRCLE, ARC, TEXT) se renderizan a SVG vectorial nativo. Sin uploads al servidor.
+                Parser real client-side: las entidades CAD (LINE, POLYLINE, CIRCLE, ARC, TEXT) se renderizan vectorialmente. Sin uploads al servidor.
               </p>
             </div>
           )}
@@ -229,14 +272,19 @@ export function AutoCADViewer() {
 
           {parsed && (
             <div className="absolute inset-0 w-full h-full bg-zinc-50 dark:bg-[#1e1e1e]" style={{ backgroundImage: 'radial-gradient(rgba(120,120,120,0.2) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
-              <svg className="w-full h-full" viewBox={svgViewBox} preserveAspectRatio="xMidYMid meet" style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}>
-                {parsed.entities.map(renderEntity)}
-              </svg>
+              {/* Three-renderer canvas (when lazy-load succeeds, used for large scenes) */}
+              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ display: rendererReady ? 'block' : 'none' }} />
+              {/* SVG fallback — always rendered when renderer is unavailable */}
+              {!rendererReady && (
+                <svg className="w-full h-full" viewBox={svgViewBox} preserveAspectRatio="xMidYMid meet" style={{ transform: `scale(${zoom})`, transformOrigin: 'center' }}>
+                  {parsed.drawables.map(renderDrawable)}
+                </svg>
+              )}
               <div className="absolute bottom-4 right-4 flex gap-2">
-                <button onClick={() => setZoom(z => Math.min(z * 1.2, 5))} aria-label="Acercar" className="p-2 bg-zinc-800/90 rounded-lg hover:bg-zinc-700 text-white min-w-[44px] min-h-[44px] flex items-center justify-center">
+                <button onClick={() => setZoom((z) => Math.min(z * 1.2, 5))} aria-label="Acercar" className="p-2 bg-zinc-800/90 rounded-lg hover:bg-zinc-700 text-white min-w-[44px] min-h-[44px] flex items-center justify-center">
                   <ZoomIn className="w-5 h-5" />
                 </button>
-                <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.2))} aria-label="Alejar" className="p-2 bg-zinc-800/90 rounded-lg hover:bg-zinc-700 text-white min-w-[44px] min-h-[44px] flex items-center justify-center">
+                <button onClick={() => setZoom((z) => Math.max(z / 1.2, 0.2))} aria-label="Alejar" className="p-2 bg-zinc-800/90 rounded-lg hover:bg-zinc-700 text-white min-w-[44px] min-h-[44px] flex items-center justify-center">
                   <ZoomOut className="w-5 h-5" />
                 </button>
                 <button onClick={() => setZoom(1)} aria-label="Ajustar" className="p-2 bg-zinc-800/90 rounded-lg hover:bg-zinc-700 text-white min-w-[44px] min-h-[44px] flex items-center justify-center">
@@ -244,7 +292,7 @@ export function AutoCADViewer() {
                 </button>
               </div>
               <div className="absolute top-4 left-4 px-3 py-1.5 bg-zinc-900/90 rounded-lg text-[10px] font-bold uppercase tracking-widest text-white">
-                {parsed.entities.length} entidades · {parsed.layers.length} capas
+                {parsed.drawables.length} entidades · {parsed.layers.length} capas
               </div>
             </div>
           )}
@@ -282,7 +330,7 @@ export function AutoCADViewer() {
             <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-white/5">
               <h3 className="text-sm font-bold text-zinc-900 dark:text-white">Capas Detectadas ({parsed.layers.length})</h3>
               <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                {parsed.layers.map(layer => {
+                {parsed.layers.map((layer) => {
                   const visible = !hiddenLayers.has(layer.name);
                   const dotColor = colorFor(layer.color);
                   return (

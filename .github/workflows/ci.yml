@@ -35,7 +35,9 @@ jobs:
         run: npm ci
 
       - name: TypeScript typecheck
-        run: npm run typecheck
+        run: npm run typecheck:ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
   test:
     name: Tests
@@ -52,7 +54,9 @@ jobs:
         run: npm ci
 
       - name: Run vitest
-        run: npm test
+        run: npm run test:ci
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
   rules-tests:
     name: Firestore rules tests

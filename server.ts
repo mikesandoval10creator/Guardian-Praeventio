@@ -57,6 +57,7 @@ import subscriptionRouter from "./src/server/routes/subscription.js";
 import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
 import commuteRouter from "./src/server/routes/commute.js";
 import emergencyRouter from "./src/server/routes/emergency.js";
+import cadRouter from "./src/server/routes/cad.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -367,6 +368,10 @@ app.use('/api/commute', commuteRouter);
 // member of the project. notify-brigada (defined inline below) is left in
 // place; the new router only owns /sos so the two paths can coexist.
 app.use('/api/emergency', emergencyRouter);
+
+// Sprint 17a — POST /api/cad/convert-dwg (stub; Sprint 18 wires ODA File
+// Converter server-side so the frontend can stay MIT-only — see ADR 0002).
+app.use('/api/cad', cadRouter);
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {

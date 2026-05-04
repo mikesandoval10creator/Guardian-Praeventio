@@ -9,6 +9,7 @@ import {
   closeProcess,
   computeProcessCloseXp,
   baseXpForProcessType,
+  checkStatusTransition,
 } from './processService';
 import { createMemoryCrewStore, createCrew } from './crewService';
 
@@ -98,5 +99,38 @@ describe('processService', () => {
     });
     await closeProcess(ps, cs, p.id, 100);
     await expect(closeProcess(ps, cs, p.id, 80)).rejects.toThrow();
+  });
+});
+
+describe('checkStatusTransition (Sprint 17a state machine)', () => {
+  it('allows active -> paused', () => {
+    expect(checkStatusTransition('active', 'paused')).toEqual({ ok: true });
+  });
+  it('allows paused -> active', () => {
+    expect(checkStatusTransition('paused', 'active')).toEqual({ ok: true });
+  });
+  it('rejects transitions out of completed (terminal)', () => {
+    expect(checkStatusTransition('completed', 'active')).toEqual({
+      ok: false,
+      reason: 'terminal',
+    });
+  });
+  it('rejects transitions out of aborted (terminal)', () => {
+    expect(checkStatusTransition('aborted', 'paused')).toEqual({
+      ok: false,
+      reason: 'terminal',
+    });
+  });
+  it('rejects targets other than active|paused', () => {
+    expect(checkStatusTransition('active', 'completed')).toEqual({
+      ok: false,
+      reason: 'invalid_target',
+    });
+  });
+  it('rejects same-state transitions as noop', () => {
+    expect(checkStatusTransition('active', 'active')).toEqual({
+      ok: false,
+      reason: 'noop',
+    });
   });
 });

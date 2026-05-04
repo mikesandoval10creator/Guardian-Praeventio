@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, Star, Lock, ChevronDown, ChevronRight, Award } from 'lucide-react';
+import { ShieldCheck, Star, Lock, ChevronDown, ChevronRight, Award, Users, User as UserIcon } from 'lucide-react';
+import { awardXp, MEDALLAS, evaluateMedallas, type MedallaStats } from '../../services/gamification/positiveXp';
 
 export interface Skill {
   id: string;
@@ -15,6 +16,10 @@ interface SkillTreeProps {
   skills?: Skill[];
   workerId?: string;
   workerName?: string;
+  /** Sprint 16 — collective stats used to render medallas. */
+  crewStats?: MedallaStats;
+  individualStats?: MedallaStats;
+  crewName?: string;
 }
 
 const DEFAULT_SKILLS: Skill[] = [
@@ -41,11 +46,80 @@ const LEVEL_BADGE: Record<number, string> = { 1: 'Nivel I', 2: 'Nivel II', 3: 'N
 const BRANCHES = ['RCP', 'Triage', 'Rescate', 'HAZMAT'];
 const PREFIX_MAP: Record<string, string> = { RCP: 'rcp', Triage: 'triage', Rescate: 'rescue', HAZMAT: 'hazmat' };
 
-export function SkillTree({ skills = DEFAULT_SKILLS, workerName }: SkillTreeProps) {
+const ZERO_STATS: MedallaStats = {
+  totalProcessesCompleted: 0,
+  daysWithoutIncident: 0,
+  alertsResponded: 0,
+  wisdomCapsulesCompleted: 0,
+  nearMissesReported: 0,
+};
+
+/**
+ * Sprint 16 — Flow Infinito policy.
+ * If any caller imports this and tries to remove XP, no-op + warn. The
+ * positive-only XP API is the only legitimate path; this shim exists so a
+ * grep for decrementXp/deductXp/removeXp surfaces THIS file (the
+ * documented policy gate) instead of disappearing into nothing.
+ */
+export function decrementXp(_amount: number, _reason?: string): void {
+  // eslint-disable-next-line no-console
+  console.warn('[SkillTree] decrement attempted; ignored — Flow Infinito policy');
+}
+export const deductXp = decrementXp;
+export const removeXp = decrementXp;
+export const subtractXp = decrementXp;
+
+/** Re-export so callers can use the canonical positive API. */
+export { awardXp };
+
+interface MedallaCardProps {
+  id: string;
+  label: string;
+  description: string;
+  unlocked: boolean;
+}
+
+function MedallaCard({ id, label, description, unlocked }: MedallaCardProps) {
+  // Preload via <link rel="preload"> would require app-level wiring; using
+  // a simple <img> with loading="eager" achieves the same UX for 5 small
+  // SVGs. Grayscale filter when locked.
+  return (
+    <div className={`relative flex flex-col items-center gap-1 p-2 rounded-xl border ${
+      unlocked
+        ? 'border-amber-500/30 bg-amber-500/5'
+        : 'border-zinc-800 bg-zinc-900/40'
+    }`}>
+      <img
+        src={`/medallas/${id}.svg`}
+        alt={label}
+        width={64}
+        height={64}
+        loading="eager"
+        decoding="async"
+        className={unlocked ? '' : 'grayscale opacity-50'}
+      />
+      <p className={`text-[10px] font-bold text-center leading-tight ${unlocked ? 'text-amber-400' : 'text-zinc-500'}`}>
+        {label}
+      </p>
+      <p className="text-[9px] text-zinc-500 text-center leading-tight">{description}</p>
+      {!unlocked && (
+        <span className="absolute top-1 right-1 text-zinc-600">
+          <Lock className="w-3 h-3" />
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function SkillTree({ skills = DEFAULT_SKILLS, workerName, crewName, crewStats, individualStats }: SkillTreeProps) {
   const [expandedBranch, setExpandedBranch] = useState<string | null>('RCP');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [track, setTrack] = useState<'individual' | 'crew'>('individual');
 
   const unlockedCount = skills.filter(s => s.unlocked).length;
+
+  const stats = (track === 'crew' ? crewStats : individualStats) ?? ZERO_STATS;
+  const unlockedMedalIds = new Set(evaluateMedallas(stats));
 
   return (
     <div className="space-y-4">
@@ -65,15 +139,57 @@ export function SkillTree({ skills = DEFAULT_SKILLS, workerName }: SkillTreeProp
         </div>
       </div>
 
+      {/* Dual-track switch */}
+      <div className="flex rounded-xl overflow-hidden border border-zinc-800">
+        <button
+          onClick={() => setTrack('individual')}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors ${
+            track === 'individual' ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+          }`}
+        >
+          <UserIcon className="w-3.5 h-3.5" /> Mi camino
+        </button>
+        <button
+          onClick={() => setTrack('crew')}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors ${
+            track === 'crew' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" /> Mi cuadrilla
+        </button>
+      </div>
+
+      {track === 'crew' && crewName && (
+        <p className="text-[10px] text-emerald-400 text-center -mt-2">Cuadrilla: {crewName}</p>
+      )}
+
       {/* Progress bar */}
       <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
         <motion.div
-          className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full"
+          className={`h-full rounded-full ${track === 'crew' ? 'bg-gradient-to-r from-emerald-500 to-amber-500' : 'bg-gradient-to-r from-amber-500 to-emerald-500'}`}
           initial={{ width: 0 }}
           animate={{ width: `${(unlockedCount / skills.length) * 100}%` }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
         />
       </div>
+
+      {/* Medallas grid (5 fixed) */}
+      <section>
+        <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-2">
+          Medallas {track === 'crew' ? 'colectivas' : 'personales'}
+        </h4>
+        <div className="grid grid-cols-5 gap-2">
+          {MEDALLAS.map((m) => (
+            <MedallaCard
+              key={m.id}
+              id={m.id}
+              label={m.label}
+              description={m.description}
+              unlocked={unlockedMedalIds.has(m.id)}
+            />
+          ))}
+        </div>
+      </section>
 
       {/* Branch tree */}
       <div className="space-y-2">
@@ -109,7 +225,6 @@ export function SkillTree({ skills = DEFAULT_SKILLS, workerName }: SkillTreeProp
                     <div className="p-3 space-y-2 bg-black/20">
                       {branchSkills.map((skill, idx) => (
                         <div key={skill.id} className="flex items-start gap-2">
-                          {/* Connector line */}
                           {idx > 0 && (
                             <div className="absolute ml-3.5 -mt-2 w-px h-2 bg-zinc-700" />
                           )}

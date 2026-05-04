@@ -54,6 +54,8 @@ const VALID_TYPES = new Set([
   'slam-mesh',
   'dike-hydrostatic',
   'gas-dispersion',
+  // Sprint 16 — wisdom-capsule learning node emitted by /api/wisdom-capsule.
+  'safety-learning',
 ]);
 
 const ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;

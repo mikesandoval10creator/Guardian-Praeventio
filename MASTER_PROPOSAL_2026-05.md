@@ -268,8 +268,8 @@ Hasta hoy, cada feature de Guardian se diseñaba con la pregunta "¿qué endpoin
 | 7 | Safety capacitaciones | Videos estáticos + PDFs (Proto-2) | `pptx` skill genera slides personalizados al sector + tracking en Firestore | Personalización por industry-code, métricas de engagement, exportable a Google Slides |
 | 8 | Currículum portable | jsPDF artesanal (TODO.md §VII implementado) | `pdf` skill + `docx` editable + `canvas-design` para portada | Calidad imprenta, multi-formato, branded |
 | 9 | OCR HDS/MSDS | Tesseract.js artesanal (Proto-1 `DocumentOCRManager.tsx`) | `pdf` skill OCR + `claude-api` extracción semántica del Número ONU | Mayor exactitud, extracción de campos GRE en JSON, idempotencia |
-| 10 | MaestrIA hallazgos | Pipeline 4 agentes con bus Firestore custom (Sprint 12 PLAN_PARTE4) | Claude Agent SDK + MCP server `gp-iper` + `pdf` skill final | Implementable en 1 sprint, sin bus custom |
-| 11 | ARIA mantenimiento | 5 agentes con bus Firestore (Sprint 13 PLAN_PARTE4) | Claude Agent SDK + MCPs `gp-zettelkasten` + `gp-iper` + Calendar MCP para asignación técnico | Order ticket → calendario directamente |
+| 10 | MaestrIA hallazgos | Pipeline 4 agentes con bus Firestore custom (Sprint 12 PLAN_PARTE4) | **Gemini tool-use** (4 prompts encadenados) + MCP server `gp-iper` + `pdf` skill final. Skill `claude-api` solo en este lado para diseñar los prompts. | Implementable en 1 sprint, sin bus custom |
+| 11 | ARIA mantenimiento | 5 agentes con bus Firestore (Sprint 13 PLAN_PARTE4) | **Vertex AI Agent Builder** (5 agentes) + MCPs `gp-zettelkasten` + `gp-iper` + Calendar MCP. Diseño con skill `claude-api` en Claude Code; runtime en Google. | Order ticket → calendario directamente |
 | 12 | Visualización Bernoulli | Solo número en pantalla (StructuralCalculator NCh 432) | `algorithmic-art` skill: flow field representando carga viento real sobre el plano del módulo | Comprensión visual inmediata, persuade al supervisor |
 | 13 | Test coverage | jest manual + stryker básico | `review` skill + `security-review` skill como pre-commit + Stryker ratchet 65→70% | Auto-revisión, menos bugs por seguridad pasan a prod |
 | 14 | Recovery legacy docs | Copiar y pegar de `firebase-version` repo manualmente | `gh` skill: clone shallow + import + commit en `docs/legacy/` automatizado | Recovery reproducible y auditado |
@@ -346,10 +346,11 @@ Bloques:
 - **Entregables**: pipeline Detector→Evaluador→Estimador→Redactor; UI "PIPELINE PROGRESS"; documento Hallazgo pre-llenado en Firestore + PDF firmable.
 - **Éxito**: foto in → hallazgo formal en <30s.
 
-### Sprint 13 — ARIA multi-agente con Claude Agent SDK + MCP interno (20h)
-- **Skills**: `mcp-builder` (server `gp-iper`), `claude-api`.
-- **Conectores**: Calendar MCP (asignación técnico), Gmail MCP (notificación), Sentry MCP.
-- **Entregables**: 5 agentes (Sentinel, KB Builder, Investigator, Q&A, Work Order Writer); bus MCP en lugar de Firestore custom.
+### Sprint 13 — ARIA multi-agente con **Vertex AI Agent Builder** + MCP interno (20h)
+- **Runtime**: 5 agentes ejecutados en **Vertex AI Agent Builder** (Google), no Claude Agent SDK. Mantiene la decisión D1 de stack Google-first.
+- **Skills (desarrollo, este lado Claude Code)**: `mcp-builder` (server `gp-iper`), `claude-api` (diseño de prompts + tool-use que después se transcribe a Gemini).
+- **Conectores**: Calendar MCP (asignación técnico), Gmail MCP (notificación draft), Sentry MCP.
+- **Entregables**: 5 agentes Vertex (Sentinel, KB Builder, Investigator, Q&A, Work Order Writer); bus MCP `gp-iper` en lugar de Firestore custom.
 - **Éxito**: ManDown event → orden de trabajo + reunión de seguimiento en calendario en <2min.
 
 ### Sprint 14 — Compliance ISO 45001 + SUSESO + WebAuthn server (24h, era 20h)

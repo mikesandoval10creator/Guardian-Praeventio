@@ -29,8 +29,10 @@ import {
 import {
   computeProcessCloseXp,
   baseXpForProcessType,
+  checkStatusTransition,
 } from '../../services/organic/processService.js';
-import type { ProcessType } from '../../types/organic.js';
+import type { ProcessType, ProcessStatus } from '../../types/organic.js';
+import { sentryAdapter } from '../../services/observability/sentryAdapter.js';
 
 const router = Router();
 
@@ -191,6 +193,72 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
   }
 });
 
+router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res) => {
+  // Sprint 16 — pause/resume support for ProcessDetailModal.
+  // Sprint 17a — uses pure `checkStatusTransition` guard, audits the
+  // transition, and emits a Sentry breadcrumb for ops visibility.
+  const uid = (req as any).user.uid;
+  const processId = req.params.id;
+  const { status } = req.body ?? {};
+  if (status !== 'active' && status !== 'paused') {
+    return res.status(400).json({ error: 'status must be active|paused' });
+  }
+  try {
+    const db = admin.firestore();
+    const ref = db.collection('processes').doc(processId);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'process not found' });
+    const proc = snap.data() as { projectId: string; status: ProcessStatus };
+    await assertProjectMember(uid, proc.projectId, db);
+
+    const check = checkStatusTransition(proc.status, status as ProcessStatus);
+    if (check.ok === false) {
+      if (check.reason === 'terminal') {
+        return res.status(409).json({ error: 'process is terminal' });
+      }
+      if (check.reason === 'noop') {
+        return res.json({ success: true, status, noop: true });
+      }
+      return res.status(400).json({ error: 'invalid status transition' });
+    }
+
+    await ref.update({ status });
+
+    // Sprint 17a — audit + ops breadcrumb. Both are best-effort: a logging
+    // failure must never block the user-facing state change.
+    try {
+      await db.collection('audit_logs').add({
+        action: 'process.status_change',
+        module: 'organic',
+        details: { processId, from: proc.status, to: status },
+        userId: uid,
+        projectId: proc.projectId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch {
+      /* non-fatal */
+    }
+    try {
+      sentryAdapter.addBreadcrumb({
+        category: 'organic.process',
+        level: 'info',
+        message: `process ${processId} ${proc.status} -> ${status}`,
+        timestamp: new Date(),
+        data: { processId, from: proc.status, to: status, projectId: proc.projectId },
+      });
+    } catch {
+      /* non-fatal */
+    }
+
+    res.json({ success: true, status });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    res.status(500).json({ error: err?.message ?? 'internal' });
+  }
+});
+
 router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res) => {
   const uid = (req as any).user.uid;
   const processId = req.params.id;
@@ -218,6 +286,85 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
       completedAt: null,
     });
     res.status(201).json({ success: true, id: docRef.id });
+  } catch (err: any) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    res.status(500).json({ error: err?.message ?? 'internal' });
+  }
+});
+
+/**
+ * Sprint 16 — POST /api/predictive-alerts/ack
+ *   body: { projectId, crewId, generatorId }
+ *
+ * Marks a predictive alert as "Atendida" by the calling user's crew,
+ * increments `processes.alertsResponded` for any active process owned
+ * by the crew, and awards 30 XP (XP_AMOUNTS.evadir_riesgo_predictivo)
+ * to the crew. Always positive — alerts NEVER deduct XP.
+ */
+router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, res) => {
+  const uid = (req as any).user.uid;
+  const { projectId, crewId, generatorId } = req.body ?? {};
+  if (typeof projectId !== 'string' || !projectId) {
+    return res.status(400).json({ error: 'projectId required' });
+  }
+  if (typeof crewId !== 'string' || !crewId) {
+    return res.status(400).json({ error: 'crewId required' });
+  }
+  if (typeof generatorId !== 'string' || !generatorId) {
+    return res.status(400).json({ error: 'generatorId required' });
+  }
+  try {
+    const db = admin.firestore();
+    await assertProjectMember(uid, projectId, db);
+
+    const crewRef = db.collection('crews').doc(crewId);
+    let xpAwarded = 0;
+    await db.runTransaction(async (tx) => {
+      const cs = await tx.get(crewRef);
+      if (!cs.exists) return;
+      const c = cs.data() as { xp: number; projectId: string };
+      if (c.projectId !== projectId) return; // tenant guard
+      tx.update(crewRef, { xp: (c.xp ?? 0) + 30 });
+      xpAwarded = 30;
+    });
+
+    // Best-effort: increment alertsResponded on any active process for
+    // this crew so the close-XP formula picks up the bonus too.
+    try {
+      const procs = await db
+        .collection('processes')
+        .where('crewId', '==', crewId)
+        .where('status', '==', 'active')
+        .limit(1)
+        .get();
+      if (!procs.empty) {
+        const ref = procs.docs[0].ref;
+        await ref.update({
+          alertsResponded: admin.firestore.FieldValue.increment(1),
+        });
+      }
+    } catch {
+      // non-fatal
+    }
+
+    // Audit trail (lightweight): record the ack event so the dashboard
+    // can show "respondida por la cuadrilla X a las Y".
+    try {
+      await db.collection('predictive_alert_acks').add({
+        projectId,
+        crewId,
+        generatorId,
+        ackedBy: uid,
+        ackedAt: admin.firestore.FieldValue.serverTimestamp(),
+        xpAwarded,
+      });
+    } catch {
+      // non-fatal
+    }
+
+    res.json({ success: true, xpAwarded, reason: 'evadir_riesgo_predictivo' });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });

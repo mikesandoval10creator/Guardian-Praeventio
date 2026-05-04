@@ -85,9 +85,9 @@ Pipeline 4 agentes encadenados:
 - Output: documento Hallazgo pre-llenado listo para firma.
 
 ### Sprint 7 — ARIA: Multi-agente de mantenimiento (Fase 6 original)
-**Esfuerzo:** ~20h. **"Best Use of Claude Managed Agents".**
+**Esfuerzo:** ~20h. Stack Google-first per decisión D1.
 
-5 agentes vía Claude Agent SDK + MCP server interno:
+5 agentes ejecutados en **Vertex AI Agent Builder** + MCP server interno:
 - **Sentinel** detecta anomalía (ManDown/Geofence) → MCP →
 - **KB Builder** lee manuales + historial → MCP →
 - **Investigator** analiza causa raíz, busca fix histórico → MCP →

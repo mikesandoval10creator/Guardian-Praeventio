@@ -130,6 +130,40 @@ async function setStatus(
 export const pauseProcess = (store: ProcessStore, id: string) => setStatus(store, id, 'paused');
 export const resumeProcess = (store: ProcessStore, id: string) => setStatus(store, id, 'active');
 
+/**
+ * Sprint 17a — pure state-machine guard for `/api/processes/:id/status`.
+ * Centralizes the allowed transitions so both the HTTP route and any
+ * future workflow engine share the same rules.
+ *
+ * Allowed transitions:
+ *   • planning → active | paused
+ *   • active   ↔ paused
+ *   • completed | aborted are TERMINAL — any change is rejected.
+ *
+ * Returns `{ ok: true }` on a legal transition or
+ * `{ ok: false, reason }` with a stable machine-readable reason code
+ * suitable for HTTP error envelopes.
+ */
+export type StatusTransitionCheck =
+  | { ok: true }
+  | { ok: false, reason: 'terminal' | 'invalid_target' | 'noop' };
+
+export function checkStatusTransition(
+  from: ProcessStatus,
+  to: ProcessStatus
+): StatusTransitionCheck {
+  if (to !== 'active' && to !== 'paused') {
+    return { ok: false, reason: 'invalid_target' };
+  }
+  if (from === 'completed' || from === 'aborted') {
+    return { ok: false, reason: 'terminal' };
+  }
+  if (from === to) {
+    return { ok: false, reason: 'noop' };
+  }
+  return { ok: true };
+}
+
 export async function recordAlertResponded(
   store: ProcessStore,
   id: string

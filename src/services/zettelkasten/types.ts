@@ -21,13 +21,22 @@ export type BernoulliNodeType =
   | 'dike-hydrostatic'
   | 'gas-dispersion';
 
+/**
+ * Sprint 16 — wider Risk node type that includes Bernoulli generators
+ * AND non-Bernoulli node kinds (e.g. the safety-learning node emitted
+ * by the daily wisdom-capsule pipeline). Keep `BernoulliNodeType`
+ * strict so `bernoulliNodeRegistry` (a `Record<BernoulliNodeType, ...>`)
+ * remains exhaustive.
+ */
+export type RiskNodeType = BernoulliNodeType | 'safety-learning';
+
 export interface RiskNodePayload {
   /** Node title (Spanish, short). */
   title: string;
   /** Multi-line Spanish description with calculation summary + standard reference. */
   description: string;
   /** Discriminator for the Zettelkasten edge router. */
-  type: BernoulliNodeType;
+  type: RiskNodeType;
   /** Severity inferred from threshold breach. */
   severity: RiskNodeSeverity;
   /** Pre-computed numeric outputs used by downstream alerting/UI. */

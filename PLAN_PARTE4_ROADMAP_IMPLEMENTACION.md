@@ -114,17 +114,19 @@ Pipeline 4 agentes encadenados (ver ROADMAP_2026-05 Sprint 6 original):
 
 UI con barra "PIPELINE PROGRESS". Output: documento listo para firma.
 
-### Sprint 13 — ARIA multi-agente con Claude Agent SDK + MCP server interno ⏳
-**Esfuerzo:** ~20h. **"Best Use of Claude Managed Agents".**
+### Sprint 13 — ARIA multi-agente con **Vertex AI Agent Builder** + MCP server interno ⏳
+**Esfuerzo:** ~20h. Stack Google-first per decisión D1 (compatibilidad Workspace).
 
-5 agentes vía Claude Agent SDK:
+5 agentes ejecutados en **Vertex AI Agent Builder** (no Claude Agent SDK — runtime productivo en Google):
 - **Sentinel** detecta anomalía (ManDown/Geofence) → MCP →
 - **KB Builder** lee manuales + historial → MCP →
 - **Investigator** analiza causa raíz → MCP →
 - **Q&A Agent** pregunta supervisor si faltan datos → MCP →
 - **Work Order Writer** genera orden + asigna técnico.
 
-Bus de mensajes: Firestore.
+Bus de mensajes: MCP server interno `gp-iper` (preferido) o Firestore custom.
+
+> **Diseño de prompts**: en este lado de Claude Code usamos la skill `claude-api` para diseñar/optimizar/cachear prompts. **Runtime productivo**: Gemini en Vertex AI Agent Builder.
 
 ### Sprint 14 — Compliance ISO 45001 + SUSESO ⏳
 **Esfuerzo:** ~20h.
