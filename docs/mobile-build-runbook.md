@@ -7,6 +7,7 @@
 - [`IOS_BUILD.md`](../IOS_BUILD.md) — deeper iOS Info.plist / entitlements / HealthKit walkthrough.
 - [`docs/architecture-decisions/0006-mobile-deferred-to-local-build.md`](architecture-decisions/0006-mobile-deferred-to-local-build.md) — rationale for not automating the mobile build in CI this Sprint.
 - [`HEALTH_CONNECT_MIGRATION.md`](../HEALTH_CONNECT_MIGRATION.md) — Android Health Connect specifics.
+- [`deep-linking-runbook.md`](./deep-linking-runbook.md) — Universal Links (iOS) + App Links (Android) activation flow. Covers the AASA / `assetlinks.json` placeholders that MUST be replaced with the real Apple Team ID and Android keystore SHA-256 fingerprint before the first store build.
 
 ---
 

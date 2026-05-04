@@ -199,6 +199,37 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
+// Sprint 21 — Bucket G: Universal Links (iOS) + App Links (Android).
+//
+// Apple's CDN and Google's Digital Asset Links validator both require:
+//   1. HTTPS (no redirects).
+//   2. `Content-Type: application/json` exactly.
+//   3. The AASA file MUST NOT have a `.json` extension. The default
+//      `express.static` MIME lookup would mis-serve it as
+//      `application/octet-stream`, so we override the type explicitly.
+//
+// Mounted ABOVE the `/api/` rate limiter (`app.use("/api/", limiter)`
+// further down) — these endpoints are unauthenticated and may be polled
+// by Apple's `swcutil` or Google's validator dozens of times during
+// store review. They also live OUTSIDE `/api/` so they would not be
+// rate-limited anyway, but mounting early makes the intent obvious and
+// guarantees no future global middleware accidentally swallows them.
+//
+// In dev (Vite middleware mode), these explicit handlers also win over
+// Vite's static `public/` serving because Express runs them first.
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  res.type('application/json');
+  res.sendFile(
+    path.resolve(process.cwd(), 'public/.well-known/apple-app-site-association'),
+  );
+});
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  res.type('application/json');
+  res.sendFile(
+    path.resolve(process.cwd(), 'public/.well-known/assetlinks.json'),
+  );
+});
+
 // Public health probe for Cloud Run / Marketplace listing health checks.
 // Mounted AFTER helmet (so CSP headers apply) but BEFORE the /api/ rate
 // limiter and verifyAuth — Cloud Run probes hit this endpoint frequently

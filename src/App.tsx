@@ -22,6 +22,7 @@ import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonito
 import { DrivingSuggestion } from "./components/driving/DrivingSuggestion";
 import { PWAUpdateToast } from "./components/shared/PWAUpdateToast";
 import { WisdomCapsuleWatcher } from "./components/shared/WisdomCapsuleWatcher";
+import { DeepLinkHandler } from "./components/shared/DeepLinkHandler";
 
 // Import Route Groups
 import { EmergencyRoutes } from "./routes/EmergencyRoutes";
@@ -210,6 +211,7 @@ export default function App() {
         <LanguageProvider>
           <NormativaProvider>
             <BrowserRouter>
+              <DeepLinkHandler />
               <OfflineIndicator />
               <OfflineSyncManager />
               <SurvivalPing />

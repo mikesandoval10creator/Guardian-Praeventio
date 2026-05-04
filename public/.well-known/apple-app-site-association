@@ -1,0 +1,24 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.praeventio.guard",
+        "paths": [
+          "/projects/*",
+          "/sos",
+          "/sos/*",
+          "/processes/*",
+          "/cuadrillas",
+          "/cuadrillas/*",
+          "/digital-twin",
+          "/digital-twin/*",
+          "/training/*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.com.praeventio.guard"]
+  }
+}
