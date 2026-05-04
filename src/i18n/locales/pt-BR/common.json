@@ -342,5 +342,61 @@
   },
   "currency": {
     "selector_aria": "Seletor de moeda"
+  },
+  "emergency_alert": {
+    "title": "Alerta Sísmico Detectado",
+    "magnitude_prefix": "Mag",
+    "view_details": "Ver Detalhes",
+    "dismiss_aria": "Descartar alerta"
+  },
+  "pending_invites": {
+    "single_prefix": "Você tem um convite pendente para ",
+    "multiple_prefix": "Você tem ",
+    "multiple_suffix": " convites de equipe pendentes",
+    "cta_view": "Ver",
+    "dismiss_aria": "Descartar"
+  },
+  "reload_prompt": {
+    "offline_title": "App pronto para trabalhar offline",
+    "update_title": "Nova atualização disponível",
+    "offline_description": "O aplicativo foi baixado e pode ser usado sem conexão com a internet.",
+    "update_description": "Há uma nova versão do Praeventio Guard. Atualize para obter as últimas melhorias.",
+    "close_aria": "Fechar aviso",
+    "update_now": "Atualizar agora",
+    "close": "Fechar"
+  },
+  "project_selector": {
+    "active_project": "Projeto Ativo",
+    "select_project": "Selecionar Projeto",
+    "requires_internet_title": "Requer conexão com a internet",
+    "requires_connection": "Requer Conexão",
+    "new_project": "Novo Projeto"
+  },
+  "weather": {
+    "title": "Boletim climático",
+    "default_city": "Santiago",
+    "temp": "Temp",
+    "condition": "Condição",
+    "wind": "Vento",
+    "humidity": "Umidade",
+    "alert_wind": "Alerta Vento",
+    "alert_heat": "Estresse Térmico",
+    "alert_rain": "Chuva",
+    "alert_optimal": "Ótimo"
+  },
+  "compliance_card": {
+    "title": "Conformidade",
+    "optimize": "Otimizar",
+    "level_optimal": "Nível Ótimo",
+    "level_acceptable": "Nível Aceitável",
+    "level_needs_attention": "Requer Atenção",
+    "remaining": "Faltam {{remaining}}%"
+  },
+  "predictive_alert": {
+    "title": "Alerta Preditivo",
+    "dismiss_aria": "Descartar alerta",
+    "imminent_risk": "Risco Iminente",
+    "probability_label": "Probabilidade:",
+    "automated_action": "Ação Automatizada"
   }
 }

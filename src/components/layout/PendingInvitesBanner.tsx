@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -14,6 +15,7 @@ interface PendingInvite {
 }
 
 export function PendingInvitesBanner() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const navigate = useNavigate();
   const [invites, setInvites] = useState<PendingInvite[]>([]);
@@ -50,17 +52,32 @@ export function PendingInvitesBanner() {
       <Bell className="w-4 h-4 text-[#4db6ac] shrink-0" />
       <p className="text-xs font-bold text-[#4db6ac] flex-1">
         {invites.length === 1
-          ? <>Tienes una invitación pendiente a <span className="text-white">{first.projectName}</span></>
-          : <>Tienes <span className="text-white">{invites.length}</span> invitaciones de equipo pendientes</>
+          ? (
+            <>
+              {t('pending_invites.single_prefix', 'Tienes una invitación pendiente a ')}
+              <span className="text-white">{first.projectName}</span>
+            </>
+          )
+          : (
+            <>
+              {t('pending_invites.multiple_prefix', 'Tienes ')}
+              <span className="text-white">{invites.length}</span>
+              {t('pending_invites.multiple_suffix', ' invitaciones de equipo pendientes')}
+            </>
+          )
         }
       </p>
       <button
         onClick={() => navigate(`/invite?token=${first.token}`)}
         className="text-[10px] font-black uppercase tracking-wider text-[#4db6ac] hover:text-[#3a9e95] transition-colors whitespace-nowrap"
       >
-        Ver
+        {t('pending_invites.cta_view', 'Ver')}
       </button>
-      <button onClick={() => setDismissed(true)} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+      <button
+        onClick={() => setDismissed(true)}
+        className="text-zinc-500 hover:text-zinc-300 transition-colors"
+        aria-label={t('pending_invites.dismiss_aria', 'Descartar')}
+      >
         <X className="w-3.5 h-3.5" />
       </button>
     </div>
