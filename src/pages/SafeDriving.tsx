@@ -1,8 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
-import { 
-  Map as MapIcon, 
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
+import {
+  Map as MapIcon,
   Navigation, 
   AlertTriangle, 
   Clock, 
@@ -58,10 +59,7 @@ export function SafeDriving() {
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const onLoad = useCallback(function callback(map: google.maps.Map) {
     setMap(map);

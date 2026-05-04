@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, Button } from "../components/shared/Card";
 import { GoogleMap, useJsApiLoader, Marker, Polyline, Polygon } from '@react-google-maps/api';
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
 
 const containerStyle = {
   width: '100%',
@@ -26,10 +27,7 @@ export function CoastalEmergencyMap() {
   const [isTsunamiWarning, setIsTsunamiWarning] = useState(false);
   const [evacuationProgress, setEvacuationProgress] = useState(0);
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const handleTriggerWarning = () => {
     setIsTsunamiWarning(true);

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Mountain, Wind, AlertTriangle, MapPin, ShieldAlert, Navigation, Info, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polygon } from '@react-google-maps/api';
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
 
 const containerStyle = {
   width: '100%',
@@ -38,10 +39,7 @@ export function VolcanicEruptionMap() {
   const [windSpeed, setWindSpeed] = useState(20); // km/h
   const [alertLevel, setAlertLevel] = useState<'yellow' | 'orange' | 'red'>('orange');
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const getAlertColor = (level: string) => {
     switch (level) {

@@ -30,11 +30,10 @@ import {
 } from '../../services/digitalTwin/siteGeometryStore';
 import { HazmatWindOverlay } from './HazmatWindOverlay';
 import { RiskNodeMarkers } from './RiskNodeMarkers';
+import { getMapLoaderConfig } from '../maps/mapConfig';
 import { logger } from '../../utils/logger';
 
 const SANTIAGO_CENTER = { lat: -33.45, lng: -70.66 };
-
-const MAP_LIBRARIES: ('drawing' | 'geometry')[] = ['drawing', 'geometry'];
 
 const containerStyle: React.CSSProperties = {
   width: '100%',
@@ -109,11 +108,7 @@ export function Site25DPanel(): React.ReactElement {
   const tenantId = auth.currentUser?.tenantId ?? 'default';
   const projectId = selectedProject?.id ?? null;
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
-    libraries: MAP_LIBRARIES,
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const [features, setFeatures] = useState<SiteGeometryFeature[]>([]);
   const [drawingType, setDrawingType] = useState<SiteGeometryType | null>(null);

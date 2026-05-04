@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Map, Navigation, CloudRain, AlertTriangle, Route, ShieldAlert, Thermometer, Wind, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, DirectionsRenderer } from '@react-google-maps/api';
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
@@ -23,10 +24,7 @@ export function ClimateRoutes() {
   const [isCalculating, setIsCalculating] = useState(false);
   const { toasts, show: showToast, dismiss } = useToast();
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const waypoints = [
     { id: 1, name: 'Paso Los Libertadores', status: 'danger', condition: 'Nevazón', temp: -5, wind: 80 },

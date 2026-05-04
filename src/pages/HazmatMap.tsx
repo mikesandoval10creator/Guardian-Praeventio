@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ShieldAlert, Wind, AlertTriangle, MapPin, Navigation, Info, Droplet, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polygon } from '@react-google-maps/api';
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
 
 const containerStyle = {
   width: '100%',
@@ -38,10 +39,7 @@ export function HazmatMap() {
   const [chemicalType, setChemicalType] = useState<'gas' | 'liquid'>('gas');
   const [spillSize, setSpillSize] = useState<'small' | 'large'>('large');
 
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const isolationDistance = spillSize === 'small' ? 30 : 60; // meters
   const protectionDistance = spillSize === 'small' ? 100 : 300; // meters

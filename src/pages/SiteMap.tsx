@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, OverlayView, Marker } from '@react-google-maps/api';
-import { 
-  Map as MapIcon, 
+import { getMapLoaderConfig } from '../components/maps/mapConfig';
+import {
+  Map as MapIcon,
   AlertTriangle, 
   Info, 
   Layers, 
@@ -55,10 +56,7 @@ export function SiteMap() {
   const { nodes } = useUniversalKnowledge();
   const { updateNode } = useRiskEngine();
   
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
-  });
+  const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [selectedHotspot, setSelectedHotspot] = useState<RiskNode | null>(null);
