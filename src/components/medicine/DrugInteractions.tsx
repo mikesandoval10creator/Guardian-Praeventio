@@ -5,6 +5,7 @@ import {
   Loader2, Info, Sparkles, ShieldAlert
 } from 'lucide-react';
 import { checkDrugInteractions } from '../../services/geminiService';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 interface InteractionResult {
   drugs: string[];
@@ -83,6 +84,12 @@ export function DrugInteractions() {
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Interacciones Farmacológicas IA</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Análisis clínico por Gemini — ATC codes · mecanismo · recomendación</p>
+        </div>
+        {/* Sprint 17c — Bioicons pharma glyphs (pill / syringe / IV bag). */}
+        <div className="hidden sm:flex items-center gap-1.5 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+          <MedicalIcon name="pill" size={20} alt="Pastilla" />
+          <MedicalIcon name="syringe" size={20} alt="Inyectable" />
+          <MedicalIcon name="iv-bag" size={20} alt="Suero IV" />
         </div>
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
           Gemini IA

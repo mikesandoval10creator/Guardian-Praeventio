@@ -4,6 +4,7 @@ import {
   Calendar, Clock, AlertTriangle, CheckCircle, Filter,
   ChevronRight, User, Stethoscope, Wind, Ear, Bone, Brain, Eye, Activity
 } from 'lucide-react';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 interface ScheduledExam {
   id: string;
@@ -85,6 +86,14 @@ export function VigilanciaScheduler() {
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Vigilancia Médica Programada</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">PREXOR · PLANESI · TMERT · EVAST · DS 109 — Calendario de vencimientos</p>
+        </div>
+        {/* Sprint 17c — Bioicons surveillance instrumentation cluster. */}
+        <div className="hidden md:flex items-center gap-1.5 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+          <MedicalIcon name="audiometer" size={18} alt="Audiometría" />
+          <MedicalIcon name="spirometer" size={18} alt="Espirometría" />
+          <MedicalIcon name="eye" size={18} alt="Visión" />
+          <MedicalIcon name="thermometer" size={18} alt="Termometría" />
+          <MedicalIcon name="blood-pressure-cuff" size={18} alt="Presión arterial" />
         </div>
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
           Vigilancia

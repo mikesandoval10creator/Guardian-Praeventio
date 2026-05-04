@@ -6,6 +6,7 @@ import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { analyzeBioImage } from '../services/geminiService';
 import { CompensatoryExercisesModal } from '../components/bio/CompensatoryExercisesModal';
+import { MedicalIcon } from '../components/medical/MedicalIcon';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -495,7 +496,15 @@ export function BioAnalysis() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Bio-Análisis</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+            Bio-Análisis
+            {/* Sprint 17c — Bioicons respiratory + oximetry decoration. */}
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-cyan-300/80" aria-hidden="true">
+              <MedicalIcon name="lung-pair" size={28} alt="Pulmones" />
+              <MedicalIcon name="pulse-oximeter" size={28} alt="Oxímetro" />
+              <MedicalIcon name="spirometer" size={28} alt="Espirómetro" />
+            </span>
+          </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
             Computer Vision & IA para Detección de Riesgos
           </p>

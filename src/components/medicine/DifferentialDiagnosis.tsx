@@ -5,6 +5,7 @@ import {
   ShieldAlert, ChevronRight, Sparkles, FlaskConical,
 } from 'lucide-react';
 import { differentialDiagnosis } from '../../services/geminiService';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 interface DiagnosisItem {
   condition: string;
@@ -74,6 +75,12 @@ export function DifferentialDiagnosis() {
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Diagnóstico Diferencial IA</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Gemini · CIE-10 + Ley 16.744 + DS 594</p>
+        </div>
+        {/* Sprint 17c — Bioicons system glyphs preview the differential domain. */}
+        <div className="hidden sm:flex items-center gap-1.5 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+          <MedicalIcon name="lung-pair" size={20} alt="Pulmones" />
+          <MedicalIcon name="heart-anatomical" size={20} alt="Corazón" />
+          <MedicalIcon name="brain" size={20} alt="Cerebro" />
         </div>
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
           Médico

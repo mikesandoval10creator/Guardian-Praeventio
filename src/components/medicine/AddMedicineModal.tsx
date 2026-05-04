@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, Stethoscope, User, Calendar, Loader2 } from 'lucide-react';
+import { MedicalIcon } from '../medical/MedicalIcon';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
 import { logger } from '../../utils/logger';
@@ -96,11 +97,17 @@ export function AddMedicineModal({ isOpen, onClose, projectId }: AddMedicineModa
           >
             <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-rose-500/10 to-transparent">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center">
-                  <Heart className="w-6 h-6 text-rose-500" />
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 flex items-center justify-center text-rose-400">
+                  {/* Sprint 17c — Bioicons stethoscope decorates the consult modal header. */}
+                  <MedicalIcon name="stethoscope" size={28} alt="Consulta médica" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Nueva Consulta</h2>
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    Nueva Consulta
+                    <MedicalIcon name="pill" size={18} alt="Pastilla" />
+                    <MedicalIcon name="syringe" size={18} alt="Inyección" />
+                    <MedicalIcon name="iv-bag" size={18} alt="Suero" />
+                  </h2>
                   <p className="text-xs text-zinc-400">Registro de salud ocupacional</p>
                 </div>
               </div>

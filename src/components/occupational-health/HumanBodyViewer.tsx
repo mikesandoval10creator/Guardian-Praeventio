@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { ChevronDown, RotateCcw, FileText, X, Info } from 'lucide-react';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -334,6 +335,20 @@ export function HumanBodyViewer({ value, onChange, readOnly = false, compact = f
     <div className={`bg-[#0A1628] border border-[#1A3050] rounded-2xl overflow-hidden ${compact ? 'flex flex-col' : 'flex flex-col xl:flex-row'}`}>
       {/* ── SVG Panel ───────────────────────────────────────────────── */}
       <div className={`relative flex flex-col items-center ${compact ? 'p-4' : 'p-6 xl:w-[340px] shrink-0'}`}>
+        {/* Sprint 17c — Bioicons body silhouette + organ glyph strip. */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 text-cyan-300/70 z-10" aria-hidden="true">
+          <MedicalIcon
+            name={view === 'front' ? 'human-body-male-front' : 'human-body-female-front'}
+            size={20}
+            alt="Silueta corporal"
+          />
+          <MedicalIcon name="lung-pair" size={14} alt="Pulmones" />
+          <MedicalIcon name="heart-anatomical" size={14} alt="Corazón" />
+          <MedicalIcon name="brain" size={14} alt="Cerebro" />
+          <MedicalIcon name="spine" size={14} alt="Columna" />
+          <MedicalIcon name="eye" size={14} alt="Ojo" />
+          <MedicalIcon name="ear" size={14} alt="Oído" />
+        </div>
         {/* View toggle */}
         <div className="absolute top-4 right-4 flex gap-1 z-10">
           {(['front', 'back'] as const).map((v) => (

@@ -5,6 +5,7 @@ import {
   Loader2, Download, X, ImageIcon
 } from 'lucide-react';
 import { generateMedicalIllustration } from '../../services/geminiService';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 interface AnatomyTopic {
   id: string;
@@ -13,6 +14,8 @@ interface AnatomyTopic {
   bodySystem: string;
   ds594Article: string;
   icon: typeof Heart;
+  /** Sprint 17c — Bioicons-derived medical glyph rendered as decoration. */
+  bioicon: string;
   color: string;
   prompt: string;
 }
@@ -25,6 +28,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Respiratorio',
     ds594Article: 'DS 594 Art. 66',
     icon: Wind,
+    bioicon: 'lung-pair',
     color: 'text-cyan-500',
     prompt: 'Educational anatomical diagram of human lungs showing silica fibrosis (silicosis), alveolar damage, scar tissue patterns. PLANESI Chile occupational disease.',
   },
@@ -35,6 +39,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Sensorial',
     ds594Article: 'DS 594 Art. 70',
     icon: Ear,
+    bioicon: 'ear',
     color: 'text-rose-500',
     prompt: 'Cross-section of human ear showing cochlea hair cell damage from noise-induced hearing loss (NIHL/PREXOR). Educational style.',
   },
@@ -45,6 +50,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Musculoesquelético',
     ds594Article: 'DS 594 Art. 110bis',
     icon: Bone,
+    bioicon: 'spine',
     color: 'text-amber-500',
     prompt: 'Human spine anatomy showing lumbar disc compression from manual material handling. TMERT occupational ergonomics Chile. Educational diagram.',
   },
@@ -55,6 +61,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Cardiovascular',
     ds594Article: 'Vigilancia genérica',
     icon: Heart,
+    bioicon: 'heart-anatomical',
     color: 'text-rose-600',
     prompt: 'Human cardiovascular system anatomical diagram showing heart, major arteries, coronary circulation. Educational textbook style.',
   },
@@ -65,6 +72,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Neurológico',
     ds594Article: 'EVAST psicosocial',
     icon: Brain,
+    bioicon: 'brain',
     color: 'text-violet-500',
     prompt: 'Human brain anatomical diagram showing limbic system, cortisol stress response areas. Psychosocial occupational stress (EVAST Chile). Educational.',
   },
@@ -75,6 +83,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Sensorial',
     ds594Article: 'DS 594 Art. 95-99',
     icon: Eye,
+    bioicon: 'eye',
     color: 'text-blue-500',
     prompt: 'Human eye anatomy cross-section showing accommodation muscles, retina. Computer vision syndrome / visual fatigue. Educational diagram.',
   },
@@ -85,6 +94,7 @@ const TOPICS: AnatomyTopic[] = [
     bodySystem: 'Vascular periférico',
     ds594Article: 'DS 594 Art. 79',
     icon: Activity,
+    bioicon: 'gloves-medical',
     color: 'text-orange-500',
     prompt: 'Human hand anatomy showing Raynaud-like vasoconstriction from hand-arm vibration syndrome (HAVS). Occupational disease.',
   },
@@ -175,7 +185,10 @@ export function AnatomyLibrary() {
                     <p className="text-[10px] uppercase tracking-widest">Generando…</p>
                   </div>
                 ) : (
-                  <Icon className={`w-16 h-16 ${topic.color} opacity-30`} />
+                  <div className={`flex flex-col items-center gap-2 ${topic.color} opacity-60`}>
+                    <MedicalIcon name={topic.bioicon} size={64} alt={topic.label} />
+                    <Icon className="w-6 h-6 opacity-60" />
+                  </div>
                 )}
                 {cached && (
                   <button

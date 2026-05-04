@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FileCheck, Download, X, Plus, ShieldCheck } from 'lucide-react';
+import { MedicalIcon } from '../medical/MedicalIcon';
 import { generateAptitudeCertificate, AptitudeData } from '../../utils/aptitudeCertificate';
 
 const RESULT_OPTIONS: { value: AptitudeData['result']; label: string; color: string }[] = [
@@ -66,6 +67,12 @@ export function AptitudeCertificateForm() {
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Certificado de Aptitud DS 109</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Genera PDF firmable conforme Ley 16.744</p>
+        </div>
+        {/* Sprint 17c — Bioicons exam-type cluster (vision / spirometry / audiometry). */}
+        <div className="hidden sm:flex items-center gap-2 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+          <MedicalIcon name="eye" size={20} alt="Examen visual" />
+          <MedicalIcon name="spirometer" size={20} alt="Espirometría" />
+          <MedicalIcon name="audiometer" size={20} alt="Audiometría" />
         </div>
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
           Médico
