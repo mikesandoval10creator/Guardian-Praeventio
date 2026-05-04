@@ -5,9 +5,14 @@
  * rest of the app can `import { ... } from '@/services/slm'` without
  * reaching into individual modules.
  *
- * Fase 1 (Sprint 20, Bucket Gamma, T-1.1) — types + registry only.
- * The Web Worker (T-1.2) and reconciliation queue (T-1.3+) will add
- * their own exports here as they land.
+ * Sprint 20:
+ *   - Bucket Gamma  T-1.1 — types + registry.
+ *   - Bucket Epsilon T-1.2 — IndexedDB cache, loader, Worker proxy.
+ *
+ * The actual worker source (`./worker/slmWorker.ts`) is intentionally
+ * NOT re-exported: it's loaded as a separate chunk via `new Worker(...)`
+ * inside `createSlmWorker`. Importing it from main-thread code would
+ * pull the Comlink + worker bootstrap into the wrong bundle.
  */
 
 export type {
@@ -27,3 +32,16 @@ export {
   getModelById,
   getDefaultModel,
 } from './registry';
+
+export {
+  cacheModel,
+  loadCachedModel,
+  getCachedModelBytes,
+  deleteCachedModel,
+} from './cache/modelCache';
+
+export { loadModel } from './loader';
+export type { LoadModelOptions, LoadProgressFn } from './loader';
+
+export { createSlmWorker } from './workerProxy';
+export type { SlmWorkerProxy } from './workerProxy';

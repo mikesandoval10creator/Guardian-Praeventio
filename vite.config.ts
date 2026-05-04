@@ -177,8 +177,20 @@ export default defineConfig(({mode}) => {
         'firebase-admin',
         'cookie-parser',
         'express-session',
-        'pdfkit'
+        'pdfkit',
+        // Sprint 20 Bucket Epsilon T-1.2 — `onnxruntime-web` ships a WASM
+        // bundle that Vite's pre-bundler should NOT try to rewrite; it
+        // also pulls `comlink` transitively from the worker source. Excl.
+        'onnxruntime-web'
       ]
+    },
+    // Sprint 20 Bucket Epsilon T-1.2 — emit Web Workers as ES modules
+    // so `new Worker(new URL('./worker/slmWorker.ts', import.meta.url),
+    // { type: 'module' })` works in dev and prod alike. Without
+    // `format: 'es'` Vite bundles workers as classic scripts and the
+    // worker's top-level `import * as Comlink` fails at runtime.
+    worker: {
+      format: 'es' as const,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

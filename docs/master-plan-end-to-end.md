@@ -4,14 +4,45 @@ Fecha: 2026-05-04 · Branch base: `dev/sprint-20-master-plan-end-to-end-2026-05-
 
 ## Progreso Sprint 20 multi-agent execution (2026-05-04)
 
-3 buckets paralelos completados (orchestrator pattern de Sprint 19 reutilizado):
+### Primera ola — 3 buckets (PR #28 mergeado)
 
-- **Alpha — KMS bug fix** (Fase 11 anticipada, 1 commit): `e1e121b fix(deploy): use cloud-kms adapter in production Cloud Run env`. Cambia `KMS_ADAPTER=in-memory-dev` → `cloud-kms` en `.github/workflows/deploy.yml:68` + agrega `KMS_KEY_RESOURCE_NAME` env var. Operator follow-up requerido: provisionar el secret `KMS_KEY_RESOURCE_NAME` en GitHub Actions antes del próximo prod deploy con el output de `terraform output -raw kms_key_resource_name`.
-- **Beta — IPERC split (F-C13)** (Fase 4 anticipada, 1 commit): `1cf53f0 refactor(risks): extract IPERCMatrix subcomponent from IPERCAnalysis`. IPERCAnalysis 634 → 519 LOC. IPERCMatrix.tsx nuevo 145 LOC. 84/84 tests pass.
-- **Gamma — SLM scaffolding (Fase 1 T-1.1)** (1 commit): `7c02ead feat(slm): scaffolding types + model registry (Fase 1 T-1.1)`. 4 archivos nuevos en `src/services/slm/` (types, registry, index, tests). 8 tests pass. Sin Web Worker ni inferencia aún (T-1.2+ pendiente). Nota: `'Gemma'` agregado al union de license para mantener type-safety (no es MIT/Apache puro).
-- **Bonus — script retry/backoff** (1 commit): `8b004c1 chore(scripts): retry/backoff for 429 + slower pacing in generate-medical-icons`. Pacing 35s entre llamadas + parse de `retryDelay` del 429 + max 4 attempts con exponential backoff 60→120→240s. Respeta free tier de Gemini.
+- **Alpha — KMS bug fix** (Fase 11 anticipada): `e1e121b` — `KMS_ADAPTER=in-memory-dev` → `cloud-kms` en deploy.yml + `KMS_KEY_RESOURCE_NAME` env var. Operator follow-up: provisionar secret antes próximo prod deploy.
+- **Beta — IPERC split F-C13** (Fase 4 anticipada): `1cf53f0` — IPERCAnalysis 634 → 519 LOC, IPERCMatrix.tsx nuevo 145 LOC.
+- **Gamma — SLM scaffolding T-1.1**: `7c02ead` — types + registry (3 modelos) + 8 tests.
+- Bonus: `8b004c1` script retry/backoff respetando free tier Gemini.
 
-**Bloqueador conocido**: la generación de los 33 PNG médicos requiere billing activado en Gemini API (free tier tiene `limit: 0` para `gemini-2.5-flash-image`). Acción del usuario para destrabar: enable billing en https://aistudio.google.com/app/apikey o usar key de proyecto GCP con billing.
+### Segunda ola — 3 buckets (PR #29)
+
+- **Delta — ISOManagement split F-C14** (Fase 4 anticipada): `059665d` — ISOManagement 773 → 614 LOC, ISOManagementHeader.tsx (128 LOC) + ISOManagementFilters.tsx (130 LOC) extraídos.
+- **Epsilon — SLM Web Worker T-1.2** (Fase 1, 3 commits): `3c7743b` IndexedDB modelCache + 7 tests · `64eb404` loader con fetch streaming + cache + onProgress + 4 tests · `388eb89` Web Worker proxy + onnxruntime-web@1.20+ + comlink integration. Inferencia real con prompt→tokens deferred a T-1.3 con stub determinístico actual.
+- **Eta — Performance lazy-load** (Fase 5 anticipada parcial, 2 commits): `52ab7f0` `react-force-graph-3d` + `jspdf` lazy en KnowledgeGraph · `71d190a` tesseract.js lazy en DocumentOCRManager. Bundle delta: ~470KB+ raw fuera del main bundle, descarga on-demand.
+
+### Estado verificación post-second-wave
+
+- `npm run typecheck` clean.
+- `npm test` — **1976 pass / 0 fail / 88 skipped** (+15 nuevos tests SLM cache+loader vs primera ola).
+- `npm run build` — OK, chunks separados confirmados (`react-force-graph-3d-*.js.br` 25KB brotli, `jspdf.es.min-*.js.br` 99KB brotli, `Workers-*.js.br` 18KB brotli con onnxruntime-web excluido del bundle vía `optimizeDeps.exclude`).
+
+### Pendientes ejecutables tras estas dos olas
+
+| Item | Fase | Próximo bucket |
+|---|---|---|
+| Inferencia SLM real (prompt→tokens con onnxruntime-web) | 1 T-1.3 | Sí — corazón funcional del SLM |
+| `slmAdapter` + `orchestrator` selector online/offline | 1 T-1.3 | Sí |
+| Cola offline + reconciliation Zettelkasten | 1 T-1.4 | Sí |
+| UI gestión modelo SLM (panel + picker) | 1 T-1.5 | Sí |
+| Sentry instrumentación completa | 2 | Sí |
+| Tracking eventos producto | 2 + CC-1 | Sí |
+| Listeners onSnapshot refactor real | 7 | Sí |
+| Mobile native Capacitor sync + plugins | 4 | Requiere infra |
+| Billing prod Transbank+MP+Play+SII | 5 | Requiere credenciales prod |
+| Performance restante (más lazy-load + image opt) | 5 | Sí |
+| Accesibilidad WCAG 2.2 AA + i18n hardening | 6 | Sí |
+| Brecha C fotogrametría | 9 | Sprint 28+ |
+
+**Bloqueadores conocidos del usuario**:
+- Generación 33 PNG médicos: free tier Gemini `limit: 0` para `gemini-2.5-flash-image`. Habilitar billing en https://aistudio.google.com/app/apikey o usar key con billing GCP. Costo total ~$1.30.
+- Provisionar secret `KMS_KEY_RESOURCE_NAME` en GitHub Actions antes del próximo prod deploy (output de `terraform output -raw kms_key_resource_name`).
 
 
 
