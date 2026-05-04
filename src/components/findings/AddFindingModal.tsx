@@ -10,10 +10,40 @@ import { logAuditAction } from '../../services/auditService';
 import { logger } from '../../utils/logger';
 import { useToast } from '../../hooks/useToast';
 import { ToastContainer } from '../shared/ToastContainer';
+import { analytics } from '../../services/analytics';
+import type { RiskClass, Severity } from '../../services/analytics';
 
 interface AddFindingModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+/**
+ * Spanish UI category → catalog `RiskClass` enum (property-glossary).
+ * Unknown labels fall back to `mechanical` (the catch-all in the IPER
+ * taxonomy) — keeps dashboards consistent rather than emitting bare
+ * strings that would explode cardinality.
+ */
+function mapCategoryToRiskClass(category: string): string {
+  switch (category) {
+    case 'Salud': return 'ergonomic';
+    case 'Higiene': return 'chemical';
+    case 'Ergonomía': return 'ergonomic';
+    case 'Ambiental': return 'weather';
+    case 'Seguridad':
+    default: return 'mechanical';
+  }
+}
+
+/** Spanish UI severity → catalog `Severity` enum. */
+function mapSeverityLabel(label: string): string {
+  switch (label) {
+    case 'Crítica': return 'critical';
+    case 'Alta': return 'high';
+    case 'Media': return 'medium';
+    case 'Baja':
+    default: return 'low';
+  }
 }
 
 export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
@@ -115,6 +145,20 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
           },
           selectedProject.id
         );
+
+        // Wave-9 analytics: a finding == a manually-reported risk in the
+        // tracking-plan taxonomy (TRACKING_PLAN §5 / event-catalog "Riesgos"
+        // — risk.reported.manual). Map the Spanish UI category/severity
+        // labels to the closed-set RiskClass / Severity enums; unknown
+        // values collapse to safe defaults so dashboard cardinality is
+        // bounded.
+        try {
+          analytics.track('risk.reported.manual', {
+            risk_id: findingNode.id,
+            risk_class: mapCategoryToRiskClass(formData.category) as RiskClass,
+            severity: mapSeverityLabel(formData.severity) as Severity,
+          });
+        } catch { /* analytics must never break user flow */ }
       }
 
       if (findingNode && generateAIPlan) {

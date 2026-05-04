@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { isBiometricSupported, verifyBiometric, registerBiometric } from '../utils/biometrics';
 import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { analytics, userIdHash } from '../services/analytics';
 
 export default function Login() {
   const { t } = useTranslation();
@@ -54,6 +55,18 @@ export default function Login() {
         try {
           // Re-sync: first check if we already have it linked in Firestore
           const userSnap = await getDoc(doc(db, 'users', user.uid));
+          // Wave-9 analytics: a missing user doc is the strongest local
+          // signal that this is a brand-new account (the user-doc seed
+          // happens server-side on first login). Fire signed_up before
+          // we create the doc so the event is captured exactly once.
+          if (!userSnap.exists()) {
+            try {
+              analytics.track('auth.user.signed_up', {
+                provider: 'google',
+                user_id_hash: await userIdHash(user.uid),
+              });
+            } catch { /* analytics must never break user flow */ }
+          }
           if (userSnap.exists()) {
              // Let's create a new passkey specifically for this new device session
              const credId = await registerBiometric(user.uid, user.email || 'user');
