@@ -58,6 +58,24 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
+  validate-env:
+    # Bucket U.5 — env-var shape check. We use --mode test so this job
+    # passes against the .env.example template (placeholders allowed,
+    # optional vars skipped). Real prod secrets live in deploy-only
+    # GitHub secrets and are validated at boot via the package.json
+    # "start" path consuming "validate:env" without --mode test.
+    name: Validate env
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate env shape (test mode tolerates placeholders)
+        run: node scripts/validate-env.cjs --mode test
+
   rules-tests:
     name: Firestore rules tests
     runs-on: ubuntu-latest
