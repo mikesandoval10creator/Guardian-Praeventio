@@ -1,5 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, BrainCircuit, AlertTriangle, ShieldCheck, ArrowRight } from 'lucide-react';
 
 interface AIInsightsModalProps {
@@ -9,6 +10,7 @@ interface AIInsightsModalProps {
 }
 
 export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalProps) {
+  const { t } = useTranslation();
   return (
     <AnimatePresence>
       {isOpen && insights && (
@@ -34,8 +36,8 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
                   <BrainCircuit className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Análisis Predictivo IA</h2>
-                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest truncate">Evaluación de riesgos globales</p>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('ai_insights.title', 'Análisis Predictivo IA')}</h2>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest truncate">{t('ai_insights.subtitle', 'Evaluación de riesgos globales')}</p>
                 </div>
               </div>
               <button
@@ -49,13 +51,13 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
             <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar flex-1">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Probabilidad de Incidente</p>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">{t('ai_insights.incident_probability', 'Probabilidad de Incidente')}</p>
                   <div className="flex items-end gap-2">
                     <span className="text-3xl font-black text-zinc-900 dark:text-white leading-none">{insights.probabilidadGlobal}%</span>
                   </div>
                 </div>
                 <div className="bg-zinc-50 dark:bg-zinc-800/30 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Nivel de Riesgo</p>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">{t('ai_insights.risk_level', 'Nivel de Riesgo')}</p>
                   <div className="flex items-center gap-2">
                     <span className={`text-xl font-black uppercase tracking-tight ${
                       insights.nivelRiesgo === 'Crítico' || insights.nivelRiesgo === 'Alto' ? 'text-rose-500' : 'text-emerald-500'
@@ -69,7 +71,7 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
               <div>
                 <h3 className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  Predicciones Principales
+                  {t('ai_insights.main_predictions', 'Predicciones Principales')}
                 </h3>
                 <div className="space-y-3">
                   {insights.predicciones.map((pred: any, idx: number) => (
@@ -77,14 +79,14 @@ export function AIInsightsModal({ isOpen, onClose, insights }: AIInsightsModalPr
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{pred.titulo}</h4>
                         <span className="px-2 py-1 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-black uppercase tracking-widest shrink-0">
-                          {pred.probabilidad}% Prob.
+                          {t('ai_insights.probability_label', '{{value}}% Prob.', { value: pred.probabilidad })}
                         </span>
                       </div>
                       <p className="text-xs text-zinc-400 mb-4 leading-relaxed">{pred.razon}</p>
                       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 flex items-start gap-3">
                         <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                         <div>
-                          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">Mitigación Sugerida</p>
+                          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">{t('ai_insights.suggested_mitigation', 'Mitigación Sugerida')}</p>
                           <p className="text-xs text-emerald-800 dark:text-emerald-100/80 leading-relaxed">{pred.mitigacionSugerida}</p>
                         </div>
                       </div>

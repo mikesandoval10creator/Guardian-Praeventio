@@ -746,5 +746,47 @@
     "resend_link": "Reenviar enlace",
     "verified_on": "Verificado el {{date}}",
     "expires_on": "Expira el {{date}} si no se completa."
+  },
+  "epp_character": {
+    "guardian_title": "Guardián Praeventio",
+    "subtitle_complete": "Tu equipo de protección personal está completo y verificado para las condiciones actuales."
+  },
+  "epp_required": {
+    "badge": "EPP Requerido",
+    "helmet": "Casco",
+    "gloves": "Guantes",
+    "brand": "Praeventio",
+    "goggles": "Lentes",
+    "boots": "Zapatos"
+  },
+  "dashboard_actions": {
+    "fast_check": "Fast Check",
+    "planner": "Planificador",
+    "emergency": "Emergencia",
+    "live_map": "Mapa Vivo"
+  },
+  "realtime_status": {
+    "operational_state": "Estado Operativo",
+    "operational_state_with_kind": "Estado Operativo: {{kind}}",
+    "kind_emergency": "Emergencia",
+    "kind_alert": "Alerta",
+    "view_protocol": "Ver Protocolo",
+    "normal_operation": "Faena Normal",
+    "recommendation_label": "Recomendación",
+    "recommendation_mining": "Verifique sistemas de ventilación y fortificación. Monitoree fatiga en operadores de maquinaria pesada.",
+    "recommendation_construction": "Inspeccione andamios y líneas de vida. Asegure el uso correcto de arneses en trabajos en altura.",
+    "recommendation_manufacturing": "Revise guardas de seguridad en maquinaria móvil. Mantenga pasillos despejados de obstáculos.",
+    "recommendation_agriculture": "Asegure hidratación constante y pausas bajo sombra. Verifique EPP para aplicación de agroquímicos.",
+    "recommendation_energy": "Confirme bloqueos de energía (LOTO) antes de intervenciones. Use EPP dieléctrico certificado.",
+    "recommendation_default": "Mantenga las áreas de trabajo ordenadas y limpias. Realice pausas activas cada 2 horas."
+  },
+  "ai_insights": {
+    "title": "Análisis Predictivo IA",
+    "subtitle": "Evaluación de riesgos globales",
+    "incident_probability": "Probabilidad de Incidente",
+    "risk_level": "Nivel de Riesgo",
+    "main_predictions": "Predicciones Principales",
+    "probability_label": "{{value}}% Prob.",
+    "suggested_mitigation": "Mitigación Sugerida"
   }
 }

@@ -1,8 +1,10 @@
 import { Shield, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '../shared/Card';
 import { eppCatalog } from '../../data/epp';
 
 export function EPPCharacter() {
+  const { t } = useTranslation();
   const requiredEPP = eppCatalog.filter(e => e.required);
 
   return (
@@ -16,9 +18,9 @@ export function EPPCharacter() {
             <CheckCircle2 className="w-6 h-6" />
           </div>
         </div>
-        <h3 className="text-xl font-bold tracking-tight mb-2 uppercase">Guardián Praeventio</h3>
+        <h3 className="text-xl font-bold tracking-tight mb-2 uppercase">{t('epp_character.guardian_title', 'Guardián Praeventio')}</h3>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 max-w-xs">
-          Tu equipo de protección personal está completo y verificado para las condiciones actuales.
+          {t('epp_character.subtitle_complete', 'Tu equipo de protección personal está completo y verificado para las condiciones actuales.')}
         </p>
       </div>
 
