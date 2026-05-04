@@ -21,7 +21,7 @@
 import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
-import { geminiLimiter } from '../middleware/limiters.js';
+import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 
 // Sprint 10 — restablece el patrón "Portal → Sentidos → Mente" del prototipo
@@ -182,7 +182,7 @@ const router = Router();
 // pre-auth flood from missing/invalid Bearer headers is rejected by
 // verifyAuth before it reaches the limiter, so 401 traffic does not
 // consume any uid's quota.
-router.post('/ask-guardian', verifyAuth, geminiLimiter, async (req, res) => {
+router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { query, projectId, stream = false } = req.body;
 
   if (!process.env.GEMINI_API_KEY) {
@@ -267,7 +267,7 @@ ${envBlock}
 });
 
 // Gemini API Proxy
-router.post('/gemini', verifyAuth, geminiLimiter, async (req, res) => {
+router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { action, args } = req.body;
 
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
