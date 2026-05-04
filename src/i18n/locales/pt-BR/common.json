@@ -873,7 +873,37 @@
     "area_label": "Área (m²)",
     "wind_speed_label": "Velocidade do vento (km/h)",
     "estimated_force": "Força estimada (Cp = {{coeff}})",
-    "local_calc_note": "Cálculo local baseado no princípio de Bernoulli. Para análise estrutural completa, consultar NCh 432."
+    "local_calc_note": "Cálculo local baseado no princípio de Bernoulli. Para análise estrutural completa, consultar NCh 432.",
+    "buckling": {
+      "title": "Flambagem de Euler (P_cr)",
+      "subtitle": "Estabilidade elástica de colunas: andaimes, escoras e estruturas provisórias.",
+      "material_label": "Material",
+      "material_steel": "Aço",
+      "material_aluminum": "Alumínio",
+      "material_wood": "Madeira",
+      "section_label": "Seção",
+      "section_rectangular": "Retangular",
+      "section_circular-solid": "Circular maciça",
+      "section_circular-hollow": "Circular oca (tubo)",
+      "end_cond_label": "Condições de contorno",
+      "end_pinned-pinned": "Articulada-Articulada (K = 1)",
+      "end_fixed-fixed": "Engastada-Engastada (K = 0,5)",
+      "end_fixed-pinned": "Engastada-Articulada (K ≈ 0,7)",
+      "end_fixed-free": "Engastada-Livre / Em balanço (K = 2)",
+      "length_label": "Comprimento sem travamento L (m)",
+      "width_label": "Largura b (m)",
+      "height_label": "Altura h (m)",
+      "diameter_label": "Diâmetro d (m)",
+      "outer_label": "Diâmetro externo (m)",
+      "inner_label": "Diâmetro interno (m)",
+      "applied_label": "Carga aplicada (N)",
+      "pcr_label": "Carga crítica P_cr",
+      "sf_label": "Fator de segurança SF = P_cr / P_aplicada",
+      "toggle_units": "Trocar unidades (N ↔ kN)",
+      "warning_title": "Aviso de flambagem:",
+      "warning_body": "O fator de segurança está abaixo do mínimo recomendado de 2,0. Revisar dimensões, travamentos ou reduzir carga.",
+      "note": "P_cr = π²·E·I / (K·L)². Modelo elástico ideal (Euler 1744). Não se aplica a imperfeições grandes nem regime inelástico."
+    }
   },
   "hazmat_designer": {
     "title": "Designer de Instalações (OGUC / DS 43)",
@@ -912,6 +942,19 @@
   },
   "medal_viewer": {
     "default_title": "SEMANA INVICTA"
+  },
+  "polyhedron_achievement": {
+    "unlocked_label": "Poliedro desbloqueado!",
+    "progress_label": "Progresso do poliedro",
+    "vertices_unlocked": "Você desbloqueou: {{unlocked}}/{{total}} vértices do {{shape}} de Conhecimento ({{percent}}%)",
+    "live_badge": "{{unlocked}}/{{total}} vértices do {{shape}}",
+    "shapes": {
+      "tetrahedron": "Tetraedro",
+      "cube": "Cubo",
+      "octahedron": "Octaedro",
+      "dodecahedron": "Dodecaedro",
+      "icosahedron": "Icosaedro"
+    }
   },
   "audit_detail": {
     "no_date": "Sem data",

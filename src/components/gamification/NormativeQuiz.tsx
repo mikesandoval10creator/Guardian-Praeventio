@@ -1,15 +1,31 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Loader2 } from 'lucide-react';
+import { BookOpen, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Trophy, X, Loader2, Box } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { generateTrainingQuiz } from '../../services/geminiService';
 import { logger } from '../../utils/logger';
+import {
+  PLATONIC_SOLIDS,
+  progressFromQuiz,
+  suggestedPolyhedron,
+  type PolyhedronShape,
+} from '../../services/euler/polyhedronAchievements';
 
 interface NormativeQuizProps {
   onComplete: (points: number) => void;
   onClose: () => void;
+  /** User skill level — selects the target polyhedron. Defaults to 'beginner'. */
+  userLevel?: 'beginner' | 'intermediate' | 'advanced';
 }
+
+/**
+ * Custom event fired when a polyhedron achievement is fully unlocked.
+ * Other components (e.g., Medal3DViewer host views, analytics
+ * pipelines) can listen via:
+ *   window.addEventListener('polyhedron:unlocked', (e) => ...)
+ */
+const POLYHEDRON_UNLOCKED_EVENT = 'polyhedron:unlocked';
 
 interface Question {
   question: string;
@@ -18,7 +34,7 @@ interface Question {
   explanation: string;
 }
 
-export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
+export function NormativeQuiz({ onComplete, onClose, userLevel = 'beginner' }: NormativeQuizProps) {
   const { t } = useTranslation();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -27,6 +43,51 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
   const [score, setScore] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [gameFinished, setGameFinished] = useState(false);
+
+  /**
+   * Target polyhedron for this user level. The quiz progress maps to
+   * vertices of this solid (each correct answer = 1 vertex unlocked).
+   * V-E+F=2 invariant pinned by the underlying service.
+   */
+  const targetPolyhedron: PolyhedronShape = useMemo(
+    () => suggestedPolyhedron(userLevel),
+    [userLevel],
+  );
+
+  /**
+   * Live progress derived from the running quiz score.
+   *  - correctAnswers → vertices unlocked
+   *  - topicalConnections (heuristic): one connection per pair of
+   *    consecutive correct answers (since the quiz spans Ley 16.744 +
+   *    DS 594 — pairs of correct answers represent linking topics).
+   *  - modulesCompleted: 1 if the full quiz has been finished.
+   */
+  const polyhedronProgress = useMemo(
+    () =>
+      progressFromQuiz(
+        {
+          correctAnswers: score,
+          topicalConnections: Math.floor(score / 2),
+          modulesCompleted: gameFinished ? 1 : 0,
+        },
+        targetPolyhedron,
+      ),
+    [score, gameFinished, targetPolyhedron],
+  );
+
+  // Fire the unlock event exactly once when the polyhedron completes.
+  useEffect(() => {
+    if (polyhedronProgress.isComplete && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent(POLYHEDRON_UNLOCKED_EVENT, {
+          detail: {
+            shape: polyhedronProgress.shape,
+            progress: polyhedronProgress,
+          },
+        }),
+      );
+    }
+  }, [polyhedronProgress.isComplete, polyhedronProgress.shape, polyhedronProgress]);
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -121,9 +182,32 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
               <h3 className="text-3xl font-black text-white uppercase tracking-tighter mb-2">
                 {score === questions.length ? t('normative_quiz.perfect_score', '¡Puntaje Perfecto!') : t('normative_quiz.quiz_completed', '¡Quiz Completado!')}
               </h3>
-              <p className="text-zinc-400 mb-8 text-lg">
+              <p className="text-zinc-400 mb-4 text-lg">
                 {t('normative_quiz.correct_answers', 'Has respondido correctamente {{score}} de {{total}} preguntas.', { score, total: questions.length })}
               </p>
+              {/* Polyhedron unlock badge (Fase 10 Euler-Matrix). */}
+              <div className="mb-8 px-5 py-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex items-center gap-3 max-w-md">
+                <Box className="w-6 h-6 text-indigo-400 shrink-0" />
+                <div className="text-left text-sm">
+                  <p className="font-bold text-indigo-300 uppercase tracking-widest text-xs mb-1">
+                    {polyhedronProgress.isComplete
+                      ? t('polyhedron_achievement.unlocked_label', '¡Poliedro desbloqueado!')
+                      : t('polyhedron_achievement.progress_label', 'Progreso del poliedro')}
+                  </p>
+                  <p className="text-zinc-200">
+                    {t(
+                      'polyhedron_achievement.vertices_unlocked',
+                      'Has desbloqueado: {{unlocked}}/{{total}} vértices del {{shape}} de Conocimiento ({{percent}}%)',
+                      {
+                        unlocked: polyhedronProgress.unlockedV,
+                        total: PLATONIC_SOLIDS[targetPolyhedron].V,
+                        shape: t(`polyhedron_achievement.shapes.${targetPolyhedron}`, targetPolyhedron),
+                        percent: polyhedronProgress.completionPercent.toFixed(0),
+                      },
+                    )}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={handleComplete}
                 className="flex items-center gap-2 px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-black uppercase tracking-widest transition-colors"
@@ -134,7 +218,7 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
             </motion.div>
           ) : questions.length > 0 ? (
             <div className="flex flex-col h-full">
-              <div className="flex justify-between items-center mb-6">
+              <div className="flex justify-between items-center mb-3">
                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">
                   {t('normative_quiz.question_progress', 'Pregunta {{current}} de {{total}}', { current: currentQuestionIndex + 1, total: questions.length })}
                 </span>
@@ -146,6 +230,21 @@ export function NormativeQuiz({ onComplete, onClose }: NormativeQuizProps) {
                     }`} />
                   ))}
                 </div>
+              </div>
+              {/* Live polyhedron mini-badge — vertices unlocked so far. */}
+              <div className="flex items-center gap-2 mb-6 text-[11px] font-bold text-indigo-300/70 uppercase tracking-widest">
+                <Box className="w-3.5 h-3.5" />
+                <span>
+                  {t(
+                    'polyhedron_achievement.live_badge',
+                    '{{unlocked}}/{{total}} vértices del {{shape}}',
+                    {
+                      unlocked: polyhedronProgress.unlockedV,
+                      total: PLATONIC_SOLIDS[targetPolyhedron].V,
+                      shape: t(`polyhedron_achievement.shapes.${targetPolyhedron}`, targetPolyhedron),
+                    },
+                  )}
+                </span>
               </div>
 
               <h3 className="text-xl font-bold text-white mb-8 leading-relaxed">

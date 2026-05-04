@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { calculateStructuralLoad } from '../../services/geminiService';
-import { Calculator, Wrench, AlertTriangle, Loader2, CheckCircle2, Wind } from 'lucide-react';
+import { Calculator, Wrench, AlertTriangle, Loader2, CheckCircle2, Wind, Columns3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
@@ -9,9 +9,37 @@ import { windLoadOnSurface, windSpeedKmhToMs } from '../../services/physics/bern
 import { generateScaffoldUpliftNode } from '../../services/zettelkasten/bernoulli';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { useProject } from '../../contexts/ProjectContext';
+import {
+  calculateCriticalLoad,
+  bucklingSafetyFactor,
+  rectangularInertia,
+  circularSolidInertia,
+  circularHollowInertia,
+  type EndConditions,
+} from '../../services/euler/criticalLoad';
 
 const WIND_PRESSURE_COEFF = 0.8; // Cp windward, según norma chilena NCh 432
 const newtonFormatter = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
+
+// Common Young's modulus presets (Pa) — palette of materials for jobsite columns.
+const MATERIAL_PRESETS = [
+  { id: 'steel', E: 200e9 },
+  { id: 'aluminum', E: 69e9 },
+  { id: 'wood', E: 10e9 },
+] as const;
+
+const SECTION_TYPES = ['rectangular', 'circular-solid', 'circular-hollow'] as const;
+type SectionType = (typeof SECTION_TYPES)[number];
+
+const END_CONDITIONS: readonly EndConditions[] = [
+  'pinned-pinned',
+  'fixed-fixed',
+  'fixed-pinned',
+  'fixed-free',
+] as const;
+
+// Recommended minimum SF against buckling — DS 594 / OGUC use 2.0 baseline.
+const MIN_SAFETY_FACTOR_BUCKLING = 2.0;
 
 // Element type values map to backend keys; labels are localized at render time.
 const ELEMENT_TYPES = [
@@ -29,6 +57,20 @@ export const StructuralCalculator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [windAreaM2, setWindAreaM2] = useState<number>(20);
   const [windSpeedKmh, setWindSpeedKmh] = useState<number>(90);
+
+  // Pandeo de Euler (P_cr) state
+  const [bucklingMaterial, setBucklingMaterial] = useState<(typeof MATERIAL_PRESETS)[number]['id']>('steel');
+  const [bucklingSection, setBucklingSection] = useState<SectionType>('rectangular');
+  const [bucklingWidth, setBucklingWidth] = useState<number>(0.1); // m
+  const [bucklingHeight, setBucklingHeight] = useState<number>(0.1); // m
+  const [bucklingDiameter, setBucklingDiameter] = useState<number>(0.05); // m
+  const [bucklingOuter, setBucklingOuter] = useState<number>(0.1); // m
+  const [bucklingInner, setBucklingInner] = useState<number>(0.08); // m
+  const [bucklingLength, setBucklingLength] = useState<number>(2); // m
+  const [bucklingEndCond, setBucklingEndCond] = useState<EndConditions>('pinned-pinned');
+  const [bucklingApplied, setBucklingApplied] = useState<number>(50_000); // N
+  const [bucklingDisplayKN, setBucklingDisplayKN] = useState<boolean>(true);
+
   const { selectedProject } = useProject();
 
   const windForceN = windLoadOnSurface(
@@ -51,6 +93,38 @@ export const StructuralCalculator: React.FC = () => {
     const projectId = selectedProject?.id;
     if (projectId) writeNodesDebounced([scaffoldUpliftNode], { projectId });
   }
+
+  // Euler P_cr — pure-compute, derived per render.
+  const bucklingResult = useMemo(() => {
+    const preset = MATERIAL_PRESETS.find((m) => m.id === bucklingMaterial)!;
+    let I: number;
+    if (bucklingSection === 'rectangular') {
+      I = rectangularInertia(bucklingWidth, bucklingHeight);
+    } else if (bucklingSection === 'circular-solid') {
+      I = circularSolidInertia(bucklingDiameter);
+    } else {
+      I = circularHollowInertia(bucklingOuter, bucklingInner);
+    }
+    return calculateCriticalLoad({
+      youngsModulus: preset.E,
+      momentOfInertia: I,
+      length: bucklingLength,
+      endConditions: bucklingEndCond,
+    });
+  }, [
+    bucklingMaterial,
+    bucklingSection,
+    bucklingWidth,
+    bucklingHeight,
+    bucklingDiameter,
+    bucklingOuter,
+    bucklingInner,
+    bucklingLength,
+    bucklingEndCond,
+  ]);
+  const bucklingSF = bucklingSafetyFactor(bucklingResult.criticalLoad, bucklingApplied);
+  const bucklingPcrValid = Number.isFinite(bucklingResult.criticalLoad);
+  const bucklingUnsafe = bucklingPcrValid && Number.isFinite(bucklingSF) && bucklingSF < MIN_SAFETY_FACTOR_BUCKLING;
 
   const handleCalculate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -223,6 +297,204 @@ export const StructuralCalculator: React.FC = () => {
 
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
           {t('structural_calc.local_calc_note')}
+        </p>
+      </div>
+
+      {/* Pandeo de Euler (P_cr) — additive section */}
+      <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center border border-teal-500/20">
+            <Columns3 className="w-5 h-5 text-teal-500 dark:text-teal-400" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">{t('structural_calc.buckling.title', 'Pandeo de Euler (P_cr)')}</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('structural_calc.buckling.subtitle', 'Estabilidad elástica de columnas: andamios, puntales y estructuras provisionales.')}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.material_label', 'Material')}</label>
+            <select
+              value={bucklingMaterial}
+              onChange={(e) => setBucklingMaterial(e.target.value as (typeof MATERIAL_PRESETS)[number]['id'])}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            >
+              {MATERIAL_PRESETS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {t(`structural_calc.buckling.material_${m.id}`, m.id)} (E = {(m.E / 1e9).toFixed(0)} GPa)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.end_cond_label', 'Condiciones de borde')}</label>
+            <select
+              value={bucklingEndCond}
+              onChange={(e) => setBucklingEndCond(e.target.value as EndConditions)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            >
+              {END_CONDITIONS.map((ec) => (
+                <option key={ec} value={ec}>
+                  {t(`structural_calc.buckling.end_${ec}`, ec)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.section_label', 'Sección')}</label>
+            <select
+              value={bucklingSection}
+              onChange={(e) => setBucklingSection(e.target.value as SectionType)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            >
+              {SECTION_TYPES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`structural_calc.buckling.section_${s}`, s)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.length_label', 'Longitud sin arriostrar L (m)')}</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={bucklingLength}
+              onChange={(e) => setBucklingLength(Number(e.target.value) || 0)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            />
+          </div>
+
+          {bucklingSection === 'rectangular' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.width_label', 'Ancho b (m)')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={bucklingWidth}
+                  onChange={(e) => setBucklingWidth(Number(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.height_label', 'Alto h (m)')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={bucklingHeight}
+                  onChange={(e) => setBucklingHeight(Number(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+            </>
+          )}
+
+          {bucklingSection === 'circular-solid' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.diameter_label', 'Diámetro d (m)')}</label>
+              <input
+                type="number"
+                min={0}
+                step="0.001"
+                value={bucklingDiameter}
+                onChange={(e) => setBucklingDiameter(Number(e.target.value) || 0)}
+                className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+              />
+            </div>
+          )}
+
+          {bucklingSection === 'circular-hollow' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.outer_label', 'Diámetro exterior (m)')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={bucklingOuter}
+                  onChange={(e) => setBucklingOuter(Number(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.inner_label', 'Diámetro interior (m)')}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={bucklingInner}
+                  onChange={(e) => setBucklingInner(Number(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('structural_calc.buckling.applied_label', 'Carga aplicada (N)')}</label>
+            <input
+              type="number"
+              min={0}
+              step="100"
+              value={bucklingApplied}
+              onChange={(e) => setBucklingApplied(Number(e.target.value) || 0)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-teal-500/5 dark:bg-teal-400/10 border border-teal-500/20 dark:border-teal-400/20 rounded-xl p-4">
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {t('structural_calc.buckling.pcr_label', 'Carga crítica P_cr')} (K = {bucklingResult.K})
+            </span>
+            <span className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+              {bucklingPcrValid
+                ? bucklingDisplayKN
+                  ? `${(bucklingResult.criticalLoad / 1000).toFixed(2)} kN`
+                  : `${newtonFormatter.format(bucklingResult.criticalLoad)} N`
+                : '—'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setBucklingDisplayKN((prev) => !prev)}
+              className="mt-1 text-[11px] text-teal-700 dark:text-teal-300 hover:underline self-start"
+            >
+              {t('structural_calc.buckling.toggle_units', 'Cambiar unidades (N ↔ kN)')}
+            </button>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 dark:text-slate-400">{t('structural_calc.buckling.sf_label', 'Factor de seguridad SF = P_cr / P_aplicada')}</span>
+            <span className={`text-2xl font-bold ${bucklingUnsafe ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              {bucklingPcrValid && Number.isFinite(bucklingSF)
+                ? bucklingSF.toFixed(2)
+                : bucklingPcrValid && bucklingSF === Number.POSITIVE_INFINITY
+                ? '∞'
+                : '—'}
+            </span>
+          </div>
+        </div>
+
+        {bucklingUnsafe && (
+          <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 dark:text-amber-200/80 leading-relaxed">
+              <strong>{t('structural_calc.buckling.warning_title', 'Advertencia de pandeo:')}</strong>{' '}
+              {t('structural_calc.buckling.warning_body', 'El factor de seguridad está por debajo del mínimo recomendado de 2.0. Revisar dimensiones, arriostramiento o reducir carga.')}
+            </p>
+          </div>
+        )}
+
+        <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+          {t('structural_calc.buckling.note', 'P_cr = π²·E·I / (K·L)². Modelo elástico ideal (Euler 1744). No aplica para imperfecciones grandes ni régimen inelástico.')}
         </p>
       </div>
     </div>
