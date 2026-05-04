@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { X, ClipboardCheck, Calendar, User, Loader2, Shield, Activity, FileText } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType } from '../../types';
@@ -13,6 +14,7 @@ interface AddAuditModalProps {
 }
 
 export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddAuditModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const { addNode } = useRiskEngine();
   const { selectedProject } = useProject();
@@ -107,8 +109,8 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                   <ClipboardCheck className="w-6 h-6 text-blue-600 dark:text-blue-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-tight">Nueva Auditoría</h3>
-                  <p className="text-xs text-zinc-500 font-medium">Planificar verificación de cumplimiento</p>
+                  <h3 className="text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-tight">{t('audits.modal_new_title', 'Nueva Auditoría')}</h3>
+                  <p className="text-xs text-zinc-500 font-medium">{t('audits.modal_new_subtitle', 'Planificar verificación de cumplimiento')}</p>
                 </div>
               </div>
               <button onClick={onClose} className="p-2 hover:bg-zinc-100 dark:hover:bg-white/5 rounded-full transition-colors">
@@ -118,33 +120,33 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título de la Auditoría</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_title', 'Título de la Auditoría')}</label>
                 <input
                   required
                   type="text"
                   value={formData.title}
                   onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Ej: Auditoría Trimestral de Seguridad e Higiene"
+                  placeholder={t('audits.modal_field_title_placeholder', 'Ej: Auditoría Trimestral de Seguridad e Higiene')}
                   className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 />
               </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Tipo</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_type', 'Tipo')}</label>
             <select
               value={formData.type}
               onChange={e => setFormData({ ...formData, type: e.target.value })}
               className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
             >
-              <option>Interna</option>
-              <option>Externa</option>
-              <option>Certificación</option>
-              <option>Gubernamental</option>
+              <option value="Interna">{t('audits.type_internal', 'Interna')}</option>
+              <option value="Externa">{t('audits.type_external', 'Externa')}</option>
+              <option value="Certificación">{t('audits.type_certification', 'Certificación')}</option>
+              <option value="Gubernamental">{t('audits.type_governmental', 'Gubernamental')}</option>
             </select>
           </div>
           <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Fecha Programada</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_date', 'Fecha Programada')}</label>
             <div className="relative">
               <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
@@ -161,21 +163,21 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
 
         {formData.type === 'Certificación' && (
           <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Norma ISO</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_iso_standard', 'Norma ISO')}</label>
             <select
               value={formData.isoStandard}
               onChange={e => setFormData({ ...formData, isoStandard: e.target.value })}
               className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
             >
-              <option value="ISO 45001:2018">ISO 45001:2018 (SST)</option>
-              <option value="ISO 9001:2015">ISO 9001:2015 (Calidad)</option>
-              <option value="ISO 14001:2015">ISO 14001:2015 (Medio Ambiente)</option>
+              <option value="ISO 45001:2018">{t('audits.iso_45001_label', 'ISO 45001:2018 (SST)')}</option>
+              <option value="ISO 9001:2015">{t('audits.iso_9001_label', 'ISO 9001:2015 (Calidad)')}</option>
+              <option value="ISO 14001:2015">{t('audits.iso_14001_label', 'ISO 14001:2015 (Medio Ambiente)')}</option>
             </select>
           </div>
         )}
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Auditor Responsable</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_auditor', 'Auditor Responsable')}</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
@@ -183,31 +185,31 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                     type="text"
                     value={formData.auditor}
                     onChange={e => setFormData({ ...formData, auditor: e.target.value })}
-                    placeholder="Nombre del auditor..."
+                    placeholder={t('audits.modal_field_auditor_placeholder', 'Nombre del auditor...')}
                     className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Alcance / Objetivo</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_scope', 'Alcance / Objetivo')}</label>
                 <textarea
                   required
                   value={formData.scope}
                   onChange={e => setFormData({ ...formData, scope: e.target.value })}
-                  placeholder="Define el alcance de la auditoría..."
+                  placeholder={t('audits.modal_field_scope_placeholder', 'Define el alcance de la auditoría...')}
                   rows={2}
                   className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('audits.modal_field_description', 'Descripción')}</label>
                 <textarea
                   required
                   value={formData.description}
                   onChange={e => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Detalles adicionales..."
+                  placeholder={t('audits.modal_field_description_placeholder', 'Detalles adicionales...')}
                   rows={2}
                   className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all resize-none"
                 />
@@ -223,7 +225,7 @@ export function AddAuditModal({ isOpen, onClose, initialType = 'Interna' }: AddA
                 ) : (
                   <>
                     <FileText className="w-5 h-5" />
-                    Planificar Auditoría
+                    {t('audits.modal_submit', 'Planificar Auditoría')}
                   </>
                 )}
               </button>

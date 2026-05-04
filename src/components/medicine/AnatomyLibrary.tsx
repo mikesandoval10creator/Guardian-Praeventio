@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   Brain, Heart, Wind, Bone, Eye, Ear, Activity, Sparkles,
   Loader2, Download, X, ImageIcon
@@ -17,88 +18,9 @@ interface AnatomyTopic {
   /** Sprint 17c — Bioicons-derived medical glyph rendered as decoration. */
   bioicon: string;
   color: string;
+  /** Prompt sent to Gemini — kept in English on purpose for prompt quality. */
   prompt: string;
 }
-
-const TOPICS: AnatomyTopic[] = [
-  {
-    id: 'lungs-silicosis',
-    label: 'Pulmones / Silicosis',
-    description: 'Sistema respiratorio + fibrosis por sílice (PLANESI)',
-    bodySystem: 'Respiratorio',
-    ds594Article: 'DS 594 Art. 66',
-    icon: Wind,
-    bioicon: 'lung-pair',
-    color: 'text-cyan-500',
-    prompt: 'Educational anatomical diagram of human lungs showing silica fibrosis (silicosis), alveolar damage, scar tissue patterns. PLANESI Chile occupational disease.',
-  },
-  {
-    id: 'auditory-prexor',
-    label: 'Oído / PREXOR',
-    description: 'Oído interno + hipoacusia inducida por ruido',
-    bodySystem: 'Sensorial',
-    ds594Article: 'DS 594 Art. 70',
-    icon: Ear,
-    bioicon: 'ear',
-    color: 'text-rose-500',
-    prompt: 'Cross-section of human ear showing cochlea hair cell damage from noise-induced hearing loss (NIHL/PREXOR). Educational style.',
-  },
-  {
-    id: 'spine-tmert',
-    label: 'Columna / TMERT',
-    description: 'Trastornos musculoesqueléticos relacionados al trabajo',
-    bodySystem: 'Musculoesquelético',
-    ds594Article: 'DS 594 Art. 110bis',
-    icon: Bone,
-    bioicon: 'spine',
-    color: 'text-amber-500',
-    prompt: 'Human spine anatomy showing lumbar disc compression from manual material handling. TMERT occupational ergonomics Chile. Educational diagram.',
-  },
-  {
-    id: 'cardiovascular',
-    label: 'Cardiovascular',
-    description: 'Sistema circulatorio + factores de riesgo laboral',
-    bodySystem: 'Cardiovascular',
-    ds594Article: 'Vigilancia genérica',
-    icon: Heart,
-    bioicon: 'heart-anatomical',
-    color: 'text-rose-600',
-    prompt: 'Human cardiovascular system anatomical diagram showing heart, major arteries, coronary circulation. Educational textbook style.',
-  },
-  {
-    id: 'brain-stress',
-    label: 'Cerebro / EVAST',
-    description: 'Sistema nervioso + estrés laboral',
-    bodySystem: 'Neurológico',
-    ds594Article: 'EVAST psicosocial',
-    icon: Brain,
-    bioicon: 'brain',
-    color: 'text-violet-500',
-    prompt: 'Human brain anatomical diagram showing limbic system, cortisol stress response areas. Psychosocial occupational stress (EVAST Chile). Educational.',
-  },
-  {
-    id: 'visual',
-    label: 'Visual / Fatiga',
-    description: 'Sistema visual + esfuerzo en pantallas',
-    bodySystem: 'Sensorial',
-    ds594Article: 'DS 594 Art. 95-99',
-    icon: Eye,
-    bioicon: 'eye',
-    color: 'text-blue-500',
-    prompt: 'Human eye anatomy cross-section showing accommodation muscles, retina. Computer vision syndrome / visual fatigue. Educational diagram.',
-  },
-  {
-    id: 'hand-vibration',
-    label: 'Mano / Vibración',
-    description: 'Síndrome vibración mano-brazo (HAVS)',
-    bodySystem: 'Vascular periférico',
-    ds594Article: 'DS 594 Art. 79',
-    icon: Activity,
-    bioicon: 'gloves-medical',
-    color: 'text-orange-500',
-    prompt: 'Human hand anatomy showing Raynaud-like vasoconstriction from hand-arm vibration syndrome (HAVS). Occupational disease.',
-  },
-];
 
 interface CachedImage {
   topicId: string;
@@ -107,10 +29,94 @@ interface CachedImage {
 }
 
 export function AnatomyLibrary() {
+  const { t } = useTranslation();
   const [generating, setGenerating] = useState<string | null>(null);
   const [cache, setCache] = useState<CachedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+
+  // Topics are localised through t() but preserve their stable id +
+  // English prompt (the prompt is sent to Gemini — translating it would
+  // degrade illustration quality).
+  const TOPICS: AnatomyTopic[] = useMemo(() => [
+    {
+      id: 'lungs-silicosis',
+      label: t('medicine.anatomy_topic_lungs_label', 'Pulmones / Silicosis'),
+      description: t('medicine.anatomy_topic_lungs_description', 'Sistema respiratorio + fibrosis por sílice (PLANESI)'),
+      bodySystem: t('medicine.body_system_respiratory', 'Respiratorio'),
+      ds594Article: 'DS 594 Art. 66',
+      icon: Wind,
+      bioicon: 'lung-pair',
+      color: 'text-cyan-500',
+      prompt: 'Educational anatomical diagram of human lungs showing silica fibrosis (silicosis), alveolar damage, scar tissue patterns. PLANESI Chile occupational disease.',
+    },
+    {
+      id: 'auditory-prexor',
+      label: t('medicine.anatomy_topic_ear_label', 'Oído / PREXOR'),
+      description: t('medicine.anatomy_topic_ear_description', 'Oído interno + hipoacusia inducida por ruido'),
+      bodySystem: t('medicine.body_system_sensorial', 'Sensorial'),
+      ds594Article: 'DS 594 Art. 70',
+      icon: Ear,
+      bioicon: 'ear',
+      color: 'text-rose-500',
+      prompt: 'Cross-section of human ear showing cochlea hair cell damage from noise-induced hearing loss (NIHL/PREXOR). Educational style.',
+    },
+    {
+      id: 'spine-tmert',
+      label: t('medicine.anatomy_topic_spine_label', 'Columna / TMERT'),
+      description: t('medicine.anatomy_topic_spine_description', 'Trastornos musculoesqueléticos relacionados al trabajo'),
+      bodySystem: t('medicine.body_system_musculoskeletal', 'Musculoesquelético'),
+      ds594Article: 'DS 594 Art. 110bis',
+      icon: Bone,
+      bioicon: 'spine',
+      color: 'text-amber-500',
+      prompt: 'Human spine anatomy showing lumbar disc compression from manual material handling. TMERT occupational ergonomics Chile. Educational diagram.',
+    },
+    {
+      id: 'cardiovascular',
+      label: t('medicine.anatomy_topic_cardio_label', 'Cardiovascular'),
+      description: t('medicine.anatomy_topic_cardio_description', 'Sistema circulatorio + factores de riesgo laboral'),
+      bodySystem: t('medicine.body_system_cardiovascular', 'Cardiovascular'),
+      ds594Article: t('medicine.ds594_generic', 'Vigilancia genérica'),
+      icon: Heart,
+      bioicon: 'heart-anatomical',
+      color: 'text-rose-600',
+      prompt: 'Human cardiovascular system anatomical diagram showing heart, major arteries, coronary circulation. Educational textbook style.',
+    },
+    {
+      id: 'brain-stress',
+      label: t('medicine.anatomy_topic_brain_label', 'Cerebro / EVAST'),
+      description: t('medicine.anatomy_topic_brain_description', 'Sistema nervioso + estrés laboral'),
+      bodySystem: t('medicine.body_system_neurological', 'Neurológico'),
+      ds594Article: t('medicine.ds594_evast', 'EVAST psicosocial'),
+      icon: Brain,
+      bioicon: 'brain',
+      color: 'text-violet-500',
+      prompt: 'Human brain anatomical diagram showing limbic system, cortisol stress response areas. Psychosocial occupational stress (EVAST Chile). Educational.',
+    },
+    {
+      id: 'visual',
+      label: t('medicine.anatomy_topic_visual_label', 'Visual / Fatiga'),
+      description: t('medicine.anatomy_topic_visual_description', 'Sistema visual + esfuerzo en pantallas'),
+      bodySystem: t('medicine.body_system_sensorial', 'Sensorial'),
+      ds594Article: 'DS 594 Art. 95-99',
+      icon: Eye,
+      bioicon: 'eye',
+      color: 'text-blue-500',
+      prompt: 'Human eye anatomy cross-section showing accommodation muscles, retina. Computer vision syndrome / visual fatigue. Educational diagram.',
+    },
+    {
+      id: 'hand-vibration',
+      label: t('medicine.anatomy_topic_hand_label', 'Mano / Vibración'),
+      description: t('medicine.anatomy_topic_hand_description', 'Síndrome vibración mano-brazo (HAVS)'),
+      bodySystem: t('medicine.body_system_peripheral_vascular', 'Vascular periférico'),
+      ds594Article: 'DS 594 Art. 79',
+      icon: Activity,
+      bioicon: 'gloves-medical',
+      color: 'text-orange-500',
+      prompt: 'Human hand anatomy showing Raynaud-like vasoconstriction from hand-arm vibration syndrome (HAVS). Occupational disease.',
+    },
+  ], [t]);
 
   const generateFor = async (topic: AnatomyTopic) => {
     setGenerating(topic.id);
@@ -146,11 +152,11 @@ export function AnatomyLibrary() {
           <ImageIcon className="w-4 h-4 text-teal-400 dark:text-gold-400" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-black text-zinc-900 dark:text-white">Librería Anatómica</p>
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Ilustraciones BioRender-style por sistema · Gemini bajo demanda</p>
+          <p className="text-sm font-black text-zinc-900 dark:text-white">{t('medicine.anatomy_library_title', 'Librería Anatómica')}</p>
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">{t('medicine.anatomy_library_subtitle', 'Ilustraciones BioRender-style por sistema · Gemini bajo demanda')}</p>
         </div>
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
-          Médico
+          {t('medicine.anatomy_badge_medical', 'Médico')}
         </span>
       </div>
 
@@ -182,7 +188,7 @@ export function AnatomyLibrary() {
                 ) : isGen ? (
                   <div className="flex flex-col items-center gap-2 text-zinc-400">
                     <Loader2 className="w-8 h-8 animate-spin text-teal-400 dark:text-gold-400" />
-                    <p className="text-[10px] uppercase tracking-widest">Generando…</p>
+                    <p className="text-[10px] uppercase tracking-widest">{t('medicine.anatomy_generating', 'Generando…')}</p>
                   </div>
                 ) : (
                   <div className={`flex flex-col items-center gap-2 ${topic.color} opacity-60`}>
@@ -193,7 +199,7 @@ export function AnatomyLibrary() {
                 {cached && (
                   <button
                     onClick={() => downloadImage(cached.src, topic.id)}
-                    aria-label="Descargar"
+                    aria-label={t('medicine.anatomy_aria_download', 'Descargar')}
                     className="absolute top-2 right-2 p-1.5 rounded-lg bg-zinc-900/80 text-white hover:bg-zinc-900 transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -213,7 +219,7 @@ export function AnatomyLibrary() {
                   className="mt-auto w-full py-2 rounded-lg text-[10px] font-black uppercase tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 hover:bg-teal-400/20 dark:hover:bg-gold-400/20 transition-colors disabled:opacity-40 flex items-center justify-center gap-1"
                 >
                   {isGen ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                  {cached ? 'Regenerar' : 'Generar IA'}
+                  {cached ? t('medicine.anatomy_btn_regenerate', 'Regenerar') : t('medicine.anatomy_btn_generate', 'Generar IA')}
                 </button>
               </div>
             </motion.div>
@@ -240,7 +246,7 @@ export function AnatomyLibrary() {
             />
             <button
               onClick={() => setPreviewSrc(null)}
-              aria-label="Cerrar"
+              aria-label={t('medicine.anatomy_aria_close', 'Cerrar')}
               className="absolute top-4 right-4 p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="w-5 h-5" />

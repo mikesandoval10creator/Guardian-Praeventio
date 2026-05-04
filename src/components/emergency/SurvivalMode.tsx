@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { ShieldAlert, HeartPulse, Flame, Droplets, Wind, Map, BookOpen, X, ChevronRight, Zap, Radio, Mic, MicOff } from 'lucide-react';
 import { Card, Button } from '../shared/Card';
 import { useAcousticSOS } from '../../hooks/useAcousticSOS';
@@ -9,61 +10,24 @@ interface SurvivalModeProps {
   onClose: () => void;
 }
 
-const survivalGuides = [
-  {
-    id: 'first-aid',
-    title: 'Primeros Auxilios Básicos',
-    icon: HeartPulse,
-    color: 'text-rose-500',
-    content: [
-      { step: '1', text: 'Asegurar el área antes de acercarse a la víctima.' },
-      { step: '2', text: 'Evaluar consciencia: "Señor/a, ¿me escucha?".' },
-      { step: '3', text: 'Si no responde, revisar respiración (ver, oír, sentir).' },
-      { step: '4', text: 'Si no respira, iniciar RCP (30 compresiones x 2 ventilaciones).' },
-      { step: '5', text: 'Controlar hemorragias con presión directa.' }
-    ]
-  },
-  {
-    id: 'fire',
-    title: 'Incendio / Humo',
-    icon: Flame,
-    color: 'text-orange-500',
-    content: [
-      { step: '1', text: 'Activar alarma y evacuar inmediatamente.' },
-      { step: '2', text: 'Si hay humo, gatear a ras de suelo (el aire limpio está abajo).' },
-      { step: '3', text: 'Tocar las puertas antes de abrir; si están calientes, buscar otra salida.' },
-      { step: '4', text: 'No usar ascensores bajo ninguna circunstancia.' },
-      { step: '5', text: 'Dirigirse al Punto de Encuentro designado.' }
-    ]
-  },
-  {
-    id: 'earthquake',
-    title: 'Sismo Severo',
-    icon: Wind,
-    color: 'text-amber-500',
-    content: [
-      { step: '1', text: 'Mantener la calma. Agacharse, cubrirse y afirmarse.' },
-      { step: '2', text: 'Alejarse de ventanas, estanterías y objetos que puedan caer.' },
-      { step: '3', text: 'Si está al aire libre, alejarse de edificios, árboles y postes.' },
-      { step: '4', text: 'Esperar a que termine el movimiento para evacuar.' },
-      { step: '5', text: 'No encender fósforos ni usar ascensores.' }
-    ]
-  }
-];
+// Emergency breathing overlay — auto-starts, uses physiological sigh pattern.
+// `phase` is a stable enum-style key so motion logic is locale-agnostic; the
+// rendered text is looked up via t() at display time.
+type BreathingPhase = 'inhale' | 'inhaleMore' | 'exhale';
 
-// Emergency breathing overlay — auto-starts, uses physiological sigh pattern
 function EmergencyBreathing({ onDismiss }: { onDismiss: () => void }) {
-  const [phase, setPhase] = useState<'Inhala' | 'Inhala más' | 'Exhala lento'>('Inhala');
+  const { t } = useTranslation();
+  const [phase, setPhase] = useState<BreathingPhase>('inhale');
 
   useEffect(() => {
     // Physiological sigh: double inhale + long exhale (Huberman protocol)
     const cycle = async () => {
-      setPhase('Inhala');
+      setPhase('inhale');
       await new Promise(r => setTimeout(r, 2000));
-      setPhase('Inhala más');
+      setPhase('inhaleMore');
       navigator.vibrate?.([80]);
       await new Promise(r => setTimeout(r, 1000));
-      setPhase('Exhala lento');
+      setPhase('exhale');
       navigator.vibrate?.([300]);
       await new Promise(r => setTimeout(r, 4000));
     };
@@ -76,6 +40,13 @@ function EmergencyBreathing({ onDismiss }: { onDismiss: () => void }) {
     return () => { active = false; };
   }, []);
 
+  const phaseLabel =
+    phase === 'inhale'
+      ? t('emergency.survival_breathing_inhale', 'Inhala')
+      : phase === 'inhaleMore'
+        ? t('emergency.survival_breathing_inhale_more', 'Inhala más')
+        : t('emergency.survival_breathing_exhale', 'Exhala lento');
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -83,36 +54,81 @@ function EmergencyBreathing({ onDismiss }: { onDismiss: () => void }) {
       className="fixed inset-0 z-[150] bg-black/95 flex flex-col items-center justify-center p-6"
     >
       <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-4">
-        Tu señal está activa. El rescate está en camino.
+        {t('emergency.survival_breathing_signal_active', 'Tu señal está activa. El rescate está en camino.')}
       </p>
       <motion.div
-        animate={{ scale: phase === 'Exhala lento' ? 1 : phase === 'Inhala más' ? 1.6 : 1.3 }}
-        transition={{ duration: phase === 'Exhala lento' ? 4 : phase === 'Inhala más' ? 1 : 2, ease: 'easeInOut' }}
+        animate={{ scale: phase === 'exhale' ? 1 : phase === 'inhaleMore' ? 1.6 : 1.3 }}
+        transition={{ duration: phase === 'exhale' ? 4 : phase === 'inhaleMore' ? 1 : 2, ease: 'easeInOut' }}
         className="w-36 h-36 rounded-full bg-sky-500/20 border-2 border-sky-500/50 flex items-center justify-center mb-8"
       >
-        <span className="text-sky-300 font-black text-lg text-center leading-tight px-2">{phase}</span>
+        <span className="text-sky-300 font-black text-lg text-center leading-tight px-2">{phaseLabel}</span>
       </motion.div>
-      <p className="text-white font-black text-2xl uppercase tracking-tight mb-2">Respira conmigo</p>
+      <p className="text-white font-black text-2xl uppercase tracking-tight mb-2">{t('emergency.survival_breathing_title', 'Respira conmigo')}</p>
       <p className="text-zinc-500 text-xs text-center max-w-xs">
-        Respirar lento reduce el consumo de oxígeno y mantiene tu mente clara.
+        {t('emergency.survival_breathing_subtitle', 'Respirar lento reduce el consumo de oxígeno y mantiene tu mente clara.')}
       </p>
       <button
         onClick={onDismiss}
         className="mt-10 px-6 py-3 border border-zinc-700 rounded-xl text-xs font-bold text-zinc-400 hover:text-white uppercase tracking-widest transition-colors"
       >
-        Estoy calmado
+        {t('emergency.survival_breathing_calm', 'Estoy calmado')}
       </button>
     </motion.div>
   );
 }
 
 export function SurvivalMode({ onClose }: SurvivalModeProps) {
+  const { t } = useTranslation();
   const [activeGuide, setActiveGuide] = useState<string | null>(null);
   const [isStrobeActive, setIsStrobeActive] = useState(false);
   const [strobeFlash, setStrobeFlash] = useState(false);
   const [showPanic, setShowPanic] = useState(false);
   const torchStreamRef = useRef<MediaStream | null>(null);
   const { requestWakeLock, releaseWakeLock, wakeLockFailed } = useWakeLock();
+
+  // Survival guides are localised via t(); ids are stable so navigation
+  // logic and analytics remain locale-agnostic.
+  const survivalGuides = useMemo(() => [
+    {
+      id: 'first-aid',
+      title: t('emergency.guide_first_aid_title', 'Primeros Auxilios Básicos'),
+      icon: HeartPulse,
+      color: 'text-rose-500',
+      content: [
+        { step: '1', text: t('emergency.guide_first_aid_step_1', 'Asegurar el área antes de acercarse a la víctima.') },
+        { step: '2', text: t('emergency.guide_first_aid_step_2', 'Evaluar consciencia: "Señor/a, ¿me escucha?".') },
+        { step: '3', text: t('emergency.guide_first_aid_step_3', 'Si no responde, revisar respiración (ver, oír, sentir).') },
+        { step: '4', text: t('emergency.guide_first_aid_step_4', 'Si no respira, iniciar RCP (30 compresiones x 2 ventilaciones).') },
+        { step: '5', text: t('emergency.guide_first_aid_step_5', 'Controlar hemorragias con presión directa.') },
+      ],
+    },
+    {
+      id: 'fire',
+      title: t('emergency.guide_fire_title', 'Incendio / Humo'),
+      icon: Flame,
+      color: 'text-orange-500',
+      content: [
+        { step: '1', text: t('emergency.guide_fire_step_1', 'Activar alarma y evacuar inmediatamente.') },
+        { step: '2', text: t('emergency.guide_fire_step_2', 'Si hay humo, gatear a ras de suelo (el aire limpio está abajo).') },
+        { step: '3', text: t('emergency.guide_fire_step_3', 'Tocar las puertas antes de abrir; si están calientes, buscar otra salida.') },
+        { step: '4', text: t('emergency.guide_fire_step_4', 'No usar ascensores bajo ninguna circunstancia.') },
+        { step: '5', text: t('emergency.guide_fire_step_5', 'Dirigirse al Punto de Encuentro designado.') },
+      ],
+    },
+    {
+      id: 'earthquake',
+      title: t('emergency.guide_earthquake_title', 'Sismo Severo'),
+      icon: Wind,
+      color: 'text-amber-500',
+      content: [
+        { step: '1', text: t('emergency.guide_earthquake_step_1', 'Mantener la calma. Agacharse, cubrirse y afirmarse.') },
+        { step: '2', text: t('emergency.guide_earthquake_step_2', 'Alejarse de ventanas, estanterías y objetos que puedan caer.') },
+        { step: '3', text: t('emergency.guide_earthquake_step_3', 'Si está al aire libre, alejarse de edificios, árboles y postes.') },
+        { step: '4', text: t('emergency.guide_earthquake_step_4', 'Esperar a que termine el movimiento para evacuar.') },
+        { step: '5', text: t('emergency.guide_earthquake_step_5', 'No encender fósforos ni usar ascensores.') },
+      ],
+    },
+  ], [t]);
 
   // Acoustic SOS: 3 loud knocks → auto-activate strobe
   const { isActive: sosListening, noiseLevel, start: startSOS, stop: stopSOS } = useAcousticSOS({
@@ -183,16 +199,16 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
           </div>
           <div>
             <h2 className="text-xl font-black text-white uppercase tracking-tight">
-              Modo Supervivencia
+              {t('emergency.survival_title', 'Modo Supervivencia')}
             </h2>
             <p className="text-xs text-rose-400 font-bold tracking-widest uppercase">
-              100% Offline • Siempre Listo
+              {t('emergency.survival_subtitle', '100% Offline • Siempre Listo')}
             </p>
           </div>
         </div>
         <button
           type="button"
-          aria-label="Cerrar modo supervivencia"
+          aria-label={t('emergency.survival_close_aria', 'Cerrar modo supervivencia')}
           onClick={onClose}
           className="p-2 hover:bg-white/5 rounded-full transition-colors"
         >
@@ -204,7 +220,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
       {wakeLockFailed && (
         <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 shrink-0">
           <p className="text-[11px] text-amber-400 text-center font-bold">
-            ⚠ La pantalla puede apagarse — mantén el dedo sobre la pantalla para evitarlo
+            {t('emergency.survival_wake_lock_warning', '⚠ La pantalla puede apagarse — mantén el dedo sobre la pantalla para evitarlo')}
           </p>
         </div>
       )}
@@ -222,7 +238,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
         >
           <Zap className="w-7 h-7" />
           <span className="text-[11px] font-black uppercase tracking-wider">
-            {isStrobeActive ? 'Faro ON' : 'Faro'}
+            {isStrobeActive ? t('emergency.survival_btn_beacon_on', 'Faro ON') : t('emergency.survival_btn_beacon', 'Faro')}
           </span>
         </button>
 
@@ -237,7 +253,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
         >
           {sosListening ? <Radio className="w-7 h-7 animate-pulse" /> : <Mic className="w-7 h-7" />}
           <span className="text-[11px] font-black uppercase tracking-wider">
-            {sosListening ? `SOS ${noiseLevel}dB` : 'SOS Acústico'}
+            {sosListening ? t('emergency.survival_btn_sos_active', 'SOS {{level}}dB', { level: noiseLevel }) : t('emergency.survival_btn_sos', 'SOS Acústico')}
           </span>
         </button>
 
@@ -247,7 +263,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
           className="flex flex-col items-center justify-center gap-2 h-20 rounded-2xl border-2 border-zinc-600 text-zinc-300 hover:border-sky-500 hover:text-sky-400 transition-all active:scale-95"
         >
           <Wind className="w-7 h-7" />
-          <span className="text-[11px] font-black uppercase tracking-wider">Respirar</span>
+          <span className="text-[11px] font-black uppercase tracking-wider">{t('emergency.survival_btn_breathe', 'Respirar')}</span>
         </button>
       </div>
 
@@ -255,7 +271,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
       {sosListening && (
         <div className="px-4 py-2 bg-rose-500/5 border-b border-rose-500/10 shrink-0">
           <p className="text-[10px] text-rose-400 text-center font-bold">
-            Escuchando — 3 golpes fuertes activan el faro automáticamente
+            {t('emergency.survival_listening_hint', 'Escuchando — 3 golpes fuertes activan el faro automáticamente')}
           </p>
         </div>
       )}
@@ -284,7 +300,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
                       </div>
                       <div>
                         <h3 className="text-lg font-bold text-white">{g.title}</h3>
-                        <p className="text-xs text-zinc-500 uppercase tracking-wider mt-1">Manual Táctico</p>
+                        <p className="text-xs text-zinc-500 uppercase tracking-wider mt-1">{t('emergency.survival_tactical_manual', 'Manual Táctico')}</p>
                       </div>
                     </div>
                     <ChevronRight className="w-6 h-6 text-zinc-600 group-hover:text-rose-500 transition-colors" />
@@ -304,7 +320,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
                   className="text-sm font-bold text-zinc-400 hover:text-white flex items-center gap-2 uppercase tracking-wider"
                 >
                   <ChevronRight className="w-4 h-4 rotate-180" />
-                  Volver al Menú
+                  {t('emergency.survival_back_to_menu', 'Volver al Menú')}
                 </button>
 
                 {guide && (
@@ -318,7 +334,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
                           {guide.title}
                         </h2>
                         <p className="text-sm text-zinc-400 font-medium mt-1">
-                          Siga estas instrucciones paso a paso.
+                          {t('emergency.survival_step_subtitle', 'Siga estas instrucciones paso a paso.')}
                         </p>
                       </div>
                     </div>
