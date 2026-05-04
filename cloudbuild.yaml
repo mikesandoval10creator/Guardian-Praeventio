@@ -1,0 +1,120 @@
+# Guardian Praeventio — Google Cloud Build configuration.
+#
+# Alternative CI path beside .github/workflows/deploy.yml. This pipeline only
+# typechecks, tests, builds and pushes images to Artifact Registry. It DOES
+# NOT deploy. Deployment to Cloud Run remains a manual `gcloud run deploy`
+# step (see docs/runbooks/CLOUD_BUILD_RUNBOOK.md) until ops gates rollout.
+#
+# Trigger:
+#   gcloud builds submit \
+#     --config=cloudbuild.yaml \
+#     --substitutions=_LOCATION=southamerica-west1,_REGION=southamerica-west1
+#
+# Default region: southamerica-west1 (Santiago, Chile) — matches project
+# data-residency anchor.
+#
+# Schema reference: https://cloud.google.com/build/docs/build-config-file-schema
+
+substitutions:
+  _LOCATION: "southamerica-west1"
+  _REGION:   "southamerica-west1"
+  _REPO:     "praeventio"
+  _NODE_TAG: "20-alpine"
+
+# Tag images with $COMMIT_SHA when triggered, otherwise with $BUILD_ID.
+images:
+  - "${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${COMMIT_SHA}"
+  - "${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
+  - "${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
+  - "${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
+
+options:
+  machineType: "E2_HIGHCPU_8"
+  logging: "CLOUD_LOGGING_ONLY"
+  dynamicSubstitutions: true
+  env:
+    - "NODE_ENV=production"
+    - "NPM_CONFIG_UPDATE_NOTIFIER=false"
+    # The repo's CI scripts already bump max-old-space-size; mirror it here
+    # in case someone runs the bare `tsc` / `vitest` binaries.
+    - "NODE_OPTIONS=--max-old-space-size=4096"
+
+timeout: "1200s"
+
+steps:
+  # ── 1. Install ──────────────────────────────────────────────────────────
+  - id: install
+    name: "node:${_NODE_TAG}"
+    entrypoint: "npm"
+    args: ["ci", "--legacy-peer-deps", "--no-audit", "--no-fund"]
+
+  # ── 2. Typecheck ────────────────────────────────────────────────────────
+  - id: typecheck
+    name: "node:${_NODE_TAG}"
+    entrypoint: "npm"
+    args: ["run", "typecheck:ci"]
+    waitFor: ["install"]
+
+  # ── 3. Tests ────────────────────────────────────────────────────────────
+  - id: test
+    name: "node:${_NODE_TAG}"
+    entrypoint: "npm"
+    args: ["run", "test:ci", "--", "--reporter=default"]
+    waitFor: ["install"]
+
+  # ── 4. Frontend build (vite) ────────────────────────────────────────────
+  # We build once here so the resulting dist/ can be COPYed by both image
+  # builds via the Docker build cache (each Dockerfile still does its own
+  # build inside the image — this step's purpose is fail-fast detection of
+  # build regressions before we spend time on docker layers).
+  - id: build
+    name: "node:${_NODE_TAG}"
+    entrypoint: "npm"
+    args: ["run", "build"]
+    waitFor: ["typecheck", "test"]
+
+  # ── 5. Build API image ──────────────────────────────────────────────────
+  - id: docker-build-api
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "--file=Dockerfile.api"
+      - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${COMMIT_SHA}"
+      - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
+      - "--cache-from=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:latest"
+      - "--label=org.opencontainers.image.revision=${COMMIT_SHA}"
+      - "--label=org.opencontainers.image.source=https://github.com/dahosandoval/Guardian-Praeventio"
+      - "."
+    waitFor: ["build"]
+
+  # ── 6. Build Frontend image ─────────────────────────────────────────────
+  - id: docker-build-frontend
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "--file=Dockerfile.frontend"
+      - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
+      - "--tag=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
+      - "--cache-from=${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:latest"
+      - "--label=org.opencontainers.image.revision=${COMMIT_SHA}"
+      - "--label=org.opencontainers.image.source=https://github.com/dahosandoval/Guardian-Praeventio"
+      - "."
+    waitFor: ["build"]
+
+  # ── 7. Push (handled by the top-level `images:` list above, but we keep
+  #      explicit pushes here so you can drop the `images:` block later if
+  #      you want to push only on certain branches via a custom step.) ─────
+  # No-op step kept for visibility:
+  - id: summary
+    name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        echo "Built and pushed:"
+        echo "  api      → ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${COMMIT_SHA}"
+        echo "  frontend → ${_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/frontend:${COMMIT_SHA}"
+        echo ""
+        echo "Deploy is intentionally NOT part of this pipeline."
+        echo "See docs/runbooks/CLOUD_BUILD_RUNBOOK.md for the manual deploy step."
+    waitFor: ["docker-build-api", "docker-build-frontend"]
