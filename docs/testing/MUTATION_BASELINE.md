@@ -392,6 +392,142 @@ The cumulative-7 score (53.06 %) sits just above `break: 50`. This is the floor 
 
 Projected scores after these 5 fixes: limiters ~50 %, webpayAdapter ~70 %, offlineQueue ~70 %, reconciliation ~91 %, cumulative-7 ~65 %. At that point a global `break: 55` ratchet becomes safe.
 
+## Run #4 — 2026-05-04 (ergonomics + protocols)
+
+Branch: `dev/sprint-20-eighteenth-wave-multi-agent-2026-05-04`. Trigger: extending baseline coverage from 7 → 11 of the 14 modules in `stryker.config.json`. Adds the safety wrappers (ergonomicAssessments, iperAssessments) plus two protocol calculators (tmert, iper). The remaining 3 modules (prexor, reba, rula) are deferred to the next stryker-baseline wave.
+
+### Per-module results (Run #4)
+
+| Module | Mutants | Killed | Survived | NoCoverage | Score (total) | Score (covered) | Time |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `src/services/safety/ergonomicAssessments.ts` | 151 | 133 | 17 | 1 | **88.08 %** | 88.67 % | 21 s |
+| `src/services/safety/iperAssessments.ts` | 159 | 140 | 18 | 1 | **88.05 %** | 88.61 % | 21 s |
+| `src/services/protocols/tmert.ts` | 67 | 57 | 10 | 0 | **85.07 %** | 85.07 % | 10 s |
+| `src/services/protocols/iper.ts` | 47 | 42 | 5 | 0 | **89.36 %** | 89.36 % | 8 s |
+| **Run #4 subtotal** | **424** | **372** | **50** | **2** | **87.74 %** | 88.15 % | 1 m 0 s |
+
+Notes on the numbers:
+
+- All four modules clear `break: 50` by a wide margin and three of four also clear `high: 80`. This bucket confirms what was suspected at task brief time: the R20 ergonomics + protocols files are the most mature mutation-tested code in the repo (these baselines align with the legacy R20 65–70 floor that the 9th-wave consolidation explicitly preserved).
+- Both safety wrappers (`ergonomicAssessments.ts`, `iperAssessments.ts`) score nearly identical 88 % because they share the same architectural pattern: input validation → Firestore `runTransaction` → audit log emission. Survivors cluster on the same hot-spot: the `crypto.randomUUID` feature-detect (line 99 / line 80 respectively) — 8 stacked mutants per module on `if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')`. This is identical to the offlineQueue Run #3 survivor at `:194:7` — same fallback pattern, same un-asserted branch.
+- `tmert.ts` (85.07 %) survivors concentrate on the human-readable Spanish `recommendation` strings (lines 78, 80) and on the `risk === 'medio'` / `risk === 'alto'` classification branches that the existing 8 unit tests trigger but don't assert the recommendation text on.
+- `iper.ts` (89.36 %) is the strongest of the four. Five survivors all clean: 4 are Spanish recommendation `StringLiteral` mutations on lines 79/86/88/90 (same shape as tmert), 1 is a `ConditionalExpression` on `input.controlEffectiveness !== undefined` defaulting (line 118). The IPER 5x5 probability×severity matrix tests + the IPER_MATRIX shape assertion give this module its high baseline.
+
+### Top 3 surviving mutants per module (actionable)
+
+#### ergonomicAssessments.ts
+
+1. **`ergonomicAssessments.ts:99:7` — `crypto.randomUUID` feature-detect cluster (8 mutants)**
+   - Survivors: `if (true)`, `if (false)`, `LogicalOperator` flip (`&&` → `||`), `EqualityOperator` flip on `typeof crypto !== 'undefined'`, `StringLiteral` on `'undefined'` → `""`, the symmetric mutants on `typeof crypto.randomUUID === 'function'`, plus `BlockStatement {}` on the entire branch body.
+   - **Why it matters:** identical pattern to offlineQueue Run #3 priority #2. The fallback path (lines 100–102) generates IDs via `Math.random().toString(36)` — collision-resistance gap in production. Tests don't pin which branch executes.
+   - **Fix:** test `recordErgonomicAssessment()` once with `crypto.randomUUID` mocked to a sentinel UUID and assert the returned id matches; once with `crypto.randomUUID` deleted and assert the id matches the `Math.random` fallback shape (`/^[a-z0-9]{6,}$/`).
+
+2. **`ergonomicAssessments.ts:74:7` — `ConditionalExpression` on `typeof payload.score !== 'number'`**
+   - Survivor: short-circuit half flipped to `false`. The companion `ConditionalExpression` on line 144 (`typeof payload.durationMin === 'number'`) survives the same way.
+   - **Why it matters:** the `score` field is the canonical RULA/REBA output. A surviving mutant means a non-number `score` (e.g. `'7'` string from a malformed FE payload) flows through into Firestore without rejection.
+   - **Fix:** parametric test on invalid `score` types (`'7'`, `null`, `NaN`, `Infinity`) asserting `recordErgonomicAssessment` throws or returns the expected validation error.
+
+3. **`ergonomicAssessments.ts:189:7 / :200:33 / :205:5` — `OptionalChaining` cluster on `existing?.metadata` / `existing?.type` / `existing?.projectId` (3 mutants)**
+   - Survivors: `?.` elision on the post-`runTransaction` read of the existing assessment doc.
+   - **Why it matters:** when the doc doesn't exist, the optional chain produces `undefined`; without it, the test would throw `TypeError`. The existing tests cover the happy path where the doc exists. A regression here would crash `signErgonomicAssessment` on a stale ID instead of returning the documented error.
+   - **Fix:** test `signErgonomicAssessment(nonexistentId)` and assert the proper error path (not a thrown `TypeError`).
+
+#### iperAssessments.ts
+
+1. **`iperAssessments.ts:80:7` — `crypto.randomUUID` feature-detect cluster (8 mutants)**
+   - Survivors: identical 8-mutant cluster to the ergonomicAssessments equivalent above (lines 80–82). Same root cause, same fix.
+   - **Fix:** mirror the `recordErgonomicAssessment` test pattern in `iperAssessments.test.ts` — branch coverage on `crypto.randomUUID` presence/absence.
+
+2. **`iperAssessments.ts:46:10` — `ConditionalExpression` on the integer-1-to-5 guard inside `isInRange`**
+   - Survivor: `typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5` mutated to `true && Number.isInteger(v) && v >= 1 && v <= 5`.
+   - **Why it matters:** this guard is the IPER input contract — `probability` and `severity` must be integers in [1,5]. A surviving mutant means a `7` or `'3'` string would pass the guard.
+   - **Fix:** parametric test passing each invalid input (`'3'`, `0`, `6`, `3.5`, `null`) and asserting the validation error fires.
+
+3. **`iperAssessments.ts:65:7` — `LogicalOperator` flip on `!payload.inputs || typeof payload.inputs !== 'object'`**
+   - Survivor: `&&` instead of `||`. Companion `ConditionalExpression` at `:65:26` on the second half.
+   - **Why it matters:** the `inputs` block (containing P + S + control effectiveness) is the IPER calculation payload. A surviving `&&` means `null inputs` would NOT throw — only the rare combination of `null` AND a non-object would.
+   - **Fix:** test `recordIperAssessment({...payload, inputs: null})` and `recordIperAssessment({...payload, inputs: 'string'})` both throw.
+
+#### protocols/tmert.ts
+
+1. **`tmert.ts:77:7-25` — `risk === 'medio'` classification cluster (5 mutants)**
+   - Survivors: `if (true)`, `if (false)`, `EqualityOperator !==`, `StringLiteral ""`, `BlockStatement {}` on the medium-risk recommendation branch. Companion: line 74 `risk === 'alto'` `ConditionalExpression`.
+   - **Why it matters:** the recommendation strings (Spanish text shown to operators) are the user-visible contract of the TMERT calculator. Mutated forms would still classify risk correctly but emit the wrong recommendation text — silent UX regression for safety-critical guidance.
+   - **Fix:** assert the exact recommendation text per risk level. e.g. `expect(result.recommendation).toMatch(/Riesgo medio/)` on a medium-risk fixture.
+
+2. **`tmert.ts:78:12 / :80:10` — `StringLiteral` on `recommendation` text (2 mutants)**
+   - Survivors: both medium and low recommendations can be replaced by `""` without test failure.
+   - **Why it matters:** same root cause as #1 above — recommendation text is unverified.
+   - **Fix:** companion to #1 — pin the start-of-string text per risk level.
+
+3. **`tmert.ts:84:47` — `EqualityOperator` flip on `hours > 24`**
+   - Survivor: `hours > 24` mutated to `hours >= 24` (boundary off-by-one). The `:86:7` `StringLiteral` mutant on the throw message also survives.
+   - **Why it matters:** the validation message says `[0,24]` (inclusive), so `hours === 24` should NOT throw. A surviving mutant would force a throw on the boundary 24-hour case.
+   - **Fix:** test `evaluateTmert({exposureHoursPerDay: 24, ...})` succeeds (does not throw) and `evaluateTmert({exposureHoursPerDay: 24.001, ...})` throws.
+
+#### protocols/iper.ts
+
+1. **`iper.ts:79:3 / :86:5 / :88:5 / :90:5` — `StringLiteral` cluster on Spanish recommendation text (4 mutants)**
+   - Survivors: 4 of 5 total survivors are Spanish recommendation strings (`'intolerable'`, `'Riesgo tolerable...'`, `'Riesgo moderado...'`, `'Riesgo importante...'`) all replaceable by `""`.
+   - **Why it matters:** identical pattern to tmert #1/#2 — recommendation text unverified.
+   - **Fix:** parametric test on each `(probability, severity)` quadrant asserting the recommendation matches the documented text per risk level.
+
+2. **`iper.ts:118:7` — `ConditionalExpression` on `input.controlEffectiveness !== undefined`**
+   - Survivor: `if (true)` — control-effectiveness branch always taken, even when undefined.
+   - **Why it matters:** the optional `controlEffectiveness` modifier reduces residual risk. A surviving mutant means `undefined` would still apply a default reduction (depending on the operator inside the if), affecting the final `riskValue`.
+   - **Fix:** test `calculateIper({probability:5, severity:5})` (no control) and `calculateIper({probability:5, severity:5, controlEffectiveness:undefined})` produce identical `riskValue`, distinct from `calculateIper({probability:5, severity:5, controlEffectiveness:0.5})`.
+
+3. **(none — only 5 survivors total in this module)**
+   - The remaining survivor is the `controlEffectiveness` mutant above; the other 4 are the recommendation `StringLiteral` cluster. This module is the strongest of the four — the IPER 5x5 matrix parametric tests + invalid-input tests give thorough coverage.
+
+### Threshold ratchet recommendation (Run #4)
+
+**Recommendation: NO global ratchet on `break`.** Reasoning unchanged from Run #3:
+
+- Per the documented safety rule "do not increase the `break` threshold above the lowest module's score − 5", the safe upper bound across the **11 baselined modules** is `min(76.19, 43.59, 85.48, 58.26, 3.05, 60.44, 81.48, 88.08, 88.05, 85.07, 89.36) − 5 = 3.05 − 5 = -1.95`. `limiters.ts` at 3.05 % remains the dominant constraint and continues to block the global ratchet.
+- The Run #4 modules **all** sit at or above 85 % — three above the `high: 80` band, one (iper) approaching 90 %. They individually could support `break: 80`, but per-file thresholds remain blocked on Stryker 9.6.1 schema (R21 backlog item).
+- This bucket changes nothing about the Run #3 priority list: `limiters.ts` is still the single largest test-gap. Bringing `limiters.ts` from 3.05 % to 50 % remains the highest-priority test-add per score-lift-per-line.
+
+**Per-module strategy (documentation only — config untouched)**:
+
+| Module | Run | Score | Could individually support `break:` | Block on |
+|---|---|---:|---:|---|
+| verifyAuth | #2 | 76.19 % | 70 | regression below 70 |
+| orchestrator | #2 | 43.59 % | 38 | regression below 38 |
+| sentryInstrumentation | #2 | 85.48 % | 80 | regression below 80 |
+| webpayAdapter | #3 | 58.26 % | 53 | regression below 53 |
+| limiters | #3 | 3.05 % | n/a (test gap) | needs first-pass tests before any break threshold |
+| offlineQueue | #3 | 60.44 % | 55 | regression below 55 |
+| reconciliation | #3 | 81.48 % | 76 | regression below 76 |
+| **ergonomicAssessments** | **#4** | **88.08 %** | **80** | regression below 80 |
+| **iperAssessments** | **#4** | **88.05 %** | **80** | regression below 80 |
+| **protocols/tmert** | **#4** | **85.07 %** | **80** | regression below 80 |
+| **protocols/iper** | **#4** | **89.36 %** | **80** | regression below 80 |
+
+**For now: thresholds untouched.** All four Run #4 modules clear `break: 50` comfortably. The Run #3 `limiters.ts` follow-up remains the gate on a global ratchet; Run #4 doesn't change that calculus.
+
+### Cumulative across 11 modules baselined (Run #1 + Run #2 + Run #3 + Run #4)
+
+| Metric | Run #1 (3 modules, baseline) | Run #2 (3 modules, re-run) | Run #3 (4 new modules) | Run #4 (4 new modules) | Cumulative all 11 (#2 + #3 + #4) |
+|---|---:|---:|---:|---:|---:|
+| Mutants total | 224 | 224 | 494 | 424 | **1142** |
+| Killed | 105 | 151 | 230 | 372 | **753** |
+| Survived | 85 | 55 | 206 | 50 | **311** |
+| NoCoverage | 34 | 18 | 58 | 2 | **78** |
+| Score (total) | 46.88 % | 67.86 % | 46.56 % | 87.74 % | **65.94 %** |
+| Wall-clock | 1 m 29 s | 1 m 11 s | 2 m 37 s | 1 m 0 s | 6 m 17 s |
+
+The cumulative-11 score (**65.94 %**) sits comfortably above `break: 50` and above `low: 60`, well below `high: 80`. Run #4 added 4 modules averaging 87.6 %, which lifted the cumulative from Run #3's 53.06 % (cumulative-7) to 65.94 % (cumulative-11). `limiters.ts` at 3.05 % is still the single dragging score: removing it from the average would push cumulative to ~72 %.
+
+### What's next (19th wave or later)
+
+1. **Final stryker-baseline wave** — baseline the remaining 3 modules: `prexor.ts`, `reba.ts`, `rula.ts`. RULA/REBA have `excludedMutations: ["ArrayDeclaration"]` for canonical tables; expect scores in the 70–85 % range based on the R20 ratchet history and on the Run #4 `iper.ts` parallel.
+2. **`limiters.ts` test spine** — still the priority for any meaningful global ratchet. See Run #3 priorities.
+3. **`crypto.randomUUID` feature-detect coverage** — ergonomicAssessments + iperAssessments + offlineQueue all share the same un-asserted fallback branch. A single shared utility test would close 8 + 8 + 5 = 21 mutants across three files in one bucket.
+4. **Spanish recommendation text pinning** — tmert + iper both have unverified recommendation strings. A single parametric `(risk_level → text_match)` test per file would close 4 + 4 = 8 mutants.
+
+Projected scores after #2/#3/#4 above + final 3 modules baselined: cumulative-14 lands around 70 % depending on prexor/reba/rula. Once `limiters.ts` ≥ 55 %, `break: 50 → 55` ratchet becomes safe globally.
+
 ## Cross-references
 
 - `docs/testing/MUTATION_TESTING.md` — top-level run guide, threshold policy, target rationale.
