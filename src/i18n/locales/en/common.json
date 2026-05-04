@@ -943,6 +943,19 @@
   "medal_viewer": {
     "default_title": "UNDEFEATED WEEK"
   },
+  "polyhedron_achievement": {
+    "unlocked_label": "Polyhedron unlocked!",
+    "progress_label": "Polyhedron progress",
+    "vertices_unlocked": "You have unlocked: {{unlocked}}/{{total}} vertices of the {{shape}} of Knowledge ({{percent}}%)",
+    "live_badge": "{{unlocked}}/{{total}} vertices of the {{shape}}",
+    "shapes": {
+      "tetrahedron": "Tetrahedron",
+      "cube": "Cube",
+      "octahedron": "Octahedron",
+      "dodecahedron": "Dodecahedron",
+      "icosahedron": "Icosahedron"
+    }
+  },
   "audit_detail": {
     "no_date": "No date",
     "generate_checklist_title": "Generate Checklist with AI",

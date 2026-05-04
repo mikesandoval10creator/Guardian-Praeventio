@@ -943,6 +943,19 @@
   "medal_viewer": {
     "default_title": "SEMANA INVICTA"
   },
+  "polyhedron_achievement": {
+    "unlocked_label": "¡Poliedro desbloqueado!",
+    "progress_label": "Progreso del poliedro",
+    "vertices_unlocked": "Has desbloqueado: {{unlocked}}/{{total}} vértices del {{shape}} de Conocimiento ({{percent}}%)",
+    "live_badge": "{{unlocked}}/{{total}} vértices del {{shape}}",
+    "shapes": {
+      "tetrahedron": "Tetraedro",
+      "cube": "Cubo",
+      "octahedron": "Octaedro",
+      "dodecahedron": "Dodecaedro",
+      "icosahedron": "Icosaedro"
+    }
+  },
   "audit_detail": {
     "no_date": "Sin fecha",
     "generate_checklist_title": "Generar Checklist con IA",
