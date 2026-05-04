@@ -1,19 +1,29 @@
 # Mutation Testing (Stryker)
 
-## Latest baseline (2026-05-04, 18th wave — Run #4)
+## Latest baseline (2026-05-04, 19th wave — Run #5 — 14/14 baseline COMPLETE)
 
-Extension of baseline coverage from 7 → 11 of the 14 modules in `stryker.config.json`. This run baselines two safety wrappers + two protocol calculators for the first time:
+**All 14 modules in `stryker.config.json` now have an initial mutation score.** This run closes the baseline coverage from 11 → 14 by adding the final 3: PREXOR thermal/noise calculator and the canonical RULA + REBA ergonomics scorers (the latter two with `excludedMutations: ["ArrayDeclaration"]` honoring McAtamney 1993 / Hignett 2000 tables).
 
-- `src/services/safety/ergonomicAssessments.ts` — **88.08 %** (151 mutants, 133 killed, 17 survived, 1 no-cov, 21 s) — first run.
-- `src/services/safety/iperAssessments.ts` — **88.05 %** (159 mutants, 140 killed, 18 survived, 1 no-cov, 21 s) — first run.
-- `src/services/protocols/tmert.ts` — **85.07 %** (67 mutants, 57 killed, 10 survived, 0 no-cov, 10 s) — first run.
-- `src/services/protocols/iper.ts` — **89.36 %** (47 mutants, 42 killed, 5 survived, 0 no-cov, 8 s) — first run; strongest module so far in single-run history.
+- `src/services/protocols/prexor.ts` — **81.71 %** (82 mutants, 67 killed, 15 survived, 0 no-cov, 15 s) — first run.
+- `src/services/ergonomics/reba.ts` — **77.74 %** (310 mutants, 241 killed, 61 survived, 8 no-cov, 1 m 29 s) — first run.
+- `src/services/ergonomics/rula.ts` — **94.22 %** (225 mutants, 212 killed, 13 survived, 0 no-cov, 1 m 18 s) — first run; **strongest module in single-run history** (eclipses iper.ts 89.36 % from Run #4).
 
-Run #4 subtotal: 424 mutants, 372 killed → **87.74 %** (total) / 88.15 % (covered). Wall-clock 1 m 0 s on Windows host at concurrency=1.
+Run #5 subtotal: 617 mutants, 520 killed → **84.28 %** (total) / 85.39 % (covered). Wall-clock 3 m 2 s on Windows host at concurrency=1.
 
-Cumulative across all 11 baselined modules (Runs #1 + #2 + #3 + #4): **65.94 %** (1142 mutants, 753 killed). `limiters.ts` (3.05 %) remains the single dominant pull-down; the remaining 10 modules average ~72 %.
+Cumulative across all 14 baselined modules (Runs #2 + #3 + #4 + #5): **72.37 %** (1759 mutants, 1273 killed) — a **+6.43 pp** uplift vs Run #4's cumulative-11 of 65.94 %. `limiters.ts` (3.05 %) remains the single dominant pull-down; removing it from the average pushes cumulative-14 to ~77.5 %.
 
-Top-3 surviving mutants per module, threshold ratchet recommendation (**no change** — `limiters.ts` at 3.05 % is still the floor; safe upper bound is module-min − 5 = -1.95 %), and the next-wave priorities are documented in the **Run #4** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+Top-3 surviving mutants per module, threshold ratchet recommendation (**no change** — `limiters.ts` at 3.05 % is still the floor; safe upper bound is module-min − 5 = -1.95 %), and the next-wave priorities (CI cron weekly run, limiters spine, boundary `EqualityOperator` cluster across REBA + RULA + PREXOR) are documented in the **Run #5** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+
+### Previous baseline (Run #4, 18th wave Bucket B)
+
+Extension of baseline coverage from 7 → 11 of the 14 modules in `stryker.config.json`. Baselined two safety wrappers + two protocol calculators for the first time:
+
+- `src/services/safety/ergonomicAssessments.ts` — **88.08 %** (151 mutants, 133 killed, 17 survived, 1 no-cov, 21 s).
+- `src/services/safety/iperAssessments.ts` — **88.05 %** (159 mutants, 140 killed, 18 survived, 1 no-cov, 21 s).
+- `src/services/protocols/tmert.ts` — **85.07 %** (67 mutants, 57 killed, 10 survived, 0 no-cov, 10 s).
+- `src/services/protocols/iper.ts` — **89.36 %** (47 mutants, 42 killed, 5 survived, 0 no-cov, 8 s).
+
+Run #4 subtotal: 424 mutants, 372 killed → **87.74 %** (total) / 88.15 % (covered). Wall-clock 1 m 0 s on Windows host at concurrency=1. Cumulative across all 11 baselined modules at the time: **65.94 %**. Full breakdown in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md) "Run #4" section.
 
 ### Previous baseline (Run #3, 17th wave Bucket B)
 
