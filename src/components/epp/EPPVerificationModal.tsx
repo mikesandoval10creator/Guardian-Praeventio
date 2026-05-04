@@ -7,6 +7,7 @@ import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { verifyEPPWithAI } from '../../services/geminiService';
+import { MedicalIcon } from '../medical/MedicalIcon';
 import { logger } from '../../utils/logger';
 
 interface EPPVerificationModalProps {
@@ -139,6 +140,15 @@ export function EPPVerificationModal({ isOpen, onClose, workers, eppItems }: EPP
                 <div>
                   <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Verificación de EPP con IA</h2>
                   <p className="text-xs font-medium text-emerald-500">Visión Artificial El Guardián</p>
+                </div>
+                {/* Sprint 17c — Bioicons EPP catalog strip (decorative). */}
+                <div className="hidden md:flex items-center gap-1.5 ml-2 text-emerald-500" aria-hidden="true">
+                  <MedicalIcon name="helmet-safety" size={22} alt="Casco" />
+                  <MedicalIcon name="goggles-safety" size={22} alt="Gafas" />
+                  <MedicalIcon name="mask-n95" size={22} alt="Mascarilla N95" />
+                  <MedicalIcon name="hearing-protection" size={22} alt="Protección auditiva" />
+                  <MedicalIcon name="gloves-medical" size={22} alt="Guantes" />
+                  <MedicalIcon name="fall-arrest-harness" size={22} alt="Arnés" />
                 </div>
               </div>
               <button 

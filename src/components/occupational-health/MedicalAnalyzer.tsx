@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { analyzeMedicalInjury, generateMedicalIllustration } from '../../services/geminiService';
 import { BodyRegion } from './HumanBodyViewer';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 interface MedicalAnalysis {
   anatomicalSystems: string[];
@@ -114,6 +115,12 @@ export function MedicalAnalyzer({ regions }: MedicalAnalyzerProps) {
             <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
               {injuredRegions.length} zona{injuredRegions.length !== 1 ? 's' : ''} seleccionada{injuredRegions.length !== 1 ? 's' : ''}
             </p>
+          </div>
+          {/* Sprint 17c — Bioicons stethoscope + thoracic glyphs (decorative). */}
+          <div className="hidden sm:flex items-center gap-1.5 ml-3 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+            <MedicalIcon name="stethoscope" size={20} alt="Estetoscopio" />
+            <MedicalIcon name="lung-pair" size={20} alt="Pulmones" />
+            <MedicalIcon name="heart-anatomical" size={20} alt="Corazón" />
           </div>
         </div>
         {analysis && (

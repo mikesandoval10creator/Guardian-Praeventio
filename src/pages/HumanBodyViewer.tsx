@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Activity, Network, CheckCircle, Loader2 } from 'lucide-react';
 import { HumanBodyViewer as HumanBodyViewerComponent, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
 import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
+import { MedicalIcon } from '../components/medical/MedicalIcon';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { NodeType } from '../types';
@@ -61,6 +62,12 @@ export function HumanBodyViewer() {
           <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Activity className="w-7 h-7 text-rose-500" />
             Visor Corporal
+            {/* Sprint 17c — Bioicons body silhouettes (M/F) decorate the page header. */}
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-rose-300/80" aria-hidden="true">
+              <MedicalIcon name="human-body-male-front" size={28} alt="Cuerpo masculino" />
+              <MedicalIcon name="human-body-female-front" size={28} alt="Cuerpo femenino" />
+              <MedicalIcon name="spine" size={22} alt="Columna" />
+            </span>
           </h1>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.25em] mt-1.5">
             Registro de Lesiones — DIAT · Ley 16.744 · DS 594

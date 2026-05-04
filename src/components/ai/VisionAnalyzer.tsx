@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger';
 import { respiratorPressureDrop } from '../../services/physics/bernoulliEngine';
 import { generateRespiratorFatigueNode } from '../../services/zettelkasten/bernoulli';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
+import { MedicalIcon } from '../medical/MedicalIcon';
 
 // NIOSH 42 CFR Part 84 — typical N95 filter resistance and resting breathing flow.
 const N95_FILTER_RESISTANCE_PA_S_PER_M3 = 800;
@@ -299,6 +300,9 @@ export function VisionAnalyzer() {
                       <h3 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4" />
                         Fatiga respiratoria (Bernoulli)
+                        {/* Sprint 17c — Bioicons N95 + lungs decorate the respirator card. */}
+                        <MedicalIcon name="mask-n95" size={16} alt="Mascarilla N95" />
+                        <MedicalIcon name="lung-pair" size={16} alt="Pulmones" />
                       </h3>
                       <p className="text-xs text-zinc-700 dark:text-zinc-300">
                         Fatiga respiratoria estimada: <span className="font-black text-amber-500">{fatigue.sustainPercent.toFixed(0)}%</span> del turno antes de requerir relevo.
