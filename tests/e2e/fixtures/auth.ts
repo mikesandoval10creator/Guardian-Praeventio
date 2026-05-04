@@ -1,19 +1,24 @@
 import type { Page } from '@playwright/test';
 
 /**
- * Auth fixtures stub para los specs E2E de Sprint 19+.
+ * Auth fixtures para los specs E2E (Sprint 19+).
  *
- * Estrategia: en E2E mockeamos Firebase Auth poblando localStorage
- * con un user fixture, sin pasar por el flujo real (Google sign-in,
- * WebAuthn). El backend del E2E (server.ts levantado via webServer)
- * acepta tokens fake firmados con `process.env.E2E_TEST_SECRET`.
+ * Estrategia: en E2E mockeamos Firebase Auth poblando localStorage con un
+ * user fixture y un token sintético. El backend (`src/server/middleware/
+ * verifyAuth.ts`) acepta el header `Authorization: E2E <secret>:<uid>` SOLO
+ * cuando `process.env.E2E_MODE === '1'` AND `process.env.NODE_ENV !==
+ * 'production'`. El secret lo lee del env del proceso de Playwright (no
+ * está expuesto al navegador).
  *
- * Esto es DIFERENTE al flujo de producción y SOLO se usa cuando
- * `process.env.NODE_ENV === 'test'` o `E2E_MODE === '1'`.
+ * Producción jamás activa este flujo: el guard en verifyAuth tira fatal en
+ * boot si detecta `NODE_ENV=production && E2E_MODE=1` simultáneamente, y
+ * además el frontend solo lee `gp.e2e.auth_header` cuando `import.meta.env
+ * .MODE === 'test'` (ver `src/lib/e2eAuth.ts`).
  *
- * Documentar en docs/testing/playwright.md cómo el server side
- * acepta tokens fake (con guard estricto para que NO funcionen
- * en prod).
+ * Llaves en localStorage (escritas via page.addInitScript):
+ *   - `gp.e2e.user`         → JSON serializado de `TestUser`
+ *   - `gp.e2e.token`        → string `<secret>:<uid>` (sin prefijo "E2E ")
+ *   - `gp.e2e.auth_header`  → string `E2E <secret>:<uid>` (header listo)
  */
 
 export interface TestUser {
@@ -35,21 +40,48 @@ export const DEFAULT_TEST_USER: TestUser = {
 };
 
 /**
- * Inyecta un fake auth token + user data en localStorage antes de
- * cargar la página, simulando un usuario logueado.
+ * Format a secret/uid pair into the wire-format auth header string the
+ * backend's E2E_MODE branch expects: `E2E <secret>:<uid>`.
  *
- * Sprint 19+ implementación:
- *   1. Backend gemini.ts y otros routes deben aceptar header
- *      `Authorization: E2E ${E2E_TEST_SECRET}` solo cuando
- *      process.env.E2E_MODE === '1'.
- *   2. Generar fake token firmado en frontend mock que el handler
- *      acepta gracias al guard.
+ * Pure function, exported separately so tests can assert the header shape
+ * without spinning up a Playwright Page.
  */
-export async function loginAsTestUser(page: Page, overrides: Partial<TestUser> = {}): Promise<TestUser> {
-  const user = { ...DEFAULT_TEST_USER, ...overrides };
-  await page.addInitScript((userData: TestUser) => {
-    localStorage.setItem('gp.e2e.user', JSON.stringify(userData));
-    localStorage.setItem('gp.e2e.token', 'e2e-fake-token-' + userData.uid);
-  }, user);
+export function buildE2EAuthHeader(secret: string, uid: string): string {
+  return `E2E ${secret}:${uid}`;
+}
+
+/**
+ * Inject a fake auth token + user fixture into localStorage before the page
+ * loads. Use BEFORE `page.goto(...)`.
+ *
+ * Reads `process.env.E2E_TEST_SECRET` to build the token. If unset, throws
+ * — the caller (typically a Playwright fixture or test setup) is expected
+ * to set the env in the global config.
+ */
+export async function loginAsTestUser(
+  page: Page,
+  overrides: Partial<TestUser> = {},
+): Promise<TestUser> {
+  const user: TestUser = { ...DEFAULT_TEST_USER, ...overrides };
+  const e2eSecret = process.env.E2E_TEST_SECRET;
+  if (!e2eSecret) {
+    throw new Error(
+      'E2E_TEST_SECRET env var not set — required for E2E auth fixture. ' +
+        'Set it in your shell or in playwright.config.ts webServer env.',
+    );
+  }
+  const token = `${e2eSecret}:${user.uid}`;
+  const authHeader = buildE2EAuthHeader(e2eSecret, user.uid);
+
+  await page.addInitScript(
+    (payload: { userData: TestUser; token: string; authHeader: string }) => {
+      // Runs in browser context — no Node imports allowed.
+      localStorage.setItem('gp.e2e.user', JSON.stringify(payload.userData));
+      localStorage.setItem('gp.e2e.token', payload.token);
+      localStorage.setItem('gp.e2e.auth_header', payload.authHeader);
+    },
+    { userData: user, token, authHeader },
+  );
+
   return user;
 }
