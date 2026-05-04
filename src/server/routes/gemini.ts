@@ -185,6 +185,30 @@ const router = Router();
 router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { query, projectId, stream = false } = req.body;
 
+  // Sprint 19 / F-B11 — E2E_MODE deterministic mock. When the test runner
+  // hits this endpoint with an `Authorization: E2E ...` header (validated
+  // upstream by verifyAuth's E2E branch), we skip the real Gemini call and
+  // return a stable payload. This keeps Playwright specs offline-cheap and
+  // independent of the live Gemini quota. Production never enters this
+  // branch — verifyAuth tira fatal en boot si NODE_ENV=production && E2E_MODE=1.
+  if (
+    process.env.E2E_MODE === '1' &&
+    process.env.NODE_ENV !== 'production' &&
+    typeof req.headers.authorization === 'string' &&
+    req.headers.authorization.startsWith('E2E ')
+  ) {
+    return res.json({
+      ok: true,
+      mock: true,
+      source: 'e2e-mode',
+      endpoint: 'ask-guardian',
+      query,
+      projectId: projectId ?? null,
+      stream,
+      response: 'E2E mock response — Gemini real call bypassed.',
+    });
+  }
+
   if (!process.env.GEMINI_API_KEY) {
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
   }
@@ -269,6 +293,20 @@ ${envBlock}
 // Gemini API Proxy
 router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, async (req, res) => {
   const { action, args } = req.body;
+
+  // Sprint 19 / F-B11 — E2E_MODE deterministic mock (same gating as
+  // /ask-guardian). Returns a shape compatible with the typical wrapper
+  // `{ result: ... }` without invoking the real Gemini backend.
+  if (
+    process.env.E2E_MODE === '1' &&
+    process.env.NODE_ENV !== 'production' &&
+    typeof req.headers.authorization === 'string' &&
+    req.headers.authorization.startsWith('E2E ')
+  ) {
+    return res.json({
+      result: { ok: true, mock: true, source: 'e2e-mode', action, args: args ?? [] },
+    });
+  }
 
   if (!ALLOWED_GEMINI_ACTIONS.includes(action)) {
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
