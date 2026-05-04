@@ -1,16 +1,20 @@
 # Mutation Testing (Stryker)
 
-## Latest baseline (2026-05-04, 14th wave Bucket D)
+## Latest baseline (2026-05-04, 16th wave Bucket A — Run #2)
 
-First real Stryker run on three high-value modules:
+Re-run after 15th-wave Bucket A added 26 targeted tests against the Run #1 top-3 surviving mutants per module:
 
-- `src/server/middleware/verifyAuth.ts` — **64.29 %** (84 mutants, 54 killed, 22 survived, 8 no-cov, 47 s)
-- `src/services/slm/orchestrator.ts` — **7.69 %** (78 mutants, 6 killed, 48 survived, 24 no-cov, 13 s)
-- `src/services/observability/sentryInstrumentation.ts` — **72.58 %** (62 mutants, 45 killed, 15 survived, 2 no-cov, 29 s)
+- `src/server/middleware/verifyAuth.ts` — **76.19 %** (84 mutants, 64 killed, 12 survived, 8 no-cov, 40 s) — Δ +11.90 pp vs Run #1.
+- `src/services/slm/orchestrator.ts` — **43.59 %** (78 mutants, 34 killed, 36 survived, 8 no-cov, 15 s) — Δ +35.90 pp vs Run #1 (largest uplift; 16 NoCoverage mutants closed by the new tests).
+- `src/services/observability/sentryInstrumentation.ts` — **85.48 %** (62 mutants, 53 killed, 7 survived, 2 no-cov, 16 s) — Δ +12.90 pp vs Run #1.
 
-Cumulative: 224 mutants, 105 killed → **46.88 %** (total) / 55.26 % (covered). Wall-clock 1 m 29 s on Windows host at concurrency=1.
+Cumulative: 224 mutants, 151 killed → **67.86 %** (total) / 73.30 % (covered). Wall-clock 1 m 11 s on Windows host at concurrency=1.
 
-Top-priority surviving mutants, threshold ratchet recommendation (**no change** — orchestrator currently below `break: 50`), and CI integration proposal (cron weekly, NOT per-PR) are documented in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+Top-3 NEW surviving mutants per module, deltas vs Run #1, threshold ratchet recommendation (**no change** — orchestrator at 43.59 % still below `break: 50`; safe upper bound is module-min − 5 = 38.59 %), and the projected ratchet path are documented in the **Run #2** section of [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+
+### Previous baseline (Run #1, 14th wave Bucket D)
+
+For historical comparison: verifyAuth 64.29 %, orchestrator 7.69 %, sentryInstrumentation 72.58 %, cumulative 46.88 %. Wall-clock 1 m 29 s. Full breakdown remains in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md) "Run metadata" / "Per-module results" sections.
 
 ## Consolidation note (2026-05-04, 9th wave)
 
