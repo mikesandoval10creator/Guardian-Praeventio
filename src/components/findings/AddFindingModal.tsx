@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, AlertTriangle, MapPin, Tag, Loader2, Shield, Activity, Zap, Sparkles, Camera } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
@@ -16,6 +17,7 @@ interface AddFindingModalProps {
 }
 
 export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [generateAIPlan, setGenerateAIPlan] = useState(true);
@@ -70,7 +72,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
       reader.readAsDataURL(file);
     } catch (error) {
       logger.error('Error analyzing image:', error);
-      showToast('Error al analizar la imagen con IA.', 'error');
+      showToast(t('findings.toast_image_error', 'Error al analizar la imagen con IA.'), 'error');
     } finally {
       setIsAnalyzingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -185,8 +187,8 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Nuevo Hallazgo</h3>
-                  <p className="text-[10px] text-amber-300 font-bold uppercase tracking-widest truncate">Registrar observación o no conformidad</p>
+                  <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('findings.modal_new_title', 'Nuevo Hallazgo')}</h3>
+                  <p className="text-[10px] text-amber-300 font-bold uppercase tracking-widest truncate">{t('findings.modal_new_subtitle', 'Registrar observación o no conformidad')}</p>
                 </div>
               </div>
               <button 
@@ -211,7 +213,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                   {isAnalyzingImage ? (
                     <div className="flex flex-col items-center gap-3">
                       <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-                      <p className="text-xs font-bold text-amber-500 uppercase tracking-widest text-center">Analizando imagen con IA...</p>
+                      <p className="text-xs font-bold text-amber-500 uppercase tracking-widest text-center">{t('findings.image_analyzing', 'Analizando imagen con IA...')}</p>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-3">
@@ -219,8 +221,8 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                         <Camera className="w-6 h-6 text-amber-500" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm font-bold text-amber-500 uppercase tracking-widest">Inspección Visual IA</p>
-                        <p className="text-[10px] text-zinc-400 mt-1">Sube o toma una foto para autocompletar el hallazgo</p>
+                        <p className="text-sm font-bold text-amber-500 uppercase tracking-widest">{t('findings.image_inspection_title', 'Inspección Visual IA')}</p>
+                        <p className="text-[10px] text-zinc-400 mt-1">{t('findings.image_inspection_hint', 'Sube o toma una foto para autocompletar el hallazgo')}</p>
                       </div>
                     </div>
                   )}
@@ -229,49 +231,49 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
 
               <form id="add-finding-form" onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Título del Hallazgo</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_title', 'Título del Hallazgo')}</label>
                   <input
                     required
                     type="text"
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
-                    placeholder="Ej: Falta de señalética en zona de carga"
+                    placeholder={t('findings.field_title_placeholder', 'Ej: Falta de señalética en zona de carga')}
                     className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Severidad</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_severity', 'Severidad')}</label>
                     <select
                       value={formData.severity}
                       onChange={e => setFormData({ ...formData, severity: e.target.value })}
                       className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
                     >
-                      <option>Baja</option>
-                      <option>Media</option>
-                      <option>Alta</option>
-                      <option>Crítica</option>
+                      <option value="Baja">{t('findings.severity_low', 'Baja')}</option>
+                      <option value="Media">{t('findings.severity_medium', 'Media')}</option>
+                      <option value="Alta">{t('findings.severity_high', 'Alta')}</option>
+                      <option value="Crítica">{t('findings.severity_critical', 'Crítica')}</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Categoría</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_category', 'Categoría')}</label>
                     <select
                       value={formData.category}
                       onChange={e => setFormData({ ...formData, category: e.target.value })}
                       className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all appearance-none"
                     >
-                      <option>Seguridad</option>
-                      <option>Salud</option>
-                      <option>Higiene</option>
-                      <option>Ergonomía</option>
-                      <option>Ambiental</option>
+                      <option value="Seguridad">{t('findings.category_safety', 'Seguridad')}</option>
+                      <option value="Salud">{t('findings.category_health', 'Salud')}</option>
+                      <option value="Higiene">{t('findings.category_hygiene', 'Higiene')}</option>
+                      <option value="Ergonomía">{t('findings.category_ergonomics', 'Ergonomía')}</option>
+                      <option value="Ambiental">{t('findings.category_environment', 'Ambiental')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Ubicación / Área</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_location', 'Ubicación / Área')}</label>
                   <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                     <input
@@ -280,33 +282,33 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                       maxLength={200}
                       value={formData.location}
                       onChange={e => setFormData({ ...formData, location: e.target.value.trimStart() })}
-                      placeholder="Ej: Bodega Central, Sector B"
+                      placeholder={t('findings.field_location_placeholder', 'Ej: Bodega Central, Sector B')}
                       className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Descripción Detallada</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_description', 'Descripción Detallada')}</label>
                   <textarea
                     required
                     value={formData.description}
                     onChange={e => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Describe lo observado y el riesgo potencial..."
+                    placeholder={t('findings.field_description_placeholder', 'Describe lo observado y el riesgo potencial...')}
                     rows={5}
                     className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all resize-none"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Etiquetas (separadas por coma)</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">{t('findings.field_tags', 'Etiquetas (separadas por coma)')}</label>
                   <div className="relative">
                     <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                     <input
                       type="text"
                       value={formData.tags}
                       onChange={e => setFormData({ ...formData, tags: e.target.value })}
-                      placeholder="epp, señaletica, riesgo-caida"
+                      placeholder={t('findings.field_tags_placeholder', 'epp, señaletica, riesgo-caida')}
                       className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 rounded-2xl pl-11 pr-4 py-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
                     />
                   </div>
@@ -318,8 +320,8 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                       <Sparkles className="w-4 h-4 text-amber-500" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white">Plan de Acción IA</p>
-                      <p className="text-[8px] text-zinc-500 font-medium">Generar tareas correctivas automáticamente</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-900 dark:text-white">{t('findings.ai_plan_title', 'Plan de Acción IA')}</p>
+                      <p className="text-[8px] text-zinc-500 font-medium">{t('findings.ai_plan_subtitle', 'Generar tareas correctivas automáticamente')}</p>
                     </div>
                   </div>
                   <button
@@ -339,7 +341,7 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                 onClick={onClose}
                 className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-zinc-900 dark:text-white bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
               >
-                Cancelar
+                {t('findings.btn_cancel', 'Cancelar')}
               </button>
               <button
                 type="submit"
@@ -350,12 +352,12 @@ export function AddFindingModal({ isOpen, onClose }: AddFindingModalProps) {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Registrando...</span>
+                    <span>{t('findings.btn_registering', 'Registrando...')}</span>
                   </>
                 ) : (
                   <>
                     <Shield className="w-4 h-4" />
-                    <span>Registrar Hallazgo</span>
+                    <span>{t('findings.btn_register', 'Registrar Hallazgo')}</span>
                   </>
                 )}
               </button>

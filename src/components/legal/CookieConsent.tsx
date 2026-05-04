@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie } from 'lucide-react';
 
@@ -60,6 +61,7 @@ function writeStoredConsent(value: ConsentValue): void {
  * initializer never throws.
  */
 export function CookieConsent() {
+  const { t } = useTranslation();
   const [consent, setConsent] = useState<ConsentValue | null>(() => readStoredConsent());
   const acceptButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -109,18 +111,18 @@ export function CookieConsent() {
                 id="cookie-consent-title"
                 className="text-white font-black text-sm sm:text-base mb-1"
               >
-                Cookies y privacidad
+                {t('legal.cookie_title', 'Cookies y privacidad')}
               </h2>
               <p
                 id="cookie-consent-description"
                 className="text-zinc-400 text-xs sm:text-sm leading-relaxed"
               >
-                Usamos cookies estrictamente necesarias para autenticación y sesión. Cookies analíticas opcionales. Lee más en nuestra{' '}
+                {t('legal.cookie_description_prefix', 'Usamos cookies estrictamente necesarias para autenticación y sesión. Cookies analíticas opcionales. Lee más en nuestra ')}
                 <Link
                   to="/privacy"
                   className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2 font-bold"
                 >
-                  Política de Privacidad
+                  {t('legal.cookie_privacy_link', 'Política de Privacidad')}
                 </Link>
                 .
               </p>
@@ -133,7 +135,7 @@ export function CookieConsent() {
               onClick={handleEssentialOnly}
               className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl border border-white/10 text-zinc-300 hover:text-white hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             >
-              Solo esenciales
+              {t('legal.cookie_essential_only', 'Solo esenciales')}
             </button>
             <button
               ref={acceptButtonRef}
@@ -141,7 +143,7 @@ export function CookieConsent() {
               onClick={handleAccept}
               className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl bg-emerald-500 text-zinc-950 hover:bg-emerald-400 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
             >
-              Aceptar
+              {t('legal.cookie_accept', 'Aceptar')}
             </button>
           </div>
         </div>

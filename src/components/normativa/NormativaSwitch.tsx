@@ -18,6 +18,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, Globe } from 'lucide-react';
 import {
   COUNTRY_PACKS,
@@ -94,11 +95,12 @@ export function useNormativa(): NormativaContextValue {
 const ALL_CODES: CountryCode[] = ['CL', 'PE', 'CO', 'MX', 'AR', 'BR', 'ISO'];
 
 export function NormativaSwitch() {
+  const { t } = useTranslation();
   const { pack, setCountry } = useNormativa();
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="relative inline-block text-left">
+    <div className="relative inline-block text-left" aria-label={t('normativa.switch_aria', 'Selector de normativa por país')}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -163,6 +165,7 @@ export function NormativaMismatchBanner({
 }: {
   onConfigure?: () => void;
 }) {
+  const { t } = useTranslation();
   const { pack, detectedCountry, detectionSource, setCountry } = useNormativa();
   const [dismissed, setDismissed] = useState(false);
 
@@ -188,11 +191,11 @@ export function NormativaMismatchBanner({
     >
       <Globe className="w-5 h-5 shrink-0" aria-hidden="true" />
       <p className="flex-1 min-w-[200px]">
-        Detectamos que estás en{' '}
+        {t('normativa.mismatch_detected_prefix', 'Detectamos que estás en ')}
         <span className="font-semibold">
           {detectedPack.flag} {detectedPack.name}
         </span>
-        . ¿Cambiar normativa de referencia a {detectedPack.name}?
+        {t('normativa.mismatch_question_prefix', '. ¿Cambiar normativa de referencia a ')}{detectedPack.name}{t('normativa.mismatch_question_suffix', '?')}
       </p>
       <div className="flex items-center gap-2 ml-auto">
         <button
@@ -203,14 +206,14 @@ export function NormativaMismatchBanner({
           }}
           className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition-colors"
         >
-          Sí, cambiar
+          {t('normativa.mismatch_yes_change', 'Sí, cambiar')}
         </button>
         <button
           type="button"
           onClick={() => setDismissed(true)}
           className="px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-800 text-xs font-semibold text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
         >
-          No, mantener {pack.name}
+          {t('normativa.mismatch_keep_prefix', 'No, mantener ')}{pack.name}
         </button>
         {onConfigure && (
           <button
@@ -218,7 +221,7 @@ export function NormativaMismatchBanner({
             onClick={onConfigure}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-900 dark:text-amber-100 underline underline-offset-2 hover:opacity-80"
           >
-            Configurar
+            {t('normativa.mismatch_configure', 'Configurar')}
           </button>
         )}
       </div>
