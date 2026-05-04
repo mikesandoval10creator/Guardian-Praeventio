@@ -30,6 +30,12 @@ import { get, set } from 'idb-keyval';
 import { useTheme } from '../../contexts/ThemeContext';
 import { CookieConsent } from '../legal/CookieConsent';
 import { ModeSwitcher } from '../shared/ModeSwitcher';
+// Sprint 20 sixteenth-wave (Bucket D — A11Y-015): WCAG-compliant
+// tooltip primitive replaces the native `title=` attribute on the 3
+// header icon controls (Sync, Theme, Safe-driving). Native `title`
+// fails 1.4.13 (not hoverable / dismissable / persistent); radix
+// satisfies all three. `aria-label` stays as the primary SR semantic.
+import { Tooltip } from '../shared/Tooltip';
 import { SOSButton } from '../emergency/SOSButton';
 import { EmergencyAutoBridge } from '../emergency/EmergencyAutoBridge';
 import { AlertSchedulerMount } from '../predictive/AlertSchedulerMount';
@@ -245,31 +251,34 @@ export function RootLayout() {
             <NormativaSwitch />
           </div>
 
-          <Link
-            to="/safe-driving"
-            className="hidden sm:flex w-10 h-10 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all duration-300 relative shadow-sm"
-            title="Modo Conducción Segura"
-            aria-label="Modo Conducción Segura"
-          >
-            <Map className="w-5 h-5" aria-hidden="true" />
-          </Link>
+          <Tooltip content="Modo Conducción Segura">
+            <Link
+              to="/safe-driving"
+              className="hidden sm:flex w-10 h-10 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 rounded-xl items-center justify-center text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-all duration-300 relative shadow-sm"
+              aria-label="Modo Conducción Segura"
+            >
+              <Map className="w-5 h-5" aria-hidden="true" />
+            </Link>
+          </Tooltip>
 
-          <button 
-            onClick={() => setIsSyncModalOpen(true)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative shadow-sm border ${
-              !isOnline 
-                ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20' 
-                : 'bg-white/30 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
-            }`}
-            title="Centro de Sincronización"
-          >
-            {!isOnline ? <WifiOff className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
-            {pendingSyncCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] bg-orange-500 rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[9px] font-black text-white px-1 shadow-sm">
-                {pendingSyncCount > 99 ? '99+' : pendingSyncCount}
-              </span>
-            )}
-          </button>
+          <Tooltip content="Centro de Sincronización">
+            <button
+              onClick={() => setIsSyncModalOpen(true)}
+              aria-label="Centro de Sincronización"
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 relative shadow-sm border ${
+                !isOnline
+                  ? 'bg-orange-50 dark:bg-orange-500/10 border-orange-200 dark:border-orange-500/20 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/20'
+                  : 'bg-white/30 dark:bg-zinc-900 border-transparent dark:border-white/5 text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white'
+              }`}
+            >
+              {!isOnline ? <WifiOff className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
+              {pendingSyncCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] bg-orange-500 rounded-full border-2 border-white dark:border-zinc-950 flex items-center justify-center text-[9px] font-black text-white px-1 shadow-sm">
+                  {pendingSyncCount > 99 ? '99+' : pendingSyncCount}
+                </span>
+              )}
+            </button>
+          </Tooltip>
 
           {!isOnline && (
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-500 shadow-sm">
@@ -278,13 +287,15 @@ export function RootLayout() {
             </div>
           )}
 
-          <button 
-            onClick={toggleTheme}
-            className="hidden sm:flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
-            aria-label="Toggle Dark Mode"
-          >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          <Tooltip content={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
+            <button
+              onClick={toggleTheme}
+              className="hidden sm:flex w-10 h-10 bg-white/30 dark:bg-zinc-900 border border-transparent dark:border-white/5 rounded-xl items-center justify-center text-zinc-800 dark:text-zinc-400 hover:bg-white/50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition-all duration-300 relative shadow-sm"
+              aria-label="Toggle Dark Mode"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </Tooltip>
 
           <Link 
             to="/notifications"
