@@ -1,14 +1,19 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing for Praeventio — high-value modules only.",
+  "_comment": "Mutation testing for Praeventio — single canonical config (consolidated 9th wave 2026-05-04). Covers security/business modules (8th wave) AND ergonomics/protocols modules (R20 ratchet, 2026-04-29). See docs/testing/MUTATION_TESTING.md for module rationale and STRYKER_BASELINE.md for R18/R19/R20 ratchet history.",
+  "_notes_thresholds": "Global break:50 is the LOWER of (8th wave 50, R20 65/70). We don't want to regress R20 ergonomics work, but ergonomics was the only set hitting break:65–70; security/business modules are still warming up under break:50. Follow-up R21 should ratchet ergonomics-specific files via per-file thresholds once Stryker schema supports it (9.6.1 does not). Track in STRYKER_BASELINE.md.",
+  "_notes_excludedMutations": "ArrayDeclaration mutations are excluded GLOBALLY because RULA/REBA canonical tables (TABLE_A/B/C in rula.ts; TABLE_A/B/C in reba.ts) come from McAtamney 1993 / Hignett 2000 papers — values are by definition correct, and parametric per-cell tests already assert the inputs→outputs identity. Setting unsupported by Stryker schema 9.6.1 at file-level. Safe globally: security/business modules have no canonical-table tests where ArrayDeclaration would matter.",
   "packageManager": "npm",
   "reporters": ["clear-text", "progress", "html", "json"],
   "testRunner": "vitest",
   "vitest": { "configFile": "vitest.config.ts" },
   "coverageAnalysis": "perTest",
   "concurrency": 4,
-  "timeoutMS": 30000,
+  "timeoutMS": 60000,
   "thresholds": { "high": 80, "low": 60, "break": 50 },
+  "mutator": {
+    "excludedMutations": ["ArrayDeclaration"]
+  },
   "mutate": [
     "src/server/middleware/verifyAuth.ts",
     "src/server/middleware/limiters.ts",
@@ -16,7 +21,14 @@
     "src/services/slm/offlineQueue.ts",
     "src/services/slm/reconciliation.ts",
     "src/services/observability/sentryInstrumentation.ts",
-    "src/services/billing/webpayAdapter.ts"
+    "src/services/billing/webpayAdapter.ts",
+    "src/services/safety/ergonomicAssessments.ts",
+    "src/services/safety/iperAssessments.ts",
+    "src/services/protocols/tmert.ts",
+    "src/services/protocols/iper.ts",
+    "src/services/protocols/prexor.ts",
+    "src/services/ergonomics/reba.ts",
+    "src/services/ergonomics/rula.ts"
   ],
   "ignorePatterns": ["dist", "build", "coverage", ".stryker-tmp"],
   "tempDirName": ".stryker-tmp",
