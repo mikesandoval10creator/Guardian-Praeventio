@@ -9,6 +9,17 @@
  * see TRACKING_PLAN §9) plus the console sink (visible in dev). Tests
  * that need to assert on emitted events should construct their own
  * `AnalyticsAdapter` with a sink stub — see `adapter.test.ts`.
+ *
+ * Runtime boundary (15th wave, Bucket D): server code MUST import
+ * `serverAnalytics` directly from `./serverAdapter` (or via the
+ * re-export below) rather than the browser `analytics` singleton. The
+ * browser singleton imports `idb` (IndexedDB wrapper) at module load and
+ * reads `localStorage` / `navigator` from `defaultGetCommonProps`, so
+ * reaching it from a Node runtime would either crash at boot or pull
+ * useless browser shims into the server bundle. The server adapter
+ * mirrors the same `track` / `flush` surface but uses Node primitives
+ * only (stdout JSON sink + Sentry breadcrumb sink + in-memory bounded
+ * queue).
  */
 
 import { AnalyticsAdapter } from './adapter';
@@ -23,6 +34,19 @@ export {
 } from './queue';
 export type { AnalyticsQueue, QueuedAnalyticsEvent } from './queue';
 export { consoleSink, noopSink, sentryBreadcrumbSink } from './sinks';
+export {
+  createInMemoryAnalyticsQueue,
+  createServerAnalytics,
+  serverAnalytics,
+  serverSentryBreadcrumbSink,
+  stdoutJsonSink,
+} from './serverAdapter';
+export type {
+  QueuedAnalyticsEventInMemory,
+  ServerAnalytics,
+  ServerAnalyticsOptions,
+  ServerAnalyticsQueue,
+} from './serverAdapter';
 export type {
   AppBackgroundedProperties,
   AppModeName,
@@ -36,13 +60,18 @@ export type {
   AuthUserSignedInProperties,
   AuthUserSignedOutProperties,
   AuthUserSignedUpProperties,
+  BlockReasonCode,
   BootKind,
   CacheOrigin,
   CheckinKind,
   CheckinStatus,
+  ComiteActionItemAssignedProperties,
+  ComiteMeetingScheduledProperties,
+  ComiteMinutesDraftedProperties,
   CommonProperties,
   DetectorKind,
   DocKind,
+  DraftedByKind,
   EmergencyCheckinCompletedProperties,
   Event,
   EventInputProps,
@@ -82,9 +111,12 @@ export type {
   SlmQueueReconciledProperties,
   SusesoFormKind,
   SusesoFormSubmittedProperties,
+  TareaBlockedProperties,
   TareaCompletedProperties,
+  TareaCreatedProperties,
   TareaEscalatedProperties,
   TareaEscalationKind,
+  TaskPriority,
   ZkLinkKind,
   ZkNodeKind,
 } from './types';

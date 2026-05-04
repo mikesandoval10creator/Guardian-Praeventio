@@ -23,6 +23,7 @@ import { es } from 'date-fns/locale';
 import { scanLegalUpdates, suggestMeetingAgenda, summarizeAgreements } from '../services/geminiService';
 import { db } from '../services/firebase';
 import { collection, addDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { analytics, userIdHash } from '../services/analytics';
 
 interface Acta {
   id: string;
@@ -67,13 +68,23 @@ export function ComiteParitario() {
     if (!actaForm.fecha || asistentes.length === 0) return;
     setActaSaving(true);
     try {
-      await addDoc(collection(db, `projects/${selectedProject.id}/comite_actas`), {
+      const docRef = await addDoc(collection(db, `projects/${selectedProject.id}/comite_actas`), {
         fecha: actaForm.fecha,
         tipo: actaForm.tipo,
         asistentes,
         acuerdos: [],
         createdAt: new Date().toISOString(),
       });
+      // 15th wave analytics: a CPHS acta is the canonical "meeting scheduled"
+      // signal for DS54 compliance dashboards (catalog row 85). The fecha is
+      // already an ISO YYYY-MM-DD; we leave it as-is so the analytics layer
+      // can resolve the correct ISO-8601 once timezone disambiguation lands.
+      try {
+        analytics.track('comite.meeting.scheduled', {
+          meeting_id: docRef.id,
+          scheduled_for_iso: actaForm.fecha,
+        });
+      } catch { /* analytics must never break user flow */ }
       setShowAddActa(false);
       setActaForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'Ordinaria', asistentesRaw: '' });
     } catch {
@@ -97,6 +108,23 @@ export function ComiteParitario() {
       await updateDoc(doc(db, `projects/${selectedProject.id}/comite_actas`, actaId), {
         acuerdos: arrayUnion(newAcuerdo),
       });
+      // 15th wave analytics: a new acuerdo is the catalog's "action item
+      // assigned" event (row 87). The responsable is free-text in the UI;
+      // we hash it through the standard analytics salt so dashboards can
+      // bucket by assignee without leaking the human-readable name. Hash
+      // is async — fire-and-forget so the optimistic UI doesn't wait.
+      try {
+        const dueMs = new Date(newAcuerdo.fechaPlazo).getTime() - Date.now();
+        const dueInDays = Math.max(0, Math.round(dueMs / 86400000));
+        void userIdHash(newAcuerdo.responsable).then((assigneeRoleHash) => {
+          analytics.track('comite.action_item.assigned', {
+            action_item_id: newAcuerdo.id,
+            meeting_id: actaId,
+            assignee_role_hash: assigneeRoleHash,
+            due_in_days: dueInDays,
+          });
+        }).catch(() => { /* analytics must never break user flow */ });
+      } catch { /* analytics must never break user flow */ }
       setAddAcuerdoActaId(null);
       setAcuerdoForm({ descripcion: '', responsable: '', fechaPlazo: '' });
     } catch {
@@ -167,6 +195,18 @@ export function ComiteParitario() {
     try {
       const result = await summarizeAgreements(meetingNotes);
       setSummaryResult(result);
+      // 15th wave analytics: the Gemini-assisted summariser is the canonical
+      // "minutes drafted" signal (catalog row 86). The free-text textarea
+      // here is the only UI affordance for drafting acta minutes today and
+      // is not bound to a specific acta doc — emit `'unbound'` so dashboards
+      // can split UI-bound vs. ad-hoc drafts when the future "draft from
+      // existing acta" affordance lands.
+      try {
+        analytics.track('comite.minutes.drafted', {
+          meeting_id: 'unbound',
+          drafted_by_kind: 'gemini_assist',
+        });
+      } catch { /* analytics must never break user flow */ }
     } catch {
       setSummaryResult(null);
     } finally {

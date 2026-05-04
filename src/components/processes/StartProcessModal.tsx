@@ -117,6 +117,20 @@ export function StartProcessModal({ isOpen, projectId, crewId, crewName, onClose
           proceso_template: procesoTemplate,
         });
       } catch { /* analytics must never break user flow */ }
+      // Wave-15 analytics: starting a proceso implicitly opens its first
+      // tarea (the org domain treats Process and Tarea as a 1:1 unit of
+      // work in analytics — see ProcessDetailModal where `tarea.completed`
+      // also reuses `process.id` for both `tarea_id` and `proceso_id`).
+      // No explicit task-priority field exists in the org model yet, so we
+      // default to `'medium'`; when the org Task type grows a priority
+      // column this should bubble up. Catalog row 49.
+      try {
+        analytics.track('tarea.created', {
+          tarea_id: j.id,
+          proceso_id: j.id,
+          task_priority: 'medium',
+        });
+      } catch { /* analytics must never break user flow */ }
       onCreated?.(j.id);
       // Reset
       setName('');

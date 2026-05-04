@@ -125,6 +125,22 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
               to_status: 'paused',
             });
           } catch { /* analytics must never break user flow */ }
+          // 15th wave analytics: a pause is also the closest UI
+          // affordance today for a worker reporting a blocker on a tarea
+          // (catalog row 51). We emit alongside `tarea.escalated` so the
+          // funnel "blocker reported → escalation" lights up; the explicit
+          // `block_reason_code` enum forces a closed value and we use
+          // `'other'` as the catch-all because the pause UI doesn't ask
+          // the worker which of {missing_epp, weather, dependency,
+          // injury} caused it. A future "Pausar (motivo: ...)" dropdown
+          // should pass the chosen reason here.
+          try {
+            analytics.track('tarea.blocked', {
+              tarea_id: process.id,
+              proceso_id: process.id,
+              block_reason_code: 'other',
+            });
+          } catch { /* analytics must never break user flow */ }
         }
         onStatusChanged?.({ ...process, status: next });
       }
