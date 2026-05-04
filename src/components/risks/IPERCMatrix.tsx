@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle } from 'lucide-react';
 import type { IperInput, IperLevel } from '../../services/protocols/iper';
 
@@ -67,54 +68,55 @@ export function IPERCMatrix({
   iperResult,
   criticidad,
 }: IPERCMatrixProps) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-white/5">
         <div className="space-y-1.5">
           <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">
-            Probabilidad
+            {t('iperc_matrix.probability_label', 'Probabilidad')}
           </label>
           <select
             value={probability}
             onChange={(e) => onProbabilityChange(Number(e.target.value) as IperInput['probability'])}
             className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           >
-            <option value={1}>1 — Raro</option>
-            <option value={2}>2 — Improbable</option>
-            <option value={3}>3 — Posible</option>
-            <option value={4}>4 — Probable</option>
-            <option value={5}>5 — Casi cierto</option>
+            <option value={1}>{t('iperc_matrix.probability_1', '1 — Raro')}</option>
+            <option value={2}>{t('iperc_matrix.probability_2', '2 — Improbable')}</option>
+            <option value={3}>{t('iperc_matrix.probability_3', '3 — Posible')}</option>
+            <option value={4}>{t('iperc_matrix.probability_4', '4 — Probable')}</option>
+            <option value={5}>{t('iperc_matrix.probability_5', '5 — Casi cierto')}</option>
           </select>
         </div>
         <div className="space-y-1.5">
           <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">
-            Severidad
+            {t('iperc_matrix.severity_label', 'Severidad')}
           </label>
           <select
             value={severity}
             onChange={(e) => onSeverityChange(Number(e.target.value) as IperInput['severity'])}
             className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           >
-            <option value={1}>1 — Insignificante</option>
-            <option value={2}>2 — Menor</option>
-            <option value={3}>3 — Lesión incapacitante</option>
-            <option value={4}>4 — Mayor / invalidante</option>
-            <option value={5}>5 — Catastrófico</option>
+            <option value={1}>{t('iperc_matrix.severity_1', '1 — Insignificante')}</option>
+            <option value={2}>{t('iperc_matrix.severity_2', '2 — Menor')}</option>
+            <option value={3}>{t('iperc_matrix.severity_3', '3 — Lesión incapacitante')}</option>
+            <option value={4}>{t('iperc_matrix.severity_4', '4 — Mayor / invalidante')}</option>
+            <option value={5}>{t('iperc_matrix.severity_5', '5 — Catastrófico')}</option>
           </select>
         </div>
         <div className="space-y-1.5">
           <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">
-            Eficacia de controles
+            {t('iperc_matrix.control_effectiveness_label', 'Eficacia de controles')}
           </label>
           <select
             value={controlEffectiveness}
             onChange={(e) => onControlEffectivenessChange(e.target.value as NonNullable<IperInput['controlEffectiveness']>)}
             className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
           >
-            <option value="none">Sin controles</option>
-            <option value="low">Bajos</option>
-            <option value="medium">Medios</option>
-            <option value="high">Altos</option>
+            <option value="none">{t('iperc_matrix.control_none', 'Sin controles')}</option>
+            <option value="low">{t('iperc_matrix.control_low', 'Bajos')}</option>
+            <option value="medium">{t('iperc_matrix.control_medium', 'Medios')}</option>
+            <option value="high">{t('iperc_matrix.control_high', 'Altos')}</option>
           </select>
         </div>
       </div>
@@ -127,11 +129,11 @@ export function IPERCMatrix({
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-wider font-bold opacity-70">
-                Nivel IPER (matriz P×S, determinístico)
+                {t('iperc_matrix.level_caption', 'Nivel IPER (matriz P×S, determinístico)')}
               </p>
               <p className="text-sm font-black uppercase">{iperResult.level}</p>
               <p className="text-[11px] opacity-80">
-                Puntaje bruto: {iperResult.rawScore} · Criticidad legacy: {criticidad}
+                {t('iperc_matrix.score_label', 'Puntaje bruto:')} {iperResult.rawScore} · {t('iperc_matrix.legacy_label', 'Criticidad legacy:')} {criticidad}
               </p>
             </div>
           </div>

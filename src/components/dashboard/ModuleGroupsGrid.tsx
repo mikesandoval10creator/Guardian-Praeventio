@@ -1,15 +1,17 @@
 // Praeventio Guard — Marquee grid of navigation modules extracted from Dashboard.tsx (A11 R18).
 
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { moduleGroups } from './moduleGroups';
 
 export function ModuleGroupsGrid() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   return (
     <section className="w-full min-w-0 mt-1 sm:mt-4 mb-2 overflow-hidden">
       <div className="flex items-center justify-between mb-1.5 sm:mb-4 px-1">
-        <h2 className="text-xs sm:text-base font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">Módulos</h2>
+        <h2 className="text-xs sm:text-base font-black text-zinc-900 dark:text-white tracking-tight leading-none uppercase">{t('module_groups.heading', 'Módulos')}</h2>
       </div>
       <div
         className="relative w-full overflow-hidden"
@@ -25,7 +27,7 @@ export function ModuleGroupsGrid() {
             >
               <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors" />
               <group.icon className="w-6 h-6 sm:w-8 sm:h-8 shrink-0 relative z-10 text-white" />
-              <h3 className="text-[8px] sm:text-xs font-black uppercase tracking-widest leading-tight text-center relative z-10 text-white">{group.title}</h3>
+              <h3 className="text-[8px] sm:text-xs font-black uppercase tracking-widest leading-tight text-center relative z-10 text-white">{t(`module_groups.group_${group.id}`, group.title)}</h3>
             </button>
           ))}
         </div>

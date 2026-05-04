@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Sparkles, 
-  Brain, 
-  Play, 
-  CheckCircle2, 
-  Clock, 
+import { useTranslation } from 'react-i18next';
+import {
+  Sparkles,
+  Brain,
+  Play,
+  CheckCircle2,
+  Clock,
   ChevronRight,
   Lightbulb,
   Shield,
@@ -18,6 +19,7 @@ import { generateSafetyCapsule } from '../../services/geminiService';
 import { logger } from '../../utils/logger';
 
 export function SafetyCapsules() {
+  const { t } = useTranslation();
   const { nodes } = useUniversalKnowledge();
   const { user } = useFirebase();
   const [capsule, setCapsule] = useState<any>(null);
@@ -38,8 +40,8 @@ export function SafetyCapsules() {
     setLoading(true);
     try {
       const result = await generateSafetyCapsule(
-        user.displayName || 'Trabajador',
-        'Operador', // Default role
+        user.displayName || t('safety_capsules.default_worker_name', 'Trabajador'),
+        t('safety_capsules.default_role', 'Operador'), // Default role
         workerContext
       );
       setCapsule(result);
@@ -64,8 +66,8 @@ export function SafetyCapsules() {
             <Lightbulb className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-xl font-black text-white uppercase tracking-tight">Cápsulas de Seguridad</h3>
-            <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">Micro-entrenamiento Personalizado IA</p>
+            <h3 className="text-xl font-black text-white uppercase tracking-tight">{t('safety_capsules.title', 'Cápsulas de Seguridad')}</h3>
+            <p className="text-xs text-zinc-500 font-medium uppercase tracking-widest">{t('safety_capsules.subtitle', 'Micro-entrenamiento Personalizado IA')}</p>
           </div>
         </div>
         <button 
@@ -87,7 +89,7 @@ export function SafetyCapsules() {
             className="py-12 flex flex-col items-center gap-4"
           >
             <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
-            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest animate-pulse">Destilando conocimiento...</p>
+            <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest animate-pulse">{t('safety_capsules.distilling', 'Destilando conocimiento...')}</p>
           </motion.div>
         ) : capsule ? (
           <motion.div
@@ -98,7 +100,7 @@ export function SafetyCapsules() {
           >
             <div className="p-6 bg-gradient-to-br from-amber-500/10 to-transparent rounded-2xl border border-amber-500/20">
               <div className="flex items-center justify-between mb-4">
-                <span className="px-2 py-0.5 bg-amber-500 text-black text-[8px] font-black uppercase tracking-widest rounded">Nuevo para ti</span>
+                <span className="px-2 py-0.5 bg-amber-500 text-black text-[8px] font-black uppercase tracking-widest rounded">{t('safety_capsules.new_for_you', 'Nuevo para ti')}</span>
                 <div className="flex items-center gap-1.5 text-zinc-500 text-[10px] font-bold uppercase tracking-widest">
                   <Clock className="w-3 h-3" />
                   <span>{capsule.duration}</span>
@@ -113,7 +115,7 @@ export function SafetyCapsules() {
               <div className="flex items-center gap-4">
                 <button className="flex-1 bg-white text-black py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-amber-400 transition-all active:scale-95">
                   <Play className="w-4 h-4 fill-current" />
-                  Escuchar Cápsula
+                  {t('safety_capsules.listen_capsule', 'Escuchar Cápsula')}
                 </button>
                 <button className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400 hover:text-white transition-colors">
                   <CheckCircle2 className="w-5 h-5" />
@@ -126,7 +128,7 @@ export function SafetyCapsules() {
                 <Shield className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Tip Clave del Guardián</p>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('safety_capsules.key_tip', 'Tip Clave del Guardián')}</p>
                 <p className="text-xs text-white font-medium">{capsule.keyTip}</p>
               </div>
             </div>
@@ -136,7 +138,7 @@ export function SafetyCapsules() {
 
       <div className="pt-4 border-t border-white/5">
         <button className="w-full flex items-center justify-between text-zinc-500 hover:text-white transition-colors group">
-          <span className="text-[10px] font-black uppercase tracking-widest">Ver historial de cápsulas</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('safety_capsules.view_history', 'Ver historial de cápsulas')}</span>
           <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </div>
