@@ -9,8 +9,9 @@ import { Shield, Zap, AlertTriangle, CheckCircle2, Loader2, Save, Plus, BrainCir
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
 import { withGlossary } from '../shared/withGlossary';
 import { logger } from '../../utils/logger';
-import { calculateIper, type IperInput, type IperLevel } from '../../services/protocols/iper';
+import { calculateIper, type IperInput } from '../../services/protocols/iper';
 import { recordIperAssessment } from '../../services/safety/iperAssessments';
+import { IPERCMatrix, LEVEL_TO_CRITICIDAD } from './IPERCMatrix';
 
 interface AiAdvice {
   recomendaciones: string[];
@@ -22,45 +23,19 @@ interface IPERCAnalysisProps {
   onClose?: () => void;
 }
 
-/**
- * Map an IPER level (deterministic, returned by `calculateIper`) to the legacy
- * Spanish criticidad label still used by the rest of the knowledge graph.
- * Keeping this mapping inside this component (rather than mutating the engine)
- * isolates the legacy UI vocabulary from the regulatory primitive.
- */
-const LEVEL_TO_CRITICIDAD: Record<IperLevel, 'baja' | 'media' | 'alta' | 'crítica'> = {
-  trivial: 'baja',
-  tolerable: 'baja',
-  moderado: 'media',
-  importante: 'alta',
-  intolerable: 'crítica',
-};
-
-const getLevelColor = (level: IperLevel | null) => {
-  switch (level) {
-    case 'intolerable':
-      return 'bg-rose-500/10 text-rose-500 border-rose-500/20';
-    case 'importante':
-      return 'bg-orange-500/10 text-orange-500 border-orange-500/20';
-    case 'moderado':
-      return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-    case 'tolerable':
-      return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-    case 'trivial':
-      return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
-    default:
-      return 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20';
-  }
-};
-
 const GlossaryText = withGlossary(({ text }: { text: string }) => <span>{text}</span>);
+
+const INDUSTRY_PREFILL: Record<string, string> = {
+  'minería': 'Trabajo en altura física sobre 1.8m en andamios móviles, exposición a polvo en suspensión y ruido continuo >85dB.',
+  'construcción': 'Excavación de zanjas profundas (>1.5m) con maquinaria pesada en operación cercana. Riesgo de derrumbe.',
+  'agricultura': 'Aplicación de plaguicidas organofosforados con bomba de espalda. Exposición dérmica e inhalatoria.',
+};
+const DEFAULT_PREFILL = 'Manejo manual de cargas pesadas (>25kg) con posturas forzadas y movimientos repetitivos.';
 
 export function IPERCAnalysis(_props: IPERCAnalysisProps) {
   const [description, setDescription] = useState('');
-  // Probability and severity drive `calculateIper` — the matrix is the
-  // ONLY source of truth for the level/criticidad classification per
-  // SUSESO Guía Técnica DS 40 + ACHS Manual IPER. The Gemini flow
-  // (`analyzeRiskWithAI`) is restricted to suggesting CONTROLS only.
+  // P×S drive `calculateIper`; the matrix is the only legal classifier
+  // (SUSESO DS 40 + ACHS). LLM flow only suggests controls.
   const [probability, setProbability] = useState<IperInput['probability']>(3);
   const [severity, setSeverity] = useState<IperInput['severity']>(3);
   const [controlEffectiveness, setControlEffectiveness] = useState<NonNullable<IperInput['controlEffectiveness']>>('none');
@@ -77,15 +52,11 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
   const { nodes: allNodes } = useUniversalKnowledge();
   const isOnline = useOnlineStatus();
 
-  // Round 18 (R5): record when this analysis flow first mounted so we can
-  // forward `durationMin` into `recordIperAssessment` and from there into
-  // the `safety.iper.matrix.classified` audit log. The aggregator turns the
-  // sum of these into `stats.safeHours`.
+  // R18(R5): mount timestamp → `durationMin` → `safety.iper.matrix.classified` audit
+  // → aggregator → `stats.safeHours`.
   const [openedAtMs] = useState<number>(() => Date.now());
 
-  // The deterministic IPER classification is computed live from the user's
-  // P × S inputs. The button "Generar Matriz IPERC" no longer asks the AI
-  // for a criticidad — it only asks for control suggestions.
+  // Deterministic IPER level computed live from P×S inputs.
   const iperResult = useMemo(() => {
     try {
       return calculateIper({ probability, severity, controlEffectiveness });
@@ -100,21 +71,8 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
   // Pre-fill logic based on industry (El Navegante Asistente)
   useEffect(() => {
     if (selectedProject?.industry && !description) {
-      let prefill = '';
-      switch (selectedProject.industry.toLowerCase()) {
-        case 'minería':
-          prefill = 'Trabajo en altura física sobre 1.8m en andamios móviles, exposición a polvo en suspensión y ruido continuo >85dB.';
-          break;
-        case 'construcción':
-          prefill = 'Excavación de zanjas profundas (>1.5m) con maquinaria pesada en operación cercana. Riesgo de derrumbe.';
-          break;
-        case 'agricultura':
-          prefill = 'Aplicación de plaguicidas organofosforados con bomba de espalda. Exposición dérmica e inhalatoria.';
-          break;
-        default:
-          prefill = 'Manejo manual de cargas pesadas (>25kg) con posturas forzadas y movimientos repetitivos.';
-      }
-      setDescription(prefill);
+      const key = selectedProject.industry.toLowerCase();
+      setDescription(INDUSTRY_PREFILL[key] ?? DEFAULT_PREFILL);
     }
   }, [selectedProject?.industry]);
 
@@ -125,13 +83,8 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
       .join('\n');
   }, [allNodes]);
 
-  /**
-   * Asks the LLM for control suggestions + applicable normativa for the given
-   * hazard description. The AI's `criticidad` field is INTENTIONALLY discarded
-   * here — the deterministic IPER matrix is the only legally-recognised
-   * classifier. We pass the engine's level to the prompt as context so the
-   * suggestions are calibrated for the right severity tier.
-   */
+  // LLM suggests controls + normativa only. Its `criticidad` field is discarded;
+  // the deterministic matrix level is passed in as prompt context.
   const handleSuggestControls = async () => {
     if (!description.trim() || !iperResult) return;
     setLoadingAi(true);
@@ -190,11 +143,8 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
       const aiRecomendaciones = aiAdvice?.recomendaciones ?? [];
       const aiNormativa = aiAdvice?.normativa ?? '';
 
-      // 0. Persist the deterministic IPER assessment (Firestore + audit log).
-      //    This is the legally-binding record per Ley 16.744 + ISO 45001
-      //    §7.5.3 — the LLM-suggested controls are stored alongside but
-      //    flagged as suggestions, not classifications.
-      // Round 18 (R5): minutes since the analysis opened, ceil-rounded.
+      // 0. Persist deterministic IPER assessment — legally-binding per Ley 16.744 +
+      // ISO 45001 §7.5.3. AI controls stored as suggestions, not classifications.
       const durationMin = Math.max(1, Math.ceil((Date.now() - openedAtMs) / 60_000));
 
       const persisted = await recordIperAssessment({
@@ -370,81 +320,16 @@ export function IPERCAnalysis(_props: IPERCAnalysisProps) {
           </div>
         )}
 
-        {/* Deterministic IPER matrix inputs — the level/criticidad MUST come */}
-        {/* from `calculateIper(P, S)`. Per SUSESO Guía Técnica DS 40 + ACHS    */}
-        {/* Manual IPER, the LLM cannot legally classify the risk; it may only */}
-        {/* SUGGEST controls. P, S and controlEffectiveness drive the engine.  */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl border border-zinc-200 dark:border-white/5">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">
-              Probabilidad
-            </label>
-            <select
-              value={probability}
-              onChange={(e) => setProbability(Number(e.target.value) as IperInput['probability'])}
-              className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-            >
-              <option value={1}>1 — Raro</option>
-              <option value={2}>2 — Improbable</option>
-              <option value={3}>3 — Posible</option>
-              <option value={4}>4 — Probable</option>
-              <option value={5}>5 — Casi cierto</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">
-              Severidad
-            </label>
-            <select
-              value={severity}
-              onChange={(e) => setSeverity(Number(e.target.value) as IperInput['severity'])}
-              className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-            >
-              <option value={1}>1 — Insignificante</option>
-              <option value={2}>2 — Menor</option>
-              <option value={3}>3 — Lesión incapacitante</option>
-              <option value={4}>4 — Mayor / invalidante</option>
-              <option value={5}>5 — Catastrófico</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 ml-1">
-              Eficacia de controles
-            </label>
-            <select
-              value={controlEffectiveness}
-              onChange={(e) => setControlEffectiveness(e.target.value as NonNullable<IperInput['controlEffectiveness']>)}
-              className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 rounded-lg py-2 px-3 text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all"
-            >
-              <option value="none">Sin controles</option>
-              <option value="low">Bajos</option>
-              <option value="medium">Medios</option>
-              <option value="high">Altos</option>
-            </select>
-          </div>
-        </div>
-
-        {iperResult && (
-          <div className={`flex items-center justify-between p-4 rounded-xl border ${getLevelColor(iperResult.level)}`}>
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl border border-current">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-[10px] uppercase tracking-wider font-bold opacity-70">
-                  Nivel IPER (matriz P×S, determinístico)
-                </p>
-                <p className="text-sm font-black uppercase">{iperResult.level}</p>
-                <p className="text-[11px] opacity-80">
-                  Puntaje bruto: {iperResult.rawScore} · Criticidad legacy: {criticidad}
-                </p>
-              </div>
-            </div>
-            <div className="text-right max-w-[55%]">
-              <p className="text-[11px] leading-relaxed">{iperResult.recommendation}</p>
-            </div>
-          </div>
-        )}
+        <IPERCMatrix
+          probability={probability}
+          severity={severity}
+          controlEffectiveness={controlEffectiveness}
+          onProbabilityChange={setProbability}
+          onSeverityChange={setSeverity}
+          onControlEffectivenessChange={setControlEffectiveness}
+          iperResult={iperResult}
+          criticidad={criticidad}
+        />
 
         <div className="flex gap-2">
           <button
