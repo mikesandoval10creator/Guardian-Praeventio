@@ -5,28 +5,62 @@
  * `loader.test.ts`: each case starts with a brand-new `FDBFactory` and
  * the queue's singleton handle is reset, so cases stay independent.
  *
- * Four scenarios cover the whole public surface:
+ * Scenarios:
  *
  *   1. enqueue + listPending      — basic round trip
  *   2. multiple enqueues          — chronological ordering preserved
  *   3. markReconciled             — flag flips, listPending hides it
  *   4. clearReconciled            — only reconciled rows removed
+ *   5. unknown id                 — markReconciled throws
+ *   6. (Sprint 20 ninth wave) enqueue persists an `hmac` tag
+ *   7. (Sprint 20 ninth wave) deleteSession removes a row by id
  */
 
 import 'fake-indexeddb/auto';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import FDBFactory from 'fake-indexeddb/lib/FDBFactory';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { __resetSessionKeyForTesting } from './hmac';
 import {
   __resetOfflineQueueForTests,
   clearReconciled,
+  deleteSession,
   enqueueSession,
   listPending,
   markReconciled,
 } from './offlineQueue';
 import type { SLMQuery, SLMResponse } from './types';
+
+/**
+ * Minimal in-memory `Storage` mock so the HMAC module's
+ * `sessionStorage` lookup resolves to a real Map rather than
+ * `undefined` (Node test environment doesn't ship one).
+ */
+function createSessionStorageMock(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(k: string) {
+      return store.has(k) ? (store.get(k) as string) : null;
+    },
+    key(i: number) {
+      return Array.from(store.keys())[i] ?? null;
+    },
+    removeItem(k: string) {
+      store.delete(k);
+    },
+    setItem(k: string, v: string) {
+      store.set(k, String(v));
+    },
+  };
+}
 
 const SAMPLE_QUERY: SLMQuery = { prompt: 'sample prompt' };
 const SAMPLE_RESPONSE: SLMResponse = {
@@ -39,11 +73,15 @@ const SAMPLE_RESPONSE: SLMResponse = {
 beforeEach(() => {
   // Brand-new in-memory DB universe per case.
   (globalThis as { indexedDB: IDBFactory }).indexedDB = new FDBFactory();
+  vi.stubGlobal('sessionStorage', createSessionStorageMock());
   __resetOfflineQueueForTests();
+  __resetSessionKeyForTesting();
 });
 
 afterEach(() => {
   __resetOfflineQueueForTests();
+  __resetSessionKeyForTesting();
+  vi.unstubAllGlobals();
 });
 
 describe('SLM offlineQueue (offlineQueue.ts)', () => {
@@ -128,5 +166,33 @@ describe('SLM offlineQueue (offlineQueue.ts)', () => {
     await expect(markReconciled('does-not-exist')).rejects.toThrow(
       /unknown session id/,
     );
+  });
+
+  // Sprint 20 ninth wave (Bucket B — TM-T03): every enqueue must
+  // persist an HMAC tag alongside the record so the reconciler can
+  // verify integrity at drain time.
+  it('enqueue persists an hmac tag on the record', async () => {
+    const id = await enqueueSession(SAMPLE_QUERY, SAMPLE_RESPONSE);
+    const pending = await listPending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).toBe(id);
+    expect(typeof pending[0].hmac).toBe('string');
+    // base64url tag of HMAC-SHA256 is 43 chars unpadded.
+    expect((pending[0].hmac as string).length).toBeGreaterThanOrEqual(43);
+    // No `+`, `/`, or `=` — it's URL-safe base64url.
+    expect(pending[0].hmac as string).toMatch(/^[A-Za-z0-9_-]+$/);
+  });
+
+  it('deleteSession removes a row from the store', async () => {
+    const idA = await enqueueSession({ prompt: 'a' }, SAMPLE_RESPONSE);
+    const idB = await enqueueSession({ prompt: 'b' }, SAMPLE_RESPONSE);
+    expect(await listPending()).toHaveLength(2);
+    await deleteSession(idA);
+    const pending = await listPending();
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).toBe(idB);
+    // Idempotent — deleting again is a no-op (no throw).
+    await deleteSession(idA);
+    expect(await listPending()).toHaveLength(1);
   });
 });

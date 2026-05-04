@@ -4,6 +4,8 @@ import { useFirebase } from './FirebaseContext';
 import { usePendingActions } from '../hooks/usePendingActions';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { analytics } from '../services/analytics';
+import type { IndustryCode, ProjectTier } from '../services/analytics';
 
 interface Project {
   id: string;
@@ -49,6 +51,24 @@ interface ProjectContextType {
   // last snapshot succeeded; populated only when `onSnapshot`'s error
   // callback fires (typically permission-denied or offline-without-cache).
   error: Error | null;
+}
+
+/**
+ * Map free-text industry names (Spanish UI) → catalog `IndustryCode`
+ * enum (TRACKING_PLAN property-glossary). The product UI offers Spanish
+ * labels; analytics dashboards key off the closed-set English codes so
+ * cardinality stays bounded. Unknown labels collapse to `other`.
+ */
+function mapIndustryToCode(industry: string | undefined): IndustryCode {
+  const normalised = (industry ?? '').toLowerCase();
+  if (normalised.includes('miner')) return 'mining';
+  if (normalised.includes('construc')) return 'construction';
+  if (normalised.includes('agric')) return 'agriculture';
+  if (normalised.includes('manufact')) return 'manufacturing';
+  if (normalised.includes('energ')) return 'energy';
+  if (normalised.includes('transport')) return 'transport';
+  if (normalised.includes('servic')) return 'services';
+  return 'other';
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -114,6 +134,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         createdBy: user?.uid,
         members: [user?.uid]
       });
+
+      // Wave-9 analytics: fire project.created with the closed-set tier
+      // + industry mapping. The catalog enums are the gold standard;
+      // unmapped values fall back to 'other'/'free' so the dashboard
+      // stays clean rather than blank-ing out.
+      try {
+        analytics.track('project.created', {
+          project_tier: 'free' as ProjectTier,
+          industry_code: mapIndustryToCode(projectData.industry),
+        });
+      } catch { /* analytics must never break user flow */ }
 
       // Seed initial data for the new project
       await seedGlobalData(docRef.id, projectData.industry);

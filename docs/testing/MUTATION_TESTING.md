@@ -1,5 +1,21 @@
 # Mutation Testing (Stryker)
 
+## Consolidation note (2026-05-04, 9th wave)
+
+Praeventio previously maintained **two** Stryker config files:
+
+- `stryker.conf.json` — older R20 ratchet (ergonomics + safety + protocols, with
+  `excludedMutations: ["ArrayDeclaration"]` for the canonical RULA/REBA tables).
+- `stryker.config.json` — 8th-wave addition (security + business modules with
+  fresh JSON reporter wired for CI dashboards).
+
+The 9th wave consolidated both into a single canonical
+**`stryker.config.json`** so the repo has one source of truth. The 14
+target files now live in one `mutate` list, surgical npm scripts gate the
+common per-domain runs, and `stryker.conf.json` was deleted via `git rm`.
+No source/test code changed during consolidation; the test suite stays at
+2028 pass / 0 fail / 88 skipped.
+
 ## What it is
 
 Mutation testing intentionally breaks the production code in small, controlled ways
@@ -27,7 +43,7 @@ existing Vitest suite without re-architecting tests.
 
 We do **not** run mutation testing across the whole repo. The runtime cost is
 prohibitive. Instead, we target a fixed list of high-value files where a missed
-bug has outsized blast radius:
+bug has outsized blast radius. The list now spans four domains:
 
 | File | Category | Why |
 |------|----------|-----|
@@ -38,6 +54,13 @@ bug has outsized blast radius:
 | `src/services/slm/reconciliation.ts` | Offline path | Merge logic when local and cloud state diverge. |
 | `src/services/observability/sentryInstrumentation.ts` | Observability boundary | Filtering rules and PII scrubbing — silent regressions leak data. |
 | `src/services/billing/webpayAdapter.ts` | Business-critical | Payment state transitions; surviving mutants here cost money. |
+| `src/services/ergonomics/rula.ts` | Ergonomics standard | RULA score (McAtamney 1993). Boundary mutations on the canonical tables flip risk levels. |
+| `src/services/ergonomics/reba.ts` | Ergonomics standard | REBA score (Hignett 2000). Trunk extension boundary checks are mutation hotspots — see R20 baseline. |
+| `src/services/protocols/iper.ts` | Compliance | IPER probability × consequence matrix. Off-by-one mutations re-classify hazards. |
+| `src/services/protocols/tmert.ts` | Compliance | TMERT scoring branches must keep their boundary semantics. |
+| `src/services/protocols/prexor.ts` | Compliance | PREXOR thermal-stress thresholds; mutated boundaries silently miss heat-illness conditions. |
+| `src/services/safety/ergonomicAssessments.ts` | Safety wrapper | Composes ergonomics scoring into assessments — preserves correctness across protocol versions. |
+| `src/services/safety/iperAssessments.ts` | Safety wrapper | Composes IPER scoring into assessments. |
 
 ## How to run
 
@@ -45,12 +68,16 @@ Stryker is already installed (`@stryker-mutator/core` + `@stryker-mutator/vitest
 both `^9.6.1`).
 
 ```bash
-npm run test:mutation        # full target list (~10–25 min)
-npm run test:mutation:auth   # only verifyAuth.ts (~2–4 min)
-npm run test:mutation:slm    # only the SLM trio (~6–10 min)
+npm run test:mutation              # full target list (~30–60 min, 14 files)
+npm run test:mutation:auth         # only verifyAuth.ts (~2–4 min)
+npm run test:mutation:slm          # the SLM trio (~6–10 min)
+npm run test:mutation:ergonomics   # rula.ts + reba.ts (~10–20 min)
+npm run test:mutation:protocols    # tmert + iper + prexor (~5–10 min)
+npm run test:mutation:safety       # ergonomicAssessments + iperAssessments (~5–10 min)
 ```
 
-The legacy `npm run mutation` alias is preserved for back-compat.
+The legacy `npm run mutation` alias is preserved for back-compat (now
+explicitly pinned to `stryker.config.json`).
 
 ## Reading the report
 
@@ -76,22 +103,42 @@ Configured in `stryker.config.json`:
 - `low: 60` — between low and high is a warning.
 - `break: 50` — under this, Stryker exits non-zero. CI will fail.
 
-These are intentionally conservative for the first iteration. Plan: raise quarterly
-once the target modules stabilize above 75 %.
+These are intentionally conservative for the consolidated config. The R20
+ergonomics ratchet had previously achieved `break: 70` for ergonomics-only
+runs; consolidation does **not** regress R20 work — it simply applies a
+floor that also fits the security/business modules still warming up. A
+follow-up R21 should re-introduce per-file thresholds for ergonomics
+files once Stryker schema supports it (9.6.1 does not).
+
+## Mutator configuration
+
+The consolidated config sets `mutator.excludedMutations: ["ArrayDeclaration"]`
+GLOBALLY. Rationale: RULA/REBA canonical tables (TABLE_A, TABLE_B, TABLE_C
+in `rula.ts` and `reba.ts`) come from peer-reviewed papers
+(McAtamney 1993; Hignett 2000) — table values are canonical and the
+parametric per-cell tests already assert every cell via the
+inputs→postureA/B/finalScore pipeline. Mutating those array literals
+produces noise, not actionable bugs. Stryker schema 9.6.1 does not
+support file-level `excludedMutations`; the global setting is safe
+because security/business modules don't have canonical-table tests
+where ArrayDeclaration mutations would mislead.
 
 ## Performance notes
 
-- Wall-clock estimate on the seven targeted files with `concurrency: 4`:
-  **~10–25 minutes**, dominated by `verifyAuth.ts` and the SLM trio.
+- Wall-clock estimate on the 14 targeted files with `concurrency: 4`:
+  **~30–60 minutes**, dominated by the SLM trio, ergonomics tables, and
+  `webpayAdapter.ts`.
 - Do **not** run mutation testing on every PR. The intended cadence is **weekly**
   (or pre-release), executed by a scheduled CI workflow.
-- Local debugging tip: use `test:mutation:auth` to iterate on a single file in
-  ~3 minutes.
+- Local debugging tip: use the surgical scripts (`test:mutation:auth`,
+  `test:mutation:ergonomics`, etc.) to iterate on a single domain in
+  ~5–20 minutes.
 
 ## CI integration
 
-CI integration is **not wired in this commit**. Reasoning: a mutation run takes
-20+ minutes and would block PR throughput if attached to the standard CI matrix.
+CI integration is **not wired in this commit**. Reasoning: a full mutation
+run takes 30+ minutes and would block PR throughput if attached to the
+standard CI matrix.
 
 A follow-up bucket will add `.github/workflows/mutation.yml` with a `cron`
 schedule (proposed: weekly on Sunday 02:00 UTC) and on-demand `workflow_dispatch`

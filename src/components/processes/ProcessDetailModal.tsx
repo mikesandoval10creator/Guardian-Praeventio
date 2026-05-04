@@ -19,6 +19,7 @@ import {
 import type { Process, Task as OrganicTask } from '../../types/organic';
 import { db, auth } from '../../services/firebase';
 import { CloseProcessModal } from './CloseProcessModal';
+import { analytics } from '../../services/analytics';
 
 export interface ProcessDetailModalProps {
   isOpen: boolean;
@@ -248,6 +249,22 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
           onClose={() => setShowCloseModal(false)}
           onClosed={() => {
             setShowCloseModal(false);
+            // Wave-9 analytics: a closed process is the canonical
+            // "tarea.completed" signal in the wave-9 activation funnel
+            // (TRACKING_PLAN §6.1). The catalog asks for tarea_id +
+            // proceso_id + time_to_complete_seconds — we use the
+            // process id for both keys (the org model treats a Process
+            // as the unit of work) and derive elapsed seconds from
+            // startedAt → now.
+            try {
+              const startedMs = process.startedAt ? Date.parse(process.startedAt) : Date.now();
+              const elapsed = Math.max(0, Math.floor((Date.now() - startedMs) / 1000));
+              analytics.track('tarea.completed', {
+                tarea_id: process.id,
+                proceso_id: process.id,
+                time_to_complete_seconds: elapsed,
+              });
+            } catch { /* analytics must never break user flow */ }
             onStatusChanged?.({ ...process, status: 'completed' });
             onClose();
           }}

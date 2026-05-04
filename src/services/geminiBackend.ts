@@ -1,11 +1,48 @@
 import { GoogleGenAI, Type, Modality, FunctionDeclaration } from "@google/genai";
+import * as Sentry from '@sentry/core';
 import { RiskNode } from '../types';
 import { searchRelevantContext, queryCommunityKnowledge } from './ragService';
 import { calculateDeterministicSafeRoute } from './routingBackend.js';
 import { logger } from '../utils/logger';
 import { withSentryScope } from './observability/sentryInstrumentation';
+import { redactPii } from './observability/piiRedactor';
 
 const API_KEY = process.env.GEMINI_API_KEY;
+
+// Sprint 20 ninth wave (Bucket A) — single seam for PII redaction before
+// any prompt leaves the process toward Vertex AI. Closes STRIDE TM-I03.
+//
+// Vertex AI is a trusted processor (signed BAA, region selection), but
+// Ley 21.719 art. 50 still asks us to minimise PII surface area. We
+// strip Chilean RUT, email, CL phone numbers, credit-card-shaped runs,
+// and obvious API-key prefixes from the prompt. Worker names and
+// industry/diagnostic descriptions are intentionally NOT redacted —
+// the model needs them to reason. See `piiRedactor.ts` header for the
+// full rationale and pattern list.
+//
+// We log + breadcrumb only the COUNT and CATEGORIES, never the raw
+// prompt or the redacted value, so Sentry never sees the PII either.
+// The breadcrumb is best-effort; if Sentry isn't initialised we
+// swallow the error so the request path is unaffected.
+const redactPromptForVertex = (prompt: string, action: string): string => {
+  const { redacted, count, categories } = redactPii(prompt);
+  if (count > 0) {
+    logger.info(
+      `[pii.redaction] action=${action} count=${count} categories=${categories.join(',')}`,
+    );
+    try {
+      Sentry.addBreadcrumb({
+        category: 'pii.redaction',
+        level: 'info',
+        message: `Redacted ${count} PII token(s) before Vertex AI call`,
+        data: { action, count, categories },
+      });
+    } catch {
+      /* observability faults must not change control flow */
+    }
+  }
+  return redacted;
+};
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -154,9 +191,7 @@ export const analyzeFastCheck = async (observation: string) => {
       if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
       const ai = new GoogleGenAI({ apiKey: API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Analiza la siguiente observación de seguridad en terreno (Fast Check):
+      const fastCheckPrompt = `Analiza la siguiente observación de seguridad en terreno (Fast Check):
     "${observation}"
 
     Clasifica la observación y proporciona:
@@ -164,7 +199,10 @@ export const analyzeFastCheck = async (observation: string) => {
     2. Un título corto y descriptivo.
     3. Nivel de criticidad (Alta, Media, Baja).
     4. Acción inmediata recomendada.
-    5. Lista de etiquetas (tags) relevantes.`,
+    5. Lista de etiquetas (tags) relevantes.`;
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: redactPromptForVertex(fastCheckPrompt, 'analyzeFastCheck'),
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -295,11 +333,13 @@ async function analyzeRiskWithAIImpl(description: string, nodesContext: string, 
        (eliminación → sustitución → ingeniería → administrativo → EPP).
     3. Normativa aplicable (ej. DS 594, DS 40, DS 54, Ley 16.744, NCh ISO 45001).`;
 
+  const safePrompt = redactPromptForVertex(prompt, 'analyzeRiskWithAI');
+
   const fallback = async () => {
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: prompt,
+      contents: safePrompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -316,7 +356,7 @@ async function analyzeRiskWithAIImpl(description: string, nodesContext: string, 
     return response.text;
   };
 
-  const resultString = await queryCommunityKnowledge(prompt, industry || 'general', fallback);
+  const resultString = await queryCommunityKnowledge(safePrompt, industry || 'general', fallback);
   return JSON.parse(resultString);
 }
 
@@ -674,18 +714,19 @@ export const processDocumentToNodes = async (text: string) => {
   
   for (const chunk of chunks) {
     try {
-      const response = await withExponentialBackoff(() => 
-        ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
-          contents: `Analiza el siguiente fragmento de texto (un manual, ley o procedimiento) y extrae conceptos clave como "Nodos Maestros" para una base de conocimiento de seguridad industrial.
-          
+      const chunkPrompt = `Analiza el siguiente fragmento de texto (un manual, ley o procedimiento) y extrae conceptos clave como "Nodos Maestros" para una base de conocimiento de seguridad industrial.
+
           Fragmento:
           ${chunk}
-          
+
           Para cada nodo extraído, proporciona:
           1. title: Un título corto y representativo.
           2. content: Una descripción clara y concisa del concepto, regla o procedimiento.
-          3. tags: Una lista de etiquetas relevantes para categorizar el nodo.`,
+          3. tags: Una lista de etiquetas relevantes para categorizar el nodo.`;
+      const response = await withExponentialBackoff(() =>
+        ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: redactPromptForVertex(chunkPrompt, 'processDocumentToNodes'),
           config: {
             responseMimeType: "application/json",
             responseSchema: {
@@ -829,7 +870,7 @@ export const analyzeRootCauses = async (riskTitle: string, riskDescription: stri
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3.1-pro-preview",
-      contents: prompt,
+      contents: redactPromptForVertex(prompt, 'analyzeRootCauses'),
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -843,7 +884,7 @@ export const analyzeRootCauses = async (riskTitle: string, riskDescription: stri
         }
       }
     });
-    
+
     return JSON.parse(response.text || '{}');
   } catch (error) {
     logger.error("Error analyzing root causes:", error);
@@ -875,7 +916,7 @@ export const queryBCN = async (query: string) => {
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3.1-pro-preview",
-      contents: prompt,
+      contents: redactPromptForVertex(prompt, 'queryBCN'),
       config: {
         systemInstruction: "Eres un experto legal estricto. No inventas leyes. Citas fuentes exactas.",
         temperature: 0.1, // Low temperature to prevent hallucinations
@@ -900,11 +941,17 @@ export const getChatResponse = async (message: string, context: string, history:
     "Análisis exhaustivo y profundo. Conecta múltiples conceptos de la Red Neuronal, ofrece planes de acción detallados y análisis de riesgos complejos."
   ];
 
+  const safeMessage = redactPromptForVertex(message, 'getChatResponse');
+  const safeHistory = history.map((h) => ({
+    role: h.role === 'user' ? 'user' : 'model',
+    parts: [{ text: redactPromptForVertex(h.content, 'getChatResponse.history') }],
+  }));
+
   const response = await ai.models.generateContent({
     model: "gemini-3.1-pro-preview", // Zettelkasten Core: Siempre usa el mejor modelo disponible
     contents: [
-      ...history.map(h => ({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.content }] })),
-      { role: 'user', parts: [{ text: `Mensaje del usuario:\n<user_input>\n${message}\n</user_input>` }] }
+      ...safeHistory,
+      { role: 'user', parts: [{ text: `Mensaje del usuario:\n<user_input>\n${safeMessage}\n</user_input>` }] }
     ],
     config: {
       systemInstruction: `Eres "El Guardián", la conciencia arquitectónica de Praeventio Guard. 
@@ -1167,25 +1214,26 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
   const searchTerms = `Metodología investigación incidentes Chile ley 16.744 ${incidentTitle}`;
   const investigationProtocolContent = await searchRelevantContext(searchTerms);
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3.1-pro-preview",
-    contents: `Actúa como un experto en investigación de accidentes laborales utilizando metodologías como el Diagrama de Ishikawa y los 5 Porqués (ICAM).
+  const incidentPrompt = `Actúa como un experto en investigación de accidentes laborales utilizando metodologías como el Diagrama de Ishikawa y los 5 Porqués (ICAM).
     Investiga el siguiente incidente:
-    
+
     Título: ${incidentTitle}
     Descripción: ${incidentDescription}
     Contexto General/Ambiental: ${context}
-    
+
     Marco Normativo de Investigación (RAG):
     ${investigationProtocolContent}
-    
+
     Proporciona un análisis detallado que incluya:
     1. Resumen del incidente.
     2. Causas Inmediatas.
     3. Causas Raíz (Basado en los 5 Porqués).
     4. Acciones Correctivas Sugeridas con prioridad.
     5. Lección Aprendida Global para la red neuronal de riesgos.
-    6. Referencia a formularios legales chilenos (DIAT/DIEP) si aplica.`,
+    6. Referencia a formularios legales chilenos (DIAT/DIEP) si aplica.`;
+  const response = await ai.models.generateContent({
+    model: "gemini-3.1-pro-preview",
+    contents: redactPromptForVertex(incidentPrompt, 'investigateIncidentWithAI'),
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -2244,14 +2292,15 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
   // mode from injecting an AI guess that auditors could mistake for it.
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-  const parts: any[] = [{ text: `Analiza esta publicación del muro de seguridad hecha por ${userName}.
+  const feedPostPrompt = `Analiza esta publicación del muro de seguridad hecha por ${userName}.
   Contenido: "${content}"
 
   Determina si esta publicación representa un RIESGO (Risk) o un INCIDENTE (Incident) que deba ser registrado en la Red Neuronal.
   Si es solo un comentario general, tip o felicitación, isRelevant debe ser false.
   Si es un riesgo o incidente, isRelevant debe ser true, y debes extraer un título, descripción y etiquetas (tags).
 
-  IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`, operada por el prevencionista. Tu rol aquí es sólo triage: detectar si el post pertenece a la Red Neuronal.` }];
+  IMPORTANTE: NO devuelvas criticidad — la clasificación legal viene de IPER P×S deterministic en \`calculateIper()\`, operada por el prevencionista. Tu rol aquí es sólo triage: detectar si el post pertenece a la Red Neuronal.`;
+  const parts: any[] = [{ text: redactPromptForVertex(feedPostPrompt, 'analyzeFeedPostForRiskNetwork') }];
 
   if (imageBase64) {
     parts.push({
@@ -2557,7 +2606,7 @@ export async function extractAcademicSummary(text: string) {
 
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-preview',
-      contents: prompt,
+      contents: redactPromptForVertex(prompt, 'extractAcademicSummary'),
     });
 
     return response.text || 'No se pudo generar el resumen académico.';
