@@ -23,7 +23,7 @@ interface InteractionResult {
 }
 
 const SEVERITY_CONFIG = {
-  leve: { label: 'Leve', color: 'text-[#4db6ac]', bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20', icon: Info },
+  leve: { label: 'Leve', color: 'text-teal-400', bg: 'bg-teal-400/10 border-teal-400/20', icon: Info },
   moderada: { label: 'Moderada', color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', icon: AlertCircle },
   grave: { label: 'Grave', color: 'text-rose-500', bg: 'bg-rose-500/10 border-rose-500/20', icon: AlertTriangle },
   contraindicado: { label: 'Contraindicado', color: 'text-red-600', bg: 'bg-red-600/10 border-red-600/30', icon: ShieldAlert },
@@ -78,20 +78,20 @@ export function DrugInteractions() {
   return (
     <div className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
       <div className="px-5 py-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10">
-          <Pill className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+        <div className="p-2 rounded-xl bg-teal-400/10 dark:bg-gold-400/10">
+          <Pill className="w-4 h-4 text-teal-400 dark:text-gold-400" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Interacciones Farmacológicas IA</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Análisis clínico por Gemini — ATC codes · mecanismo · recomendación</p>
         </div>
         {/* Sprint 17c — Bioicons pharma glyphs (pill / syringe / IV bag). */}
-        <div className="hidden sm:flex items-center gap-1.5 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+        <div className="hidden sm:flex items-center gap-1.5 text-teal-600 dark:text-gold-400" aria-hidden="true">
           <MedicalIcon name="pill" size={20} alt="Pastilla" />
           <MedicalIcon name="syringe" size={20} alt="Inyectable" />
           <MedicalIcon name="iv-bag" size={20} alt="Suero IV" />
         </div>
-        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
+        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           Gemini IA
         </span>
       </div>
@@ -106,13 +106,13 @@ export function DrugInteractions() {
               onChange={e => setDrugInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addDrug(); } }}
               placeholder="Ej: Ibuprofeno, Enalapril…"
-              className="flex-1 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40 dark:focus:ring-[#d4af37]/40"
+              className="flex-1 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40 dark:focus:ring-gold-400/40"
             />
             <button
               type="button"
               onClick={() => addDrug()}
               disabled={!drugInput.trim()}
-              className="px-4 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 hover:bg-[#4db6ac]/20 dark:hover:bg-[#d4af37]/20 transition-colors disabled:opacity-40 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="px-4 rounded-xl bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 hover:bg-teal-400/20 dark:hover:bg-gold-400/20 transition-colors disabled:opacity-40 min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -135,7 +135,7 @@ export function DrugInteractions() {
           {drugs.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
               {drugs.map(d => (
-                <span key={d} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 border border-[#4db6ac]/20 dark:border-[#d4af37]/20 text-[#2a8a81] dark:text-[#d4af37] text-xs font-bold">
+                <span key={d} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-teal-400/10 dark:bg-gold-400/10 border border-teal-400/20 dark:border-gold-400/20 text-teal-600 dark:text-gold-400 text-xs font-bold">
                   <Pill className="w-3 h-3" />
                   {d}
                   <button onClick={() => removeDrug(d)} className="hover:text-rose-500 transition-colors ml-1">
@@ -154,7 +154,7 @@ export function DrugInteractions() {
             value={patientContext}
             onChange={e => setPatientContext(e.target.value)}
             placeholder="Ej: 65 años, insuficiencia renal leve, embarazo 2T…"
-            className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/40 dark:focus:ring-[#d4af37]/40"
+            className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/10 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400/40 dark:focus:ring-gold-400/40"
           />
         </div>
 
@@ -162,7 +162,7 @@ export function DrugInteractions() {
         <button
           onClick={analyze}
           disabled={drugs.length < 2 || loading}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#4db6ac] hover:bg-[#3a9e95] dark:bg-[#d4af37]/80 dark:hover:bg-[#d4af37] text-white dark:text-zinc-900 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-[#4db6ac]/20 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-teal-400 hover:bg-teal-500 dark:bg-gold-400/80 dark:hover:bg-gold-400 text-white dark:text-zinc-900 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-teal-400/20 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           {loading ? 'Analizando interacciones…' : `Analizar ${drugs.length < 2 ? '(mín. 2 fármacos)' : `${drugs.length} fármacos`}`}
@@ -187,13 +187,13 @@ export function DrugInteractions() {
               {result.safeToAdminister !== undefined && (
                 <div className={`flex items-center gap-3 p-3 rounded-xl border ${
                   result.safeToAdminister
-                    ? 'bg-[#4db6ac]/10 border-[#4db6ac]/20'
+                    ? 'bg-teal-400/10 border-teal-400/20'
                     : 'bg-rose-500/10 border-rose-500/20'
                 }`}>
                   {result.safeToAdminister
-                    ? <CheckCircle className="w-5 h-5 text-[#4db6ac] flex-shrink-0" />
+                    ? <CheckCircle className="w-5 h-5 text-teal-400 flex-shrink-0" />
                     : <AlertTriangle className="w-5 h-5 text-rose-500 flex-shrink-0" />}
-                  <p className={`text-sm font-bold ${result.safeToAdminister ? 'text-[#2a8a81] dark:text-[#4db6ac]' : 'text-rose-600 dark:text-rose-400'}`}>
+                  <p className={`text-sm font-bold ${result.safeToAdminister ? 'text-teal-600 dark:text-teal-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {result.safeToAdminister ? 'Combinación generalmente segura con precauciones' : 'Se detectaron interacciones significativas — revisar con especialista'}
                   </p>
                 </div>

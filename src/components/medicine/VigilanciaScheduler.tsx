@@ -26,7 +26,7 @@ const PROGRAM_META: Record<ScheduledExam['program'], { icon: typeof Ear; color: 
   EVAST: { icon: Brain, color: 'text-violet-500', bg: 'bg-violet-500/10 border-violet-500/20', article: 'EVAST MINSAL' },
   Cardiovascular: { icon: Activity, color: 'text-rose-600', bg: 'bg-rose-600/10 border-rose-600/20', article: 'Vigilancia genérica' },
   Visual: { icon: Eye, color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/20', article: 'DS 594 Art. 95-99' },
-  General: { icon: Stethoscope, color: 'text-[#4db6ac]', bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20', article: 'DS 109' },
+  General: { icon: Stethoscope, color: 'text-teal-400', bg: 'bg-teal-400/10 border-teal-400/20', article: 'DS 109' },
 };
 
 const today = new Date();
@@ -52,7 +52,7 @@ const getDaysUntil = (dateStr: string): number => {
 const STATUS_CONFIG = {
   overdue: { label: 'Vencido', color: 'text-rose-500', bg: 'bg-rose-500/10 border-rose-500/20', dot: 'bg-rose-500' },
   warning: { label: 'Próximo', color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', dot: 'bg-amber-500' },
-  ok: { label: 'Al día', color: 'text-[#4db6ac]', bg: 'bg-[#4db6ac]/10 border-[#4db6ac]/20', dot: 'bg-[#4db6ac]' },
+  ok: { label: 'Al día', color: 'text-teal-400', bg: 'bg-teal-400/10 border-teal-400/20', dot: 'bg-teal-400' },
   pending: { label: 'Pendiente', color: 'text-zinc-400', bg: 'bg-zinc-500/10 border-zinc-500/20', dot: 'bg-zinc-500' },
 };
 
@@ -80,22 +80,22 @@ export function VigilanciaScheduler() {
   return (
     <div className="rounded-2xl border border-zinc-200/50 dark:border-white/5 bg-white/50 dark:bg-zinc-900/50 overflow-hidden">
       <div className="px-5 py-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center gap-3">
-        <div className="p-2 rounded-xl bg-[#4db6ac]/10 dark:bg-[#d4af37]/10">
-          <Calendar className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
+        <div className="p-2 rounded-xl bg-teal-400/10 dark:bg-gold-400/10">
+          <Calendar className="w-4 h-4 text-teal-400 dark:text-gold-400" />
         </div>
         <div className="flex-1">
           <p className="text-sm font-black text-zinc-900 dark:text-white">Vigilancia Médica Programada</p>
           <p className="text-[10px] text-zinc-500 dark:text-zinc-400">PREXOR · PLANESI · TMERT · EVAST · DS 109 — Calendario de vencimientos</p>
         </div>
         {/* Sprint 17c — Bioicons surveillance instrumentation cluster. */}
-        <div className="hidden md:flex items-center gap-1.5 text-[#2a8a81] dark:text-[#d4af37]" aria-hidden="true">
+        <div className="hidden md:flex items-center gap-1.5 text-teal-600 dark:text-gold-400" aria-hidden="true">
           <MedicalIcon name="audiometer" size={18} alt="Audiometría" />
           <MedicalIcon name="spirometer" size={18} alt="Espirometría" />
           <MedicalIcon name="eye" size={18} alt="Visión" />
           <MedicalIcon name="thermometer" size={18} alt="Termometría" />
           <MedicalIcon name="blood-pressure-cuff" size={18} alt="Presión arterial" />
         </div>
-        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
+        <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           Vigilancia
         </span>
       </div>
@@ -124,7 +124,7 @@ export function VigilanciaScheduler() {
               onClick={() => setFilter(p)}
               className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border ${
                 filter === p
-                  ? 'bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border-[#4db6ac]/30 dark:border-[#d4af37]/30'
+                  ? 'bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border-teal-400/30 dark:border-gold-400/30'
                   : 'text-zinc-500 border-zinc-200 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
               }`}
             >
@@ -136,7 +136,7 @@ export function VigilanciaScheduler() {
           <span className="text-[9px] text-zinc-500 font-black uppercase tracking-widest">Orden:</span>
           <button
             onClick={() => setSortBy(s => s === 'dueDate' ? 'status' : 'dueDate')}
-            className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest text-[#2a8a81] dark:text-[#d4af37] bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 border border-[#4db6ac]/20 dark:border-[#d4af37]/20 transition-all hover:bg-[#4db6ac]/20"
+            className="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest text-teal-600 dark:text-gold-400 bg-teal-400/10 dark:bg-gold-400/10 border border-teal-400/20 dark:border-gold-400/20 transition-all hover:bg-teal-400/20"
           >
             {sortBy === 'dueDate' ? 'Fecha' : 'Urgencia'}
           </button>
@@ -183,7 +183,7 @@ export function VigilanciaScheduler() {
                 </div>
 
                 <div className="flex-shrink-0 text-right">
-                  <div className={`flex items-center gap-1 justify-end ${exam.status === 'overdue' ? 'text-rose-500' : exam.status === 'warning' ? 'text-amber-500' : 'text-[#4db6ac]'}`}>
+                  <div className={`flex items-center gap-1 justify-end ${exam.status === 'overdue' ? 'text-rose-500' : exam.status === 'warning' ? 'text-amber-500' : 'text-teal-400'}`}>
                     {exam.status === 'overdue' ? (
                       <AlertTriangle className="w-3.5 h-3.5" />
                     ) : exam.status === 'ok' ? (
