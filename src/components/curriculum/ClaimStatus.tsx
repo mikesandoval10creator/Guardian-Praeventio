@@ -9,56 +9,59 @@
 //     after a successful resend so the worker doesn't spam-click.
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from '../shared/Card';
 import { CheckCircle2, Clock, AlertTriangle, XCircle, Mail, Send, Loader2 } from 'lucide-react';
 import { auth } from '../../services/firebase';
 import type { CurriculumClaim, RefereeSlot, ClaimStatus as TStatus } from '../../services/curriculum/claims';
 
-const STATUS_LABEL: Record<TStatus, { label: string; tone: string; Icon: React.ComponentType<{ className?: string }> }> = {
+const STATUS_META: Record<TStatus, { tone: string; Icon: React.ComponentType<{ className?: string }> }> = {
   pending_referees: {
-    label: 'Esperando 2 referencias',
     tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
     Icon: Clock,
   },
   verified: {
-    label: 'Verificado',
     tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
     Icon: CheckCircle2,
   },
   rejected: {
-    label: 'Rechazado',
     tone: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
     Icon: XCircle,
   },
   expired: {
-    label: 'Expirado',
     tone: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400',
     Icon: AlertTriangle,
   },
 };
-
-function refereeBadge(slot: RefereeSlot): { label: string; tone: string } {
-  if (slot.declined) return { label: 'Rechazó', tone: 'bg-rose-500/10 text-rose-500' };
-  if (slot.signedAt) return { label: 'Firmó', tone: 'bg-emerald-500/10 text-emerald-500' };
-  return { label: 'Pendiente', tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
-}
 
 export interface ClaimStatusProps {
   claim: CurriculumClaim;
 }
 
 export function ClaimStatus({ claim }: ClaimStatusProps) {
+  const { t } = useTranslation();
   const [resendIndex, setResendIndex] = useState<number | null>(null);
   const [cooldownIdx, setCooldownIdx] = useState<Set<number>>(new Set());
   const [resendError, setResendError] = useState<string | null>(null);
-  const status = STATUS_LABEL[claim.status];
+  const status = STATUS_META[claim.status];
   const StatusIcon = status.Icon;
+  const STATUS_LABELS: Record<TStatus, string> = {
+    pending_referees: t('curriculum.status_pending_referees', 'Esperando 2 referencias'),
+    verified: t('curriculum.status_verified', 'Verificado'),
+    rejected: t('curriculum.status_rejected', 'Rechazado'),
+    expired: t('curriculum.status_expired', 'Expirado'),
+  };
+  function refereeBadge(slot: RefereeSlot): { label: string; tone: string } {
+    if (slot.declined) return { label: t('curriculum.referee_declined', 'Rechazó'), tone: 'bg-rose-500/10 text-rose-500' };
+    if (slot.signedAt) return { label: t('curriculum.referee_signed', 'Firmó'), tone: 'bg-emerald-500/10 text-emerald-500' };
+    return { label: t('curriculum.referee_pending', 'Pendiente'), tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' };
+  }
 
   async function handleResend(idx: number) {
     setResendError(null);
     setResendIndex(idx);
     try {
-      if (!auth.currentUser) throw new Error('Sesión inactiva.');
+      if (!auth.currentUser) throw new Error(t('curriculum.error_inactive_session_short', 'Sesión inactiva.'));
       const idToken = await auth.currentUser.getIdToken();
       const res = await fetch(`/api/curriculum/claim/${claim.id}/resend`, {
         method: 'POST',
@@ -70,7 +73,7 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || 'No se pudo reenviar.');
+        throw new Error(data?.error || t('curriculum.error_resend_fail', 'No se pudo reenviar.'));
       }
       // Disable the button for 30s to avoid spam clicks.
       setCooldownIdx((s) => new Set(s).add(idx));
@@ -82,7 +85,7 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
         });
       }, 30_000);
     } catch (err: any) {
-      setResendError(err?.message || 'Error desconocido.');
+      setResendError(err?.message || t('curriculum.error_unknown_short', 'Error desconocido.'));
     } finally {
       setResendIndex(null);
     }
@@ -101,12 +104,12 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
         </div>
         <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 ${status.tone}`}>
           <StatusIcon className="w-3 h-3" />
-          {status.label}
+          {STATUS_LABELS[claim.status]}
         </div>
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Referencias</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('curriculum.referees_label', 'Referencias')}</p>
         {claim.referees.map((r, idx) => {
           const badge = refereeBadge(r);
           const cooling = cooldownIdx.has(idx);
@@ -126,7 +129,7 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
                   <p className="text-[10px] text-zinc-500 truncate">{r.email}</p>
                   {r.signedAt && (
                     <p className="text-[10px] text-emerald-500">
-                      firmó el {new Date(r.signedAt).toLocaleDateString('es-CL')}
+                      {t('curriculum.referee_signed_on', 'firmó el {{date}}', { date: new Date(r.signedAt).toLocaleDateString('es-CL') })}
                     </p>
                   )}
                 </div>
@@ -147,7 +150,7 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
                     ) : (
                       <Send className="w-3 h-3" />
                     )}
-                    {cooling ? 'Enviado' : 'Reenviar enlace'}
+                    {cooling ? t('curriculum.resend_sent', 'Enviado') : t('curriculum.resend_link', 'Reenviar enlace')}
                   </button>
                 )}
               </div>
@@ -165,12 +168,12 @@ export function ClaimStatus({ claim }: ClaimStatusProps) {
 
       {claim.status === 'verified' && claim.verifiedAt && (
         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-          Verificado el {new Date(claim.verifiedAt).toLocaleDateString('es-CL')}
+          {t('curriculum.verified_on', 'Verificado el {{date}}', { date: new Date(claim.verifiedAt).toLocaleDateString('es-CL') })}
         </p>
       )}
       {claim.status === 'pending_referees' && (
         <p className="text-[10px] text-zinc-500">
-          Expira el {new Date(claim.expiresAt).toLocaleDateString('es-CL')} si no se completa.
+          {t('curriculum.expires_on', 'Expira el {{date}} si no se completa.', { date: new Date(claim.expiresAt).toLocaleDateString('es-CL') })}
         </p>
       )}
     </Card>

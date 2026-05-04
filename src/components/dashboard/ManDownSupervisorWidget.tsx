@@ -5,6 +5,7 @@ import { collection, onSnapshot, query, orderBy, limit, updateDoc, doc } from 'f
 import { db } from '../../services/firebase';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { analytics } from '../../services/analytics';
 
 interface ManDownEvent {
   id: string;
@@ -57,6 +58,22 @@ export function ManDownSupervisorWidget() {
           acknowledgedAt: new Date(),
         },
       );
+      // Wave-14 analytics: ack of a man-down (fall-detection) event closes
+      // the safety-critical loop — supervisor responded, protocol applied.
+      // We treat ack as `risk.resolved` with `resolution_kind:
+      // 'protocol_applied'` (the supervisor responded but no discrete
+      // tarea was created). `risk_class:'fall'` mirrors the
+      // emergency.fall.detected origin. Catalog row 60.
+      try {
+        const ev = events.find((e) => e.id === eventId);
+        const startedMs = ev ? toDate(ev.timestamp).getTime() : Date.now();
+        analytics.track('risk.resolved', {
+          risk_id: eventId,
+          risk_class: 'fall',
+          time_to_resolve_seconds: Math.max(0, Math.floor((Date.now() - startedMs) / 1000)),
+          resolution_kind: 'protocol_applied',
+        });
+      } catch { /* analytics must never break user flow */ }
     } finally {
       setAcking(null);
     }

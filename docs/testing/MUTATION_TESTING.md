@@ -1,5 +1,17 @@
 # Mutation Testing (Stryker)
 
+## Latest baseline (2026-05-04, 14th wave Bucket D)
+
+First real Stryker run on three high-value modules:
+
+- `src/server/middleware/verifyAuth.ts` — **64.29 %** (84 mutants, 54 killed, 22 survived, 8 no-cov, 47 s)
+- `src/services/slm/orchestrator.ts` — **7.69 %** (78 mutants, 6 killed, 48 survived, 24 no-cov, 13 s)
+- `src/services/observability/sentryInstrumentation.ts` — **72.58 %** (62 mutants, 45 killed, 15 survived, 2 no-cov, 29 s)
+
+Cumulative: 224 mutants, 105 killed → **46.88 %** (total) / 55.26 % (covered). Wall-clock 1 m 29 s on Windows host at concurrency=1.
+
+Top-priority surviving mutants, threshold ratchet recommendation (**no change** — orchestrator currently below `break: 50`), and CI integration proposal (cron weekly, NOT per-PR) are documented in [`MUTATION_BASELINE.md`](./MUTATION_BASELINE.md).
+
 ## Consolidation note (2026-05-04, 9th wave)
 
 Praeventio previously maintained **two** Stryker config files:

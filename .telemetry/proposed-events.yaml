@@ -389,6 +389,15 @@ events:
     firstVersion: 1.0.0
     piiRisk: low
 
+  - name: payment.checkout.cancelled
+    class: commerce
+    description: User explicitly cancelled checkout before authorisation (back / close / cancel button). Distinct from payment.transaction.failed which is gateway rejection.
+    requiredProps: [gateway, plan_code]
+    optionalProps: [amount_clp]
+    ownerTeam: billing
+    firstVersion: 1.0.0
+    piiRisk: low
+
   - name: payment.transaction.succeeded
     class: commerce
     description: Server-side webhook confirmed authorization. Server-emitted (not client).

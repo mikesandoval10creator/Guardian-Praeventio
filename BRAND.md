@@ -131,6 +131,40 @@ If you find yourself writing a hex inside a feature component, you are
 either redefining a role (extend this doc and the CSS) or shipping a
 bug.
 
+### Color tokens — accessibility constraints
+
+WCAG 2.2 AA imposes hard limits on which roles may be used where. The
+audit (`docs/a11y/WCAG_findings.md`) tracks these; the most important
+ones are baked into the token contract here.
+
+- **`--accent-primary` is NOT body text on light surfaces.** In
+  `normal-light` it resolves to teal-400 `#4db6ac`, which on the white
+  canvas (`#fafafa`) only reaches 2.53:1 — well below the 4.5:1 AA
+  floor for normal text. The token is intended for backgrounds, large
+  display headings (≥24px bold or ≥18.66px regular per WCAG large-text
+  rules), and decorative iconography only.
+- **For body copy on light surfaces, use `--text-primary`**
+  (zinc-900 `#18181b`, ~16.4:1) **or `--text-muted`** (zinc-600
+  `#52525b`, 7.51:1 since the 11th-wave fix). Both pass AA + AAA.
+- **Text on top of teal (button labels, badges) — use `#000`**, not
+  `#fff`. Black on teal-400 is 12.62:1 (passes AAA); white on teal-400
+  is 2.53:1 (fails AA). The current `--accent-on-primary` token resolves
+  to `#fff` for backward compatibility — components rendering small
+  labels on teal CTAs should override locally with `#000` until the
+  token graduates to a per-mode value.
+- **Decorative icons (≤24px, non-text)** governed by 1.4.11 (3:1
+  threshold). Teal-400 still misses by a hair. Use `--text-secondary`
+  or `--accent-warning` for must-be-visible icons; reserve teal for
+  illustrative glyphs paired with a text label.
+- **Lint rule** that flags `color: var(--accent-primary)` /
+  `text-[var(--accent-primary)]` usage on light surfaces is queued for
+  Sprint 21+. Until then, code review enforces this manually.
+
+These constraints close A11Y-002 (1.4.3 contrast minimum on the teal
+token) as a documented mitigation. The CSS hex is unchanged so the
+`normal-light` brand identity stays intact for backgrounds; the
+guardrail is on text usage, not the swatch itself.
+
 ## 5. Switching Modes Programmatically
 
 ```tsx

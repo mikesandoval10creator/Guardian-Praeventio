@@ -117,6 +117,13 @@ interface RegionPath {
     | { type: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
     | { type: 'rect'; x: number; y: number; width: number; height: number; rx?: number }
     | { type: 'path'; d: string };
+  // WCAG 2.5.8 (Target Size) — hit-area centroid in viewBox coords. A
+  // 24x24 transparent overlay is anchored here on top of the visual
+  // shape so small viewports (320px) still expose a 24x24 CSS-px
+  // touch/click target. Required because the stylized body paths
+  // (e.g. neck stub, narrow forearm) drop below 24x24 once the SVG
+  // renders inside `max-w-[180px]`.
+  centroid: { cx: number; cy: number };
 }
 
 const FRONT_PATHS: RegionPath[] = [
@@ -124,69 +131,86 @@ const FRONT_PATHS: RegionPath[] = [
   {
     id: 'cabeza-cuello',
     shape: { type: 'path', d: 'M60,4 C74,4 82,14 82,26 C82,38 74,46 60,48 C46,48 38,38 38,26 C38,14 46,4 60,4 Z M54,48 L54,60 L66,60 L66,48 Z' },
+    centroid: { cx: 60, cy: 30 },
   },
   // Torso/Pecho
   {
     id: 'torso-pecho',
     shape: { type: 'path', d: 'M36,60 C30,62 24,66 22,78 L22,130 C22,134 26,136 30,136 L90,136 C94,136 98,134 98,130 L98,78 C96,66 90,62 84,60 Z' },
+    centroid: { cx: 60, cy: 98 },
   },
   // Abdomen/Cintura
   {
     id: 'abdomen-cintura',
     shape: { type: 'rect', x: 26, y: 136, width: 68, height: 40, rx: 4 },
+    centroid: { cx: 60, cy: 156 },
   },
   // Left arm (viewer's left = body's right visually on screen left)
   {
     id: 'brazo-izquierdo',
     shape: { type: 'path', d: 'M22,62 C16,64 10,70 8,78 L4,136 C4,140 8,142 12,140 L22,138 L26,76 Z' },
+    centroid: { cx: 15, cy: 100 },
   },
   // Right arm
   {
     id: 'brazo-derecho',
     shape: { type: 'path', d: 'M98,62 C104,64 110,70 112,78 L116,136 C116,140 112,142 108,140 L98,138 L94,76 Z' },
+    centroid: { cx: 105, cy: 100 },
   },
   // Left leg
   {
     id: 'pierna-izquierda',
     shape: { type: 'path', d: 'M28,176 L26,176 C22,176 20,178 20,182 L22,264 C22,268 26,270 30,270 L52,270 C56,270 58,268 58,264 L58,182 C58,178 56,176 52,176 Z' },
+    centroid: { cx: 39, cy: 222 },
   },
   // Right leg
   {
     id: 'pierna-derecha',
     shape: { type: 'path', d: 'M92,176 L68,176 C64,176 62,178 62,182 L62,264 C62,268 64,270 68,270 L90,270 C94,270 98,268 98,264 L98,182 C98,178 96,176 92,176 Z' },
+    centroid: { cx: 80, cy: 222 },
   },
 ];
 
-// Back view paths — mirrored on neck/spine axis, same proportions
+// Back view paths — mirrored on neck/spine axis, same proportions.
+// Centroids match the screen-side geometry: in BACK view the
+// `brazo-izquierdo` LABEL is assigned to the screen-right path
+// (mirrored body), so its centroid moves to the right of the SVG.
 const BACK_PATHS: RegionPath[] = [
   {
     id: 'cabeza-cuello',
     shape: { type: 'path', d: 'M60,4 C74,4 82,14 82,26 C82,38 74,46 60,48 C46,48 38,38 38,26 C38,14 46,4 60,4 Z M54,48 L54,60 L66,60 L66,48 Z' },
+    centroid: { cx: 60, cy: 30 },
   },
   {
     id: 'torso-pecho',
     shape: { type: 'path', d: 'M36,60 C30,62 24,66 22,78 L22,130 C22,134 26,136 30,136 L90,136 C94,136 98,134 98,130 L98,78 C96,66 90,62 84,60 Z' },
+    centroid: { cx: 60, cy: 98 },
   },
   {
     id: 'abdomen-cintura',
     shape: { type: 'rect', x: 26, y: 136, width: 68, height: 40, rx: 4 },
+    centroid: { cx: 60, cy: 156 },
   },
   // Back view: arms are mirrored labels (left arm is now on right of screen)
   {
     id: 'brazo-derecho',
     shape: { type: 'path', d: 'M22,62 C16,64 10,70 8,78 L4,136 C4,140 8,142 12,140 L22,138 L26,76 Z' },
+    centroid: { cx: 15, cy: 100 },
   },
   {
     id: 'brazo-izquierdo',
     shape: { type: 'path', d: 'M98,62 C104,64 110,70 112,78 L116,136 C116,140 112,142 108,140 L98,138 L94,76 Z' },
+    centroid: { cx: 105, cy: 100 },
   },
   {
     id: 'pierna-derecha',
     shape: { type: 'path', d: 'M28,176 L26,176 C22,176 20,178 20,182 L22,264 C22,268 26,270 30,270 L52,270 C56,270 58,268 58,264 L58,182 C58,178 56,176 52,176 Z' },
+    centroid: { cx: 39, cy: 222 },
   },
   {
     id: 'pierna-izquierda',
     shape: { type: 'path', d: 'M92,176 L68,176 C64,176 62,178 62,182 L62,264 C62,268 64,270 68,270 L90,270 C94,270 98,268 98,264 L98,182 C98,178 96,176 92,176 Z' },
+    centroid: { cx: 80, cy: 222 },
   },
 ];
 
@@ -246,7 +270,11 @@ function SvgRegion({ regionPath, region, isHovered, readOnly, onHover, onClick }
 
   const { fill, stroke, strokeWidth } = getColors();
 
-  const sharedProps = {
+  // Visual props — no role/tabIndex/aria. The visual shape is purely
+  // presentational; SR + keyboard entry happens via the overlay rect.
+  // Click on the visible shape still fires (cursor pointer) so large
+  // regions remain clickable across their whole extent.
+  const visualProps = {
     fill,
     stroke,
     strokeWidth,
@@ -254,27 +282,57 @@ function SvgRegion({ regionPath, region, isHovered, readOnly, onHover, onClick }
     onMouseEnter: () => !readOnly && onHover(regionPath.id),
     onMouseLeave: () => !readOnly && onHover(null),
     onClick: () => !readOnly && onClick(regionPath.id),
-    role: 'button' as const,
-    'aria-pressed': isSelected,
-    'aria-label': region.label,
-    tabIndex: readOnly ? -1 : 0,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (!readOnly && (e.key === 'Enter' || e.key === ' ')) {
-        e.preventDefault();
-        onClick(regionPath.id);
-      }
-    },
+    'aria-hidden': true as const,
   };
+
+  // WCAG 2.5.8 (Target Size minimum 24x24 CSS px) — transparent overlay
+  // anchored to the region centroid that ALWAYS guarantees a 24x24
+  // hit-area regardless of how small the visual shape renders on
+  // narrow viewports (320px). All a11y semantics live here so the
+  // screen reader announces each region exactly once.
+  const { centroid } = regionPath;
+  const hitOverlay = (
+    <rect
+      x={centroid.cx - 12}
+      y={centroid.cy - 12}
+      width={24}
+      height={24}
+      fill="transparent"
+      pointerEvents="all"
+      style={{ cursor: readOnly ? 'default' : 'pointer' }}
+      onMouseEnter={() => !readOnly && onHover(regionPath.id)}
+      onMouseLeave={() => !readOnly && onHover(null)}
+      onClick={() => !readOnly && onClick(regionPath.id)}
+      role="button"
+      aria-pressed={isSelected}
+      aria-label={region.label}
+      tabIndex={readOnly ? -1 : 0}
+      onKeyDown={(e: React.KeyboardEvent) => {
+        if (!readOnly && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          onClick(regionPath.id);
+        }
+      }}
+    />
+  );
 
   const { shape } = regionPath;
 
+  let visual: React.ReactElement;
   if (shape.type === 'ellipse') {
-    return <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...sharedProps} />;
+    visual = <ellipse cx={shape.cx} cy={shape.cy} rx={shape.rx} ry={shape.ry} {...visualProps} />;
+  } else if (shape.type === 'rect') {
+    visual = <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} rx={shape.rx ?? 0} {...visualProps} />;
+  } else {
+    visual = <path d={shape.d} {...visualProps} />;
   }
-  if (shape.type === 'rect') {
-    return <rect x={shape.x} y={shape.y} width={shape.width} height={shape.height} rx={shape.rx ?? 0} {...sharedProps} />;
-  }
-  return <path d={shape.d} {...sharedProps} />;
+
+  return (
+    <>
+      {visual}
+      {hitOverlay}
+    </>
+  );
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────

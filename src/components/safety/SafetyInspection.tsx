@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ClipboardCheck, Plus, Trash2, Save, Loader2, CheckCircle2, Wand2 } from 'lucide-react';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { useProject } from '../../contexts/ProjectContext';
@@ -17,11 +18,12 @@ interface InspectionItem {
 }
 
 export function SafetyInspection() {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [items, setItems] = useState<InspectionItem[]>([
-    { id: '1', question: '¿El personal utiliza su EPP completo?', status: 'Cumple', observation: '', workerProposal: '' },
-    { id: '2', question: '¿Las herramientas están en buen estado?', status: 'Cumple', observation: '', workerProposal: '' },
-    { id: '3', question: '¿El área de trabajo está limpia y ordenada?', status: 'Cumple', observation: '', workerProposal: '' },
+    { id: '1', question: t('safety_inspection.default_q_epp', '¿El personal utiliza su EPP completo?'), status: 'Cumple', observation: '', workerProposal: '' },
+    { id: '2', question: t('safety_inspection.default_q_tools', '¿Las herramientas están en buen estado?'), status: 'Cumple', observation: '', workerProposal: '' },
+    { id: '3', question: t('safety_inspection.default_q_area', '¿El área de trabajo está limpia y ordenada?'), status: 'Cumple', observation: '', workerProposal: '' },
   ]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -113,8 +115,8 @@ export function SafetyInspection() {
             <ClipboardCheck className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">Nueva Inspección de Seguridad</h3>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Auditoría Colaborativa y Generación de Acciones</p>
+            <h3 className="text-lg font-black uppercase tracking-tight text-zinc-900 dark:text-white">{t('safety_inspection.title', 'Nueva Inspección de Seguridad')}</h3>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('safety_inspection.subtitle', 'Auditoría Colaborativa y Generación de Acciones')}</p>
           </div>
         </div>
         <Button
@@ -125,31 +127,31 @@ export function SafetyInspection() {
           }`}
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : saved ? <CheckCircle2 className="w-3 h-3" /> : <Save className="w-3 h-3" />}
-          {saved ? 'Guardado' : 'Finalizar Inspección'}
+          {saved ? t('safety_inspection.saved', 'Guardado') : t('safety_inspection.finalize', 'Finalizar Inspección')}
         </Button>
       </div>
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Título de la Inspección / Área</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('safety_inspection.field_title', 'Título de la Inspección / Área')}</label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ej: Inspección de Bodega Central - Piso 1"
+            placeholder={t('safety_inspection.field_title_placeholder', 'Ej: Inspección de Bodega Central - Piso 1')}
             className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm outline-none focus:border-emerald-500 transition-colors"
           />
         </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Checklist de Verificación</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('safety_inspection.checklist_label', 'Checklist de Verificación')}</label>
             <button
               onClick={handleAddItem}
               className="text-[10px] font-black uppercase tracking-widest text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
             >
               <Plus className="w-3 h-3" />
-              Agregar Item
+              {t('safety_inspection.add_item', 'Agregar Item')}
             </button>
           </div>
 
@@ -161,7 +163,7 @@ export function SafetyInspection() {
                     type="text"
                     value={item.question}
                     onChange={(e) => handleUpdateItem(item.id, { question: e.target.value })}
-                    placeholder="Pregunta de inspección..."
+                    placeholder={t('safety_inspection.question_placeholder', 'Pregunta de inspección...')}
                     className="flex-1 bg-transparent border-none p-0 text-sm font-bold text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:ring-0"
                   />
                   <div className="flex bg-white dark:bg-zinc-900 rounded-lg p-1 border border-zinc-100 dark:border-zinc-700">
@@ -175,7 +177,7 @@ export function SafetyInspection() {
                             : 'text-zinc-400 hover:text-zinc-600'
                         }`}
                       >
-                        {s}
+                        {s === 'Cumple' ? t('safety_inspection.status_compliant', 'Cumple') : s === 'No Cumple' ? t('safety_inspection.status_noncompliant', 'No Cumple') : t('safety_inspection.status_na', 'N/A')}
                       </button>
                     ))}
                   </div>
@@ -194,21 +196,21 @@ export function SafetyInspection() {
                           type="text"
                           value={item.observation}
                           onChange={(e) => handleUpdateItem(item.id, { observation: e.target.value })}
-                          placeholder="Describe la desviación observada..."
+                          placeholder={t('safety_inspection.observation_placeholder', 'Describe la desviación observada...')}
                           className="w-full bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/30 rounded-lg px-3 py-2 text-xs outline-none focus:border-red-500"
                         />
                       </div>
                       <div className="flex items-center gap-1 text-[8px] font-black text-red-500 uppercase tracking-widest">
                         <Wand2 className="w-3 h-3" />
-                        Plan IA Activo
+                        {t('safety_inspection.ai_plan_active', 'Plan IA Activo')}
                       </div>
                     </div>
                     <div className="flex-1">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">Propuesta de Mejora (Trabajador)</label>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1 block">{t('safety_inspection.worker_proposal_label', 'Propuesta de Mejora (Trabajador)')}</label>
                       <textarea
                         value={item.workerProposal || ''}
                         onChange={(e) => handleUpdateItem(item.id, { workerProposal: e.target.value })}
-                        placeholder="¿Qué sugiere el trabajador para solucionar esto?"
+                        placeholder={t('safety_inspection.worker_proposal_placeholder', '¿Qué sugiere el trabajador para solucionar esto?')}
                         className="w-full bg-white dark:bg-zinc-900 border border-emerald-100 dark:border-emerald-900/30 rounded-lg px-3 py-2 text-xs outline-none focus:border-emerald-500 resize-none h-16"
                       />
                     </div>
