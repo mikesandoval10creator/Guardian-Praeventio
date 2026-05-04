@@ -14,3 +14,7 @@ firebase-applet-config.json
 
 # Claude Code local config (never commit)
 .claude/
+
+# Playwright local artifacts
+playwright-report/
+test-results/
