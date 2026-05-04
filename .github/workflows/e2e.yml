@@ -1,0 +1,54 @@
+name: E2E (Playwright)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch: # allow manual run
+
+jobs:
+  e2e:
+    name: Playwright (chromium + mobile-android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install Playwright browsers
+        # --with-deps installs system libs needed on Ubuntu runner
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Run Playwright tests
+        run: npx playwright test --project=chromium --project=mobile-android
+        env:
+          CI: 'true'
+
+      - name: Upload Playwright HTML report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload trace files on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 14

@@ -24,7 +24,11 @@
     "mutation": "stryker run",
     "size": "size-limit",
     "lhci": "lhci autorun",
-    "perf": "npm run build && size-limit && lhci autorun"
+    "perf": "npm run build && size-limit && lhci autorun",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
@@ -124,6 +128,7 @@
     "@size-limit/preset-app": "^11.1.6",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@playwright/test": "^1.50.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
