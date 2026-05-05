@@ -153,8 +153,11 @@ describe('apiKeyService', () => {
     stored.expiresAt = Date.now() - 1000;
 
     expect(await verifyApiKey(key)).toBeNull();
-    // Lazily marked expired so admin lists reflect reality.
-    expect(stored.status).toBe('expired');
+    // Lazily marked expired so admin lists reflect reality. Re-fetch
+    // because the mock's `update` writes a new object via `store.set`
+    // rather than mutating in place.
+    const updated = mocks.store.get(`b2d_api_keys/${record.id}`);
+    expect(updated.status).toBe('expired');
   });
 
   it('revokeApiKey is idempotent and records who revoked', async () => {
