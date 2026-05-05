@@ -15,11 +15,18 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..', '..');
 const validator = require(path.join(repoRoot, 'scripts', 'validate-env.cjs'));
 
-const { check, REQUIRED_PROD, PLACEHOLDER_REGEX } = validator as {
+type CheckResult = {
+  errors: string[];
+  warnings: string[];
+  checked: number;
+  mode: 'prod' | 'test' | 'prod-secret-manager';
+};
+
+const { check, REQUIRED_PROD, PLACEHOLDER_REGEX, SECRET_MANAGER_SECRETS } = validator as {
   check: (
     env: Record<string, string | undefined>,
-    options?: { mode?: 'prod' | 'test' },
-  ) => { errors: string[]; warnings: string[]; checked: number; mode: 'prod' | 'test' };
+    options?: { mode?: 'prod' | 'test' | 'prod-secret-manager' },
+  ) => CheckResult;
   REQUIRED_PROD: Array<{
     name: string;
     purpose: string;
@@ -28,6 +35,7 @@ const { check, REQUIRED_PROD, PLACEHOLDER_REGEX } = validator as {
     allowedValues?: string[];
   }>;
   PLACEHOLDER_REGEX: RegExp;
+  SECRET_MANAGER_SECRETS: string[];
 };
 
 /**
@@ -119,6 +127,36 @@ describe('validate-env (Bucket U.1)', () => {
     expect(result.errors).toEqual([]);
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(result.mode).toBe('test');
+  });
+
+  // === Bucket V.6 — prod-secret-manager mode ===
+
+  it('prod-secret-manager mode requires GOOGLE_CLOUD_PROJECT', () => {
+    const result = check({}, { mode: 'prod-secret-manager' });
+    expect(result.mode).toBe('prod-secret-manager');
+    expect(result.errors.length).toBe(1);
+    expect(result.errors[0]).toContain('GOOGLE_CLOUD_PROJECT');
+  });
+
+  it('prod-secret-manager mode passes with only GOOGLE_CLOUD_PROJECT set, warns per secret', () => {
+    const result = check(
+      { GOOGLE_CLOUD_PROJECT: 'praeventio-541ad' },
+      { mode: 'prod-secret-manager' },
+    );
+    expect(result.errors).toEqual([]);
+    // One warning per Secret Manager secret pointing at the gcloud command.
+    expect(result.warnings.length).toBe(SECRET_MANAGER_SECRETS.length);
+    expect(result.warnings.every((w) => w.includes('gcloud secrets describe'))).toBe(true);
+    expect(result.checked).toBe(SECRET_MANAGER_SECRETS.length);
+  });
+
+  it('prod-secret-manager mode covers the 22 expected secrets (6 wired + 16 new)', () => {
+    expect(SECRET_MANAGER_SECRETS).toContain('GEMINI_API_KEY');
+    expect(SECRET_MANAGER_SECRETS).toContain('SENTRY_DSN');
+    expect(SECRET_MANAGER_SECRETS).toContain('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON');
+    expect(SECRET_MANAGER_SECRETS.length).toBe(22);
+    // No duplicates.
+    expect(new Set(SECRET_MANAGER_SECRETS).size).toBe(SECRET_MANAGER_SECRETS.length);
   });
 
   it('PLACEHOLDER_REGEX matches the documented prefixes', () => {

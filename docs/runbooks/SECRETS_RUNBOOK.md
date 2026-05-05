@@ -1,8 +1,9 @@
 # Secrets Runbook
 
-> Sprint 21 / Ola 6 / Bucket U.4. Single source of truth for every
-> secret a developer or operator must paste before booting Praeventio
-> Guard in production.
+> Sprint 21 / Ola 6 / Bucket U.4 — extended in Sprint 22 / Bucket V.4
+> with the Cloud Secret Manager workflow. Single source of truth for
+> every secret a developer or operator must paste before booting
+> Praeventio Guard in production.
 
 For each entry: **Qué es**, **Dónde obtenerlo**, **Formato esperado**,
 **Dónde se usa** (file path), **Cómo rotarlo**.
@@ -12,6 +13,96 @@ free of placeholders. The validator (`scripts/validate-env.cjs`) checks
 non-emptiness, the `^(YOUR_|MY_|REPLACE_|PLACEHOLDER|<.*>)` placeholder
 regex, `minLength`, and `allowedValues` for the variables in this
 document.
+
+---
+
+## Cloud Secret Manager workflow
+
+Production runs on Cloud Run and pulls secrets from Google Cloud Secret
+Manager at boot via `--update-secrets` in
+`.github/workflows/deploy.yml`. The local `.env` is for development and
+CI smoke only — production never reads from it.
+
+### What's already wired
+
+Six secrets have been live in Secret Manager since Sprint 21:
+
+- `GEMINI_API_KEY`
+- `SESSION_SECRET`
+- `RESEND_API_KEY`
+- `IOT_WEBHOOK_SECRET`
+- `VITE_GOOGLE_MAPS_API_KEY`
+- `VITE_OPENWEATHER_API_KEY`
+
+Sprint 22 adds the following 16 secrets to the Secret Manager
+inventory (still need to be populated by the operator):
+
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `VITE_FIREBASE_VAPID_KEY`,
+`WEBPAY_COMMERCE_CODE`, `WEBPAY_API_KEY`, `MP_IPN_SECRET`,
+`GOOGLE_PLAY_PACKAGE_NAME`, `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`,
+`GOOGLE_PLAY_RTDN_TOPIC`, `SENTRY_DSN`, `VITE_SENTRY_DSN`,
+`KHIPU_RECEIVER_ID`, `KHIPU_SECRET`, `PHOTOGRAMMETRY_WORKER_TOKEN`,
+`DWG_CONVERTER_TOKEN`, `MODAL_TOKEN`.
+
+### URLs vs secrets
+
+URL-shaped values (`PHOTOGRAMMETRY_WORKER_URL`, `DWG_CONVERTER_URL`,
+`MODAL_SUBMIT_URL`, `MODAL_STATUS_URL`) are passed via `env_vars` from
+GitHub Actions secrets, NOT via Secret Manager. Rationale: they are
+not cryptographic secrets — leaking the URL alone is harmless because
+the paired bearer token (which IS in Secret Manager) gates access.
+Keeping URLs out of Secret Manager halves the rotation surface for
+those services.
+
+### Bootstrapping the new secrets
+
+```bash
+# One-time: create empty placeholders + grant Cloud Run SA access.
+GOOGLE_CLOUD_PROJECT=praeventio-541ad bash scripts/secrets-bootstrap.sh
+
+# Per-secret: populate the real value.
+gcloud secrets versions add SECRET_NAME \
+  --data-file=path/to/value.txt \
+  --project=praeventio-541ad
+```
+
+The bootstrap script is idempotent: re-running it is safe and only
+creates secrets that don't already exist.
+
+### Rotating a secret
+
+```bash
+GOOGLE_CLOUD_PROJECT=praeventio-541ad \
+  bash scripts/rotate-secrets.sh SECRET_NAME path/to/new-value.txt
+```
+
+The rotation helper:
+
+1. Adds a new version to Secret Manager.
+2. Triggers a Cloud Run redeploy (re-pointing the `:latest` alias).
+3. Smoke-tests `/api/health` against the new revision.
+4. Disables the previous version on success.
+
+If the smoke test fails the new version stays live but the previous
+version is left enabled, so a manual `gcloud run services
+update-traffic` to the prior revision is enough to roll back.
+
+**Recommended cadence**: trimestral (every 90 days) for general
+secrets, anual for OAuth client IDs, immediate after any suspected
+leak. Keystore secrets (`ANDROID_KEYSTORE_*`) are explicitly
+non-rotatable — see that section below.
+
+### Validating the deployed shape
+
+```bash
+GOOGLE_CLOUD_PROJECT=praeventio-541ad \
+  npm run validate:env -- --mode prod-secret-manager
+```
+
+This mode skips local `.env` checks (because in prod the values come
+from Secret Manager, not the filesystem) and instead asserts that
+`GOOGLE_CLOUD_PROJECT` is set and lists which of the 22 expected
+secrets are wired into `deploy.yml`.
 
 ---
 
@@ -313,4 +404,39 @@ These are NOT optional. Treat them as Sprint 21 exit criteria:
 
 ---
 
-Last updated: 2026-05-04 (Sprint 21 / Ola 6 / Bucket U).
+## Status matrix (2026-05-04, Sprint 22 / Bucket V)
+
+| Secret | Status | Donde se obtiene | Última rotación |
+|---|---|---|---|
+| GEMINI_API_KEY | live in Secret Manager | aistudio.google.com/app/apikey | TBD |
+| SESSION_SECRET | live in Secret Manager | `openssl rand -hex 32` | TBD |
+| RESEND_API_KEY | live in Secret Manager | resend.com → API keys | TBD |
+| IOT_WEBHOOK_SECRET | live in Secret Manager | `openssl rand -hex 32` | TBD |
+| VITE_GOOGLE_MAPS_API_KEY | live in Secret Manager | console.cloud.google.com → APIs & Services → Credentials | TBD |
+| VITE_OPENWEATHER_API_KEY | live in Secret Manager | openweathermap.org → My API keys | TBD |
+| GOOGLE_CLIENT_ID | pending bootstrap | console.cloud.google.com → APIs & Services → Credentials → OAuth client | — |
+| GOOGLE_CLIENT_SECRET | pending bootstrap | same console as GOOGLE_CLIENT_ID | — |
+| VITE_FIREBASE_VAPID_KEY | pending bootstrap | console.firebase.google.com → Cloud Messaging → Web Push | — |
+| WEBPAY_COMMERCE_CODE | pending bootstrap | transbank.cl portal | — |
+| WEBPAY_API_KEY | pending bootstrap | transbank.cl portal | — |
+| MP_IPN_SECRET | pending bootstrap | mercadopago.com.ar/developers → app → Webhooks | — |
+| GOOGLE_PLAY_PACKAGE_NAME | pending bootstrap | `capacitor.config.ts` → `appId` | — |
+| GOOGLE_PLAY_SERVICE_ACCOUNT_JSON | pending bootstrap | Cloud Console → IAM → Service Accounts | — |
+| GOOGLE_PLAY_RTDN_TOPIC | pending bootstrap | Cloud Console → Pub/Sub → topic name | — |
+| SENTRY_DSN | pending bootstrap (rotate post-leak) | praeventio.sentry.io → project settings → Client Keys | rotate-now |
+| VITE_SENTRY_DSN | pending bootstrap (rotate post-leak) | same as SENTRY_DSN | rotate-now |
+| KHIPU_RECEIVER_ID | pending bootstrap (optional) | khipu.com → Cuenta → API | — |
+| KHIPU_SECRET | pending bootstrap (optional) | khipu.com → Cuenta → API | — |
+| PHOTOGRAMMETRY_WORKER_TOKEN | pending bootstrap (optional) | `openssl rand -hex 24` paired with worker URL | — |
+| DWG_CONVERTER_TOKEN | pending bootstrap (optional) | `openssl rand -hex 24` paired with converter URL | — |
+| MODAL_TOKEN | pending bootstrap (optional) | `openssl rand -hex 24` configured in `infra/modal-photogrammetry/app.py` | — |
+
+URL-shaped values (`PHOTOGRAMMETRY_WORKER_URL`, `DWG_CONVERTER_URL`,
+`MODAL_SUBMIT_URL`, `MODAL_STATUS_URL`) live in GitHub Actions secrets
+and are injected via `env_vars`, not Secret Manager — see "URLs vs
+secrets" above.
+
+---
+
+Last updated: 2026-05-04 (Sprint 22 / Bucket V — Secret Manager wiring
++ rotation helpers).

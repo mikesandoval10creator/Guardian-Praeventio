@@ -69,6 +69,15 @@ jobs:
             KMS_KEY_RESOURCE_NAME=${{ secrets.KMS_KEY_RESOURCE_NAME }}
             APP_BASE_URL=https://guardian-praeventio-565212386989.us-central1.run.app
             APP_URL=https://guardian-praeventio-565212386989.us-central1.run.app
+            PHOTOGRAMMETRY_WORKER_URL=${{ secrets.PHOTOGRAMMETRY_WORKER_URL }}
+            DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
+            MODAL_SUBMIT_URL=${{ secrets.MODAL_SUBMIT_URL }}
+            MODAL_STATUS_URL=${{ secrets.MODAL_STATUS_URL }}
+          # NOTE: URLs (PHOTOGRAMMETRY_WORKER_URL, DWG_CONVERTER_URL, MODAL_*_URL)
+          # are passed via env_vars from GitHub Actions secrets — they are not
+          # secrets in the cryptographic sense (just URLs), so we keep them out
+          # of Secret Manager to reduce the rotation surface. Bearer tokens
+          # paired with each URL DO live in Secret Manager (see below).
           secrets: |
             GEMINI_API_KEY=GEMINI_API_KEY:latest
             SESSION_SECRET=SESSION_SECRET:latest
@@ -76,6 +85,22 @@ jobs:
             IOT_WEBHOOK_SECRET=IOT_WEBHOOK_SECRET:latest
             VITE_GOOGLE_MAPS_API_KEY=VITE_GOOGLE_MAPS_API_KEY:latest
             VITE_OPENWEATHER_API_KEY=VITE_OPENWEATHER_API_KEY:latest
+            GOOGLE_CLIENT_ID=GOOGLE_CLIENT_ID:latest
+            GOOGLE_CLIENT_SECRET=GOOGLE_CLIENT_SECRET:latest
+            VITE_FIREBASE_VAPID_KEY=VITE_FIREBASE_VAPID_KEY:latest
+            WEBPAY_COMMERCE_CODE=WEBPAY_COMMERCE_CODE:latest
+            WEBPAY_API_KEY=WEBPAY_API_KEY:latest
+            MP_IPN_SECRET=MP_IPN_SECRET:latest
+            GOOGLE_PLAY_PACKAGE_NAME=GOOGLE_PLAY_PACKAGE_NAME:latest
+            GOOGLE_PLAY_SERVICE_ACCOUNT_JSON=GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:latest
+            GOOGLE_PLAY_RTDN_TOPIC=GOOGLE_PLAY_RTDN_TOPIC:latest
+            SENTRY_DSN=SENTRY_DSN:latest
+            VITE_SENTRY_DSN=VITE_SENTRY_DSN:latest
+            KHIPU_RECEIVER_ID=KHIPU_RECEIVER_ID:latest
+            KHIPU_SECRET=KHIPU_SECRET:latest
+            PHOTOGRAMMETRY_WORKER_TOKEN=PHOTOGRAMMETRY_WORKER_TOKEN:latest
+            DWG_CONVERTER_TOKEN=DWG_CONVERTER_TOKEN:latest
+            MODAL_TOKEN=MODAL_TOKEN:latest
 
       - name: Show deployed URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
