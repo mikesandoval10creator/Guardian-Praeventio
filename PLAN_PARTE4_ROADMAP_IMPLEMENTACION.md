@@ -1,5 +1,11 @@
 # PLAN PARTE 4 — Roadmap de Implementación Unificado
 
+> ⚠️ **SUPERSEDED (Sprint 31 RR · 2026-05-05)** — sustituido por
+> [`MASTER_PROPOSAL_2026-05.md`](MASTER_PROPOSAL_2026-05.md) y, para el
+> estado real, por
+> [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).
+> Backlog vivo: [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md).
+
 > Documento actualizado: 2026-05-03 | Alineado con [`ROADMAP_2026-05.md`](ROADMAP_2026-05.md) (fuente de verdad)
 > Integra hallazgos de GP actual + Prototipo 1 + Prototipo 2 + Sprint 5 (Bernoulli expandido)
 

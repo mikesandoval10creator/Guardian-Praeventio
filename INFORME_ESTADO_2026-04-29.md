@@ -1,5 +1,9 @@
 # Informe de Estado — Guardian-Praeventio (Praeventio Guard)
 
+> ⚠️ **HISTÓRICO (Sprint 31 RR · 2026-05-05)** — informe del 2026-04-29.
+> Reemplazado por
+> [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).
+
 **Fecha:** 2026-04-29
 **Repo:** https://github.com/mikesandoval10creator/Guardian-Praeventio
 **HEAD:** `838e30e` (post Round 21)

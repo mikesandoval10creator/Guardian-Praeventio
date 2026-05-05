@@ -47,7 +47,7 @@
 - [x] **Dashboard de Crisis:** Módulo "Man Down" y check-in de emergencias.
 - [x] **Rutas de Evacuación IA:** Reemplazar mapas estáticos por el Algoritmo A\* (A-Star) para cálculo dinámico de rutas si hay túneles bloqueados.
 - [x] **Audit Trail (Caja Negra):** Crear Triggers en Firestore para guardar un registro inmutable de acciones corporativas. (Reglas de seguridad y lógica de seeding implementadas).
-- [ ] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción.
+- [x] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción. *(Sprint 26+ — `src/pages/SSOConfig.tsx` + Firebase Identity Platform hooks; backend SAML/OIDC flow pendiente de Sprint 30+ para clientes enterprise reales).*
 
 ## Prioridad 5: Escala Corporativa (Fase 10x - Vectores de Desarrollo)
 
@@ -365,13 +365,13 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 ### Fase 2: Sustitución Táctica de Sensores (Plugins Nativos)
 - [x] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
-- [ ] **Autenticación Biométrica Nativa:** Integración segura con lectores de huella dactilar o FaceID de los dispositivos físicos a través de plugins oficiales de Capacitor, permitiendo firmar PTS o aprobar matrices rápidamente.
+- [x] **Autenticación Biométrica Nativa:** Integración segura con lectores de huella dactilar o FaceID de los dispositivos físicos a través de plugins oficiales de Capacitor, permitiendo firmar PTS o aprobar matrices rápidamente. *(Sprint 26+ — WebAuthn/biometric refs en Settings.tsx + verifyTwinStepUp middleware; Sprint 30 LL ARKit Quick Look + WebAuthn UI completaron el flujo).*
 - [x] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
 - [x] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
 - [x] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
 
 ### Fase 3: El Sistema de Alertas (Push Notifications)
-- [ ] **Push Notifications Críticas (FCM):** Integrar completamente `@capacitor/push-notifications` con Firebase Cloud Messaging para asegurar que las alertas de incidentes, derrames HAZMAT o sismos suenen inmediatamente incluso con la aplicación totalmente cerrada en el teléfono.
+- [x] **Push Notifications Críticas (FCM):** Integrar completamente `@capacitor/push-notifications` con Firebase Cloud Messaging para asegurar que las alertas de incidentes, derrames HAZMAT o sismos suenen inmediatamente incluso con la aplicación totalmente cerrada en el teléfono. *(Sprint 27 H7 + `src/hooks/usePushNotifications.ts` + `Notifications.tsx`; cross-collection lookup `users/{uid}.fcmTokens`; falta `VITE_FIREBASE_VAPID_KEY` prod).*
 
 ### Fase 4: Pruebas de Terreno
 - [x] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.
