@@ -19,7 +19,8 @@ import {
   Youtube,
   Gamepad2,
   WifiOff,
-  Download
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { generateTrainingCertificate } from '../utils/trainingCertificate';
@@ -41,6 +42,7 @@ import { prepareInterstitial, canShowAd, recordAdShown } from '../services/adSer
 import { useEmergency } from '../contexts/EmergencyContext';
 import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
+import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
 
 interface QuizQuestion {
   question: string;
@@ -66,6 +68,7 @@ export function Training() {
   const [generatingCapsule, setGeneratingCapsule] = useState(false);
   const [capsule, setCapsule] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [activeVideoSession, setActiveVideoSession] = useState<TrainingSession | null>(null);
   const [isQuizActive, setIsQuizActive] = useState(false);
@@ -330,7 +333,14 @@ export function Training() {
             {generatingCapsule ? <Loader2 className="w-4 h-4 animate-spin" /> : !isOnline ? <WifiOff className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
             <span>{!isOnline ? 'Requiere Conexión' : 'Cápsula de Seguridad IA'}</span>
           </button>
-          <button 
+          <button
+            onClick={() => setIsCsvModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-500/20"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Import/Export CSV</span>
+          </button>
+          <button
             onClick={() => setIsCreatingSession(true)}
             className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-white"
           >
@@ -339,6 +349,13 @@ export function Training() {
           </button>
         </div>
       </div>
+
+      <CsvImportExportModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+        entityType="training"
+        projectId={selectedProject?.id ?? null}
+      />
 
       {/* AI Capsule Modal */}
       <AnimatePresence>

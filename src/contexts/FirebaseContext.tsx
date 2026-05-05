@@ -11,6 +11,11 @@ interface FirebaseContextType {
   isAuthReady: boolean;
   userRole: string;
   userIndustry: string;
+  /** Sprint 24 Bucket KK — true once the self-service onboarding wizard
+   *  has run for this user. New users land on `/onboarding`; the value
+   *  is `null` while we're still loading the user doc to avoid a flash
+   *  redirect. */
+  onboarded: boolean | null;
 }
 
 const FirebaseContext = createContext<FirebaseContextType | undefined>(undefined);
@@ -22,6 +27,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<string>('client');
   const [userIndustry, setUserIndustry] = useState<string>('General');
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
     // Test connection on mount
@@ -44,6 +50,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
               role: 'operario', // Default role matching firestore rules
               industry: 'General',
               createdAt: new Date().toISOString(),
+              onboarded: false,
             };
             if (currentUser.photoURL) {
               newUserData.photoURL = currentUser.photoURL;
@@ -51,11 +58,13 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
             await setDoc(userDocRef, newUserData);
             setUserRole('operario');
             setUserIndustry('General');
+            setOnboarded(false);
           } else {
             const userData = userDoc.data();
             setIsAdmin(userData.role === 'admin' || userData.role === 'gerente');
             setUserRole(userData.role || 'operario');
             setUserIndustry(userData.industry || 'General');
+            setOnboarded(userData.onboarded === true);
           }
 
           // Seed initial nodes if collection is empty
@@ -86,6 +95,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
       } else {
         setIsAdmin(false);
         setUserRole('worker');
+        setOnboarded(null);
       }
       
       setLoading(false);
@@ -96,7 +106,7 @@ export function FirebaseProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady, userRole, userIndustry }}>
+    <FirebaseContext.Provider value={{ user, loading, isAdmin, isAuthReady, userRole, userIndustry, onboarded }}>
       {children}
     </FirebaseContext.Provider>
   );

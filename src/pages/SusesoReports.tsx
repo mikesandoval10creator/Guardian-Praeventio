@@ -23,6 +23,14 @@ import { handleFirestoreError, OperationType } from '../services/firebase';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
+import {
+  SusesoApiClient,
+  SusesoApiError,
+  type DiatPayload,
+  type DiepPayload,
+  type RoiPayload,
+  type SusesoSubmissionStatus,
+} from '../services/sii/susesoApiClient';
 
 export function SusesoReports() {
   const { nodes } = useRiskEngine();
@@ -39,6 +47,97 @@ export function SusesoReports() {
 
   const [isSavingToDrive, setIsSavingToDrive] = useState(false);
   const [savedToDrive, setSavedToDrive] = useState(false);
+
+  // SUSESO submission state — keyed by `${activeTab}:${incidentId}` so a folio
+  // for an incident's DIAT doesn't get reused for its DIEP.
+  const [susesoStatus, setSusesoStatus] = useState<Record<string, { status: SusesoSubmissionStatus; folio?: string; reason?: string }>>({});
+  const susesoClient = SusesoApiClient.fromEnv();
+  const susesoKey = selectedIncident ? `${activeTab}:${selectedIncident.id}` : '';
+  const currentSusesoState = susesoKey ? susesoStatus[susesoKey] : undefined;
+
+  const handleSusesoSubmit = async () => {
+    if (!selectedIncident || !selectedProject || !susesoClient) return;
+    setIsSending(true);
+    try {
+      const employerName = (selectedProject as any)?.companyName ?? 'Sin configurar';
+      const employerRut = (selectedProject as any)?.companyRut ?? 'Sin configurar';
+      const mutualName = (selectedProject as any)?.mutualidad ?? 'Sin configurar';
+      const reportedAt = new Date().toISOString().slice(0, 10);
+      const accidentDate = new Date(selectedIncident.createdAt).toISOString().slice(0, 10);
+      const accidentTime = new Date(selectedIncident.createdAt).toISOString().slice(11, 16);
+
+      let folio: string | undefined;
+      if (activeTab === 'DIAT') {
+        const payload: DiatPayload = {
+          employerRut,
+          employerName,
+          mutualName,
+          workerRut: selectedIncident.metadata?.workerRut ?? '',
+          workerName: selectedIncident.metadata?.workerName ?? '',
+          workerJobTitle: selectedIncident.metadata?.workerRole ?? '',
+          accidentDate,
+          accidentTime,
+          accidentLocation: selectedIncident.metadata?.location ?? '',
+          accidentDescription: selectedIncident.description ?? '',
+          reportedAt,
+        };
+        const r = await susesoClient.submitDiat(payload);
+        folio = r.folio;
+      } else if (activeTab === 'DIEP') {
+        const payload: DiepPayload = {
+          employerRut,
+          employerName,
+          mutualName,
+          workerRut: selectedIncident.metadata?.workerRut ?? '',
+          workerName: selectedIncident.metadata?.workerName ?? '',
+          workerJobTitle: selectedIncident.metadata?.workerRole ?? '',
+          diagnosis: selectedIncident.metadata?.diagnosis ?? selectedIncident.title,
+          cieCode: selectedIncident.metadata?.cieCode ?? undefined,
+          symptomsOnsetDate: selectedIncident.metadata?.symptomsOnsetDate ?? accidentDate,
+          exposedAgents: selectedIncident.metadata?.exposedAgents ?? [],
+          reportedAt,
+        };
+        const r = await susesoClient.submitDiep(payload);
+        folio = r.folio;
+      } else {
+        const payload: RoiPayload = {
+          employerRut,
+          employerName,
+          mutualName,
+          year: new Date().getFullYear(),
+          totalIncidents: incidents.length,
+          totalLostDays: incidents.reduce((s, n) => s + (n.metadata?.lostDays ?? 0), 0),
+          accidentRate: 1.7,
+          severityRate: 0.85,
+          reportedAt,
+        };
+        const r = await susesoClient.submitRoi(payload);
+        folio = r.folio;
+      }
+
+      setSusesoStatus(prev => ({ ...prev, [susesoKey]: { status: 'received', folio } }));
+
+      // Persist folio in Firestore for traceability.
+      try {
+        const { collection, addDoc, db } = await import('../services/firebase');
+        await addDoc(collection(db, `projects/${selectedProject.id}/susesoSubmissions`), {
+          reportType: activeTab,
+          incidentId: selectedIncident.id,
+          folio,
+          submittedAt: new Date().toISOString(),
+          status: 'received',
+        });
+      } catch (firestoreErr) {
+        logger.warn('SUSESO folio persistence failed', { err: String(firestoreErr) });
+      }
+    } catch (err) {
+      const reason = err instanceof SusesoApiError ? err.message : String(err);
+      logger.error('SUSESO submission failed', { err: reason });
+      setSusesoStatus(prev => ({ ...prev, [susesoKey]: { status: 'rejected', reason } }));
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   const handleExportPDF = async () => {
     if (!selectedIncident) return;
@@ -271,6 +370,42 @@ export function SusesoReports() {
                     <Download className="w-4 h-4" />
                     {isGenerating ? 'Generando...' : 'PDF'}
                   </button>
+                  {susesoClient && (
+                    <button
+                      onClick={handleSusesoSubmit}
+                      disabled={isSending || !isOnline || currentSusesoState?.status === 'received'}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-70 shadow-lg ${
+                        currentSusesoState?.status === 'received'
+                          ? 'bg-emerald-500 text-white shadow-emerald-500/20'
+                          : currentSusesoState?.status === 'rejected'
+                            ? 'bg-rose-500 text-white shadow-rose-500/20'
+                            : 'bg-violet-500 text-white hover:bg-violet-600 shadow-violet-500/20'
+                      }`}
+                      title={currentSusesoState?.reason ?? currentSusesoState?.folio ?? 'Enviar al portal SUSESO'}
+                    >
+                      {isSending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Enviando…
+                        </>
+                      ) : currentSusesoState?.status === 'received' ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          {`Recibido · ${currentSusesoState.folio ?? ''}`}
+                        </>
+                      ) : currentSusesoState?.status === 'rejected' ? (
+                        <>
+                          <AlertTriangle className="w-4 h-4" />
+                          Rechazado
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" />
+                          Enviar a SUSESO
+                        </>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={handleShareDocument}
                     disabled={isSavingToDrive || savedToDrive || !isOnline}

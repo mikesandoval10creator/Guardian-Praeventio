@@ -14,17 +14,20 @@ import {
   Loader2,
   ChevronRight,
   Zap,
-  RefreshCw
+  RefreshCw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { NodeType } from '../types';
 import { useProject } from '../contexts/ProjectContext';
 import { AddFindingModal } from '../components/findings/AddFindingModal';
+import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
 import { generateActionPlan } from '../services/geminiService';
 import { logAuditAction } from '../services/auditService';
 
 export function Findings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -160,15 +163,26 @@ export function Findings() {
             <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Observaciones y No Conformidades</p>
           </div>
         </div>
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsModalOpen(true)}
-          className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-black/20 dark:shadow-white/10 group w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-          <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Nuevo Hallazgo</span>
-        </motion.button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsCsvModalOpen(true)}
+            className="bg-teal-600 text-white px-3 py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 w-full sm:w-auto"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Import/Export CSV</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsModalOpen(true)}
+            className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-black/20 dark:shadow-white/10 group w-full sm:w-auto"
+          >
+            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+            <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Nuevo Hallazgo</span>
+          </motion.button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -341,9 +355,15 @@ export function Findings() {
         )}
       </div>
 
-      <AddFindingModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <AddFindingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
+      <CsvImportExportModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+        entityType="findings"
+        projectId={selectedProject?.id ?? null}
       />
     </div>
   );
