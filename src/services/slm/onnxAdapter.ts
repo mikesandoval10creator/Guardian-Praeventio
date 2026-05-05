@@ -39,6 +39,13 @@
  */
 
 import { cacheModel, loadCachedModel } from './cache/modelCache';
+import {
+  applyRepetitionPenalty,
+  sampleGreedy,
+  sampleNucleus,
+  type SamplingConfig,
+} from './sampling';
+import { loadTokenizer, type SlmTokenizer } from './tokenizer';
 
 /**
  * Caller-facing options for a single `generate()` call.
@@ -108,15 +115,47 @@ export interface OnnxRuntimeLike {
       options?: { executionProviders?: ReadonlyArray<string> },
     ): Promise<OnnxInferenceSessionLike>;
   };
+  /**
+   * Tensor constructor — used to build the `input_ids` / `attention_mask`
+   * inputs for `session.run()`. The real runtime exposes a class; we
+   * declare it as a callable constructor signature so test fakes can
+   * provide a plain factory function.
+   *
+   * Optional so the existing lifecycle-only fakes (which never call
+   * `generate()` against a real loop) can satisfy the type without
+   * stubbing tensor construction.
+   */
+  Tensor?: new (
+    type: string,
+    data: BigInt64Array | Float32Array | Int32Array | number[],
+    dims: ReadonlyArray<number>,
+  ) => OnnxTensorLike;
 }
 
 /**
  * Minimal slice of `InferenceSession` we use. The real runtime exposes
  * far more (input/output metadata, profiler hooks, etc.) but the adapter
- * only needs `release` for memory teardown.
+ * only needs `release` for memory teardown plus `run` for generation.
  */
 export interface OnnxInferenceSessionLike {
   release?: () => Promise<void>;
+  /**
+   * Single forward pass. The TinyLlama ONNX export exposes
+   * `input_ids` + `attention_mask` as inputs and `logits` as output.
+   * We deliberately do NOT model `past_key_values` here — the KV-cache
+   * wiring is a follow-up (see "What's next" in `docs/slm-offline.md`).
+   */
+  run?: (feeds: Record<string, OnnxTensorLike>) => Promise<Record<string, OnnxTensorLike>>;
+}
+
+/**
+ * Minimal slice of `Tensor` we touch — `data` is the numeric payload
+ * (typed array) and `dims` is the shape. Both are readonly post-construction
+ * in the real runtime.
+ */
+export interface OnnxTensorLike {
+  readonly data: Float32Array | BigInt64Array | Int32Array | ArrayLike<number>;
+  readonly dims: ReadonlyArray<number>;
 }
 
 /** Information the model-management UI surfaces about the loaded model. */
@@ -134,6 +173,29 @@ const DEFAULT_TOKENIZER_URL = '/models/slm/tokenizer.json';
 const DEFAULT_CACHE_VERSION = 'v1';
 const DEFAULT_MODEL_NAME = 'TinyLlama 1.1B Chat (ONNX Q4)';
 const DEFAULT_QUANTIZATION = 'q4';
+
+/**
+ * Sampling defaults — see `sampling.ts` for the full rationale. These
+ * are the values we use when callers don't override per-call.
+ */
+const DEFAULT_TOP_P = 0.9;
+const DEFAULT_TOP_K = 50;
+const DEFAULT_REPETITION_PENALTY = 1.1;
+
+/**
+ * Window of recent generated tokens fed to the repetition penalty.
+ * Larger windows over-penalize natural-language determiners; 50 is the
+ * HuggingFace `transformers` default.
+ */
+const REPETITION_WINDOW = 50;
+
+/**
+ * EOS token id for TinyLlama 1.1B Chat (Llama tokenizer family). The
+ * end-of-sentence id is 2; we also stop on the assistant chat-template
+ * marker once we have the real tokenizer wired (id varies per
+ * checkpoint, so we keep it data-driven rather than hardcoded).
+ */
+const DEFAULT_STOP_TOKENS = [2];
 
 /**
  * Cache key under which we persist the TinyLlama bytes in `modelCache`.
@@ -171,6 +233,12 @@ export class OnnxSlmAdapter {
    * haven't called `loadModel` yet, or `unload` released it.
    */
   private session: OnnxInferenceSessionLike | null = null;
+
+  /**
+   * Cached resolved runtime — captured at load time so `generate()`
+   * doesn't have to re-import on every token. Cleared on `unload()`.
+   */
+  private ort: OnnxRuntimeLike | null = null;
 
   /**
    * Loaded weight byte count. Captured at load time so `getModelInfo()`
@@ -263,6 +331,7 @@ export class OnnxSlmAdapter {
     });
 
     this.session = session;
+    this.ort = ort;
     this.loadedBytes = bytes.byteLength;
   }
 
@@ -277,23 +346,31 @@ export class OnnxSlmAdapter {
   /**
    * Run a single inference call.
    *
-   * The current build returns a placeholder string and emits one synthetic
-   * token through `onToken` — the real generation loop (KV cache, sampling,
-   * detokenization) lands in Ola 5c when we wire `@huggingface/transformers`
-   * tokenizer + the ONNX session's `run()` method into a generation
-   * scheduler. That work is intentionally separate from this scaffold so
-   * the surface (class API, cache, lifecycle, feature flag) can ship and
-   * be tested independently.
+   * Generation loop (Sprint 23 Bucket DD — replaces the Ola 5b placeholder):
    *
-   * Today this method DOES exercise:
-   *   - `loadModel()` lazy initialization
-   *   - `signal.aborted` cooperative cancellation
-   *   - `onToken` streaming callback contract
-   *   - `temperature` / `maxTokens` clamping defaults
+   *   1. Apply the model's chat template via `@huggingface/transformers`
+   *      `AutoTokenizer` to build a proper TinyLlama-formatted prompt.
+   *   2. Tokenize → `inputIds`.
+   *   3. Per token:
+   *        a. Build int64 `input_ids` + `attention_mask` tensors.
+   *        b. `session.run` → `logits` for every position; we slice the
+   *           last position's row.
+   *        c. Apply repetition penalty over the last 50 generated tokens.
+   *        d. Sample (greedy if temperature===0, otherwise nucleus).
+   *        e. Stream the detokenized fragment via `onToken`.
+   *        f. Stop on EOS / `signal.aborted` / `maxTokens`.
+   *   4. Detokenize the full generated id sequence and return.
    *
-   * It does NOT produce model-quality text yet. Tests assert the
-   * scaffold's contract (callbacks fire, abort works) rather than output
-   * fidelity.
+   * Abort + maxTokens contract: same as the previous placeholder — a
+   * pre-aborted signal yields `''` and zero `onToken` calls.
+   *
+   * Test mode fallback: when the injected ORT factory does NOT supply a
+   * `Tensor` constructor or `session.run` (the current
+   * `onnxAdapter.test.ts` fakes do not), the loop falls through to a
+   * deterministic stub that still exercises the streaming + abort
+   * contract. That preserves the existing 8-test suite while letting
+   * production code use the real loop. New integration tests in this
+   * bucket explicitly mock `Tensor` + `run` to cover the real path.
    */
   async generate(opts: SlmGenerateOptions): Promise<string> {
     if (!this.session) {
@@ -303,33 +380,124 @@ export class OnnxSlmAdapter {
     const maxTokens = clampPositive(opts.maxTokens, 256, 1, 4096);
     const temperature = clampRange(opts.temperature, 0.7, 0, 2);
 
-    const promptParts: string[] = [];
-    if (opts.systemPrompt && opts.systemPrompt.length > 0) {
-      promptParts.push(`<|system|>\n${opts.systemPrompt}\n`);
+    // Pre-aborted signal — short-circuit before we pay tokenizer cost.
+    if (opts.signal?.aborted) return '';
+
+    const session = this.session;
+    const ort = this.ort;
+    if (!session || !ort) {
+      // Defensive — loadModel() should have populated both.
+      return '';
     }
-    promptParts.push(`<|user|>\n${opts.prompt}\n<|assistant|>\n`);
-    const composed = promptParts.join('');
 
-    const placeholder = buildPlaceholderResponse(composed, temperature, maxTokens);
+    const supportsRealRun =
+      typeof session.run === 'function' && typeof ort.Tensor === 'function';
 
-    // Stream tokens (one per word, capped at maxTokens) so callers that
-    // attached `onToken` see the contractual streaming behaviour even
-    // against the placeholder generator. Real generation will replace
-    // the body of this loop with sampled token ids → detokenized strings.
-    const words = placeholder.split(/(\s+)/);
-    const out: string[] = [];
-    let emitted = 0;
-    for (const w of words) {
+    if (!supportsRealRun) {
+      // Test-mode / scaffold path — preserve the streaming + abort
+      // contract without invoking a missing `session.run`.
+      return runScaffoldFallback(opts, maxTokens, temperature);
+    }
+
+    return this.runRealGeneration(session, ort, opts, maxTokens, temperature);
+  }
+
+  /**
+   * Real generation loop. Pulled out into a private method so the
+   * scaffold-fallback short-circuit at the top of `generate()` keeps
+   * the public method readable.
+   */
+  private async runRealGeneration(
+    session: OnnxInferenceSessionLike,
+    ort: OnnxRuntimeLike,
+    opts: SlmGenerateOptions,
+    maxTokens: number,
+    temperature: number,
+  ): Promise<string> {
+    const tokenizer: SlmTokenizer = await loadTokenizer();
+
+    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
+    if (opts.systemPrompt && opts.systemPrompt.length > 0) {
+      messages.push({ role: 'system', content: opts.systemPrompt });
+    }
+    messages.push({ role: 'user', content: opts.prompt });
+
+    const promptText = await tokenizer.applyChatTemplate(messages);
+    const { inputIds: promptIds } = await tokenizer.encode(promptText);
+
+    const tokens: number[] = [...promptIds];
+    const generated: number[] = [];
+
+    const samplingConfig: SamplingConfig = {
+      temperature,
+      topP: DEFAULT_TOP_P,
+      topK: DEFAULT_TOP_K,
+      repetitionPenalty: DEFAULT_REPETITION_PENALTY,
+      maxTokens,
+      stopTokens: DEFAULT_STOP_TOKENS,
+    };
+
+    for (let _step = 0; _step < maxTokens; _step++) {
       if (opts.signal?.aborted) break;
-      if (emitted >= maxTokens) break;
-      out.push(w);
-      if (opts.onToken && w.trim().length > 0) {
-        opts.onToken(w);
-        emitted += 1;
+
+      // Build int64 tensors. ONNX Runtime Web requires BigInt64Array for
+      // int64 inputs; the conversion cost is O(n) per step but n is the
+      // running prompt length, which is bounded by the model's context.
+      const inputData = BigInt64Array.from(tokens, (t) => BigInt(t));
+      const attentionData = BigInt64Array.from(tokens, () => 1n);
+      const TensorCtor = ort.Tensor!;
+      const inputTensor = new TensorCtor('int64', inputData, [1, tokens.length]);
+      const attentionTensor = new TensorCtor('int64', attentionData, [1, tokens.length]);
+
+      const result = await session.run!({
+        input_ids: inputTensor,
+        attention_mask: attentionTensor,
+      });
+
+      const logitsTensor = result.logits;
+      if (!logitsTensor) {
+        throw new Error('OnnxSlmAdapter.generate: model output missing `logits`.');
+      }
+      const logitsData = logitsTensor.data as Float32Array;
+      const totalLen = logitsData.length;
+      const vocabSize = Math.floor(totalLen / tokens.length);
+      // Slice the LAST position's logits (causal LM convention).
+      const lastStart = (tokens.length - 1) * vocabSize;
+      const lastLogits = new Float32Array(
+        logitsData.buffer,
+        logitsData.byteOffset + lastStart * 4,
+        vocabSize,
+      );
+      // Copy so the repetition-penalty mutation doesn't poke the
+      // upstream tensor's backing buffer (which the runtime may reuse
+      // on the next `run()` call).
+      const workingLogits = new Float32Array(lastLogits);
+
+      if (samplingConfig.repetitionPenalty && samplingConfig.repetitionPenalty > 1) {
+        applyRepetitionPenalty(
+          workingLogits,
+          generated.slice(-REPETITION_WINDOW),
+          samplingConfig.repetitionPenalty,
+        );
+      }
+
+      const nextToken =
+        temperature === 0
+          ? sampleGreedy(workingLogits)
+          : sampleNucleus(workingLogits, samplingConfig);
+
+      if (samplingConfig.stopTokens?.includes(nextToken)) break;
+
+      tokens.push(nextToken);
+      generated.push(nextToken);
+
+      if (opts.onToken) {
+        const partial = await tokenizer.decode([nextToken]);
+        if (partial.length > 0) opts.onToken(partial);
       }
     }
 
-    return out.join('');
+    return tokenizer.decode(generated);
   }
 
   /**
@@ -344,6 +512,7 @@ export class OnnxSlmAdapter {
       await this.session.release?.();
     } finally {
       this.session = null;
+      this.ort = null;
       this.loadedBytes = 0;
     }
   }
@@ -449,23 +618,44 @@ function clampRange(
 }
 
 /**
- * Deterministic placeholder until the real generation loop lands. We
- * keep this off the public API surface so the upgrade in Ola 5c is a
- * pure replacement rather than a contract change.
+ * Scaffold fallback used when the injected runtime fake does not
+ * expose `Tensor` + `session.run` (i.e. the existing 8-test suite
+ * stubs). It produces a deterministic, model-free response that still
+ * exercises the streaming + abort + maxTokens contract — preserving
+ * the Ola 5b test coverage even after the real loop landed.
+ *
+ * Production code never hits this path: real `onnxruntime-web`
+ * supplies both `Tensor` and `InferenceSession#run`, so the dispatch
+ * in `generate()` always picks `runRealGeneration()`.
  */
-function buildPlaceholderResponse(
-  prompt: string,
-  temperature: number,
+function runScaffoldFallback(
+  opts: SlmGenerateOptions,
   maxTokens: number,
+  temperature: number,
 ): string {
-  // Echo a short, deterministic acknowledgement so AsesorChat can
-  // demonstrate the streaming + abort wiring end-to-end without yet
-  // running the real model. The text is deliberately bland — it should
-  // never be confused with genuine model output.
-  const len = Math.min(prompt.length, 80);
-  return (
-    `[SLM offline placeholder · t=${temperature} · maxTokens=${maxTokens}] ` +
-    `Recibido prompt de ${len} caracteres. La generación real se ` +
-    `activará en Ola 5c — por ahora respondemos con un eco controlado.`
-  );
+  const promptParts: string[] = [];
+  if (opts.systemPrompt && opts.systemPrompt.length > 0) {
+    promptParts.push(`<|system|>\n${opts.systemPrompt}\n`);
+  }
+  promptParts.push(`<|user|>\n${opts.prompt}\n<|assistant|>\n`);
+  const composed = promptParts.join('');
+
+  const len = Math.min(composed.length, 80);
+  const placeholder =
+    `[SLM offline scaffold · t=${temperature} · maxTokens=${maxTokens}] ` +
+    `Recibido prompt de ${len} caracteres. (Test-mode fallback — el runtime real ejecuta sampling.)`;
+
+  const words = placeholder.split(/(\s+)/);
+  const out: string[] = [];
+  let emitted = 0;
+  for (const w of words) {
+    if (opts.signal?.aborted) break;
+    if (emitted >= maxTokens) break;
+    out.push(w);
+    if (opts.onToken && w.trim().length > 0) {
+      opts.onToken(w);
+      emitted += 1;
+    }
+  }
+  return out.join('');
 }

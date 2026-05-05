@@ -30,7 +30,12 @@ import {
   OnnxSlmAdapter,
   type OnnxInferenceSessionLike,
   type OnnxRuntimeLike,
+  type OnnxTensorLike,
 } from './onnxAdapter';
+import {
+  __resetTokenizerCacheForTests,
+  __setTokenizerFactoryForTests,
+} from './tokenizer';
 
 /**
  * Build a fake `onnxruntime-web` module. Tracks `create()` calls so a
@@ -95,6 +100,10 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // Clear tokenizer override + cache so generation-loop tests don't
+  // bleed fakes into unrelated cases.
+  __setTokenizerFactoryForTests(null);
+  __resetTokenizerCacheForTests();
 });
 
 describe('OnnxSlmAdapter.fromEnv', () => {
@@ -307,5 +316,188 @@ describe('OnnxSlmAdapter.getModelInfo', () => {
     });
     await adapter.loadModel();
     expect(adapter.getModelInfo().size).toBe(256);
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────
+// Bucket DD — real generation loop integration tests.
+//
+// These cases install a fake `Tensor` constructor + `session.run` so
+// the adapter takes the `runRealGeneration` branch instead of the
+// scaffold fallback. Logits are synthesized so the argmax always falls
+// on a known token id, which lets us assert tokenizer + sampling +
+// stream-callback wiring without loading the 600 MB TinyLlama blob.
+// ───────────────────────────────────────────────────────────────────
+
+interface FakeTensor extends OnnxTensorLike {
+  readonly type: string;
+}
+
+/**
+ * Build an ORT fake that implements `Tensor` + `session.run`. The fake
+ * `run` returns a `logits` tensor of shape `[1, seqLen, vocabSize]`
+ * with a single dominant logit at `winningTokenId` so greedy / nucleus
+ * sampling deterministically picks that id. After `stopAfter` steps,
+ * it returns logits where the EOS id (2) wins, ending the loop.
+ */
+function makeGeneratingFakeOrt(opts: {
+  winningTokenId: number;
+  vocabSize: number;
+  stopAfter: number;
+}) {
+  const { winningTokenId, vocabSize, stopAfter } = opts;
+  let runCount = 0;
+  const runCalls: Array<{ inputLen: number }> = [];
+
+  const session: OnnxInferenceSessionLike = {
+    release: vi.fn(async () => undefined),
+    run: vi.fn(async (feeds: Record<string, OnnxTensorLike>) => {
+      runCount += 1;
+      const inputIds = feeds.input_ids;
+      const seqLen = inputIds.dims[1] ?? 0;
+      runCalls.push({ inputLen: seqLen });
+
+      // Allocate logits buffer of shape [1, seqLen, vocabSize].
+      const total = seqLen * vocabSize;
+      const buf = new Float32Array(total);
+      // The sampler only inspects the LAST position's row, so we just
+      // poke that row.
+      const lastStart = (seqLen - 1) * vocabSize;
+      const winner = runCount > stopAfter ? 2 /* EOS */ : winningTokenId;
+      // Make `winner` dominate by a wide margin so greedy / nucleus
+      // deterministically pick it.
+      buf[lastStart + winner] = 100;
+
+      const tensor: FakeTensor = {
+        type: 'float32',
+        data: buf,
+        dims: [1, seqLen, vocabSize],
+      };
+      return { logits: tensor };
+    }),
+  };
+
+  const Tensor = function FakeTensorCtor(
+    type: string,
+    data: BigInt64Array | Float32Array | Int32Array | number[],
+    dims: ReadonlyArray<number>,
+  ): FakeTensor {
+    return { type, data: data as ArrayLike<number>, dims };
+  } as unknown as OnnxRuntimeLike['Tensor'];
+
+  const ort: OnnxRuntimeLike = {
+    InferenceSession: {
+      create: vi.fn(async () => session),
+    },
+    Tensor,
+  };
+
+  return { ort, session, runCalls, get runCount() { return runCount; } };
+}
+
+/**
+ * Fake tokenizer — stubs `applyChatTemplate` / `encode` / `decode` so
+ * the loop runs without pulling transformers.js. Records calls so we
+ * can assert that `decode` was invoked per generated token.
+ */
+function installFakeTokenizer() {
+  __setTokenizerFactoryForTests({
+    fromPretrained: async () => ({
+      encode: () => [1, 100, 200, 300], // 4-token prompt
+      decode: (ids: number[]) => ids.map((id) => `t${id}`).join(' '),
+      apply_chat_template: () => '<|user|>\nhola\n<|assistant|>\n',
+    }),
+  });
+}
+
+describe('OnnxSlmAdapter.generate (real loop)', () => {
+  it('drives session.run once per generated token until stop', async () => {
+    const fake = makeGeneratingFakeOrt({ winningTokenId: 42, vocabSize: 64, stopAfter: 3 });
+    const { fetchImpl } = makeFakeFetch();
+    installFakeTokenizer();
+
+    const adapter = new OnnxSlmAdapter({
+      cacheVersion: 'gen-real-v1',
+      fetchImpl,
+      ortFactory: async () => fake.ort,
+    });
+
+    const tokens: string[] = [];
+    const result = await adapter.generate({
+      prompt: 'hola',
+      maxTokens: 16,
+      temperature: 0, // greedy → deterministic argmax on token 42
+      onToken: (t) => tokens.push(t),
+    });
+
+    // 3 winning tokens streamed, then run #4 returns EOS and breaks.
+    expect(fake.runCount).toBe(4);
+    expect(tokens).toHaveLength(3);
+    // Each streamed fragment is the decode of a single token id.
+    expect(tokens.every((t) => t.startsWith('t42'))).toBe(true);
+    // Final return is the full-sequence decode.
+    expect(result).toContain('t42');
+  });
+
+  it('honours signal.aborted mid-loop', async () => {
+    const fake = makeGeneratingFakeOrt({ winningTokenId: 7, vocabSize: 32, stopAfter: 100 });
+    const { fetchImpl } = makeFakeFetch();
+    installFakeTokenizer();
+
+    const adapter = new OnnxSlmAdapter({
+      cacheVersion: 'gen-real-abort-v1',
+      fetchImpl,
+      ortFactory: async () => fake.ort,
+    });
+
+    const ac = new AbortController();
+    const tokens: string[] = [];
+
+    // Abort after the second streamed token.
+    const result = await adapter.generate({
+      prompt: 'hola',
+      maxTokens: 50,
+      temperature: 0,
+      onToken: (t) => {
+        tokens.push(t);
+        if (tokens.length === 2) ac.abort();
+      },
+      signal: ac.signal,
+    });
+
+    // The loop checks `signal.aborted` at the top of each iteration,
+    // so we expect either 2 or 3 tokens depending on the timing of the
+    // abort observation. Bound it.
+    expect(tokens.length).toBeGreaterThanOrEqual(2);
+    expect(tokens.length).toBeLessThanOrEqual(3);
+    // Did NOT run all 50 iterations.
+    expect(fake.runCount).toBeLessThan(50);
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('returns "" when signal is pre-aborted (no run, no tokenizer)', async () => {
+    const fake = makeGeneratingFakeOrt({ winningTokenId: 1, vocabSize: 16, stopAfter: 100 });
+    const { fetchImpl } = makeFakeFetch();
+    installFakeTokenizer();
+
+    const adapter = new OnnxSlmAdapter({
+      cacheVersion: 'gen-real-preabort-v1',
+      fetchImpl,
+      ortFactory: async () => fake.ort,
+    });
+
+    const ac = new AbortController();
+    ac.abort();
+
+    const tokens: string[] = [];
+    const result = await adapter.generate({
+      prompt: 'ignored',
+      onToken: (t) => tokens.push(t),
+      signal: ac.signal,
+    });
+
+    expect(result).toBe('');
+    expect(tokens).toHaveLength(0);
+    expect(fake.runCount).toBe(0);
   });
 });
