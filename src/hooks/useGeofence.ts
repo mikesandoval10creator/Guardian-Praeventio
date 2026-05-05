@@ -129,8 +129,19 @@ export function useGeofence(
   // for the SAME id won't restart watchPosition (acceptable — geofence zones
   // are effectively immutable per id in this app), but adding/removing zones
   // does. Geometry is read fresh from `zonesRef.current` inside the callback.
+  // Sprint 29 (audit H11) — include geometry in the dep hash, not just
+  // ids. Editing a polygon in-place (same id, distinct vertices) used to
+  // leave the watcher bound to the OLD polygon, a silent geofence
+  // bypass. We sort by id then serialize the polygon points so the
+  // hash is stable across array-reference flips but changes when the
+  // shape genuinely mutates.
   const zonesIdHash = useMemo(
-    () => JSON.stringify(zones.map((z) => z.id).sort()),
+    () =>
+      JSON.stringify(
+        zones
+          .map((z) => ({ id: z.id, p: (z as any).polygon ?? (z as any).points ?? null }))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+      ),
     [zones],
   );
 
@@ -167,8 +178,14 @@ export function useGeofence(
           onZoneEntryRef.current?.(justEntered);
         }
       },
-      () => {
-        /* geolocation errors are silent — hook stays operational */
+      (err) => {
+        // Sprint 29 (audit H27) — surface PERMISSION_DENIED so the
+        // worker doesn't believe protection is active when it isn't.
+        // Use console.warn (no NotificationContext dep to keep the
+        // hook decoupled); UI consumers can subscribe via setError.
+        if (err && typeof err === 'object' && 'code' in err && err.code === 1) {
+          console.warn('[useGeofence] Geolocalización denegada — protección desactivada.');
+        }
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 },
     );

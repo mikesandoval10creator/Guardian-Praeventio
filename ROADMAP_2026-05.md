@@ -1,3 +1,11 @@
+> ⚠️ **SUPERSEDED (Sprint 31 RR · 2026-05-05)** — sustituido oficialmente
+> por [`MASTER_PROPOSAL_2026-05.md`](MASTER_PROPOSAL_2026-05.md) y, para
+> métricas vivas, por
+> [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).
+> Backlog operacional vivo:
+> [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md).
+> Conservado como histórico del Sprint 2.
+
 # Roadmap Guardian Praeventio — actualizado 2026-05-02
 
 Este documento sustituye al "Plan Maestro 10 Fases" anterior. La Fase 1, parte de Fase 2 y parte de Fase 3 ya están implementadas en la rama `dev/multiagent-bernoulli-sweep` (13 commits). Lo que sigue está re-priorizado por valor y dependencia.

@@ -1,5 +1,14 @@
 # STATE_OF_FUNCTIONALITY_2026-05-04
 
+> ⚠️ **DEPRECATED (Sprint 31 RR · 2026-05-05)** — este doc reportaba 99% E2E
+> de manera optimista. La auditoría independiente del 2026-05-05 reveló
+> brechas materiales y la cobertura ponderada real estaba en ~60%. La
+> fuente de verdad viva es ahora
+> [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md)
+> (~67% E2E al cierre de Sprint 28, roadmap S29-S32 hasta Day-1 mundial).
+> Este archivo se conserva como referencia histórica del progreso reportado
+> hasta Sprint 21 / Ola 6.
+
 > Audit honesto post-Sprint 17a, actualizado a Sprint 21 / Ola 6.
 > Tres categorías: 🟢 end-to-end, 🟡 parcial, 🔴 shell.
 > Generado por agente con verificación archivo×archivo. Sin marketing.

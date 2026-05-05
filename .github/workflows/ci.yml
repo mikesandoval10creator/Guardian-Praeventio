@@ -104,6 +104,36 @@ jobs:
         # PROJECT_ID constant in src/rules-tests/firestore.rules.test.ts.
         run: firebase emulators:exec --only firestore --project praeventio-rules-test "npx vitest run src/rules-tests/"
 
+  adr-0012-enforcement:
+    # Sprint 26 Bucket XX — ADR 0012 (no diagnosis) automated enforcement.
+    # Replays the pre-commit hook against changed files in the PR so a contributor
+    # who used --no-verify can't sneak diagnostic code past review.
+    name: "ADR 0012 — no diagnosis enforcement"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Stage diff and run medical guard
+        run: |
+          # Stage all changed files vs base so the hook's `git diff --cached`
+          # query sees the PR's contents. Falls back to staging the whole tree
+          # on the first commit (no HEAD~1).
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            git diff --name-only HEAD~1 HEAD | xargs -r git add
+          else
+            git add -A
+          fi
+          node scripts/precommit-medical-guard.cjs
+
+      - name: Run medical guard unit tests
+        run: node --test src/__tests__/scripts/medicalGuard.test.cjs
+
   build:
     name: Build
     runs-on: ubuntu-latest

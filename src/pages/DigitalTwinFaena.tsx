@@ -8,8 +8,15 @@ import {
   Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
   Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
 } from 'lucide-react';
-import { Site25DPanel } from '../components/digital-twin/Site25DPanel';
-import { auth, storage, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
+// Sprint 29 Bucket BB H24 — lazy split: Site25DPanel hosts the 2.5D
+// canvas (three.js + r3f). Defer to keep the Digital Twin route
+// shell snappy.
+const Site25DPanel = React.lazy(() =>
+  import('../components/digital-twin/Site25DPanel').then((m) => ({ default: m.Site25DPanel })),
+);
+import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
+import { isDemoProject } from '../data/demoProject';
+import { auth, storage, db, doc, getDoc, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -23,6 +30,8 @@ import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObje
 import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
 import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceStatusPanel';
 import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
+// Sprint 30 Bucket JJ — iOS Quick Look + Android Scene Viewer fallback.
+import { ArViewLink, type ArKind } from '../components/ar/ArViewLink';
 import { useObjectLifecycle } from '../hooks/useObjectLifecycle';
 import type { PlacedObject, PlacedObjectKind } from '../services/digitalTwin/photogrammetry/types';
 import { runComplianceCheck } from '../services/digitalTwin/objectPlacement/normativaRules';
@@ -444,7 +453,13 @@ export function DigitalTwinFaena() {
       {activeTab === 'site25d' ? (
         <div className="flex-1 p-4 sm:p-6 overflow-hidden">
           <div className="h-full bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden">
-            <Site25DPanel />
+            <Suspense fallback={
+              <div className="w-full h-[400px] flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+              </div>
+            }>
+              <Site25DPanel />
+            </Suspense>
           </div>
         </div>
       ) : (
@@ -632,7 +647,62 @@ export function DigitalTwinFaena() {
           </div>
         </aside>
 
-        {/* RIGHT: 3D viewer */}
+        {/* RIGHT: 3D viewer — Sprint 26 Bucket YY.2: protegido por TwinAccessGuard
+            (ADR 0011 triple-gate). El header + upload + jobs list quedan
+            fuera del guard porque no muestran geometría. */}
+        {selectedProject ? (
+        <TwinAccessGuard
+          projectId={selectedProject.id}
+          hookOptions={{
+            fakers: {
+              getCurrentUser: () =>
+                user
+                  ? {
+                      uid: user.uid,
+                      email: user.email ?? '',
+                      emailVerified: user.emailVerified,
+                    }
+                  : null,
+              isProjectMember: async (uid, projectId) => {
+                try {
+                  const snap = await getDoc(doc(db, 'projects', projectId));
+                  if (!snap.exists()) return false;
+                  const data = snap.data() as
+                    | { members?: unknown; createdBy?: unknown }
+                    | undefined;
+                  const inMembers =
+                    Array.isArray(data?.members) &&
+                    data!.members.includes(uid);
+                  const isCreator =
+                    typeof data?.createdBy === 'string' &&
+                    data!.createdBy === uid;
+                  return inMembers || isCreator;
+                } catch {
+                  return false;
+                }
+              },
+              isDemoProject,
+              runBiometric: async () => {
+                try {
+                  const mod: any = await import(
+                    /* @vite-ignore */ '@aparajita/capacitor-biometric-auth'
+                  );
+                  const result = await mod.BiometricAuth.authenticate({
+                    reason:
+                      'Verifica tu identidad para acceder al Digital Twin',
+                    cancelTitle: 'Cancelar',
+                  });
+                  return {
+                    ok: result?.isAuthenticated ?? true,
+                    method: 'fingerprint' as const,
+                  };
+                } catch {
+                  return { ok: false, method: 'unavailable' as const };
+                }
+              },
+            },
+          }}
+        >
         <section className="lg:col-span-2 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-2">
@@ -754,14 +824,27 @@ export function DigitalTwinFaena() {
                         Marcar activo
                       </button>
                     )}
-                    {/* Bucket J.5 — AR overlay bridge (placeholder hasta Ola 4). */}
+                    {/* Bucket J.5 — WebXR AR overlay (Android Chrome / desktop preview). */}
                     <button
                       type="button"
                       onClick={() => setArObject(selectedObject)}
                       className="w-full mt-2 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-white/10"
                     >
-                      Ver en AR
+                      Ver en AR (WebXR)
                     </button>
+                    {/* Sprint 30 Bucket JJ — Native iOS Quick Look + Android
+                        Scene Viewer link for installed objects. Renders nothing
+                        on desktop UAs; the WebXR button above stays as the
+                        cross-platform path. */}
+                    {selectedObject.lifecycle === 'installed' && (
+                      <div className="mt-2">
+                        <ArViewLink
+                          kind={selectedObject.kind as ArKind}
+                          label="Ver en AR (nativo)"
+                          className="inline-flex w-full justify-center items-center gap-2 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -787,6 +870,14 @@ export function DigitalTwinFaena() {
             )}
           </div>
         </section>
+        </TwinAccessGuard>
+        ) : (
+          <section className="lg:col-span-2 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden flex items-center justify-center min-h-[480px]">
+            <p className="text-xs text-zinc-500">
+              Selecciona un proyecto para ver el Digital Twin.
+            </p>
+          </section>
+        )}
       </div>
       )}
 

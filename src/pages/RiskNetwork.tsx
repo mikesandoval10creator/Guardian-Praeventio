@@ -1,6 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { KnowledgeGraph } from '../components/shared/KnowledgeGraph';
+// Sprint 29 Bucket BB H24 — lazy split: KnowledgeGraph carries
+// react-force-graph + three.js (~1MB). Suspended on entry to
+// /risk-network so the surrounding page renders immediately.
+const KnowledgeGraph = lazy(() =>
+  import('../components/shared/KnowledgeGraph').then((m) => ({ default: m.KnowledgeGraph })),
+);
 import { RiskNetworkExplorer } from '../components/risk-network/RiskNetworkExplorer';
 import { RiskNetworkHealth } from '../components/risk-network/RiskNetworkHealth';
 import { RiskNetworkManager } from '../components/risk-network/RiskNetworkManager';
@@ -220,7 +225,13 @@ export function RiskNetwork() {
                   <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Interactúa con los nodos para ver detalles</span>
                 </div>
               </div>
-              <KnowledgeGraph controlledSelectedId={selectedNodeId} />
+              <Suspense fallback={
+                <div className="w-full h-[600px] flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+                </div>
+              }>
+                <KnowledgeGraph controlledSelectedId={selectedNodeId} />
+              </Suspense>
             </motion.div>
           )}
 

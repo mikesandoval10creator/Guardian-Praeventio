@@ -1,0 +1,62 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "Хранитель вашей безопасности"
+  },
+  "nav": {
+    "dashboard": "Главная",
+    "emergency": "Тревога",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "profile": "Профиль",
+    "team": "Бригада",
+    "training": "Обучение"
+  },
+  "auth": {
+    "login": "Войти",
+    "logout": "Выйти",
+    "login_with_google": "Войти через Google",
+    "no_session": "Нет активной сессии",
+    "session_expired": "Срок сессии истёк",
+    "sign_up": "Регистрация",
+    "forgot_password": "Забыли пароль",
+    "remember_me": "Запомнить меня"
+  },
+  "common": {
+    "loading": "Загрузка...",
+    "save": "Сохранить",
+    "cancel": "Отменить",
+    "delete": "Удалить",
+    "confirm": "Подтвердить",
+    "back": "Назад",
+    "retry": "Повторить",
+    "error": "Ошибка",
+    "next": "Далее",
+    "previous": "Назад",
+    "search": "Поиск",
+    "submit": "Отправить",
+    "close": "Закрыть",
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "emergency": {
+    "survival_title": "Режим выживания",
+    "survival_subtitle": "100% офлайн • всегда наготове",
+    "survival_btn_sos": "Звуковой SOS",
+    "guide_first_aid_title": "Первая помощь",
+    "guide_fire_title": "Пожар / дым",
+    "guide_evacuate_title": "Эвакуация",
+    "call_emergency": "Вызвать экстренные службы",
+    "report_incident": "Сообщить о происшествии"
+  },
+  "errors": {
+    "something_went_wrong": "Что-то пошло не так",
+    "network": "Ошибка сети",
+    "permission": "Доступ запрещён",
+    "not_found": "Не найдено",
+    "unauthorized": "Не авторизовано"
+  },
+  "medical": {
+    "disclaimer": "Информация в этом приложении не заменяет профессиональную медицинскую консультацию. В экстренной ситуации немедленно обратитесь в местную службу спасения."
+  }
+}

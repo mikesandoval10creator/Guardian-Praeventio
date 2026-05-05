@@ -1,0 +1,13 @@
+# REPLACE WITH REAL .usdz
+#
+# Sprint 30 Bucket JJ — placeholder for ARKit Quick Look.
+#
+# Real .usdz binaries are produced by the `usdz-converter` Cloud Run service
+# (see infra/usdz-converter/) from the matching .glb files in this folder's
+# parent directory. Apple's `usdzconvert` only runs on macOS; do NOT try to
+# generate these locally on Windows/Linux.
+#
+# Build pipeline: scripts/generate-ar-usdz.mjs invokes the Cloud Run service
+# for each kind in PlacedObjectKind and uploads the resulting .usdz to GCS.
+# This file exists only so HEAD probes from ArQuickLookButton return 200
+# during local dev / smoke tests before the converter runs.

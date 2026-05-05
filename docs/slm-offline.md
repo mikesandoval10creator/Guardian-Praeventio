@@ -148,6 +148,105 @@ responses will scale super-linearly until the next bucket lands the
 - **Quantization noise.** Q4 introduces mild perplexity loss vs
   FP16; rare tokens / domain-specific terms may drift.
 
+## El Guardián Offline (Sprint 26 ZZ)
+
+`GuardianOfflineService` (`src/services/slm/guardianOffline.ts`) es la
+capa "Guardián" que une el adapter ONNX (`OnnxSlmAdapter`) con un
+corpus de emergencia chileno + cache + FAQ pre-generadas. Es la
+respuesta concreta al caso del usuario: terremoto, sin internet, un
+trabajador con sangrado abundante, salida bloqueada — el SLM solo no
+basta porque puede no estar descargado todavía.
+
+### Pipeline de `ask(prompt)`
+
+1. **FAQ exact-ish match** (Jaccard sobre tokens normalizados, umbral
+   0.5). Source: `faq`. Cobertura garantizada incluso sin modelo
+   descargado. Las preguntas canónicas (sangrado, evacuación, sismo,
+   RCP, gas, números de emergencia, electrocución, quemadura) están
+   pre-respondidas.
+2. **Cache lookup** por `djb2(normalizado(prompt))` en IndexedDB
+   `guardianOfflineCache`. Source: `cache`. TinyLlama Q4 a ~5 tok/s
+   en CPU mobile sería desastroso para la UX en emergencia — cachear
+   es no-negociable.
+3. **Retrieval**: top-3 chunks por keyword overlap con
+   `rankChunks()`. No usamos embeddings offline — se busca match
+   simple sobre keywords + topic + primeras 30 palabras del cuerpo.
+4. **Generación SLM** (si `OnnxSlmAdapter.fromEnv()` resuelve):
+   prompt aumentado con los chunks + `SYSTEM_PROMPT_EMERGENCY` que
+   instruye contestar SOLO desde el contexto entregado, sin inventar
+   citaciones. Source: `slm`.
+5. **Corpus-only fallback**: si no hay adapter o si la generación
+   falla, devolvemos la concatenación de los chunks rankeados.
+   Source: `corpus-only`. Siempre hay respuesta para el trabajador.
+
+### Corpus
+
+`/public/data/guardian-offline-corpus.json` — 35 chunks cubriendo
+primeros auxilios (sangrado, RCP, fractura, quemadura, intoxicación,
+electrocución, atragantamiento, hipotermia, golpe de calor, shock,
+lesión espinal, crisis respiratoria, ojo), evacuación (salida
+bloqueada, sismo, tsunami, incendio, derrame químico, espacio
+confinado, punto de reunión, discapacidad, post-réplica),
+identificación de peligros (gas/olor, clases de fuego, eléctrico,
+trabajo en altura, atmósfera explosiva, derrumbe, máquinas), EPP
+(respiratorio, básico) y comunicación (números de emergencia, cadena
+de aviso, contacto familia). Citaciones: DS 109, DS 594, DS 148,
+DS 132, NCh 1410, NCh 433, NCh 1430, NCh 934, NCh 2055, NCh 2120,
+NCh Elec 4, Ley 16.744, GHS UN, AHA, NIOSH, ONEMI, SHOA, CITUC.
+
+### FAQs pre-generadas
+
+8 preguntas tap-friendly que la UI puede mostrar como sugerencias
+cuando se detecta offline. Cada una tiene respuesta y citaciones de
+fuente. Disponibles vía `service.getFAQ()`.
+
+### Cache strategy
+
+- Store: IndexedDB `guardianOfflineCache.responses`
+- Key: `q:<djb2-hex>` del prompt normalizado (lowercase, sin acentos,
+  sin puntuación)
+- Value: respuesta serializada como string
+- TTL: ninguno. La emergencia no caduca; el usuario puede limpiar
+  manualmente desde Configuración > Privacidad si lo desea.
+- Fallback in-memory `Map` cuando IndexedDB no está disponible (SSR /
+  tests sin polyfill).
+
+### Wire en `AsesorChat`
+
+El componente construye `GuardianOfflineService.fromEnv()` una sola
+vez (memo), llama `preload()` en idle (`requestIdleCallback`), y
+añade el service a la cadena de fallback del catch del `handleSend`:
+
+```
+try { ask(prompt) }
+catch {
+  if (offlineService) offlineService.ask(prompt)
+  else getOfflineResponse(prompt, nodes)  // legacy
+}
+```
+
+Cuando el banner emergencia se renderiza (sin conexión + service
+activo), el chat anuncia: "Estás sin conexión. El Guardián tiene
+respuestas básicas de emergencia disponibles (sangrado, evacuación,
+RCP, gas, sismo)."
+
+### Performance esperado
+
+- Corpus parse: <50 ms en mobile gama media (35 chunks ~30 KB)
+- FAQ match + retrieval: O(N) con N=35 chunks → <5 ms
+- Cache hit: <10 ms IndexedDB read
+- SLM generate: ver tabla arriba (~5 tok/s CPU, ~30 tok/s WebGPU)
+- Cache miss típico: 20-50 s para 256 tokens en CPU mobile, 8-12 s
+  en WebGPU. La UI debe mostrar streaming via `onToken` para que la
+  experiencia se sienta progresiva.
+
+### Test mode
+
+Los tests inyectan un `adapter` mock + un `cacheImpl` en memoria, así
+que el suite (`guardianOffline.test.ts`, 19 tests) no descarga el
+modelo de 600 MB ni toca IndexedDB real. Este es el patrón que el
+resto del repo usa para SLM (ver `onnxAdapter.test.ts`).
+
 ## What's next
 
 - KV cache: hold `past_key_values` across loop iterations to drop the

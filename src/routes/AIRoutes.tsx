@@ -9,6 +9,10 @@ const AcademicProcessor = lazy(() => import('../pages/AcademicProcessor').then(m
 const RiskNetwork = lazy(() => import('../pages/RiskNetwork').then(module => ({ default: module.RiskNetwork })));
 const Glossary = lazy(() => import('../pages/Glossary').then(module => ({ default: module.Glossary })));
 const Pizarra = lazy(() => import('../pages/Pizarra').then(module => ({ default: module.Pizarra })));
+// Sprint 29 Bucket AA F-A — hub centralizado de las 12 calculadoras Bernoulli/Euler.
+const CalculatorHub = lazy(() => import('../pages/CalculatorHub').then(module => ({ default: module.CalculatorHub })));
+// Sprint 29 Bucket AA F-B — Zettelkasten landing con NL query sobre incidentes históricos.
+const Zettelkasten = lazy(() => import('../pages/Zettelkasten').then(module => ({ default: module.Zettelkasten })));
 
 export const AIRoutes = [
   <Route key="ai-hub" path="ai-hub" element={<AIHub />} />,
@@ -19,4 +23,6 @@ export const AIRoutes = [
   <Route key="risk-network" path="risk-network" element={<RiskNetwork />} />,
   <Route key="glossary" path="glossary" element={<Glossary />} />,
   <Route key="pizarra" path="pizarra" element={<Pizarra />} />,
+  <Route key="calculators" path="calculators" element={<CalculatorHub />} />,
+  <Route key="zettelkasten" path="zettelkasten" element={<Zettelkasten />} />,
 ];

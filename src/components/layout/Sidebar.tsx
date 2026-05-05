@@ -122,6 +122,12 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
         { title: t("nav.cuadrillas", "Cuadrillas"), icon: Users, path: "/cuadrillas", color: "text-[#4db6ac]" },
+        // Sprint 28 Bucket B5 — CPHS formal module (audit hallazgo H29 P1).
+        // Apunta a /cphs (registro formal con quórum DS 54 + firmas WebAuthn).
+        // El link legacy a /comite-paritario sigue disponible en ModuleHub para
+        // las actas en formato libre hasta que la migración del próximo
+        // sprint consolide ambos en /cphs.
+        { title: t("nav.cphs", "Comité Paritario (CPHS)"), icon: ShieldCheck, path: "/cphs", color: "text-[#4db6ac]" },
         { title: t("nav.mining_contractors", "Contratistas Mineros"), icon: Mountain, path: "/mining-contractors", color: "text-amber-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
@@ -138,6 +144,8 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.academic_processor", "Procesador Académico"), icon: BookOpen, path: "/academic-processor", color: "text-violet-500" },
         { title: t("nav.ocr_motor", "Motor OCR"), icon: Scan, path: "/document-ocr", color: "text-violet-400" },
         { title: "Rastreador Solar", icon: Sun, path: "/sun-tracker", color: "text-amber-500" },
+        // Sprint 29 Bucket AA F-A — hub de las 12 calculadoras Bernoulli/Euler.
+        { title: "Calculadoras Especializadas", icon: Wrench, path: "/calculators", color: "text-[#4db6ac]" },
       ],
     },
     {

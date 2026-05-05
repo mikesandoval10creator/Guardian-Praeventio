@@ -3,6 +3,9 @@ import { useAccelerometer } from '../../hooks/useAccelerometer';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useFallDetectionPreference } from '../../hooks/useFallDetectionPreference';
+import { useEmergency } from '../../contexts/EmergencyContext';
+import { useProject } from '../../contexts/ProjectContext';
+import { logger } from '../../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 // 16th wave (Bucket B) analytics: catalog row 67 — fire
@@ -22,12 +25,44 @@ const FALL_THRESHOLD_MS_SQ = 25;
 /** Default polling window for the DeviceMotion event in ms (Capacitor + Web). */
 const FALL_ACCEL_WINDOW_MS = 200;
 
+/**
+ * H6 audit fix (Sprint 27 P0): when the fall-detection countdown expires
+ * OR the user taps "Necesito Ayuda", we must escalate via the canonical
+ * `EmergencyContext.triggerEmergency('fall', projectId)` dispatcher — not
+ * just a local notification. The dispatcher persists an emergency event in
+ * Firestore (`projects/{id}/emergency_events`) AND flips
+ * `isEmergencyActive`, which `EmergencyAutoBridge` mirrors into
+ * `pushCompanyEmergency` so the global auto-trigger overlay reacts too.
+ *
+ * `'fall'` is the new canonical type for fall-detection events; existing
+ * types (`'sismo'`, `'iot_critical'`, `'driving_sos'`, `'sismo_critico'`,
+ * `'fire'`, etc.) remain untouched — `triggerEmergency` accepts any string.
+ */
+const EMERGENCY_TYPE_FALL = 'fall';
+
 export function FallDetectionMonitor() {
   const { user } = useFirebase();
   const { addNotification } = useNotifications();
   const { enabled: fdEnabled, loading: fdLoading } = useFallDetectionPreference();
+  const { triggerEmergency } = useEmergency();
+  const { selectedProject } = useProject();
   const [showModal, setShowModal] = useState(false);
   const [countdown, setCountdown] = useState(15);
+
+  /**
+   * Single dispatch path so the countdown-expiry branch and the
+   * "Necesito Ayuda" branch agree on what the canonical SOS escalation
+   * looks like. Errors from the dispatcher are logged but never thrown
+   * — losing the modal because Firestore is unreachable would be worse
+   * than a silent persistence failure (the user already saw the prompt).
+   */
+  const dispatchFallEmergency = (originLabel: 'countdown_expired' | 'user_requested') => {
+    void Promise.resolve()
+      .then(() => triggerEmergency(EMERGENCY_TYPE_FALL, selectedProject?.id))
+      .catch((err) => {
+        logger.error('FallDetectionMonitor: triggerEmergency failed', { err, originLabel });
+      });
+  };
 
   const handleFallDetected = () => {
     if (!showModal) {
@@ -77,14 +112,18 @@ export function FallDetectionMonitor() {
     if (showModal && countdown > 0) {
       timer = setTimeout(() => setCountdown(c => c - 1), 1000);
     } else if (showModal && countdown === 0) {
-      // Auto-trigger emergency if countdown reaches 0
+      // H6 fix: countdown expired without a response → escalate via
+      // EmergencyContext (Firestore + global emergency state) AND surface
+      // the local toast. Both paths are needed: the toast is the immediate
+      // UI feedback, the dispatcher is the persistent audit + supervisor
+      // alert path.
+      dispatchFallEmergency('countdown_expired');
       addNotification({
         title: 'Posible Caída Detectada',
         message: 'Se ha alertado a los supervisores por falta de respuesta.',
         type: 'error'
       });
       setShowModal(false);
-      // Here we could also trigger a real emergency protocol via EmergencyContext
     }
     return () => clearTimeout(timer);
   }, [showModal, countdown, addNotification]);
@@ -100,12 +139,15 @@ export function FallDetectionMonitor() {
 
   const handleNeedHelp = () => {
     setShowModal(false);
+    // H6 fix: the user explicitly requested help → fire the canonical
+    // emergency dispatcher immediately (no countdown). Same path as the
+    // expiry branch so supervisors see one coherent event stream.
+    dispatchFallEmergency('user_requested');
     addNotification({
       title: 'Emergencia Declarada',
       message: 'Se ha notificado a los equipos de rescate.',
       type: 'error'
     });
-    // Trigger real emergency protocol here
   };
 
   if (!user) return null;

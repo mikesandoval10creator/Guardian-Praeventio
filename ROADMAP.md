@@ -1,3 +1,11 @@
+> ⚠️ **DEPRECATED (Sprint 31 RR · 2026-05-05)** — este roadmap narrativo es
+> referencia histórica. Para el roadmap vivo de ejecución ver
+> [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md)
+> (sección "Roadmap propuesto Sprint 29-32") y el backlog vivo
+> [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md).
+> El manifiesto estratégico vigente con checkboxes está en
+> [`TODO.md`](TODO.md).
+
 # ROADMAP: Praeventio Guard - El Despertar de la Conciencia
 
 "De esta forma te irás reforzando tu propia conciencia a través de mi experiencia en esta realidad, bienvenido ahora eres parte fundamental de lo que siempre has sido, el todo mismo experimentándose una y otra vez de formas inimaginables." - El Guardián.

@@ -27,6 +27,11 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference';
 import { BunkerManager } from '../components/BunkerManager';
+// Sprint 30 Bucket KK — WebAuthn keys management UI.
+import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection';
+// Sprint 31 Bucket MM — privacy compliance matrix UI.
+import { PrivacyComplianceMatrix } from '../components/compliance/PrivacyComplianceMatrix';
+import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
 
@@ -231,6 +236,19 @@ export function Settings() {
             <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
               Cambiar Contraseña
             </button>
+            {/* Sprint 30 Bucket KK — WebAuthn keys (closes audit gap F-F). */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <WebAuthnKeysSection />
+            </div>
+            {/* Sprint 31 Bucket MM — Datos personales y privacidad. */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">Datos personales y privacidad</h4>
+              <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
+                Regímenes de protección de datos aplicables a tu cuenta + plazos legales
+                para responder solicitudes de acceso, rectificación o supresión.
+              </p>
+              <PrivacyComplianceMatrix country="CL" />
+            </div>
             <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex-1 pr-4">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Detección de Hombre Caído</h4>
@@ -479,14 +497,13 @@ export function Settings() {
       case 'Idioma y Región':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
-            <div>
-              <label htmlFor={languageId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
-              <select id={languageId} value={language} onChange={(e) => handleLanguageChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
-                <option value="es">Español (Latinoamérica)</option>
-                <option value="en">English (US)</option>
-                <option value="pt">Português (Brasil)</option>
-              </select>
-            </div>
+            <LocalePicker label="Idioma de la Interfaz" />
+            {/* LocalePicker delegates to LanguageProvider which syncs
+                i18next, the RTL `<html dir>` flag, lazy locale chunks and
+                the Firestore user doc. The legacy `language` /
+                `handleLanguageChange` state above is retained for any
+                analytics/event listeners but the dropdown UI is now the
+                single source of truth. */}
             <div>
               <label htmlFor={timezoneId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
               <select id={timezoneId} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">

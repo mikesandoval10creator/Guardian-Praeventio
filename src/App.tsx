@@ -75,6 +75,11 @@ const MyData = lazy(() => import('./pages/MyData').then(module => ({ default: mo
 const Onboarding = lazy(() => import('./pages/Onboarding').then(module => ({ default: module.Onboarding })));
 // Sprint 24 Bucket II — DS 76 mining contractors page.
 const MiningContractors = lazy(() => import('./pages/MiningContractors').then(module => ({ default: module.MiningContractors })));
+// Sprint 26 Bucket VV — HealthVault QR sharing.
+const HealthVaultShare = lazy(() => import('./pages/HealthVaultShare').then(module => ({ default: module.HealthVaultShare })));
+const HealthVaultViewer = lazy(() => import('./pages/HealthVaultViewer').then(module => ({ default: module.HealthVaultViewer })));
+// Sprint 30 Bucket LL — public Day-1 demo page (no auth wall).
+const PublicDemo = lazy(() => import('./pages/PublicDemo').then(module => ({ default: module.PublicDemo })));
 
 // Sprint 24 Bucket KK.4 — onboarded-flag hook (self-contained, does not
 // touch FirebaseContext to keep that file's surface area small).
@@ -125,7 +130,10 @@ function AppRoutes() {
   const skipLanding = window.location.pathname.startsWith('/invite') ||
     window.location.pathname.startsWith('/public') ||
     window.location.pathname.startsWith('/curriculum/referee') ||
-    window.location.pathname.startsWith('/onboarding');
+    window.location.pathname.startsWith('/vault/share') ||
+    window.location.pathname.startsWith('/onboarding') ||
+    // Sprint 30 Bucket LL — public demo page accessible without auth.
+    window.location.pathname.startsWith('/demo');
 
   // Sprint 24 Bucket KK.4 — auto-redirect freshly-signed-up users to the
   // self-service wizard. We wait for `onboarded` to be loaded (non-null)
@@ -180,6 +188,9 @@ function AppRoutes() {
                   <Route path="/invite" element={<InviteAccept />} />
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
+                  <Route path="/vault/share/:tokenId/:secret" element={<HealthVaultViewer />} />
+                  {/* Sprint 30 Bucket LL — public demo (no auth). */}
+                  <Route path="/demo" element={<PublicDemo />} />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
@@ -223,6 +234,7 @@ function AppRoutes() {
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />
+                    <Route path="my-data/share" element={<HealthVaultShare />} />
                     <Route path="cuadrillas" element={<CuadrillasDashboard />} />
                     <Route path="mining-contractors" element={<MiningContractors />} />
                     <Route path="sun-tracker" element={<SunTracker />} />

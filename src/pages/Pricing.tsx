@@ -37,6 +37,7 @@ import {
 } from '../components/pricing/CurrencyToggle';
 
 import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
+import { TierDowngradeModal } from '../components/billing/TierDowngradeModal';
 import { useInvoicePolling } from '../hooks/useInvoicePolling';
 import { logger } from '../utils/logger';
 import { analytics } from '../services/analytics';
@@ -123,6 +124,7 @@ const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
   'empresarial',
   'corporativo',
   'ilimitado',
+  'global-titanio',
 ]);
 
 const TIER_FEATURES: Record<TierId, string[]> = {
@@ -196,6 +198,15 @@ const TIER_FEATURES: Record<TierId, string[]> = {
     'Compliance ad-hoc (NIST, SOC2)',
     'Equipo de prevención embedded',
   ],
+  // Sprint 31 OO — Tier Global Titanio (multi-jurisdicción simultáneo).
+  'global-titanio': [
+    'Cobertura mundial: ISO 45001 + tu país + cualquier jurisdicción adicional',
+    'Multi-jurisdicción simultáneo (sin límite de países)',
+    'Trabajadores y proyectos ilimitados',
+    'Data residency multi-región',
+    'Vertex AI orquestador global activado',
+    'Customer Success + onboarding por país',
+  ],
 };
 
 const TIER_BADGES: Partial<Record<TierId, { label: string; tone: 'green' | 'gold' | 'blue' | 'silver' }>> = {
@@ -203,6 +214,8 @@ const TIER_BADGES: Partial<Record<TierId, { label: string; tone: 'green' | 'gold
   'departamento-prevencion': { label: 'Más popular para PYME', tone: 'blue' },
   diamante: { label: 'Más popular B2B', tone: 'gold' },
   corporativo: { label: 'Elegido por multinacionales', tone: 'silver' },
+  // Sprint 31 OO — Tier Global Titanio recomendado para multinacionales.
+  'global-titanio': { label: 'Recomendado · Multinacional', tone: 'gold' },
 };
 
 function badgeClasses(tone: 'green' | 'gold' | 'blue' | 'silver'): string {
@@ -734,6 +747,13 @@ function PricingInner() {
   const { projects } = useProject();
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // Sprint 28 H25 — Tier downgrade flow UI state.
+  const [downgradeModal, setDowngradeModal] = useState<{
+    fromTier: TierId;
+    toTier: TierId;
+    toTierLabel: string;
+    pendingTier: Tier;
+  } | null>(null);
 
   /**
    * Web (non-native) checkout uses Transbank Webpay via the existing
@@ -921,6 +941,45 @@ function PricingInner() {
     }
   };
 
+  // Sprint 28 H25 — invert TIER_TO_LEGACY_PLAN so we can recover a TierId
+  // from the user's current `plan` (which is a SubscriptionPlan legacy id).
+  const legacyToTierId = (legacyPlan: SubscriptionPlan): TierId | null => {
+    for (const [tierId, legacy] of Object.entries(TIER_TO_LEGACY_PLAN)) {
+      if (legacy === legacyPlan) return tierId as TierId;
+    }
+    return null;
+  };
+
+  /**
+   * Detect a tier downgrade where current usage exceeds the target capacity.
+   * Returns the modal config when a downgrade gate is needed; null otherwise.
+   */
+  const buildDowngradeGate = (toTier: Tier): {
+    fromTier: TierId;
+    toTier: TierId;
+    toTierLabel: string;
+  } | null => {
+    const fromTierId = legacyToTierId(plan);
+    if (!fromTierId) return null;
+    if (fromTierId === toTier.id) return null;
+    const fromIdx = TIERS.findIndex((t) => t.id === fromTierId);
+    const toIdx = TIERS.findIndex((t) => t.id === toTier.id);
+    if (fromIdx === -1 || toIdx === -1) return null;
+    if (toIdx >= fromIdx) return null; // upgrade or same — no gate.
+    const totalProjects = projects.length;
+    if (
+      totalWorkers > toTier.trabajadoresMax ||
+      totalProjects > toTier.proyectosMax
+    ) {
+      return {
+        fromTier: fromTierId,
+        toTier: toTier.id,
+        toTierLabel: toTier.nombre,
+      };
+    }
+    return null;
+  };
+
   const handlePurchase = async (tier: Tier) => {
     const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
     if (!legacyId) {
@@ -930,6 +989,15 @@ function PricingInner() {
         message: `${tier.nombre} requiere una propuesta a medida. Te contactaremos.`,
         type: 'info',
       });
+      return;
+    }
+
+    // Sprint 28 H25 — gate downgrades when current usage exceeds the
+    // target tier's capacity. The modal lets the user archive/export
+    // before completing the downgrade.
+    const gate = buildDowngradeGate(tier);
+    if (gate) {
+      setDowngradeModal({ ...gate, pendingTier: tier });
       return;
     }
 
@@ -1235,6 +1303,36 @@ function PricingInner() {
           </div>
         </div>
       </div>
+
+      {downgradeModal && (
+        <TierDowngradeModal
+          fromTier={downgradeModal.fromTier}
+          toTier={downgradeModal.toTier}
+          toTierLabel={downgradeModal.toTierLabel}
+          currentUsage={{
+            workers: totalWorkers,
+            projects: projects.length,
+          }}
+          targetCapacity={{
+            workers:
+              TIERS.find((t) => t.id === downgradeModal.toTier)
+                ?.trabajadoresMax ?? 0,
+            projects:
+              TIERS.find((t) => t.id === downgradeModal.toTier)
+                ?.proyectosMax ?? 0,
+          }}
+          onCancel={() => setDowngradeModal(null)}
+          onConfirm={() => {
+            // Usage now fits the target capacity (or no overage); proceed
+            // with the actual purchase. We re-call handlePurchase, but the
+            // gate will not fire again because usage has been brought down
+            // (or was never over capacity for this tier).
+            const pending = downgradeModal.pendingTier;
+            setDowngradeModal(null);
+            void handlePurchase(pending);
+          }}
+        />
+      )}
     </div>
   );
 }

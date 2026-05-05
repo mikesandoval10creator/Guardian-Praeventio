@@ -47,7 +47,9 @@
     "back_home": "Volver al inicio",
     "no_session": "Sin sesión activa",
     "session_expired": "Tu sesión expiró",
-    "consent_notice": "Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad."
+    "consent_notice": "Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad.",
+    "auth_error": "No pudimos iniciar tu sesión. Inténtalo de nuevo.",
+    "permission_denied": "No tienes permiso para esta acción."
   },
   "common": {
     "loading": "Cargando...",
@@ -64,7 +66,13 @@
     "next": "Siguiente",
     "search": "Buscar",
     "filter": "Filtrar",
-    "loading_failed": "No se pudo cargar"
+    "loading_failed": "No se pudo cargar",
+    "yes": "Sí",
+    "no": "No",
+    "continue": "Continuar",
+    "submit": "Enviar",
+    "accept": "Aceptar",
+    "reject": "Rechazar"
   },
   "pricing": {
     "tier_free": "Gratis",
@@ -99,7 +107,12 @@
     "anomaly_detected": "Se detectó una anomalía en el flujo de datos. La conciencia del sistema requiere calibración.",
     "restart_consciousness": "Reiniciar Conciencia",
     "module_inactive": "Módulo temporalmente inactivo",
-    "unexpected": "Error inesperado"
+    "unexpected": "Error inesperado",
+    "network": "Error de red. Verifica tu conexión a Internet.",
+    "permission": "Permiso denegado.",
+    "auth": "Tu sesión expiró. Inicia sesión de nuevo.",
+    "not_found": "No se encontró el recurso solicitado.",
+    "timeout": "La operación tardó demasiado. Inténtalo de nuevo."
   },
   "time": {
     "now": "Ahora",
@@ -116,5 +129,22 @@
     "enroll_title": "Activar biometría",
     "cancel": "Cancelar",
     "unsupported": "Tu dispositivo no soporta autenticación biométrica"
+  },
+  "emergency": {
+    "survival_title": "Modo Supervivencia",
+    "survival_subtitle": "100% Offline • Siempre Listo",
+    "survival_btn_sos": "SOS Acústico",
+    "survival_btn_beacon": "Faro",
+    "survival_btn_breathe": "Respirar",
+    "survival_back_to_menu": "Volver al Menú",
+    "guide_first_aid_title": "Primeros Auxilios Básicos",
+    "guide_fire_title": "Incendio / Humo",
+    "guide_earthquake_title": "Sismo Severo"
+  },
+  "medical": {
+    "disclaimer_primary": "Praeventio nunca diagnostica.",
+    "disclaimer_body": "Esta es tu cartera médica portátil. La información se organiza para que la compartas con tu médico tratante — él hará el diagnóstico y tratamiento correspondiente.",
+    "disclaimer_legal": "Cumple Ley 20.584 + Ley 21.719 + Ley 16.744. Praeventio NO es dispositivo médico.",
+    "disclaimer_compact": "Praeventio nunca diagnostica. Conversa con tu médico tratante."
   }
 }

@@ -1,0 +1,41 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "حارس أمانك"
+  },
+  "nav": {
+    "dashboard": "الرئيسية",
+    "emergency": "طوارئ",
+    "settings": "الإعدادات",
+    "logout": "تسجيل الخروج"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "login_with_google": "تسجيل الدخول باستخدام Google",
+    "no_session": "لا توجد جلسة نشطة",
+    "session_expired": "انتهت صلاحية جلستك"
+  },
+  "common": {
+    "loading": "جارٍ التحميل...",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "retry": "إعادة المحاولة",
+    "error": "خطأ"
+  },
+  "emergency": {
+    "survival_title": "وضع البقاء",
+    "survival_subtitle": "100% دون اتصال • جاهز دائمًا",
+    "survival_btn_sos": "نداء استغاثة صوتي",
+    "guide_first_aid_title": "الإسعافات الأولية",
+    "guide_fire_title": "حريق / دخان"
+  },
+  "errors": {
+    "something_went_wrong": "حدث خطأ ما",
+    "network": "خطأ في الشبكة",
+    "permission": "تم رفض الإذن"
+  }
+}

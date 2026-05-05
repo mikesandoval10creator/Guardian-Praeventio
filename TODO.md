@@ -2,6 +2,12 @@
 
 "El riesgo se neutraliza en el diseño, no en la reacción." - El Guardián.
 
+> **Estado real 2026-05-05** (recalibrado tras audit profundo): cobertura ponderada **~62% E2E**, no 99%. La cifra previa de 67% se ajustó hacia abajo en 5 dominios (i18n, SLM, Mesh, Bernoulli, Tests). Ver [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) y la profundización [`docs/audits/AUDIT_2026-05-05_FULL.md`](docs/audits/AUDIT_2026-05-05_FULL.md) para % por dominio + roadmap S33+ (~260 SP) hasta Day-1 mundial.
+>
+> **Sprints 27-28 cerraron**: 7 P0 audit + 9 P1 + foundation regulatoria global (ISO 45001 + 5 jurisdicciones) + i18n 12 locales + Zod transversal + CPHS + DIAT/DIEP + recordatorios. **191 tests nuevos**.
+>
+> **Backlog vivo**: [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md). Visión global: [memoria privada del operador].
+
 ## Prioridad 0: Vulnerabilidades Críticas y Arquitectura Base (URGENTE)
 
 - [x] **Migración Full-Stack (Express + Vite):** Mover la lógica de IA (`geminiService.ts`) a un backend Node.js para proteger la `GEMINI_API_KEY` de exposición en el cliente.
@@ -41,14 +47,14 @@
 - [x] **Dashboard de Crisis:** Módulo "Man Down" y check-in de emergencias.
 - [x] **Rutas de Evacuación IA:** Reemplazar mapas estáticos por el Algoritmo A\* (A-Star) para cálculo dinámico de rutas si hay túneles bloqueados.
 - [x] **Audit Trail (Caja Negra):** Crear Triggers en Firestore para guardar un registro inmutable de acciones corporativas. (Reglas de seguridad y lógica de seeding implementadas).
-- [ ] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción.
+- [x] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción. *(Sprint 26+ — `src/pages/SSOConfig.tsx` + Firebase Identity Platform hooks; backend SAML/OIDC flow pendiente de Sprint 30+ para clientes enterprise reales).*
 
 ## Prioridad 5: Escala Corporativa (Fase 10x - Vectores de Desarrollo)
 
 - [ ] **API-First (Integración ERP/HRM B2B):** Desarrollar APIs bidireccionales con SAP, Workday, o Buk para sincronizar la lista de trabajadores de manera fluida, no solo mediante subidas pasivas, sino a nivel de servicios corporativos.
-- [x] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase.
+- [ ] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase. *(Sprint 32 TT en progreso — `src/services/iot/mqttAdapter.ts` + ADR 0015. Estado real: SHELL — aún no boot ni endpoint expuesto, sin device cert flow ni broker wiring. Ver [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md) §1.5.)*
 - [x] **Reportabilidad Gerencial (ROI y SUSESO):** Automatización de formularios DIAT/DIEP en XML/PDF y cálculo financiero del ahorro por siniestralidad.
-- [x] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes.
+- [ ] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes. *(Estado real: SHELL — `src/pages/CQRSArchitecture.tsx` es solo presentational; sin Redis productivo, sin command/query split en routes. Decisión pendiente: ADR formal o "deferred". Ver [PRAEVENTIO_HONEST_STATE](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).)*
 
 ## Prioridad 6: Visiones Futuras y Expansión (Pendiente de Desarrollo)
 
@@ -359,13 +365,13 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 
 ### Fase 2: Sustitución Táctica de Sensores (Plugins Nativos)
 - [x] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
-- [ ] **Autenticación Biométrica Nativa:** Integración segura con lectores de huella dactilar o FaceID de los dispositivos físicos a través de plugins oficiales de Capacitor, permitiendo firmar PTS o aprobar matrices rápidamente.
+- [x] **Autenticación Biométrica Nativa:** Integración segura con lectores de huella dactilar o FaceID de los dispositivos físicos a través de plugins oficiales de Capacitor, permitiendo firmar PTS o aprobar matrices rápidamente. *(Sprint 26+ — WebAuthn/biometric refs en Settings.tsx + verifyTwinStepUp middleware; Sprint 30 LL ARKit Quick Look + WebAuthn UI completaron el flujo).*
 - [x] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
 - [x] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
 - [x] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
 
 ### Fase 3: El Sistema de Alertas (Push Notifications)
-- [ ] **Push Notifications Críticas (FCM):** Integrar completamente `@capacitor/push-notifications` con Firebase Cloud Messaging para asegurar que las alertas de incidentes, derrames HAZMAT o sismos suenen inmediatamente incluso con la aplicación totalmente cerrada en el teléfono.
+- [x] **Push Notifications Críticas (FCM):** Integrar completamente `@capacitor/push-notifications` con Firebase Cloud Messaging para asegurar que las alertas de incidentes, derrames HAZMAT o sismos suenen inmediatamente incluso con la aplicación totalmente cerrada en el teléfono. *(Sprint 27 H7 + `src/hooks/usePushNotifications.ts` + `Notifications.tsx`; cross-collection lookup `users/{uid}.fcmTokens`; falta `VITE_FIREBASE_VAPID_KEY` prod).*
 
 ### Fase 4: Pruebas de Terreno
 - [x] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.

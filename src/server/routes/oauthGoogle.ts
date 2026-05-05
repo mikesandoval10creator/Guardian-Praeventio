@@ -41,6 +41,21 @@ import {
   revokeTokens,
 } from '../../services/oauthTokenStore.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // OAuth client configuration. Mirrors server.ts; resolved at module-load
@@ -89,6 +104,7 @@ oauthGoogleApiRouter.post('/oauth/unlink', verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     logger.error('oauth_unlink_failed', { uid, message: error?.message });
+    sentryCapture(error, { endpoint: '/api/oauth/unlink', tags: { method: 'POST', uid } });
     res.status(500).json({
       error: 'Failed to unlink OAuth tokens',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -164,6 +180,7 @@ oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
     res.json({ items: data.items ?? [] });
   } catch (error: any) {
     logger.error('calendar_list_failed', { uid, message: error?.message });
+    sentryCapture(error, { endpoint: '/api/calendar/list', tags: { method: 'GET', uid } });
     res.json({ items: [] }); // graceful degradation
   }
 });
@@ -227,6 +244,7 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
     res.json({ success: true, results });
   } catch (error) {
     console.error('Error syncing with Google Calendar:', error);
+    sentryCapture(error, { endpoint: '/api/calendar/sync', tags: { method: 'POST', uid } });
     res.status(500).json({ error: 'Failed to sync with Google Calendar' });
   }
 });
@@ -302,6 +320,7 @@ oauthGoogleApiRouter.post('/fitness/sync', verifyAuth, async (req, res) => {
     res.json({ success: true, data });
   } catch (error) {
     console.error('Error syncing with Google Fit:', error);
+    sentryCapture(error, { endpoint: '/api/fitness/sync', tags: { method: 'POST', uid } });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -391,6 +410,7 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
     `);
   } catch (error) {
     console.error('Error in Google Drive Auth Callback:', error);
+    sentryCapture(error, { endpoint: '/api/drive/auth/callback', tags: { method: 'GET' } });
     res.status(500).send('Error during authentication');
   }
 });
@@ -474,6 +494,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
     `);
   } catch (error) {
     console.error('Error in Google Auth Callback:', error);
+    sentryCapture(error, { endpoint: '/auth/google/callback', tags: { method: 'GET' } });
     res.status(500).send('Error during authentication');
   }
 });

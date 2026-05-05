@@ -16,8 +16,11 @@ import {
   Marker,
 } from '@react-google-maps/api';
 import { Map as MapIcon, PencilLine, Loader2 } from 'lucide-react';
-import { auth } from '../../services/firebase';
+import { auth, db, doc, getDoc } from '../../services/firebase';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
+import { TwinAccessGuard } from './TwinAccessGuard';
+import { isDemoProject } from '../../data/demoProject';
 import {
   TYPE_COLORS,
   TYPE_LABELS_ES,
@@ -104,7 +107,85 @@ function polygonOptions(type: SiteGeometryType): google.maps.PolygonOptions {
   }
 }
 
+/**
+ * Sprint 26 Bucket YY.1 — Site25DPanel ahora se renderiza envuelto en
+ * <TwinAccessGuard> (ADR 0011 triple-gate). El componente original que
+ * renderiza el GoogleMap + polígonos vive como `Site25DPanelInner`. La
+ * función exportada `Site25DPanel` resuelve los fakers de auth y arma el
+ * guard alrededor.
+ */
 export function Site25DPanel(): React.ReactElement {
+  const { user } = useFirebase();
+  const { selectedProject } = useProject();
+
+  if (!selectedProject) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[480px] text-zinc-500 text-xs">
+        Selecciona un proyecto para ver el mapa 2.5D.
+      </div>
+    );
+  }
+
+  return (
+    <TwinAccessGuard
+      projectId={selectedProject.id}
+      hookOptions={{
+        fakers: {
+          getCurrentUser: () =>
+            user
+              ? {
+                  uid: user.uid,
+                  email: user.email ?? '',
+                  emailVerified: user.emailVerified,
+                }
+              : null,
+          isProjectMember: async (uid, projectId) => {
+            try {
+              const snap = await getDoc(doc(db, 'projects', projectId));
+              if (!snap.exists()) return false;
+              const data = snap.data() as
+                | { members?: unknown; createdBy?: unknown }
+                | undefined;
+              const inMembers =
+                Array.isArray(data?.members) && data!.members.includes(uid);
+              const isCreator =
+                typeof data?.createdBy === 'string' && data!.createdBy === uid;
+              return inMembers || isCreator;
+            } catch {
+              return false;
+            }
+          },
+          isDemoProject,
+          runBiometric: async () => {
+            // Sprint 26 wire: lazy-load Capacitor biometric plugin (cuando
+            // el plugin nativo no está, retornamos `unavailable` para que
+            // el lock-screen ofrezca la salida apropiada).
+            try {
+              const mod: any = await import(
+                /* @vite-ignore */ '@aparajita/capacitor-biometric-auth'
+              );
+              const result = await mod.BiometricAuth.authenticate({
+                reason:
+                  'Verifica tu identidad para acceder al Digital Twin',
+                cancelTitle: 'Cancelar',
+              });
+              return {
+                ok: result?.isAuthenticated ?? true,
+                method: 'fingerprint' as const,
+              };
+            } catch {
+              return { ok: false, method: 'unavailable' as const };
+            }
+          },
+        },
+      }}
+    >
+      <Site25DPanelInner />
+    </TwinAccessGuard>
+  );
+}
+
+function Site25DPanelInner(): React.ReactElement {
   const { t } = useTranslation();
   const { selectedProject } = useProject();
   const tenantId = auth.currentUser?.tenantId ?? 'default';

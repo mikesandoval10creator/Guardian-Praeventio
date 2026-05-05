@@ -29,6 +29,7 @@ import { getHealthAdapter } from '../services/health';
 import { GamifiedHUD, type StatusEffect } from '../components/telemetry/GamifiedHUD';
 import { ActiveAlertsList } from '../components/telemetry/ActiveAlertsList';
 import { generateDikeNode } from '../services/zettelkasten/bernoulli/dikeHydrostaticMonitor';
+import { generateMicroWindNode } from '../services/zettelkasten/bernoulli/microWindEnergy';
 import { writeNodesDebounced } from '../services/zettelkasten/persistence/writeNode';
 import {
   WeatherAndSeismicPanels,
@@ -68,6 +69,32 @@ export function Telemetry() {
   const [piezoDepth, setPiezoDepth] = useState<number | ''>(10);
   const [piezoPressureKpa, setPiezoPressureKpa] = useState<number | ''>(110);
   const [dikeStatus, setDikeStatus] = useState<string | null>(null);
+
+  // Sprint 25 Bucket NN — Micro-wind energy (Betz · IEC 61400-2).
+  const [microWindKmh, setMicroWindKmh] = useState<number | ''>(20);
+  const [turbineHeightM, setTurbineHeightM] = useState<number | ''>(8);
+  const [rotorAreaM2, setRotorAreaM2] = useState<number | ''>(1.5);
+  const microWindResult = useMemo(() => {
+    const w = Number(microWindKmh);
+    const h = Number(turbineHeightM);
+    const a = Number(rotorAreaM2);
+    if (w <= 0 || h <= 0 || a <= 0) return null;
+    // Funnel factor heurístico por altura (más altura → menos turbulencia, más laminar).
+    const funnelFactor = h >= 10 ? 1.2 : 1.0;
+    const node = generateMicroWindNode(
+      { id: `wind-site-h${h}`, funnelFactor, rotorAreaM2: a },
+      { windKmh: w },
+    );
+    const projectId = selectedProject?.id;
+    if (node) {
+      logger.info('zettelkasten:micro-wind', { node });
+      if (projectId) writeNodesDebounced([node], { projectId });
+    }
+    // P_W → kWh/día = P_W * 24h / 1000
+    const powerW = node?.metadata?.powerW as number | undefined;
+    const kwhPerDay = powerW ? (powerW * 24) / 1000 : 0;
+    return { node, kwhPerDay, powerW: powerW ?? 0 };
+  }, [microWindKmh, turbineHeightM, rotorAreaM2, selectedProject?.id]);
 
   const handleDikeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -635,6 +662,46 @@ export function Telemetry() {
             </div>
           )}
         </form>
+      </div>
+
+      {/* Sprint 25 Bucket NN — Generación micro-eólica (Betz · IEC 61400-2). */}
+      <div className="mt-6 bg-zinc-900/60 border border-white/5 rounded-2xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20">
+            <Wind className="w-4 h-4 text-teal-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black uppercase tracking-widest text-white">Generación micro-eólica</h3>
+            <p className="text-[10px] text-zinc-500">NCh Elec.4/2003 · IEC 61400-2 · Límite Betz 0.593</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Viento promedio (km/h)</label>
+            <input type="number" min="0" step="any" value={microWindKmh}
+              onChange={(e) => setMicroWindKmh(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Altura turbina (m)</label>
+            <input type="number" min="0" step="any" value={turbineHeightM}
+              onChange={(e) => setTurbineHeightM(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Área barrida (m²)</label>
+            <input type="number" min="0" step="any" value={rotorAreaM2}
+              onChange={(e) => setRotorAreaM2(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
+          </div>
+          {microWindResult && (
+            <div className="rounded-lg px-3 py-2 border bg-teal-500/10 border-teal-500/20">
+              <p className="text-[10px] font-bold text-teal-300 uppercase tracking-widest">kWh/día estimado</p>
+              <p className="text-lg font-black text-teal-400">{microWindResult.kwhPerDay.toFixed(2)}</p>
+              <p className="text-[10px] text-zinc-400">{(microWindResult.powerW).toFixed(1)} W instantáneos</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Digital Twin 3D */}

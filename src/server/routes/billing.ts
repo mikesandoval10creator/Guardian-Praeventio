@@ -37,12 +37,33 @@ import { performance } from 'node:perf_hooks';
 import { randomUUID } from 'node:crypto';
 import { google } from 'googleapis';
 
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
+// Sprint 28 Bucket B3 — transversal Zod validation factory. See
+// src/server/middleware/validate.ts for the contract.
+import { validate } from '../middleware/validate.js';
 import { invoiceStatusLimiter, googlePlayWebhookLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing on the billing dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+// Sentry capture helper — additive to logger.error. Wrapped so observability
+// failures never crash the request path.
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 import { isAdminRole } from '../../types/roles.js';
 
 import { buildInvoice } from '../../services/billing/invoice.js';
@@ -61,6 +82,7 @@ import {
 import { KhipuAdapter } from '../../services/billing/khipuAdapter.js';
 import { stripeAdapter } from '../../services/billing/stripeAdapter.js';
 import { withIdempotency } from '../../services/billing/idempotency.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { recordWebpayReturnLatency } from '../../services/billing/webpayMetrics.js';
 import {
   mercadoPagoAdapter,
@@ -72,6 +94,12 @@ import {
   verifyMercadoPagoIpnOidc,
   processMercadoPagoIpn,
 } from '../../services/billing/mercadoPagoIpn.js';
+import {
+  verifyAndDecodeAppleSsn,
+  applyAppleEntitlement,
+  buildAppleSsnAuditRow,
+  AppleSsnVerificationError,
+} from '../../services/billing/appleSsn.js';
 import {
   MP_CURRENCY_BY_COUNTRY,
   type LatamCurrency,
@@ -98,6 +126,7 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
     console.log('Google Play Developer API client initialized.');
   } catch (error) {
     console.error('Failed to initialize Google Play API client:', error);
+    sentryCapture(error, { endpoint: 'billing.googlePlayApiInit', tags: { phase: 'module-init' } });
   }
 }
 
@@ -266,6 +295,7 @@ billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
     res.json({ success: true, data });
   } catch (error: any) {
     logger.error('purchase_verification_failed', error, { uid });
+    sentryCapture(error, { endpoint: '/api/billing/verify', tags: { method: 'POST', uid } });
     res.status(500).json({
       error: 'Failed to verify purchase',
       // Avoid leaking Firebase/googleapis internals in production responses.
@@ -380,6 +410,24 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
       logger.warn('rtdn_stale_lock_stealing', { messageId });
     }
 
+    // Sprint 28 H18 — audit trail of every webhook delivery (success
+    // and replay). Best-effort: we never fail the request because of a
+    // failed audit write.
+    if (outcome.kind === 'duplicate') {
+      await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+        replay: true,
+        source: 'google-play',
+        txn: messageId,
+        previousResult: outcome.previousResult,
+      }).catch(() => {});
+    } else if (outcome.kind === 'fresh-success' || outcome.kind === 'stale-retry') {
+      await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+        source: 'google-play',
+        txn: messageId,
+        outcome: outcome.kind,
+      }).catch(() => {});
+    }
+
     // All four outcomes ACK 200 to suppress Pub/Sub redelivery — see
     // contract notes in idempotency.ts.
     return res.status(200).send('OK');
@@ -388,6 +436,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
     // work() exception. The staleness window will grant a future
     // redelivery a fresh attempt.
     logger.error('rtdn_webhook_failed', error);
+    sentryCapture(error, { endpoint: '/api/billing/webhook', tags: { method: 'POST', source: 'rtdn' } });
     return res.status(500).send('Webhook processing failed');
   }
 });
@@ -509,6 +558,7 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
         status = 'awaiting-payment';
       } catch (err) {
         logger.error('webpay_create_failed', err, { invoiceId: invoice.id });
+        sentryCapture(err, { endpoint: 'billing.checkout.webpay', tags: { invoiceId: invoice.id } });
       }
     } else if (body.paymentMethod === 'stripe' && stripeAdapter.isConfigured()) {
       try {
@@ -529,6 +579,7 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
         status = 'awaiting-payment';
       } catch (err) {
         logger.error('stripe_create_failed', err, { invoiceId: invoice.id });
+        sentryCapture(err, { endpoint: 'billing.checkout.stripe', tags: { invoiceId: invoice.id } });
       }
     } else if (body.paymentMethod === 'manual-transfer') {
       // No external provider — admin marks paid via /mark-paid endpoint.
@@ -544,6 +595,7 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
     res.json(response);
   } catch (error: any) {
     logger.error('billing_checkout_failed', error, { uid: callerUid });
+    sentryCapture(error, { endpoint: '/api/billing/checkout', tags: { method: 'POST', uid: callerUid } });
     res.status(500).json({
       error: 'Checkout failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -608,6 +660,7 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
     res.json({ success: true });
   } catch (error: any) {
     logger.error('billing_mark_paid_failed', error, { uid: callerUid, invoiceId });
+    sentryCapture(error, { endpoint: '/api/billing/invoice/:id/mark-paid', tags: { method: 'POST', uid: callerUid, invoiceId } });
     res.status(500).json({
       error: 'Mark-paid failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -691,6 +744,7 @@ billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (re
     return res.json(safe);
   } catch (error: any) {
     logger.error('billing_invoice_status_failed', error, { uid: callerUid, invoiceId });
+    sentryCapture(error, { endpoint: '/api/billing/invoice/:id', tags: { method: 'GET', uid: callerUid, invoiceId } });
     return res.status(500).json({
       error: 'Invoice status read failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -791,6 +845,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
       });
     } catch (err) {
       logger.error('mercadopago_create_failed', err, { invoiceId, country });
+      sentryCapture(err, { endpoint: 'billing.checkout.mercadopago', tags: { invoiceId, country } });
       if (err instanceof MercadoPagoAdapterError) {
         return res.status(502).json({ error: 'MercadoPago preference creation failed' });
       }
@@ -858,6 +913,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
     });
   } catch (error: any) {
     logger.error('billing_mercadopago_checkout_failed', error, { uid: callerUid });
+    sentryCapture(error, { endpoint: '/api/billing/checkout/mercadopago', tags: { method: 'POST', uid: callerUid } });
     return res.status(500).json({
       error: 'MercadoPago checkout failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -929,11 +985,33 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 
   try {
     const result = await processMercadoPagoIpn(req.body ?? {});
+    const paymentId = req.body?.data?.id;
+    // Sprint 28 H18 — audit success and replay for MP webhooks.
+    if (result.idempotencyKind === 'duplicate') {
+      await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+        replay: true,
+        source: 'mercadopago',
+        txn: paymentId ?? null,
+        invoiceId: result.invoiceId || null,
+      }).catch(() => {});
+    } else if (
+      result.idempotencyKind === 'fresh-success' ||
+      result.idempotencyKind === 'stale-retry'
+    ) {
+      await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+        source: 'mercadopago',
+        txn: paymentId ?? null,
+        invoiceId: result.invoiceId || null,
+        outcome: result.outcome,
+        idempotencyKind: result.idempotencyKind,
+      }).catch(() => {});
+    }
     return res.status(200).json({ ok: true, ...result });
   } catch (err) {
     logger.error('mp_ipn_processing_failed', err as Error, {
       paymentId: req.body?.data?.id,
     });
+    sentryCapture(err, { endpoint: '/api/billing/webhook/mercadopago', tags: { method: 'POST', paymentId: req.body?.data?.id ?? null } });
     return res.status(500).send('IPN processing failed');
   }
 });
@@ -1029,6 +1107,14 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
           outcome: histogramOutcomeFor(lock.outcome),
           latencyMs: elapsed(),
         });
+        // Sprint 28 H18 — audit webhook replay for Webpay returns.
+        await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+          replay: true,
+          source: 'webpay',
+          txn: tokenWs,
+          invoiceId: lock.invoiceId ?? null,
+          previousOutcome: lock.outcome,
+        }).catch(() => {});
         return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
       }
       // In-flight from another worker. Mirror RTDN's "ack and let UI handle
@@ -1085,6 +1171,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         }
       } catch (subErr) {
         logger.error('webpay_subscription_update_failed', subErr as Error, { invoiceId });
+        sentryCapture(subErr, { endpoint: 'billing.webpay.subscriptionUpdate', tags: { invoiceId } });
       }
 
       await db.collection('audit_logs').add({
@@ -1154,6 +1241,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
     // 'in_progress' allows the staleness window to grant a future
     // redelivery a fresh attempt — same approach as the RTDN handler.
     logger.error('webpay_return_failed', error, { tokenWs });
+    sentryCapture(error, { endpoint: '/billing/webpay/return', tags: { method: 'GET' } });
     recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
     return res.redirect(`/pricing/failed?error=webpay`);
   }
@@ -1292,9 +1380,30 @@ billingApiRouter.post(
         logger.warn('khipu_ipn_stale_lock_stealing', { dedupeKey });
       }
 
+      // Sprint 28 H18 — audit replay vs success for Khipu webhooks.
+      if (outcome.kind === 'duplicate') {
+        await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+          replay: true,
+          source: 'khipu',
+          txn: dedupeKey,
+          paymentId,
+        }).catch(() => {});
+      } else if (
+        outcome.kind === 'fresh-success' ||
+        outcome.kind === 'stale-retry'
+      ) {
+        await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+          source: 'khipu',
+          txn: dedupeKey,
+          paymentId,
+          outcome: outcome.kind,
+        }).catch(() => {});
+      }
+
       return res.status(200).json({ received: true });
     } catch (err) {
       logger.error('khipu_ipn_failed', err, { dedupeKey, paymentId });
+      sentryCapture(err, { endpoint: '/api/billing/khipu/webhook', tags: { method: 'POST', paymentId: paymentId ?? null } });
       // 500 keeps the IPN retry loop alive on the Khipu side; the
       // staleness window will grant the next redelivery a fresh attempt.
       return res.status(500).json({ error: 'ipn_processing_failed' });
@@ -1380,6 +1489,7 @@ billingApiRouter.post(
       logger.error('iap_validate_receipt_failed', err, {
         provider: 'google-play',
       });
+      sentryCapture(err, { endpoint: '/api/billing/google-play/validate-receipt', tags: { method: 'POST', provider: 'google-play' } });
       return res.status(500).json({ error: 'iap_receipt_log_failed' });
     }
   },
@@ -1434,7 +1544,129 @@ billingApiRouter.post(
       logger.error('iap_validate_receipt_failed', err, {
         provider: 'app-store',
       });
+      sentryCapture(err, { endpoint: '/api/billing/app-store/validate-receipt', tags: { method: 'POST', provider: 'app-store' } });
       return res.status(500).json({ error: 'iap_receipt_log_failed' });
     }
   },
 );
+
+// ───────────────────────────────────────────────────────────────────────────
+// POST /api/billing/webhook/apple — App Store Server Notifications v2.
+//
+// Sprint 27 audit P0 fix H2 — closes the iOS entitlement gap. Apple
+// posts `{ signedPayload: "<JWS>" }`; we verify the JWS, decode the
+// nested transactionInfo / renewalInfo blobs, and dispatch to the
+// shared entitlement helper in services/billing/appleSsn.ts.
+//
+// Mirrors the Google Play RTDN handler at /api/billing/webhook above:
+//   • idempotent on Apple's `notificationUUID` via `processed_apple_ssn`
+//     (using the same `withIdempotency` lock-then-complete helper),
+//   • ALWAYS ACK 200 except when the JWS itself fails verification
+//     (401) — Apple retries on 5xx for ~24h; we suppress retries for
+//     anything we've already accepted by writing the lock doc,
+//   • writes `apple_ssn_attempts/{auto}` for every accepted
+//     notification with `verified_chain: false` (intermediate mode —
+//     see the file header in services/billing/appleSsn.ts for the
+//     follow-up to ship full Apple Root G3 chain verification).
+//
+// Why no shared-secret token like the RTDN handler? Apple SSN v2 is
+// authenticated via the JWS signature alone — Apple's docs explicitly
+// recommend AGAINST adding a query-string token because it ends up in
+// CDN logs. The cryptographic signature is the auth boundary.
+// ───────────────────────────────────────────────────────────────────────────
+// Sprint 28 Bucket B3 — Zod-gated payload before JWS verify.
+// Sprint 29 H17: legacy `typeof signedPayload !== 'string'` guard removed
+// — Zod schema is the single source of truth for shape.
+const appleWebhookSchema = z.object({
+  signedPayload: z.string().min(1),
+});
+billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req, res) => {
+  const { signedPayload } = req.body as { signedPayload: string };
+
+  let verifiedChain = false;
+  let payload;
+  try {
+    const verified = await verifyAndDecodeAppleSsn(signedPayload);
+    payload = verified.payload;
+    verifiedChain = verified.verifiedChain;
+  } catch (err) {
+    if (err instanceof AppleSsnVerificationError) {
+      // Auth failure — never ACK 200 on these. Apple WILL retry,
+      // but a forged-JWS replay in a tight loop would be a DoS we
+      // want to drop hard.
+      logger.warn('apple_ssn_verification_failed', { reason: err.message });
+      return res.status(401).json({ error: 'invalid_signature' });
+    }
+    logger.error('apple_ssn_verify_unexpected', err);
+    sentryCapture(err, { endpoint: '/api/billing/webhook/apple', tags: { method: 'POST', phase: 'verify' } });
+    return res.status(500).json({ error: 'verify_failed' });
+  }
+
+  const db = admin.firestore();
+
+  try {
+    const outcome = await withIdempotency(
+      db,
+      { collection: 'processed_apple_ssn', key: payload.notificationUUID },
+      async () => {
+        logger.info('apple_ssn_received', {
+          notificationType: payload.notificationType,
+          subtype: payload.subtype ?? null,
+          notificationUUID: payload.notificationUUID,
+          // Never log the inner JWTs or appAccountToken — both are
+          // bearer-equivalent material in the App Store Server API.
+        });
+
+        const result = await applyAppleEntitlement({
+          payload,
+          db: db as any,
+        });
+
+        await db
+          .collection('apple_ssn_attempts')
+          .add(buildAppleSsnAuditRow({ payload, result, verifiedChain }));
+
+        return { ok: true, action: result.action, userId: result.userId };
+      },
+    );
+
+    if (outcome.kind === 'in-flight') {
+      logger.info('apple_ssn_in_progress_skip', {
+        notificationUUID: payload.notificationUUID,
+      });
+    } else if (outcome.kind === 'stale-retry') {
+      logger.warn('apple_ssn_stale_lock_stealing', {
+        notificationUUID: payload.notificationUUID,
+      });
+    }
+
+    // Sprint 28 H18 — audit replay vs success for Apple SSN webhooks.
+    if (outcome.kind === 'duplicate') {
+      await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+        replay: true,
+        source: 'apple',
+        txn: payload.notificationUUID,
+        notificationType: payload.notificationType,
+      }).catch(() => {});
+    } else if (
+      outcome.kind === 'fresh-success' ||
+      outcome.kind === 'stale-retry'
+    ) {
+      await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+        source: 'apple',
+        txn: payload.notificationUUID,
+        notificationType: payload.notificationType,
+        outcome: outcome.kind,
+      }).catch(() => {});
+    }
+
+    // All four outcomes ACK 200 — see contract notes in idempotency.ts.
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    logger.error('apple_ssn_webhook_failed', error, {
+      notificationUUID: payload.notificationUUID,
+    });
+    sentryCapture(error, { endpoint: '/api/billing/webhook/apple', tags: { method: 'POST', notificationUUID: payload.notificationUUID } });
+    return res.status(500).json({ error: 'webhook_processing_failed' });
+  }
+});

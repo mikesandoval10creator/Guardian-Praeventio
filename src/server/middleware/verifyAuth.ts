@@ -26,6 +26,21 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 // Startup guard: prod + E2E_MODE simultaneously is a CONFIG ERROR.
 // Module-level throw means the server refuses to boot in this state, even
@@ -85,6 +100,7 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
     next();
   } catch (error) {
     console.error('Error verifying auth token:', error);
+    sentryCapture(error, { endpoint: req.url, tags: { method: req.method, middleware: 'verifyAuth' } });
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }
 };

@@ -1,5 +1,11 @@
 # Auditoría — Praeventio Guard
 
+> ⚠️ **HISTÓRICO (Sprint 31 RR · 2026-05-05)** — auditoría de 2026-04-27.
+> La auditoría vigente y el backlog vivo están en
+> [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md)
+> y [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md).
+> Conservado para trazabilidad.
+
 **Fecha:** 2026-04-27
 **Branch base:** `claude/setup-github-access-9rYY6` (incluye trabajo móvil pre-existente)
 **Alcance:** Revisión exhaustiva del repo + saneamiento aditivo (sin pisar el trabajo móvil que ya estaba en esta rama).

@@ -27,15 +27,26 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { zettelkastenWriteLimiter } from '../middleware/limiters.js';
+// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
+// Mounted as the FIRST barrier; the existing per-node `validateNode` helper
+// stays as a defense-in-depth guard until Sprint 29.
+import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing across the node-write batch.
 import { tracedAsync } from '../../services/observability/tracing.js';
+// Sprint 29 Bucket AA F-B — incident RAG service para /nl-query.
+import { generateEmbedding } from '../../services/ragService.js';
+import {
+  searchIncidents,
+  type IncidentRagDeps,
+} from '../../services/incidents/incidentRagService.js';
 
 const router = Router();
 
@@ -101,21 +112,56 @@ function validateNode(node: any, idx: number): ValidationOk | ValidationFail {
   return { ok: true };
 }
 
+// Sprint 28 Bucket B3 — minimal coarse-shape gate. Per-node validation
+// continues to live in `validateNode` below (richer error messages, kept
+// for backward compat). This schema only ensures `projectId` is present
+// and `nodes` is a bounded array of objects so the legacy validator can
+// safely iterate.
+const zettelkastenWriteSchema = z.object({
+  projectId: z.string().min(1).max(128),
+  nodes: z.array(z.object({
+    title: z.string().min(1).max(256),
+    content: z.string().max(8192).optional(),
+    description: z.string().min(1).max(4096),
+    type: z.string().min(1),
+    severity: z.string().min(1),
+    metadata: z.record(z.string(), z.unknown()),
+    connections: z.array(z.string().max(256)),
+    references: z.array(z.string().max(256)),
+    tags: z.array(z.string()).optional(),
+    idempotencyKey: z.string().min(1).max(256),
+  }).passthrough()).min(1).max(32),
+});
+
 router.post(
   '/nodes',
   verifyAuth,
   zettelkastenWriteLimiter,
+  validate(zettelkastenWriteSchema),
   async (req, res) => {
     const callerUid = (req as any).user.uid;
     const callerEmail: string | null = (req as any).user.email ?? null;
-    const { projectId, nodes } = req.body ?? {};
+    // Sprint 29 H17: shape gate (projectId/nodes typeof + length) removed —
+    // `zettelkastenWriteSchema` is the single source of truth. `validateNode`
+    // stays: it enforces the ID_REGEX on idempotencyKey and other per-node
+    // invariants the Zod schema's .passthrough() does not cover.
+    const { projectId, nodes } = req.body as {
+      projectId: string;
+      nodes: Array<{
+        title: string;
+        content?: string;
+        description: string;
+        type: string;
+        severity: string;
+        metadata: Record<string, unknown>;
+        connections: string[];
+        references: string[];
+        tags?: string[];
+        idempotencyKey: string;
+        [k: string]: unknown;
+      }>;
+    };
 
-    if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
-      return res.status(400).json({ error: 'Invalid projectId' });
-    }
-    if (!Array.isArray(nodes) || nodes.length === 0 || nodes.length > 32) {
-      return res.status(400).json({ error: 'nodes must be a non-empty array (≤32)' });
-    }
     for (let i = 0; i < nodes.length; i++) {
       const v: ValidationOk | ValidationFail = validateNode(nodes[i], i);
       if (v.ok === false) {
@@ -187,6 +233,59 @@ router.post(
       });
       return res.status(500).json({
         error: 'Zettelkasten node write failed',
+        details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+      });
+    }
+  },
+);
+
+// ─── Sprint 29 Bucket AA F-B — POST /api/zettelkasten/nl-query ──────────────
+//
+// Búsqueda en lenguaje natural sobre el histórico de incidentes del tenant
+// (scope = projectId). Reusa verifyAuth + assertProjectMember + Zod via
+// validate, igual que /nodes.
+
+const nlQuerySchema = z.object({
+  query: z.string().min(1).max(1024),
+  projectId: z.string().min(1).max(128),
+  topK: z.number().int().min(1).max(20).optional().default(5),
+});
+
+router.post(
+  '/nl-query',
+  verifyAuth,
+  validate(nlQuerySchema),
+  async (req, res) => {
+    const callerUid = (req as any).user?.uid;
+    if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
+
+    const { query, projectId, topK } = req.body as z.infer<typeof nlQuerySchema>;
+
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    try {
+      const deps: IncidentRagDeps = {
+        db: admin.firestore() as unknown as IncidentRagDeps['db'],
+        embed: generateEmbedding,
+        toVector: (vec) => admin.firestore.FieldValue.vector(vec),
+      };
+      const result = await searchIncidents(projectId, query, topK ?? 5, deps);
+      return res.json(result);
+    } catch (error: any) {
+      logger.error('zettelkasten_nl_query_failed', {
+        uid: callerUid,
+        projectId,
+        message: error?.message,
+      });
+      return res.status(500).json({
+        error: 'NL query failed',
         details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
       });
     }

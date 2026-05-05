@@ -109,9 +109,33 @@ vi.mock('../../contexts/ProjectContext', () => ({
   }),
 }));
 
+// Sprint 26 Bucket YY.1 — Site25DPanel ahora se envuelve con
+// <TwinAccessGuard>. En tests stub-eamos el guard para que renderice
+// directamente sus children (mock granted state). El test del guard real
+// vive en useTwinAccess.test.ts.
+vi.mock('./TwinAccessGuard', () => ({
+  TwinAccessGuard: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+}));
+
+vi.mock('../../contexts/FirebaseContext', () => ({
+  useFirebase: () => ({
+    user: {
+      uid: 'test-uid',
+      email: 'test@example.com',
+      emailVerified: true,
+    },
+  }),
+}));
+
 vi.mock('../../services/firebase', () => ({
   auth: { currentUser: { tenantId: 'tenant-x' } },
   db: {},
+  doc: vi.fn(),
+  getDoc: vi.fn(async () => ({
+    exists: () => true,
+    data: () => ({ members: ['test-uid'] }),
+  })),
   collection: vi.fn(),
   onSnapshot: vi.fn(() => () => {}),
   query: vi.fn(),
@@ -159,6 +183,25 @@ afterEach(() => {
 // MutationObserver-based `findAllByTestId` (will need @testing-library/dom
 // peer which already ships in PR #21). Component itself is rendered fine
 // in the live preview; this only affects test parity.
+describe('Site25DPanel — Bucket YY.1 wrap (TwinAccessGuard)', () => {
+  it('renders the inner panel when the guard mock returns children directly', () => {
+    // El TwinAccessGuard mockeado pasa-through children. Verifica que el
+    // inner panel monta y dibuja el GoogleMap stub (granted path).
+    const { container } = render(<Site25DPanel />);
+    const map = $one(container, '[data-testid="google-map"]');
+    expect(map).toBeTruthy();
+    expect(map.getAttribute('data-tilt')).toBe('45');
+  });
+
+  it('still propaga el subscribe callback al inner panel', () => {
+    render(<Site25DPanel />);
+    // El inner panel ejecuta `subscribeSiteGeometry` en el mount, lo que
+    // captura `lastSubscribeCb` para los tests legacy. Verifica que el
+    // wrap por TwinAccessGuard NO impide ese flujo.
+    expect(typeof lastSubscribeCb).toBe('function');
+  });
+});
+
 describe.skip('Site25DPanel (skipped — flaky CI mocks, see TODO)', () => {
   beforeEach(() => {
     universalState.windSpeed = 30;

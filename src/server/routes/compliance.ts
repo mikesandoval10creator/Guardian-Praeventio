@@ -18,7 +18,10 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
+import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import {
   recordConsent,
@@ -30,10 +33,15 @@ import {
   getProcessingActivities,
   ComplianceError,
   type ConsentPurpose,
-  type DataAccessRequestType,
   type LegalBasis,
   type MinimalComplianceDb,
 } from '../../services/compliance/ley19628.js';
+// Sprint 31 Bucket MM — multi-regime privacy compliance.
+import {
+  getActiveRegimes,
+  getMostStrictRegime,
+  strictestDeadlineDays,
+} from '../../services/privacy/registry.js';
 
 const VALID_PURPOSES: ConsentPurpose[] = [
   'core_service',
@@ -49,13 +57,6 @@ const VALID_LEGAL_BASES: LegalBasis[] = [
   'vital_interest',
   'public_task',
   'legitimate_interest',
-];
-
-const VALID_REQUEST_TYPES: DataAccessRequestType[] = [
-  'access',
-  'rectification',
-  'erasure',
-  'portability',
 ];
 
 function getDb(): MinimalComplianceDb {
@@ -159,25 +160,70 @@ router.get('/consent', verifyAuth, async (req, res) => {
 // Data-subject requests
 // ---------------------------------------------------------------------------
 
-router.post('/data-request', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid as string;
-  const { type, rectificationPayload } = req.body ?? {};
+// Sprint 28 Bucket B3 — Zod schema for the data-subject request endpoint.
+// The user-spec asked for `kind` + `targetUid` + `reason`; we map those to
+// the existing wire field names (`type` is the existing `kind` enum, and
+// `reason` lands in the rectificationPayload bag) so the contract stays
+// backward-compatible. Sprint 29 H17: legacy `VALID_REQUEST_TYPES.includes`
+// + `typeof rectificationPayload` guards removed — Zod enum + z.record are
+// the single source of truth.
+const dataRequestSchema = z.object({
+  type: z.enum(['access', 'rectification', 'erasure', 'portability']),
+  // Optional structured payload for rectification requests.
+  rectificationPayload: z.record(z.string(), z.unknown()).optional(),
+  // Optional human-readable reason — recorded in the audit row.
+  reason: z.string().max(1024).optional(),
+  // Optional admin-on-behalf-of target uid. Most subjects act on themselves
+  // (the auth uid), but DPO operations may target another uid.
+  targetUid: z.string().min(1).max(128).optional(),
+  // Sprint 31 Bucket MM — country of the data subject (ISO 3166-1 alpha-2)
+  // and optional data-residency override. Used to pick the strictest
+  // privacy regime deadline.
+  subjectCountry: z.string().min(2).max(8).optional(),
+  dataResidency: z.string().min(2).max(8).optional(),
+});
 
-  if (!VALID_REQUEST_TYPES.includes(type)) {
-    return res.status(400).json({ error: 'invalid_type' });
-  }
-  if (
-    rectificationPayload !== undefined &&
-    (typeof rectificationPayload !== 'object' || Array.isArray(rectificationPayload))
-  ) {
-    return res.status(400).json({ error: 'invalid_rectification_payload' });
+router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
+  const uid = (req as any).user.uid as string;
+  const { type, rectificationPayload, subjectCountry, dataResidency } =
+    req.body as {
+      type: 'access' | 'rectification' | 'erasure' | 'portability';
+      rectificationPayload?: Record<string, unknown>;
+      subjectCountry?: string;
+      dataResidency?: string;
+    };
+
+  // Sprint 31 Bucket MM — compute the strictest applicable deadline based
+  // on subject country + processing residency. Default to LGPD's 15-day
+  // floor when nothing is provided so we never silently downgrade.
+  const activeRegimes = getActiveRegimes({
+    country: subjectCountry,
+    dataResidency,
+  });
+  const appliedDeadline = strictestDeadlineDays(activeRegimes);
+  const strictest = getMostStrictRegime(activeRegimes);
+  if (appliedDeadline !== null) {
+    logger.info('compliance_data_request_deadline_applied', {
+      uid,
+      subjectCountry: subjectCountry ?? null,
+      dataResidency: dataResidency ?? null,
+      regimes: activeRegimes.map((r) => r.code),
+      appliedDeadlineDays: appliedDeadline,
+      strictestRegime: strictest?.code ?? null,
+    });
   }
 
   try {
     const request = await requestDataAccess(getDb(), uid, type, {
       rectificationPayload,
     });
-    res.status(201).json({ ok: true, request });
+    res.status(201).json({
+      ok: true,
+      request,
+      // Surfaced so the client can render "responderemos en N días".
+      deadlineDays: appliedDeadline,
+      regimes: activeRegimes.map((r) => r.code),
+    });
   } catch (err) {
     if (err instanceof ComplianceError) {
       return res.status(err.httpStatus).json({ error: err.code });

@@ -10,8 +10,8 @@ import {
 } from './tiers';
 
 describe('TIERS data integrity', () => {
-  it('contains exactly 10 tiers', () => {
-    expect(TIERS.length).toBe(10);
+  it('contains exactly 11 tiers (10 nacionales + global-titanio)', () => {
+    expect(TIERS.length).toBe(11);
   });
 
   it('exposes the canonical ids in order', () => {
@@ -26,6 +26,7 @@ describe('TIERS data integrity', () => {
       'empresarial',
       'corporativo',
       'ilimitado',
+      'global-titanio',
     ];
     expect(TIERS.map((t) => t.id)).toEqual(ids);
   });
@@ -193,6 +194,49 @@ describe('calculateMonthlyCost', () => {
   it('Ilimitado always returns base', () => {
     const r = calculateMonthlyCost('ilimitado', 50000, 1000);
     expect(r.total).toBe(5999990);
+  });
+
+  it('Global Titanio always returns base regardless of usage', () => {
+    const r = calculateMonthlyCost('global-titanio', 50000, 1000);
+    expect(r.total).toBe(949990);
+    expect(r.workerOverage).toBe(0);
+    expect(r.projectOverage).toBe(0);
+  });
+});
+
+// Sprint 31 OO — Tier Global Titanio (multi-jurisdicción).
+describe('Tier Global Titanio (Sprint 31 OO)', () => {
+  it('exists with USD 999 and CLP base 949990', () => {
+    const t = getTierById('global-titanio');
+    expect(t.usdRegular).toBe(999);
+    expect(t.clpRegular).toBe(949990);
+  });
+
+  it('has Infinity capacity for workers, projects and jurisdictions', () => {
+    const t = getTierById('global-titanio');
+    expect(t.trabajadoresMax).toBe(Infinity);
+    expect(t.proyectosMax).toBe(Infinity);
+    expect(t.jurisdictionsMax).toBe(Infinity);
+  });
+
+  it('declares dataResidency multi (vs latam single)', () => {
+    expect(getTierById('global-titanio').dataResidency).toBe('multi');
+  });
+
+  it('flags multiJurisdiction true so AI orchestrator activates Vertex globally', () => {
+    expect(getTierById('global-titanio').multiJurisdiction).toBe(true);
+  });
+
+  it('keeps Vertex Fine-Tuned workspace tier (premium parity)', () => {
+    expect(getTierById('global-titanio').workspaceTier).toBe('vertex-finetuned');
+  });
+
+  it('is treated as a premium tier (no overage; throws-or-base only)', () => {
+    // Premium tiers never produce overage entries. We assert by routing
+    // 100k workers through calculateMonthlyCost and checking the totals.
+    const r = calculateMonthlyCost('global-titanio', 100_000, 10_000);
+    expect(r.workerOverage + r.projectOverage).toBe(0);
+    expect(r.total).toBe(949990);
   });
 });
 

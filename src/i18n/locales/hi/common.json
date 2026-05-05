@@ -1,0 +1,44 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "आपकी सुरक्षा हमारी प्राथमिकता"
+  },
+  "nav": {
+    "dashboard": "होम",
+    "emergency": "आपातकाल",
+    "settings": "सेटिंग्स",
+    "logout": "लॉग आउट"
+  },
+  "auth": {
+    "login": "लॉग इन",
+    "logout": "लॉग आउट",
+    "login_with_google": "Google से लॉग इन करें",
+    "no_session": "कोई सक्रिय सत्र नहीं",
+    "session_expired": "सत्र समाप्त हो गया"
+  },
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "confirm": "पुष्टि करें",
+    "back": "वापस",
+    "retry": "पुनः प्रयास",
+    "error": "त्रुटि"
+  },
+  "emergency": {
+    "survival_title": "उत्तरजीविता मोड",
+    "survival_subtitle": "100% ऑफ़लाइन • हमेशा तैयार",
+    "survival_btn_sos": "वॉयस SOS",
+    "guide_first_aid_title": "प्राथमिक चिकित्सा",
+    "guide_fire_title": "आग / धुआं"
+  },
+  "errors": {
+    "something_went_wrong": "कुछ गलत हो गया",
+    "network": "नेटवर्क त्रुटि",
+    "permission": "अनुमति अस्वीकृत"
+  },
+  "items": {
+    "count": "{{count}} आइटम"
+  }
+}

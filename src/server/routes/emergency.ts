@@ -26,7 +26,9 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { validate } from '../middleware/validate.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -55,6 +57,66 @@ export const sosLimiter = rateLimit({
 });
 
 const SUPERVISOR_ROLES = new Set(['supervisor', 'gerente', 'prevencionista', 'admin']);
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint 27 P0 H7 — cross-collection FCM token cache.
+//
+// Background: `push.ts` writes registered tokens to `users/{uid}.fcmTokens`
+// (an array, via arrayUnion). The legacy SOS fan-out path read
+// `projects/{id}/members/{uid}.fcmToken` (singular). Nobody synchronized
+// the two, so `notified` was always 0 — the brigade's phones never rang.
+//
+// Fix (option 1 / single source of truth): for each project member,
+// resolve their tokens cross-collection from `users/{memberUid}.fcmTokens`
+// and union them with any legacy `members/{uid}.fcmToken` value still on
+// the member doc. Dedupe via Set before sending.
+//
+// Cache: TTL 5 min keyed by uid. SOS bursts (e.g. a brigade leader hitting
+// the button repeatedly during an active incident) shouldn't hammer
+// `users/*` reads. The cache is process-local — no Redis needed; pods
+// rotate often enough that staleness is bounded.
+// ────────────────────────────────────────────────────────────────────────
+
+const USER_TOKEN_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const userTokenCache = new Map<string, { tokens: string[]; expiresAt: number }>();
+
+/** Test-only: clear the in-process cache between cases. Not exported via
+ *  the default router export; tests `import { __clearUserTokenCache }`. */
+export function __clearUserTokenCache(): void {
+  userTokenCache.clear();
+}
+
+/**
+ * Read `users/{uid}.fcmTokens` (array) with a TTL cache. Returns `[]` when
+ * the doc doesn't exist or the field is missing/empty. Errors are swallowed
+ * to a `[]` return — a single user-doc read failing must never block the
+ * SOS fan-out.
+ */
+async function getUserTokensCached(
+  uid: string,
+  db: FirebaseFirestore.Firestore,
+): Promise<string[]> {
+  const now = Date.now();
+  const hit = userTokenCache.get(uid);
+  if (hit && hit.expiresAt > now) {
+    return hit.tokens;
+  }
+  let tokens: string[] = [];
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    if (snap.exists) {
+      const raw = (snap.data() as any)?.fcmTokens;
+      if (Array.isArray(raw)) {
+        tokens = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
+      }
+    }
+  } catch (err: any) {
+    logger.warn('sos_user_token_lookup_failed', { uid, message: err?.message });
+    tokens = [];
+  }
+  userTokenCache.set(uid, { tokens, expiresAt: now + USER_TOKEN_CACHE_TTL_MS });
+  return tokens;
+}
 
 function isFiniteNumber(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n);
@@ -90,18 +152,40 @@ export async function sendToProjectSupervisors(
   messaging: admin.messaging.Messaging,
 ): Promise<{ notified: number; failed: number; supervisorEmails: string[] }> {
   const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
-  const tokens: string[] = [];
+  const tokenSet = new Set<string>();
   const supervisorEmails: string[] = [];
+
+  // Sprint 27 P0 H7 — cross-collection lookup. The canonical token store
+  // is `users/{uid}.fcmTokens` (array, written by /api/push/register-token
+  // via arrayUnion). For each supervisor member of the project we union
+  // those tokens with any legacy `members/{uid}.fcmToken` (singular) that
+  // a not-yet-migrated installation may still carry. The Set deduplicates
+  // across both sources so a single device with a token in both locations
+  // is notified exactly once.
   for (const memberDoc of membersSnap.docs) {
     const data = memberDoc.data();
     if (!SUPERVISOR_ROLES.has(data?.role)) continue;
+
+    // Legacy fallback first — keeps installations that haven't migrated
+    // working until they do. The cache lookup below adds the canonical
+    // tokens on top.
     if (typeof data?.fcmToken === 'string' && data.fcmToken) {
-      tokens.push(data.fcmToken);
+      tokenSet.add(data.fcmToken);
     }
     if (typeof data?.email === 'string' && data.email) {
       supervisorEmails.push(data.email);
     }
+
+    // Canonical: read users/{memberUid}.fcmTokens (array) with TTL cache.
+    // memberDoc.id is the member uid in `projects/{id}/members/{uid}`.
+    const memberUid = memberDoc.id;
+    const userTokens = await getUserTokensCached(memberUid, db);
+    for (const tok of userTokens) {
+      tokenSet.add(tok);
+    }
   }
+
+  const tokens = Array.from(tokenSet);
   if (tokens.length === 0) {
     return { notified: 0, failed: 0, supervisorEmails };
   }
@@ -282,5 +366,90 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
     });
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// POST /api/emergency/notify-brigada — supervisor-initiated brigade
+// activation. Sprint 32 audit P0: previously inlined in server.ts:691 with
+// a bug regression of H7 (only read `members/{uid}.fcmToken` singular,
+// missing the canonical `users/{uid}.fcmTokens` array). Migrated here so
+// it reuses `sendToProjectSupervisors` (cross-collection lookup + cache).
+// Distinct from /sos: callable by supervisor/admin to notify the BRIGADE
+// of a project-wide event, regardless of who dispatched it.
+// ────────────────────────────────────────────────────────────────────────
+const NotifyBrigadaSchema = z.object({
+  projectId: z.string().min(1).max(128),
+  emergencyType: z.enum(['fall', 'sos', 'medical', 'fire', 'gas', 'collapse', 'other']),
+  message: z.string().max(500).optional(),
+});
+
+router.post(
+  '/notify-brigada',
+  verifyAuth,
+  validate(NotifyBrigadaSchema),
+  async (req, res) => {
+    const { projectId, emergencyType, message } = req.body as z.infer<
+      typeof NotifyBrigadaSchema
+    >;
+    const callerUid = (req as any).user.uid;
+    const callerEmail: string | null = (req as any).user.email ?? null;
+    const db = admin.firestore();
+
+    try {
+      // Membership gate: caller must belong to the project. Prevents a
+      // compromised token on tenant A from spamming tenant B brigades.
+      await assertProjectMember(callerUid, projectId, db);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    try {
+      const result = await sendToProjectSupervisors(
+        projectId,
+        {
+          title: `🚨 Emergencia: ${emergencyType}`,
+          body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
+          data: {
+            projectId,
+            emergencyType,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        db,
+        admin.messaging(),
+      );
+
+      // Audit trail — same shape as /sos so dashboards can union the streams.
+      await db.collection('audit_logs').add({
+        action: 'emergency.notify_brigada',
+        module: 'emergency',
+        details: {
+          projectId,
+          emergencyType,
+          notified: result.notified,
+          failed: result.failed,
+        },
+        userId: callerUid,
+        userEmail: callerEmail,
+        projectId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+
+      return res.json({ ok: true, notified: result.notified, failed: result.failed });
+    } catch (err: any) {
+      logger.error('notify_brigada_failed', {
+        uid: callerUid,
+        projectId,
+        emergencyType,
+        message: err?.message,
+      });
+      return res.status(500).json({ error: 'notify_brigada_failed' });
+    }
+  },
+);
 
 export default router;

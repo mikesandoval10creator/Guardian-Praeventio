@@ -14,6 +14,21 @@
 // NOT kill the timer.
 
 import type admin from 'firebase-admin';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 export const DEFAULT_HEALTH_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -45,12 +60,14 @@ export function setupHealthCheckInterval(
         (await loadDefaultSafetyEngine());
 
       for (const project of projects.docs) {
-        await performCheck(project.id).catch((e) =>
-          console.error(`Error in health check for ${project.id}:`, e),
-        );
+        await performCheck(project.id).catch((e) => {
+          console.error(`Error in health check for ${project.id}:`, e);
+          sentryCapture(e, { trigger: 'projectHealthCheck', tags: { projectId: project.id } });
+        });
       }
     } catch (error) {
       console.error('Error in background health checks:', error);
+      sentryCapture(error, { trigger: 'backgroundHealthChecks', tags: { phase: 'tick' } });
     }
   };
 

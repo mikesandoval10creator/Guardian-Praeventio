@@ -1,7 +1,36 @@
 import React, { useRef, useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
-import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
+import ForceGraph2D, { ForceGraphMethods, NodeObject, LinkObject } from 'react-force-graph-2d';
+import type { ForceGraphMethods as ForceGraphMethods3D } from 'react-force-graph-3d';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
 import { NodeType, RiskNode } from '../../types';
+import type {
+  ForceGraphPosition,
+  ForceGraphResponse,
+} from '../../workers/forceGraphWorker';
+
+/**
+ * Sprint 29 Bucket BB — H22 / H19.
+ *
+ * Local typed views over the data shapes react-force-graph hands us at
+ * runtime. The library declares `LinkObject.source` / `target` as
+ * `string | number | NodeObject` because d3 mutates string ids into
+ * node references during the simulation tick. Most of the graph logic
+ * here only needs the id, so we centralise the conversion in
+ * `linkEndpointId()` instead of sprinkling `(l.source as any).id`.
+ */
+type RFGNode = NodeObject<RiskNode & { name?: string; val?: number }>;
+
+function linkEndpointId(end: string | number | RFGNode | undefined): string {
+  if (end == null) return '';
+  if (typeof end === 'string') return end;
+  if (typeof end === 'number') return String(end);
+  return String((end as RFGNode).id ?? '');
+}
+
+/** Threshold above which we hand off layout to the Web Worker. */
+const WORKER_THRESHOLD = 200;
+/** Threshold above which we frustum-cull invisible nodes. */
+const VIRTUALIZATION_THRESHOLD = 1000;
 import {
   X,
   Maximize2,
@@ -68,8 +97,10 @@ interface KnowledgeGraphProps {
 
 export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {}) {
   const { nodes, getGraphData, loading } = useRiskEngine();
-  const graphRef = useRef<ForceGraphMethods>(null);
-  const graph3DRef = useRef<any>(null);
+  const graphRef = useRef<ForceGraphMethods<RiskNode, Record<string, unknown>>>(null);
+  // The 3D ref keeps `unknown` rather than `any` for the renderer
+  // surface; we only need cameraPosition / d3Force / renderer here.
+  const graph3DRef = useRef<ForceGraphMethods3D<RiskNode, Record<string, unknown>> | undefined>(undefined);
   const [selectedNode, setSelectedNode] = useState<RiskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [is3D, setIs3D] = useState(false);
@@ -135,9 +166,9 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
       const depth1 = new Set<string>();
       
       data.links.forEach(l => {
-        const sourceId = typeof l.source === 'string' ? l.source : (l.source as any).id;
-        const targetId = typeof l.target === 'string' ? l.target : (l.target as any).id;
-        
+        const sourceId = linkEndpointId(l.source as string | RFGNode);
+        const targetId = linkEndpointId(l.target as string | RFGNode);
+
         if (sourceId === selectedNode.id) depth1.add(targetId);
         if (targetId === selectedNode.id) depth1.add(sourceId);
       });
@@ -145,9 +176,9 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
       depth1.forEach(id => neighbors.add(id));
 
       data.links.forEach(l => {
-        const sourceId = typeof l.source === 'string' ? l.source : (l.source as any).id;
-        const targetId = typeof l.target === 'string' ? l.target : (l.target as any).id;
-        
+        const sourceId = linkEndpointId(l.source as string | RFGNode);
+        const targetId = linkEndpointId(l.target as string | RFGNode);
+
         if (depth1.has(sourceId)) neighbors.add(targetId);
         if (depth1.has(targetId)) neighbors.add(sourceId);
       });
@@ -156,8 +187,8 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     } else if (filter === 'orphan') {
       const connectedNodeIds = new Set<string>();
       data.links.forEach(l => {
-        connectedNodeIds.add(typeof l.source === 'string' ? l.source : (l.source as any).id);
-        connectedNodeIds.add(typeof l.target === 'string' ? l.target : (l.target as any).id);
+        connectedNodeIds.add(linkEndpointId(l.source as string | RFGNode));
+        connectedNodeIds.add(linkEndpointId(l.target as string | RFGNode));
       });
       filteredNodes = filteredNodes.filter(n => !connectedNodeIds.has(n.id));
     } else if (filter !== 'all') {
@@ -174,9 +205,9 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     }
     
     const nodeIds = new Set(filteredNodes.map(n => n.id));
-    const filteredLinks = data.links.filter(l => 
-      nodeIds.has(typeof l.source === 'string' ? l.source : (l.source as any).id) && 
-      nodeIds.has(typeof l.target === 'string' ? l.target : (l.target as any).id)
+    const filteredLinks = data.links.filter(l =>
+      nodeIds.has(linkEndpointId(l.source as string | RFGNode)) &&
+      nodeIds.has(linkEndpointId(l.target as string | RFGNode))
     );
 
     return { nodes: filteredNodes, links: filteredLinks };
@@ -196,6 +227,119 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     }, 3000);
     return () => clearTimeout(timer);
   }, [graphData]);
+
+  // ── Sprint 29 Bucket BB H22 ─ Web Worker layout precompute.
+  //
+  // For graphs above WORKER_THRESHOLD nodes we hand off the initial
+  // d3-force layout to a dedicated Worker and then seed the
+  // react-force-graph nodes with the resulting `x`/`y` (and `z`)
+  // coordinates. Below the threshold we do nothing — the inline
+  // simulation that the library runs is fast enough.
+  //
+  // The worker is created lazily on the first heavy graph and reused
+  // across re-renders; we tear it down on unmount. We don't recreate
+  // it per `graphData` change because that would race the react-force-
+  // graph mount and we'd lose the seed positions.
+  const workerRef = useRef<Worker | null>(null);
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const total = graphData.nodes.length;
+    if (total < WORKER_THRESHOLD) return;
+    if (typeof Worker === 'undefined') return;
+
+    let cancelled = false;
+    let worker = workerRef.current;
+    try {
+      if (!worker) {
+        worker = new Worker(
+          new URL('../../workers/forceGraphWorker.ts', import.meta.url),
+          { type: 'module' },
+        );
+        workerRef.current = worker;
+      }
+    } catch (e) {
+      // Worker construction can fail in test/jsdom; we silently
+      // fall back to the inline simulation.
+      logger.warn('forceGraphWorker unavailable, falling back inline', e);
+      return;
+    }
+
+    const onMessage = (event: MessageEvent<ForceGraphResponse>) => {
+      if (cancelled) return;
+      const data = event.data;
+      if (!data || data.type !== 'simulate.done') return;
+      const byId = new Map<string, ForceGraphPosition>();
+      for (const p of data.payload.positions) byId.set(p.id, p);
+      // Mutate the runtime nodes in place — react-force-graph reads
+      // x/y/z directly off the same objects we passed in.
+      for (const n of graphData.nodes as RFGNode[]) {
+        const seed = byId.get(String(n.id ?? ''));
+        if (!seed) continue;
+        if (typeof n.x !== 'number') n.x = seed.x;
+        if (typeof n.y !== 'number') n.y = seed.y;
+        if (is3D && typeof (n as { z?: number }).z !== 'number') {
+          (n as { z?: number }).z = seed.z ?? 0;
+        }
+      }
+    };
+    worker.addEventListener('message', onMessage);
+
+    worker.postMessage({
+      type: 'simulate',
+      payload: {
+        nodes: (graphData.nodes as RFGNode[]).map((n) => ({ id: String(n.id ?? '') })),
+        links: graphData.links.map((l) => ({
+          source: linkEndpointId(l.source as string | RFGNode),
+          target: linkEndpointId(l.target as string | RFGNode),
+        })),
+        iterations: 80,
+        dim: is3D ? 3 : 2,
+      },
+    });
+
+    return () => {
+      cancelled = true;
+      worker?.removeEventListener('message', onMessage);
+    };
+  }, [graphData, is3D]);
+
+  // ── Sprint 29 Bucket BB H22 ─ frustum culling.
+  //
+  // For graphs above VIRTUALIZATION_THRESHOLD nodes, we track the 2D
+  // viewport bounding box and hide nodes that fall outside it. The 2D
+  // canvas is opt-in (the 3D renderer already depth-culls in the GPU).
+  // We update on `onZoom` / `onZoomEnd` events that the library fires.
+  const [viewport2D, setViewport2D] = useState<{ minX: number; maxX: number; minY: number; maxY: number } | null>(null);
+  const renderedGraphData = useMemo(() => {
+    if (graphData.nodes.length < VIRTUALIZATION_THRESHOLD) return graphData;
+    if (!viewport2D) return graphData;
+    // Inflate the viewport by 20% so panning doesn't pop nodes in.
+    const dx = (viewport2D.maxX - viewport2D.minX) * 0.2;
+    const dy = (viewport2D.maxY - viewport2D.minY) * 0.2;
+    const minX = viewport2D.minX - dx;
+    const maxX = viewport2D.maxX + dx;
+    const minY = viewport2D.minY - dy;
+    const maxY = viewport2D.maxY + dy;
+    const visible = (graphData.nodes as RFGNode[]).filter((n) => {
+      // Coordinates may not be ready yet — keep node visible until
+      // d3 attaches them rather than dropping it off-screen.
+      if (typeof n.x !== 'number' || typeof n.y !== 'number') return true;
+      return n.x >= minX && n.x <= maxX && n.y >= minY && n.y <= maxY;
+    });
+    const visibleIds = new Set(visible.map((n) => String(n.id ?? '')));
+    const links = graphData.links.filter(
+      (l) =>
+        visibleIds.has(linkEndpointId(l.source as string | RFGNode)) &&
+        visibleIds.has(linkEndpointId(l.target as string | RFGNode)),
+    );
+    return { nodes: visible, links };
+  }, [graphData, viewport2D]);
 
   const handleSimulatePropagation = async (node: RiskNode) => {
     if (!isOnline) return;
@@ -243,9 +387,9 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     const data = getGraphData();
     // Simple 1-level propagation for demo while loading
     data.links.forEach(link => {
-      const sourceId = typeof link.source === 'string' ? link.source : (link.source as any).id;
-      const targetId = typeof link.target === 'string' ? link.target : (link.target as any).id;
-      
+      const sourceId = linkEndpointId(link.source as string | RFGNode);
+      const targetId = linkEndpointId(link.target as string | RFGNode);
+
       if (sourceId === propagatingNode) affected.add(targetId);
       if (targetId === propagatingNode) affected.add(sourceId);
     });
@@ -262,14 +406,14 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     try {
       const data = getGraphData();
       // Gather context from connected nodes
-      const connectedLinks = data.links.filter(l => 
-        (typeof l.source === 'object' ? (l.source as any).id : l.source) === node.id || 
-        (typeof l.target === 'object' ? (l.target as any).id : l.target) === node.id
+      const connectedLinks = data.links.filter(l =>
+        linkEndpointId(l.source as string | RFGNode) === node.id ||
+        linkEndpointId(l.target as string | RFGNode) === node.id
       );
-      
+
       const connectedNodeIds = new Set(connectedLinks.flatMap(l => [
-        typeof l.source === 'object' ? (l.source as any).id : l.source,
-        typeof l.target === 'object' ? (l.target as any).id : l.target
+        linkEndpointId(l.source as string | RFGNode),
+        linkEndpointId(l.target as string | RFGNode),
       ]));
       
       const contextNodes = data.nodes.filter(n => connectedNodeIds.has(n.id) && n.id !== node.id);
@@ -325,20 +469,22 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     return getNodeColor(type);
   };
 
-  const handleNodeClick = useCallback((node: any) => {
-    setSelectedNode(node);
+  const handleNodeClick = useCallback((node: RFGNode | RiskNode) => {
+    const n = node as RFGNode & { z?: number };
+    setSelectedNode(n as RiskNode);
     if (is3D && graph3DRef.current) {
       // Aim at node from outside it
       const distance = 100;
-      const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+      const x = n.x ?? 0, y = n.y ?? 0, z = n.z ?? 0;
+      const distRatio = 1 + distance / Math.hypot(x, y, z);
 
       graph3DRef.current.cameraPosition(
-        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio }, // new position
-        node, // lookAt ({ x, y, z })
+        { x: x * distRatio, y: y * distRatio, z: z * distRatio }, // new position
+        { x, y, z }, // lookAt ({ x, y, z })
         3000  // ms transition duration
       );
     } else if (!is3D && graphRef.current) {
-      graphRef.current.centerAt(node.x, node.y, 1000);
+      graphRef.current.centerAt(n.x, n.y, 1000);
       graphRef.current.zoom(2, 1000);
     }
   }, [is3D]);
@@ -370,13 +516,13 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
     // re-pan loop if the parent re-renders.
     if (selectedNode?.id === controlledSelectedId) return;
 
-    const target = graphData.nodes.find((n: any) => n.id === controlledSelectedId);
+    const target = graphData.nodes.find((n) => n.id === controlledSelectedId) as RFGNode | undefined;
     if (!target) return;
 
     setSelectedNode(target as RiskNode);
 
-    if (!is3D && graphRef.current && typeof (target as any).x === 'number' && typeof (target as any).y === 'number') {
-      graphRef.current.centerAt((target as any).x, (target as any).y, 1000);
+    if (!is3D && graphRef.current && typeof target.x === 'number' && typeof target.y === 'number') {
+      graphRef.current.centerAt(target.x, target.y, 1000);
       graphRef.current.zoom(2, 1000);
     }
     // Note: depend on `graphData.nodes.length` (not the array) so we
@@ -476,16 +622,16 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
           ref={graph3DRef}
           graphData={graphData}
           nodeLabel="title"
-          nodeColor={node => getNodeColorWithCritical((node as any).type, node as RiskNode)}
+          nodeColor={node => getNodeColorWithCritical((node as RFGNode).type, node as RiskNode)}
           nodeRelSize={6}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           linkColor={() => 'rgba(255, 255, 255, 0.1)'}
           onNodeClick={handleNodeClick}
           backgroundColor={isZenMode ? '#000000' : '#09090b'}
-          nodeThreeObject={(node: any) => {
-            const color = getNodeColorWithCritical(node.type, node);
-            const isAffected = affectedNodes.has(node.id);
+          nodeThreeObject={(node: RFGNode) => {
+            const color = getNodeColorWithCritical(node.type, node as RiskNode);
+            const isAffected = affectedNodes.has(String(node.id ?? ''));
             
             // Get or create geometry
             const geoKey = isAffected ? 'affected' : 'normal';
@@ -548,44 +694,67 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
       ) : (
         <ForceGraph2D
           ref={graphRef}
-          graphData={graphData}
+          graphData={renderedGraphData}
           nodeLabel="title"
-          nodeColor={node => getNodeColorWithCritical((node as any).type, node as RiskNode)}
+          nodeColor={node => getNodeColorWithCritical((node as RFGNode).type, node as RiskNode)}
           nodeRelSize={6}
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           linkColor={() => 'rgba(255, 255, 255, 0.1)'}
           onNodeClick={handleNodeClick}
+          // Sprint 29 Bucket BB H22 — frustum culling input. We only
+          // care about the result above VIRTUALIZATION_THRESHOLD;
+          // the no-op below the threshold is cheap.
+          onZoomEnd={() => {
+            if (graphData.nodes.length < VIRTUALIZATION_THRESHOLD) return;
+            const ref = graphRef.current;
+            if (!ref) return;
+            try {
+              const tl = ref.screen2GraphCoords(0, 0);
+              const w = (typeof window !== 'undefined' ? window.innerWidth : 1024);
+              const h = (typeof window !== 'undefined' ? window.innerHeight : 768);
+              const br = ref.screen2GraphCoords(w, h);
+              setViewport2D({
+                minX: Math.min(tl.x, br.x),
+                maxX: Math.max(tl.x, br.x),
+                minY: Math.min(tl.y, br.y),
+                maxY: Math.max(tl.y, br.y),
+              });
+            } catch { /* screen2GraphCoords is unstable during mount */ }
+          }}
           backgroundColor={isZenMode ? '#000000' : '#09090b'}
-          nodeCanvasObject={(node: any, ctx, globalScale) => {
+          nodeCanvasObject={(node: RFGNode, ctx, globalScale) => {
             const label = node.title;
             const fontSize = 12 / globalScale;
-            const color = getNodeColorWithCritical(node.type, node);
-            
+            const color = getNodeColorWithCritical(node.type, node as RiskNode);
+            const nx = node.x ?? 0;
+            const ny = node.y ?? 0;
+            const nid = String(node.id ?? '');
+
             // Draw node glow
-            const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, 10);
+            const gradient = ctx.createRadialGradient(nx, ny, 0, nx, ny, 10);
             gradient.addColorStop(0, `${color}44`);
             gradient.addColorStop(1, 'transparent');
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(node.x, node.y, 10, 0, 2 * Math.PI);
+            ctx.arc(nx, ny, 10, 0, 2 * Math.PI);
             ctx.fill();
 
             // Draw node circle
             ctx.beginPath();
-            ctx.arc(node.x, node.y, 4, 0, 2 * Math.PI, false);
+            ctx.arc(nx, ny, 4, 0, 2 * Math.PI, false);
             ctx.fillStyle = color;
             ctx.fill();
 
             // Propagation effect
-            if (affectedNodes.has(node.id)) {
+            if (affectedNodes.has(nid)) {
               ctx.beginPath();
-              ctx.arc(node.x, node.y, 4 * (1.5 + Math.sin(Date.now() / 200) * 0.2), 0, 2 * Math.PI, false);
+              ctx.arc(nx, ny, 4 * (1.5 + Math.sin(Date.now() / 200) * 0.2), 0, 2 * Math.PI, false);
               ctx.strokeStyle = color;
               ctx.lineWidth = 0.5 / globalScale;
               ctx.stroke();
             }
-            
+
             // Draw border
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             ctx.lineWidth = 1 / globalScale;
@@ -596,14 +765,14 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
               ctx.font = `${fontSize}px Inter`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              
+
               // Text shadow for readability
               ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
               ctx.shadowBlur = 4;
-              
+
               ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-              ctx.fillText(label, node.x, node.y + 12);
-              
+              ctx.fillText(label, nx, ny + 12);
+
               // Reset shadow
               ctx.shadowBlur = 0;
             }

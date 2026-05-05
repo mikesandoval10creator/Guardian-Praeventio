@@ -22,11 +22,44 @@ interface SosTestDeps {
   auth: FakeAuth;
   fcmSend: (input: any) => Promise<any>;
   forceFirestoreThrow?: boolean;
+  /**
+   * Sprint 27 P0 H7 — counter incremented every time the mirror reads
+   * `users/{uid}` to resolve `fcmTokens`. Used by the cache test to assert
+   * that two SOS calls in quick succession only hit `users/*` once per uid.
+   */
+  userReadCounter?: { count: number };
 }
 
 function buildSosApp(deps: SosTestDeps): Express {
   const app = express();
   app.use(express.json({ limit: '64kb' }));
+
+  // Sprint 27 P0 H7 — mirror of the in-process token cache from
+  // src/server/routes/emergency.ts. TTL 5 min keyed by uid, populated from
+  // `users/{uid}.fcmTokens`. Per-app instance ⇒ test isolation is automatic
+  // (each test builds a fresh app).
+  const USER_TOKEN_CACHE_TTL_MS = 5 * 60_000;
+  const userTokenCache = new Map<string, { tokens: string[]; expiresAt: number }>();
+  async function getUserTokensCached(uid: string): Promise<string[]> {
+    const now = Date.now();
+    const hit = userTokenCache.get(uid);
+    if (hit && hit.expiresAt > now) return hit.tokens;
+    if (deps.userReadCounter) deps.userReadCounter.count++;
+    let tokens: string[] = [];
+    try {
+      const snap = await deps.firestore.collection('users').doc(uid).get();
+      if (snap.exists) {
+        const raw = (snap.data() as any)?.fcmTokens;
+        if (Array.isArray(raw)) {
+          tokens = raw.filter((t: any) => typeof t === 'string' && t.length > 0);
+        }
+      }
+    } catch {
+      tokens = [];
+    }
+    userTokenCache.set(uid, { tokens, expiresAt: now + USER_TOKEN_CACHE_TTL_MS });
+    return tokens;
+  }
 
   const verifyAuth = async (req: any, res: any, next: any): Promise<void> => {
     const authHeader = req.headers.authorization;
@@ -118,20 +151,41 @@ function buildSosApp(deps: SosTestDeps): Express {
       projectId,
     });
 
-    // Fan out FCM. Read members of project (separate sub-collection in
-    // production; here we read from `projectMembers` keyed by projectId).
+    // Fan out FCM. Sprint 27 P0 H7 — cross-collection token lookup. Mirror
+    // of the production logic in emergency.ts:
+    //   1. Iterate supervisor members of the project (here: `projectMembers`
+    //      filtered by `projectId`; in prod: `projects/{id}/members`).
+    //   2. For each member, union (a) legacy `members/{uid}.fcmToken`
+    //      (singular) with (b) canonical `users/{uid}.fcmTokens` (array,
+    //      TTL-cached).
+    //   3. Dedupe via Set so a device with the same token in both places is
+    //      notified once.
+    //
+    // Convention for tests: the `projectMembers` doc carries a `uid` field
+    // that names the user — the mirror reads `users/{uid}.fcmTokens` from
+    // it. (In production the doc ID itself is the uid because it lives at
+    // `projects/{id}/members/{uid}`.)
     const membersQ = await deps.firestore
       .collection('projectMembers')
       .where('projectId', '==', projectId)
       .get();
-    const tokens: string[] = [];
     const SUPER = new Set(['supervisor', 'gerente', 'prevencionista', 'admin']);
+    const tokenSet = new Set<string>();
     for (const d of membersQ.docs) {
       const mdata = d.data();
-      if (SUPER.has(mdata.role) && typeof mdata.fcmToken === 'string' && mdata.fcmToken) {
-        tokens.push(mdata.fcmToken);
+      if (!SUPER.has(mdata.role)) continue;
+      // Legacy fallback.
+      if (typeof mdata.fcmToken === 'string' && mdata.fcmToken) {
+        tokenSet.add(mdata.fcmToken);
+      }
+      // Canonical: users/{uid}.fcmTokens via cache.
+      const memberUid: string | undefined = mdata.uid;
+      if (typeof memberUid === 'string' && memberUid.length > 0) {
+        const userTokens = await getUserTokensCached(memberUid);
+        for (const tok of userTokens) tokenSet.add(tok);
       }
     }
+    const tokens = Array.from(tokenSet);
     let notified = 0;
     if (tokens.length > 0) {
       try {
@@ -146,7 +200,12 @@ function buildSosApp(deps: SosTestDeps): Express {
       }
     }
 
-    res.json({ ok: true, alertId: alertRef.id, notified });
+    res.json({
+      ok: true,
+      alertId: alertRef.id,
+      notified,
+      reason: tokens.length === 0 ? 'no_registered_tokens' : undefined,
+    });
   });
 
   return app;
@@ -297,6 +356,108 @@ describe('/api/emergency/sos', () => {
       k.startsWith('tenants/p2/emergency_alerts/'),
     );
     expect(alertKeys.length).toBe(1);
+  });
+
+  // ─── Sprint 27 P0 H7 — cross-collection FCM token lookup ────────────
+  //
+  // Background: push.ts writes to users/{uid}.fcmTokens (array, arrayUnion).
+  // The legacy emergency.ts read members/{uid}.fcmToken (singular). Nobody
+  // synchronized the two, so brigade phones never rang. These tests pin
+  // the new behavior: union both sources, dedupe, cache user reads 5 min.
+
+  it('H7 happy path: 3 members with 1-2 tokens each → multicast with dedupe', async () => {
+    const app = buildSosApp({ firestore, auth, fcmSend });
+    firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
+    // Three supervisors, no legacy fcmToken on the member doc. Tokens come
+    // exclusively from users/{uid}.fcmTokens.
+    firestore.store.set('projectMembers/m1', { projectId: 'p1', role: 'supervisor', uid: 'sup-A' });
+    firestore.store.set('projectMembers/m2', { projectId: 'p1', role: 'gerente', uid: 'sup-B' });
+    firestore.store.set('projectMembers/m3', { projectId: 'p1', role: 'prevencionista', uid: 'sup-C' });
+    firestore.store.set('users/sup-A', { fcmTokens: ['t-A-phone', 't-A-tablet'] });
+    firestore.store.set('users/sup-B', { fcmTokens: ['t-B-phone'] });
+    // Duplicate token across two users — must dedupe to ONE entry.
+    firestore.store.set('users/sup-C', { fcmTokens: ['t-C-phone', 't-A-phone'] });
+
+    const r = await request(app)
+      .post('/api/emergency/sos')
+      .set('Authorization', 'Bearer test:u1:u1@t.com')
+      .send({ type: 'sos', projectId: 'p1' });
+    expect(r.status).toBe(200);
+    // 4 unique tokens after dedupe: t-A-phone, t-A-tablet, t-B-phone, t-C-phone.
+    expect(r.body.notified).toBe(4);
+    expect(fcmSend).toHaveBeenCalledTimes(1);
+    const sentTokens: string[] = fcmSend.mock.calls[0][0].tokens;
+    expect(sentTokens.sort()).toEqual(['t-A-phone', 't-A-tablet', 't-B-phone', 't-C-phone']);
+  });
+
+  it('H7 legacy fallback: member with no users doc but legacy fcmToken still notified', async () => {
+    const app = buildSosApp({ firestore, auth, fcmSend });
+    firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
+    // sup-legacy has the OLD shape: fcmToken (singular) on member doc, no
+    // users/{uid} document at all. This is the migration-in-flight case.
+    firestore.store.set('projectMembers/m1', {
+      projectId: 'p1',
+      role: 'supervisor',
+      uid: 'sup-legacy',
+      fcmToken: 'legacy-tok',
+    });
+    // No users/sup-legacy doc seeded.
+
+    const r = await request(app)
+      .post('/api/emergency/sos')
+      .set('Authorization', 'Bearer test:u1:u1@t.com')
+      .send({ type: 'sos', projectId: 'p1' });
+    expect(r.status).toBe(200);
+    expect(r.body.notified).toBe(1);
+    expect(fcmSend.mock.calls[0][0].tokens).toEqual(['legacy-tok']);
+  });
+
+  it('H7 empty: members exist but no tokens anywhere → notified: 0 with reason', async () => {
+    const app = buildSosApp({ firestore, auth, fcmSend });
+    firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
+    firestore.store.set('projectMembers/m1', { projectId: 'p1', role: 'supervisor', uid: 'sup-A' });
+    firestore.store.set('projectMembers/m2', { projectId: 'p1', role: 'gerente', uid: 'sup-B' });
+    // users docs exist but with empty token arrays — uninstalled apps,
+    // tokens pruned by client.
+    firestore.store.set('users/sup-A', { fcmTokens: [] });
+    firestore.store.set('users/sup-B', {});
+
+    const r = await request(app)
+      .post('/api/emergency/sos')
+      .set('Authorization', 'Bearer test:u1:u1@t.com')
+      .send({ type: 'sos', projectId: 'p1' });
+    expect(r.status).toBe(200);
+    expect(r.body.notified).toBe(0);
+    expect(r.body.reason).toBe('no_registered_tokens');
+    expect(fcmSend).not.toHaveBeenCalled();
+  });
+
+  it('H7 cache: two SOS calls in succession read users/{uid} only once per uid', async () => {
+    const userReadCounter = { count: 0 };
+    const app = buildSosApp({ firestore, auth, fcmSend, userReadCounter });
+    firestore.store.set('projects/p1', { createdBy: 'u1', tenantId: 't-A', members: ['u1'] });
+    firestore.store.set('projectMembers/m1', { projectId: 'p1', role: 'supervisor', uid: 'sup-A' });
+    firestore.store.set('projectMembers/m2', { projectId: 'p1', role: 'gerente', uid: 'sup-B' });
+    firestore.store.set('users/sup-A', { fcmTokens: ['t-A'] });
+    firestore.store.set('users/sup-B', { fcmTokens: ['t-B'] });
+
+    // First call — both users read.
+    const r1 = await request(app)
+      .post('/api/emergency/sos')
+      .set('Authorization', 'Bearer test:u1:u1@t.com')
+      .send({ type: 'sos', projectId: 'p1' });
+    expect(r1.status).toBe(200);
+    expect(r1.body.notified).toBe(2);
+    expect(userReadCounter.count).toBe(2);
+
+    // Second call within TTL — cache hits for both, count stays at 2.
+    const r2 = await request(app)
+      .post('/api/emergency/sos')
+      .set('Authorization', 'Bearer test:u1:u1@t.com')
+      .send({ type: 'sos', projectId: 'p1' });
+    expect(r2.status).toBe(200);
+    expect(r2.body.notified).toBe(2);
+    expect(userReadCounter.count).toBe(2);
   });
 
   it('rate-limits to 10 SOS per minute per uid', async () => {

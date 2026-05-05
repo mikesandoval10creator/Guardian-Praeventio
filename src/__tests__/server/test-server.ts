@@ -717,6 +717,50 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
+  // ─── /api/billing/webhook/apple ──────────────────────────────────
+  // Sprint 27 audit P0 H2. Mirrors src/server/routes/billing.ts:
+  // verify the outer JWS, idempotent on `notificationUUID`, dispatch
+  // through `applyAppleEntitlement` from services/billing/appleSsn.ts.
+  // We import the service module directly so behavior changes there ARE
+  // exercised here (per the test-server contract at the top of this file).
+  app.post('/api/billing/webhook/apple', async (req, res) => {
+    const { verifyAndDecodeAppleSsn, applyAppleEntitlement, buildAppleSsnAuditRow, AppleSsnVerificationError } =
+      await import('../../services/billing/appleSsn.js');
+    const signedPayload = (req.body ?? {}).signedPayload;
+    if (typeof signedPayload !== 'string' || signedPayload.length === 0) {
+      return res.status(400).json({ error: 'missing_signed_payload' });
+    }
+    let verifiedChain = false;
+    let payload: any;
+    try {
+      const verified = await verifyAndDecodeAppleSsn(signedPayload);
+      payload = verified.payload;
+      verifiedChain = verified.verifiedChain;
+    } catch (err) {
+      if (err instanceof AppleSsnVerificationError) {
+        return res.status(401).json({ error: 'invalid_signature' });
+      }
+      return res.status(500).json({ error: 'verify_failed' });
+    }
+    // Idempotency — mirror the RTDN test harness pattern.
+    const lockRef = deps.firestore.collection('processed_apple_ssn').doc(payload.notificationUUID);
+    const lockSnap = await lockRef.get();
+    if (lockSnap.exists && lockSnap.data()?.status === 'done') {
+      return res.status(200).json({ ok: true, replay: true });
+    }
+    await lockRef.set({ status: 'in_progress', lockedAtMs: Date.now() });
+    try {
+      const result = await applyAppleEntitlement({ payload, db: deps.firestore as any });
+      await deps.firestore
+        .collection('apple_ssn_attempts')
+        .add(buildAppleSsnAuditRow({ payload, result, verifiedChain }));
+      await lockRef.set({ status: 'done', completedAt: new Date() }, { merge: true });
+      return res.status(200).json({ ok: true, action: result.action });
+    } catch {
+      return res.status(500).json({ error: 'webhook_processing_failed' });
+    }
+  });
+
   // ─── /billing/webpay/return ──────────────────────────────────────
   app.get('/billing/webpay/return', async (req, res) => {
     const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;

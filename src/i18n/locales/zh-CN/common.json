@@ -1,0 +1,62 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "您安全的守护者"
+  },
+  "nav": {
+    "dashboard": "主页",
+    "emergency": "紧急",
+    "settings": "设置",
+    "logout": "退出登录",
+    "profile": "个人资料",
+    "team": "班组",
+    "training": "培训"
+  },
+  "auth": {
+    "login": "登录",
+    "logout": "退出登录",
+    "login_with_google": "使用Google登录",
+    "no_session": "没有活动会话",
+    "session_expired": "您的会话已过期",
+    "sign_up": "注册",
+    "forgot_password": "忘记密码",
+    "remember_me": "记住我"
+  },
+  "common": {
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "confirm": "确认",
+    "back": "返回",
+    "retry": "重试",
+    "error": "错误",
+    "next": "下一步",
+    "previous": "上一步",
+    "search": "搜索",
+    "submit": "提交",
+    "close": "关闭",
+    "yes": "是",
+    "no": "否"
+  },
+  "emergency": {
+    "survival_title": "生存模式",
+    "survival_subtitle": "100% 离线 • 随时待命",
+    "survival_btn_sos": "声音SOS",
+    "guide_first_aid_title": "急救",
+    "guide_fire_title": "火灾 / 烟雾",
+    "guide_evacuate_title": "撤离",
+    "call_emergency": "拨打紧急电话",
+    "report_incident": "报告事件"
+  },
+  "errors": {
+    "something_went_wrong": "出现问题",
+    "network": "网络错误",
+    "permission": "权限被拒绝",
+    "not_found": "未找到",
+    "unauthorized": "未经授权"
+  },
+  "medical": {
+    "disclaimer": "本应用提供的信息不能替代专业医疗建议。如遇紧急情况,请立即联系当地急救服务。"
+  }
+}

@@ -19,6 +19,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@praeventio/capacitor-mesh": [
+        "./packages/capacitor-mesh/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

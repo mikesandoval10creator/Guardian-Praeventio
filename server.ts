@@ -30,6 +30,11 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
+// Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
+// hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
+// barrier; legacy `typeof` guards stay in place until Sprint 29.
+import { validate } from "./src/server/middleware/validate.js";
+import { z } from "zod";
 import adminRouter from "./src/server/routes/admin.js";
 // Sprint 23 Bucket CC — B2D admin (key management + revenue dashboards).
 import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
@@ -37,6 +42,11 @@ import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
 import b2dApiRouter from "./src/server/routes/b2d/index.js";
 import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
+// Sprint 26 Bucket VV — HealthVault QR sharing (ADR 0012).
+import healthVaultRouter from "./src/server/routes/healthVault.js";
+// Sprint 27 (audit H20) — overdue-maintenance reaper, called by Cloud
+// Scheduler. Gated by verifySchedulerToken at the route level.
+import maintenanceRouter from "./src/server/routes/maintenance.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
 import {
@@ -54,7 +64,13 @@ import {
   oauthGoogleAuthRouter,
 } from "./src/server/routes/oauthGoogle.js";
 import geminiRouter from "./src/server/routes/gemini.js";
+// Sprint 32 Bucket UU — RLHF feedback loop (POST /api/ai/feedback,
+// GET /api/ai/feedback/summary). Mounted under /api/ai so we have a
+// dedicated namespace for AI-meta endpoints (separate from the Gemini
+// dispatch surface in /api/gemini).
+import aiFeedbackRouter from "./src/server/routes/aiFeedback.js";
 import reportsRouter from "./src/server/routes/reports.js";
+import susesoRouter from "./src/server/routes/suseso.js";
 import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
@@ -66,6 +82,10 @@ import commuteRouter from "./src/server/routes/commute.js";
 import emergencyRouter from "./src/server/routes/emergency.js";
 import cadRouter from "./src/server/routes/cad.js";
 import complianceRouter from "./src/server/routes/compliance.js";
+// Sprint 31 Bucket PP — DS 67 (Reglamento Interno) + DS 76 (Subcontratación
+// Mining) PDF generators. Mounted under /api/compliance so the URL space
+// matches Ley 19.628 endpoints (one compliance surface, not two).
+import ds67ds76Router from "./src/server/routes/ds67ds76.js";
 // Sprint 23 Bucket GG — DTE / SII admin endpoints (Bsale-backed).
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
@@ -136,7 +156,10 @@ try {
   console.warn('[observability] Sentry init failed (continuing without it):', err);
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Sprint 25 (CI fix) — fallback so module load doesn't crash when the
+// secret isn't in env (CI smoke + local dev). Real sends will surface
+// an upstream "invalid key" instead of a boot crash.
+const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 // Read Firebase Config once at startup FIRST
 let firebaseConfig: any = null;
@@ -283,6 +306,15 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
 // unthrottled. Handler extracted to src/server/routes/health.ts in
 // Round 16 R5 Phase 1 split. Final path is preserved: GET /api/health.
 app.use("/api", healthRouter);
+// Sprint 26 Bucket VV — HealthVault QR. The /view/:id/:secret subroute is
+// PUBLIC (médico que escanea no tiene cuenta) y trae su propio limiter
+// por IP. Mount BEFORE el limiter global de /api/* para no consumir el
+// presupuesto compartido del paciente.
+app.use("/api/health-vault", healthVaultRouter);
+// Sprint 27 (audit H20) — mount the maintenance reaper. The handler is
+// gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
+// public ingress can't trigger it without the secret.
+app.use("/api/maintenance", maintenanceRouter);
 
 // Sprint 20 twelfth wave Bucket A (TM-I05) — CSP violation reports.
 //
@@ -414,12 +446,19 @@ app.use("/api/admin/b2d", b2dAdminRouter);
 // lives with the route. Mounted at /api so the router can declare both
 // sibling paths verbatim.
 app.use('/api', geminiRouter);
+// Sprint 32 Bucket UU — RLHF feedback loop. Mounted under /api/ai.
+app.use('/api/ai', aiFeedbackRouter);
 
 // Round 19 R2 Phase 4 split — POST /api/reports/generate-pdf extracted to
 // src/server/routes/reports.ts. The per-route 1MB body limit short-circuit
 // stays in this file (above) because it MUST run before the global
 // `express.json({ limit: '64kb' })` parser.
 app.use('/api', reportsRouter);
+
+// Sprint 28 Bucket B6 — SUSESO DIAT/DIEP form generation. Mounted under
+// `/api/suseso` so verify/:folio resolves cleanly from the QR codes embedded
+// in printed PDFs. Closes audit hallazgo H28 (P1).
+app.use('/api/suseso', susesoRouter);
 
 // OAuth Configuration (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SCOPES) and
 // the 8 Google OAuth endpoints (calendar, fitness, drive, unlink, /url +
@@ -508,6 +547,10 @@ app.use('/api/cad', cadRouter);
 // data-subject access/rectification/erasure/portability). All write paths
 // go through verifyAuth; the RAT catalog is intentionally public.
 app.use('/api/compliance', complianceRouter);
+
+// Sprint 31 Bucket PP — DS 67 + DS 76 PDF reglamento generators. Same
+// /api/compliance surface; the routes are namespaced under /ds67 and /ds76.
+app.use('/api/compliance', ds67ds76Router);
 
 // Sprint 24 Bucket KK — POST /api/onboarding/complete. Self-service
 // tenant onboarding (industry, countries, tier, invites, first project).
@@ -600,8 +643,11 @@ app.use("/api/dte", dteRouter);
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
 
-// Start background environmental polling (every 10 minutes)
-setInterval(() => {
+// Start background environmental polling (every 10 minutes).
+// Sprint 27 (audit P0 H10) — capture the timer handle so SIGTERM can
+// clear it; otherwise Cloud Run's 10-second drain budget can't exit
+// cleanly on revision rollover.
+const environmentalPollingHandle = setInterval(() => {
   updateGlobalEnvironmentalContext().catch(console.error);
 }, 10 * 60 * 1000);
 
@@ -630,40 +676,15 @@ app.use('/api/auth', webauthnChallengeRouter);
 
 // Prototype Fusion Phase 6.1 — FCM notify-brigada endpoint
 // Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
-app.post('/api/emergency/notify-brigada', verifyAuth, async (req: express.Request, res: express.Response) => {
-  const { projectId, emergencyType, message } = req.body as { projectId?: string; emergencyType?: string; message?: string };
-  if (!projectId || !emergencyType) {
-    return res.status(400).json({ error: 'projectId and emergencyType are required' });
-  }
-  try {
-    const db = admin.firestore();
-    const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
-    const tokens: string[] = [];
-    for (const memberDoc of membersSnap.docs) {
-      const data = memberDoc.data();
-      if (['supervisor', 'gerente', 'prevencionista', 'admin'].includes(data.role) && data.fcmToken) {
-        tokens.push(data.fcmToken);
-      }
-    }
-    if (tokens.length === 0) {
-      return res.json({ ok: true, notified: 0, message: 'No supervisor tokens found' });
-    }
-    await admin.messaging().sendEachForMulticast({
-      tokens,
-      notification: {
-        title: `🚨 Emergencia: ${emergencyType}`,
-        body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
-      },
-      data: { projectId, emergencyType, timestamp: new Date().toISOString() },
-      android: { priority: 'high' },
-      apns: { payload: { aps: { 'content-available': 1 } } },
-    });
-    return res.json({ ok: true, notified: tokens.length });
-  } catch (err) {
-    logger.error('notify-brigada error', err instanceof Error ? err : new Error(String(err)));
-    return res.status(500).json({ error: 'Failed to notify brigade' });
-  }
-});
+//
+// Sprint 32 audit P0 — `/api/emergency/notify-brigada` migrated to
+// src/server/routes/emergency.ts so it reuses `sendToProjectSupervisors`
+// (cross-collection lookup `users/{uid}.fcmTokens` + cache). The previous
+// inline implementation regressed H7 (Sprint 27 fix) by reading only the
+// legacy `members/{uid}.fcmToken` singular field, producing `notified: 0`
+// for installations that registered tokens via /api/push/register-token.
+// The route is now exposed via `app.use('/api/emergency', emergencyRouter)`
+// at the top of this file.
 
 // Round 13: Express terminal error middleware. MUST be the last `app.use(...)`
 // — Express only treats 4-arg middleware as an error handler, and only
@@ -732,5 +753,7 @@ app.listen(PORT, "0.0.0.0", () => {
 process.on('SIGTERM', () => {
   triggersHandle?.unsubscribe();
   healthHandle?.stop();
+  // Sprint 27 (audit P0 H10) — clear the env polling interval too.
+  clearInterval(environmentalPollingHandle);
   process.exit(0);
 });

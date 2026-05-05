@@ -1,0 +1,44 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "あなたの安全を守る"
+  },
+  "nav": {
+    "dashboard": "ホーム",
+    "emergency": "緊急",
+    "settings": "設定",
+    "logout": "ログアウト"
+  },
+  "auth": {
+    "login": "ログイン",
+    "logout": "ログアウト",
+    "login_with_google": "Googleでログイン",
+    "no_session": "アクティブなセッションがありません",
+    "session_expired": "セッションが期限切れです"
+  },
+  "common": {
+    "loading": "読み込み中...",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "confirm": "確認",
+    "back": "戻る",
+    "retry": "再試行",
+    "error": "エラー"
+  },
+  "emergency": {
+    "survival_title": "サバイバルモード",
+    "survival_subtitle": "100% オフライン • 常時待機",
+    "survival_btn_sos": "音声SOS",
+    "guide_first_aid_title": "応急処置",
+    "guide_fire_title": "火災 / 煙"
+  },
+  "errors": {
+    "something_went_wrong": "問題が発生しました",
+    "network": "ネットワークエラー",
+    "permission": "権限が拒否されました"
+  },
+  "items": {
+    "count": "{{count}}件"
+  }
+}

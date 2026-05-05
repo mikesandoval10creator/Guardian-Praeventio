@@ -189,6 +189,21 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
       setEmergencyAutoExpiresAt(new Date(Date.now() + EMERGENCY_AUTO_TTL_MS));
       setEmergencyAutoEvent(evt ?? null);
       void trackModeSwitch(previous, 'emergency', 'auto_emergency');
+
+      // Sprint 32 audit W1 — broadcast the trigger so EmergencyAutoBridge can
+      // call triggerEmergency() (which fans out to supervisors via FCM). We
+      // dispatch via window CustomEvent rather than coupling AppModeContext
+      // to EmergencyContext, since AppModeContext can mount above the
+      // EmergencyProvider in some test trees.
+      if (typeof window !== 'undefined' && evt) {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('gp:emergency-auto-trigger', { detail: evt }),
+          );
+        } catch {
+          /* CustomEvent unsupported (older Safari Extension contexts) — ignore */
+        }
+      }
     });
     return cleanup;
   }, []);

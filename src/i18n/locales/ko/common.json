@@ -1,0 +1,44 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "당신의 안전을 지킵니다"
+  },
+  "nav": {
+    "dashboard": "홈",
+    "emergency": "긴급",
+    "settings": "설정",
+    "logout": "로그아웃"
+  },
+  "auth": {
+    "login": "로그인",
+    "logout": "로그아웃",
+    "login_with_google": "Google로 로그인",
+    "no_session": "활성 세션이 없습니다",
+    "session_expired": "세션이 만료되었습니다"
+  },
+  "common": {
+    "loading": "로딩 중...",
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "confirm": "확인",
+    "back": "뒤로",
+    "retry": "재시도",
+    "error": "오류"
+  },
+  "emergency": {
+    "survival_title": "생존 모드",
+    "survival_subtitle": "100% 오프라인 • 항상 대기",
+    "survival_btn_sos": "음성 SOS",
+    "guide_first_aid_title": "응급 처치",
+    "guide_fire_title": "화재 / 연기"
+  },
+  "errors": {
+    "something_went_wrong": "문제가 발생했습니다",
+    "network": "네트워크 오류",
+    "permission": "권한이 거부되었습니다"
+  },
+  "items": {
+    "count": "{{count}}개"
+  }
+}
