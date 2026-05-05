@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 // Round 15 (I3 / A6 audit fix) — `environmentMatchGlobs` is REMOVED in
@@ -13,6 +14,15 @@ import { defineConfig } from 'vitest/config';
 // For our single-setup case the per-file pragma is lighter and keeps
 // this config flat.
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Sprint 30 Bucket II — see vite.config.ts for context.
+      '@praeventio/capacitor-mesh': path.resolve(
+        __dirname,
+        'packages/capacitor-mesh/src/index.ts',
+      ),
+    },
+  },
   test: {
     // Backend/service tests run under node by default. React component
     // tests must put `// @vitest-environment jsdom` at the top of the

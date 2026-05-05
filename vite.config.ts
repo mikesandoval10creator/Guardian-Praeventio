@@ -129,6 +129,15 @@ export default defineConfig(({mode}) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        // Sprint 30 Bucket II — local workspace alias for the
+        // @praeventio/capacitor-mesh plugin scaffold (ADR 0013). The
+        // plugin lives in packages/ and is not yet npm-published; the
+        // alias lets `import { Mesh } from '@praeventio/capacitor-mesh'`
+        // resolve without setting up workspaces.
+        '@praeventio/capacitor-mesh': path.resolve(
+          __dirname,
+          'packages/capacitor-mesh/src/index.ts',
+        ),
       },
     },
     build: {

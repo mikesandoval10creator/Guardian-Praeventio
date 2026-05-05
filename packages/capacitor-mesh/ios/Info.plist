@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SPDX-License-Identifier: MIT
+  @praeventio/capacitor-mesh — iOS Info.plist additions (Sprint 30 SCAFFOLD).
+
+  When the plugin is wired into the host iOS app, the host MUST merge
+  these keys into its own Info.plist (Capacitor does not auto-inject
+  usage descriptions). The strings below are the user-facing copy that
+  iOS shows in the BLE permission prompt.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Praeventio uses Bluetooth to relay safety information between workers when there is no internet connection (mesh mode).</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Praeventio advertises over Bluetooth so other workers nearby can receive emergency alerts when the network is down.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Praeventio uses the local network for Wi-Fi Direct fallback during emergencies.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>bluetooth-central</string>
+        <string>bluetooth-peripheral</string>
+    </array>
+</dict>
+</plist>

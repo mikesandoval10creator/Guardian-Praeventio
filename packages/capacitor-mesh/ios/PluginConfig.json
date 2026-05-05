@@ -1,0 +1,10 @@
+{
+  "name": "Mesh",
+  "className": "MeshPlugin",
+  "methods": [
+    { "name": "start", "returnType": "promise" },
+    { "name": "stop", "returnType": "promise" },
+    { "name": "send", "returnType": "promise" },
+    { "name": "getState", "returnType": "promise" }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "name": "@praeventio/capacitor-mesh",
+  "version": "0.1.0-scaffold",
+  "description": "Capacitor plugin scaffold for the Praeventio BLE / Wi-Fi Direct mesh transport (ADR 0013). The pure engine lives in src/services/mesh/* — this package is the bridge between that engine and native BLE GATT (Sprint 31 will land the real Kotlin/Swift code).",
+  "main": "dist/plugin.cjs.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "unpkg": "dist/plugin.js",
+  "files": [
+    "android/src/main/",
+    "android/build.gradle",
+    "dist/",
+    "ios/Sources",
+    "ios/Plugin/",
+    "PraeventioCapacitorMesh.podspec"
+  ],
+  "author": "Praeventio",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf ./dist",
+    "watch": "tsc -p tsconfig.json --watch"
+  },
+  "devDependencies": {
+    "@capacitor/core": "^8.3.0",
+    "typescript": "~5.8.2"
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  },
+  "keywords": [
+    "capacitor",
+    "plugin",
+    "native",
+    "mesh",
+    "ble",
+    "bluetooth",
+    "wifi-direct",
+    "praeventio"
+  ]
+}
