@@ -2,6 +2,12 @@
 
 "El riesgo se neutraliza en el diseño, no en la reacción." - El Guardián.
 
+> **Estado real 2026-05-05**: cobertura ponderada ~67% E2E, no 99%. Ver [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) para % por dominio + roadmap S29-S32 (~260 SP) hasta Day-1 mundial.
+>
+> **Sprints 27-28 cerraron**: 7 P0 audit + 9 P1 + foundation regulatoria global (ISO 45001 + 5 jurisdicciones) + i18n 12 locales + Zod transversal + CPHS + DIAT/DIEP + recordatorios. **191 tests nuevos**.
+>
+> **Backlog vivo**: [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md). Visión global: [memoria privada del operador].
+
 ## Prioridad 0: Vulnerabilidades Críticas y Arquitectura Base (URGENTE)
 
 - [x] **Migración Full-Stack (Express + Vite):** Mover la lógica de IA (`geminiService.ts`) a un backend Node.js para proteger la `GEMINI_API_KEY` de exposición en el cliente.
