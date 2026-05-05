@@ -37,6 +37,8 @@ import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
 import b2dApiRouter from "./src/server/routes/b2d/index.js";
 import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
+// Sprint 26 Bucket VV — HealthVault QR sharing (ADR 0012).
+import healthVaultRouter from "./src/server/routes/healthVault.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
 import {
@@ -283,6 +285,11 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
 // unthrottled. Handler extracted to src/server/routes/health.ts in
 // Round 16 R5 Phase 1 split. Final path is preserved: GET /api/health.
 app.use("/api", healthRouter);
+// Sprint 26 Bucket VV — HealthVault QR. The /view/:id/:secret subroute is
+// PUBLIC (médico que escanea no tiene cuenta) y trae su propio limiter
+// por IP. Mount BEFORE el limiter global de /api/* para no consumir el
+// presupuesto compartido del paciente.
+app.use("/api/health-vault", healthVaultRouter);
 
 // Sprint 20 twelfth wave Bucket A (TM-I05) — CSP violation reports.
 //
