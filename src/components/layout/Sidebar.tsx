@@ -70,6 +70,7 @@ import { ProjectSelector } from "./ProjectSelector";
 import { logOut } from "../../services/firebase";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { useSubscription } from "../../contexts/SubscriptionContext";
+import { useFirebase } from "../../contexts/FirebaseContext";
 import { NormativaSwitch } from "../normativa/NormativaSwitch";
 
 import { SurvivalMode } from "../emergency/SurvivalMode";
@@ -107,6 +108,8 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
   // hidden until empresarial, which made the route undiscoverable for
   // ~1500 customers in oro/titanio/diamante. (R4 Round 14.)
   const { features } = useSubscription();
+  // Sprint 23 Bucket CC — admin role gates the B2D panel item.
+  const { isAdmin } = useFirebase();
   const [showSurvivalMode, setShowSurvivalMode] = useState(false);
 
   const menuGroups: MenuGroup[] = [
@@ -165,11 +168,23 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       icon: Settings,
       items: [
         { title: t("nav.profile", "Mi Perfil"), icon: User, path: "/profile", color: "text-zinc-400" },
+        // Sprint 23 Bucket FF — Ley 19.628 data-subject control center.
+        { title: t("nav.my_data", "Mis datos"), icon: ShieldCheck, path: "/my-data", color: "text-[#4db6ac]" },
         { title: t("nav.settings", "Ajustes"), icon: Settings, path: "/settings", color: "text-zinc-400" },
         { title: t("nav.pricing", "Planes y Facturación"), icon: Key, path: "/pricing", color: "text-zinc-400" },
         { title: t("nav.help", "Ayuda y Soporte"), icon: HelpCircle, path: "/help", color: "text-zinc-400" },
       ],
-    }
+    },
+    // Sprint 23 Bucket CC — Admin group, only visible to admin role.
+    ...(isAdmin
+      ? [{
+          title: t("nav.admin_group", "Admin"),
+          icon: ShieldCheck,
+          items: [
+            { title: t("nav.b2d_admin", "Panel B2D"), icon: Key, path: "/admin/b2d", color: "text-[#d4af37]" },
+          ],
+        }]
+      : []),
   ];
 
   const [openGroup, setOpenGroup] = useState<string | null>(() => {

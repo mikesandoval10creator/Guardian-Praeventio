@@ -23,6 +23,8 @@ import { DrivingSuggestion } from "./components/driving/DrivingSuggestion";
 import { PWAUpdateToast } from "./components/shared/PWAUpdateToast";
 import { WisdomCapsuleWatcher } from "./components/shared/WisdomCapsuleWatcher";
 import { DeepLinkHandler } from "./components/shared/DeepLinkHandler";
+// Sprint 23 Bucket FF — Ley 19.628 first-time consent banner.
+import { ConsentBanner } from "./components/compliance/ConsentBanner";
 
 // Import Route Groups
 import { EmergencyRoutes } from "./routes/EmergencyRoutes";
@@ -65,6 +67,10 @@ const SunTracker = lazy(() => import('./pages/SunTracker').then(module => ({ def
 const SafetyCoach = lazy(() => import('./pages/SafetyCoach').then(module => ({ default: module.SafetyCoach })));
 const Terms = lazy(() => import('./pages/Terms').then(module => ({ default: module.Terms })));
 const CuadrillasDashboard = lazy(() => import('./pages/CuadrillasDashboard').then(module => ({ default: module.CuadrillasDashboard })));
+// Sprint 23 Bucket CC — B2D admin panel (key management + MRR/ARR/churn).
+const B2dAdminPanel = lazy(() => import('./pages/B2dAdminPanel').then(module => ({ default: module.B2dAdminPanel })));
+// Sprint 23 Bucket FF — Ley 19.628 data-subject control center.
+const MyData = lazy(() => import('./pages/MyData').then(module => ({ default: module.MyData })));
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
@@ -180,6 +186,8 @@ function AppRoutes() {
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
+                    <Route path="admin/b2d" element={<B2dAdminPanel />} />
+                    <Route path="my-data" element={<MyData />} />
                     <Route path="cuadrillas" element={<CuadrillasDashboard />} />
                     <Route path="sun-tracker" element={<SunTracker />} />
                     <Route path="safety-coach" element={<SafetyCoach />} />
@@ -191,6 +199,7 @@ function AppRoutes() {
                 </Routes>
               </Suspense>
               {user && <GuardianVoiceAssistant />}
+              {user && <ConsentBanner />}
     </AppProviders>
   );
 }
