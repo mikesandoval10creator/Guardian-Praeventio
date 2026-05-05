@@ -104,6 +104,38 @@ jobs:
         # PROJECT_ID constant in src/rules-tests/firestore.rules.test.ts.
         run: firebase emulators:exec --only firestore --project praeventio-rules-test "npx vitest run src/rules-tests/"
 
+  firestore-pentest:
+    # Bucket RR — Dirty Dozen automated pentest of firestore.rules.
+    # Runs in parallel with `rules-tests` so a Dirty Dozen regression is
+    # surfaced as a distinct red check rather than buried inside the
+    # broader rules-tests output. The Dirty Dozen suite is also covered
+    # by `rules-tests` (which runs the whole `src/rules-tests/`
+    # directory); duplicating it here is intentional — the explicit job
+    # name is what surfaces in PR status checks and quarterly audits.
+    name: Firestore rules pentest (Dirty Dozen)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install firebase-tools (provides Firestore emulator)
+        run: npm install -g firebase-tools
+
+      - name: Run Dirty Dozen pentest
+        run: node scripts/firestore-pentest.mjs
+
   build:
     name: Build
     runs-on: ubuntu-latest
