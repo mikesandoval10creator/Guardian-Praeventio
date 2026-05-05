@@ -148,6 +148,12 @@ export const downloadSpecificNormative = async (normativeId: string, force: bool
 export const initializeRAG = async () => {
   if (isInitialized) return;
   if (!admin.apps.length) return;
+  // Sprint 28 (CI fix) — without GEMINI_API_KEY embedding throws; in CI
+  // smoke we don't have the secret. Skip cleanly so logs stay readable.
+  if (!process.env.GEMINI_API_KEY) {
+    logger.warn('initializeRAG skipped — GEMINI_API_KEY not configured.');
+    return;
+  }
 
   const db = admin.firestore();
   const vectorCollection = db.collection('vector_store');
