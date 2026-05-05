@@ -126,6 +126,7 @@
     "katex": "^0.16.44",
     "lucide-react": "^0.546.0",
     "mercadopago": "^2.12.0",
+    "mqtt": "^5.15.1",
     "onnxruntime-web": "^1.25.1",
     "pdfkit": "^0.18.0",
     "qrcode.react": "^4.2.0",
