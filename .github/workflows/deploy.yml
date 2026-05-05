@@ -124,3 +124,149 @@ jobs:
           curl -fsS --max-time 30 --retry 3 --retry-delay 5 \
             -o /dev/null -w "root: %{http_code}\n" \
             "$URL/"
+
+      # Sprint 25 Bucket TT — Cloud Scheduler auto-setup.
+      # Idempotente: si ya existe el job, lo update; si no, lo create.
+      # Esto cierra el ciclo "tiene la lógica" → "ejecuta automáticamente"
+      # sin requerir que el operador ejecute gcloud manualmente cada deploy.
+      - name: Setup Cloud Scheduler — daily climate risk scan
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          JOB_NAME="climate-daily-scan"
+          # 05:00 Santiago = 08:00 UTC (durante CLT) / 09:00 UTC (durante CLST DST)
+          # Cloud Scheduler resuelve el TZ automáticamente con --time-zone.
+          SCHEDULE="0 5 * * *"
+          TZ="America/Santiago"
+          TARGET_URL="${URL}/api/admin/jobs/climate-scan"
+          SCHEDULER_LOCATION="us-central1"
+
+          # Service account dedicada para el scheduler (debe existir
+          # con role run.invoker sobre el Cloud Run service).
+          # Si no existe la SA, se crea idempotente abajo.
+          SCHEDULER_SA="climate-scan-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+
+          # Habilitar APIs necesarias (idempotente).
+          gcloud services enable cloudscheduler.googleapis.com \
+            --project="$PROJECT_ID" --quiet || true
+
+          # Crear SA si no existe (idempotente).
+          if ! gcloud iam service-accounts describe "$SCHEDULER_SA" \
+              --project="$PROJECT_ID" >/dev/null 2>&1; then
+            echo "Creating service account climate-scan-sa..."
+            gcloud iam service-accounts create climate-scan-sa \
+              --display-name="Climate Scan Cloud Scheduler" \
+              --project="$PROJECT_ID"
+          fi
+
+          # Grant run.invoker role a la SA sobre el Cloud Run service
+          # (idempotente — gcloud no falla si el binding ya existe).
+          gcloud run services add-iam-policy-binding "${{ env.SERVICE }}" \
+            --region="${{ env.REGION }}" \
+            --project="$PROJECT_ID" \
+            --member="serviceAccount:${SCHEDULER_SA}" \
+            --role="roles/run.invoker" \
+            --quiet || true
+
+          # Crear o update el scheduler job.
+          if gcloud scheduler jobs describe "$JOB_NAME" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" >/dev/null 2>&1; then
+            echo "Updating existing scheduler job $JOB_NAME..."
+            gcloud scheduler jobs update http "$JOB_NAME" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" \
+              --schedule="$SCHEDULE" \
+              --time-zone="$TZ" \
+              --uri="$TARGET_URL" \
+              --http-method=POST \
+              --oidc-service-account-email="$SCHEDULER_SA" \
+              --oidc-token-audience="$URL" \
+              --quiet
+          else
+            echo "Creating scheduler job $JOB_NAME..."
+            gcloud scheduler jobs create http "$JOB_NAME" \
+              --location="$SCHEDULER_LOCATION" \
+              --project="$PROJECT_ID" \
+              --schedule="$SCHEDULE" \
+              --time-zone="$TZ" \
+              --uri="$TARGET_URL" \
+              --http-method=POST \
+              --oidc-service-account-email="$SCHEDULER_SA" \
+              --oidc-token-audience="$URL" \
+              --description="Daily climate risk scan — Sprint 25 Bucket TT. Reads active outdoor projects, fetches Open-Meteo 3-day forecast per project geo, generates Zettelkasten risk nodes via buildClimateRiskNodes (climateRiskCoupling.ts), persists with idempotent SHA-256 keys, and multicasts FCM to designated supervisors. See docs/runbooks/CLIMATE_SCAN_RUNBOOK.md."
+          fi
+
+          echo "✓ Cloud Scheduler setup complete: $JOB_NAME runs daily at 05:00 ${TZ} → POST $TARGET_URL"
+
+      # Cloud Scheduler — backup + maintenance jobs (firestore-backup,
+      # check-overdue-maintenance, weekly-digest, replicate-critical).
+      # Idempotente per-job.
+      - name: Setup Cloud Scheduler — maintenance jobs
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+          PROJECT_ID: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          SCHEDULER_SA="climate-scan-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+          SCHEDULER_LOCATION="us-central1"
+
+          ensure_job() {
+            local name="$1"
+            local schedule="$2"
+            local path="$3"
+            local description="$4"
+
+            if gcloud scheduler jobs describe "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" >/dev/null 2>&1; then
+              gcloud scheduler jobs update http "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --schedule="$schedule" \
+                --time-zone="America/Santiago" \
+                --uri="${URL}${path}" \
+                --http-method=POST \
+                --oidc-service-account-email="$SCHEDULER_SA" \
+                --oidc-token-audience="$URL" \
+                --quiet
+              echo "✓ Updated $name"
+            else
+              gcloud scheduler jobs create http "$name" \
+                --location="$SCHEDULER_LOCATION" \
+                --project="$PROJECT_ID" \
+                --schedule="$schedule" \
+                --time-zone="America/Santiago" \
+                --uri="${URL}${path}" \
+                --http-method=POST \
+                --oidc-service-account-email="$SCHEDULER_SA" \
+                --oidc-token-audience="$URL" \
+                --description="$description" \
+                --quiet
+              echo "✓ Created $name"
+            fi
+          }
+
+          # Sprint 22 Bucket K — overdue maintenance check (every hour)
+          ensure_job "maintenance-check-overdue" \
+            "0 * * * *" \
+            "/api/maintenance/check-overdue" \
+            "Hourly overdue maintenance scan (Sprint 22 K). Moves PlacedObjects installed→maintenance_due."
+
+          # Sprint 22 Bucket W — critical replicate audit_logs + invoices (hourly)
+          ensure_job "replicate-critical" \
+            "30 * * * *" \
+            "/api/admin/replicate-critical" \
+            "Hourly write-through replication audit_logs + invoices to GCS (Sprint 22 W)."
+
+          # Sprint 22 Bucket Y — weekly digest (Mondays 09:00 Santiago)
+          ensure_job "weekly-digest" \
+            "0 9 * * 1" \
+            "/api/admin/jobs/weekly-digest" \
+            "Weekly safety digest emailed to supervisors (Sprint 22 Y)."
+
+          echo "✓ Maintenance scheduler jobs setup complete"
