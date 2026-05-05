@@ -8,6 +8,8 @@ const Audits = lazy(() => import('../pages/Audits').then(module => ({ default: m
 const AuditTrail = lazy(() => import('../pages/AuditTrail').then(module => ({ default: module.AuditTrail })));
 const ComiteParitario = lazy(() => import('../pages/ComiteParitario').then(module => ({ default: module.ComiteParitario })));
 const SusesoReports = lazy(() => import('../pages/SusesoReports').then(module => ({ default: module.SusesoReports })));
+// Sprint 31 Bucket PP — DS 67 + DS 76 PDF builders.
+const Reglamentos = lazy(() => import('../pages/Reglamentos').then(module => ({ default: module.Reglamentos })));
 // Sprint 28 Bucket B5 — CPHS module formal (audit hallazgo H29 P1).
 // Convive con `comite-paritario` (legacy: actas + acuerdos free-text) hasta
 // que la migración de datos del próximo sprint mueva los `comite_actas` a
@@ -23,4 +25,5 @@ export const ComplianceRoutes = [
   <Route key="comite-paritario" path="comite-paritario" element={<ComiteParitario />} />,
   <Route key="cphs" path="cphs" element={<CphsModule />} />,
   <Route key="suseso" path="suseso" element={<SusesoReports />} />,
+  <Route key="reglamentos" path="reglamentos" element={<Reglamentos />} />,
 ];

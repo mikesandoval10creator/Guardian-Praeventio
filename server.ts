@@ -77,6 +77,10 @@ import commuteRouter from "./src/server/routes/commute.js";
 import emergencyRouter from "./src/server/routes/emergency.js";
 import cadRouter from "./src/server/routes/cad.js";
 import complianceRouter from "./src/server/routes/compliance.js";
+// Sprint 31 Bucket PP — DS 67 (Reglamento Interno) + DS 76 (Subcontratación
+// Mining) PDF generators. Mounted under /api/compliance so the URL space
+// matches Ley 19.628 endpoints (one compliance surface, not two).
+import ds67ds76Router from "./src/server/routes/ds67ds76.js";
 // Sprint 23 Bucket GG — DTE / SII admin endpoints (Bsale-backed).
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
@@ -536,6 +540,10 @@ app.use('/api/cad', cadRouter);
 // data-subject access/rectification/erasure/portability). All write paths
 // go through verifyAuth; the RAT catalog is intentionally public.
 app.use('/api/compliance', complianceRouter);
+
+// Sprint 31 Bucket PP — DS 67 + DS 76 PDF reglamento generators. Same
+// /api/compliance surface; the routes are namespaced under /ds67 and /ds76.
+app.use('/api/compliance', ds67ds76Router);
 
 // Sprint 24 Bucket KK — POST /api/onboarding/complete. Self-service
 // tenant onboarding (industry, countries, tier, invites, first project).
