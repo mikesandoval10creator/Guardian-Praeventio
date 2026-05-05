@@ -174,6 +174,38 @@ export const erpSyncLimiter = rateLimit({
  * first on every request. When the cap is hit, returns 503 (Service
  * Unavailable) to signal it's a quota issue, not auth or rate-limit.
  */
+/**
+ * Sprint 23 Bucket BB — B2D free-tier limiter.
+ *
+ * Mounted at the root of the `/api/b2d/v1` surface BEFORE `b2dAuth`, so
+ * even unauthenticated probes (or free-tier customers without a paid key)
+ * are capped. The per-bucket key is the API key prefix when available,
+ * falling back to the IP. Real paid tiers (`climate-base`, etc.) get their
+ * MUCH higher per-tier rate limits enforced by `b2dAuth` + `quotaTracker`
+ * after this limiter passes.
+ *
+ * Defaults: 1.000 req / 30 days per bucket. Override with B2D_FREE_CAP.
+ * (1.000 was the cap floated by the user for free-tier in
+ * `project_b2d_api_model.md`.)
+ */
+export const b2dFreeLimiter = rateLimit({
+  windowMs: 30 * 24 * 60 * 60 * 1000, // 30-day rolling window
+  max: parseInt(process.env.B2D_FREE_CAP ?? '1000', 10),
+  keyGenerator: (req: Request) => {
+    const auth = req.header('authorization') ?? '';
+    if (auth.startsWith('Bearer pk_')) {
+      // Bucket per key prefix — matches the `keyPrefix` shape stored in
+      // Firestore. Using just the prefix (12 chars) keeps the bucket key
+      // out of plaintext-secret territory while staying stable per key.
+      return auth.slice('Bearer '.length, 'Bearer '.length + 12);
+    }
+    return ipKeyGenerator(req.ip ?? '') || 'b2d-anonymous';
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'b2d_free_cap_reached', resetAfterDays: 30 },
+});
+
 export const geminiGlobalDailyLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000, // 24h sliding window
   max: parseInt(process.env.GEMINI_DAILY_GLOBAL_CAP ?? '1000', 10),

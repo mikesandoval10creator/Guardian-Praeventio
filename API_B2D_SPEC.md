@@ -396,4 +396,95 @@ deprecation overlap. Cambios non-breaking se anuncian via
 
 ---
 
-*Praeventio Guard B2D · Draft Sprint 10 · Implementación Sprint 16.*
+*Praeventio Guard B2D · Draft Sprint 10 · Implementación parcial Sprint 23 (Bucket BB).*
+
+---
+
+## Sprint 23 Bucket BB — Endpoints implementados
+
+> Esta sección documenta los endpoints HTTP que ya están vivos en
+> `server.ts`. La forma final del payload puede evolucionar; los
+> contratos siguen estables semánticamente.
+
+### Auth (implementación viva)
+
+- Header obligatorio: `Authorization: Bearer pk_live_<24 hex>` (o
+  `pk_test_<24 hex>` en pre-producción).
+- Las keys se persisten como SHA-256 + sal de proyecto en
+  `b2d_api_keys/{id}`. El plaintext jamás toca Firestore.
+- Scopes: `climate.read`, `climate.forecast`, `hazmat.calculate`,
+  `normativa.search`, `normativa.validate`, `suite.all`.
+- `suite.all` es la concesión paraguas — equivale a poseer todos los
+  scopes individuales.
+
+### Privacy boundary (re-aclaración crítica)
+
+La superficie B2D NO LEE EL ZETTELKASTEN. Las API keys autentican
+INTEGRADORES, no tenants. El AI Coach (`POST /suite/coach`) opera
+exclusivamente sobre el input del request — no carga nodos de proyecto,
+hallazgos IPER, EPP de trabajadores, telemetría ni documentos del
+tenant. Esta frontera es ejecutada y testeada por archivo.
+
+### Climate API
+
+- `GET /api/b2d/v1/climate/current?lat=&lng=` — scope `climate.read`.
+- `GET /api/b2d/v1/climate/forecast?lat=&lng=&days=N` — scope
+  `climate.forecast` (Pro/Suite).
+- `GET /api/b2d/v1/climate/risk-score?lat=&lng=&industry=...` — scope
+  `climate.read`. Industries permitidas: `general`, `mining`,
+  `construction`, `agriculture`, `logistics`.
+
+Cada respuesta incluye `citations[]` y `provenance` (`deterministic-stub`
+o `live` cuando se conecte el fan-out de Sprint 24).
+
+### Hazmat API
+
+Todas requieren scope `hazmat.calculate`.
+
+- `POST /api/b2d/v1/hazmat/pipe-pressure` — wrap de
+  `generateHazmatPipeNode`. Citations: DS 43/2015, NFPA 30.
+- `POST /api/b2d/v1/hazmat/gas-dispersion` — wrap de
+  `generateGasDispersionNode`. Citations: DS 144/1961, MINSAL ATSDR,
+  Pasquill-Gifford.
+- `POST /api/b2d/v1/hazmat/scaffold-uplift` — wrap de
+  `generateScaffoldUpliftNode`. Citations: NCh 432 Of.71, DS 594 Art.
+  78, OSHA 29 CFR 1926.451.
+- `POST /api/b2d/v1/hazmat/extinguisher-coverage` — wrap de
+  `ruleExtinguisherCoverage`. Citations: DS 594 art. 47.
+
+Validación de input vía `zod`. Respuesta 400 `invalid_input` con
+detalle de issues cuando el body no parsea.
+
+### Normativa API
+
+- `GET /api/b2d/v1/normativa/search?q=&country=CL&type=DS` — scope
+  `normativa.search`. Country es uno de `CL`, `PE`, `CO`, `MX`, `AR`,
+  `BR`, `ISO`.
+- `GET /api/b2d/v1/normativa/by-id/:id` — scope `normativa.search`.
+- `POST /api/b2d/v1/normativa/validate` — scope `normativa.validate`.
+  Body: `{ industry, country, riskCategory, mitigations[] }`. Devuelve
+  `{ compliant, gaps: [{regulationId, title, reference, suggestion}] }`.
+
+### Suite API
+
+- `POST /api/b2d/v1/suite/coach` — scope `suite.all`. Body:
+  `{ industry, scenario, riskCategory, language, mitigations[] }`.
+  Devuelve recomendación estructurada + citations + `privacyNote`
+  recordando la frontera Zettelkasten.
+
+### Rate limit / quota
+
+- `b2dFreeLimiter` (configurable por `B2D_FREE_CAP`, default 1.000 req
+  / 30 días) cubre tráfico no autenticado o de tier free.
+- `b2dAuth` consulta `quotaTracker.checkQuotaLimit` por customerId/día.
+  Tier `*-base` → ceiling silver; tier `*-pro` → ceiling gold (ver
+  `quotaTracker.normalizeTier`).
+- Cabeceras emitidas en cada respuesta: `X-RateLimit-Limit`,
+  `X-RateLimit-Remaining`, `X-RateLimit-Reset` (epoch UTC).
+
+### Mount point
+
+`server.ts` monta `b2dApiRouter` en `/api/b2d/v1` ANTES del limiter
+global por IP (`/api/`) para que los Pro-tiers (50–100 req/seg) no
+choquen con el cap por-IP de 100 req / 15 min que protege la superficie
+de tenant.

@@ -84,23 +84,75 @@ content (Google Maps, Stripe, OAuth callbacks) keeps working.
 
 ## Files in this bucket
 
-- `src/services/slm/onnxAdapter.ts` — class API.
-- `src/services/slm/onnxAdapter.test.ts` — Vitest suite (8 tests).
+- `src/services/slm/onnxAdapter.ts` — class API + real generation loop.
+- `src/services/slm/onnxAdapter.test.ts` — Vitest suite (lifecycle + integration).
+- `src/services/slm/sampling.ts` — sampling primitives (Bucket DD).
+- `src/services/slm/sampling.test.ts` — pure-math sampler tests (Bucket DD).
+- `src/services/slm/tokenizer.ts` — `@huggingface/transformers` adapter (Bucket DD).
 - `src/hooks/useSlmOffline.ts` — React hook with fallback policy.
 - `scripts/download-slm-model.mjs` — local weights fetcher.
 - `server.ts` — `/models/slm/*` cross-origin-isolation middleware.
 - `.gitignore` — excludes `public/models/slm/*.onnx`.
 
-## What's next (Ola 5c)
+## Real generation loop (Sprint 23 Bucket DD)
 
-- Real generation loop: replace the placeholder in
-  `OnnxSlmAdapter.generate()` with a sampling scheduler that drives
-  `session.run({ input_ids, attention_mask, position_ids, past_kv })`.
-- Tokenizer wire: pull `AutoTokenizer.from_pretrained()` from
-  `@huggingface/transformers` (already in deps) and tokenize prompts /
-  detokenize sampled ids.
-- KV cache: hold past_key_values across loop iterations to avoid
-  re-prefilling the prompt on every token.
+The `OnnxSlmAdapter.generate()` placeholder from Ola 5b has been
+replaced with a real autoregressive sampling loop. Two new modules
+land alongside it:
+
+- `src/services/slm/sampling.ts` — pure-math sampling primitives:
+  `sampleGreedy`, `sampleNucleus` (temperature → top-K → top-P →
+  multinomial), and `applyRepetitionPenalty` (CTRL-paper sign-flip
+  rule). Includes a seedable Mulberry32 RNG for reproducible tests.
+- `src/services/slm/tokenizer.ts` — narrow wrapper around
+  `@huggingface/transformers`'s `AutoTokenizer` exposing
+  `encode` / `decode` / `applyChatTemplate`. Lazy-imported, cached
+  per model name, with a test seam for fakes.
+
+Algorithm (per generated token):
+
+1. Build int64 `input_ids` + `attention_mask` tensors over the running
+   prompt (no KV cache yet — see "What's next").
+2. `session.run` → `logits` of shape `[1, seqLen, vocabSize]`. Slice
+   the last position's row.
+3. Apply repetition penalty over the last 50 generated tokens
+   (`penalty = 1.1` default).
+4. Greedy if `temperature === 0`, otherwise nucleus
+   (`topK=50`, `topP=0.9`).
+5. Stream the detokenized fragment through `onToken`.
+6. Stop on EOS (id 2 for the Llama tokenizer family),
+   `signal.aborted`, or `maxTokens`.
+
+### Performance
+
+| Backend     | Hardware                  | Throughput      |
+| ----------- | ------------------------- | --------------- |
+| WebGPU      | Apple M1 / RTX 3060+      | ~30 tok/s       |
+| WASM-SIMD   | Generic CPU (4 threads)   | ~5 tok/s        |
+
+Numbers above are the upstream `onnxruntime-web` demo's; we will
+re-measure once the model file is deployed. Without a KV cache the
+per-token cost is currently `O(seqLen)` rather than `O(1)`, so long
+responses will scale super-linearly until the next bucket lands the
+`past_key_values` plumbing.
+
+### Limitations of TinyLlama 1.1B Q4
+
+- **No function calling.** TinyLlama's chat template is plain text;
+  there is no JSON-schema-aware tool use. The orchestrator must keep
+  function calling on the Gemini path.
+- **Short context window** (2 K tokens). Long Asesor sessions
+  truncate at the prompt level.
+- **Response quality is below Gemini's bar.** The model is suitable
+  for fallback when offline, not as the primary interactive path.
+- **Quantization noise.** Q4 introduces mild perplexity loss vs
+  FP16; rare tokens / domain-specific terms may drift.
+
+## What's next
+
+- KV cache: hold `past_key_values` across loop iterations to drop the
+  per-token cost from `O(seqLen)` to `O(1)`.
 - Wire `useSlmOffline` into `AsesorChat` as a feature-flagged path.
 - Pin `EXPECTED_SHA256` in `download-slm-model.mjs` after a manual
   audit of the upstream blob.
+- WebGPU fast-path for the sampler itself (currently CPU JS).

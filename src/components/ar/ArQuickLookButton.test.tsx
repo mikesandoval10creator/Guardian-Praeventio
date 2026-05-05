@@ -10,12 +10,22 @@
 //  • <img> hijo siempre presente (Apple requirement)
 
 import React from 'react';
-import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import { ArQuickLookButton } from './ArQuickLookButton';
+
+beforeEach(() => {
+  // Bucket EE.7: el componente hace HEAD al modelPath para verificar
+  // existencia del .usdz antes de renderizar. Mock por defecto: 200 OK.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(null, { status: 200 })),
+  );
+});
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -53,13 +63,17 @@ function mockArSupport(value: boolean) {
 }
 
 describe('ArQuickLookButton', () => {
-  it('renders an <a rel="ar"> when relList.supports("ar") === true', () => {
+  it('renders an <a rel="ar"> when relList.supports("ar") === true', async () => {
     mockArSupport(true);
     const { container } = render(
       <ArQuickLookButton modelPath="/models/ar/extinguisher_pqs.usdz" />,
     );
-    const anchor = container.querySelector('a[rel="ar"]');
-    expect(anchor).not.toBeNull();
+    // El HEAD probe es asíncrono — esperamos a que la promesa resuelva.
+    const anchor = await waitFor(() => {
+      const a = container.querySelector('a[rel="ar"]');
+      expect(a).not.toBeNull();
+      return a;
+    });
     expect(anchor?.getAttribute('href')).toBe('/models/ar/extinguisher_pqs.usdz');
   });
 
@@ -92,16 +106,37 @@ describe('ArQuickLookButton', () => {
     expect(onAvailable).toHaveBeenCalledWith(false);
   });
 
-  it('always includes an <img> child (Apple Quick Look requirement)', () => {
+  it('always includes an <img> child (Apple Quick Look requirement)', async () => {
     mockArSupport(true);
     const { container } = render(
       <ArQuickLookButton modelPath="/models/ar/aed.usdz" label="Open" />,
     );
-    const anchor = container.querySelector('a[rel="ar"]');
-    expect(anchor).not.toBeNull();
+    const anchor = await waitFor(() => {
+      const a = container.querySelector('a[rel="ar"]');
+      expect(a).not.toBeNull();
+      return a;
+    });
     const img = anchor?.querySelector('img');
     expect(img).not.toBeNull();
     // label visible
     expect(anchor?.textContent).toContain('Open');
+  });
+
+  it('returns null when the .usdz HEAD probe fails (Bucket EE.7 fallback)', async () => {
+    mockArSupport(true);
+    // Override the default fetch mock with a 404.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(null, { status: 404 })),
+    );
+    const { container } = render(
+      <ArQuickLookButton modelPath="/models/ar/missing_kind.usdz" />,
+    );
+    // Esperamos a que la promesa resuelva — sigue siendo null porque el HEAD falló.
+    await waitFor(() => {
+      // The component uses microtask state; confirm render is stable as null.
+      expect(container.querySelector('a[rel="ar"]')).toBeNull();
+    });
+    expect(container.firstChild).toBeNull();
   });
 });
