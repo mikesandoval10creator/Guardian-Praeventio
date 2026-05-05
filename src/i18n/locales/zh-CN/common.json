@@ -1,0 +1,41 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "您安全的守护者"
+  },
+  "nav": {
+    "dashboard": "主页",
+    "emergency": "紧急",
+    "settings": "设置",
+    "logout": "退出登录"
+  },
+  "auth": {
+    "login": "登录",
+    "logout": "退出登录",
+    "login_with_google": "使用Google登录",
+    "no_session": "没有活动会话",
+    "session_expired": "您的会话已过期"
+  },
+  "common": {
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "confirm": "确认",
+    "back": "返回",
+    "retry": "重试",
+    "error": "错误"
+  },
+  "emergency": {
+    "survival_title": "生存模式",
+    "survival_subtitle": "100% 离线 • 随时待命",
+    "survival_btn_sos": "声音SOS",
+    "guide_first_aid_title": "急救",
+    "guide_fire_title": "火灾 / 烟雾"
+  },
+  "errors": {
+    "something_went_wrong": "出现问题",
+    "network": "网络错误",
+    "permission": "权限被拒绝"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "Le Gardien de votre Sécurité"
+  },
+  "nav": {
+    "dashboard": "Accueil",
+    "emergency": "Urgence",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter",
+    "login_with_google": "Se connecter avec Google",
+    "no_session": "Aucune session active",
+    "session_expired": "Votre session a expiré"
+  },
+  "common": {
+    "loading": "Chargement...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "retry": "Réessayer",
+    "error": "Erreur"
+  },
+  "emergency": {
+    "survival_title": "Mode Survie",
+    "survival_subtitle": "100% Hors ligne • Toujours prêt",
+    "survival_btn_sos": "SOS Sonore",
+    "guide_first_aid_title": "Premiers Secours",
+    "guide_fire_title": "Incendie / Fumée"
+  },
+  "errors": {
+    "something_went_wrong": "Quelque chose s'est mal passé",
+    "network": "Erreur de réseau",
+    "permission": "Permission refusée"
+  }
+}

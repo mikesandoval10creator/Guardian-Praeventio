@@ -7,7 +7,8 @@ import React, {
   useState,
   type ReactNode,
 } from 'react';
-import i18n from '../i18n';
+import i18n, { loadLocale } from '../i18n';
+import { applyHtmlDir } from '../i18n/rtl';
 
 /**
  * Supported locales for Praeventio Guard.
@@ -20,9 +21,44 @@ import i18n from '../i18n';
  * - `'pt-BR'` is professional Brazilian Portuguese (target market: Brazilian
  *   construction / mining customers).
  * - `'en'` is full English for international evaluators (US/UK markets).
+ * - Sprint 28 B2 — global launch foundation: `fr`, `de`, `it`, `ja`,
+ *   `zh-CN`, `ar` (RTL) ship as stubs; their resources are lazy-loaded by
+ *   `loadLocale()` only when the user picks them.
  */
-export const SUPPORTED_LOCALES = ['es', 'es-MX', 'es-PE', 'es-AR', 'pt-BR', 'en'] as const;
+export const SUPPORTED_LOCALES = [
+  'es',
+  'es-MX',
+  'es-PE',
+  'es-AR',
+  'pt-BR',
+  'en',
+  'fr',
+  'de',
+  'it',
+  'ja',
+  'zh-CN',
+  'ar',
+] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+
+/**
+ * Human-readable native names for the locale picker. Listed in the order
+ * the picker should display them: launch markets first, then global.
+ */
+export const LOCALE_DISPLAY: Record<SupportedLocale, { native: string; flag: string }> = {
+  es: { native: 'Español', flag: '🇨🇱' },
+  'es-MX': { native: 'Español (México)', flag: '🇲🇽' },
+  'es-PE': { native: 'Español (Perú)', flag: '🇵🇪' },
+  'es-AR': { native: 'Español (Argentina)', flag: '🇦🇷' },
+  'pt-BR': { native: 'Português', flag: '🇧🇷' },
+  en: { native: 'English', flag: '🇺🇸' },
+  fr: { native: 'Français', flag: '🇫🇷' },
+  de: { native: 'Deutsch', flag: '🇩🇪' },
+  it: { native: 'Italiano', flag: '🇮🇹' },
+  ja: { native: '日本語', flag: '🇯🇵' },
+  'zh-CN': { native: '中文', flag: '🇨🇳' },
+  ar: { native: 'العربية', flag: '🇸🇦' },
+};
 
 export const DEFAULT_LOCALE: SupportedLocale = 'es';
 
@@ -59,6 +95,13 @@ export function normalizeLocale(tag: string | null | undefined): SupportedLocale
   if (lowered.startsWith('en-') || lowered === 'en') {
     return 'en';
   }
+  // Sprint 28 B2 — global locales. Region-agnostic: `fr-CA` → `fr` etc.
+  if (lowered.startsWith('fr-') || lowered === 'fr') return 'fr';
+  if (lowered.startsWith('de-') || lowered === 'de') return 'de';
+  if (lowered.startsWith('it-') || lowered === 'it') return 'it';
+  if (lowered.startsWith('ja-') || lowered === 'ja') return 'ja';
+  if (lowered.startsWith('zh-') || lowered === 'zh') return 'zh-CN';
+  if (lowered.startsWith('ar-') || lowered === 'ar') return 'ar';
 
   return null;
 }
@@ -156,11 +199,27 @@ export function LanguageProvider({
     }
   }, [userLocale, language]);
 
-  // Keep i18next in sync with our state.
+  // Keep i18next in sync with our state. Lazy-load any global locale before
+  // switching, and apply the correct `<html dir>` for RTL languages.
   useEffect(() => {
-    if (i18n.language !== language) {
-      void i18n.changeLanguage(language);
-    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        await loadLocale(language);
+      } catch (err) {
+        // Swallow — fallback chain will still serve the right text.
+        // eslint-disable-next-line no-console
+        console.warn('[LanguageProvider] loadLocale failed:', err);
+      }
+      if (cancelled) return;
+      if (i18n.language !== language) {
+        await i18n.changeLanguage(language);
+      }
+      applyHtmlDir(language);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [language]);
 
   const setLanguage = useCallback(
@@ -172,7 +231,9 @@ export function LanguageProvider({
         // Ignore — storage may be disabled.
       }
       try {
+        await loadLocale(lang);
         await i18n.changeLanguage(lang);
+        applyHtmlDir(lang);
       } catch (err) {
         // i18next can fail to load a locale chunk — log but don't throw.
         // eslint-disable-next-line no-console

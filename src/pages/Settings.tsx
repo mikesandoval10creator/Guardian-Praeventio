@@ -27,6 +27,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference';
 import { BunkerManager } from '../components/BunkerManager';
+import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
 
@@ -479,14 +480,13 @@ export function Settings() {
       case 'Idioma y Región':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
-            <div>
-              <label htmlFor={languageId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Idioma de la Interfaz</label>
-              <select id={languageId} value={language} onChange={(e) => handleLanguageChange(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
-                <option value="es">Español (Latinoamérica)</option>
-                <option value="en">English (US)</option>
-                <option value="pt">Português (Brasil)</option>
-              </select>
-            </div>
+            <LocalePicker label="Idioma de la Interfaz" />
+            {/* LocalePicker delegates to LanguageProvider which syncs
+                i18next, the RTL `<html dir>` flag, lazy locale chunks and
+                the Firestore user doc. The legacy `language` /
+                `handleLanguageChange` state above is retained for any
+                analytics/event listeners but the dropdown UI is now the
+                single source of truth. */}
             <div>
               <label htmlFor={timezoneId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
               <select id={timezoneId} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">

@@ -1,0 +1,41 @@
+{
+  "app": {
+    "name": "Praeventio Guard",
+    "tagline": "Der Wächter Ihrer Sicherheit"
+  },
+  "nav": {
+    "dashboard": "Startseite",
+    "emergency": "Notfall",
+    "settings": "Einstellungen",
+    "logout": "Abmelden"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "login_with_google": "Mit Google anmelden",
+    "no_session": "Keine aktive Sitzung",
+    "session_expired": "Ihre Sitzung ist abgelaufen"
+  },
+  "common": {
+    "loading": "Wird geladen...",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "confirm": "Bestätigen",
+    "back": "Zurück",
+    "retry": "Erneut versuchen",
+    "error": "Fehler"
+  },
+  "emergency": {
+    "survival_title": "Überlebensmodus",
+    "survival_subtitle": "100% Offline • Immer bereit",
+    "survival_btn_sos": "SOS Akustisch",
+    "guide_first_aid_title": "Erste Hilfe",
+    "guide_fire_title": "Feuer / Rauch"
+  },
+  "errors": {
+    "something_went_wrong": "Etwas ist schiefgegangen",
+    "network": "Netzwerkfehler",
+    "permission": "Berechtigung verweigert"
+  }
+}
