@@ -38,6 +38,7 @@ import {
   type ErgonomicLegalTriggerResult,
 } from './ergonomicLegalTrigger';
 import { getErrorTracker } from '../observability';
+import { awardXp } from '../gamification/positiveXp';
 
 export type ErgonomicAssessmentType = 'REBA' | 'RULA';
 
@@ -206,6 +207,24 @@ export async function recordErgonomicAssessment(
       );
       return { triggered: false } as ErgonomicLegalTriggerResult;
     });
+  }
+
+  // Sprint 32 wire W4 — gamificación POSITIVA: reforzar la cultura de
+  // medir. Fire-and-forget; un fallo en awardXp NUNCA debe romper el save
+  // del assessment (que tiene valor legal por DS-594).
+  try {
+    awardXp('ergonomic_assessment_completed', undefined, {
+      assessmentId: id,
+      workerId: payload.workerId,
+      authorUid: payload.authorUid,
+      type: payload.type,
+      score: payload.score,
+    });
+  } catch (err) {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { tags: { module: 'ergonomicAssessments', step: 'awardXp' } },
+    );
   }
 
   return { id, legalTrigger };

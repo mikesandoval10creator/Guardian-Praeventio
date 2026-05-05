@@ -19,6 +19,7 @@ import {
   tenantSlug,
 } from '../../suseso/folioGenerator.js';
 import { generateDs67Pdf } from '../../../utils/ds67Certificate.js';
+import { awardXp } from '../../gamification/positiveXp.js';
 
 // ─── Folio formatting (DS-67 specific kind prefix) ──────────────────────────
 
@@ -188,7 +189,25 @@ export async function signForm(
   if (!/^[0-9a-f]{64}$/.test(signature.payloadHashHex)) {
     throw new Error('payloadHashHex must be a 64-char lowercase hex digest.');
   }
-  return deps.formStore.attachSignature(tenantId, formId, signature);
+  const result = await deps.formStore.attachSignature(tenantId, formId, signature);
+
+  // Sprint 32 wire W4 — gamificación POSITIVA: emitir y firmar el DS-67
+  // formaliza el cumplimiento legal. XP al firmante. Fire-and-forget; el
+  // path legal del attachSignature nunca se rompe por gamificación.
+  try {
+    awardXp('compliance_doc_generated', undefined, {
+      docType: 'DS67',
+      folio: existing.folio,
+      tenantId,
+      signerUid: signature.signerUid,
+    });
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[ds67Service] awardXp(compliance_doc_generated) threw — ignored', err);
+    }
+  }
+
+  return result;
 }
 
 /**
