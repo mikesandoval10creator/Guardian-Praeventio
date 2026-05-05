@@ -117,10 +117,11 @@ describe('GeminiConsumerAdapter.isAvailable', () => {
 });
 
 // -----------------------------------------------------------------------------
-// 2. vertexAdapter is permanently isAvailable=false this round.
+// 2. vertexAdapter is unavailable when VERTEX_PROJECT_ID is unset (the test
+//    env). When configured, see vertexAdapter.test.ts for full coverage.
 // -----------------------------------------------------------------------------
-describe('vertexAdapter (stub)', () => {
-  it('reports isAvailable === false (until SDK install in Round 2)', () => {
+describe('vertexAdapter (singleton, unconfigured)', () => {
+  it('reports isAvailable === false when VERTEX_PROJECT_ID is unset', () => {
     expect(vertexAdapter.isAvailable).toBe(false);
     expect(vertexAdapter.name).toBe('vertex-ai');
   });
@@ -131,13 +132,10 @@ describe('vertexAdapter (stub)', () => {
     expect(vertexAdapter.region).toBe('southamerica-west1');
   });
 
-  it('generate() throws an actionable error pointing at VERTEX_MIGRATION.md', async () => {
+  it('generate() throws an actionable error mentioning VERTEX_PROJECT_ID', async () => {
     await expect(
       vertexAdapter.generate({ model: 'gemini-1.5-pro', prompt: 'x' }),
-    ).rejects.toThrow(/VERTEX_MIGRATION\.md/);
-    await expect(
-      vertexAdapter.generate({ model: 'gemini-1.5-pro', prompt: 'x' }),
-    ).rejects.toThrow(/@google-cloud\/aiplatform/);
+    ).rejects.toThrow(/VERTEX_PROJECT_ID/);
   });
 });
 
