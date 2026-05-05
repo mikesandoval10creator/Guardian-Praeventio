@@ -108,7 +108,12 @@ export type XpReason =
   | 'reportar_nearmiss'
   | 'evadir_riesgo_predictivo'
   | 'wisdom_capsule_completed'
-  | 'task_done';
+  | 'task_done'
+  // Sprint 32 — Flow Infinito fase 3 (Consolidación de Conocimiento):
+  // cuando un nodo rebroadcastea un SOS por la mesh, su acción puede haber
+  // salvado una vida. Premiamos con XP alto (+50) — narrativa de marca:
+  // "salvaste una vida". Wire-in en src/services/mesh/meshRelayQueue.ts.
+  | 'mesh_relay_sos';
 
 /** Default XP amounts per reason (positive integers only). */
 export const XP_AMOUNTS: Record<XpReason, number> = {
@@ -119,4 +124,5 @@ export const XP_AMOUNTS: Record<XpReason, number> = {
   evadir_riesgo_predictivo: 30,
   wisdom_capsule_completed: 5,
   task_done: 2,
+  mesh_relay_sos: 50,
 };
