@@ -33,6 +33,7 @@ import {
 } from '../services/sii/susesoApiClient';
 import { SusesoFormBuilder } from '../components/suseso/SusesoFormBuilder';
 import { useFirebase } from '../contexts/FirebaseContext';
+import { RegulatoryCitation } from '../components/shared/RegulatoryCitation';
 
 export function SusesoReports() {
   const { nodes } = useRiskEngine();
@@ -244,6 +245,15 @@ export function SusesoReports() {
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Generación de DIAT y DIEP</p>
           </div>
         </div>
+        {/* Sprint 29 EE — citas normativas dinámicas. NONCONFORMITY_CORRECTIVE_ACTION
+            mapea a DS 109 (Chile), OSHA 1904 (US), RIDDOR (UK),
+            CLC §125 (CA), WHS Act Part 3 (AU). */}
+        <RegulatoryCitation
+          controlId="NONCONFORMITY_CORRECTIVE_ACTION"
+          tenantCountry={(selectedProject as any)?.country ?? 'CL'}
+          label="Marco regulatorio"
+          format="short"
+        />
       </div>
 
       {/* Sprint 28 B6 — generador real DIAT/DIEP con folio + firma */}

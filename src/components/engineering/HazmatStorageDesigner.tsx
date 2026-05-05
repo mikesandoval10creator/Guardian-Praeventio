@@ -13,6 +13,7 @@ import {
 import { generateMistingNode } from '../../services/zettelkasten/bernoulli/mistingDustSuppression';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { useProject } from '../../contexts/ProjectContext';
+import { RegulatoryCitation } from '../shared/RegulatoryCitation';
 
 // DS 594 Art. 35 — minimum air changes per hour for chemical storage
 const ACH_MIN_DS594 = 12;
@@ -152,14 +153,26 @@ export const HazmatStorageDesigner: React.FC = () => {
 
   return (
     <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50 p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-          <Building2 className="w-6 h-6 text-orange-500 dark:text-orange-400" />
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
+            <Building2 className="w-6 h-6 text-orange-500 dark:text-orange-400" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t('hazmat_designer.title')}</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">{t('hazmat_designer.subtitle')}</p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t('hazmat_designer.title')}</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm">{t('hazmat_designer.subtitle')}</p>
-        </div>
+        {/* Sprint 29 EE — citas normativas dinámicas por jurisdicción.
+            OPERATIONAL_CONTROL cubre PPE, ventilación y procedimientos
+            (DS 594 en Chile, OSHA 1910.132/1910.95 en EE.UU., COSHH/PPER
+            en UK, COHSR Part XII en Canadá, WHS Reg Part 3.2 en AU). */}
+        <RegulatoryCitation
+          controlId="OPERATIONAL_CONTROL"
+          tenantCountry={(selectedProject as any)?.country}
+          label="Normativa aplicable"
+          format="short"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -15,6 +15,9 @@ import { US_OSHA_REFERENCES } from './jurisdictions/us-osha.js';
 import { EU_REFERENCES } from './jurisdictions/eu.js';
 import { MX_REFERENCES } from './jurisdictions/mx.js';
 import { BR_REFERENCES } from './jurisdictions/br.js';
+import { UK_REFERENCES } from './jurisdictions/uk.js';
+import { CA_REFERENCES } from './jurisdictions/ca.js';
+import { AU_REFERENCES } from './jurisdictions/au.js';
 
 const JURISDICTION_TABLE: Partial<
   Record<JurisdictionCode, Record<string, RegulationRef[]>>
@@ -24,6 +27,9 @@ const JURISDICTION_TABLE: Partial<
   EU: EU_REFERENCES,
   MX: MX_REFERENCES,
   BR: BR_REFERENCES,
+  UK: UK_REFERENCES,
+  CA: CA_REFERENCES,
+  AU: AU_REFERENCES,
 };
 
 /**
@@ -52,6 +58,18 @@ const COUNTRY_TO_JURISDICTION: Record<string, JurisdictionCode> = {
   IE: 'EU',
   AT: 'EU',
   EU: 'EU',
+  // Sprint 29 EE — UK post-Brexit, jurisdicción separada (HSE regulator).
+  GB: 'UK',
+  UK: 'UK',
+  'UNITED-KINGDOM': 'UK',
+  // Sprint 29 EE — Canadá (federal CCOHS/COHSR + Ontario/Quebec mention).
+  CA: 'CA',
+  CAN: 'CA',
+  CANADA: 'CA',
+  // Sprint 29 EE — Australia (modelo armonizado WHS Act 2011).
+  AU: 'AU',
+  AUS: 'AU',
+  AUSTRALIA: 'AU',
 };
 
 export interface TenantRegulatoryContext {
