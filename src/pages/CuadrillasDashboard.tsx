@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Plus, ListChecks, Trophy, Hammer, Eye, ShieldCheck } from 'lucide-react';
+import { Users, Plus, ListChecks, Trophy, Hammer, Eye, ShieldCheck, FileSpreadsheet } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
@@ -24,6 +24,7 @@ import { ProcessDetailModal } from '../components/processes/ProcessDetailModal';
 import { CloseProcessModal } from '../components/processes/CloseProcessModal';
 import { CreateCrewModal } from '../components/processes/CreateCrewModal';
 import { GanttProjectView } from '../components/projects/GanttProjectView';
+import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
 
 export function CuadrillasDashboard() {
   const { selectedProject } = useProject();
@@ -37,6 +38,7 @@ export function CuadrillasDashboard() {
   const [showStartProcess, setShowStartProcess] = useState(false);
   const [detailProcess, setDetailProcess] = useState<Process | null>(null);
   const [closeProcess, setCloseProcess] = useState<Process | null>(null);
+  const [showCsvModal, setShowCsvModal] = useState<null | 'processes' | 'crews'>(null);
 
   // Subscribe to crews of the active project.
   useEffect(() => {
@@ -120,14 +122,30 @@ export function CuadrillasDashboard() {
             · {selectedProject?.name}
           </span>
         </div>
-        <button
-          onClick={() => setShowCreateCrew(true)}
-          className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Nueva cuadrilla
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCsvModal('processes')}
+            className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Import/Export CSV
+          </button>
+          <button
+            onClick={() => setShowCreateCrew(true)}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nueva cuadrilla
+          </button>
+        </div>
       </header>
+
+      <CsvImportExportModal
+        isOpen={showCsvModal !== null}
+        onClose={() => setShowCsvModal(null)}
+        entityType={showCsvModal ?? 'processes'}
+        projectId={projectId || null}
+      />
 
       {/* 3-pane grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
