@@ -15,6 +15,9 @@ Companion artefacts:
 - [`STRIDE_findings.md`](./STRIDE_findings.md) — findings table (24 entries).
 - [`incident-response.md`](./incident-response.md) — runbook on detection.
 - [`severity-rubric.md`](./severity-rubric.md) — severity scoring (existing).
+- [`PENTEST_CHECKLIST.md`](./PENTEST_CHECKLIST.md) — Dirty Dozen automated
+  pentest of `firestore.rules` (Bucket RR). Tampering / Elevation rows
+  in §7 are cross-linked to specific test cases.
 - [`docs/audit/auditoria777.md`](../audit/auditoria777.md) — Sprint 19 audit
   cross-linked from individual findings.
 
@@ -196,8 +199,8 @@ encyclopedic.
 ### 7.2 Tampering (T)
 | ID | Threat | Manifestation | Status |
 |----|--------|---------------|--------|
-| TM-T01 | Self-promote subscription tier from client | Worker writes `users/{uid}` with `subscriptionPlan='ilimitado'` | **mitigated** — diff-based deny at `firestore.rules:177-182`; `/api/subscription/upgrade` requires paid invoice |
-| TM-T02 | Self-fabricate audit log entry | Worker writes a fake "I revoked admin X" entry | **mitigated** — `audit_logs:create=false` + server-side actor stamping |
+| TM-T01 | Self-promote subscription tier from client | Worker writes `users/{uid}` with `subscriptionPlan='ilimitado'` | **mitigated** — diff-based deny at `firestore.rules:177-182`; `/api/subscription/upgrade` requires paid invoice. **Validated by `dirtyDozen.test.ts` #2 (privilege escalation) and #11 (stale claims).** |
+| TM-T02 | Self-fabricate audit log entry | Worker writes a fake "I revoked admin X" entry | **mitigated** — `audit_logs:create=false` + server-side actor stamping. **Validated by `dirtyDozen.test.ts` #2 (worker create denied) and #3 (gerente update denied).** |
 | TM-T03 | Tamper IndexedDB offline queue before reconciliation | Local malware modifies `{query, response}` on disk; reconciliation writes attacker-controlled node into Zettelkasten | **open** — needs HMAC over queued entries keyed on a device-derived secret |
 | TM-T04 | Webpay double-commit via redelivered token_ws | Browser refresh during Webpay return commits twice | **mitigated** — `processed_webpay/{token_ws}` lock-then-complete + 5-min stale window |
 
@@ -228,9 +231,9 @@ encyclopedic.
 ### 7.6 Elevation of privilege (E)
 | ID | Threat | Manifestation | Status |
 |----|--------|---------------|--------|
-| TM-E01 | Non-member user reads/writes another project's data | Crafted Firestore client call | **mitigated** — `isProjectMember` rules + `assertProjectMember` server-side |
+| TM-E01 | Non-member user reads/writes another project's data | Crafted Firestore client call | **mitigated** — `isProjectMember` rules + `assertProjectMember` server-side. **Validated by `dirtyDozen.test.ts` #1 (cross-tenant read), #6 (anon write), #7 (projectId spoof).** |
 | TM-E02 | Cloud Run service account over-privileged | Compromised process gets full project access | **open (verify)** — confirm SA holds only `roles/aiplatform.user` scoped to one model, not project-wide |
-| TM-E03 | Self-promote to admin via custom claims | Worker calls `/api/admin/set-role` for own uid | **mitigated** — caller's `customClaims.role` checked first, `revokeRefreshTokens` invalidates old token |
+| TM-E03 | Self-promote to admin via custom claims | Worker calls `/api/admin/set-role` for own uid | **mitigated** — caller's `customClaims.role` checked first, `revokeRefreshTokens` invalidates old token. **Validated by `dirtyDozen.test.ts` #11 (token without role claim cannot reach admin paths).** |
 | TM-E04 | E2E secret replay against production | Stolen `E2E_TEST_SECRET` used live | **mitigated** — boot-time guard refuses prod+E2E |
 
 ---

@@ -11,6 +11,7 @@ import {
   generateMiningExtractionNode,
 } from '../../services/zettelkasten/bernoulli';
 import { generateMistingNode } from '../../services/zettelkasten/bernoulli/mistingDustSuppression';
+import { generateGasDispersionNode } from '../../services/zettelkasten/bernoulli/gasDispersionCloud';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { useProject } from '../../contexts/ProjectContext';
 import { RegulatoryCitation } from '../shared/RegulatoryCitation';
@@ -50,6 +51,10 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [deltaPPa, setDeltaPPa] = useState<number | ''>(50);
   // Bucket B.4 — misting dust suppression (PM10 ambient → recommended nozzles).
   const [pm10UgM3, setPm10UgM3] = useState<number | ''>(80);
+  // Sprint 25 Bucket NN — Gas dispersion cloud (Pasquill-Gifford).
+  const [leakRateKgS, setLeakRateKgS] = useState<number | ''>(0.05);
+  const [windKmh, setWindKmh] = useState<number | ''>(15);
+  const [pasquillStability, setPasquillStability] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('D');
   const { selectedProject } = useProject();
 
   const venturiResult = useMemo(() => {
@@ -128,6 +133,25 @@ export const HazmatStorageDesigner: React.FC = () => {
     if (node && projectId) writeNodesDebounced([node], { projectId });
     return { nozzleCount, pm10, exceedsOel: pm10 > 50 };
   }, [pm10UgM3, roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, storageType, selectedProject?.id]);
+
+  // Sprint 25 Bucket NN — Gas dispersion cloud (LFL distance / IDLH exclusion).
+  const dispersionResult = useMemo(() => {
+    const q = Number(leakRateKgS);
+    const w = Number(windKmh);
+    if (q <= 0 || w <= 0) return null;
+    // Use IDLH proxy for ammonia/H2S class (300 mg/m³). Density per material class heuristic.
+    const node = generateGasDispersionNode(
+      { id: `leak-${storageType}`, releaseRateKgS: q, idlhMgM3: 300, relativeDensity: 1.2 },
+      { windKmh: w, pasquillStability },
+      { id: `terrain-${storageType}`, roughnessM: 0.5 },
+    );
+    const projectId = selectedProject?.id;
+    if (node) {
+      logger.info('zettelkasten:gas-dispersion', { node });
+      if (projectId) writeNodesDebounced([node], { projectId });
+    }
+    return { node, lflDistanceM: node?.metadata?.exclusionRadiusM as number | undefined };
+  }, [leakRateKgS, windKmh, pasquillStability, storageType, selectedProject?.id]);
 
   const handleDesign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -432,6 +456,61 @@ export const HazmatStorageDesigner: React.FC = () => {
               PM10 supera referencia OEL — activar misting Venturi para captar partículas finas.
             </p>
           </div>
+        )}
+      </div>
+
+      {/* Sprint 25 Bucket NN — Modelo de dispersión de nube (Pasquill-Gifford). */}
+      <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+            <Wind className="w-5 h-5 text-rose-500 dark:text-rose-400" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Modelo de dispersión de nube</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Pluma Gaussiana simplificada (Pasquill-Gifford) — DS 144/1961, MINSAL ATSDR.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Tasa fuga (kg/s)</label>
+            <input type="number" min="0" step="any" value={leakRateKgS}
+              onChange={(e) => setLeakRateKgS(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Viento (km/h)</label>
+            <input type="number" min="0" step="any" value={windKmh}
+              onChange={(e) => setWindKmh(e.target.value ? Number(e.target.value) : '')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Estabilidad atmosférica</label>
+            <select value={pasquillStability}
+              onChange={(e) => setPasquillStability(e.target.value as 'A' | 'B' | 'C' | 'D' | 'E' | 'F')}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white">
+              {(['A', 'B', 'C', 'D', 'E', 'F'] as const).map((c) => (
+                <option key={c} value={c}>{c} {c === 'A' ? '(muy inestable)' : c === 'F' ? '(muy estable)' : ''}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {dispersionResult?.node ? (
+          <div className="rounded-lg px-3 py-2 border bg-rose-500/10 border-rose-500/20">
+            <p className="text-[10px] uppercase tracking-widest font-bold text-rose-700 dark:text-rose-300">
+              Distancia a LFL / Radio exclusión IDLH ({dispersionResult.node.severity})
+            </p>
+            <p className="text-lg font-black text-rose-700 dark:text-rose-300">
+              {(dispersionResult.lflDistanceM ?? 0).toFixed(0)} m
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+            Ajusta tasa de fuga y viento para evaluar pluma.
+          </p>
         )}
       </div>
     </div>

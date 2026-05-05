@@ -5,6 +5,7 @@ import { syncWithFirebase, SyncAction, getPendingActions, removeSyncedAction } f
 import { db, storage, handleFirestoreError, OperationType } from '../services/firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
@@ -179,7 +180,33 @@ export function OfflineSyncManager() {
       }
     };
 
+    // Bucket QQ — wire the central state machine to the same Firestore
+    // executor used by the legacy queue. Idempotent: setting the executor
+    // multiple times just overwrites the previous reference.
+    offlineSync.setExecutor(async (op: SyncOperation) => {
+      const collectionName = op.collection;
+      if (op.type === 'create') {
+        const { id: _id, ...payload } = op.data ?? {};
+        await addDoc(collection(db, collectionName), payload);
+      } else if (op.type === 'update') {
+        const { id, ...payload } = op.data ?? {};
+        if (!id) throw new Error('update op missing id');
+        await updateDoc(doc(db, collectionName, id), payload);
+      } else if (op.type === 'delete') {
+        const id = op.data?.id;
+        if (!id) throw new Error('delete op missing id');
+        await deleteDoc(doc(db, collectionName, id));
+      } else if (op.type === 'set') {
+        const { id, ...payload } = op.data ?? {};
+        if (!id) throw new Error('set op missing id');
+        await setDoc(doc(db, collectionName, id), payload, { merge: true });
+      }
+    });
+
     runSync();
+    if (isOnline) {
+      void offlineSync.syncNow();
+    }
 
     window.addEventListener('force-sync', runSync);
     window.addEventListener('force-sync-single', handleSingleSync);
