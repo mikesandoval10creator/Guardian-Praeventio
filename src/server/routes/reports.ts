@@ -22,12 +22,32 @@
 // already-sent response.
 
 import { Router } from 'express';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
+// Note: the user-spec endpoint name was `/reports/incident`; this router
+// only exposes `/reports/generate-pdf` (the PDFKit pipeline that renders
+// SUSESO-style incident reports). We apply the schema HERE because it is
+// the de-facto incident-report endpoint.
+import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 
 const router = Router();
 
-router.post('/reports/generate-pdf', verifyAuth, async (req, res) => {
+// Sprint 28 Bucket B3 — schema for the incident-report PDF generator.
+// `content` is large (full narrative), so we cap at 64kB to match the
+// per-route `largeBodyJson` limit set in server.ts.
+const reportsGeneratePdfSchema = z.object({
+  type: z.enum(['general', 'incident', 'safety', 'compliance', 'inspection', 'training']).default('general'),
+  title: z.string().min(1).max(256),
+  description: z.string().max(8192).optional(),
+  content: z.string().max(65536).optional(),
+  projectId: z.string().min(1).max(128).optional(),
+  incidentId: z.string().max(128).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+});
+
+router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSchema), async (req, res) => {
   const { incidentId, title, content, type = 'general', metadata = {} } = req.body;
 
   try {

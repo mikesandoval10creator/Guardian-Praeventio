@@ -30,6 +30,11 @@ import { getErrorTracker } from "./src/services/observability/index.js";
 import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
+// Sprint 28 Bucket B3 — transversal Zod validation factory. Closes audit
+// hallazgo H17. Each opt-in route mounts `validate(schema)` as the FIRST
+// barrier; legacy `typeof` guards stay in place until Sprint 29.
+import { validate } from "./src/server/middleware/validate.js";
+import { z } from "zod";
 import adminRouter from "./src/server/routes/admin.js";
 // Sprint 23 Bucket CC — B2D admin (key management + revenue dashboards).
 import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
@@ -60,6 +65,7 @@ import {
 } from "./src/server/routes/oauthGoogle.js";
 import geminiRouter from "./src/server/routes/gemini.js";
 import reportsRouter from "./src/server/routes/reports.js";
+import susesoRouter from "./src/server/routes/suseso.js";
 import telemetryRouter from "./src/server/routes/telemetry.js";
 import gamificationRouter from "./src/server/routes/gamification.js";
 import miscRouter from "./src/server/routes/misc.js";
@@ -438,6 +444,11 @@ app.use('/api', geminiRouter);
 // `express.json({ limit: '64kb' })` parser.
 app.use('/api', reportsRouter);
 
+// Sprint 28 Bucket B6 — SUSESO DIAT/DIEP form generation. Mounted under
+// `/api/suseso` so verify/:folio resolves cleanly from the QR codes embedded
+// in printed PDFs. Closes audit hallazgo H28 (P1).
+app.use('/api/suseso', susesoRouter);
+
 // OAuth Configuration (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SCOPES) and
 // the 8 Google OAuth endpoints (calendar, fitness, drive, unlink, /url +
 // /callback for primary + drive + the root-mounted /auth/google/callback)
@@ -650,7 +661,20 @@ app.use('/api/auth', webauthnChallengeRouter);
 
 // Prototype Fusion Phase 6.1 — FCM notify-brigada endpoint
 // Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
-app.post('/api/emergency/notify-brigada', verifyAuth, async (req: express.Request, res: express.Response) => {
+//
+// Sprint 28 Bucket B3 — `validate(notifyBrigadaSchema)` is the FIRST
+// barrier. The legacy `if (!projectId || !emergencyType)` guard stays
+// (TODO Sprint 29: remove once telemetry confirms the schema has been
+// stable in prod for >2 weeks).
+const notifyBrigadaSchema = z.object({
+  projectId: z.string().min(1).max(128),
+  // The wire field is `emergencyType`; we keep it for backward compat but
+  // gate the values to a known whitelist so callers can't dump arbitrary
+  // strings into the FCM notification title.
+  emergencyType: z.enum(['fall', 'sos', 'medical', 'fire', 'gas', 'collapse', 'other']),
+  message: z.string().max(500).optional(),
+});
+app.post('/api/emergency/notify-brigada', verifyAuth, validate(notifyBrigadaSchema), async (req: express.Request, res: express.Response) => {
   const { projectId, emergencyType, message } = req.body as { projectId?: string; emergencyType?: string; message?: string };
   if (!projectId || !emergencyType) {
     return res.status(400).json({ error: 'projectId and emergencyType are required' });

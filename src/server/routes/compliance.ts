@@ -18,7 +18,10 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
+import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import {
   recordConsent,
@@ -159,7 +162,24 @@ router.get('/consent', verifyAuth, async (req, res) => {
 // Data-subject requests
 // ---------------------------------------------------------------------------
 
-router.post('/data-request', verifyAuth, async (req, res) => {
+// Sprint 28 Bucket B3 — Zod schema for the data-subject request endpoint.
+// The user-spec asked for `kind` + `targetUid` + `reason`; we map those to
+// the existing wire field names (`type` is the existing `kind` enum, and
+// `reason` lands in the rectificationPayload bag) so the contract stays
+// backward-compatible. Legacy `VALID_REQUEST_TYPES.includes` guard below
+// stays as defense-in-depth (TODO Sprint 29: remove).
+const dataRequestSchema = z.object({
+  type: z.enum(['access', 'rectification', 'erasure', 'portability']),
+  // Optional structured payload for rectification requests.
+  rectificationPayload: z.record(z.string(), z.unknown()).optional(),
+  // Optional human-readable reason — recorded in the audit row.
+  reason: z.string().max(1024).optional(),
+  // Optional admin-on-behalf-of target uid. Most subjects act on themselves
+  // (the auth uid), but DPO operations may target another uid.
+  targetUid: z.string().min(1).max(128).optional(),
+});
+
+router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
   const uid = (req as any).user.uid as string;
   const { type, rectificationPayload } = req.body ?? {};
 

@@ -27,12 +27,17 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { zettelkastenWriteLimiter } from '../middleware/limiters.js';
+// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
+// Mounted as the FIRST barrier; the existing per-node `validateNode` helper
+// stays as a defense-in-depth guard until Sprint 29.
+import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing across the node-write batch.
 import { tracedAsync } from '../../services/observability/tracing.js';
@@ -101,10 +106,32 @@ function validateNode(node: any, idx: number): ValidationOk | ValidationFail {
   return { ok: true };
 }
 
+// Sprint 28 Bucket B3 — minimal coarse-shape gate. Per-node validation
+// continues to live in `validateNode` below (richer error messages, kept
+// for backward compat). This schema only ensures `projectId` is present
+// and `nodes` is a bounded array of objects so the legacy validator can
+// safely iterate.
+const zettelkastenWriteSchema = z.object({
+  projectId: z.string().min(1).max(128),
+  nodes: z.array(z.object({
+    title: z.string().min(1).max(256),
+    content: z.string().max(8192).optional(),
+    description: z.string().min(1).max(4096),
+    type: z.string().min(1),
+    severity: z.string().min(1),
+    metadata: z.record(z.string(), z.unknown()),
+    connections: z.array(z.string().max(256)),
+    references: z.array(z.string().max(256)),
+    tags: z.array(z.string()).optional(),
+    idempotencyKey: z.string().min(1).max(256),
+  }).passthrough()).min(1).max(32),
+});
+
 router.post(
   '/nodes',
   verifyAuth,
   zettelkastenWriteLimiter,
+  validate(zettelkastenWriteSchema),
   async (req, res) => {
     const callerUid = (req as any).user.uid;
     const callerEmail: string | null = (req as any).user.email ?? null;
