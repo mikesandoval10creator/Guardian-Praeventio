@@ -138,6 +138,28 @@ export default defineConfig(({mode}) => {
           __dirname,
           'packages/capacitor-mesh/src/index.ts',
         ),
+        // Sprint 32 audit P0 build fix — redirect server-only error
+        // tracker adapters to browser stubs in the client bundle.
+        // `services/observability/index.ts` statically imports
+        // `sentryAdapter` and `cloudErrorReportingAdapter` so it can
+        // dispatch by ERROR_TRACKER env var; in production server
+        // those resolve normally (server.ts isn't Vite-bundled),
+        // but in the browser the real adapters drag `@sentry/node`
+        // (which imports `node:diagnostics_channel`) and
+        // `@google-cloud/error-reporting` into the client bundle —
+        // Vite then errors with "X not exported by __vite-browser-
+        // external". Aliasing to no-op stubs keeps the static import
+        // graph valid without leaking Node-only deps into the browser.
+        // Browser surfaces use `@sentry/react` directly via
+        // `src/lib/sentry.ts` — independent path.
+        './sentryAdapter': path.resolve(
+          __dirname,
+          'src/services/observability/sentryAdapter.browser-stub.ts',
+        ),
+        './cloudErrorReportingAdapter': path.resolve(
+          __dirname,
+          'src/services/observability/cloudErrorReportingAdapter.browser-stub.ts',
+        ),
       },
     },
     build: {

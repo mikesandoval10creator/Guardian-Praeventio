@@ -18,13 +18,78 @@
 // (`noopKmsAdapter`).
 //
 // Per-request user context:
-//   We use Node's built-in `AsyncLocalStorage` (node:async_hooks) so each
-//   request's user context is isolated even when the runtime concurrently
-//   serves multiple requests in the same process (Cloud Run + serverless).
-//   See OBSERVABILITY.md §1 (Per-request user context with AsyncLocalStorage)
-//   for the Express middleware integration pattern.
+//   On the server we use Node's built-in `AsyncLocalStorage` (node:async_hooks)
+//   so each request's user context is isolated under serverless concurrency
+//   (Cloud Run multi-tenant). On the browser, where this module gets bundled
+//   transitively (via `services/safety/ergonomicAssessments` and similar
+//   client services that import `getErrorTracker`), `node:async_hooks` is
+//   not available — Vite externalizes it to `__vite-browser-external` and
+//   the build fails with "AsyncLocalStorage is not exported". We resolve at
+//   runtime with a tiny browser shim that mimics the .run() / .getStore()
+//   contract on a single mutable slot. It is NOT concurrency-safe, but
+//   browsers are single-threaded per tab, so the only requirement is
+//   correct nesting of .run() invocations — which the shim provides.
+//   See OBSERVABILITY.md §1.
 
-import { AsyncLocalStorage } from 'node:async_hooks';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyAls<T> = {
+  run<R>(store: T, fn: () => R): R;
+  getStore(): T | undefined;
+};
+
+class BrowserAsyncLocalStorage<T> implements AnyAls<T> {
+  private current: T | undefined = undefined;
+  run<R>(store: T, fn: () => R): R {
+    const previous = this.current;
+    this.current = store;
+    try {
+      return fn();
+    } finally {
+      this.current = previous;
+    }
+  }
+  getStore(): T | undefined {
+    return this.current;
+  }
+}
+
+// Resolve AsyncLocalStorage at module load. On Node we synchronously
+// require() node:async_hooks; on the browser we degrade to the shim above.
+//
+// IMPORTANT — bundler escape hatch:
+//   Vite/Rollup statically analyze every literal import path. A direct
+//   `import { AsyncLocalStorage } from 'node:async_hooks'` (or even
+//   `require('node:async_hooks')` as a literal string) gets resolved at
+//   BUILD time, and Vite's browser-external alias rewrites it to a stub
+//   that doesn't export AsyncLocalStorage — the build then fails.
+//   We hide the module name from the static analyzer by:
+//     1. Building the string at runtime (`'node:' + 'async_hooks'`).
+//     2. Calling require via `Function('m','return require(m)')` so the
+//        bundler sees a plain Function call, not a require literal.
+//   In a browser, the `typeof process` guard short-circuits before the
+//   Function path runs, so neither require nor process leak in.
+//   Cost: one try/catch at module init; runtime hot path is unchanged.
+function resolveAsyncLocalStorage<T>(): new () => AnyAls<T> {
+  if (typeof process !== 'undefined' && (process as { versions?: { node?: string } })?.versions?.node) {
+    try {
+      const moduleName = 'node:' + 'async_hooks';
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const dynamicRequire = new Function('m', 'return require(m)') as (m: string) => unknown;
+      const mod = dynamicRequire(moduleName) as { AsyncLocalStorage?: new () => AnyAls<T> } | null;
+      if (mod?.AsyncLocalStorage) {
+        return mod.AsyncLocalStorage;
+      }
+    } catch {
+      /* fall through to shim below — happens in deno/bun without require */
+    }
+  }
+  return BrowserAsyncLocalStorage as unknown as new () => AnyAls<T>;
+}
+
+const AsyncLocalStorage = resolveAsyncLocalStorage<{
+  userId?: string;
+  props?: Record<string, unknown>;
+}>();
 import { logger } from '../../utils/logger';
 import type {
   Breadcrumb,
@@ -60,10 +125,7 @@ function noopEventId(): string {
  * and `setUserContext` becomes a no-op outside of a `.run(...)` scope (it
  * has nowhere to attach state — that's intentional). See OBSERVABILITY.md.
  */
-const userContextStore = new AsyncLocalStorage<{
-  userId?: string;
-  props?: Record<string, unknown>;
-}>();
+const userContextStore = new AsyncLocalStorage();
 
 export const noopErrorTrackingAdapter: ErrorTrackingAdapter = {
   name: 'noop',
