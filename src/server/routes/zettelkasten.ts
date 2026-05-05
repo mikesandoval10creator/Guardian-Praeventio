@@ -34,6 +34,8 @@ import {
 } from '../../services/auth/projectMembership.js';
 import { zettelkastenWriteLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
+// Sprint 22 Bucket AA — request-scoped tracing across the node-write batch.
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 const router = Router();
 
@@ -132,7 +134,11 @@ router.post(
 
     try {
       const db = admin.firestore();
-      const written: string[] = [];
+      const written: string[] = await tracedAsync(
+        'zettelkasten.nodes.write',
+        { projectId, nodeCount: nodes.length, uid: callerUid },
+        async () => {
+      const result: string[] = [];
       for (const node of nodes) {
         const docRef = db.collection('zettelkasten_nodes').doc(node.idempotencyKey);
         await docRef.set(
@@ -167,8 +173,11 @@ router.post(
           ip: req.ip ?? null,
           userAgent: req.header('user-agent') ?? null,
         });
-        written.push(node.idempotencyKey);
+        result.push(node.idempotencyKey);
       }
+      return result;
+        },
+      );
       return res.json({ success: true, count: written.length, ids: written });
     } catch (error: any) {
       logger.error('zettelkasten_node_write_failed', {

@@ -10,7 +10,8 @@ import dotenv from "dotenv";
 import { Resend } from "resend";
 import { initializeRAG } from "./src/services/ragService.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
-import { logger } from "./src/utils/logger.js";
+import { logger, runWithRequestContext } from "./src/utils/logger.js";
+import { initTracing, getActiveTraceId } from "./src/services/observability/tracing.js";
 // Billing imports (buildInvoice, webpayAdapter, stripeAdapter, withIdempotency,
 // webpayMetrics, mercadoPagoAdapter, currency, billing/types) moved to
 // src/server/routes/billing.ts in Round 17 R2 Phase 2 split. `isAdminRole`
@@ -101,6 +102,14 @@ if (process.env.NODE_ENV === 'production' && _kmsAdapter === 'in-memory-dev') {
 // Express middleware so unhandled errors anywhere in the boot path are
 // captured. Silent no-op when SENTRY_DSN isn't set; see OBSERVABILITY.md
 // §1 (fall-back policy) for why a missing DSN is not fatal.
+// Sprint 22 Bucket AA — OpenTelemetry tracing init. No-op when the SDK
+// packages aren't installed; emits structured logs as a fallback so the
+// pattern is in code from day one. See tracing.ts for the bootstrap
+// contract and the OTLP exporter env-var list.
+initTracing('praeventio-guard').catch((err) => {
+  console.warn('[observability] tracing init failed (continuing without it):', err);
+});
+
 try {
   sentryAdapter.init({
     dsn: process.env.SENTRY_DSN,
@@ -198,6 +207,34 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
+
+// ─── Sprint 22 Bucket AA — Request ID + log context propagation ──────────
+//
+// Every inbound request gets a stable identifier (X-Request-ID, echoed
+// to the client). The id is generated server-side when the client
+// doesn't supply one. We bind it to `runWithRequestContext` so any
+// `logger.*` call inside the handler chain — including deep helpers
+// that don't accept a request_id parameter — is auto-tagged with
+// `request_id`. The trace_id (when OTel is wired) is bound the same way.
+//
+// Mounted ABOVE the rate limiter / verifyAuth / body parsers so even
+// 429 / 401 / 400 paths carry the id. The header bound on the response
+// gives ops engineers a stable token to search for in Cloud Logging.
+const REQUEST_ID_HEADER = 'X-Request-ID';
+const REQUEST_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,128}$/;
+app.use((req, res, next) => {
+  const incoming = req.header(REQUEST_ID_HEADER);
+  const requestId =
+    incoming && REQUEST_ID_REGEX.test(incoming)
+      ? incoming
+      : crypto.randomUUID();
+  (req as any).requestId = requestId;
+  res.setHeader(REQUEST_ID_HEADER, requestId);
+  // Pull the active trace id (when OTel resolves) so logs and Sentry
+  // events can be cross-referenced with the trace backend.
+  const traceId = getActiveTraceId() ?? undefined;
+  runWithRequestContext({ requestId, traceId }, () => next());
+});
 
 // Sprint 21 — Bucket G: Universal Links (iOS) + App Links (Android).
 //
