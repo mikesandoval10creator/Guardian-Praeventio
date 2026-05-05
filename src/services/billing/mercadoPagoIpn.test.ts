@@ -334,6 +334,10 @@ describe('processMercadoPagoIpn', () => {
 
     expect(r1.outcome).toBe('paid');
     expect(r2.outcome).toBe('paid'); // replayed via processed_mp_ipn doc
+    // Sprint 28 H18 — idempotencyKind surfaces fresh vs. replay so the
+    // route handler can audit `billing.webhook.replay` distinctly.
+    expect(r1.idempotencyKind).toBe('fresh-success');
+    expect(r2.idempotencyKind).toBe('duplicate');
     // getPayment called ONLY ONCE — second call short-circuits via idempotency.
     expect(mocks.getPaymentMock).toHaveBeenCalledTimes(1);
     // Only one audit log row.

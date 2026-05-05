@@ -20,8 +20,11 @@
 // `jobs/checkOverdueMaintenance.ts` and surfaces its counts in JSON.
 
 import { Router } from 'express';
+import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
+import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
+import { sendToProjectSupervisors } from './emergency.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 
 const router = Router();
@@ -29,10 +32,33 @@ const router = Router();
 router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {
-    const result = await checkOverdueMaintenance();
+    const maintenance = await checkOverdueMaintenance();
+    // Sprint 28 H26 — extend the same scheduler invocation to also reap
+    // expired EPP assignments. Both jobs are independent and idempotent;
+    // running them in sequence here keeps Cloud Scheduler config simple
+    // (one cron entry instead of two).
+    let ppe: { scanned: number; expired: number; notified: number } = {
+      scanned: 0,
+      expired: 0,
+      notified: 0,
+    };
+    try {
+      ppe = await checkExpiredPpe({
+        notifySupervisors: ({ projectId, payload, db, messaging }) =>
+          sendToProjectSupervisors(projectId, payload, db, messaging),
+      });
+    } catch (ppeErr) {
+      logger.error('[maintenance] check-expired-ppe failed', ppeErr);
+    }
     const tookMs = Date.now() - start;
-    logger.info('[maintenance] check-overdue done', { ...result, tookMs });
-    return res.status(200).json({ ok: true, ...result, tookMs });
+    logger.info('[maintenance] check-overdue done', {
+      ...maintenance,
+      ppe,
+      tookMs,
+    });
+    return res
+      .status(200)
+      .json({ ok: true, ...maintenance, ppe, tookMs });
   } catch (err) {
     logger.error('[maintenance] check-overdue failed', err);
     return res
@@ -41,4 +67,8 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
   }
 });
 
+// Re-export `admin` access through this module so the test harness can
+// inject a fake; defensively imported here to keep this file the single
+// entry point for the maintenance HTTP surface.
+export { admin };
 export default router;

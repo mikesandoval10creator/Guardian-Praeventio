@@ -37,8 +37,12 @@ import { performance } from 'node:perf_hooks';
 import { randomUUID } from 'node:crypto';
 import { google } from 'googleapis';
 
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
+// Sprint 28 Bucket B3 — transversal Zod validation factory. See
+// src/server/middleware/validate.ts for the contract.
+import { validate } from '../middleware/validate.js';
 import { invoiceStatusLimiter, googlePlayWebhookLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing on the billing dispatch path.
@@ -61,6 +65,7 @@ import {
 import { KhipuAdapter } from '../../services/billing/khipuAdapter.js';
 import { stripeAdapter } from '../../services/billing/stripeAdapter.js';
 import { withIdempotency } from '../../services/billing/idempotency.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
 import { recordWebpayReturnLatency } from '../../services/billing/webpayMetrics.js';
 import {
   mercadoPagoAdapter,
@@ -384,6 +389,24 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
       logger.info('rtdn_in_progress_skip', { messageId });
     } else if (outcome.kind === 'stale-retry') {
       logger.warn('rtdn_stale_lock_stealing', { messageId });
+    }
+
+    // Sprint 28 H18 — audit trail of every webhook delivery (success
+    // and replay). Best-effort: we never fail the request because of a
+    // failed audit write.
+    if (outcome.kind === 'duplicate') {
+      await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+        replay: true,
+        source: 'google-play',
+        txn: messageId,
+        previousResult: outcome.previousResult,
+      }).catch(() => {});
+    } else if (outcome.kind === 'fresh-success' || outcome.kind === 'stale-retry') {
+      await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+        source: 'google-play',
+        txn: messageId,
+        outcome: outcome.kind,
+      }).catch(() => {});
     }
 
     // All four outcomes ACK 200 to suppress Pub/Sub redelivery — see
@@ -935,6 +958,27 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
 
   try {
     const result = await processMercadoPagoIpn(req.body ?? {});
+    const paymentId = req.body?.data?.id;
+    // Sprint 28 H18 — audit success and replay for MP webhooks.
+    if (result.idempotencyKind === 'duplicate') {
+      await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+        replay: true,
+        source: 'mercadopago',
+        txn: paymentId ?? null,
+        invoiceId: result.invoiceId || null,
+      }).catch(() => {});
+    } else if (
+      result.idempotencyKind === 'fresh-success' ||
+      result.idempotencyKind === 'stale-retry'
+    ) {
+      await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+        source: 'mercadopago',
+        txn: paymentId ?? null,
+        invoiceId: result.invoiceId || null,
+        outcome: result.outcome,
+        idempotencyKind: result.idempotencyKind,
+      }).catch(() => {});
+    }
     return res.status(200).json({ ok: true, ...result });
   } catch (err) {
     logger.error('mp_ipn_processing_failed', err as Error, {
@@ -1035,6 +1079,14 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
           outcome: histogramOutcomeFor(lock.outcome),
           latencyMs: elapsed(),
         });
+        // Sprint 28 H18 — audit webhook replay for Webpay returns.
+        await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+          replay: true,
+          source: 'webpay',
+          txn: tokenWs,
+          invoiceId: lock.invoiceId ?? null,
+          previousOutcome: lock.outcome,
+        }).catch(() => {});
         return res.redirect(redirectFor(lock.outcome, lock.invoiceId ?? null));
       }
       // In-flight from another worker. Mirror RTDN's "ack and let UI handle
@@ -1298,6 +1350,26 @@ billingApiRouter.post(
         logger.warn('khipu_ipn_stale_lock_stealing', { dedupeKey });
       }
 
+      // Sprint 28 H18 — audit replay vs success for Khipu webhooks.
+      if (outcome.kind === 'duplicate') {
+        await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+          replay: true,
+          source: 'khipu',
+          txn: dedupeKey,
+          paymentId,
+        }).catch(() => {});
+      } else if (
+        outcome.kind === 'fresh-success' ||
+        outcome.kind === 'stale-retry'
+      ) {
+        await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+          source: 'khipu',
+          txn: dedupeKey,
+          paymentId,
+          outcome: outcome.kind,
+        }).catch(() => {});
+      }
+
       return res.status(200).json({ received: true });
     } catch (err) {
       logger.error('khipu_ipn_failed', err, { dedupeKey, paymentId });
@@ -1469,7 +1541,12 @@ billingApiRouter.post(
 // recommend AGAINST adding a query-string token because it ends up in
 // CDN logs. The cryptographic signature is the auth boundary.
 // ───────────────────────────────────────────────────────────────────────────
-billingApiRouter.post('/webhook/apple', async (req, res) => {
+// Sprint 28 Bucket B3 — Zod-gated payload before JWS verify. The legacy
+// guard below stays as defense-in-depth (TODO Sprint 29: remove).
+const appleWebhookSchema = z.object({
+  signedPayload: z.string().min(1),
+});
+billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req, res) => {
   const signedPayload = (req.body ?? {}).signedPayload;
   if (typeof signedPayload !== 'string' || signedPayload.length === 0) {
     return res.status(400).json({ error: 'missing_signed_payload' });
@@ -1529,6 +1606,26 @@ billingApiRouter.post('/webhook/apple', async (req, res) => {
       logger.warn('apple_ssn_stale_lock_stealing', {
         notificationUUID: payload.notificationUUID,
       });
+    }
+
+    // Sprint 28 H18 — audit replay vs success for Apple SSN webhooks.
+    if (outcome.kind === 'duplicate') {
+      await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
+        replay: true,
+        source: 'apple',
+        txn: payload.notificationUUID,
+        notificationType: payload.notificationType,
+      }).catch(() => {});
+    } else if (
+      outcome.kind === 'fresh-success' ||
+      outcome.kind === 'stale-retry'
+    ) {
+      await auditServerEvent(req, 'billing.webhook.success', 'billing', {
+        source: 'apple',
+        txn: payload.notificationUUID,
+        notificationType: payload.notificationType,
+        outcome: outcome.kind,
+      }).catch(() => {});
     }
 
     // All four outcomes ACK 200 — see contract notes in idempotency.ts.

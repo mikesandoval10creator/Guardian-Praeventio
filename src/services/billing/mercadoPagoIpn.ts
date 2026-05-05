@@ -60,6 +60,13 @@ export interface MercadoPagoIpnResult {
   outcome: MpIpnOutcome;
   /** Echoed `external_reference` from the MP payment, or '' for non-payment types. */
   invoiceId: string;
+  /**
+   * Sprint 28 H18 — surfaces the idempotency outcome so the route handler
+   * can audit replays vs. fresh deliveries vs. in-flight skips. Optional
+   * to keep backward compatibility for legacy callers that read only
+   * `outcome` + `invoiceId`.
+   */
+  idempotencyKind?: 'fresh-success' | 'duplicate' | 'in-flight' | 'stale-retry';
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -587,18 +594,18 @@ export async function processMercadoPagoIpn(
     // previousResult matches MercadoPagoIpnResult by construction.
     const prev = idempotency.previousResult as MercadoPagoIpnResult | undefined;
     if (prev && typeof prev === 'object' && typeof prev.outcome === 'string') {
-      return prev;
+      return { ...prev, idempotencyKind: 'duplicate' };
     }
     // Defensive fallback: previous result missing/malformed → return pending.
-    return { outcome: 'pending', invoiceId: '' };
+    return { outcome: 'pending', invoiceId: '', idempotencyKind: 'duplicate' };
   }
 
   if (idempotency.kind === 'in-flight') {
     // Another worker holds a fresh lock — treat as pending so the route
     // handler ACKs 200 without claiming any specific outcome.
-    return { outcome: 'pending', invoiceId: '' };
+    return { outcome: 'pending', invoiceId: '', idempotencyKind: 'in-flight' };
   }
 
   // fresh-success or stale-retry
-  return idempotency.result;
+  return { ...idempotency.result, idempotencyKind: idempotency.kind };
 }
