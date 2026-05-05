@@ -23,6 +23,19 @@ import { GoogleGenAI } from '@google/genai';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
+// Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
+// quota gating at the dispatch seam. Both /api/ask-guardian and /api/gemini
+// route every authed Gemini call through here, so a single guard pair
+// (`assertGeminiAllowed` BEFORE, `recordGeminiOutcome` AFTER) covers all
+// 100+ backend RPCs without per-callsite changes that would balloon the
+// diff and risk per-function regressions.
+import {
+  assertGeminiAllowed,
+  recordGeminiOutcome,
+  estimateGeminiCostUsd,
+} from '../../services/geminiBackend.js';
+// Sprint 22 Bucket AA — request-scoped tracing for the AI dispatch path.
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 // Sprint 10 — restablece el patrón "Portal → Sentidos → Mente" del prototipo
 // histórico (ver docs/proto/analisis_funcional.md). El orquestador inyecta
@@ -213,6 +226,28 @@ router.post('/ask-guardian', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter
     return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
   }
 
+  // Sprint 22 (Bucket X): circuit + quota gate before any Gemini I/O.
+  // Tenant id derives from req.user.uid as a stable per-account bucket;
+  // tier comes from the JWT custom claim populated by the billing layer.
+  const tenantId: string = (req as any).user?.uid ?? 'unknown';
+  const tier: string = (req as any).user?.tier ?? (req as any).user?.subscriptionTier ?? 'bronze';
+  try {
+    await assertGeminiAllowed(tenantId, tier);
+  } catch (err: any) {
+    if (err?.code === 'gemini_circuit_open') {
+      return res.status(503).json({ error: 'gemini_circuit_open', message: 'AI temporarily unavailable.' });
+    }
+    if (err?.code === 'gemini_quota_exceeded') {
+      return res.status(429).json({
+        error: 'quota_exceeded',
+        reason: err.quota?.reason ?? 'requests_exceeded',
+        usage: err.quota?.usage,
+        limit: err.quota?.limit,
+      });
+    }
+    throw err;
+  }
+
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -260,27 +295,57 @@ ${envBlock}
         contents: prompt,
       });
 
+      let streamedTokens = 0;
       for await (const chunk of responseStream) {
         if (chunk.text) {
+          streamedTokens += Math.ceil(chunk.text.length / 4); // rough heuristic
           res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
         }
       }
       res.write('data: [DONE]\n\n');
       res.end();
-    } else {
-      const result = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: prompt,
+      // Bucket X: post-call accounting on streamed responses. Tokens are
+      // estimated from char count when the SDK doesn't surface usage.
+      const inTokens = Math.ceil(prompt.length / 4);
+      await recordGeminiOutcome(tenantId, 'success', {
+        tokens: inTokens + streamedTokens,
+        costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', inTokens, streamedTokens),
       });
+    } else {
+      const result = await tracedAsync(
+        'ask-guardian.generateContent',
+        { tenantId, projectId: typeof projectId === 'string' ? projectId : null, model: 'gemini-3.1-pro-preview' },
+        () => ai.models.generateContent({
+          model: 'gemini-3.1-pro-preview',
+          contents: prompt,
+        }),
+      );
 
       res.json({
         response: result.text,
         contextUsed: context !== 'No se encontró contexto legal relevante.',
         envContextUsed: envContext !== null,
       });
+      // Bucket X: post-call accounting. Prefer SDK-reported token usage
+      // when available (Gemini 2.0+ surfaces `usageMetadata`), fall
+      // back to char-based estimation.
+      const meta: any = (result as any).usageMetadata ?? {};
+      const tokensIn = typeof meta.promptTokenCount === 'number'
+        ? meta.promptTokenCount
+        : Math.ceil(prompt.length / 4);
+      const tokensOut = typeof meta.candidatesTokenCount === 'number'
+        ? meta.candidatesTokenCount
+        : Math.ceil((result.text ?? '').length / 4);
+      await recordGeminiOutcome(tenantId, 'success', {
+        tokens: tokensIn + tokensOut,
+        costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', tokensIn, tokensOut),
+      });
     }
   } catch (error) {
     console.error('Error in /api/ask-guardian:', error);
+    // Bucket X: every Gemini exception advances the breaker counter so
+    // sustained upstream failure trips it before per-tenant ceilings do.
+    await recordGeminiOutcome(tenantId, 'failure');
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     } else {
@@ -312,16 +377,57 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     return res.status(403).json({ error: `Forbidden: Action ${action} is not allowed` });
   }
 
+  // Sprint 22 (Bucket X): circuit + quota gate. The dispatcher is the
+  // single chokepoint for 100+ Gemini RPCs — guarding here covers them
+  // all without touching individual handlers in geminiBackend.ts.
+  const tenantId: string = (req as any).user?.uid ?? 'unknown';
+  const tier: string = (req as any).user?.tier ?? (req as any).user?.subscriptionTier ?? 'bronze';
+  try {
+    await assertGeminiAllowed(tenantId, tier);
+  } catch (err: any) {
+    if (err?.code === 'gemini_circuit_open') {
+      return res.status(503).json({ error: 'gemini_circuit_open', message: 'AI temporarily unavailable.' });
+    }
+    if (err?.code === 'gemini_quota_exceeded') {
+      return res.status(429).json({
+        error: 'quota_exceeded',
+        reason: err.quota?.reason ?? 'requests_exceeded',
+        usage: err.quota?.usage,
+        limit: err.quota?.limit,
+      });
+    }
+    throw err;
+  }
+
   try {
     const geminiBackend = await import('../../services/geminiBackend.js');
     if (typeof geminiBackend[action as keyof typeof geminiBackend] === 'function') {
-      const result = await (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args);
+      const result = await tracedAsync(
+        'gemini.dispatch',
+        { tenantId, action },
+        () => (geminiBackend[action as keyof typeof geminiBackend] as Function)(...args),
+      );
       res.json({ result });
+      // Bucket X: post-call accounting. The whitelisted RPC layer does
+      // not return per-call token usage, so we charge a flat estimate
+      // based on serialized arg/result size. This is intentionally a
+      // ceiling — better to over-charge slightly than to under-meter.
+      const argsLen = JSON.stringify(args ?? []).length;
+      const resultLen = JSON.stringify(result ?? null).length;
+      const tokensIn = Math.ceil(argsLen / 4);
+      const tokensOut = Math.ceil(resultLen / 4);
+      await recordGeminiOutcome(tenantId, 'success', {
+        tokens: tokensIn + tokensOut,
+        // Most RPCs use Flash internally; Pro is reserved for the
+        // ask-guardian path. Use Flash pricing as the default.
+        costUsd: estimateGeminiCostUsd('gemini-2.0-flash', tokensIn, tokensOut),
+      });
     } else {
       res.status(400).json({ error: `Action ${action} not found` });
     }
   } catch (error: any) {
     console.error(`Error in Gemini API Proxy for ${action}:`, error);
+    await recordGeminiOutcome(tenantId, 'failure');
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
