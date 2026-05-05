@@ -24,6 +24,7 @@ import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
 import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
+import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
 import { sendToProjectSupervisors } from './emergency.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 
@@ -50,15 +51,28 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     } catch (ppeErr) {
       logger.error('[maintenance] check-expired-ppe failed', ppeErr);
     }
+    // Sprint 28 follow-up — third step: SUSESO DIAT/DIEP deadline reminders.
+    // Independent + idempotent like the prior two steps.
+    let susesoReminders: Awaited<ReturnType<typeof sendSusesoReminders>> = {
+      scanned: 0,
+      remindedTotal: 0,
+      escalations: { green: 0, yellow: 0, orange: 0, red: 0, overdue: 0 },
+    };
+    try {
+      susesoReminders = await sendSusesoReminders();
+    } catch (susesoErr) {
+      logger.error('[maintenance] suseso-reminders failed', susesoErr);
+    }
     const tookMs = Date.now() - start;
     logger.info('[maintenance] check-overdue done', {
       ...maintenance,
       ppe,
+      susesoReminders,
       tookMs,
     });
     return res
       .status(200)
-      .json({ ok: true, ...maintenance, ppe, tookMs });
+      .json({ ok: true, ...maintenance, ppe, susesoReminders, tookMs });
   } catch (err) {
     logger.error('[maintenance] check-overdue failed', err);
     return res

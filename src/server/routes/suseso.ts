@@ -215,6 +215,57 @@ router.post(
   },
 );
 
+// Sprint 28 follow-up — empresa marks the form as submitted to the
+// mutualidad portal. Stops reminder spam + flips the badge to the green
+// "✓ Enviado por la empresa" pill. Role-gated to admin/gerente/supervisor
+// since these are the project officers responsible for the submission.
+router.post(
+  '/forms/:formId/mark-submitted',
+  verifyAuth,
+  async (req, res) => {
+    const formId = req.params.formId;
+    const tenantId = (req.body?.tenantId ?? '') as string;
+    if (!tenantId || typeof tenantId !== 'string') {
+      return res.status(400).json({ error: 'invalid_tenantId' });
+    }
+    const role: string | undefined = (req as any).user?.role;
+    const allowed = new Set(['admin', 'gerente', 'supervisor']);
+    if (!role || !allowed.has(role)) {
+      return res.status(403).json({ error: 'forbidden_role' });
+    }
+    try {
+      const fs = admin.firestore();
+      const ref = fs
+        .collection('tenants')
+        .doc(tenantId)
+        .collection('suseso_forms')
+        .doc(formId);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'form_not_found' });
+      }
+      const nowIso = new Date().toISOString();
+      await ref.update({
+        status: 'submitted_by_company',
+        submittedByCompanyAt: nowIso,
+      });
+      try {
+        void auditServerEvent(req, 'suseso.form.marked_submitted', 'suseso', {
+          tenantId,
+          formId,
+          markedAt: nowIso,
+        });
+      } catch {
+        /* observability never breaks the response */
+      }
+      res.json({ ok: true, formId, submittedByCompanyAt: nowIso });
+    } catch (err) {
+      logger.error('suseso_mark_submitted_failed', { err: String(err) });
+      res.status(500).json({ error: 'mark_submitted_failed' });
+    }
+  },
+);
+
 router.get('/verify/:folio', async (req, res) => {
   try {
     const result = await verifyFolio(req.params.folio, {
