@@ -120,7 +120,10 @@ const RP_NAME = process.env.WEBAUTHN_RP_NAME ?? 'Praeventio Guard';
 // key powers all transactional email surfaces; constructing one client per
 // router keeps each module self-contained without re-reading process.env
 // on the hot path.
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Sprint 25 (CI fix) — Resend SDK throws "Missing API key" at construct
+// time when the env var is unset. CI smoke runs without secrets, which
+// would crash the whole webserver before Playwright could probe it.
+const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 // In-memory per-token resend rate limit. The global /api/ limiter applies
 // too; this is the per-claim cooldown so a worker can't spam-resend a
