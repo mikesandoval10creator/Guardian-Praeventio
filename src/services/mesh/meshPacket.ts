@@ -3,8 +3,11 @@
 // Sprint 25 — Mesh Packet (ADR 0013)
 //
 // Modelo + helpers de paquetes de la red mesh Bluetooth/Wi-Fi Direct.
-// Función pura — NO toca transport físico (eso es Sprint 26+ con
-// Bridgefy / Capacitor BLE plugin). Acá vive la lógica de:
+// Función pura — NO toca transport físico. El transport vive en
+// `@praeventio/capacitor-mesh` (Sprint 26+, Kotlin/Swift nativo).
+// Stack 100% propio open-source — sin SDKs comerciales (ver ADR 0013).
+//
+// Acá vive la lógica de:
 //   - sign/verify integridad
 //   - content-addressed IDs (SHA-256)
 //   - TTL/expiry checks

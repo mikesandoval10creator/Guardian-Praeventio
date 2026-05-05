@@ -44,16 +44,32 @@ sincronizó, bajó, y le pasó el archivo cuando se cruzaron en el túnel.
 
 ## Decisión técnica
 
-### Stack de transporte
+### Stack de transporte — BLE + Wi-Fi Direct nativo (sin SDK comerciales)
+
+**Decisión definitiva**: implementación propia open-source desde el inicio.
+NO Bridgefy, NO terceros pagados. Stack 100% nativo Capacitor + protocolo
+abierto. Razones:
+
+1. **Independencia comercial total** — no quedamos atrapados si Bridgefy
+   sube precios, cambia licencia, o desaparece.
+2. **Privacidad auditable** — código propio, signature por trabajador,
+   project-key encryption verificable end-to-end.
+3. **Control absoluto del protocolo** — podemos optimizar TTL,
+   priorities, batch size para faena chilena específica.
+4. **Coherencia con la cosmología del producto** — la red de
+   prevención interna pertenece a sus usuarios, no a un tercero
+   comercial.
+5. **Cero costos por usuario** — Bridgefy free hasta 10K MAU; nuestro
+   protocolo escala sin límite financiero.
 
 | Capa | Tecnología | Cuándo se usa |
 |---|---|---|
-| 1. Discovery | Bluetooth LE Scan / GATT | Siempre activo en background |
-| 2. Mensajes cortos | Bluetooth LE GATT (1-512 bytes) | Migajas GPS, requests, ACKs |
-| 3. Archivos pequeños | Bluetooth LE chunked (< 1MB) | Afiches, fragmentos PTS |
-| 4. Archivos grandes | Wi-Fi Direct on-demand | PTS completo, video corto del incidente |
-| 5. Validation comercial | Bridgefy SDK | Sprint 26 piloto |
-| 6. Producción | Protocolo propio open-source | Sprint 27+ |
+| 1. Discovery | Bluetooth LE Scan / Advertising | Siempre activo en background |
+| 2. Mensajes cortos | BLE GATT (1-512 bytes) | Migajas GPS, requests, ACKs |
+| 3. Archivos pequeños | BLE GATT chunked (< 1 MB) | Afiches, fragmentos PTS |
+| 4. Discovery de cluster | Wi-Fi Aware (Android 8+) / Wi-Fi Direct fallback | Detectar peers cercanos sin pairing |
+| 5. Archivos grandes | Wi-Fi Direct on-demand | PTS completo, video corto del incidente |
+| 6. Service UUID propio | `00001234-PRAE-VENTI-O123-456789ABCDEF` | Identificación de la app en advertising |
 
 ### Modelo de datos — Mesh Packet
 
@@ -248,30 +264,64 @@ encuentro).
 - Signature: `signature` evita que un atacante inyecte SOS falsos
   con UIDs robados. Verificación contra passkey del worker.
 
-### Stack de implementación
+### Stack de implementación — todo nativo, sin SDK comerciales
 
-#### Sprint 26 — Bridgefy SDK piloto (validación comercial)
+#### Sprint 26 — Capacitor plugin propio (BLE básico)
 
-- Bridgefy es comercial pero gratis hasta 10K usuarios mes.
-- Maneja Bluetooth + Wi-Fi automático.
-- Adapter `BridgefyTransport` implementa interface `MeshTransport`.
-- Validación end-to-end con beta users en faena real.
+`@praeventio/capacitor-mesh` plugin custom con dos clases nativas:
 
-#### Sprint 27 — Protocolo propio open-source
+**Android (Kotlin)** — `MeshPlugin.kt`:
+- `BluetoothLeAdvertiser` para advertising con service UUID propio
+- `BluetoothLeScanner` con filter por service UUID en background
+- `BluetoothGattServer` exponiendo characteristic `mesh-data`
+  (READ + WRITE_NO_RESPONSE para chunks de 512 bytes max)
+- `BluetoothGatt` cliente para conectarse a peers descubiertos
+- Trabajo en `JobScheduler` low-power para mantener escaneo cuando
+  pantalla apagada
 
-- Capacitor plugin custom: `@praeventio/capacitor-mesh`.
-- Bluetooth LE GATT: server (advertise) + client (scan/connect).
-- Service UUID propio: `00001234-praeventio-guardian-mesh-uuid`.
-- Wi-Fi Direct: solo para chunks > 100KB (negociación on-demand).
-- Adapter `PraeventioMeshTransport` reemplaza Bridgefy si decisión
-  comercial cambia.
+**iOS (Swift)** — `MeshPlugin.swift`:
+- `CBPeripheralManager` advertising con service UUID
+- `CBCentralManager` scanning con `CBCentralManagerScanOptionAllowDuplicatesKey`
+- `CBService` + `CBMutableCharacteristic` para `mesh-data`
+- Background advertising activado vía `bluetooth-central` +
+  `bluetooth-peripheral` en Info.plist `UIBackgroundModes`
 
-#### Sprint 28 — Optimization
+**TypeScript bridge** — `MeshTransport`:
+```ts
+export interface MeshTransport {
+  start(opts: { selfUid: string; projectId: string }): Promise<void>;
+  stop(): Promise<void>;
+  onPeerDiscovered(cb: (peerUid: string, rssi: number) => void): void;
+  sendToPeer(peerUid: string, packets: MeshPacket[]): Promise<{ delivered: string[]; failed: string[] }>;
+  onPacketsReceived(cb: (packets: MeshPacket[], fromPeerUid: string) => void): void;
+  isAvailable(): Promise<{ ble: boolean; wifiDirect: boolean }>;
+}
 
-- Wi-Fi Aware (Android 8+) para discovery sin pairing.
-- ULTRA-low-power BLE advertising en background (1mA continuous).
-- Mesh density optimization — si N nodos en proximidad, no todos
-  relayan los mismos packets (gossip protocol con probability).
+export class BlePraeventioTransport implements MeshTransport { /* ... */ }
+```
+
+#### Sprint 27 — Wi-Fi Direct para chunks grandes
+
+Trigger automático cuando `MeshPacket.type === 'file_chunk'` y el
+archivo total > 100 KB:
+
+**Android**: `WifiP2pManager` + `WifiP2pConfig` + socket TCP sobre
+el group owner. Group temporal solo durante transferencia.
+
+**iOS**: `MultipeerConnectivity` framework (alternativa nativa a
+Wi-Fi Direct, similar throughput).
+
+Negociación: el peer con mayor batería + cargador conectado se
+ofrece como group owner / host MultipeerConnectivity.
+
+#### Sprint 28 — Wi-Fi Aware + density optimization
+
+- Android 8+ `WifiAwareManager` para discovery sin pairing previo
+  (50-100m range típico vs 10-20m BLE)
+- Gossip protocol probabilístico: si 5+ nodos en proximidad, cada
+  uno solo relaya con probability p=0.6 (reduce flooding)
+- Compression LZ4 para chunks > 4 KB
+- Delta encoding de breadcrumbs GPS consecutivos del mismo worker
 
 ## Engine puro (testeable)
 
@@ -292,9 +342,9 @@ encuentro).
   basta que UN nodo tenga el archivo y lo propague)
 
 `src/services/mesh/transports/` (Sprint 26+):
-- `bridgefyTransport.ts` (Sprint 26 piloto)
-- `praeventioBleTransport.ts` (Sprint 27)
-- `wifiDirectTransport.ts` (Sprint 27+)
+- `blePraeventioTransport.ts` (Sprint 26 — Capacitor plugin propio)
+- `wifiDirectTransport.ts` (Sprint 27 — chunks > 100 KB)
+- `wifiAwareTransport.ts` (Sprint 28 — Android only, opcional)
 
 ## Casos de uso end-to-end
 
@@ -394,24 +444,38 @@ nodo del todo. La información circula por la red de personas.
 ✅ `meshRelayQueue.ts` — store-carry-forward queue (sin transport)
 ✅ Tests unitarios
 
-### Sprint 26 — Piloto Bridgefy
+### Sprint 26 — `@praeventio/capacitor-mesh` plugin propio (BLE)
 
-- Capacitor plugin Bridgefy adapter
-- UI de "Modo malla" en settings
-- Beta closed con 5-10 usuarios de mineras
-- Métricas reales de propagación
+- Capacitor plugin custom con código nativo:
+  * Android: Kotlin con `BluetoothLeAdvertiser` + `BluetoothLeScanner`
+    + `BluetoothGattServer` characteristic `mesh-data` 512 bytes
+  * iOS: Swift con `CBPeripheralManager` + `CBCentralManager` + service
+    UUID `00001234-PRAE-VENTI-O123-456789ABCDEF`
+- TypeScript bridge: `BlePraeventioTransport implements MeshTransport`
+- UI de "Modo malla" en settings con toggle on/off + indicator de
+  peers cercanos detectados
+- `Info.plist` background modes + `AndroidManifest.xml` permisos
+  `BLUETOOTH_ADVERTISE` + `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT`
+- Beta closed con 5-10 usuarios de mineras chilenas
+- Métricas reales de propagación: hops promedio, % packets entregados,
+  % file_requests resueltos en mesh sin internet
 
-### Sprint 27 — Protocolo propio
+### Sprint 27 — Wi-Fi Direct para chunks grandes
 
-- `@praeventio/capacitor-mesh` plugin custom
-- Service UUID registrado
-- Reemplazo gradual de Bridgefy
+- Android: `WifiP2pManager` para archivos > 100 KB (PTS, fotos, video)
+- iOS: `MultipeerConnectivity` framework (alternativa nativa)
+- Negociación group owner/host basada en battery + cargador
+- Trigger automático al detectar `file_chunk` con `totalChunks > 200`
+- Throughput esperado: ~5-10 MB/s vs 10 KB/s BLE (1000x más rápido)
 
-### Sprint 28+ — Wi-Fi Direct + density optimization
+### Sprint 28+ — Optimization
 
-- Wi-Fi Aware
-- Gossip protocol con probability
-- Compression + delta encoding
+- Wi-Fi Aware (Android 8+) `WifiAwareManager` para discovery sin
+  pairing previo (50-100m range vs 10-20m BLE)
+- Gossip protocol probabilístico — si 5+ nodos en proximidad cada
+  uno relaya con p=0.6 (anti-flooding)
+- LZ4 compression para chunks > 4 KB
+- Delta encoding de breadcrumbs GPS consecutivos del mismo worker
 
 ## Referencias
 
@@ -422,5 +486,7 @@ nodo del todo. La información circula por la red de personas.
 - DS 132 minería Chile (comunicación faena)
 - IETF DTNRG (Delay-Tolerant Networking Research Group)
 - ICN (Information-Centric Networking) — NDN papers
-- Bridgefy SDK docs
-- Bluetooth Mesh Profile 1.1 (no usamos directamente, referencia)
+- Bluetooth Core Specification 5.x — GATT + LE Advertising
+- Wi-Fi Direct Specification (Wi-Fi Alliance)
+- Apple MultipeerConnectivity Framework docs (iOS)
+- Android `WifiP2pManager` + `WifiAwareManager` docs
