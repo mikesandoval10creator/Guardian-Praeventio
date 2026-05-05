@@ -124,6 +124,7 @@ const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
   'empresarial',
   'corporativo',
   'ilimitado',
+  'global-titanio',
 ]);
 
 const TIER_FEATURES: Record<TierId, string[]> = {
@@ -197,6 +198,15 @@ const TIER_FEATURES: Record<TierId, string[]> = {
     'Compliance ad-hoc (NIST, SOC2)',
     'Equipo de prevención embedded',
   ],
+  // Sprint 31 OO — Tier Global Titanio (multi-jurisdicción simultáneo).
+  'global-titanio': [
+    'Cobertura mundial: ISO 45001 + tu país + cualquier jurisdicción adicional',
+    'Multi-jurisdicción simultáneo (sin límite de países)',
+    'Trabajadores y proyectos ilimitados',
+    'Data residency multi-región',
+    'Vertex AI orquestador global activado',
+    'Customer Success + onboarding por país',
+  ],
 };
 
 const TIER_BADGES: Partial<Record<TierId, { label: string; tone: 'green' | 'gold' | 'blue' | 'silver' }>> = {
@@ -204,6 +214,8 @@ const TIER_BADGES: Partial<Record<TierId, { label: string; tone: 'green' | 'gold
   'departamento-prevencion': { label: 'Más popular para PYME', tone: 'blue' },
   diamante: { label: 'Más popular B2B', tone: 'gold' },
   corporativo: { label: 'Elegido por multinacionales', tone: 'silver' },
+  // Sprint 31 OO — Tier Global Titanio recomendado para multinacionales.
+  'global-titanio': { label: 'Recomendado · Multinacional', tone: 'gold' },
 };
 
 function badgeClasses(tone: 'green' | 'gold' | 'blue' | 'silver'): string {

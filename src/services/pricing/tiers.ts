@@ -22,7 +22,15 @@ export type TierId =
   | 'diamante'
   | 'empresarial'
   | 'corporativo'
-  | 'ilimitado';
+  | 'ilimitado'
+  | 'global-titanio';
+
+/**
+ * Sprint 31 OO — Data residency tiers.
+ *  - 'latam': single jurisdicción (datos en CL/región LATAM).
+ *  - 'multi': multi-jurisdicción simultáneo (Tier Global).
+ */
+export type DataResidency = 'latam' | 'multi';
 
 export type WorkspaceTier =
   | 'none'
@@ -46,6 +54,22 @@ export interface Tier {
   trabajadorExtraClp?: number;
   /** Per-extra-project price in CLP, if overage is supported. */
   proyectoExtraClp?: number;
+  /**
+   * Sprint 31 OO — Maximum simultaneous jurisdictions this tier may
+   * activate (ISO 45001 baseline does NOT count). Most tiers are
+   * single-jurisdiction (1). Tier Global Titanio is `Infinity`.
+   */
+  jurisdictionsMax?: number;
+  /**
+   * Sprint 31 OO — Data residency posture. `'latam'` keeps data in a
+   * single LATAM region; `'multi'` distributes per active jurisdiction.
+   */
+  dataResidency?: DataResidency;
+  /**
+   * Sprint 31 OO — Marker the orchestrator AI reads to activate Vertex
+   * AI globally instead of just LATAM region.
+   */
+  multiJurisdiction?: boolean;
 }
 
 export const TIERS: readonly Tier[] = [
@@ -167,6 +191,25 @@ export const TIERS: readonly Tier[] = [
     usdRegular: 6315,
     workspaceTier: 'vertex-finetuned',
   },
+  {
+    // Sprint 31 OO — Tier Global Titanio (multi-jurisdicción simultáneo).
+    // Premio: empresas multinacionales con cobertura ISO 45001 + tu país +
+    // cualquier jurisdicción adicional sin negociación caso-a-caso.
+    // El usuario fija el precio final; USD 999/month es el sugerido.
+    id: 'global-titanio',
+    nombre: 'Global Titanio',
+    trabajadoresMax: Infinity,
+    proyectosMax: Infinity,
+    // CLP base = 999 USD * 950 CLP/USD ≈ 949990 (anclado al .990).
+    clpRegular: 949990,
+    clpIntro3mo: 664990,
+    clpAnual: 9119990,
+    usdRegular: 999,
+    workspaceTier: 'vertex-finetuned',
+    jurisdictionsMax: Infinity,
+    dataResidency: 'multi',
+    multiJurisdiction: true,
+  },
 ];
 
 const TIERS_BY_ID: Record<TierId, Tier> = TIERS.reduce((acc, t) => {
@@ -185,6 +228,7 @@ const PREMIUM_TIERS: ReadonlySet<TierId> = new Set<TierId>([
   'empresarial',
   'corporativo',
   'ilimitado',
+  'global-titanio',
 ]);
 
 export function getTierById(id: TierId): Tier {

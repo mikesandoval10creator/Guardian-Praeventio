@@ -23,6 +23,13 @@ export interface TierDowngradeUsage {
   workers: number;
   /** Total projects the org owns (active + archived). */
   projects: number;
+  /**
+   * Sprint 31 OO — Country-specific jurisdictions currently active for
+   * the tenant (ISO 45001 excluded). When downgrading from
+   * `global-titanio` to a single-jurisdicción tier, we must surface
+   * which extra jurisdictions will be deactivated.
+   */
+  jurisdictions?: string[];
 }
 
 export interface TierDowngradeCapacity {
@@ -30,15 +37,26 @@ export interface TierDowngradeCapacity {
   workers: number;
   /** Project cap of the target (lower) tier. */
   projects: number;
+  /**
+   * Sprint 31 OO — Max country-specific jurisdictions the target tier
+   * supports (ISO 45001 excluded). 1 for nacional tiers, Infinity for
+   * `global-titanio`.
+   */
+  jurisdictions?: number;
 }
 
 export interface TierDowngradeArchiveRequest {
-  category: 'workers' | 'projects';
+  category: 'workers' | 'projects' | 'jurisdictions';
   action: 'archive-oldest' | 'export-then-archive';
   fromTier: TierId;
   toTier: TierId;
   /** Number of entities that must be archived to reach target capacity. */
   excess: number;
+  /**
+   * Sprint 31 OO — When `category === 'jurisdictions'` this lists the
+   * jurisdiction codes that will be deactivated on downgrade.
+   */
+  jurisdictionsToDeactivate?: string[];
 }
 
 export interface TierDowngradeModalProps {
@@ -53,11 +71,13 @@ export interface TierDowngradeModalProps {
 }
 
 interface ExceedingCategory {
-  key: 'workers' | 'projects';
+  key: 'workers' | 'projects' | 'jurisdictions';
   label: string;
   current: number;
   cap: number;
   excess: number;
+  /** Sprint 31 OO — concrete list (only set for jurisdictions). */
+  itemsToDeactivate?: string[];
 }
 
 function buildExceedingCategories(
@@ -81,6 +101,24 @@ function buildExceedingCategories(
       current: usage.projects,
       cap: capacity.projects,
       excess: usage.projects - capacity.projects,
+    });
+  }
+  // Sprint 31 OO — jurisdiction overage on downgrade out of Global Titanio.
+  const jurisCap = capacity.jurisdictions;
+  const jurisList = usage.jurisdictions ?? [];
+  if (typeof jurisCap === 'number' && jurisList.length > jurisCap) {
+    const cap = Number.isFinite(jurisCap) ? jurisCap : jurisList.length;
+    const excess = jurisList.length - cap;
+    // The first `cap` entries are kept (assumed primary/native first);
+    // everything else gets deactivated. Caller controls ordering.
+    const itemsToDeactivate = jurisList.slice(cap);
+    out.push({
+      key: 'jurisdictions',
+      label: 'jurisdicciones',
+      current: jurisList.length,
+      cap,
+      excess,
+      itemsToDeactivate,
     });
   }
   return out;
@@ -124,6 +162,7 @@ export function TierDowngradeModal({
       fromTier,
       toTier,
       excess: cat.excess,
+      jurisdictionsToDeactivate: cat.itemsToDeactivate,
     });
   };
 
@@ -135,6 +174,7 @@ export function TierDowngradeModal({
       fromTier,
       toTier,
       excess: cat.excess,
+      jurisdictionsToDeactivate: cat.itemsToDeactivate,
     });
   };
 
@@ -181,6 +221,21 @@ export function TierDowngradeModal({
                   Tienes {cat.current} {cat.label} pero el tier objetivo permite{' '}
                   {cat.cap}. Sobran {cat.excess}.
                 </p>
+                {cat.key === 'jurisdictions' && cat.itemsToDeactivate?.length ? (
+                  <ul
+                    data-testid="tier-downgrade-jurisdictions-list"
+                    className="mt-2 flex flex-wrap gap-1.5"
+                  >
+                    {cat.itemsToDeactivate.map((j) => (
+                      <li
+                        key={j}
+                        className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200 text-[11px] font-semibold uppercase tracking-wider"
+                      >
+                        {j}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -188,7 +243,9 @@ export function TierDowngradeModal({
                     onClick={() => handleArchiveOldest(cat)}
                     className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-wider"
                   >
-                    Archivar más antiguos ({cat.excess})
+                    {cat.key === 'jurisdictions'
+                      ? `Archivar data por jurisdicción (${cat.excess})`
+                      : `Archivar más antiguos (${cat.excess})`}
                   </button>
                   <button
                     type="button"
