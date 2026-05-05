@@ -142,6 +142,18 @@ export const getBunkerKnowledge = async (id: string) => {
   }
 };
 
+/**
+ * Persist an action for later sync.
+ *
+ * @deprecated (Sprint 25 Bucket QQ) Prefer `offlineSync.enqueue()` from
+ * `services/sync/syncStateMachine.ts`. This function still works — it
+ * additionally fans out to the central state machine so UI consumers
+ * subscribed via `useSyncState()` see the new pending op — but new
+ * callers should bypass the IDB/SQLite double-write by using the state
+ * machine directly. Existing callers (modals using saveForSync) keep
+ * working without code changes; the state machine sees their ops via
+ * the delegate call below.
+ */
 export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localUpdatedAt'>) => {
   const now = new Date().toISOString();
   const nowMs = Date.now();
@@ -151,6 +163,27 @@ export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localU
     localUpdatedAt: now,
     data: { ...action.data, localUpdatedAt: now },
   };
+  // Bucket QQ — delegate to the central state machine so UI consumers
+  // (OfflineIndicator etc.) see the pending op via useSyncState(). We
+  // import dynamically so the offline path doesn't pull the state
+  // machine into the SQLite-only build chain unless this code runs.
+  // 'upload' isn't a state-machine op type — it's a Storage upload that
+  // OfflineSyncManager handles via its custom executor — so we skip
+  // delegating those to avoid mistyped queue entries.
+  if (action.type !== 'upload') {
+    try {
+      const { offlineSync } = await import('../services/sync/syncStateMachine');
+      await offlineSync.enqueue({
+        type: action.type,
+        collection: action.collection,
+        data: { ...syncAction.data, ...(action.docId ? { id: action.docId } : {}) },
+      });
+    } catch (e) {
+      // Non-fatal — the legacy IndexedDB queue below is still authoritative
+      // until full migration. Log so we notice if delegation is broken.
+      logger.debug('saveForSync: state machine delegate skipped', e);
+    }
+  }
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if (db) {

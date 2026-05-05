@@ -28,3 +28,14 @@ reports/mutation/
 # served from CDN in production. Never commit weights to the repo.
 public/models/slm/*.onnx
 public/models/slm/*.onnx.partial
+
+# Bucket PP — MediaPipe Pose Landmarker assets (Sprint 25 gaps cleanup).
+# Bajados por `scripts/download-mediapipe-models.mjs` (prebuild hook).
+# Local-first hosting para offline/GDPR; servidos desde nuestro origen
+# en prod. Nunca committear los blobs.
+public/models/mediapipe/*.task
+public/models/mediapipe/*.task.partial
+public/models/mediapipe/*.wasm
+public/models/mediapipe/*.wasm.partial
+public/models/mediapipe/*.js
+public/models/mediapipe/*.js.partial

@@ -142,3 +142,108 @@ cd "D:/Guardian Praeventio/repo"
 npx vitest run src/services/coach/
 npm run typecheck
 ```
+
+---
+
+# Coach domain — RAG normativo y assets locales
+
+Documento puente entre el Sprint 24 (Coach + Pinecone wire) y el Sprint 25
+(gaps cleanup, Bucket PP). Cubre dos decisiones operativas:
+
+1. Cómo activar Pinecone para subir el RAG normativo a 5x speed.
+2. Cómo se sirven los assets de MediaPipe en local-first (offline/GDPR).
+
+---
+
+## Activar Pinecone (CC0 5x faster RAG)
+
+El servicio `ragService.ts` corre con un fallback in-memory cuando
+`PINECONE_API_KEY` no está configurada. Eso degrada la experiencia
+(re-embedding por cada query, sin persistencia entre instancias). Para
+activarlo:
+
+1. **Instalar dep** (una sola vez en el repo, ya queda en `package.json`):
+
+   ```bash
+   npm install @pinecone-database/pinecone
+   ```
+
+2. **Crear cuenta en Pinecone** y obtener la API key del proyecto.
+   El tier starter es gratis hasta 1M vectores — suficiente para los
+   ~50 chunks curados + LLM-synth (192 nodos) sin migrar a paid.
+
+3. **Subir la key a Secret Manager**:
+
+   ```bash
+   echo -n "pcsk_xxx_real_key" > /tmp/pinecone.txt
+   gcloud secrets create PINECONE_API_KEY --data-file=/tmp/pinecone.txt
+   rm /tmp/pinecone.txt
+   ```
+
+4. **Wirear en deploy.yml** (Cloud Run / Cloud Build):
+
+   ```yaml
+   --update-secrets=PINECONE_API_KEY=PINECONE_API_KEY:latest
+   ```
+
+5. **Bootstrap one-time** del índice + ingest de chunks curados:
+
+   ```bash
+   PINECONE_API_KEY=$(gcloud secrets versions access latest --secret=PINECONE_API_KEY) \
+   GEMINI_API_KEY=$(gcloud secrets versions access latest --secret=GEMINI_API_KEY) \
+     node scripts/pinecone-bootstrap.mjs
+   ```
+
+   El script es idempotente — si el índice ya existe lo reutiliza, y
+   los upserts sobre el mismo `id` actualizan en vez de duplicar.
+
+6. **Confirmar que `ragService` ya consume Pinecone** — al iniciar el
+   server con `PINECONE_API_KEY` presente, los logs muestran
+   `RAG backend = pinecone` en lugar de `RAG backend = in-memory`.
+
+> El Zettelkasten interno NUNCA se ingiere en Pinecone (decisión B2D
+> API model). Solo los `CountryPack` curados y los chunks LLM-synth
+> sanitizados son aptos para subir.
+
+---
+
+## MediaPipe local hosting (Bucket PP.1–PP.4)
+
+`useMediaPipePose.ts` usa Pose Landmarker para extraer 33 landmarks 3D
+del trabajador (input para REBA/RULA). Los assets `.task` y `.wasm`
+antes vivían solo en CDN público (`cdn.jsdelivr.net` +
+`storage.googleapis.com/mediapipe-models`). Eso rompe en:
+
+- **Modo offline** (PWA / Capacitor) — sin red, no hay pose.
+- **GDPR / ley 19.628** — egress a Google revela patrones de uso del
+  trabajador a un tercero.
+- **Caída del CDN** — sin fallback local, función ergonómica caída.
+
+### Solución
+
+1. `scripts/download-mediapipe-models.mjs` baja los assets a
+   `public/models/mediapipe/`.
+2. `npm run prebuild` lo invoca automáticamente antes de `vite build`.
+3. `useMediaPipePose` hace HEAD probe contra `/models/mediapipe/` y
+   cae al CDN solo si falla.
+4. `.gitignore` excluye los blobs (~15 MB) — se bajan en CI.
+
+Para correr offline en dev:
+
+```bash
+node scripts/download-mediapipe-models.mjs
+npm run dev
+```
+
+Para forzar redescarga (e.g. después de bumpear MediaPipe):
+
+```bash
+node scripts/download-mediapipe-models.mjs --force
+```
+
+### Headers en producción
+
+`server.ts` debe servir `public/models/mediapipe/*` con
+`Cache-Control: public, max-age=31536000, immutable` y
+`Cross-Origin-Embedder-Policy: require-corp` (necesario para los WASM
+threads que use MediaPipe internamente).
