@@ -38,6 +38,10 @@ export const SUPPORTED_LOCALES = [
   'ja',
   'zh-CN',
   'ar',
+  'ko',
+  'hi',
+  'zh-TW',
+  'ru',
 ] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
@@ -58,6 +62,10 @@ export const LOCALE_DISPLAY: Record<SupportedLocale, { native: string; flag: str
   ja: { native: '日本語', flag: '🇯🇵' },
   'zh-CN': { native: '中文', flag: '🇨🇳' },
   ar: { native: 'العربية', flag: '🇸🇦' },
+  ko: { native: '한국어', flag: '🇰🇷' },
+  hi: { native: 'हिन्दी', flag: '🇮🇳' },
+  'zh-TW': { native: '繁體中文', flag: '🇹🇼' },
+  ru: { native: 'Русский', flag: '🇷🇺' },
 };
 
 export const DEFAULT_LOCALE: SupportedLocale = 'es';
@@ -100,8 +108,16 @@ export function normalizeLocale(tag: string | null | undefined): SupportedLocale
   if (lowered.startsWith('de-') || lowered === 'de') return 'de';
   if (lowered.startsWith('it-') || lowered === 'it') return 'it';
   if (lowered.startsWith('ja-') || lowered === 'ja') return 'ja';
+  // Sprint 31 SS — Taiwan is jurisdicción separada; `zh-TW` / `zh-Hant` /
+  // `zh-HK` deben preservar Traditional. PRC variants caen a `zh-CN`.
+  if (lowered === 'zh-tw' || lowered === 'zh-hant' || lowered.startsWith('zh-tw-') || lowered.startsWith('zh-hant-') || lowered === 'zh-hk' || lowered.startsWith('zh-hk-')) return 'zh-TW';
   if (lowered.startsWith('zh-') || lowered === 'zh') return 'zh-CN';
   if (lowered.startsWith('ar-') || lowered === 'ar') return 'ar';
+  // Sprint 31 NN — APAC tier (Korean, Hindi).
+  if (lowered.startsWith('ko-') || lowered === 'ko') return 'ko';
+  if (lowered.startsWith('hi-') || lowered === 'hi') return 'hi';
+  // Sprint 31 SS — Russian.
+  if (lowered.startsWith('ru-') || lowered === 'ru') return 'ru';
 
   return null;
 }

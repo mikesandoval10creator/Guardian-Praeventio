@@ -29,6 +29,8 @@ import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference'
 import { BunkerManager } from '../components/BunkerManager';
 // Sprint 30 Bucket KK — WebAuthn keys management UI.
 import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection';
+// Sprint 31 Bucket MM — privacy compliance matrix UI.
+import { PrivacyComplianceMatrix } from '../components/compliance/PrivacyComplianceMatrix';
 import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
@@ -237,6 +239,15 @@ export function Settings() {
             {/* Sprint 30 Bucket KK — WebAuthn keys (closes audit gap F-F). */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
               <WebAuthnKeysSection />
+            </div>
+            {/* Sprint 31 Bucket MM — Datos personales y privacidad. */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">Datos personales y privacidad</h4>
+              <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
+                Regímenes de protección de datos aplicables a tu cuenta + plazos legales
+                para responder solicitudes de acceso, rectificación o supresión.
+              </p>
+              <PrivacyComplianceMatrix country="CL" />
             </div>
             <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex-1 pr-4">

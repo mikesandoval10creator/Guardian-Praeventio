@@ -36,6 +36,12 @@ import {
   type LegalBasis,
   type MinimalComplianceDb,
 } from '../../services/compliance/ley19628.js';
+// Sprint 31 Bucket MM — multi-regime privacy compliance.
+import {
+  getActiveRegimes,
+  getMostStrictRegime,
+  strictestDeadlineDays,
+} from '../../services/privacy/registry.js';
 
 const VALID_PURPOSES: ConsentPurpose[] = [
   'core_service',
@@ -170,20 +176,54 @@ const dataRequestSchema = z.object({
   // Optional admin-on-behalf-of target uid. Most subjects act on themselves
   // (the auth uid), but DPO operations may target another uid.
   targetUid: z.string().min(1).max(128).optional(),
+  // Sprint 31 Bucket MM — country of the data subject (ISO 3166-1 alpha-2)
+  // and optional data-residency override. Used to pick the strictest
+  // privacy regime deadline.
+  subjectCountry: z.string().min(2).max(8).optional(),
+  dataResidency: z.string().min(2).max(8).optional(),
 });
 
 router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
   const uid = (req as any).user.uid as string;
-  const { type, rectificationPayload } = req.body as {
-    type: 'access' | 'rectification' | 'erasure' | 'portability';
-    rectificationPayload?: Record<string, unknown>;
-  };
+  const { type, rectificationPayload, subjectCountry, dataResidency } =
+    req.body as {
+      type: 'access' | 'rectification' | 'erasure' | 'portability';
+      rectificationPayload?: Record<string, unknown>;
+      subjectCountry?: string;
+      dataResidency?: string;
+    };
+
+  // Sprint 31 Bucket MM — compute the strictest applicable deadline based
+  // on subject country + processing residency. Default to LGPD's 15-day
+  // floor when nothing is provided so we never silently downgrade.
+  const activeRegimes = getActiveRegimes({
+    country: subjectCountry,
+    dataResidency,
+  });
+  const appliedDeadline = strictestDeadlineDays(activeRegimes);
+  const strictest = getMostStrictRegime(activeRegimes);
+  if (appliedDeadline !== null) {
+    logger.info('compliance_data_request_deadline_applied', {
+      uid,
+      subjectCountry: subjectCountry ?? null,
+      dataResidency: dataResidency ?? null,
+      regimes: activeRegimes.map((r) => r.code),
+      appliedDeadlineDays: appliedDeadline,
+      strictestRegime: strictest?.code ?? null,
+    });
+  }
 
   try {
     const request = await requestDataAccess(getDb(), uid, type, {
       rectificationPayload,
     });
-    res.status(201).json({ ok: true, request });
+    res.status(201).json({
+      ok: true,
+      request,
+      // Surfaced so the client can render "responderemos en N días".
+      deadlineDays: appliedDeadline,
+      regimes: activeRegimes.map((r) => r.code),
+    });
   } catch (err) {
     if (err instanceof ComplianceError) {
       return res.status(err.httpStatus).json({ error: err.code });

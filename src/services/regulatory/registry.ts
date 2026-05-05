@@ -18,6 +18,14 @@ import { BR_REFERENCES } from './jurisdictions/br.js';
 import { UK_REFERENCES } from './jurisdictions/uk.js';
 import { CA_REFERENCES } from './jurisdictions/ca.js';
 import { AU_REFERENCES } from './jurisdictions/au.js';
+import { JP_REFERENCES } from './jurisdictions/jp.js';
+import { KR_REFERENCES } from './jurisdictions/kr.js';
+import { IN_REFERENCES } from './jurisdictions/in.js';
+import { CN_REFERENCES } from './jurisdictions/cn.js';
+import { TW_REFERENCES } from './jurisdictions/tw.js';
+import { RU_REFERENCES } from './jurisdictions/ru.js';
+import type { TierId } from '../pricing/tiers.js';
+import { getMaxJurisdictionsForTier } from '../pricing/jurisdictionLimits.js';
 
 const JURISDICTION_TABLE: Partial<
   Record<JurisdictionCode, Record<string, RegulationRef[]>>
@@ -30,6 +38,12 @@ const JURISDICTION_TABLE: Partial<
   UK: UK_REFERENCES,
   CA: CA_REFERENCES,
   AU: AU_REFERENCES,
+  JP: JP_REFERENCES,
+  KR: KR_REFERENCES,
+  IN: IN_REFERENCES,
+  CN: CN_REFERENCES,
+  TW: TW_REFERENCES,
+  RU: RU_REFERENCES,
 };
 
 /**
@@ -70,6 +84,34 @@ const COUNTRY_TO_JURISDICTION: Record<string, JurisdictionCode> = {
   AU: 'AU',
   AUS: 'AU',
   AUSTRALIA: 'AU',
+  // Sprint 31 NN — Asia-Pacific tier (Japan, Korea, India).
+  JP: 'JP',
+  JPN: 'JP',
+  JAPAN: 'JP',
+  KR: 'KR',
+  KOR: 'KR',
+  KOREA: 'KR',
+  'SOUTH-KOREA': 'KR',
+  IN: 'IN',
+  IND: 'IN',
+  INDIA: 'IN',
+  // Sprint 31 SS — APAC tier global (China + Taiwan + Russia).
+  // China (mainland PRC). MEM como regulator. Data residency separate.
+  CN: 'CN',
+  CHN: 'CN',
+  CHINA: 'CN',
+  'MAINLAND-CHINA': 'CN',
+  // Taiwan — jurisdicción y data residency separadas de PRC (NO mapear a CN).
+  TW: 'TW',
+  TWN: 'TW',
+  TAIWAN: 'TW',
+  'REPUBLIC-OF-CHINA': 'TW',
+  ROC: 'TW',
+  // Russia — Rostrud regulator.
+  RU: 'RU',
+  RUS: 'RU',
+  RUSSIA: 'RU',
+  'RUSSIAN-FEDERATION': 'RU',
 };
 
 export interface TenantRegulatoryContext {
@@ -77,23 +119,83 @@ export interface TenantRegulatoryContext {
   country?: string;
   /** Residencia de datos cuando difiere del país operativo. */
   dataResidency?: string;
+  /**
+   * Sprint 31 OO — País(es) adicionales que el tenant declara. Sólo se
+   * activan si el tier los permite (ver `tier` y los límites en
+   * `services/pricing/jurisdictionLimits`).
+   */
+  extraCountries?: string[];
 }
 
 /**
  * Devuelve siempre `['ISO-45001', countrySpecific?]`. Si el país no se
  * reconoce, cae al baseline ISO 45001 únicamente.
+ *
+ * Sprint 31 OO — Si se pasa `tier`, respeta el límite del tier para
+ * jurisdicciones adicionales (`extraCountries`). Tiers no globales
+ * ignoran `extraCountries` (limit = 1) — ISO 45001 + país nativo es
+ * todo lo que se activa.
  */
 export function getActiveJurisdictions(
   ctx: TenantRegulatoryContext,
+  tier?: TierId,
 ): JurisdictionCode[] {
   const result: JurisdictionCode[] = ['ISO-45001'];
   const candidate = (ctx.country ?? ctx.dataResidency ?? '').trim().toUpperCase();
-  if (!candidate) return result;
-  const mapped = COUNTRY_TO_JURISDICTION[candidate];
-  if (mapped && mapped !== 'ISO-45001' && !result.includes(mapped)) {
-    result.push(mapped);
+  if (candidate) {
+    const mapped = COUNTRY_TO_JURISDICTION[candidate];
+    if (mapped && mapped !== 'ISO-45001' && !result.includes(mapped)) {
+      result.push(mapped);
+    }
   }
+
+  // Sprint 31 OO — extra jurisdictions, gated by tier limit.
+  if (tier && ctx.extraCountries?.length) {
+    const limit = getMaxJurisdictionsForTier(tier);
+    let used = result.filter((j) => j !== 'ISO-45001').length;
+    for (const raw of ctx.extraCountries) {
+      const norm = raw.trim().toUpperCase();
+      const mapped = COUNTRY_TO_JURISDICTION[norm];
+      if (!mapped || mapped === 'ISO-45001') continue;
+      if (result.includes(mapped)) continue;
+      if (used >= limit) break;
+      result.push(mapped);
+      used += 1;
+    }
+  }
+
   return result;
+}
+
+/**
+ * Sprint 31 OO — Tenant-level gate. Devuelve `true` si el tenant del
+ * tier dado puede citar regulaciones de la jurisdicción `juris`.
+ *
+ * Reglas:
+ *  - ISO 45001 siempre permitido (baseline universal).
+ *  - País nativo del tenant (resuelto vía `country`/`dataResidency`)
+ *    siempre permitido.
+ *  - Jurisdicciones adicionales sólo permitidas si el tier soporta
+ *    multi-jurisdicción (ej. `global-titanio`).
+ */
+export function assertTenantHasJurisdiction(
+  ctx: TenantRegulatoryContext,
+  juris: JurisdictionCode,
+  tier: TierId,
+): boolean {
+  if (juris === 'ISO-45001') return true;
+
+  const native = (ctx.country ?? ctx.dataResidency ?? '').trim().toUpperCase();
+  const nativeMapped = native ? COUNTRY_TO_JURISDICTION[native] : undefined;
+  if (nativeMapped === juris) return true;
+
+  // Beyond the native jurisdicción: only if the tier expands the limit
+  // past 1 (i.e. global-titanio or any future multi-jurisdiction tier).
+  const limit = getMaxJurisdictionsForTier(tier);
+  if (limit <= 1) return false;
+
+  const active = getActiveJurisdictions(ctx, tier);
+  return active.includes(juris);
 }
 
 /**
@@ -175,6 +277,12 @@ const JURISDICTION_LABEL: Record<JurisdictionCode, string> = {
   UK: 'UK',
   CA: 'Canadá',
   AU: 'Australia',
+  JP: 'Japón',
+  KR: 'Corea',
+  IN: 'India',
+  CN: 'China',
+  TW: 'Taiwán',
+  RU: 'Rusia',
 };
 
 function formatRef(ref: RegulationRef, format: 'short' | 'long'): string {

@@ -128,14 +128,21 @@ describe('i18n — plural rules', () => {
 });
 
 describe('i18n — browser language detection (normalizeLocale)', () => {
-  it('maps en-GB → en, fr-CA → fr, zh-TW → zh-CN, ar-SA → ar', () => {
+  it('maps en-GB → en, fr-CA → fr, zh-CN-* → zh-CN, ar-SA → ar', () => {
     expect(normalizeLocale('en-GB')).toBe('en');
     expect(normalizeLocale('fr-CA')).toBe('fr');
-    expect(normalizeLocale('zh-TW')).toBe('zh-CN');
+    // Sprint 31 SS — zh-TW is now its own locale (Traditional Chinese);
+    // Simplified PRC variants still collapse to zh-CN.
+    expect(normalizeLocale('zh-CN')).toBe('zh-CN');
+    expect(normalizeLocale('zh-Hans')).toBe('zh-CN');
+    expect(normalizeLocale('zh-TW')).toBe('zh-TW');
+    expect(normalizeLocale('zh-Hant')).toBe('zh-TW');
+    expect(normalizeLocale('zh-HK')).toBe('zh-TW');
     expect(normalizeLocale('ar-SA')).toBe('ar');
     expect(normalizeLocale('de-AT')).toBe('de');
     expect(normalizeLocale('it-CH')).toBe('it');
     expect(normalizeLocale('ja-JP')).toBe('ja');
+    expect(normalizeLocale('ru-RU')).toBe('ru');
   });
 
   it('returns null for completely unsupported tags', () => {
@@ -162,6 +169,31 @@ describe('i18n — lazy loading', () => {
     // Subsequent calls are a no-op.
     await loadLocale('fr');
     expect(getLoadedLazyLocales().filter((l) => l === 'fr').length).toBe(1);
+  });
+});
+
+describe('i18n — Sprint 31 NN APAC locales (ko, hi)', () => {
+  it('loadLocale("ko") registers Korean resources lazily and t() resolves keys', async () => {
+    expect(getLoadedLazyLocales()).not.toContain('ko');
+    await loadLocale('ko');
+    expect(getLoadedLazyLocales()).toContain('ko');
+    expect(i18n.t('auth.login', { lng: 'ko' })).toBe('로그인');
+  });
+
+  it('loadLocale("hi") registers Hindi resources lazily with fallback to en for missing keys', async () => {
+    expect(getLoadedLazyLocales()).not.toContain('hi');
+    await loadLocale('hi');
+    expect(getLoadedLazyLocales()).toContain('hi');
+    // Existing key in stub.
+    expect(i18n.t('auth.login', { lng: 'hi' })).toBe('लॉग इन');
+    // Missing key → fallback chain hi → en → es.
+    i18n.addResource('en', 'common', '__hi_fallback_probe', 'EN_FALLBACK');
+    expect(i18n.t('__hi_fallback_probe', { lng: 'hi' })).toBe('EN_FALLBACK');
+  });
+
+  it('normalizeLocale maps ko-KR → ko and hi-IN → hi', () => {
+    expect(normalizeLocale('ko-KR')).toBe('ko');
+    expect(normalizeLocale('hi-IN')).toBe('hi');
   });
 });
 

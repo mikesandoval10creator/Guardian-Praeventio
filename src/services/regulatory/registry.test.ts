@@ -7,6 +7,7 @@ import {
   resolveControl,
   cite,
   listControls,
+  assertTenantHasJurisdiction,
 } from './registry.js';
 import { ISO_45001_CONTROLS } from './iso45001.js';
 
@@ -113,6 +114,74 @@ describe('cite', () => {
 
   it('returns empty array for unknown control', () => {
     expect(cite('UNKNOWN', { jurisdictions: ['ISO-45001'] })).toEqual([]);
+  });
+});
+
+// Sprint 31 OO — Tenant-tier gate for cross-jurisdiction citation.
+describe('assertTenantHasJurisdiction (Sprint 31 OO)', () => {
+  it('allows ISO-45001 baseline for any tier', () => {
+    expect(
+      assertTenantHasJurisdiction({ country: 'CL' }, 'ISO-45001', 'gratis'),
+    ).toBe(true);
+  });
+
+  it('allows native country jurisdiction on nacional tier', () => {
+    expect(
+      assertTenantHasJurisdiction({ country: 'CL' }, 'CL', 'titanio'),
+    ).toBe(true);
+  });
+
+  it('denies non-native country on nacional tier (Chilean tenant cannot cite Brazil regs)', () => {
+    expect(
+      assertTenantHasJurisdiction({ country: 'CL' }, 'BR', 'titanio'),
+    ).toBe(false);
+  });
+
+  it('allows non-native country on global-titanio when declared in extraCountries', () => {
+    expect(
+      assertTenantHasJurisdiction(
+        { country: 'CL', extraCountries: ['BR', 'US'] },
+        'BR',
+        'global-titanio',
+      ),
+    ).toBe(true);
+    expect(
+      assertTenantHasJurisdiction(
+        { country: 'CL', extraCountries: ['BR', 'US'] },
+        'US-OSHA',
+        'global-titanio',
+      ),
+    ).toBe(true);
+  });
+
+  it('denies undeclared jurisdiction even on global-titanio (must be in extraCountries)', () => {
+    expect(
+      assertTenantHasJurisdiction(
+        { country: 'CL', extraCountries: ['BR'] },
+        'JP',
+        'global-titanio',
+      ),
+    ).toBe(false);
+  });
+
+  it('getActiveJurisdictions respects tier limit (nacional ignores extraCountries)', () => {
+    const active = getActiveJurisdictions(
+      { country: 'CL', extraCountries: ['BR', 'US', 'EU'] },
+      'titanio',
+    );
+    expect(active).toEqual(['ISO-45001', 'CL']);
+  });
+
+  it('getActiveJurisdictions for global-titanio expands with extraCountries', () => {
+    const active = getActiveJurisdictions(
+      { country: 'CL', extraCountries: ['BR', 'US', 'EU'] },
+      'global-titanio',
+    );
+    expect(active).toContain('ISO-45001');
+    expect(active).toContain('CL');
+    expect(active).toContain('BR');
+    expect(active).toContain('US-OSHA');
+    expect(active).toContain('EU');
   });
 });
 

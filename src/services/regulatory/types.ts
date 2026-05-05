@@ -13,7 +13,13 @@ export type JurisdictionCode =
   | 'BR'
   | 'UK'
   | 'CA'
-  | 'AU';
+  | 'AU'
+  | 'JP'
+  | 'KR'
+  | 'IN'
+  | 'CN'
+  | 'TW'
+  | 'RU';
 
 /**
  * Referencia a una norma concreta. Un control puede tener varias por

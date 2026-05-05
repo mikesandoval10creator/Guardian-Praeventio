@@ -60,7 +60,7 @@ export const resources = {
  * Vite builds each entry into its own chunk thanks to the static
  * `import('./locales/<tag>/common.json')` form.
  */
-const LAZY_LOCALES = ['fr', 'de', 'it', 'ja', 'zh-CN', 'ar'] as const;
+const LAZY_LOCALES = ['fr', 'de', 'it', 'ja', 'zh-CN', 'ar', 'ko', 'hi', 'zh-TW', 'ru'] as const;
 type LazyLocale = (typeof LAZY_LOCALES)[number];
 
 const lazyLoaders: Record<LazyLocale, () => Promise<{ default: Record<string, unknown> }>> = {
@@ -70,6 +70,10 @@ const lazyLoaders: Record<LazyLocale, () => Promise<{ default: Record<string, un
   ja: () => import('./locales/ja/common.json'),
   'zh-CN': () => import('./locales/zh-CN/common.json'),
   ar: () => import('./locales/ar/common.json'),
+  ko: () => import('./locales/ko/common.json'),
+  hi: () => import('./locales/hi/common.json'),
+  'zh-TW': () => import('./locales/zh-TW/common.json'),
+  ru: () => import('./locales/ru/common.json'),
 };
 
 const loadedLazy = new Set<LazyLocale>();
@@ -122,6 +126,12 @@ const fallbackChains = {
   ja: ['en', 'es'],
   'zh-CN': ['en', 'es'],
   ar: ['en', 'es'],
+  ko: ['en', 'es'],
+  hi: ['en', 'es'],
+  // Sprint 31 SS — APAC tier global. zh-TW cae a zh-CN primero
+  // (95% del léxico SST coincide), luego en/es como red de seguridad.
+  'zh-TW': ['zh-CN', 'en', 'es'],
+  ru: ['en', 'es'],
   default: ['es'],
 } as const;
 
@@ -147,6 +157,10 @@ if (!i18n.isInitialized) {
         'ja',
         'zh-CN',
         'ar',
+        'ko',
+        'hi',
+        'zh-TW',
+        'ru',
       ],
       // Don't auto-fetch missing chunks — `loadLocale()` registers lazy
       // locales explicitly when the user picks one.
