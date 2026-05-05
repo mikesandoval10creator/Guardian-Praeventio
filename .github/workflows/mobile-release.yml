@@ -1,10 +1,12 @@
-name: Mobile Release (Android — Fastlane + Play Store)
+name: Mobile Release (Android + iOS — Fastlane)
 
-# Sprint 21 Ola 6 — Bucket S
+# Sprint 21 Ola 6 — Bucket S (Android)
+# Sprint 30 Bucket GG — adds iOS job (TestFlight + App Store).
 #
 # Supersedes the deferral captured in ADR-0006 / mobile-build-check.yml stub
-# for Android. iOS still ships from local until macOS runner cost is
-# justified (see ADR-0009).
+# for both platforms. The iOS job is gated on the presence of macOS-side
+# secrets (MATCH_GIT_URL, APPLE_TEAM_ID, etc.) so it skips cleanly when the
+# user has not yet provisioned them — CI does NOT fail in that case.
 #
 # Triggers:
 #   - workflow_dispatch  → manual run; chooses internal / production / build_only.
@@ -37,8 +39,37 @@ on:
       - 'mobile-v*'
 
 jobs:
+  # Pre-flight: detect which platforms have their secrets provisioned so the
+  # downstream jobs can skip cleanly instead of failing CI on a fresh repo.
+  preflight:
+    name: Detect available signing secrets
+    runs-on: ubuntu-latest
+    outputs:
+      android_ready: ${{ steps.gate.outputs.android_ready }}
+      ios_ready: ${{ steps.gate.outputs.ios_ready }}
+    steps:
+      - id: gate
+        env:
+          ANDROID_KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          IOS_MATCH_URL: ${{ secrets.MATCH_GIT_URL }}
+        run: |
+          if [ -n "$ANDROID_KS" ]; then
+            echo "android_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "android_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ANDROID_KEYSTORE_BASE64 not set — Android job will skip."
+          fi
+          if [ -n "$IOS_MATCH_URL" ]; then
+            echo "ios_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios_ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::MATCH_GIT_URL not set — iOS job will skip."
+          fi
+
   android-release:
     name: Android signed AAB → Play Store
+    needs: preflight
+    if: needs.preflight.outputs.android_ready == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,6 +145,79 @@ jobs:
           path: android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: warn
 
+  ios-release:
+    name: iOS signed IPA → TestFlight / App Store
+    needs: preflight
+    if: needs.preflight.outputs.ios_ready == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          working-directory: ios/App
+
+      # `ios/App/` only exists once `npx cap add ios` has been run on a
+      # macOS workstation and committed. CI assumes that one-time bootstrap
+      # is already in the checkout.
+      - name: Capacitor sync (iOS)
+        run: npx cap sync ios
+
+      - name: Pod install
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      - name: Fastlane lane (iOS)
+        working-directory: ios/App
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FASTLANE_USER: ${{ secrets.FASTLANE_USER }}
+          FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_KEY_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+        # Tag-trigger (mobile-v*) ⇒ appstore. Manual dispatch ⇒ map the
+        # Android-style track input to the iOS equivalent. Default fallback
+        # is `testflight` (safer than App Store).
+        run: |
+          TRACK="${{ inputs.track }}"
+          case "$TRACK" in
+            production) LANE="appstore" ;;
+            build_only) LANE="build_only" ;;
+            internal|"") LANE="testflight" ;;
+            *)          LANE="testflight" ;;
+          esac
+          if [[ "${GITHUB_REF}" == refs/tags/mobile-v* ]] && [ -z "${{ inputs.track }}" ]; then
+            LANE="appstore"
+          fi
+          echo "Running fastlane ios $LANE"
+          bundle exec fastlane ios "$LANE"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: praeventio-ipa
+          path: ios/App/build/*.ipa
+          if-no-files-found: warn
+
   fastfile-lint:
     name: Fastfile syntax lint
     runs-on: ubuntu-latest
@@ -127,5 +231,22 @@ jobs:
         run: gem install fastlane --no-document
       # `fastlane lanes` parses the Fastfile and prints lane metadata. Exits
       # non-zero on syntax errors; that's our validation signal.
-      - name: Validate Fastfile
+      - name: Validate Android Fastfile
         run: fastlane lanes
+      - name: Validate iOS Fastfile (parse only — needs ios/App/ to exist)
+        # ios/App/ is generated by `npx cap add ios` on a macOS workstation
+        # and committed. Skip the parse if the directory is not present yet.
+        run: |
+          if [ -d ios/App/fastlane ]; then
+            cd ios/App && fastlane lanes
+          else
+            echo "ios/App/ not yet generated (cap add ios pending) — skipping iOS Fastfile lane parse."
+          fi
+
+  pipeline-lint:
+    name: Mobile pipeline lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run scripts/test-mobile-pipeline.sh
+        run: bash scripts/test-mobile-pipeline.sh

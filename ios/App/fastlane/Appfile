@@ -1,0 +1,17 @@
+# Sprint 30 Bucket GG — Fastlane Appfile (iOS)
+#
+# Read by `bundle exec fastlane ios <lane>`. Both fields are sourced from
+# env so the same file works across staging / production Apple teams without
+# editing the repo.
+#
+# TODO(user): if you prefer hard-coding rather than env-driven, replace the
+# ENV[...] calls below with literals — but DO NOT commit the team ID into a
+# public repo.
+
+app_identifier ENV["APP_BUNDLE_ID"] || "com.praeventio.guard"
+apple_id       ENV["APPLE_ID"]
+team_id        ENV["APPLE_TEAM_ID"]
+
+# itc_team_id is only required if your Apple ID is on multiple App Store
+# Connect teams. Leave commented unless fastlane prompts for it.
+# itc_team_id ENV["APP_STORE_CONNECT_TEAM_ID"]

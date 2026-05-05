@@ -1,0 +1,105 @@
+# Sprint 30 Bucket GG — Fastlane lanes for iOS signing + App Store / TestFlight
+#
+# Supersedes the iOS deferral noted in ADR-0009 §6.5 (which itself was a
+# carve-out from ADR-0006). Android already shipped via fastlane in
+# Sprint 21 Ola 6 (`fastlane/Fastfile`); this is the matching iOS pipeline.
+#
+# Lanes:
+#   - `testflight` → match (cert + profile) → gym build_app → pilot upload.
+#   - `appstore`   → match → gym → pilot → deliver to App Store track.
+#   - `build_only` → match + gym only (CI dry-run / local smoke). No upload.
+#
+# All lanes consume the same env vars exported by GHA secrets (or by the
+# local shell when running `bundle exec fastlane ios <lane>` on macOS):
+#
+#   APPLE_ID                  Apple Developer account email
+#   APPLE_TEAM_ID             10-char Team ID — visible in Apple Developer
+#                             portal → Membership.
+#   APP_BUNDLE_ID             iOS bundle identifier — must match
+#                             `appId` in capacitor.config.ts.
+#   MATCH_GIT_URL             Private git repo holding the encrypted certs
+#                             + provisioning profiles (fastlane match).
+#   MATCH_PASSWORD            Symmetric passphrase for match's openssl
+#                             encrypt/decrypt of the cert repo.
+#   FASTLANE_USER             Same as APPLE_ID, kept separate so service
+#                             accounts can override.
+#   FASTLANE_PASSWORD         App-specific password (Apple ID → Sign-in &
+#                             Security → App-Specific Passwords). NEVER the
+#                             real Apple ID password.
+#   APP_STORE_CONNECT_API_KEY_ID         (preferred; replaces FASTLANE_PASSWORD)
+#   APP_STORE_CONNECT_API_KEY_ISSUER_ID  Issuer UUID from App Store Connect.
+#   APP_STORE_CONNECT_API_KEY_CONTENT    Base64 of the .p8 key file.
+#
+# TODO(user): before the first run, paste the real Apple Team ID and bundle
+# identifier into the GHA secrets (NOT this file). The lanes below read them
+# from env so the same Fastfile works for staging + production teams.
+
+default_platform(:ios)
+
+platform :ios do
+  before_all do
+    # Surface friendly error early if the macOS runner is missing required
+    # tooling. `gym` (build_app) needs Xcode + xcode-select pointing at it.
+    unless ENV["APP_BUNDLE_ID"] && !ENV["APP_BUNDLE_ID"].empty?
+      UI.user_error!("APP_BUNDLE_ID not set — see ios/App/fastlane/Fastfile header.")
+    end
+  end
+
+  desc "Sync signing assets via match (read-only in CI)"
+  private_lane :ensure_signing do |options|
+    match(
+      type: options[:type] || "appstore",
+      app_identifier: ENV["APP_BUNDLE_ID"],
+      git_url: ENV["MATCH_GIT_URL"],
+      readonly: true,
+      team_id: ENV["APPLE_TEAM_ID"]
+    )
+  end
+
+  desc "Build signed IPA (no upload)"
+  lane :build_only do
+    ensure_signing(type: "appstore")
+    build_app(
+      workspace: "App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+      clean: true
+    )
+  end
+
+  desc "Build + upload to TestFlight"
+  lane :testflight do
+    ensure_signing(type: "appstore")
+    build_app(
+      workspace: "App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+      clean: true
+    )
+    upload_to_testflight(
+      apple_id: ENV["APPLE_ID"],
+      app_identifier: ENV["APP_BUNDLE_ID"],
+      skip_waiting_for_build_processing: true,
+      skip_submission: true
+    )
+  end
+
+  desc "Build + upload to App Store production track"
+  lane :appstore do
+    ensure_signing(type: "appstore")
+    build_app(
+      workspace: "App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+      clean: true
+    )
+    upload_to_app_store(
+      app_identifier: ENV["APP_BUNDLE_ID"],
+      skip_metadata: true,
+      skip_screenshots: true,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+end

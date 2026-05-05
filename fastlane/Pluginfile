@@ -1,0 +1,16 @@
+# Sprint 30 Bucket GG — Fastlane plugin manifest.
+#
+# `supply` (Play Store deploy action `upload_to_play_store`) ships in
+# fastlane-core, so it does NOT need to be listed here. This file exists
+# so future plugin additions (e.g. fastlane-plugin-versioning,
+# fastlane-plugin-appcenter) have a canonical home and `bundle install`
+# / `fastlane install_plugins` keeps Gemfile.lock in sync.
+#
+# To add a plugin:
+#   1. `fastlane add_plugin <name>`         (writes to this file)
+#   2. `bundle install`                      (resolves Gemfile + plugins)
+#   3. Commit Pluginfile + Gemfile.lock changes.
+
+# gem 'fastlane-plugin-supply'  # bundled with fastlane core; uncomment only if
+                                 # CI starts complaining about the action being
+                                 # missing on a stripped-down ruby image.
