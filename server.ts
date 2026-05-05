@@ -64,6 +64,11 @@ import {
   oauthGoogleAuthRouter,
 } from "./src/server/routes/oauthGoogle.js";
 import geminiRouter from "./src/server/routes/gemini.js";
+// Sprint 32 Bucket UU — RLHF feedback loop (POST /api/ai/feedback,
+// GET /api/ai/feedback/summary). Mounted under /api/ai so we have a
+// dedicated namespace for AI-meta endpoints (separate from the Gemini
+// dispatch surface in /api/gemini).
+import aiFeedbackRouter from "./src/server/routes/aiFeedback.js";
 import reportsRouter from "./src/server/routes/reports.js";
 import susesoRouter from "./src/server/routes/suseso.js";
 import telemetryRouter from "./src/server/routes/telemetry.js";
@@ -441,6 +446,8 @@ app.use("/api/admin/b2d", b2dAdminRouter);
 // lives with the route. Mounted at /api so the router can declare both
 // sibling paths verbatim.
 app.use('/api', geminiRouter);
+// Sprint 32 Bucket UU — RLHF feedback loop. Mounted under /api/ai.
+app.use('/api/ai', aiFeedbackRouter);
 
 // Round 19 R2 Phase 4 split — POST /api/reports/generate-pdf extracted to
 // src/server/routes/reports.ts. The per-route 1MB body limit short-circuit
@@ -670,48 +677,14 @@ app.use('/api/auth', webauthnChallengeRouter);
 // Prototype Fusion Phase 6.1 — FCM notify-brigada endpoint
 // Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
 //
-// Sprint 28 Bucket B3 — `validate(notifyBrigadaSchema)` is the FIRST
-// barrier. Sprint 29 H17: legacy `if (!projectId || !emergencyType)`
-// guard removed — Zod is now the single source of truth for shape.
-const notifyBrigadaSchema = z.object({
-  projectId: z.string().min(1).max(128),
-  // The wire field is `emergencyType`; we keep it for backward compat but
-  // gate the values to a known whitelist so callers can't dump arbitrary
-  // strings into the FCM notification title.
-  emergencyType: z.enum(['fall', 'sos', 'medical', 'fire', 'gas', 'collapse', 'other']),
-  message: z.string().max(500).optional(),
-});
-app.post('/api/emergency/notify-brigada', verifyAuth, validate(notifyBrigadaSchema), async (req: express.Request, res: express.Response) => {
-  const { projectId, emergencyType, message } = req.body as { projectId: string; emergencyType: string; message?: string };
-  try {
-    const db = admin.firestore();
-    const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
-    const tokens: string[] = [];
-    for (const memberDoc of membersSnap.docs) {
-      const data = memberDoc.data();
-      if (['supervisor', 'gerente', 'prevencionista', 'admin'].includes(data.role) && data.fcmToken) {
-        tokens.push(data.fcmToken);
-      }
-    }
-    if (tokens.length === 0) {
-      return res.json({ ok: true, notified: 0, message: 'No supervisor tokens found' });
-    }
-    await admin.messaging().sendEachForMulticast({
-      tokens,
-      notification: {
-        title: `🚨 Emergencia: ${emergencyType}`,
-        body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
-      },
-      data: { projectId, emergencyType, timestamp: new Date().toISOString() },
-      android: { priority: 'high' },
-      apns: { payload: { aps: { 'content-available': 1 } } },
-    });
-    return res.json({ ok: true, notified: tokens.length });
-  } catch (err) {
-    logger.error('notify-brigada error', err instanceof Error ? err : new Error(String(err)));
-    return res.status(500).json({ error: 'Failed to notify brigade' });
-  }
-});
+// Sprint 32 audit P0 — `/api/emergency/notify-brigada` migrated to
+// src/server/routes/emergency.ts so it reuses `sendToProjectSupervisors`
+// (cross-collection lookup `users/{uid}.fcmTokens` + cache). The previous
+// inline implementation regressed H7 (Sprint 27 fix) by reading only the
+// legacy `members/{uid}.fcmToken` singular field, producing `notified: 0`
+// for installations that registered tokens via /api/push/register-token.
+// The route is now exposed via `app.use('/api/emergency', emergencyRouter)`
+// at the top of this file.
 
 // Round 13: Express terminal error middleware. MUST be the last `app.use(...)`
 // — Express only treats 4-arg middleware as an error handler, and only

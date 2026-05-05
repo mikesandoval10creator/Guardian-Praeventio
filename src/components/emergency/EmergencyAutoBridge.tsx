@@ -26,8 +26,29 @@ import {
   ingestAccelerationSample,
   pushCompanyEmergency,
   pushWeatherSnapshot,
+  type EmergencyTriggerEvent,
 } from '../../services/emergency/autoTrigger';
 import { logger } from '../../utils/logger';
+
+// Sprint 32 audit W1 — auto-trigger broadcast from AppModeContext. The
+// emergency monitor fires a CustomEvent `gp:emergency-auto-trigger` when
+// it detects a sismo/company/climate condition. We listen here, resolve the
+// active project from localStorage (the SelectedProjectProvider mirrors it
+// under `gp.activeProjectId`), and route the event through
+// `triggerEmergency()` so it both writes the Firestore doc and fans out
+// via FCM (the server-side `notify-brigada` migration in Sprint 32 P0).
+const AUTO_TRIGGER_EVENT = 'gp:emergency-auto-trigger';
+const ACTIVE_PROJECT_STORAGE_KEY = 'gp.activeProjectId';
+
+function readActiveProjectId(): string | undefined {
+  if (typeof window === 'undefined' || !window.localStorage) return undefined;
+  try {
+    const raw = window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY);
+    return raw && raw.length > 0 ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // `WeatherBulletin` already fetches Open-Meteo and renders to its own UI;
 // to avoid an invasive context refactor we listen for a CustomEvent named
@@ -51,12 +72,37 @@ function isCapacitorNative(): boolean {
 }
 
 export function EmergencyAutoBridge(): React.ReactElement | null {
-  const { isEmergencyActive } = useEmergency();
+  const { isEmergencyActive, triggerEmergency } = useEmergency();
 
   // Mirror EmergencyContext into the company predicate.
   useEffect(() => {
     pushCompanyEmergency(!!isEmergencyActive);
   }, [isEmergencyActive]);
+
+  // Sprint 32 audit W1 — listen for the auto-trigger broadcast from
+  // AppModeContext and route it through triggerEmergency(), which writes
+  // the Firestore event AND calls /api/emergency/notify-brigada for the
+  // FCM fan-out to supervisors. Without this listener the supervisor never
+  // got pushed: the auto-monitor only flipped the local UI mode.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (evt: Event): void => {
+      const detail = (evt as CustomEvent<EmergencyTriggerEvent>).detail;
+      if (!detail) return;
+      const reason = detail.reason; // 'sismo' | 'company' | 'climate' | 'fall'
+      const projectId = readActiveProjectId();
+      // triggerEmergency degrades gracefully when projectId is undefined
+      // (it just sets local state without persisting / fanning out). For
+      // a worker outside any project context a sismo trigger still flips
+      // the UI to emergency mode — the Firestore doc + push only happen
+      // when there is an active project to scope the audit row.
+      void triggerEmergency(reason, projectId).catch((err) => {
+        logger.error('EmergencyAutoBridge: triggerEmergency failed', { err, reason });
+      });
+    };
+    window.addEventListener(AUTO_TRIGGER_EVENT, handler);
+    return () => window.removeEventListener(AUTO_TRIGGER_EVENT, handler);
+  }, [triggerEmergency]);
 
   // Weather: listen for app-wide CustomEvent dispatches.
   useEffect(() => {

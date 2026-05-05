@@ -26,7 +26,9 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { validate } from '../middleware/validate.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -364,5 +366,90 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
     });
   }
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// POST /api/emergency/notify-brigada — supervisor-initiated brigade
+// activation. Sprint 32 audit P0: previously inlined in server.ts:691 with
+// a bug regression of H7 (only read `members/{uid}.fcmToken` singular,
+// missing the canonical `users/{uid}.fcmTokens` array). Migrated here so
+// it reuses `sendToProjectSupervisors` (cross-collection lookup + cache).
+// Distinct from /sos: callable by supervisor/admin to notify the BRIGADE
+// of a project-wide event, regardless of who dispatched it.
+// ────────────────────────────────────────────────────────────────────────
+const NotifyBrigadaSchema = z.object({
+  projectId: z.string().min(1).max(128),
+  emergencyType: z.enum(['fall', 'sos', 'medical', 'fire', 'gas', 'collapse', 'other']),
+  message: z.string().max(500).optional(),
+});
+
+router.post(
+  '/notify-brigada',
+  verifyAuth,
+  validate(NotifyBrigadaSchema),
+  async (req, res) => {
+    const { projectId, emergencyType, message } = req.body as z.infer<
+      typeof NotifyBrigadaSchema
+    >;
+    const callerUid = (req as any).user.uid;
+    const callerEmail: string | null = (req as any).user.email ?? null;
+    const db = admin.firestore();
+
+    try {
+      // Membership gate: caller must belong to the project. Prevents a
+      // compromised token on tenant A from spamming tenant B brigades.
+      await assertProjectMember(callerUid, projectId, db);
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+
+    try {
+      const result = await sendToProjectSupervisors(
+        projectId,
+        {
+          title: `🚨 Emergencia: ${emergencyType}`,
+          body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
+          data: {
+            projectId,
+            emergencyType,
+            timestamp: new Date().toISOString(),
+          },
+        },
+        db,
+        admin.messaging(),
+      );
+
+      // Audit trail — same shape as /sos so dashboards can union the streams.
+      await db.collection('audit_logs').add({
+        action: 'emergency.notify_brigada',
+        module: 'emergency',
+        details: {
+          projectId,
+          emergencyType,
+          notified: result.notified,
+          failed: result.failed,
+        },
+        userId: callerUid,
+        userEmail: callerEmail,
+        projectId,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        ip: req.ip ?? null,
+        userAgent: req.header('user-agent') ?? null,
+      });
+
+      return res.json({ ok: true, notified: result.notified, failed: result.failed });
+    } catch (err: any) {
+      logger.error('notify_brigada_failed', {
+        uid: callerUid,
+        projectId,
+        emergencyType,
+        message: err?.message,
+      });
+      return res.status(500).json({ error: 'notify_brigada_failed' });
+    }
+  },
+);
 
 export default router;

@@ -84,11 +84,32 @@ function mapIndustryToCode(industry: string | undefined): IndustryCode {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
+// Sprint 32 audit W1 — mirror the selected project id to localStorage so
+// non-React subscribers (e.g. EmergencyAutoBridge listening to a window
+// CustomEvent) can resolve "the worker's current project" without dragging
+// in the React context. The mirror is one-way: ProjectContext is the source
+// of truth and a stale value in storage is harmless (the bridge just falls
+// back to a context-less server call).
+const ACTIVE_PROJECT_STORAGE_KEY = 'gp.activeProjectId';
+
 export function ProjectProvider({ children }: { children: ReactNode }) {
   const [fetchedProjects, setFetchedProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      if (selectedProject?.id) {
+        window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, selectedProject.id);
+      } else {
+        window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
+      }
+    } catch {
+      /* private mode / quota — no-op; bridge degrades gracefully */
+    }
+  }, [selectedProject?.id]);
   const { isAuthReady, user, isAdmin } = useFirebase();
   const pendingActions = usePendingActions('projects');
   const { toasts, show: showToast, dismiss } = useToast();
