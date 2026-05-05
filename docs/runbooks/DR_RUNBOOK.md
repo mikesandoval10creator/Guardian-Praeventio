@@ -58,19 +58,42 @@ la reconciliación la regenera desde la fuente del proveedor.
 
 ### 3.1 Firestore: backups diarios automatizados
 
-- **Trigger**: Cloud Scheduler ejecuta job `firestore-daily-export` a las 03:00 CLT.
-- **Destino**: `gs://praeventio-backups/firestore/YYYY-MM-DD/`
+- **Triggers** (defensa en profundidad):
+  - **GitHub Actions** — workflow `.github/workflows/firestore-backup.yml`,
+    cron `0 7 * * *` UTC = **03:00–04:00 America/Santiago** según DST.
+    Se ejecuta vía Workload Identity Federation con la SA `github-guardian-deploy`
+    (rol `roles/datastore.importExportAdmin` + `roles/storage.objectAdmin`
+    sobre el bucket de backups). Manual dispatch disponible para snapshots
+    pre-migración (input `label`).
+  - **Cloud Scheduler** (fallback) — invoca `scripts/backup-firestore.cjs`
+    como Cloud Run job. Mismo bucket de destino. Nos da independencia del
+    plano de control de GitHub Actions.
+- **Destino**: `gs://praeventio-backups/firestore/YYYY-MM-DD[-label]/`
 - **Retención**: 30 días en Standard, 365 días en Coldline (Object Lifecycle Management).
 - **Cobertura**: todas las colecciones del proyecto `praeventio-541ad`.
 - **Versionado**: bucket con Object Versioning habilitado.
+- **Manifest**: cada export escribe `manifest.json` con timestamp UTC,
+  outputUriPrefix, runId/runUrl (GitHub) u operationName (Cloud Scheduler).
+  Si el manifest falta, `scripts/test-backup-integrity.cjs` falla la
+  verificación mensual del §3.4.
 
-Comando manual de export (si Scheduler falla):
+Comando manual de export (si ambos triggers fallan):
 
 ```bash
 gcloud firestore export gs://praeventio-backups/firestore/$(date +%Y-%m-%d) \
   --project=praeventio-541ad \
   --async
 ```
+
+**RPO/RTO de backups Firestore** (el §2 los lista por colección; estos
+son los compromisos del **mecanismo** en sí):
+
+| Métrica | Target | Comentario |
+|---|---|---|
+| RPO global | 24h | Último export diario |
+| RPO `audit_logs` + `invoices` | 1h | Cubierto por write-through hourly (§3.5) |
+| RTO restore desde export | 1h | Deploy DR + DNS update (§5.2) + import selectivo (§5.3) |
+| Ventana de import | 10–30 min | Para ~50 GB de Firestore (medido en simulacro Q1) |
 
 ### 3.2 Cloud Storage: replicación cross-region
 
@@ -96,6 +119,26 @@ El primer lunes de cada mes a las 10:00 CLT:
 3. Documentar el resultado en `docs/runbooks/restore-rehearsals/YYYY-MM.md`.
 4. Si falla: abrir issue P1 etiquetado `dr-rehearsal-failure` y notificar a
    `contacto@praeventio.net`.
+
+### 3.5 Write-through hourly: `audit_logs` + `invoices` (RPO ≤ 1h)
+
+Para las colecciones cuyo RPO no tolera 24h (compliance Ley 16.744 sobre
+auditoría + RPO=0 contractual de `invoices`), corremos una réplica
+hourly a Cloud Storage como JSONL:
+
+- **Bucket**: `gs://praeventio-critical-replica/`
+- **Layout**: `<collection>/<YYYY-MM-DDTHH>.jsonl` (UTC)
+- **Trigger**: Cloud Scheduler hourly → `POST /api/admin/replicate-critical`
+  (mismo plano de control que el resto del admin router).
+- **Implementación**: `src/server/jobs/firestoreCriticalReplicate.ts`.
+  Lee `where('createdAt', '>=', now - 1h)` por colección, sube JSONL,
+  errores por-colección NO abortan al resto.
+- **Idempotencia**: re-correr la misma hora sobreescribe el mismo
+  archivo con el mismo contenido. Seguro para retries del scheduler.
+- **Restore**: el JSONL se reproduce con `scripts/restore-firestore.cjs
+  --jsonl gs://praeventio-critical-replica/audit_logs/2026-05-04T12.jsonl`
+  (modo line-by-line `set` con `merge: true` para no pisar campos
+  agregados después).
 
 ---
 
@@ -157,6 +200,13 @@ curl -fsS https://api.praeventio.net/health
 ```
 
 **Tiempo objetivo**: 15 minutos desde declaración de disaster.
+
+**Script automatizado**: `scripts/dr-failover.sh` mecaniza los pasos 1-3
+(verificar primary down → resolver imagen actual → desplegar
+`guardian-praeventio-dr` en `us-east1` → smoke test). El paso de DNS
+queda explícitamente manual; el script imprime las instrucciones al
+final. Usar `--simulate` para saltarse la verificación de "primary
+down" en pruebas controladas (NO automatiza DNS de prod).
 
 ### 5.3 Restore desde backup (si hay corrupción de datos)
 
@@ -239,7 +289,7 @@ Generar dentro de las 72h post-recovery un documento en
 | Trimestre | Tipo de simulacro | Owner |
 |---|---|---|
 | Q1 | Restore Firestore a staging + validación de integridad | Daho |
-| Q2 | Region failover Cloud Run (us-central1 → us-east1) en horario de baja carga | Daho |
+| Q2 | Region failover Cloud Run (us-central1 → us-east1) en horario de baja carga (`scripts/dr-simulate.sh`) | Daho |
 | Q3 | KMS rotation simulada (no destructiva) | Daho |
 | Q4 | Full disaster: restore + failover + KMS rotation encadenados | Daho + ACHS observa |
 
@@ -249,6 +299,16 @@ hallazgos, action items.
 
 **Si el equipo aún es single-dev**: mínimo 1 simulacro trimestral en horario
 no laboral con buddy externo (par técnico de confianza) como observador.
+
+**Checklist por simulacro** (copiar al rehearsal log):
+
+- [ ] Pre-condiciones: `GOOGLE_CLOUD_PROJECT`, `CLOUD_RUN_SERVICE` exportados.
+- [ ] Snapshot de RPO/RTO target de la colección/servicio bajo prueba (§2 ó §3.1).
+- [ ] Ejecutar el script (`dr-simulate.sh` para Q2; `test-backup-integrity.cjs` para Q1; etc.).
+- [ ] Capturar tiempos observados: deploy, primer health OK, p50/p99 de 5 probes.
+- [ ] Comparar contra target. Si RTO/RPO observado > target → action item P1.
+- [ ] Confirmar teardown (gcloud run services list filtrado por `-dr-test`).
+- [ ] Adjuntar log del run al rehearsal doc + commitearlo en `docs/runbooks/rehearsals/`.
 
 ---
 
