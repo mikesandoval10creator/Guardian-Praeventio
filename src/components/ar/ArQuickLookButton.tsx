@@ -68,6 +68,12 @@ export function ArQuickLookButton({
   onAvailable,
 }: ArQuickLookButtonProps) {
   const [supported, setSupported] = useState<boolean>(false);
+  // Bucket EE.7 — los .usdz se generan vía Cloud Function aislada y pueden
+  // no existir todavía para algunos kinds (despliegue gradual del converter).
+  // Hacemos un HEAD al modelPath antes de mostrar el link para no romper la
+  // UX con un download que falla. Mientras esté pending, no renderizamos
+  // nada (el caller decide fallback).
+  const [usdzAvailable, setUsdzAvailable] = useState<boolean | null>(null);
 
   useEffect(() => {
     const ok = detectArQuickLookSupport();
@@ -79,7 +85,33 @@ export function ArQuickLookButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!supported) return;
+    let cancelled = false;
+    // HEAD probe — si el archivo no existe (404) o el server-side está
+    // mal configurado, fallback gracefully a no renderizar el botón.
+    // Algunos servers (incluyendo el dev de Vite) no permiten HEAD; en ese
+    // caso GET con range 0-0 funciona pero no vale el peso, así que tratamos
+    // cualquier no-2xx como "no disponible".
+    fetch(modelPath, { method: 'HEAD' })
+      .then((res) => {
+        if (cancelled) return;
+        setUsdzAvailable(res.ok);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUsdzAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supported, modelPath]);
+
   if (!supported) return null;
+  // Aún no sabemos si existe — no renderizamos hasta confirmar para evitar
+  // flash de un botón roto. usdzAvailable === false mantiene el mismo
+  // comportamiento que !supported (return null, el caller decide).
+  if (!usdzAvailable) return null;
 
   return (
     <a
