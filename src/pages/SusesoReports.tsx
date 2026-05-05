@@ -31,6 +31,8 @@ import {
   type RoiPayload,
   type SusesoSubmissionStatus,
 } from '../services/sii/susesoApiClient';
+import { SusesoFormBuilder } from '../components/suseso/SusesoFormBuilder';
+import { useFirebase } from '../contexts/FirebaseContext';
 
 export function SusesoReports() {
   const { nodes } = useRiskEngine();
@@ -243,6 +245,9 @@ export function SusesoReports() {
           </div>
         </div>
       </div>
+
+      {/* Sprint 28 B6 — generador real DIAT/DIEP con folio + firma */}
+      <SusesoBuilderSection />
 
       {/* Tabs */}
       <div className="flex items-center gap-2 p-1.5 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl w-full overflow-x-auto custom-scrollbar shadow-sm">
@@ -575,6 +580,68 @@ export function SusesoReports() {
         </>
         )}
       </div>
+    </div>
+  );
+}
+
+// Sprint 28 Bucket B6 — wires the new folio-stamped DIAT/DIEP generator
+// (POST /api/suseso/form). Kept as a sibling component so the legacy
+// Gemini-metadata flow above remains untouched until the migration is
+// complete. The tenantId is derived from the Firebase Auth custom claim
+// (see oauthGoogle.ts /adminClaims). If the claim is absent we render a
+// disabled note rather than breaking the page.
+function SusesoBuilderSection() {
+  const { user } = useFirebase();
+  const [tenantId, setTenantId] = React.useState<string | null>(null);
+  const [collapsed, setCollapsed] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const tokenResult = await user?.getIdTokenResult();
+        const claim = tokenResult?.claims?.tenantId;
+        if (!cancelled && typeof claim === 'string') setTenantId(claim);
+      } catch {
+        /* fallthrough — no tenant claim */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  if (!user) return null;
+
+  return (
+    <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-4 sm:p-6 shadow-sm">
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        className="w-full flex items-center justify-between"
+      >
+        <span className="text-sm font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-200">
+          Generar declaración con folio + firma electrónica
+        </span>
+        <span className="text-xs text-zinc-500">{collapsed ? '▾' : '▴'}</span>
+      </button>
+      {!collapsed && (
+        <div className="mt-4">
+          {tenantId ? (
+            <SusesoFormBuilder
+              tenantId={tenantId}
+              reportedBy={{
+                uid: user.uid,
+                rut: '', // RUT del usuario debe venir del perfil; por ahora vacío
+                fullName: user.displayName || user.email || 'Usuario',
+              }}
+            />
+          ) : (
+            <p className="text-sm text-zinc-500">
+              Tu cuenta aún no está asociada a un tenant. Contacta al administrador.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
