@@ -367,3 +367,188 @@ export function incidentAlertTemplate(incident: IncidentAlertPayload): string {
   `;
   return shell(body, accent, { auditId: incident.incidentId, reason: `Incident severity ${incident.severity}` });
 }
+
+// ---------------------------------------------------------------------------
+// 6. Data access ready (Ley 19.628 — derecho de acceso / portabilidad)
+// ---------------------------------------------------------------------------
+
+export interface DataAccessReadyPayload {
+  /** DataAccessRequest id (used for audit footer + recipient verification). */
+  requestId: string;
+  /** 'access' | 'portability' — drives the wording. */
+  type: 'access' | 'portability';
+  /** Pre-signed URL where the user can download their export. */
+  downloadUrl: string;
+  /** Hours until `downloadUrl` expires. */
+  expiresInHours: number;
+  /** Display name for the greeting. Falls back to "usuaria/o". */
+  recipientName?: string;
+}
+
+export function dataAccessReadyTemplate(payload: DataAccessReadyPayload): string {
+  const greeting = payload.recipientName
+    ? `Hola ${escapeHtml(payload.recipientName)},`
+    : 'Hola,';
+  const heading =
+    payload.type === 'portability'
+      ? 'Tu archivo de portabilidad está listo'
+      : 'Tu solicitud de acceso a datos está lista';
+  const intro =
+    payload.type === 'portability'
+      ? 'Empaquetamos tus datos en un archivo estándar para que puedas migrarlos a otra plataforma.'
+      : 'Empaquetamos los datos personales que tenemos sobre ti, según el derecho de acceso de la Ley 19.628.';
+  const body = `
+    <p style="margin:0 0 12px;font-size:14px;color:${TEXT}">${greeting}</p>
+    <h2 style="margin:0 0 12px;font-size:20px;font-weight:900;color:${PETROLEUM}">${heading}</h2>
+    <p style="margin:0 0 16px;font-size:14px;color:${TEXT};line-height:1.6">${intro}</p>
+    ${button(payload.downloadUrl, 'Descargar mis datos')}
+    <p style="margin:18px 0 0;font-size:12px;color:${MUTED};line-height:1.6">
+      El enlace expira en ${payload.expiresInHours} horas. Si no alcanzas a descargarlo,
+      vuelve a solicitarlo desde la página <strong>Mis datos</strong> en la aplicación.
+    </p>
+    <p style="margin:14px 0 0;font-size:12px;color:${MUTED};line-height:1.6">
+      Si no solicitaste esta exportación, contacta de inmediato a nuestro encargado de
+      protección de datos: <a href="mailto:dpo@praeventio.app" style="color:${TEAL}">dpo@praeventio.app</a>.
+    </p>
+  `;
+  return shell(body, TEAL, {
+    auditId: payload.requestId,
+    reason: `Ley 19.628 — ${payload.type}`,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 7. Data erasure confirmed (Ley 19.628 — derecho de eliminación)
+// ---------------------------------------------------------------------------
+
+export interface DataErasureConfirmedPayload {
+  requestId: string;
+  /** ISO timestamp when erasure completed. */
+  completedAtIso: string;
+  /** Names of collections that were preserved due to legal retention duty. */
+  preservedRecords?: string[];
+  recipientName?: string;
+}
+
+export function dataErasureConfirmedTemplate(
+  payload: DataErasureConfirmedPayload,
+): string {
+  const greeting = payload.recipientName
+    ? `Hola ${escapeHtml(payload.recipientName)},`
+    : 'Hola,';
+  const completedFmt = (() => {
+    try {
+      return new Date(payload.completedAtIso).toLocaleString('es-CL', {
+        timeZone: 'America/Santiago',
+      });
+    } catch {
+      return payload.completedAtIso;
+    }
+  })();
+  const preservedBlock =
+    payload.preservedRecords && payload.preservedRecords.length > 0
+      ? `<p style="margin:14px 0 0;font-size:13px;color:${TEXT};line-height:1.6">
+          Por obligación legal (Ley 16.744 y DS 594, retención de 7 años para registros
+          de seguridad ocupacional), conservamos los siguientes registros:
+          <strong>${payload.preservedRecords.map(escapeHtml).join(', ')}</strong>.
+          Estos registros NO contienen credenciales y solo serán accedidos por SUSESO
+          o autoridad competente bajo orden formal.
+        </p>`
+      : '';
+  const body = `
+    <p style="margin:0 0 12px;font-size:14px;color:${TEXT}">${greeting}</p>
+    <h2 style="margin:0 0 12px;font-size:20px;font-weight:900;color:${PETROLEUM}">
+      Tu cuenta y datos personales han sido eliminados
+    </h2>
+    <p style="margin:0 0 12px;font-size:14px;color:${TEXT};line-height:1.6">
+      Procesamos tu solicitud de eliminación bajo el derecho de supresión de la
+      Ley 19.628. Confirmación: <strong>${escapeHtml(completedFmt)}</strong>.
+    </p>
+    ${preservedBlock}
+    <p style="margin:14px 0 0;font-size:12px;color:${MUTED};line-height:1.6">
+      Si crees que esta eliminación se realizó por error, escribe en las próximas
+      72 horas a <a href="mailto:dpo@praeventio.app" style="color:${TEAL}">dpo@praeventio.app</a>.
+      Después de ese plazo no podremos restaurar la cuenta.
+    </p>
+  `;
+  return shell(body, TEAL, {
+    auditId: payload.requestId,
+    reason: 'Ley 19.628 — erasure',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 8. DTE issued template (Sprint 23 Bucket GG)
+//
+// Sent to the customer email after Bsale confirms a folio for the invoice.
+// Plain DTE-acknowledgement email — links to the SII-validated PDF and XML
+// hosted by the PSE so the customer's accountant can archive both.
+// ---------------------------------------------------------------------------
+
+export interface DteIssuedPayload {
+  folio: number;
+  dteType: 'factura_electronica' | 'boleta_electronica' | 'boleta_exenta' | 'nota_credito' | 'nota_debito';
+  totalClp: number;
+  ivaClp?: number;
+  pdfUrl?: string;
+  xmlUrl?: string;
+  emittedAt?: string;
+  invoiceId?: string;
+  customerName: string;
+}
+
+const DTE_TYPE_LABEL: Record<DteIssuedPayload['dteType'], string> = {
+  factura_electronica: 'Factura Electrónica',
+  boleta_electronica: 'Boleta Electrónica',
+  boleta_exenta: 'Boleta Exenta Electrónica',
+  nota_credito: 'Nota de Crédito Electrónica',
+  nota_debito: 'Nota de Débito Electrónica',
+};
+
+function formatClp(amount: number): string {
+  // Available since Node 13. Use es-CL locale for $X.XXX.
+  try {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `$${amount}`;
+  }
+}
+
+export function dteIssuedTemplate(payload: DteIssuedPayload): string {
+  const typeLabel = DTE_TYPE_LABEL[payload.dteType] ?? 'Documento Tributario';
+  const ivaLine = typeof payload.ivaClp === 'number' && payload.ivaClp > 0
+    ? `<p style="margin:6px 0;font-size:14px;color:${TEXT}"><strong>IVA (19%):</strong> ${escapeHtml(formatClp(payload.ivaClp))}</p>`
+    : '';
+  const pdfBtn = payload.pdfUrl
+    ? button(payload.pdfUrl, 'Descargar PDF')
+    : '';
+  const xmlLink = payload.xmlUrl
+    ? `<p style="margin:18px 0 0;font-size:13px;color:${MUTED};text-align:center"><a href="${payload.xmlUrl}" style="color:${TEAL};text-decoration:none">Descargar XML firmado</a></p>`
+    : '';
+  const emittedAtFmt = payload.emittedAt
+    ? new Date(payload.emittedAt).toLocaleString('es-CL', { timeZone: 'America/Santiago' })
+    : new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' });
+  const body = `
+    <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:${PETROLEUM}">${escapeHtml(typeLabel)} emitida</h2>
+    <p style="margin:0 0 22px;font-size:14px;color:${MUTED}">Hola ${escapeHtml(payload.customerName)}, adjuntamos los datos del documento tributario emitido a tu nombre.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;background:#f0fdfa;border-radius:8px">
+      <tr><td style="padding:16px 18px">
+        <p style="margin:6px 0;font-size:14px;color:${TEXT}"><strong>Folio:</strong> ${payload.folio}</p>
+        <p style="margin:6px 0;font-size:14px;color:${TEXT}"><strong>Total:</strong> ${escapeHtml(formatClp(payload.totalClp))}</p>
+        ${ivaLine}
+        <p style="margin:6px 0;font-size:14px;color:${TEXT}"><strong>Emitido:</strong> ${escapeHtml(emittedAtFmt)}</p>
+      </td></tr>
+    </table>
+    ${pdfBtn}
+    ${xmlLink}
+    <p style="margin:24px 0 0;font-size:12px;color:${MUTED}">El documento ya fue declarado al SII. Conserva el XML firmado para tus respaldos contables.</p>
+  `;
+  return shell(body, TEAL, {
+    auditId: payload.invoiceId ?? `dte-${payload.folio}`,
+    reason: 'DTE emitido (SII)',
+  });
+}
