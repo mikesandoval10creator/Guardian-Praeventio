@@ -56,6 +56,66 @@ export const sosLimiter = rateLimit({
 
 const SUPERVISOR_ROLES = new Set(['supervisor', 'gerente', 'prevencionista', 'admin']);
 
+// ────────────────────────────────────────────────────────────────────────
+// Sprint 27 P0 H7 — cross-collection FCM token cache.
+//
+// Background: `push.ts` writes registered tokens to `users/{uid}.fcmTokens`
+// (an array, via arrayUnion). The legacy SOS fan-out path read
+// `projects/{id}/members/{uid}.fcmToken` (singular). Nobody synchronized
+// the two, so `notified` was always 0 — the brigade's phones never rang.
+//
+// Fix (option 1 / single source of truth): for each project member,
+// resolve their tokens cross-collection from `users/{memberUid}.fcmTokens`
+// and union them with any legacy `members/{uid}.fcmToken` value still on
+// the member doc. Dedupe via Set before sending.
+//
+// Cache: TTL 5 min keyed by uid. SOS bursts (e.g. a brigade leader hitting
+// the button repeatedly during an active incident) shouldn't hammer
+// `users/*` reads. The cache is process-local — no Redis needed; pods
+// rotate often enough that staleness is bounded.
+// ────────────────────────────────────────────────────────────────────────
+
+const USER_TOKEN_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+const userTokenCache = new Map<string, { tokens: string[]; expiresAt: number }>();
+
+/** Test-only: clear the in-process cache between cases. Not exported via
+ *  the default router export; tests `import { __clearUserTokenCache }`. */
+export function __clearUserTokenCache(): void {
+  userTokenCache.clear();
+}
+
+/**
+ * Read `users/{uid}.fcmTokens` (array) with a TTL cache. Returns `[]` when
+ * the doc doesn't exist or the field is missing/empty. Errors are swallowed
+ * to a `[]` return — a single user-doc read failing must never block the
+ * SOS fan-out.
+ */
+async function getUserTokensCached(
+  uid: string,
+  db: FirebaseFirestore.Firestore,
+): Promise<string[]> {
+  const now = Date.now();
+  const hit = userTokenCache.get(uid);
+  if (hit && hit.expiresAt > now) {
+    return hit.tokens;
+  }
+  let tokens: string[] = [];
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    if (snap.exists) {
+      const raw = (snap.data() as any)?.fcmTokens;
+      if (Array.isArray(raw)) {
+        tokens = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
+      }
+    }
+  } catch (err: any) {
+    logger.warn('sos_user_token_lookup_failed', { uid, message: err?.message });
+    tokens = [];
+  }
+  userTokenCache.set(uid, { tokens, expiresAt: now + USER_TOKEN_CACHE_TTL_MS });
+  return tokens;
+}
+
 function isFiniteNumber(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n);
 }
@@ -90,18 +150,40 @@ export async function sendToProjectSupervisors(
   messaging: admin.messaging.Messaging,
 ): Promise<{ notified: number; failed: number; supervisorEmails: string[] }> {
   const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
-  const tokens: string[] = [];
+  const tokenSet = new Set<string>();
   const supervisorEmails: string[] = [];
+
+  // Sprint 27 P0 H7 — cross-collection lookup. The canonical token store
+  // is `users/{uid}.fcmTokens` (array, written by /api/push/register-token
+  // via arrayUnion). For each supervisor member of the project we union
+  // those tokens with any legacy `members/{uid}.fcmToken` (singular) that
+  // a not-yet-migrated installation may still carry. The Set deduplicates
+  // across both sources so a single device with a token in both locations
+  // is notified exactly once.
   for (const memberDoc of membersSnap.docs) {
     const data = memberDoc.data();
     if (!SUPERVISOR_ROLES.has(data?.role)) continue;
+
+    // Legacy fallback first — keeps installations that haven't migrated
+    // working until they do. The cache lookup below adds the canonical
+    // tokens on top.
     if (typeof data?.fcmToken === 'string' && data.fcmToken) {
-      tokens.push(data.fcmToken);
+      tokenSet.add(data.fcmToken);
     }
     if (typeof data?.email === 'string' && data.email) {
       supervisorEmails.push(data.email);
     }
+
+    // Canonical: read users/{memberUid}.fcmTokens (array) with TTL cache.
+    // memberDoc.id is the member uid in `projects/{id}/members/{uid}`.
+    const memberUid = memberDoc.id;
+    const userTokens = await getUserTokensCached(memberUid, db);
+    for (const tok of userTokens) {
+      tokenSet.add(tok);
+    }
   }
+
+  const tokens = Array.from(tokenSet);
   if (tokens.length === 0) {
     return { notified: 0, failed: 0, supervisorEmails };
   }
