@@ -136,7 +136,10 @@ try {
   console.warn('[observability] Sentry init failed (continuing without it):', err);
 }
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Sprint 25 (CI fix) — fallback so module load doesn't crash when the
+// secret isn't in env (CI smoke + local dev). Real sends will surface
+// an upstream "invalid key" instead of a boot crash.
+const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 // Read Firebase Config once at startup FIRST
 let firebaseConfig: any = null;

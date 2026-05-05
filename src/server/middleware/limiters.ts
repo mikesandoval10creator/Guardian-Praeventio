@@ -188,8 +188,15 @@ export const erpSyncLimiter = rateLimit({
  * (1.000 was the cap floated by the user for free-tier in
  * `project_b2d_api_model.md`.)
  */
+// Sprint 25 (CI fix) — windowMs is capped to 24 days because the
+// MemoryStore in express-rate-limit ≥7.5 validates it against the
+// signed-32-bit timer ceiling (~24.8 days, 2_147_483_647 ms). 30 days
+// would crash the boot with ERR_ERL_WINDOW_MS. In production we'll
+// lift this with a Redis store; for now the practical "free tier
+// monthly cap" is 24 days, which is close enough to "monthly" for the
+// integration probe path and lets CI smoke through cleanly.
 export const b2dFreeLimiter = rateLimit({
-  windowMs: 30 * 24 * 60 * 60 * 1000, // 30-day rolling window
+  windowMs: 24 * 24 * 60 * 60 * 1000, // 24-day rolling window — see note above
   max: parseInt(process.env.B2D_FREE_CAP ?? '1000', 10),
   keyGenerator: (req: Request) => {
     const auth = req.header('authorization') ?? '';
