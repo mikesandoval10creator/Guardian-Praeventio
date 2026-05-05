@@ -69,8 +69,11 @@ describe('LanguageProvider — resolveInitialLanguage precedence', () => {
   });
 
   it('ignores localStorage values that are not in the supported list', () => {
+    // Sprint 28 B2 expanded supported locales (fr-FR is now valid). Use a
+    // truly unrecognized BCP-47 tag so the precedence assertion stays robust
+    // as new locales are added.
     const got = resolveInitialLanguage({
-      storedLocale: 'fr-FR', // unsupported
+      storedLocale: 'xx-XX', // unsupported
       userLocale: 'es-AR',
       navigatorLanguage: 'en',
     });
@@ -118,8 +121,11 @@ describe('LanguageProvider — normalizeLocale', () => {
   });
 
   it('returns null for unsupported families', () => {
-    expect(normalizeLocale('fr-FR')).toBeNull();
-    expect(normalizeLocale('zh')).toBeNull();
+    // Sprint 28 B2 expanded supported locales from 6 to 16 (added fr/de/it/
+    // ja/zh-CN/zh-TW/ar/ko/hi/ru). Use unrecognized BCP-47 tags here so the
+    // test stays honest as new locales land.
+    expect(normalizeLocale('xx-XX')).toBeNull();
+    expect(normalizeLocale('qq')).toBeNull();
   });
 
   it('handles null/undefined/empty', () => {
@@ -130,8 +136,28 @@ describe('LanguageProvider — normalizeLocale', () => {
 });
 
 describe('LanguageProvider — SUPPORTED_LOCALES contract', () => {
-  it('ships exactly the 6 locales documented in the rollout plan', () => {
-    expect(SUPPORTED_LOCALES).toEqual(['es', 'es-MX', 'es-PE', 'es-AR', 'pt-BR', 'en']);
+  // Sprint 28 B2 expanded the rollout from 6 (es family + pt-BR + en) to
+  // 16 locales for global launch (UK/CA/AU + APAC + RU). We assert the
+  // exact list so additions/removals are intentional and reviewable.
+  it('ships exactly the 16 locales documented in the global launch plan', () => {
+    expect(SUPPORTED_LOCALES).toEqual([
+      'es',
+      'es-MX',
+      'es-PE',
+      'es-AR',
+      'pt-BR',
+      'en',
+      'fr',
+      'de',
+      'it',
+      'ja',
+      'zh-CN',
+      'ar',
+      'ko',
+      'hi',
+      'zh-TW',
+      'ru',
+    ]);
   });
 
   it("'es' is the default and always present (Spanish-CL fallback contract)", () => {

@@ -34,10 +34,19 @@ function quorumMembers(): CphsMember[] {
 }
 
 describe('CphsRegulatoryHeader', () => {
-  it('cita DS 54 art. 66 e ISO 45001 §5.4', () => {
+  // Sprint 29 EE refactored the header from hardcoded "DS 54 art. 66" /
+  // "ISO 45001:2018 §5.4" strings to a dynamic <RegulatoryCitation /> that
+  // resolves citations from the regulatory registry at runtime. The new
+  // surface emits short-form labels like "DS-54 (Chile)" + "ISO-45001:5.4".
+  // The test now asserts those (plus the "Citas normativas" anchor + the
+  // pinning disclaimer) so it stays meaningful as the registry evolves.
+  it('renderiza citas normativas DS-54 + ISO 45001:5.4', () => {
     render(<CphsRegulatoryHeader />);
-    expect(screen.getByText(/DS 54 art\. 66/)).toBeTruthy();
-    expect(screen.getByText(/ISO 45001:2018 §5\.4/)).toBeTruthy();
+    expect(screen.getByText(/Citas normativas/)).toBeTruthy();
+    expect(screen.getByText(/ISO-45001/)).toBeTruthy();
+    expect(screen.getByText(/DS-54/)).toBeTruthy();
+    // Pin disclaimer must remain visible until B1 jurisdictionalization lands.
+    expect(screen.getByText(/pinneado a Chile DS 54/)).toBeTruthy();
   });
 });
 
