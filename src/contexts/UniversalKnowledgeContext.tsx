@@ -8,6 +8,11 @@ import { fetchEnvironmentContext } from '../services/orchestratorService';
 
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
+import {
+  applyMigrations,
+  needsUpgrade,
+  CURRENT_RISK_NODE_VERSION,
+} from '../services/migration/registry';
 
 export interface KnowledgeGraph {
   nodes: RiskNode[];
@@ -106,17 +111,61 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     );
 
     const unsubscribeNodes = onSnapshot(q, (snapshot) => {
+      // Sprint 24 (Bucket MM.2): lazy schema upgrade on read.
+      //
+      // Older nodes pre-date `metadata.geo`, the tags-as-array invariant,
+      // etc. We run them through `applyMigrations` BEFORE handing them to
+      // React so consumers always see the current shape. If any node was
+      // upgraded, we asynchronously persist the upgraded form so the next
+      // reader gets a fast path. The persist runs in `requestIdleCallback`
+      // (or a microtask fallback) — it MUST NOT block the UI.
+      const upgradesPending: { id: string; node: any }[] = [];
       const newNodes = snapshot.docs.map(doc => {
         const data = doc.data();
-        return {
+        const raw = {
           id: doc.id,
           ...data,
           description: data.description || data.content || ''
         };
-      }) as RiskNode[];
+        if (needsUpgrade(raw)) {
+          const upgraded = applyMigrations(raw);
+          upgradesPending.push({ id: doc.id, node: upgraded });
+          return upgraded as RiskNode;
+        }
+        return raw as RiskNode;
+      });
 
       setNodes(newNodes);
       setLoading(false);
+
+      // Fire-and-forget background persist of upgraded shapes.
+      if (upgradesPending.length > 0) {
+        const persist = () => {
+          upgradesPending.forEach(({ id, node }) => {
+            // Only write the fields that migrations may have touched, plus
+            // the schemaVersion stamp. We deliberately avoid clobbering
+            // server-managed timestamps.
+            const patch: Record<string, any> = {
+              schemaVersion: CURRENT_RISK_NODE_VERSION,
+              tags: node.tags,
+              connections: node.connections,
+              metadata: node.metadata,
+              updatedAt: serverTimestamp(),
+            };
+            updateDoc(doc(db, 'nodes', id), patch).catch((err) => {
+              // Non-fatal: a permission error here just means we'll retry
+              // next read. Don't surface to the user.
+              logger.warn('Lazy schema upgrade persist failed', { nodeId: id, error: String(err) });
+            });
+          });
+        };
+        const ric = (globalThis as any).requestIdleCallback;
+        if (typeof ric === 'function') {
+          ric(persist, { timeout: 2000 });
+        } else {
+          Promise.resolve().then(persist);
+        }
+      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'nodes');
       setLoading(false);

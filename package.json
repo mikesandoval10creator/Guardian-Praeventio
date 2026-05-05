@@ -3,7 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "bin": {
+    "praeventio": "./scripts/cli/praeventio.mjs"
+  },
   "scripts": {
+    "cli": "node scripts/cli/praeventio.mjs",
     "dev": "tsx server.ts",
     "build": "vite build",
     "preview": "vite preview",
