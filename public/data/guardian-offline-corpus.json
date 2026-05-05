@@ -1,0 +1,256 @@
+{
+  "version": "1.0",
+  "meta": {
+    "source": "Zettelkasten subset + primeros auxilios + DS chilenos + Cruz Roja",
+    "lastUpdated": "2026-05-04",
+    "license": "CC BY-SA + government public domain CL",
+    "purpose": "Offline emergency corpus — used by GuardianOfflineService to inject retrieval context when network is unavailable (caso sísmico). NEVER expose Zettelkasten internal IDs."
+  },
+  "chunks": [
+    {
+      "id": "chunk-001",
+      "topic": "primeros_auxilios.sangrado_abundante",
+      "keywords": ["sangrado", "hemorragia", "presion", "torniquete", "sangre", "herida"],
+      "text": "Sangrado abundante: aplicar presion directa con tela limpia o gasa sobre la herida durante al menos 10 minutos sin levantar para revisar. Si traspasa, anadir mas gasa encima sin retirar la primera. Elevar la extremidad por encima del corazon si no hay sospecha de fractura. Si no para en 10 minutos y hay riesgo vital, considerar torniquete proximal a la herida solo si hay formacion previa, anotando la hora exacta. Mantener al herido tendido y abrigado. Llamar SAMU 131 cuando red disponible.",
+      "citation": "DS 109 + Cruz Roja Chile + NIOSH primeros auxilios"
+    },
+    {
+      "id": "chunk-002",
+      "topic": "primeros_auxilios.paro_cardiorrespiratorio",
+      "keywords": ["paro", "rcp", "cardiaco", "respiracion", "no responde", "inconsciente"],
+      "text": "Paro cardiorrespiratorio: comprobar respuesta (estimulo verbal y tactil), pedir ayuda y DEA. Si no respira o solo jadea, iniciar RCP: 30 compresiones toracicas (centro del pecho, 5-6 cm profundidad, 100-120 por minuto) y 2 ventilaciones si hay barrera. Continuar hasta que llegue DEA o SAMU. En adultos sin formacion en ventilacion, hacer compresiones continuas sin interrupcion.",
+      "citation": "AHA Guidelines 2020 + Cruz Roja Chile"
+    },
+    {
+      "id": "chunk-003",
+      "topic": "primeros_auxilios.fractura",
+      "keywords": ["fractura", "hueso", "deformidad", "inmovilizar", "ferula"],
+      "text": "Fractura sospechada: NO mover al herido salvo riesgo vital inminente. Inmovilizar la extremidad en la posicion encontrada con ferula improvisada (carton, palo) abarcando articulacion superior e inferior a la fractura. Si hay hueso expuesto (fractura abierta), cubrir con gasa esteril sin presionar. Vigilar pulso distal y color de la piel. Trasladar a centro asistencial.",
+      "citation": "DS 594 + Cruz Roja Chile primeros auxilios"
+    },
+    {
+      "id": "chunk-004",
+      "topic": "primeros_auxilios.quemadura",
+      "keywords": ["quemadura", "fuego", "calor", "ampolla", "agua"],
+      "text": "Quemadura termica: enfriar inmediatamente con agua fria corriente (no helada) durante 10-20 minutos. NO aplicar hielo, pasta dental, aceite ni manteca. Retirar ropa y joyas que no esten pegadas a la piel antes de que se inflame. Cubrir con gasa esteril o pano limpio sin algodon. Quemaduras de mas del 10 por ciento de superficie, en cara, manos, genitales o vias respiratorias requieren traslado urgente.",
+      "citation": "DS 109 + protocolo MINSAL grandes quemados"
+    },
+    {
+      "id": "chunk-005",
+      "topic": "primeros_auxilios.intoxicacion",
+      "keywords": ["intoxicacion", "veneno", "ingestion", "quimico", "cite"],
+      "text": "Intoxicacion: identificar el agente (envase, hoja de seguridad SDS) y la via de exposicion (ingestion, inhalacion, dermica, ocular). NO inducir vomito salvo indicacion expresa del CITUC (Centro de Informacion Toxicologica UC: 22 247 3600). Si fue inhalacion, sacar al aire libre. Si fue cutanea, retirar ropa contaminada y lavar con abundante agua. Llevar el envase al centro asistencial.",
+      "citation": "CITUC + DS 148 sustancias peligrosas"
+    },
+    {
+      "id": "chunk-006",
+      "topic": "primeros_auxilios.electrocucion",
+      "keywords": ["electrico", "electrocucion", "corriente", "shock"],
+      "text": "Electrocucion: ANTES de tocar a la victima, cortar la fuente de energia desde el tablero general o usando elemento aislante seco (madera, plastico). Nunca tocar al accidentado mientras este en contacto con la corriente. Una vez liberado, evaluar respiracion y pulso, iniciar RCP si es necesario. Toda victima de electrocucion debe ser evaluada por arritmia incluso si parece bien.",
+      "citation": "NCh Elec 4 + DS 132 electricidad"
+    },
+    {
+      "id": "chunk-007",
+      "topic": "primeros_auxilios.atragantamiento",
+      "keywords": ["atragantamiento", "obstruccion", "ahogo", "heimlich"],
+      "text": "Atragantamiento con obstruccion completa de via aerea: aplicar maniobra de Heimlich. Adulto consciente: rodear desde atras, puno cerrado por encima del ombligo, compresiones rapidas hacia adentro y arriba hasta expulsar el cuerpo extrano o la persona pierda consciencia. Si pierde consciencia, iniciar RCP estandar.",
+      "citation": "AHA + Cruz Roja Chile"
+    },
+    {
+      "id": "chunk-008",
+      "topic": "primeros_auxilios.hipotermia",
+      "keywords": ["hipotermia", "frio", "temblor", "exposicion"],
+      "text": "Hipotermia: trasladar a lugar abrigado, retirar ropa mojada, abrigar con mantas secas. NO frotar extremidades ni dar alcohol. Dar bebidas tibias y dulces solo si esta consciente y puede tragar. En hipotermia severa (sin temblor, confusion, bradicardia) manipular con extrema suavidad porque el corazon es sensible a fibrilacion ventricular.",
+      "citation": "Wilderness Medical Society + MINSAL"
+    },
+    {
+      "id": "chunk-009",
+      "topic": "primeros_auxilios.golpe_calor",
+      "keywords": ["calor", "deshidratacion", "insolacion", "agotamiento"],
+      "text": "Golpe de calor: temperatura corporal mayor a 40 grados, piel caliente y seca, confusion. Trasladar a la sombra, retirar ropa, enfriar con agua fria sobre cuello, axilas e ingles. Hidratar con sales si esta consciente. Es emergencia vital, llamar SAMU 131. Diferente al agotamiento por calor (sudoracion abundante, piel humeda) que se trata con hidratacion y descanso.",
+      "citation": "DS 594 art. 96 + ACGIH TLV calor"
+    },
+    {
+      "id": "chunk-010",
+      "topic": "evacuacion.salida_bloqueada",
+      "keywords": ["evacuacion", "salida", "bloqueada", "ruta", "alternativa", "atrapado"],
+      "text": "Si la salida principal esta bloqueada: 1) Identificar segunda salida de emergencia mas cercana — toda faena debe tener minimo dos segun NCh 1410. 2) Evacuar contra el viento en direccion perpendicular a la fuente del peligro. 3) Llegar al punto de reunion designado y senalizado. 4) Hacer recuento por cuadrilla con el lider. 5) Reportar faltantes al supervisor. NUNCA volver a buscar pertenencias.",
+      "citation": "NCh 1410 senalizacion + DS 594 art. 53"
+    },
+    {
+      "id": "chunk-011",
+      "topic": "evacuacion.sismo",
+      "keywords": ["sismo", "terremoto", "temblor", "evacuacion"],
+      "text": "Durante un sismo: agacharse, cubrirse bajo mesa solida y sujetarse. NO correr, NO usar ascensores, NO ubicarse en marcos de puertas modernas. Alejarse de ventanas, estanterias y objetos que puedan caer. Despues del sismo: evacuar por escaleras al punto de reunion solo si la estructura presenta dano visible o si hay alarma. En faena minera o industrial seguir el protocolo de retirada del frente. Esperar replicas.",
+      "citation": "ONEMI + DS 594 + NCh 433"
+    },
+    {
+      "id": "chunk-012",
+      "topic": "evacuacion.tsunami",
+      "keywords": ["tsunami", "maremoto", "costa", "altura"],
+      "text": "Tsunami: si percibe sismo fuerte de mas de 30 segundos en zona costera, o si el mar se retira anormalmente, evacuar de inmediato a zona segura sobre 30 metros sobre el nivel del mar o 1 km tierra adentro. NO esperar alarma oficial. NO regresar a la zona inundable hasta que SHOA confirme cancelacion del estado de alerta.",
+      "citation": "ONEMI + SHOA cartas de inundacion"
+    },
+    {
+      "id": "chunk-013",
+      "topic": "evacuacion.incendio",
+      "keywords": ["incendio", "fuego", "humo", "extintor"],
+      "text": "Incendio: dar la alarma, accionar pulsador mas cercano. Si el fuego es incipiente y tiene formacion en uso de extintor, atacar con extintor adecuado a la clase de fuego (A solidos, B liquidos, C electrico, D metales, K aceites cocina). Si el fuego supera el ataque inicial, evacuar cerrando puertas a su paso. Avanzar agachado bajo el humo, palpar puertas con dorso de mano antes de abrir.",
+      "citation": "NCh 1430 extintores + DS 594 art. 44"
+    },
+    {
+      "id": "chunk-014",
+      "topic": "evacuacion.derrame_quimico",
+      "keywords": ["derrame", "quimico", "fuga", "contaminacion"],
+      "text": "Derrame quimico: alejarse contra el viento, alertar a la brigada y al supervisor con la identificacion UN del producto si es visible. Aislar el area en al menos el radio indicado por la guia GRE (Guia de Respuesta a Emergencias). NO intentar contener el derrame sin EPP especifico y entrenamiento. Cortar fuentes de ignicion si el producto es inflamable.",
+      "citation": "GRE 2024 + DS 148 + NCh 2120"
+    },
+    {
+      "id": "chunk-015",
+      "topic": "evacuacion.confinado",
+      "keywords": ["confinado", "espacio", "rescate", "atmosfera"],
+      "text": "Emergencia en espacio confinado: NO entrar a rescatar sin equipo autonomo y plan de rescate. Mas del 60 por ciento de los muertos en espacios confinados son rescatistas no preparados. Llamar a la brigada con equipos SCBA, monitor de gases y arnes. Mientras llega ayuda, ventilar el espacio si es seguro hacerlo desde fuera.",
+      "citation": "DS 594 art. 27 + NIOSH confined space"
+    },
+    {
+      "id": "chunk-016",
+      "topic": "peligro.gas_olor",
+      "keywords": ["gas", "olor", "huevo podrido", "propano", "monoxido", "fuga"],
+      "text": "Olor a huevo podrido igual a sulfuro de hidrogeno H2S, muy peligroso, evacuar inmediato y alertar — H2S sobre 100 ppm satura el olfato y deja de oler aunque siga matando. Olor sulfuroso fuerte igual a gas natural odorizado o propano. Monoxido de carbono CO no tiene olor — solo se detecta con sensor. Gas LP es mas pesado que aire, se acumula en zonas bajas. Si dudas evacuar primero, identificar despues.",
+      "citation": "DS 148 + GHS UN ST/SG/AC.10/30 + NIOSH H2S"
+    },
+    {
+      "id": "chunk-017",
+      "topic": "peligro.fuego_clase",
+      "keywords": ["fuego", "clase", "extintor", "tipo"],
+      "text": "Clases de fuego en Chile (NCh 934): Clase A solidos comunes (madera, papel) — apagar con agua o PQS. Clase B liquidos inflamables (combustibles, solventes) — espuma, CO2 o PQS, NUNCA agua. Clase C equipos electricos energizados — CO2 o PQS, NUNCA agua. Clase D metales combustibles (magnesio, sodio) — polvos especiales D. Clase K aceites de cocina — agente humedo K.",
+      "citation": "NCh 934 + NCh 1430"
+    },
+    {
+      "id": "chunk-018",
+      "topic": "peligro.electrico",
+      "keywords": ["electrico", "tablero", "linea", "alta tension"],
+      "text": "Peligro electrico: respetar distancias minimas de seguridad — baja tension hasta 1 kV, 1 metro; media tension 1-66 kV, 3 metros; alta tension sobre 66 kV, 5 metros. Antes de trabajar en circuito aplicar las cinco reglas de oro: cortar, bloquear, verificar ausencia de tension, poner a tierra, senalizar. Linea caida tratarla siempre como energizada hasta confirmacion de la electrica.",
+      "citation": "NCh Elec 4 + RIC N04 SEC"
+    },
+    {
+      "id": "chunk-019",
+      "topic": "peligro.altura",
+      "keywords": ["altura", "caida", "arnes", "linea de vida"],
+      "text": "Trabajo en altura sobre 1.8 metros: arnes integral con doble cabo de vida y absorbedor de impacto, conectado a punto de anclaje certificado para 22 kN minimo. Inspeccion visual del arnes antes de cada uso. Plan de rescate definido — el sindrome del arnes suspendido puede matar en 15 minutos por estasis venoso si la persona queda colgada inmovil.",
+      "citation": "DS 594 art. 53 + NCh 1258 arneses"
+    },
+    {
+      "id": "chunk-020",
+      "topic": "peligro.atmosfera_explosiva",
+      "keywords": ["atmosfera", "explosiva", "lel", "atex", "deflagracion"],
+      "text": "Atmosfera explosiva (gas, vapor o polvo combustible mezclado con aire en proporcion explosiva): suspender todo trabajo en caliente y fuentes de ignicion. Limite inferior de explosividad LEL es la concentracion minima que arde — sobre 10 por ciento del LEL ya es zona de peligro. Ventilar, monitorear con detector calibrado, evacuar si supera 25 por ciento del LEL.",
+      "citation": "NCh 2055 + ATEX 2014/34/UE"
+    },
+    {
+      "id": "chunk-021",
+      "topic": "epp.respiratorio",
+      "keywords": ["mascarilla", "respirador", "n95", "p100", "scba"],
+      "text": "Proteccion respiratoria: N95 o KN95 para particulas no aceitosas (polvo, biologicos), R95 P100 para aerosoles aceitosos. Cartucho organico (banda negra) para vapores organicos, acido (banda blanca) para gases acidos. Equipo autonomo SCBA obligatorio en atmosferas IDLH (inmediatamente peligrosas para vida o salud) o con menos de 19.5 por ciento de oxigeno. La mascarilla quirurgica NO protege al usuario.",
+      "citation": "DS 594 art. 56 + NIOSH 42 CFR 84"
+    },
+    {
+      "id": "chunk-022",
+      "topic": "epp.basico_emergencia",
+      "keywords": ["epp", "casco", "guantes", "gafas", "botas"],
+      "text": "EPP basico para responder a emergencia: casco con barbiquejo, gafas de seguridad anti impacto, guantes adecuados al riesgo (cuero anti corte, nitrilo quimico, dielectricos electricos), calzado con puntera y planta antiperforacion, chaleco reflectante. NO improvisar EPP. Si no hay EPP adecuado, NO entrar — pedir apoyo de brigada.",
+      "citation": "DS 594 art. 53 a 58"
+    },
+    {
+      "id": "chunk-023",
+      "topic": "comunicacion.emergencia",
+      "keywords": ["llamar", "samu", "bomberos", "carabineros", "telefono"],
+      "text": "Numeros de emergencia en Chile: SAMU 131 ambulancia, Bomberos 132, Carabineros 133, PDI 134, ONEMI 137 emergencias mayores, CITUC 22 247 3600 toxicologia. Al llamar entregar: tipo de incidente, ubicacion exacta (direccion, faena, kilometro, coordenadas si es posible), numero de afectados y estado, peligros activos, su nombre y telefono de contacto.",
+      "citation": "ONEMI + SAMU"
+    },
+    {
+      "id": "chunk-024",
+      "topic": "comunicacion.cadena_aviso",
+      "keywords": ["aviso", "cadena", "supervisor", "reporte", "incidente"],
+      "text": "Cadena de aviso ante incidente en faena: 1) Asegurar la zona, no exponer mas trabajadores. 2) Avisar al supervisor inmediato y a prevencion de riesgos. 3) En accidente grave o fatal aviso obligatorio a SEREMI Salud y a la mutualidad antes de 24 horas (Ley 16.744). 4) Preservar el sitio del suceso para investigacion. 5) Reportar al CPHS (Comite Paritario) en proxima sesion.",
+      "citation": "Ley 16.744 + DS 101 + Circular 3335 SUSESO"
+    },
+    {
+      "id": "chunk-025",
+      "topic": "evacuacion.punto_reunion",
+      "keywords": ["punto", "reunion", "recuento", "conteo"],
+      "text": "Punto de reunion: zona segura senalizada con cartel verde, lejos de la edificacion, sin obstrucciones para vehiculos de emergencia, capaz de albergar a todo el personal. Cada cuadrilla nombra a un lider que hace recuento por nombre y reporta al coordinador de evacuacion. Faltantes se reportan inmediatamente. NADIE regresa al edificio sin autorizacion.",
+      "citation": "NCh 1410 + DS 594 art. 53"
+    },
+    {
+      "id": "chunk-026",
+      "topic": "primeros_auxilios.shock",
+      "keywords": ["shock", "palido", "frio", "presion baja"],
+      "text": "Estado de shock: piel palida, fria y humeda, pulso rapido y debil, respiracion superficial, confusion. Tender al herido boca arriba, elevar piernas 20-30 cm si no hay sospecha de fractura ni lesion espinal. Abrigar para evitar perdida de calor. NO dar liquidos por boca. Llamar SAMU 131 — el shock indica circulacion comprometida y avanza rapido.",
+      "citation": "Cruz Roja Chile + AHA"
+    },
+    {
+      "id": "chunk-027",
+      "topic": "primeros_auxilios.lesion_espinal",
+      "keywords": ["espina", "cuello", "columna", "trauma", "movimiento"],
+      "text": "Sospecha de lesion espinal (caida de altura, atropello, golpe en cabeza con perdida de consciencia): NO mover al herido. Estabilizar cabeza y cuello manualmente alineados con el tronco. NO retirar casco salvo paro respiratorio. Esperar SAMU para inmovilizacion con tabla espinal y collarin. Cualquier desplazamiento puede causar paraplejia o tetraplejia.",
+      "citation": "PHTLS + Cruz Roja Chile"
+    },
+    {
+      "id": "chunk-028",
+      "topic": "peligro.derrumbe",
+      "keywords": ["derrumbe", "colapso", "estructura", "atrapado"],
+      "text": "Derrumbe o colapso: NO ingresar a remover escombros sin equipo USAR. Marcar la zona, mantener silencio para escuchar victimas, alertar Bomberos 132 que activan grupo USAR. Si hay victima visible y accesible sin riesgo, hacer contacto verbal y mantener consciencia. Si es propio del incidente que sigue activo (replicas, fuego, gas) priorizar evacuacion sobre rescate improvisado.",
+      "citation": "ONEMI + INSARAG"
+    },
+    {
+      "id": "chunk-029",
+      "topic": "primeros_auxilios.crisis_respiratoria",
+      "keywords": ["asma", "respiracion", "ahogo", "broncoespasmo", "inhalador"],
+      "text": "Crisis respiratoria (asma, EPOC, anafilaxia): sentar a la persona ligeramente inclinada hacia adelante, aflojar ropa ajustada del cuello. Si tiene inhalador broncodilatador (salbutamol azul) ayudarle a usarlo, dos pulsaciones separadas por 30 segundos, repetible cada 15 minutos. En anafilaxia con autoinyector adrenalina (epipen) aplicar en muslo lateral. Llamar SAMU 131.",
+      "citation": "GINA + MINSAL"
+    },
+    {
+      "id": "chunk-030",
+      "topic": "evacuacion.discapacidad",
+      "keywords": ["discapacidad", "movilidad", "silla", "ascensor"],
+      "text": "Evacuacion de personas con movilidad reducida: NO usar ascensor. Plan previo identifica a estas personas y asigna companeros de evacuacion entrenados. Llevar a zona segura intermedia (rellano de escalera con puerta cortafuego, balcon protegido). Avisar a Bomberos la ubicacion exacta. Toda silla de evacuacion debe ser inspeccionada periodicamente.",
+      "citation": "NCh 1410 + Ley 20.422 inclusion"
+    },
+    {
+      "id": "chunk-031",
+      "topic": "comunicacion.familia",
+      "keywords": ["familia", "contacto", "aviso", "lesionado"],
+      "text": "Aviso a familia tras accidente laboral: corresponde al jefe directo o al area de personas, con apoyo de psicologia ocupacional si es disponible. Entregar informacion verificada sobre estado, lugar de hospitalizacion y persona de contacto. NO especular sobre pronostico. Coordinar traslado de la familia al recinto asistencial. La mutualidad cubre hospitalizacion bajo Ley 16.744.",
+      "citation": "Ley 16.744 + protocolo psicologia ocupacional"
+    },
+    {
+      "id": "chunk-032",
+      "topic": "peligro.calor_tareas",
+      "keywords": ["calor", "wbgt", "hidratacion", "pausa", "exposicion"],
+      "text": "Trabajo con estres termico por calor: hidratarse cada 20 minutos con 200-300 ml de agua o bebida con sales aunque no se tenga sed. Pausas en sombra. Evaluar carga termica con indice WBGT segun ACGIH TLV. Aclimatacion progresiva en los primeros 7 dias para personal nuevo o tras ausencia prolongada. Sintomas de alerta: calambres, mareo, nausea, piel seca y caliente.",
+      "citation": "DS 594 art. 96 + ACGIH TLV calor"
+    },
+    {
+      "id": "chunk-033",
+      "topic": "primeros_auxilios.ojo",
+      "keywords": ["ojo", "ocular", "quimico", "lavar", "cuerpo extrano"],
+      "text": "Lesion ocular por proyeccion de cuerpo extrano o quimico: lavar con agua limpia o suero fisiologico durante al menos 15 minutos manteniendo el ojo abierto, dirigiendo el flujo desde el lagrimal hacia afuera para no contaminar el otro ojo. NO frotar. NO retirar objetos clavados. Cubrir con gasa esteril sin presionar y trasladar a oftalmologo.",
+      "citation": "DS 594 + protocolo ocular MINSAL"
+    },
+    {
+      "id": "chunk-034",
+      "topic": "peligro.maquinaria",
+      "keywords": ["maquina", "atropamiento", "bloqueo", "loto"],
+      "text": "Atrapamiento o accidente con maquinaria: aplicar bloqueo y etiquetado LOTO inmediato — cortar energia (electrica, neumatica, hidraulica), bloquear interruptor con candado personal, etiquetar e intentar reactivacion para verificar disipacion de energia residual. NO improvisar destrabe sin aislamiento de energia. Llamar SAMU 131 y al supervisor.",
+      "citation": "DS 594 + OSHA 29 CFR 1910.147 LOTO"
+    },
+    {
+      "id": "chunk-035",
+      "topic": "evacuacion.replicas",
+      "keywords": ["replica", "post sismo", "evaluacion", "estructura"],
+      "text": "Despues de sismo mayor: esperar replicas, no reingresar a edificios con grietas estructurales, columnas dobladas, pisos desnivelados o vidrios rotos en marcos hasta que un especialista evalue. Cortar suministros de gas si hay olor. Usar zapatos cerrados. Conservar agua potable. Mantener radio AM con baterias para informacion oficial de ONEMI. Replicas pueden continuar dias o semanas.",
+      "citation": "ONEMI + NCh 433 + NCh 3389"
+    }
+  ]
+}

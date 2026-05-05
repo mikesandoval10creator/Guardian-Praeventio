@@ -24,6 +24,12 @@ import { logger } from '../../utils/logger';
 // reconciliation pass once connectivity returns.
 import { ask, enqueueSession, type SLMResponse } from '../../services/slm';
 import { useSLM, SLM_ENQUEUED_EVENT } from '../slm/SLMProvider';
+// Sprint 26 Bucket ZZ — fallback El Guardián Offline (caso sísmico).
+// Se activa cuando `ask()` (orchestrator) falla por completo: corpus
+// local + cache + FAQ garantizan que el trabajador reciba algo útil
+// para sangrado, evacuación, gas, RCP, etc., aunque el modelo SLM no
+// esté descargado todavía.
+import { GuardianOfflineService } from '../../services/slm/guardianOffline';
 // Sprint 20 17th-wave (Bucket D — title= → <Tooltip>): WCAG 1.4.13
 // compliant tooltip replaces the native `title=` on the per-message
 // thumbs up/down feedback buttons (icon-only).
@@ -79,6 +85,22 @@ export function AsesorChat() {
   // Last response backend, surfaced as a debug chip ("gemini" vs.
   // "webgpu"/"wasm-simd"). Cleared between sends; null means no chip.
   const [lastBackend, setLastBackend] = useState<SLMResponse['backend'] | null>(null);
+  // Bucket ZZ: El Guardián Offline service. fromEnv() retorna null si
+  // SLM_OFFLINE_ENABLED no está activo — en ese caso simplemente no hay
+  // fallback offline disponible y mostramos el mensaje genérico.
+  const [offlineService] = useState(() => GuardianOfflineService.fromEnv());
+  // Pre-cargar el corpus + (si está) el modelo en idle al montar para
+  // que el primer ask() en emergencia no pague costo de download.
+  useEffect(() => {
+    if (!offlineService) return;
+    let cancelled = false;
+    const idle = (cb: () => void) =>
+      typeof (window as any).requestIdleCallback === 'function'
+        ? (window as any).requestIdleCallback(cb, { timeout: 5000 })
+        : setTimeout(cb, 1500);
+    idle(() => { if (!cancelled) offlineService.preload().catch(() => {}); });
+    return () => { cancelled = true; };
+  }, [offlineService]);
 
   const handleSaveToRiskNetwork = async (content: string, topic: string) => {
     if (!selectedProject) return;
@@ -246,14 +268,30 @@ export function AsesorChat() {
       }
     } catch (error) {
       logger.error('Error in chat:', error);
-      // Last-resort fallback: orchestrator threw despite its own internal
-      // catch — surface the canned offline response so the user still
-      // gets *something* useful.
-      const offlineResponse = getOfflineResponse(currentInput, nodes);
+      // Last-resort fallback chain (Bucket ZZ):
+      //   1. Guardian Offline Service (corpus + FAQ + cache) si flag on
+      //   2. getOfflineResponse legacy (Risk Network local heuristic)
+      let fallbackContent = '';
+      let fallbackCitations: string[] = [];
+      if (offlineService) {
+        try {
+          const r = await offlineService.ask({ prompt: currentInput });
+          fallbackContent = r.answer;
+          fallbackCitations = r.citations;
+        } catch (offErr) {
+          logger.error('Guardian offline fallback also failed:', offErr);
+        }
+      }
+      if (!fallbackContent) {
+        fallbackContent = getOfflineResponse(currentInput, nodes);
+      }
+      const composed = fallbackCitations.length > 0
+        ? `${fallbackContent}\n\n_Fuentes:_ ${fallbackCitations.join('; ')}`
+        : fallbackContent;
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: offlineResponse,
+        content: composed,
         timestamp: new Date(),
         isOffline: true,
       };
@@ -362,6 +400,16 @@ export function AsesorChat() {
                 </button>
               </div>
             </div>
+
+            {/* Bucket ZZ: banner emergencia offline. Se muestra solo cuando
+                detectamos offline Y existe un offlineService activo, para no
+                prometer respuestas que no podemos entregar. */}
+            {!isOnline && offlineService && (
+              <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                Estás sin conexión. El Guardián tiene respuestas básicas de
+                emergencia disponibles (sangrado, evacuación, RCP, gas, sismo).
+              </div>
+            )}
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-800 scrollbar-track-transparent">
