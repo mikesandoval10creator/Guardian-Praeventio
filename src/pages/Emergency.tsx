@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -43,6 +44,7 @@ interface EmergencyProtocol {
 }
 
 export function Emergency() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [searchTerm, setSearchTerm] = useState('');
   const [isCrisisMode, setIsCrisisMode] = useState(false);
@@ -131,10 +133,10 @@ export function Emergency() {
 
   // Fallback to default protocols if none exist in Firestore
   const defaultProtocols: EmergencyProtocol[] = [
-    { id: 'P1', title: 'Protocolo de Incendio', category: 'Fuego', lastReview: '2024-01-15', status: 'active' },
-    { id: 'P2', title: 'Protocolo de Sismo', category: 'Natural', lastReview: '2024-02-10', status: 'active' },
-    { id: 'P3', title: 'Protocolo de Derrame Químico', category: 'Químico', lastReview: '2023-11-20', status: 'review' },
-    { id: 'P4', title: 'Protocolo de Primeros Auxilios', category: 'Salud', lastReview: '2024-03-05', status: 'active' },
+    { id: 'P1', title: t('emergency_page.default_protocols.fire_title'), category: t('emergency_page.default_protocols.fire_category'), lastReview: '2024-01-15', status: 'active' },
+    { id: 'P2', title: t('emergency_page.default_protocols.quake_title'), category: t('emergency_page.default_protocols.quake_category'), lastReview: '2024-02-10', status: 'active' },
+    { id: 'P3', title: t('emergency_page.default_protocols.spill_title'), category: t('emergency_page.default_protocols.spill_category'), lastReview: '2023-11-20', status: 'review' },
+    { id: 'P4', title: t('emergency_page.default_protocols.first_aid_title'), category: t('emergency_page.default_protocols.first_aid_category'), lastReview: '2024-03-05', status: 'active' },
   ];
 
   const protocols = protocolsData && protocolsData.length > 0 ? protocolsData : defaultProtocols;
@@ -200,40 +202,40 @@ export function Emergency() {
                 <AlertTriangle className="w-16 h-16 text-rose-600" />
               </motion.div>
               <div className="space-y-2">
-                <h2 className="text-4xl font-black text-white uppercase tracking-tighter">¡ALERTA DE INMOVILIDAD!</h2>
-                <p className="text-white/80 font-bold uppercase tracking-widest text-xs">Se ha detectado falta de movimiento prolongada</p>
+                <h2 className="text-4xl font-black text-white uppercase tracking-tighter">{t('emergency_page.man_down.alert_title')}</h2>
+                <p className="text-white/80 font-bold uppercase tracking-widest text-xs">{t('emergency_page.man_down.alert_subtitle')}</p>
               </div>
               <div className="text-8xl font-black text-white tabular-nums">
                 {countdown}
               </div>
               <p className="text-white/60 text-sm font-medium">
-                Si no cancelas esta alerta, se enviará una notificación de emergencia a todo el equipo en {countdown} segundos.
+                {t('emergency_page.man_down.countdown_warning', { countdown })}
               </p>
               {/* B8: Primary "Estoy bien" CTA — large, glove-operable, only during countdown. */}
               {countdown != null && countdown > 0 && (
                 <button
                   onClick={cancelCountdown}
-                  aria-label="Cancelar alarma de hombre caído"
+                  aria-label={t('emergency_page.man_down.cancel_aria')}
                   className="w-full min-h-[96px] bg-white text-rose-600 py-8 px-6 rounded-3xl font-black uppercase tracking-widest shadow-2xl active:scale-95 transition-all text-2xl sm:text-3xl"
                 >
-                  Estoy bien ({countdown}s)
+                  {t('emergency_page.man_down.im_ok', { countdown })}
                 </button>
               )}
               {/* B9: Supervisor acknowledgement — secondary, only while the alarm is sounding (countdown finished). */}
               {countdown === 0 && (
                 <button
                   onClick={() => { awardPoints('mandown_acknowledged'); acknowledgeAlert(); }}
-                  aria-label="Detener alarma — rescate en camino"
+                  aria-label={t('emergency_page.man_down.rescue_coming')}
                   className="w-full bg-white/10 border border-white/40 text-white py-4 rounded-2xl font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all text-xs sm:text-sm"
                 >
-                  Detener alarma — rescate en camino
+                  {t('emergency_page.man_down.rescue_coming')}
                 </button>
               )}
               <button
                 onClick={stopDetection}
                 className="w-full bg-white/0 border border-white/30 text-white/80 py-3 rounded-2xl font-bold uppercase tracking-widest active:scale-95 transition-all text-[10px] sm:text-xs"
               >
-                Cancelar Alerta
+                {t('emergency_page.man_down.cancel_alert')}
               </button>
             </div>
           </motion.div>
@@ -242,11 +244,11 @@ export function Emergency() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Plan de Emergencia</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('emergency_page.title')}</h1>
           <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">
             {selectedProject 
-              ? `Protocolos y planes de acción para: ${selectedProject.name}`
-              : 'Gestión centralizada de protocolos de seguridad y respuesta'}
+              ? t('emergency_page.subtitle_with_project', { name: selectedProject.name })
+              : t('emergency_page.subtitle_default')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
@@ -257,22 +259,22 @@ export function Emergency() {
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-500 hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
               >
                 <Zap className="w-4 h-4" />
-                <span>Generador IA</span>
+                <span>{t('emergency_page.btn.ai_generator')}</span>
               </Link>
             ) : (
               <button 
                 disabled
                 className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700/50 text-zinc-400 dark:text-zinc-500 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] cursor-not-allowed shadow-sm"
-                title="Requiere conexión a internet"
+                title={t('emergency_page.requires_internet')}
               >
                 <WifiOff className="w-4 h-4" />
-                <span>Requiere Conexión</span>
+                <span>{t('emergency_page.btn.requires_connection')}</span>
               </button>
             )}
             <button 
               onClick={toggleCrisisMode}
               disabled={!isOnline}
-              title={!isOnline ? "Requiere conexión a internet" : ""}
+              title={!isOnline ? t('emergency_page.requires_internet') : ""}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm ${
                 !isOnline
                   ? 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 border border-zinc-200 dark:border-zinc-700/50 cursor-not-allowed'
@@ -286,7 +288,7 @@ export function Emergency() {
               ) : (
                 <Zap className={`w-4 h-4 ${isCrisisMode ? 'animate-pulse' : ''}`} />
               )}
-              <span>{!isOnline ? 'Requiere Conexión' : isCrisisMode ? 'Crisis Activa' : 'Modo Crisis'}</span>
+              <span>{!isOnline ? t('emergency_page.btn.requires_connection') : isCrisisMode ? t('emergency_page.btn.crisis_active') : t('emergency_page.btn.crisis_mode')}</span>
             </button>
           </div>
           <button
@@ -295,14 +297,14 @@ export function Emergency() {
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-sm"
           >
             {isDownloadingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            <span>{isDownloadingPlan ? 'Generando...' : 'Descargar Plan Completo'}</span>
+            <span>{isDownloadingPlan ? t('emergency_page.btn.generating') : t('emergency_page.btn.download_plan')}</span>
           </button>
           <button
             onClick={() => setIsContactsOpen(true)}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-[#4db6ac]/20 active:scale-95"
           >
             <Phone className="w-4 h-4" />
-            <span>Contactos de Emergencia</span>
+            <span>{t('emergency_page.btn.emergency_contacts')}</span>
           </button>
         </div>
       </div>
@@ -313,7 +315,7 @@ export function Emergency() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl max-w-md w-full p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-black uppercase tracking-widest mb-4 flex items-center gap-2">
               <Phone className="w-5 h-5 text-emerald-500" />
-              Contactos de Emergencia
+              {t('emergency_page.btn.emergency_contacts')}
             </h3>
             <ul className="space-y-3 text-sm">
               <li className="flex justify-between items-center"><span>SAMU</span><a href="tel:131" className="font-mono font-black text-emerald-500">131</a></li>
@@ -325,7 +327,7 @@ export function Emergency() {
               <li className="flex justify-between items-center"><span>Información Toxicológica (CITUC)</span><a href="tel:226353800" className="font-mono font-black text-emerald-500">22 635 3800</a></li>
             </ul>
             <button onClick={() => setIsContactsOpen(false)} className="mt-6 w-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2 rounded-xl font-bold text-sm">
-              Cerrar
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -366,9 +368,9 @@ export function Emergency() {
                       <Activity className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white leading-tight">Hombre Caído (Auto-Detección)</h3>
+                      <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white leading-tight">{t('emergency_page.man_down.panel_title')}</h3>
                       <p className="text-[10px] sm:text-xs text-zinc-500 font-medium uppercase tracking-widest mt-0.5">
-                        {isActive ? 'Monitoreo de movimiento activo' : 'Sistema desactivado'}
+                        {isActive ? t('emergency_page.man_down.monitoring_active') : t('emergency_page.man_down.system_off')}
                       </p>
                     </div>
                   </div>
@@ -380,23 +382,23 @@ export function Emergency() {
                   >
                     <Power className="w-5 h-5 sm:w-6 sm:h-6" />
                     <span className="sm:hidden font-bold uppercase tracking-widest text-xs">
-                      {isActive ? 'Desactivar' : 'Activar'}
+                      {isActive ? t('emergency_page.btn.deactivate') : t('emergency_page.btn.activate')}
                     </span>
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5">
-                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Estado Sensores</p>
+                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('emergency_page.man_down.sensors_status')}</p>
                     <div className="flex items-center gap-2">
                       <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'}`} />
-                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? 'Conectado' : 'Inactivo'}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? t('emergency_page.man_down.connected') : t('emergency_page.man_down.inactive')}</span>
                     </div>
                   </div>
                   <div className="p-3 sm:p-4 bg-zinc-50 dark:bg-black/20 rounded-xl sm:rounded-2xl border border-zinc-200 dark:border-white/5">
-                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Último Movimiento</p>
+                    <p className="text-[9px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('emergency_page.man_down.last_motion')}</p>
                     <div className="flex items-center gap-2">
                       <Clock className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
-                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? 'Hace 1s' : '--:--'}</span>
+                      <span className="text-[10px] sm:text-xs font-bold text-zinc-900 dark:text-white uppercase">{isActive ? t('emergency_page.man_down.one_sec_ago') : '--:--'}</span>
                     </div>
                   </div>
                 </div>
@@ -406,7 +408,7 @@ export function Emergency() {
                 <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 dark:text-zinc-500" />
                 <input
                   type="text"
-                  placeholder="Buscar protocolo de emergencia..."
+                  placeholder={t('emergency_page.search_placeholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
@@ -429,7 +431,7 @@ export function Emergency() {
                       <span className={`px-2 py-0.5 rounded text-[7px] sm:text-[8px] font-black uppercase tracking-widest ${
                         protocol.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'
                       }`}>
-                        {protocol.status === 'active' ? 'Vigente' : 'En Revisión'}
+                        {protocol.status === 'active' ? t('emergency_page.protocol.active') : t('emergency_page.protocol.review')}
                       </span>
                     </div>
                     <h3 className="font-bold text-zinc-900 dark:text-white text-base sm:text-lg group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors leading-tight flex-1">{protocol.title}</h3>
@@ -437,7 +439,7 @@ export function Emergency() {
                     <div className="flex items-center justify-between mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-zinc-200 dark:border-white/5">
                       <div className="flex items-center gap-1.5 text-zinc-500 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider">
                         <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                        <span>Revisión: {protocol.lastReview}</span>
+                        <span>{t('emergency_page.protocol.review_label', { date: protocol.lastReview })}</span>
                       </div>
                       <ChevronRight className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-500 transition-colors" />
                     </div>
@@ -451,12 +453,12 @@ export function Emergency() {
               <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
                 <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500" />
-                  Alertas Recientes
+                  {t('emergency_page.recent_alerts')}
                 </h3>
                 <div className="space-y-3 sm:space-y-4">
                   {[
-                    { title: 'Simulacro Programado', date: 'Mañana, 10:00 AM', type: 'info' },
-                    { title: 'Revisión de Extintores', date: 'Viernes, 14:00 PM', type: 'warning' },
+                    { title: t('emergency_page.alerts.drill_title'), date: t('emergency_page.alerts.drill_date'), type: 'info' },
+                    { title: t('emergency_page.alerts.extinguisher_title'), date: t('emergency_page.alerts.extinguisher_date'), type: 'warning' },
                   ].map((alert, i) => (
                     <div key={i} className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-white/5">
                       <div className={`w-1 sm:w-1.5 rounded-full shrink-0 ${alert.type === 'info' ? 'bg-blue-500' : 'bg-amber-500'}`} />
@@ -472,19 +474,19 @@ export function Emergency() {
               <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-sm">
                 <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white mb-3 sm:mb-4 flex items-center gap-2">
                   <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
-                  Estado de Cumplimiento
+                  {t('emergency_page.compliance_status')}
                 </h3>
                 <div className="space-y-3 sm:space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Plan de Emergencia</span>
+                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">{t('emergency_page.compliance.plan')}</span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Brigada de Emergencia</span>
+                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">{t('emergency_page.compliance.brigade')}</span>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">Señalética</span>
+                    <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">{t('emergency_page.compliance.signage')}</span>
                     <div className="w-4 h-4 rounded-full border-2 border-zinc-300 dark:border-zinc-700" />
                   </div>
                 </div>
@@ -519,7 +521,7 @@ export function Emergency() {
                   <div className="p-2 bg-emerald-500/10 rounded-xl">
                     <Phone className="w-5 h-5 text-emerald-500" />
                   </div>
-                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">Contactos de Emergencia</h2>
+                  <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('emergency_page.btn.emergency_contacts')}</h2>
                 </div>
                 <button onClick={() => setShowContactsModal(false)} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">
                   <X className="w-5 h-5" />
@@ -528,7 +530,7 @@ export function Emergency() {
 
               <div className="overflow-y-auto flex-1 space-y-3 pr-1">
                 {(!workers || workers.length === 0) && (
-                  <p className="text-sm text-zinc-500 text-center py-8">No hay trabajadores registrados en este proyecto.</p>
+                  <p className="text-sm text-zinc-500 text-center py-8">{t('emergency_page.no_workers')}</p>
                 )}
                 {workers?.filter(w => w.status === 'active').map(worker => (
                   <div key={worker.id} className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl">
@@ -551,7 +553,7 @@ export function Emergency() {
                         {worker.phone}
                       </a>
                     ) : (
-                      <span className="text-[10px] text-zinc-400 italic shrink-0">Sin teléfono</span>
+                      <span className="text-[10px] text-zinc-400 italic shrink-0">{t('emergency_page.no_phone')}</span>
                     )}
                   </div>
                 ))}

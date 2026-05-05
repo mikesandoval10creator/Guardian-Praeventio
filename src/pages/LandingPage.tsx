@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   ShieldAlert, Zap, BookOpen, BarChart3, Users, Brain,
@@ -103,14 +104,14 @@ const sectionMotion = {
 };
 
 export function LandingPage({ onEnter }: LandingPageProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = 'Guardian Praeventio — Prevención de riesgos en la palma de la mano';
+    document.title = t('landing.meta.title');
 
-    const description =
-      'Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA';
+    const description = t('landing.meta.description');
     let meta = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
     let created = false;
     if (!meta) {
@@ -132,6 +133,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         }
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleEnter = () => {
@@ -152,7 +154,7 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-xl focus:bg-teal-400 focus:text-zinc-950 focus:font-black focus:text-xs focus:uppercase focus:tracking-widest focus:shadow-2xl"
       >
-        Saltar al contenido
+        {t('landing.skip_to_content')}
       </a>
 
       {/* ── NAV ─────────────────────────────────────────────────────── */}
@@ -170,13 +172,13 @@ export function LandingPage({ onEnter }: LandingPageProps) {
             onClick={handleLogin}
             className="text-xs font-bold text-zinc-400 hover:text-white transition-colors hidden sm:block"
           >
-            Iniciar sesión
+            {t('landing.nav.login')}
           </button>
           <button
             onClick={handleEnter}
             className="bg-teal-400 hover:bg-teal-500 text-zinc-950 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"
           >
-            Entrar
+            {t('landing.nav.enter')}
           </button>
         </div>
       </nav>
@@ -199,20 +201,20 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         >
           <div className="inline-flex items-center gap-2 bg-teal-400/10 border border-teal-400/30 rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-teal-400 mb-6">
             <Star className="w-3 h-3 fill-current" aria-hidden="true" />
-            Cumplimiento DS 54 · DS 40 · Ley 16.744
+            {t('landing.hero.compliance_badge')}
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-black tracking-tighter leading-none mb-6">
-            La revolución de la<br />
-            <span className="text-teal-400">prevención de riesgos</span>
+            {t('landing.hero.title_line_1')}<br />
+            <span className="text-teal-400">{t('landing.hero.title_line_2')}</span>
           </h1>
 
           <p className="text-lg sm:text-xl text-zinc-300 max-w-2xl mx-auto mb-4 leading-relaxed font-semibold">
-            Gestión de riesgos, bienestar del equipo y cumplimiento normativo — todo en una sola plataforma con IA
+            {t('landing.hero.subtitle')}
           </p>
 
           <p className="text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            IA, emergencias y cumplimiento normativo chileno en una sola app. Para empresas que se toman en serio la seguridad de sus trabajadores.
+            {t('landing.hero.description')}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -223,19 +225,19 @@ export function LandingPage({ onEnter }: LandingPageProps) {
               className="w-full sm:w-auto flex items-center justify-center gap-3 bg-teal-400 hover:bg-teal-500 text-zinc-950 px-8 py-4 rounded-2xl text-base font-black uppercase tracking-widest shadow-lg shadow-teal-400/20 transition-all"
             >
               <Play className="w-4 h-4 fill-current" aria-hidden="true" />
-              Entrar a la app
+              {t('landing.hero.cta_primary')}
             </motion.button>
             <button
               onClick={handleLogin}
               className="w-full sm:w-auto flex items-center justify-center gap-2 border border-white/10 hover:border-white/30 px-8 py-4 rounded-2xl text-base font-bold text-zinc-300 hover:text-white transition-all"
             >
-              Comenzar gratis
+              {t('landing.hero.cta_secondary')}
               <ArrowRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 
           <p className="mt-5 text-xs text-zinc-600 font-bold uppercase tracking-widest">
-            Gratis hasta 10 trabajadores · Sin tarjeta de crédito
+            {t('landing.hero.free_tier_note')}
           </p>
         </motion.div>
       </motion.section>

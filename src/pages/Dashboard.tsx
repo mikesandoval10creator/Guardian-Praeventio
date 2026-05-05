@@ -15,6 +15,7 @@
 // version — no UX changes, no new deps, no relocated state.
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Sun } from 'lucide-react';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
@@ -49,6 +50,7 @@ import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 
 export function Dashboard() {
+  const { t } = useTranslation();
   const { selectedProject, projects } = useProject();
   const { stats, completeChallenge } = useGamification();
   const { environment } = useUniversalKnowledge();
@@ -160,11 +162,11 @@ export function Dashboard() {
       );
       return {
         percentage: Math.round(total / projects.length),
-        label: 'Promedio Global',
+        label: t('dashboard.global_average'),
       };
     }
 
-    return { percentage: 0, label: 'Sin proyectos' };
+    return { percentage: 0, label: t('dashboard.no_projects') };
   };
 
   const complianceData = getComplianceData();
@@ -234,7 +236,7 @@ export function Dashboard() {
           className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-full text-[10px] sm:text-xs font-bold transition-all border border-emerald-500/20 hover:scale-105"
         >
           <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          Despertar Matutino
+          {t('dashboard.morning_wakeup')}
         </button>
       </div>
 
