@@ -207,12 +207,22 @@ export function AsesorChat() {
       // splice the context directly into the prompt — same payload Gemini
       // used to receive via the `normativeContext` / `environmentContext`
       // body fields, just rolled into the text the model sees.
-      const lat = (selectedProject as any)?.coordinates?.lat ?? -33.4489;
-      const lon = (selectedProject as any)?.coordinates?.lng ?? -70.6693;
-      const [weatherData, seismicData] = await Promise.allSettled([
-        fetchWeatherData(lat, lon),
-        fetchSeismicData(lat, lon),
-      ]);
+      // Sprint 27 (audit P0 H12) — drop the Santiago fallback. A faena
+      // in Antofagasta or Punta Arenas was getting clima/sismo for
+      // Santiago, leading the model to recommend Santiago-specific
+      // protocols. If the project has no coords, we now skip the
+      // climate/seismic fetch entirely and let the prompt run without
+      // geo context — better silent miss than confidently wrong reply.
+      const projectLat = (selectedProject as any)?.coordinates?.lat;
+      const projectLon = (selectedProject as any)?.coordinates?.lng;
+      const hasGeoContext =
+        typeof projectLat === 'number' && typeof projectLon === 'number';
+      const [weatherData, seismicData] = hasGeoContext
+        ? await Promise.allSettled([
+            fetchWeatherData(projectLat, projectLon),
+            fetchSeismicData(projectLat, projectLon),
+          ])
+        : [{ status: 'fulfilled' as const, value: null }, { status: 'fulfilled' as const, value: null }];
       const weather = weatherData.status === 'fulfilled' ? weatherData.value : null;
       const seismic = seismicData.status === 'fulfilled' ? seismicData.value : null;
 

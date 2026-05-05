@@ -39,6 +39,9 @@ import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
 // Sprint 26 Bucket VV — HealthVault QR sharing (ADR 0012).
 import healthVaultRouter from "./src/server/routes/healthVault.js";
+// Sprint 27 (audit H20) — overdue-maintenance reaper, called by Cloud
+// Scheduler. Gated by verifySchedulerToken at the route level.
+import maintenanceRouter from "./src/server/routes/maintenance.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
 import {
@@ -290,6 +293,10 @@ app.use("/api", healthRouter);
 // por IP. Mount BEFORE el limiter global de /api/* para no consumir el
 // presupuesto compartido del paciente.
 app.use("/api/health-vault", healthVaultRouter);
+// Sprint 27 (audit H20) — mount the maintenance reaper. The handler is
+// gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
+// public ingress can't trigger it without the secret.
+app.use("/api/maintenance", maintenanceRouter);
 
 // Sprint 20 twelfth wave Bucket A (TM-I05) — CSP violation reports.
 //
@@ -607,8 +614,11 @@ app.use("/api/dte", dteRouter);
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
 
-// Start background environmental polling (every 10 minutes)
-setInterval(() => {
+// Start background environmental polling (every 10 minutes).
+// Sprint 27 (audit P0 H10) — capture the timer handle so SIGTERM can
+// clear it; otherwise Cloud Run's 10-second drain budget can't exit
+// cleanly on revision rollover.
+const environmentalPollingHandle = setInterval(() => {
   updateGlobalEnvironmentalContext().catch(console.error);
 }, 10 * 60 * 1000);
 
@@ -739,5 +749,7 @@ app.listen(PORT, "0.0.0.0", () => {
 process.on('SIGTERM', () => {
   triggersHandle?.unsubscribe();
   healthHandle?.stop();
+  // Sprint 27 (audit P0 H10) — clear the env polling interval too.
+  clearInterval(environmentalPollingHandle);
   process.exit(0);
 });

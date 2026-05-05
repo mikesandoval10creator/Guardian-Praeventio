@@ -733,5 +733,38 @@ service cloud.firestore {
         && incoming().status in ['pending', 'doing', 'done'];
       allow delete: if false;
     }
+
+    // ===============================================================
+    // Sprint 27 (audit P0 H8) — `tenants/*` collection.
+    //
+    // The server (Admin SDK) writes per-tenant configuration here:
+    // billing entitlements, data residency, retention policies, etc.
+    // The client only ever needs to *read* its own tenant doc to
+    // surface entitlement state; mutations are server-only.
+    //
+    // Auth model: a custom claim `tenantId` is set on the user's token
+    // when they accept a tenant invite (see oauthGoogle.ts /
+    // adminClaims). A user can read tenants/{X} iff their claim
+    // tenantId == X. Writes/creates/deletes are denied to all clients;
+    // the server uses the Admin SDK which bypasses these rules.
+    //
+    // Without this matcher, Firestore default-deny silently rejected
+    // every client read — leaving the `tenants/*` surface invisible
+    // and ungrep-able. Audit hallazgo H8.
+    match /tenants/{tenantId} {
+      allow read: if isSignedIn()
+        && request.auth.token.tenantId is string
+        && request.auth.token.tenantId == tenantId;
+      allow create, update, delete: if false;
+
+      // Subcollections (entitlements, audit_summaries, etc.) follow
+      // the same tenant-claim gate. The server owns writes.
+      match /{subcoll}/{docId} {
+        allow read: if isSignedIn()
+          && request.auth.token.tenantId is string
+          && request.auth.token.tenantId == tenantId;
+        allow create, update, delete: if false;
+      }
+    }
   }
 }

@@ -22,10 +22,11 @@
 import { Router } from 'express';
 import { logger } from '../../utils/logger.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
+import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 
 const router = Router();
 
-router.post('/check-overdue', async (_req, res) => {
+router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {
     const result = await checkOverdueMaintenance();

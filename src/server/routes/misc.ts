@@ -50,7 +50,10 @@ const router = Router();
 // 3-day climate forecast endpoint for the Zettelkasten climate-risk coupling.
 // Reads from environmentBackend; returns shape: { forecast: ClimateForecastDay[] }.
 // Best-effort: if upstream OpenWeather is unavailable, returns empty forecast.
-router.get('/environment/forecast', async (req, res) => {
+// Sprint 27 (audit P0 H15) — gate behind verifyAuth + share the
+// per-uid erpSyncLimiter so a logged-in attacker can't burn the
+// upstream OpenWeather quota in a tight loop.
+router.get('/environment/forecast', verifyAuth, erpSyncLimiter, async (req, res) => {
   const days = Math.min(7, Math.max(1, parseInt(String(req.query.days ?? '3'), 10) || 3));
   try {
     // environmentBackend currently exposes updateGlobalEnvironmentalContext
