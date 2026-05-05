@@ -19,8 +19,15 @@
 import React, { useMemo, useState } from 'react';
 import {
   Wind, Droplets, Building2, Mountain, Activity, Cpu,
-  AlertTriangle, CheckCircle2, BookOpen,
+  AlertTriangle, CheckCircle2, BookOpen, Wrench,
 } from 'lucide-react';
+// Sprint 32 — mount engineering panels orphaned since Sprint 25 Bucket NN.
+// These panels son self-contained (consumen useProject() internamente) y
+// agregan métricas ricas (purga ACH, FS Bishop, tiempo respuesta hidrante)
+// que no están en las CalcCards inline. Ver `src/components/engineering/`.
+import { ConfinedSpacePanel } from '../components/engineering/ConfinedSpacePanel';
+import { HidranteFireNetworkPanel } from '../components/engineering/HidranteFireNetworkPanel';
+import { SlopeStabilityPanel } from '../components/engineering/SlopeStabilityPanel';
 import {
   generateConfinedSpaceVentNode,
   generateGasDispersionNode,
@@ -41,13 +48,14 @@ import { cite } from '../services/regulatory/registry';
 import type { RiskNodePayload } from '../services/zettelkasten/types';
 import type { JurisdictionCode } from '../services/regulatory/types';
 
-type TabKey = 'atmospheres' | 'hydraulics' | 'structural' | 'aero';
+type TabKey = 'atmospheres' | 'hydraulics' | 'structural' | 'aero' | 'engineering';
 
 const TABS: { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: 'atmospheres', label: 'Atmósferas', icon: Wind },
   { key: 'hydraulics', label: 'Hidráulica', icon: Droplets },
   { key: 'structural', label: 'Estructural', icon: Building2 },
   { key: 'aero', label: 'Aero / Ergo / Sensores', icon: Cpu },
+  { key: 'engineering', label: 'Paneles Ingeniería', icon: Wrench },
 ];
 
 const DEFAULT_JURISDICTIONS: JurisdictionCode[] = ['ISO-45001', 'CL'];
@@ -631,9 +639,11 @@ export const CalculatorHub: React.FC = () => {
             <button
               key={key}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(key)}
               data-testid={`tab-${key}`}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2.5 min-h-11 min-w-11 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 active
                   ? 'border-[#4db6ac] text-[#4db6ac]'
                   : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-200'
@@ -673,6 +683,22 @@ export const CalculatorHub: React.FC = () => {
           <>
             <MicroWindCalc />
             <SlamCalc />
+          </>
+        )}
+        {tab === 'engineering' && (
+          <>
+            {/*
+              Paneles Engineering avanzados (Sprint 25 Bucket NN) — montados aquí
+              en Sprint 32 tras audit de huérfanos. Cada panel es self-contained:
+              consume useProject() y persiste al Zettelkasten internamente.
+              Refs normativas:
+                - ConfinedSpacePanel  → DS 594 Art. 35/61, OSHA 1910.146
+                - HidranteFireNetworkPanel → NCh 1646 Of.98, NFPA 14
+                - SlopeStabilityPanel → DS 132 Art. 32 (riesgo derrumbes), Eurocódigo 7, DS-72
+            */}
+            <ConfinedSpacePanel />
+            <HidranteFireNetworkPanel />
+            <SlopeStabilityPanel />
           </>
         )}
       </div>
