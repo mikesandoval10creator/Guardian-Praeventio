@@ -12,6 +12,7 @@ import { db } from '../services/firebase';
 import { ExtinguisherSimulator } from '../components/gamification/ExtinguisherSimulator';
 import { NormativeQuiz } from '../components/gamification/NormativeQuiz';
 import { ReflexBuzzer } from '../components/gamification/ReflexBuzzer';
+import { DaysWithoutIncidentBadge } from '../components/gamification/DaysWithoutIncidentBadge';
 import { logger } from '../utils/logger';
 
 interface LeaderboardUser {
@@ -253,6 +254,15 @@ export function Gamification() {
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-500/20 flex items-center justify-center border-2 border-amber-500 shrink-0">
             <Star className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500 fill-amber-500" />
           </div>
+          {/* Sprint 29 F-D — días sin incidentes badge */}
+          <DaysWithoutIncidentBadge
+            days={
+              typeof (stats as { daysWithoutIncident?: number }).daysWithoutIncident === 'number'
+                ? (stats as { daysWithoutIncident?: number }).daysWithoutIncident!
+                : 0
+            }
+            compact
+          />
         </div>
       </header>
 

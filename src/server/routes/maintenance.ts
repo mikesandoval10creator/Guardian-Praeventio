@@ -27,6 +27,12 @@ import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
 import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
 import { sendToProjectSupervisors } from './emergency.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
+// Sprint 29 Bucket DD F-E — predictive×calendar pre-warn cron.
+// Mounted as a fourth no-op step after the SUSESO reminder reaper. The
+// loader factories degrade to empty arrays in environments where the
+// projects/tasks collection is not seeded yet, so the cron is safe to
+// run from day one.
+import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendarPreWarn.js';
 
 const router = Router();
 
@@ -63,16 +69,38 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     } catch (susesoErr) {
       logger.error('[maintenance] suseso-reminders failed', susesoErr);
     }
+    // Sprint 29 Bucket DD F-E — predictive × calendar pre-warn.
+    // Wired after SUSESO reminders so failures stay isolated. Factories
+    // default to no-op behaviour when the project store is empty.
+    let calendarPreWarn: { scanned: number; warned: number } = { scanned: 0, warned: 0 };
+    try {
+      const preWarnResult = await runCalendarPreWarnCron({
+        loadProjects: async () => [],
+        loadTasksForProject: async () => [],
+        getWeatherForTask: async () => ({}),
+        getSeismicForProject: async () => ({}),
+        daysOfRisk: () => 1,
+        dispatchPush: async () => ({ ok: false }),
+        dispatchEmail: async () => ({ ok: false }),
+        createCalendarEvent: async () => ({ id: null }),
+        alreadyWarned: async () => false,
+        markWarned: async () => undefined,
+      });
+      calendarPreWarn = { scanned: preWarnResult.scanned, warned: preWarnResult.warned };
+    } catch (preWarnErr) {
+      logger.error('[maintenance] calendar-prewarn failed', preWarnErr);
+    }
     const tookMs = Date.now() - start;
     logger.info('[maintenance] check-overdue done', {
       ...maintenance,
       ppe,
       susesoReminders,
+      calendarPreWarn,
       tookMs,
     });
     return res
       .status(200)
-      .json({ ok: true, ...maintenance, ppe, susesoReminders, tookMs });
+      .json({ ok: true, ...maintenance, ppe, susesoReminders, calendarPreWarn, tookMs });
   } catch (err) {
     logger.error('[maintenance] check-overdue failed', err);
     return res

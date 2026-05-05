@@ -1541,16 +1541,14 @@ billingApiRouter.post(
 // recommend AGAINST adding a query-string token because it ends up in
 // CDN logs. The cryptographic signature is the auth boundary.
 // ───────────────────────────────────────────────────────────────────────────
-// Sprint 28 Bucket B3 — Zod-gated payload before JWS verify. The legacy
-// guard below stays as defense-in-depth (TODO Sprint 29: remove).
+// Sprint 28 Bucket B3 — Zod-gated payload before JWS verify.
+// Sprint 29 H17: legacy `typeof signedPayload !== 'string'` guard removed
+// — Zod schema is the single source of truth for shape.
 const appleWebhookSchema = z.object({
   signedPayload: z.string().min(1),
 });
 billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req, res) => {
-  const signedPayload = (req.body ?? {}).signedPayload;
-  if (typeof signedPayload !== 'string' || signedPayload.length === 0) {
-    return res.status(400).json({ error: 'missing_signed_payload' });
-  }
+  const { signedPayload } = req.body as { signedPayload: string };
 
   let verifiedChain = false;
   let payload;

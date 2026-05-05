@@ -33,7 +33,6 @@ import {
   getProcessingActivities,
   ComplianceError,
   type ConsentPurpose,
-  type DataAccessRequestType,
   type LegalBasis,
   type MinimalComplianceDb,
 } from '../../services/compliance/ley19628.js';
@@ -52,13 +51,6 @@ const VALID_LEGAL_BASES: LegalBasis[] = [
   'vital_interest',
   'public_task',
   'legitimate_interest',
-];
-
-const VALID_REQUEST_TYPES: DataAccessRequestType[] = [
-  'access',
-  'rectification',
-  'erasure',
-  'portability',
 ];
 
 function getDb(): MinimalComplianceDb {
@@ -166,8 +158,9 @@ router.get('/consent', verifyAuth, async (req, res) => {
 // The user-spec asked for `kind` + `targetUid` + `reason`; we map those to
 // the existing wire field names (`type` is the existing `kind` enum, and
 // `reason` lands in the rectificationPayload bag) so the contract stays
-// backward-compatible. Legacy `VALID_REQUEST_TYPES.includes` guard below
-// stays as defense-in-depth (TODO Sprint 29: remove).
+// backward-compatible. Sprint 29 H17: legacy `VALID_REQUEST_TYPES.includes`
+// + `typeof rectificationPayload` guards removed — Zod enum + z.record are
+// the single source of truth.
 const dataRequestSchema = z.object({
   type: z.enum(['access', 'rectification', 'erasure', 'portability']),
   // Optional structured payload for rectification requests.
@@ -181,17 +174,10 @@ const dataRequestSchema = z.object({
 
 router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
   const uid = (req as any).user.uid as string;
-  const { type, rectificationPayload } = req.body ?? {};
-
-  if (!VALID_REQUEST_TYPES.includes(type)) {
-    return res.status(400).json({ error: 'invalid_type' });
-  }
-  if (
-    rectificationPayload !== undefined &&
-    (typeof rectificationPayload !== 'object' || Array.isArray(rectificationPayload))
-  ) {
-    return res.status(400).json({ error: 'invalid_rectification_payload' });
-  }
+  const { type, rectificationPayload } = req.body as {
+    type: 'access' | 'rectification' | 'erasure' | 'portability';
+    rectificationPayload?: Record<string, unknown>;
+  };
 
   try {
     const request = await requestDataAccess(getDb(), uid, type, {

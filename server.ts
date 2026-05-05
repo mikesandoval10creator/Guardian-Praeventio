@@ -663,9 +663,8 @@ app.use('/api/auth', webauthnChallengeRouter);
 // Sends emergency FCM push to all supervisors/gerentes/prevencionistas in a project
 //
 // Sprint 28 Bucket B3 — `validate(notifyBrigadaSchema)` is the FIRST
-// barrier. The legacy `if (!projectId || !emergencyType)` guard stays
-// (TODO Sprint 29: remove once telemetry confirms the schema has been
-// stable in prod for >2 weeks).
+// barrier. Sprint 29 H17: legacy `if (!projectId || !emergencyType)`
+// guard removed — Zod is now the single source of truth for shape.
 const notifyBrigadaSchema = z.object({
   projectId: z.string().min(1).max(128),
   // The wire field is `emergencyType`; we keep it for backward compat but
@@ -675,10 +674,7 @@ const notifyBrigadaSchema = z.object({
   message: z.string().max(500).optional(),
 });
 app.post('/api/emergency/notify-brigada', verifyAuth, validate(notifyBrigadaSchema), async (req: express.Request, res: express.Response) => {
-  const { projectId, emergencyType, message } = req.body as { projectId?: string; emergencyType?: string; message?: string };
-  if (!projectId || !emergencyType) {
-    return res.status(400).json({ error: 'projectId and emergencyType are required' });
-  }
+  const { projectId, emergencyType, message } = req.body as { projectId: string; emergencyType: string; message?: string };
   try {
     const db = admin.firestore();
     const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
