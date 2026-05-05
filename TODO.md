@@ -2,7 +2,7 @@
 
 "El riesgo se neutraliza en el diseño, no en la reacción." - El Guardián.
 
-> **Estado real 2026-05-05**: cobertura ponderada ~67% E2E, no 99%. Ver [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) para % por dominio + roadmap S29-S32 (~260 SP) hasta Day-1 mundial.
+> **Estado real 2026-05-05** (recalibrado tras audit profundo): cobertura ponderada **~62% E2E**, no 99%. La cifra previa de 67% se ajustó hacia abajo en 5 dominios (i18n, SLM, Mesh, Bernoulli, Tests). Ver [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) y la profundización [`docs/audits/AUDIT_2026-05-05_FULL.md`](docs/audits/AUDIT_2026-05-05_FULL.md) para % por dominio + roadmap S33+ (~260 SP) hasta Day-1 mundial.
 >
 > **Sprints 27-28 cerraron**: 7 P0 audit + 9 P1 + foundation regulatoria global (ISO 45001 + 5 jurisdicciones) + i18n 12 locales + Zod transversal + CPHS + DIAT/DIEP + recordatorios. **191 tests nuevos**.
 >
@@ -52,9 +52,9 @@
 ## Prioridad 5: Escala Corporativa (Fase 10x - Vectores de Desarrollo)
 
 - [ ] **API-First (Integración ERP/HRM B2B):** Desarrollar APIs bidireccionales con SAP, Workday, o Buk para sincronizar la lista de trabajadores de manera fluida, no solo mediante subidas pasivas, sino a nivel de servicios corporativos.
-- [x] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase.
+- [ ] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase. *(Sprint 32 TT en progreso — `src/services/iot/mqttAdapter.ts` + ADR 0015. Estado real: SHELL — aún no boot ni endpoint expuesto, sin device cert flow ni broker wiring. Ver [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md) §1.5.)*
 - [x] **Reportabilidad Gerencial (ROI y SUSESO):** Automatización de formularios DIAT/DIEP en XML/PDF y cálculo financiero del ahorro por siniestralidad.
-- [x] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes.
+- [ ] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes. *(Estado real: SHELL — `src/pages/CQRSArchitecture.tsx` es solo presentational; sin Redis productivo, sin command/query split en routes. Decisión pendiente: ADR formal o "deferred". Ver [PRAEVENTIO_HONEST_STATE](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).)*
 
 ## Prioridad 6: Visiones Futuras y Expansión (Pendiente de Desarrollo)
 

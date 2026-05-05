@@ -6,9 +6,12 @@
 
 > Plataforma de prevención de riesgos laborales con IA para industrias críticas en Latinoamérica (minería, construcción, faenas remotas).
 
-![Coverage](https://img.shields.io/badge/end--to--end-99%25-4db6ac?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-866%2B-4db6ac?style=flat-square)
+![Coverage](https://img.shields.io/badge/end--to--end-~62%25-c08e44?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-1000%2B-4db6ac?style=flat-square)
 ![Typecheck](https://img.shields.io/badge/typecheck-clean-4db6ac?style=flat-square)
+![Audit](https://img.shields.io/badge/honest--state-2026--05--05-6c5b7b?style=flat-square)
+
+> **Estado honesto**: ~62% E2E ponderado tras la auditoría 2026-05-05. La cifra previa de 99% era optimista. Ver [docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) y la profundización [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md).
 
 **Cumplimiento:** DS 54, DS 40, Ley 16.744 (Chile) — extensible a otras normativas LATAM.
 

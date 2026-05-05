@@ -22,28 +22,28 @@ Cada dominio se mide así:
 | **Emergencia (SOS / Fall / Push)** | 90% | 10% | 0% | ⬆️ Sprint 27 (H6 + H7) |
 | **Billing (Webpay / MP / Khipu / Google Play / Apple)** | 85% | 15% | 0% | ⬆️ Sprint 27-28 (Apple SSN + audit replays) |
 | **AI / Gemini / Vertex** | 75% | 20% | 5% | ⬆️ Sprint 27 (Vertex real) |
-| **AI offline (SLM)** | 70% | 30% | 0% | ⬆️ Sprint 26 ZZ (Guardian Offline) |
+| **AI offline (SLM)** | 65% | 35% | 0% | ⬇️ recalibrado audit 2026-05-05 — solo `AsesorChat` consume `useSlmOffline`; Driving/Emergency/Evacuation sin fallback |
 | **Compliance Chile (DS54/594/109/132 + Ley 16.744)** | 70% | 25% | 5% | ⬆️ Sprint 28 (CPHS + DIAT/DIEP) |
 | **Compliance global (ISO 45001 + US/EU/MX/BR)** | 25% | 0% | 75% | ⬆️ Sprint 28 B1 (foundation; sin wire UI) |
-| **i18n** | 65% | 25% | 10% | ⬆️ Sprint 28 B2 (12 locales + RTL; faltan traducciones humanas) |
+| **i18n** | 45% | 35% | 20% | ⬇️ recalibrado audit 2026-05-05 — 107/110 páginas con strings ES hardcoded; locales en archivos no llegan a JSX |
 | **Health Vault (ADR 0012)** | 80% | 20% | 0% | ✅ Sprint 26 |
 | **CPHS Comité Paritario** | 50% | 50% | 0% | ⬆️ Sprint 28 (service + UI presentational; falta wire container) |
 | **DIAT/DIEP SUSESO** | 60% | 40% | 0% | ⬆️ Sprint 28 (PDF + folio + firma; falta WebAuthn ceremony real + recordatorios) |
-| **Mesh BLE/WiFi Direct (ADR 0013)** | 40% | 30% | 30% | ⬆️ Sprint 25-26 (engine puro; sin transport nativo) |
+| **Mesh BLE/WiFi Direct (ADR 0013)** | 35% | 30% | 35% | ⬇️ recalibrado audit — engine + capacitor plugin construidos, CERO consumer en `src/` (drift fuerte vs ADR) |
 | **PWA / Offline / Sync** | 90% | 10% | 0% | ✅ estable |
 | **Native plugins (HealthKit / HealthConnect)** | 30% | 40% | 30% | ⏸ bloqueado por keystore + cuentas dev |
 | **Photogrammetry (COLMAP / Modal)** | 60% | 40% | 0% | ⏸ falta Cloud Run worker deployado |
 | **Digital Twin (3D mesh + AR)** | 65% | 25% | 10% | ⬆️ Sprint 26 YY (TwinAccessGuard) |
 | **Object lifecycle + ZK persistence** | 75% | 20% | 5% | ✅ Sprint 25-26 |
-| **Bernoulli generators** | 60% | 40% | 0% | 12 sin UI consumer |
+| **Bernoulli generators** | 45% | 45% | 10% | ⬇️ recalibrado audit — 12 generators existen; mayoría sin UI consumer (3 panels engineering huérfanos) |
 | **Telemetry / Wearables** | 70% | 25% | 5% | ⏸ falta plugins nativos |
-| **Tests unit + integration + E2E** | 55% | 35% | 10% | 184/207 componentes sin test |
-| **Stryker mutation** | 72% global / 3% limiters | — | — | ⏸ Windows crash bloquea limiters |
-| **Observability (Sentry + OTel)** | 85% | 15% | 0% | ⏸ falta DSN prod |
+| **Tests unit + integration + E2E** | 50% | 40% | 10% | ⬇️ recalibrado audit — `e2e-full-stack` con `continue-on-error: true` neutraliza gating de SOS/fall/offline; 102/110 pages sin test |
+| **Stryker mutation** | 72% global / 3% limiters | — | — | ⏸ Windows crash bloquea limiters; Linux runner aún no en `ci.yml` |
+| **Observability (Sentry + OTel)** | 85% | 15% | 0% | ⏸ falta DSN prod (10 routes con console.error en lugar de Sentry capture — Sprint 32 P0) |
 | **Mobile build pipeline** | 30% | 50% | 20% | ⏸ falta Fastlane + GHA |
 | **CI/CD (GitHub Actions)** | 90% | 10% | 0% | ✅ stable |
 
-**Promedio ponderado E2E: ~67%** (vs 99% reportado optimistamente).
+**Promedio ponderado E2E: ~62%** (recalibrado 2026-05-05 tras audit profundo; previa de 67% bajó 5pp por re-evaluación de SLM/i18n/Mesh/Bernoulli/Tests). vs 99% reportado optimistamente en docs anteriores.
 **Meta Day-1 lanzamiento mundial: 95%+** en todos los dominios excepto los que dependen de input del usuario (secrets/cuentas/keystores).
 
 ---
