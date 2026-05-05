@@ -14,6 +14,12 @@
 //     values are accepted. Used by CI smoke jobs that only need the
 //     shape of the env to be sane (real secrets are kept in GH secrets
 //     and only injected for deploy jobs).
+//   - --mode prod-secret-manager: assumes Cloud Run is the runtime and
+//     that secrets come from Google Cloud Secret Manager rather than
+//     local `.env`. Skips per-secret presence checks and only asserts
+//     `GOOGLE_CLOUD_PROJECT` is set, then warns about which secrets
+//     are expected to live in Secret Manager (so an operator can
+//     cross-check with `gcloud secrets list`). Bucket V.5.
 //
 // Discovery: see docs/runbooks/SECRETS_RUNBOOK.md for how to obtain
 // each value, expected format, where it is consumed in code, and the
@@ -87,16 +93,52 @@ const REQUIRED_PROD = [
 
 const PLACEHOLDER_REGEX = /^(YOUR_|MY_|REPLACE_|PLACEHOLDER|<.*>)/i;
 
+// Secrets expected to live in Google Cloud Secret Manager when
+// --mode prod-secret-manager is used. Mirrors deploy.yml `secrets:` block
+// + the 6 already-wired Sprint 21 secrets. Kept in sync manually because
+// the deploy.yml is the source of truth for what Cloud Run actually
+// receives at boot.
+const SECRET_MANAGER_SECRETS = [
+  // Sprint 21 — already wired
+  'GEMINI_API_KEY',
+  'SESSION_SECRET',
+  'RESEND_API_KEY',
+  'IOT_WEBHOOK_SECRET',
+  'VITE_GOOGLE_MAPS_API_KEY',
+  'VITE_OPENWEATHER_API_KEY',
+  // Sprint 22 / Bucket V — pending bootstrap
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'VITE_FIREBASE_VAPID_KEY',
+  'WEBPAY_COMMERCE_CODE',
+  'WEBPAY_API_KEY',
+  'MP_IPN_SECRET',
+  'GOOGLE_PLAY_PACKAGE_NAME',
+  'GOOGLE_PLAY_SERVICE_ACCOUNT_JSON',
+  'GOOGLE_PLAY_RTDN_TOPIC',
+  'SENTRY_DSN',
+  'VITE_SENTRY_DSN',
+  'KHIPU_RECEIVER_ID',
+  'KHIPU_SECRET',
+  'PHOTOGRAMMETRY_WORKER_TOKEN',
+  'DWG_CONVERTER_TOKEN',
+  'MODAL_TOKEN',
+];
+
 /**
  * Runs the validation against a given env object and mode.
  * Pure: no console / process side effects. Returns
  * `{ errors, warnings, checked }` so tests can inspect.
  *
  * @param {NodeJS.ProcessEnv} env
- * @param {{ mode?: 'prod' | 'test' }} options
+ * @param {{ mode?: 'prod' | 'test' | 'prod-secret-manager' }} options
  */
 function check(env, options = {}) {
-  const mode = options.mode === 'test' ? 'test' : 'prod';
+  const requestedMode = options.mode;
+  if (requestedMode === 'prod-secret-manager') {
+    return checkProdSecretManager(env);
+  }
+  const mode = requestedMode === 'test' ? 'test' : 'prod';
   const errors = [];
   const warnings = [];
 
@@ -146,6 +188,41 @@ function check(env, options = {}) {
 }
 
 /**
+ * Bucket V.5 — Cloud Run runtime mode. We don't expect process.env to
+ * contain the actual secret values during validation (those are
+ * injected by Cloud Run from Secret Manager at boot). Instead we
+ * assert the project plumbing is correct + emit warnings naming each
+ * secret the operator should verify in `gcloud secrets list`.
+ *
+ * @param {NodeJS.ProcessEnv} env
+ */
+function checkProdSecretManager(env) {
+  const errors = [];
+  const warnings = [];
+
+  if (!env.GOOGLE_CLOUD_PROJECT || String(env.GOOGLE_CLOUD_PROJECT).trim() === '') {
+    errors.push(
+      'MISSING: GOOGLE_CLOUD_PROJECT — required so secret-manager and ' +
+        'cloud-run targets can be resolved without ambiguity.',
+    );
+  }
+
+  for (const name of SECRET_MANAGER_SECRETS) {
+    warnings.push(
+      `${name} — expected in Secret Manager. Verify with: ` +
+        `gcloud secrets describe ${name} --project="$GOOGLE_CLOUD_PROJECT"`,
+    );
+  }
+
+  return {
+    errors,
+    warnings,
+    checked: SECRET_MANAGER_SECRETS.length,
+    mode: 'prod-secret-manager',
+  };
+}
+
+/**
  * CLI entrypoint. Prints to stderr/stdout and exits non-zero on errors.
  * Tests should call `check()` directly and avoid this.
  */
@@ -178,4 +255,11 @@ if (require.main === module) {
   validate();
 }
 
-module.exports = { validate, check, REQUIRED_PROD, PLACEHOLDER_REGEX };
+module.exports = {
+  validate,
+  check,
+  checkProdSecretManager,
+  REQUIRED_PROD,
+  PLACEHOLDER_REGEX,
+  SECRET_MANAGER_SECRETS,
+};

@@ -41,6 +41,8 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
 import { invoiceStatusLimiter, googlePlayWebhookLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
+// Sprint 22 Bucket AA — request-scoped tracing on the billing dispatch path.
+import { tracedAsync } from '../../services/observability/tracing.js';
 import { isAdminRole } from '../../types/roles.js';
 
 import { buildInvoice } from '../../services/billing/invoice.js';
@@ -493,12 +495,16 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
 
     if (body.paymentMethod === 'webpay' && webpayAdapter.isConfigured()) {
       try {
-        const tx = await webpayAdapter.createTransaction({
-          buyOrder: invoice.id.slice(0, 26),
-          sessionId: callerUid,
-          amount: invoice.totals.total,
-          returnUrl: `${process.env.APP_BASE_URL ?? ''}/billing/return`,
-        });
+        const tx = await tracedAsync(
+          'billing.checkout.webpay',
+          { invoiceId: invoice.id, tierId: body.tierId, currency: body.currency },
+          () => webpayAdapter.createTransaction({
+            buyOrder: invoice.id.slice(0, 26),
+            sessionId: callerUid,
+            amount: invoice.totals.total,
+            returnUrl: `${process.env.APP_BASE_URL ?? ''}/billing/return`,
+          }),
+        );
         paymentUrl = tx.url;
         status = 'awaiting-payment';
       } catch (err) {
@@ -506,15 +512,19 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
       }
     } else if (body.paymentMethod === 'stripe' && stripeAdapter.isConfigured()) {
       try {
-        const session = await stripeAdapter.createCheckoutSession({
-          invoiceId: invoice.id,
-          priceId: process.env[`STRIPE_PRICE_${body.tierId.toUpperCase().replace(/-/g, '_')}`] ?? '',
-          quantity: 1,
-          customerEmail: cliente.email,
-          successUrl: `${process.env.APP_BASE_URL ?? ''}/billing/success?invoice=${invoice.id}`,
-          cancelUrl: `${process.env.APP_BASE_URL ?? ''}/billing/cancel?invoice=${invoice.id}`,
-          metadata: { invoiceId: invoice.id, tierId: body.tierId },
-        });
+        const session = await tracedAsync(
+          'billing.checkout.stripe',
+          { invoiceId: invoice.id, tierId: body.tierId, currency: body.currency },
+          () => stripeAdapter.createCheckoutSession({
+            invoiceId: invoice.id,
+            priceId: process.env[`STRIPE_PRICE_${body.tierId.toUpperCase().replace(/-/g, '_')}`] ?? '',
+            quantity: 1,
+            customerEmail: cliente.email,
+            successUrl: `${process.env.APP_BASE_URL ?? ''}/billing/success?invoice=${invoice.id}`,
+            cancelUrl: `${process.env.APP_BASE_URL ?? ''}/billing/cancel?invoice=${invoice.id}`,
+            metadata: { invoiceId: invoice.id, tierId: body.tierId },
+          }),
+        );
         paymentUrl = session.url;
         status = 'awaiting-payment';
       } catch (err) {

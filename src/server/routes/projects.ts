@@ -30,6 +30,15 @@ import crypto from 'crypto';
 import { Resend } from 'resend';
 
 import { verifyAuth } from '../middleware/verifyAuth.js';
+// Sprint 22 Bucket Y — centralized email service. We keep the legacy
+// `resend` instance below for backwards compatibility with any inline
+// callers, but new sends route through `EmailService` so we get a
+// uniform `{ ok, error }` envelope, automatic plain-text fallback, and
+// consistent From identity. The new template lives in
+// `services/email/templates.ts` and replaces the previous inline HTML
+// when env-driven service is available.
+import { EmailService } from '../../services/email/resendService.js';
+import { projectInvitationTemplate } from '../../services/email/templates.js';
 // 16th wave (Bucket B) analytics: server-side wire-points for
 // `project.member.invited`, `project.member.accepted`, and
 // `project.member.removed`. The `serverAnalytics` adapter mirrors the
@@ -177,21 +186,45 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       expiresAt,
     });
 
-    // Send invitation email — failure does NOT block the response
+    // Send invitation email — failure does NOT block the response.
+    // Sprint 22 Bucket Y: prefer the centralized `EmailService` which
+    // wraps Resend with a uniform error envelope and audit footer.
+    // Falls back to the legacy inline path if `RESEND_API_KEY` is unset
+    // (e.g. local dev) so the route still returns a token.
     try {
       const callerRecord = await admin.auth().getUser(callerUid);
       const inviterName = callerRecord.displayName || callerRecord.email || 'Tu equipo';
-      await resend.emails.send({
-        from: 'Praeventio Guard <noreply@praeventio.net>',
-        to: invitedEmail,
-        subject: `${inviterName} te invitó a "${projectData.name || 'un proyecto'}" en Praeventio`,
-        html: buildInviteEmailHtml({
-          projectName: projectData.name || 'un proyecto',
-          inviterName,
-          role: invitedRole,
-          token,
-        }),
-      });
+      const emailService = EmailService.fromEnv();
+      const subject = `${inviterName} te invitó a "${projectData.name || 'un proyecto'}" en Praeventio`;
+      if (emailService) {
+        const result = await emailService.send({
+          to: invitedEmail,
+          subject,
+          html: projectInvitationTemplate({
+            projectName: projectData.name || 'un proyecto',
+            inviterName,
+            invitedRole,
+            token,
+            invitationId: inviteRef.id,
+          }),
+          tag: 'invitation',
+        });
+        if (result.ok === false) {
+          console.warn('Email delivery failed (invitation stored successfully):', result.error);
+        }
+      } else {
+        await resend.emails.send({
+          from: 'Praeventio Guard <noreply@praeventio.net>',
+          to: invitedEmail,
+          subject,
+          html: buildInviteEmailHtml({
+            projectName: projectData.name || 'un proyecto',
+            inviterName,
+            role: invitedRole,
+            token,
+          }),
+        });
+      }
     } catch (emailErr) {
       console.warn('Email delivery failed (invitation stored successfully):', emailErr);
     }

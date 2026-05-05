@@ -32,6 +32,17 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+// Sprint 22 Bucket AA — request-scoped tracing on the SOS path. Emergency
+// notifications are CRITICAL to correlate end-to-end (push fan-out
+// failures, missing tokens, Firestore lag).
+import { tracedAsync } from '../../services/observability/tracing.js';
+// Sprint 22 Bucket Y — email fallback when FCM push fails or no
+// supervisor has a registered token. Resend service is constructed
+// lazily from env so dev environments without RESEND_API_KEY still
+// boot; `EmailService.fromEnv()` returns null in that case and we
+// silently skip the email step.
+import { EmailService } from '../../services/email/resendService.js';
+import { sosBackupTemplate } from '../../services/email/templates.js';
 
 export const sosLimiter = rateLimit({
   windowMs: 60_000,
@@ -77,24 +88,35 @@ export async function sendToProjectSupervisors(
   payload: { title: string; body: string; data?: Record<string, string> },
   db: FirebaseFirestore.Firestore,
   messaging: admin.messaging.Messaging,
-): Promise<{ notified: number }> {
+): Promise<{ notified: number; failed: number; supervisorEmails: string[] }> {
   const membersSnap = await db.collection('projects').doc(projectId).collection('members').get();
   const tokens: string[] = [];
+  const supervisorEmails: string[] = [];
   for (const memberDoc of membersSnap.docs) {
     const data = memberDoc.data();
-    if (SUPERVISOR_ROLES.has(data?.role) && typeof data?.fcmToken === 'string' && data.fcmToken) {
+    if (!SUPERVISOR_ROLES.has(data?.role)) continue;
+    if (typeof data?.fcmToken === 'string' && data.fcmToken) {
       tokens.push(data.fcmToken);
     }
+    if (typeof data?.email === 'string' && data.email) {
+      supervisorEmails.push(data.email);
+    }
   }
-  if (tokens.length === 0) return { notified: 0 };
-  await messaging.sendEachForMulticast({
+  if (tokens.length === 0) {
+    return { notified: 0, failed: 0, supervisorEmails };
+  }
+  const result = await messaging.sendEachForMulticast({
     tokens,
     notification: { title: payload.title, body: payload.body },
     data: payload.data ?? {},
     android: { priority: 'high' },
     apns: { payload: { aps: { 'content-available': 1 } } },
   });
-  return { notified: tokens.length };
+  return {
+    notified: result.successCount,
+    failed: result.failureCount,
+    supervisorEmails,
+  };
 }
 
 const router = Router();
@@ -158,23 +180,31 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
     });
 
     let notified = 0;
+    let pushFailed = 0;
+    let supervisorEmails: string[] = [];
     try {
-      const result = await sendToProjectSupervisors(
-        projectId,
-        {
-          title: '🆘 SOS recibido',
-          body: `Trabajador solicita ayuda en proyecto ${projectId}`,
-          data: {
-            projectId,
-            alertId: alertRef.id,
-            type: 'sos',
-            uid: callerUid,
+      const result = await tracedAsync(
+        'emergency.sos.fanout',
+        { tenantId, projectId, alertId: alertRef.id },
+        () => sendToProjectSupervisors(
+          projectId,
+          {
+            title: '🆘 SOS recibido',
+            body: `Trabajador solicita ayuda en proyecto ${projectId}`,
+            data: {
+              projectId,
+              alertId: alertRef.id,
+              type: 'sos',
+              uid: callerUid,
+            },
           },
-        },
-        db,
-        admin.messaging(),
+          db,
+          admin.messaging(),
+        ),
       );
       notified = result.notified;
+      pushFailed = result.failed;
+      supervisorEmails = result.supervisorEmails;
     } catch (fcmErr: any) {
       // FCM fan-out failure must NOT fail the SOS write — the worker still
       // needs the audit row + alert doc so a human dispatcher can pick up.
@@ -185,7 +215,61 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
       });
     }
 
-    return res.json({ ok: true, alertId: alertRef.id, notified });
+    // Sprint 22 Bucket Y — email fallback when push delivery is partial
+    // (some tokens failed) OR zero (no registered devices). Best-effort:
+    // failure to email never bubbles up; the SOS Firestore row is the
+    // authoritative artifact.
+    let emailedSupervisors = 0;
+    const shouldEmailFallback =
+      supervisorEmails.length > 0 && (notified === 0 || pushFailed > 0);
+    if (shouldEmailFallback) {
+      try {
+        const emailService = EmailService.fromEnv();
+        if (emailService) {
+          const projectName: string =
+            (projectSnap.exists && (projectSnap.data() as any)?.name) || projectId;
+          const workerName: string =
+            ((req as any).user?.name as string | undefined) ||
+            callerEmail ||
+            callerUid;
+          const html = sosBackupTemplate({
+            worker: { name: workerName, id: callerUid },
+            project: { id: projectId, name: projectName },
+            location: validatedGeo,
+            timestamp: new Date(),
+            alertId: alertRef.id,
+          });
+          const batch = await emailService.sendBatch(
+            supervisorEmails.map((email) => ({
+              to: email,
+              subject: `🚨 SOS — ${workerName} en ${projectName}`,
+              html,
+              tag: 'sos-backup',
+            })),
+          );
+          emailedSupervisors = batch.sent;
+          if (batch.failed > 0) {
+            logger.warn('sos_email_partial_failure', {
+              alertId: alertRef.id,
+              sent: batch.sent,
+              failed: batch.failed,
+            });
+          }
+        }
+      } catch (emailErr: any) {
+        logger.error('sos_email_fallback_failed', {
+          alertId: alertRef.id,
+          message: emailErr?.message,
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      alertId: alertRef.id,
+      notified,
+      emailedSupervisors,
+    });
   } catch (error: any) {
     logger.error('sos_write_failed', {
       uid: callerUid,

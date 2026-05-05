@@ -1,0 +1,119 @@
+name: Firestore daily backup
+
+# Bucket W.1 — Sprint 22 prod hardening.
+#
+# Daily Firestore export to GCS via gcloud, complementary to the existing
+# scripts/backup-firestore.cjs (which uses the FirestoreAdminClient SDK and
+# can also be invoked from Cloud Run jobs). This workflow gives us a
+# GitHub-Actions-driven path that survives a Cloud Scheduler outage and
+# leaves an auditable run history in the repo's Actions tab.
+#
+# Schedule: 07:00 UTC == 03:00 America/Santiago (CLT) / 04:00 (CLST DST).
+# The DR_RUNBOOK.md commits to "daily 03:00 Santiago"; we use UTC here
+# because GitHub cron does not support timezones, and 03:00 CLT is the
+# more conservative window during DST. Manual dispatch is exposed via
+# workflow_dispatch for ad-hoc backups (e.g. before a risky migration).
+#
+# Required repository secrets:
+#   WIF_PROVIDER         — workload identity provider resource name
+#   WIF_SERVICE_ACCOUNT  — service account email with roles/datastore.importExportAdmin
+#                          and roles/storage.objectAdmin on the backup bucket
+#   GCP_PROJECT          — praeventio-541ad
+#   BACKUP_BUCKET        — praeventio-backups (no gs:// prefix)
+#
+# Retention is enforced by Object Lifecycle Management on the bucket
+# itself (30 days Standard → Coldline → 365 days). See DR_RUNBOOK §3.1.
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      label:
+        description: 'Optional label suffix for the export folder (e.g. before-migration)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  backup:
+    name: Export Firestore to GCS
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Compute export folder
+        id: folder
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          LABEL="${{ github.event.inputs.label }}"
+          if [ -n "$LABEL" ]; then
+            SAFE_LABEL=$(echo "$LABEL" | tr -c '[:alnum:]_-' '_')
+            FOLDER="${DATE}-${SAFE_LABEL}"
+          else
+            FOLDER="$DATE"
+          fi
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "folder=$FOLDER" >> "$GITHUB_OUTPUT"
+
+      - name: Export Firestore
+        id: export
+        run: |
+          set -euo pipefail
+          gcloud firestore export \
+            "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}" \
+            --project="${{ secrets.GCP_PROJECT }}"
+
+      - name: Verify export
+        run: |
+          set -euo pipefail
+          # The managed export writes a top-level metadata file plus per-collection
+          # subfolders. Listing should yield at least one entry; fail loudly if not.
+          OUT=$(gsutil ls "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}/")
+          echo "$OUT"
+          if [ -z "$OUT" ]; then
+            echo "::error::Export folder is empty after gcloud firestore export."
+            exit 1
+          fi
+
+      - name: Write manifest
+        run: |
+          set -euo pipefail
+          cat > /tmp/manifest.json <<EOF
+          {
+            "schemaVersion": 1,
+            "source": "github-actions/firestore-backup.yml",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "project": "${{ secrets.GCP_PROJECT }}",
+            "outputUriPrefix": "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}",
+            "runId": "${{ github.run_id }}",
+            "runUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+          gsutil cp /tmp/manifest.json \
+            "gs://${{ secrets.BACKUP_BUCKET }}/firestore/${{ steps.folder.outputs.folder }}/manifest.json"
+
+      - name: Notify on failure
+        if: failure()
+        # The notification surface is intentionally minimal here — Sentry
+        # already monitors workflow failures via the GitHub integration, and
+        # email goes to the repo admins (Daho) by default. When a Slack
+        # webhook is provisioned, swap this for a slackapi/slack-github-action
+        # step gated on `secrets.SLACK_WEBHOOK_URL` being set.
+        run: |
+          echo "::error::Firestore daily backup failed for ${{ steps.folder.outputs.folder }}."
+          echo "::error::Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          exit 1
