@@ -68,6 +68,8 @@ import cadRouter from "./src/server/routes/cad.js";
 import complianceRouter from "./src/server/routes/compliance.js";
 // Sprint 23 Bucket GG — DTE / SII admin endpoints (Bsale-backed).
 import dteRouter from "./src/server/routes/dte.js";
+// Sprint 24 Bucket KK — onboarding wizard endpoint.
+import onboardingRouter from "./src/server/routes/onboarding.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -506,6 +508,10 @@ app.use('/api/cad', cadRouter);
 // data-subject access/rectification/erasure/portability). All write paths
 // go through verifyAuth; the RAT catalog is intentionally public.
 app.use('/api/compliance', complianceRouter);
+
+// Sprint 24 Bucket KK — POST /api/onboarding/complete. Self-service
+// tenant onboarding (industry, countries, tier, invites, first project).
+app.use('/api', onboardingRouter);
 
 // Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
 // Safari invokes AR Quick Look. Without this header the browser treats

@@ -71,9 +71,18 @@ const CuadrillasDashboard = lazy(() => import('./pages/CuadrillasDashboard').the
 const B2dAdminPanel = lazy(() => import('./pages/B2dAdminPanel').then(module => ({ default: module.B2dAdminPanel })));
 // Sprint 23 Bucket FF — Ley 19.628 data-subject control center.
 const MyData = lazy(() => import('./pages/MyData').then(module => ({ default: module.MyData })));
+// Sprint 24 Bucket KK — self-service onboarding wizard.
+const Onboarding = lazy(() => import('./pages/Onboarding').then(module => ({ default: module.Onboarding })));
+// Sprint 24 Bucket II — DS 76 mining contractors page.
+const MiningContractors = lazy(() => import('./pages/MiningContractors').then(module => ({ default: module.MiningContractors })));
+
+// Sprint 24 Bucket KK.4 — onboarded-flag hook (self-contained, does not
+// touch FirebaseContext to keep that file's surface area small).
+import { useOnboardingStatus } from './components/onboarding/useOnboardingStatus';
 
 function AppRoutes() {
   const { user, loading } = useFirebase();
+  const onboarded = useOnboardingStatus(user?.uid);
   const [hasEntered, setHasEntered] = useState(false);
 
   // Initialize auto-logout for enterprise security
@@ -115,9 +124,20 @@ function AppRoutes() {
   // curriculum referee co-sign — Round 14 R5).
   const skipLanding = window.location.pathname.startsWith('/invite') ||
     window.location.pathname.startsWith('/public') ||
-    window.location.pathname.startsWith('/curriculum/referee');
+    window.location.pathname.startsWith('/curriculum/referee') ||
+    window.location.pathname.startsWith('/onboarding');
 
-  if (!hasEntered && !skipLanding) {
+  // Sprint 24 Bucket KK.4 — auto-redirect freshly-signed-up users to the
+  // self-service wizard. We wait for `onboarded` to be loaded (non-null)
+  // to avoid flashing /onboarding for returning users while the user
+  // doc is still in-flight.
+  const needsOnboarding =
+    !!user && onboarded === false &&
+    !window.location.pathname.startsWith('/onboarding') &&
+    !window.location.pathname.startsWith('/invite') &&
+    !window.location.pathname.startsWith('/login');
+
+  if (!hasEntered && !skipLanding && !needsOnboarding) {
     // Show landing page first; after "Entrar" briefly show splash then the app
     if (!user) {
       return (
@@ -127,6 +147,20 @@ function AppRoutes() {
       );
     }
     return <Splash onEnter={() => setHasEntered(true)} />;
+  }
+
+  // Sprint 24 Bucket KK.4 — gate authenticated-but-not-onboarded users
+  // before any normal routing kicks in. We render `<Onboarding>` directly
+  // (rather than `<Navigate>`) because Navigate inside the routes tree
+  // would still let other route paths flicker first.
+  if (needsOnboarding) {
+    return (
+      <AppProviders>
+        <Suspense fallback={<ConsciousnessLoader />}>
+          <Onboarding />
+        </Suspense>
+      </AppProviders>
+    );
   }
 
   return (
@@ -144,6 +178,7 @@ function AppRoutes() {
           element={!user ? <Login /> : <Navigate to="/" />}
         />
                   <Route path="/invite" element={<InviteAccept />} />
+                  <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
                   <Route
                     path="/public/node/:nodeId"
@@ -189,6 +224,7 @@ function AppRoutes() {
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />
                     <Route path="cuadrillas" element={<CuadrillasDashboard />} />
+                    <Route path="mining-contractors" element={<MiningContractors />} />
                     <Route path="sun-tracker" element={<SunTracker />} />
                     <Route path="safety-coach" element={<SafetyCoach />} />
                     <Route
