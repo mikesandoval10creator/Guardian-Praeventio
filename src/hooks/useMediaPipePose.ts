@@ -49,11 +49,36 @@ export interface UseMediaPipePoseReturn {
   error: string | null;
 }
 
-// URL de WASM y modelo. CDN-only por ahora.
-const WASM_BASE =
+// Local-first hosting (Bucket PP.2):
+//   1. Probamos `/models/mediapipe/` (servido desde nuestro origen — habilita
+//      offline/PWA y evita egress hacia jsdelivr/Google por GDPR / ley 19.628).
+//   2. Si el HEAD probe local devuelve 404 (e.g. el dev no corrió
+//      `node scripts/download-mediapipe-models.mjs`), caemos al CDN público.
+// Los assets locales los provee `scripts/download-mediapipe-models.mjs`,
+// invocado por `npm run prebuild`.
+const LOCAL_WASM_BASE = '/models/mediapipe';
+const LOCAL_MODEL_URL = '/models/mediapipe/pose_landmarker_lite.task';
+const CDN_WASM_BASE =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm';
-const MODEL_URL =
+const CDN_MODEL_URL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+
+/**
+ * HEAD probe contra el path local. Si responde 2xx, asumimos que el
+ * prebuild bajó los assets y los servimos desde nuestro origen. Si
+ * falla (404, network error en SSR/test), retornamos false → fallback
+ * al CDN. El probe se hace una sola vez por sesión (memoizado por el
+ * caller, ver `ensureLandmarker`).
+ */
+async function probeLocalAssets(): Promise<boolean> {
+  if (typeof fetch === 'undefined') return false;
+  try {
+    const r = await fetch(LOCAL_MODEL_URL, { method: 'HEAD' });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
 
 export function useMediaPipePose(): UseMediaPipePoseReturn {
   const landmarkerRef = useRef<unknown>(null);
@@ -90,14 +115,26 @@ export function useMediaPipePose(): UseMediaPipePoseReturn {
       try {
         // Lazy import — chunk separado, no penaliza bundle inicial.
         const mp = await import('@mediapipe/tasks-vision');
-        setLoadingProgress(40);
+        setLoadingProgress(30);
 
-        const vision = await mp.FilesetResolver.forVisionTasks(WASM_BASE);
+        // Local-first: intentamos servir WASM + modelo desde nuestro
+        // origen. Si fallan (dev no corrió prebuild) caemos al CDN.
+        const localOk = await probeLocalAssets();
+        const wasmBase = localOk ? LOCAL_WASM_BASE : CDN_WASM_BASE;
+        const modelUrl = localOk ? LOCAL_MODEL_URL : CDN_MODEL_URL;
+        if (!localOk) {
+          logger.info(
+            'useMediaPipePose: assets locales no encontrados en /models/mediapipe/, usando CDN. Corré `npm run prebuild` para hosting local.',
+          );
+        }
+        setLoadingProgress(50);
+
+        const vision = await mp.FilesetResolver.forVisionTasks(wasmBase);
         setLoadingProgress(70);
 
         const landmarker = await mp.PoseLandmarker.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: MODEL_URL,
+            modelAssetPath: modelUrl,
             delegate: 'GPU',
           },
           runningMode: 'IMAGE',

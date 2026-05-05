@@ -46,6 +46,13 @@ import { replicateCriticalData } from '../jobs/firestoreCriticalReplicate.js';
 // Cloud Scheduler hitting POST /api/admin/jobs/weekly-digest. Job pure-ish
 // in jobs/weeklyDigest.ts; this endpoint is a thin admin-gated wrapper.
 import { runWeeklyDigest } from '../jobs/weeklyDigest.js';
+// Sprint 25 Bucket TT — daily climate risk scan orchestrator. Cloud
+// Scheduler hits this endpoint at 05:00 Santiago (08:00 UTC) every day.
+import {
+  runDailyClimateRiskScan,
+  type ClimateRiskScanDeps,
+  type DailyScanProject,
+} from '../jobs/dailyClimateRiskScan.js';
 // Sprint 22 prod hardening (Bucket X) — admin-facing observability for
 // per-tenant Gemini quotas and the upstream circuit breaker.
 import {
@@ -311,6 +318,155 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
   }
 });
 
+// Sprint 25 Bucket TT — daily climate risk scan. Cloud Scheduler at
+// 05:00 Santiago (08:00 UTC). Admin-gated so a stale token cannot trigger
+// an N-tenant FCM burst. Wires the orchestrator to real Firestore /
+// Open-Meteo / FCM admin SDK; the orchestrator itself is DI-testeable.
+router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
+  if (!(await assertAdminCaller(req, res))) return;
+  const callerUid = (req as any).user.uid;
+  try {
+    const deps: ClimateRiskScanDeps = {
+      listActiveProjects: async () => {
+        const snap = await admin
+          .firestore()
+          .collectionGroup('projects')
+          .where('status', '==', 'active')
+          .where('outdoor', '==', true)
+          .get();
+        const projects: DailyScanProject[] = [];
+        for (const d of snap.docs) {
+          const data = d.data() as Record<string, any>;
+          const tenantId = d.ref.parent.parent?.id ?? '';
+          const geo =
+            data.geo &&
+            typeof data.geo.lat === 'number' &&
+            typeof data.geo.lng === 'number'
+              ? { lat: data.geo.lat as number, lng: data.geo.lng as number }
+              : undefined;
+          projects.push({
+            id: d.id,
+            tenantId,
+            name: typeof data.name === 'string' ? data.name : d.id,
+            geo,
+            outdoor: data.outdoor === true,
+            workTypes: Array.isArray(data.workTypes) ? data.workTypes : [],
+            supervisorUids: Array.isArray(data.supervisorUids)
+              ? data.supervisorUids.filter((u: unknown) => typeof u === 'string')
+              : [],
+          });
+        }
+        return projects;
+      },
+      fetchForecast: async (geo, days) => {
+        const { getForecast } = await import('../../services/environmentBackend.js');
+        return getForecast(days, { lat: geo.lat, lng: geo.lng });
+      },
+      persistNodes: async (assessments, projectId) => {
+        // Server-side persistence — write directly to the `zettelkasten_nodes`
+        // collection used by the POST /api/zettelkasten/nodes endpoint, with
+        // the same SHA-256 idempotency contract enforced by `nodeIdFor`. We
+        // avoid the HTTP roundtrip (cron is internal) and reuse the hash
+        // function for stable doc IDs.
+        const { nodeIdFor } = await import(
+          '../../services/zettelkasten/persistence/writeNode.js'
+        );
+        const ids: string[] = [];
+        const fs = admin.firestore();
+        const batch = fs.batch();
+        for (const a of assessments) {
+          // The pure climateRiskCoupling output uses ClimateRiskNodePayload
+          // (no `severity`/`references` field). Wrap it into a server-side
+          // shape compatible with the writeNode hash by feeding the
+          // canonical fields. We synthesize the missing optionals.
+          // Flatten metadata to RiskNodePayload's primitive-only contract.
+          const md = a.riskNodePayload.metadata;
+          const flatMetadata: Record<string, number | string | boolean | null> = {
+            conditionCode: md.conditionCode,
+            temperatureC: md.temperatureC,
+            windKmh: md.windKmh ?? null,
+            precipMm: md.precipMm ?? null,
+            forecastDateISO: md.forecastDateISO,
+            riskFactors: md.riskFactors.join(','),
+          };
+          const proxy = {
+            type: a.riskNodePayload.type,
+            title: a.riskNodePayload.title,
+            description: a.riskNodePayload.description,
+            severity: 'medium' as const,
+            metadata: flatMetadata,
+            connections: a.riskNodePayload.connections,
+            references: ['NCh 432'],
+          };
+          const id = await nodeIdFor(proxy as any, projectId);
+          ids.push(id);
+          batch.set(
+            fs.collection('zettelkasten_nodes').doc(id),
+            {
+              ...proxy,
+              projectId,
+              source: 'daily-climate-scan',
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          );
+        }
+        await batch.commit();
+        return { ok: true, ids };
+      },
+      sendFcmMulticast: async (opts) => {
+        if (opts.uids.length === 0) {
+          return { successCount: 0, failureCount: 0 };
+        }
+        // Look up FCM tokens — Firestore `in` is capped at 30 values, so we
+        // chunk the supervisor UID list.
+        const tokens: string[] = [];
+        const fs = admin.firestore();
+        const CHUNK = 30;
+        for (let i = 0; i < opts.uids.length; i += CHUNK) {
+          const chunk = opts.uids.slice(i, i + CHUNK);
+          const snap = await fs
+            .collection('fcm_tokens')
+            .where('uid', 'in', chunk)
+            .get();
+          for (const d of snap.docs) {
+            const t = (d.data() as any).token;
+            if (typeof t === 'string' && t.length > 0) tokens.push(t);
+          }
+        }
+        if (tokens.length === 0) {
+          return { successCount: 0, failureCount: 0 };
+        }
+        const out = await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: { title: opts.title, body: opts.body },
+          data: opts.data,
+        });
+        return { successCount: out.successCount, failureCount: out.failureCount };
+      },
+      audit: async (action, details) => {
+        await admin
+          .firestore()
+          .collection('audit_logs')
+          .add({
+            actor: callerUid,
+            action,
+            ts: admin.firestore.FieldValue.serverTimestamp(),
+            ip: req.ip,
+            ua: req.header('user-agent') || null,
+            details,
+          });
+      },
+    };
+
+    const result = await runDailyClimateRiskScan(deps);
+    res.json({ ok: true, result });
+  } catch (error) {
+    logger.error('admin_climate_scan_failed', error, { callerUid });
+    res.status(500).json({ error: 'climate_scan_failed' });
+  }
+});
+
 // Sprint 22 prod hardening (Bucket X) — admin observability for the
 // Gemini quota/circuit layer. All four endpoints gate on admin role
 // (mirrors the /revoke-access + /set-role pattern above) and return
@@ -433,6 +589,102 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error('admin_circuit_state_failed', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Sprint 25 Bucket QQ — admin observability/control for the offline
+// sync state machine. The state machine itself lives client-side
+// (browser IndexedDB), so the server only knows about *server-side
+// observability of pending writes*: we track pending sync operations
+// per-user via the `user_sync_state` collection, where clients
+// write a heartbeat document containing { uid, pendingCount, state,
+// updatedAt } whenever their state machine snapshot changes.
+//
+// Endpoints:
+//   • POST /api/admin/sync/clear-user-queue { targetUid }
+//       Marks the user_sync_state doc with `clearRequested: true` so
+//       the client drops its local queue on next subscription. Use
+//       case: a stuck queue caused by a bad payload that retries
+//       forever — admin can break the loop without forcing the user
+//       to clear their browser storage.
+//   • GET /api/admin/sync/stats
+//       Aggregates pending op count across all users. Backs the
+//       "stuck users" widget on the operator dashboard.
+
+router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
+  if (!(await assertAdminCaller(req, res))) return;
+  const callerUid = (req as any).user.uid;
+  const { targetUid } = req.body ?? {};
+  if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
+    return res.status(400).json({ error: 'Invalid targetUid' });
+  }
+  try {
+    await admin
+      .firestore()
+      .collection('user_sync_state')
+      .doc(targetUid)
+      .set(
+        {
+          clearRequested: true,
+          clearRequestedBy: callerUid,
+          clearRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    await admin.firestore().collection('audit_logs').add({
+      actor: callerUid,
+      action: 'sync_clear_user_queue',
+      target: targetUid,
+      ts: admin.firestore.FieldValue.serverTimestamp(),
+      ip: req.ip,
+      ua: req.header('user-agent') || null,
+    });
+    res.json({ ok: true, targetUid });
+  } catch (error) {
+    logger.error('admin_sync_clear_user_queue_failed', error, {
+      callerUid,
+      targetUid,
+    });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/sync/stats', verifyAuth, async (req, res) => {
+  if (!(await assertAdminCaller(req, res))) return;
+  try {
+    const snap = await admin.firestore().collection('user_sync_state').get();
+    let totalPending = 0;
+    let usersWithPending = 0;
+    let usersFailed = 0;
+    const stuckUsers: Array<{ uid: string; pendingCount: number; state: string }> = [];
+    snap.forEach((d) => {
+      const data = d.data() as {
+        pendingCount?: number;
+        state?: string;
+      };
+      const pendingCount =
+        typeof data.pendingCount === 'number' ? data.pendingCount : 0;
+      const state = typeof data.state === 'string' ? data.state : 'unknown';
+      totalPending += pendingCount;
+      if (pendingCount > 0) usersWithPending += 1;
+      if (state === 'online_failed') {
+        usersFailed += 1;
+        stuckUsers.push({ uid: d.id, pendingCount, state });
+      }
+    });
+    // Sort stuck users by pendingCount desc and cap to 25 — the
+    // dashboard widget only renders the worst offenders.
+    stuckUsers.sort((a, b) => b.pendingCount - a.pendingCount);
+    res.json({
+      ok: true,
+      totalPending,
+      usersWithPending,
+      usersFailed,
+      stuckUsers: stuckUsers.slice(0, 25),
+    });
+  } catch (error) {
+    logger.error('admin_sync_stats_failed', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

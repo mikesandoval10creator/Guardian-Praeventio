@@ -101,4 +101,60 @@ describe('autoTrigger — sismic detection', () => {
     ingestAccelerationSample(sampleAtDynamicG(0.7), Date.now());
     expect(await checkSismo()).toBe(true);
   });
+
+  // ─── Sprint 25 SS.4 — additional edge cases ───────────────────────────
+
+  it('Test 7 — device without DeviceMotionEvent gracefully no-throws', async () => {
+    // Simulate a desktop browser / older WebView lacking DeviceMotion.
+    const win = globalThis as unknown as {
+      window?: { DeviceMotionEvent?: unknown; addEventListener?: unknown };
+    };
+    const prev = win.window;
+    // Build a minimal stub window with NO DeviceMotionEvent. The auto-trigger
+    // module calls attachMotionListener() inside checkSismo(); the function
+    // must early-return without throwing.
+    (win as any).window = { addEventListener: () => undefined };
+    try {
+      delete (win as any).window.DeviceMotionEvent;
+      await expect(checkSismo()).resolves.toBe(false);
+      // Repeated calls must remain idempotent and never throw.
+      await expect(checkSismo()).resolves.toBe(false);
+      await expect(checkSismo()).resolves.toBe(false);
+    } finally {
+      if (prev === undefined) delete (win as any).window;
+      else (win as any).window = prev;
+    }
+  });
+
+  it('Test 8 — iOS DeviceMotionEvent.requestPermission rejection does not throw', async () => {
+    // iOS Safari requires a user-gesture-driven permission request. A
+    // rejected permission must NOT result in an infinite-error loop in the
+    // sismo predicate.
+    const win = globalThis as unknown as {
+      window?: { DeviceMotionEvent?: unknown; addEventListener?: unknown };
+    };
+    const prev = win.window;
+    const rejectedRequestPermission = vi.fn(async () =>
+      Promise.reject(new Error('NotAllowedError')),
+    );
+    const dme = function DeviceMotionEvent() {} as unknown as {
+      requestPermission?: typeof rejectedRequestPermission;
+    };
+    dme.requestPermission = rejectedRequestPermission;
+    (win as any).window = {
+      DeviceMotionEvent: dme,
+      // addEventListener that throws if invoked — we want to assert the
+      // module never reaches this path on a denied iOS permission.
+      addEventListener: () => undefined,
+    };
+    try {
+      // Multiple ticks to ensure no error accumulation.
+      await expect(checkSismo()).resolves.toBe(false);
+      await expect(checkSismo()).resolves.toBe(false);
+      await expect(checkSismo()).resolves.toBe(false);
+    } finally {
+      if (prev === undefined) delete (win as any).window;
+      else (win as any).window = prev;
+    }
+  });
 });

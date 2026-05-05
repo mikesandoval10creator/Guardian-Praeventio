@@ -3,8 +3,66 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, ArrowRight, CheckCircle2, Timer, Activity, Heart, Shield, BookOpen, Sparkles } from 'lucide-react';
 import { Card } from '../shared/Card';
 import { WisdomCapsule } from '../shared/WisdomCapsule';
-import { auth } from '../../services/firebase';
+import {
+  auth,
+  db,
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+  handleFirestoreError,
+  OperationType,
+} from '../../services/firebase';
+import { awardPoints } from '../../services/gamificationService';
 import { useProject } from '../../contexts/ProjectContext';
+
+/**
+ * Sprint 25 — Bucket SS.3: persist a morning check-in summary at
+ * `users/{uid}/morning_checkins/{YYYY-MM-DD}` once the routine
+ * completes. Document is keyed by the local date so the duplicate guard
+ * is just a `getDoc` on today's path. Fields:
+ *   { date, completedAt (serverTimestamp), sleepHours?, mood?,
+ *     energyLevel?, notes? }
+ *
+ * The component currently ships the stretch flow only; sleepHours/mood/
+ * energyLevel/notes are reserved for the upcoming form expansion. We
+ * still persist the date+completedAt today so the duplicate-prevention
+ * contract is testable end-to-end.
+ */
+interface MorningCheckInDoc {
+  date: string;
+  completedAt: unknown; // serverTimestamp sentinel | Timestamp on read
+  sleepHours?: number;
+  mood?: number;
+  energyLevel?: number;
+  notes?: string;
+}
+
+export function todayLocalISO(now: Date = new Date()): string {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Internal helper extracted for tests (no React, no timers). */
+export async function persistMorningCheckIn(
+  uid: string,
+  payload: Omit<MorningCheckInDoc, 'completedAt'>,
+): Promise<{ saved: boolean; duplicate: boolean }> {
+  const ref = doc(db, 'users', uid, 'morning_checkins', payload.date);
+  try {
+    const existing = await getDoc(ref);
+    if (existing.exists()) {
+      return { saved: false, duplicate: true };
+    }
+    await setDoc(ref, { ...payload, completedAt: serverTimestamp() });
+    return { saved: true, duplicate: false };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'users/morning_checkins');
+    return { saved: false, duplicate: false };
+  }
+}
 
 interface Stretch {
   id: string;
@@ -63,6 +121,8 @@ export function MorningRoutine() {
   const [currentStretchIndex, setCurrentStretchIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isActive, setIsActive] = useState(false);
+  const [alreadyCompletedToday, setAlreadyCompletedToday] = useState(false);
+  const [persistError, setPersistError] = useState<string | null>(null);
 
   // Sprint 16 — Cápsula de Sabiduría slot.
   const { selectedProject } = useProject();
@@ -70,6 +130,28 @@ export function MorningRoutine() {
   const [capsuleLoading, setCapsuleLoading] = useState(false);
   const [capsuleAcked, setCapsuleAcked] = useState(false);
   const [capsuleAckXp, setCapsuleAckXp] = useState<number | null>(null);
+
+  // Sprint 25 SS.3 — duplicate-prevention probe.
+  useEffect(() => {
+    let cancelled = false;
+    async function probe() {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      try {
+        const ref = doc(db, 'users', uid, 'morning_checkins', todayLocalISO());
+        const snap = await getDoc(ref);
+        if (!cancelled && snap.exists()) {
+          setAlreadyCompletedToday(true);
+        }
+      } catch {
+        // silent — feature degrades to "allow attempt" if probe fails
+      }
+    }
+    probe();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,10 +218,33 @@ export function MorningRoutine() {
       } else {
         setIsActive(false);
         setStep('complete');
+        // SS.3 — fire-and-forget persistence + XP. Errors surface inline
+        // but never block the UX (matches MorningCheckIn convention).
+        const uid = auth.currentUser?.uid;
+        if (uid && !alreadyCompletedToday) {
+          void (async () => {
+            const result = await persistMorningCheckIn(uid, {
+              date: todayLocalISO(),
+            });
+            if (result.duplicate) {
+              setAlreadyCompletedToday(true);
+              return;
+            }
+            if (result.saved) {
+              try {
+                await awardPoints('morning_checkin');
+              } catch {
+                // gamification endpoint is best-effort
+              }
+            } else {
+              setPersistError('No se pudo guardar el check-in.');
+            }
+          })();
+        }
       }
     }
     return () => clearInterval(timer);
-  }, [isActive, timeLeft, currentStretchIndex]);
+  }, [isActive, timeLeft, currentStretchIndex, alreadyCompletedToday]);
 
   const startRoutine = () => {
     setStep('active');
@@ -236,13 +341,33 @@ export function MorningRoutine() {
               </div>
             </div>
 
-            <button
-              onClick={startRoutine}
-              className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-            >
-              Iniciar Check-in Fisiológico
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            {alreadyCompletedToday ? (
+              <div
+                data-testid="morning-routine-duplicate"
+                className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3"
+              >
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <p className="text-xs text-emerald-300 font-bold uppercase tracking-wider">
+                  Ya completaste tu check-in hoy. Nos vemos mañana.
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={startRoutine}
+                className="w-full py-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+              >
+                Iniciar Check-in Fisiológico
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )}
+            {persistError && (
+              <p
+                data-testid="morning-routine-error"
+                className="text-xs text-rose-400 text-center"
+              >
+                {persistError}
+              </p>
+            )}
           </motion.div>
         )}
 
