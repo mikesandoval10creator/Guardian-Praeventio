@@ -57,6 +57,10 @@ export const StructuralCalculator: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [windAreaM2, setWindAreaM2] = useState<number>(20);
   const [windSpeedKmh, setWindSpeedKmh] = useState<number>(90);
+  // Sprint 25 Bucket NN — scaffold wind suction (NCh 433 / NCh 432).
+  const [scaffoldHeightM, setScaffoldHeightM] = useState<number>(12);
+  const [scaffoldLateralAreaM2, setScaffoldLateralAreaM2] = useState<number>(40);
+  const [gustWindKmh, setGustWindKmh] = useState<number>(120);
 
   // Pandeo de Euler (P_cr) state
   const [bucklingMaterial, setBucklingMaterial] = useState<(typeof MATERIAL_PRESETS)[number]['id']>('steel');
@@ -93,6 +97,32 @@ export const StructuralCalculator: React.FC = () => {
     const projectId = selectedProject?.id;
     if (projectId) writeNodesDebounced([scaffoldUpliftNode], { projectId });
   }
+
+  // Sprint 25 Bucket NN — Succión sobre andamios (NCh 433 / NCh 432).
+  const scaffoldSuctionResult = useMemo(() => {
+    if (scaffoldHeightM <= 0 || scaffoldLateralAreaM2 <= 0 || gustWindKmh <= 0) return null;
+    // Cp succión típico cubierta plana = -1.2; mayor altura → coef. mayor.
+    const cp = -1.2 - (scaffoldHeightM > 20 ? 0.2 : 0);
+    const node = generateScaffoldUpliftNode(
+      { id: `scaffold-h${scaffoldHeightM}`, areaM2: scaffoldLateralAreaM2, pressureCoefficient: cp },
+      { windKmh: gustWindKmh },
+      { ratedCapacityN: 5_000, anchorCount: Math.max(4, Math.ceil(scaffoldLateralAreaM2 / 10)) },
+    );
+    // Force horizontal (succión total): F = q · A · |Cp|, con q = 0.5·ρ·v²
+    const v = (gustWindKmh * 1000) / 3600;
+    const q = 0.5 * 1.225 * v * v;
+    const horizontalForceN = q * scaffoldLateralAreaM2 * Math.abs(cp);
+    // NCh 433 — exposición B máx 0.55 kN/m² para H<20m (heurística).
+    const allowableKnPerM2 = scaffoldHeightM > 20 ? 0.7 : 0.55;
+    const compliance = (horizontalForceN / scaffoldLateralAreaM2) / 1000 <= allowableKnPerM2;
+
+    if (node) {
+      logger.info('zettelkasten:scaffold-uplift-suction', { node });
+      const projectId = selectedProject?.id;
+      if (projectId) writeNodesDebounced([node], { projectId });
+    }
+    return { node, horizontalForceN, compliance, allowableKnPerM2 };
+  }, [scaffoldHeightM, scaffoldLateralAreaM2, gustWindKmh, selectedProject?.id]);
 
   // Euler P_cr — pure-compute, derived per render.
   const bucklingResult = useMemo(() => {
@@ -298,6 +328,60 @@ export const StructuralCalculator: React.FC = () => {
         <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
           {t('structural_calc.local_calc_note')}
         </p>
+      </div>
+
+      {/* Sprint 25 Bucket NN — Succión viento sobre andamios (NCh 433). */}
+      <div className="mt-6 bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-700/50 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+            <Wind className="w-5 h-5 text-amber-500 dark:text-amber-400" />
+          </div>
+          <div>
+            <h4 className="text-lg font-bold text-slate-900 dark:text-white">Succión viento sobre andamios</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400">NCh 433 · NCh 432 Of.71 · DS 594 Art. 78.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Altura andamio (m)</label>
+            <input type="number" min="0" step="0.5" value={scaffoldHeightM}
+              onChange={(e) => setScaffoldHeightM(Number(e.target.value) || 0)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Área lateral (m²)</label>
+            <input type="number" min="0" step="any" value={scaffoldLateralAreaM2}
+              onChange={(e) => setScaffoldLateralAreaM2(Number(e.target.value) || 0)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">v ráfaga (km/h)</label>
+            <input type="number" min="0" step="any" value={gustWindKmh}
+              onChange={(e) => setGustWindKmh(Number(e.target.value) || 0)}
+              className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white" />
+          </div>
+        </div>
+
+        {scaffoldSuctionResult && (
+          <div className={`rounded-lg px-3 py-2 border ${
+            scaffoldSuctionResult.compliance
+              ? 'bg-emerald-500/10 border-emerald-500/20'
+              : 'bg-rose-500/10 border-rose-500/20'
+          }`}>
+            <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500 dark:text-slate-400">
+              Fuerza horizontal · Cumplimiento NCh 433
+            </p>
+            <p className={`text-lg font-black ${
+              scaffoldSuctionResult.compliance
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-rose-600 dark:text-rose-400'
+            }`}>
+              {(scaffoldSuctionResult.horizontalForceN / 1000).toFixed(2)} kN ·{' '}
+              {scaffoldSuctionResult.compliance ? `≤ ${scaffoldSuctionResult.allowableKnPerM2} kN/m² OK` : 'EXCEDE'}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Pandeo de Euler (P_cr) — additive section */}

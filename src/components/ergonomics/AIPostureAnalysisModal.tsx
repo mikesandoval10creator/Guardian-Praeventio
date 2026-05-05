@@ -34,6 +34,14 @@ interface AIPostureAnalysisModalProps {
   projectId?: string;
 }
 
+// TODO Bucket OO.4 (Sprint 25 ola siguiente): modo "Análisis en vivo".
+// Requiere getUserMedia(video) → <video> ref → useMediaPipePose.analyzeVideo
+// (extender el hook para frames continuos), throttle a 0.5 Hz (cada 2s) para
+// REBA/RULA, indicador semáforo verde/amarillo/rojo, grabación 30s con
+// ring-buffer de frames y selección automática del peor (max REBA finalScore).
+// Reuse: useMediaPipePose, calculateReba, landmarksToRebaInput. No tocar el
+// flujo de fotos estático actual.
+
 // Resultado unificado mostrado al usuario, sin importar la fuente.
 interface UnifiedResult {
   source: 'mediapipe' | 'gemini';

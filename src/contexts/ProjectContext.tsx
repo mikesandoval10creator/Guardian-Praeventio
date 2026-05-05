@@ -38,6 +38,17 @@ interface Project {
     manDownInactivityThreshold?: number;
     manDownMovementThreshold?: number;
   };
+  // Sprint 25 Bucket TT — daily climate-risk scan. The orchestrator only
+  // touches projects with status='active' AND outdoor=true; `geo` is
+  // forwarded to OpenWeather; `supervisorUids` receives the FCM blast
+  // when severity >= medium; `workTypes` drives the Bernoulli generators
+  // (tunnel keywords trigger Venturi, scaffold/crane keywords trigger
+  // Windload). All optional — legacy projects scan with `outdoor=false`
+  // by default and are skipped, matching the runbook contract.
+  outdoor?: boolean;
+  workTypes?: string[];
+  supervisorUids?: string[];
+  geo?: { lat: number; lng: number };
 }
 
 interface ProjectContextType {

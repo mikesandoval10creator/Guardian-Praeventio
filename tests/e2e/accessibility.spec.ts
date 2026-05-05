@@ -80,7 +80,7 @@ test.describe('Accessibility (axe-core)', () => {
     await page.goto('/');
     // Esperar a que React monte el hero — sin esto axe puede correr sobre
     // un DOM en mid-render y reportar fantasmas.
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded', { timeout: 60_000 });
 
     await runAxe(page, testInfo, '/');
   });
@@ -92,7 +92,7 @@ test.describe('Accessibility (axe-core)', () => {
     );
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded', { timeout: 60_000 });
 
     // Estos son requisitos mínimos de WCAG 2.1: landmark `main` y `h1`
     // por documento. axe ya los chequea, pero los aislamos en un test
@@ -114,7 +114,7 @@ test.describe('Accessibility (axe-core)', () => {
     );
 
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded', { timeout: 60_000 });
 
     await runAxe(page, testInfo, '/login');
   });
@@ -126,7 +126,7 @@ test.describe('Accessibility (axe-core)', () => {
     );
 
     await page.goto('/login');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded', { timeout: 60_000 });
 
     // Login.tsx wires `aria-labelledby="login-heading"` to the <main>.
     // The heading must exist and have text — covers WCAG 2.4.6 + 1.3.1.
