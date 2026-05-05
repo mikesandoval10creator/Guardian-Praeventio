@@ -71,7 +71,9 @@ function getStagedFiles() {
 
 function isInScope(file) {
   // Normalize Windows backslashes so the check works regardless of platform.
-  const normalized = file.split(path.sep).join('/');
+  // path.sep is '/' on Linux, so split(path.sep) doesn't touch '\\' — replace
+  // explicitly so paths emitted by Windows git tooling still match.
+  const normalized = file.replace(/\\/g, '/');
   return SCOPED_DIRS.some((d) => normalized.startsWith(d));
 }
 
