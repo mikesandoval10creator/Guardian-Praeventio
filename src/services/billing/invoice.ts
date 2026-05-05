@@ -22,6 +22,11 @@ import {
   PRAEVENTIO_EMISOR_RAZON_SOCIAL_DEFAULT,
   PRAEVENTIO_EMISOR_RUT,
 } from './types.js';
+// Sprint 23 Bucket GG — wire the SII pipeline into invoice closure.
+// Imported lazily inside `tryAutoIssueDte` so the pure helpers above stay
+// dependency-free; the eager import would pull `bsaleAdapter` (which reads
+// env vars) into every test that touches `buildInvoice`.
+import type { DteResult } from '../sii/bsaleAdapter.js';
 
 /**
  * Compute invoice totals.
@@ -176,4 +181,104 @@ export function buildInvoice(
     issuedAt: now().toISOString(),
     status: 'draft',
   };
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 23 Bucket GG — auto-emit DTE on invoice closure
+//
+// Pure orchestration helper. Callers (Webpay return handler, MercadoPago
+// IPN, manual mark-paid endpoint) invoke this AFTER persisting the invoice
+// in `paid` status to fire the SII emission pipeline.
+//
+// Behavior:
+//   • Returns ok=false when DTE_AUTO_ISSUE !== 'true' so callers can opt out
+//     per environment without code changes.
+//   • Picks `boleta_electronica` for B2C (no client RUT) and
+//     `factura_electronica` for B2B (RUT present).
+//   • Maps invoice line items to the Bsale DTE shape. USD invoices are
+//     skipped — SII DTE is CLP-only by definition.
+//   • Catches all exceptions; the route handler should NEVER 500 just because
+//     the DTE backend is down. The caller logs failures to a retry queue.
+// ---------------------------------------------------------------------------
+
+export interface AutoIssueDteOptions {
+  /** Override env flag in tests. */
+  autoIssueEnabled?: boolean;
+  /** Inject a custom adapter in tests. */
+  adapter?: {
+    createDte: (input: any) => Promise<DteResult>;
+  } | null;
+}
+
+export interface AutoIssueDteResult {
+  ok: boolean;
+  skipped?: 'disabled' | 'usd' | 'no-adapter' | 'invalid-status';
+  result?: DteResult;
+  errorMessage?: string;
+}
+
+export async function tryAutoIssueDte(
+  invoice: Invoice,
+  options: AutoIssueDteOptions = {},
+): Promise<AutoIssueDteResult> {
+  const enabled =
+    options.autoIssueEnabled ??
+    (process.env.DTE_AUTO_ISSUE ?? 'false').toLowerCase() === 'true';
+  if (!enabled) {
+    return { ok: false, skipped: 'disabled' };
+  }
+  if (invoice.status !== 'paid') {
+    return { ok: false, skipped: 'invalid-status' };
+  }
+  if (invoice.totals.currency !== 'CLP') {
+    // SII DTEs are CLP-only. International invoices stay outside the SII flow.
+    return { ok: false, skipped: 'usd' };
+  }
+
+  let adapter = options.adapter;
+  if (adapter === undefined) {
+    // Lazy-import so the pure invoice math stays dependency-free.
+    const { BsaleAdapter } = await import('../sii/bsaleAdapter.js');
+    adapter = BsaleAdapter.fromEnv();
+  }
+  if (!adapter) {
+    return { ok: false, skipped: 'no-adapter' };
+  }
+
+  const hasRut = Boolean(invoice.cliente.rut && invoice.cliente.rut.trim().length > 0);
+  const dteType = hasRut ? 'factura_electronica' : 'boleta_electronica';
+
+  const items = invoice.lineItems.map((li) => ({
+    description: li.description,
+    quantity: li.quantity,
+    unitPriceClp: li.unitAmount,
+    taxable: true,
+  }));
+
+  try {
+    const result = await adapter.createDte({
+      type: dteType,
+      customer: {
+        rut: invoice.cliente.rut ?? '66666666-6',
+        razonSocial: invoice.cliente.nombre,
+        direccion: 'No especificado',
+        comuna: 'No especificado',
+        ciudad: 'No especificado',
+        email: invoice.cliente.email,
+      },
+      items,
+      paymentMethod:
+        invoice.paymentMethod === 'webpay'
+          ? 'webpay'
+          : invoice.paymentMethod === 'manual-transfer'
+            ? 'transferencia'
+            : 'transferencia',
+    });
+    return { ok: result.ok, result };
+  } catch (err) {
+    return {
+      ok: false,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    };
+  }
 }

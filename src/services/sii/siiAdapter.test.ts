@@ -240,10 +240,12 @@ describe('noopSiiAdapter', () => {
 });
 
 describe('PSE stub adapters (deferred to Round 2)', () => {
+  // Bsale was promoted to a real implementation in Sprint 23 (Bucket GG); see
+  // `bsaleAdapter.test.ts` for fetch-mocked coverage. The remaining adapters
+  // are still scaffolding and throw SiiNotImplementedError until Round 2.
   const stubs = [
     { adapter: openfacturaAdapter, name: 'openfactura', docs: 'openfactura.cl' },
     { adapter: simpleApiAdapter, name: 'simpleapi', docs: 'simpleapi.cl' },
-    { adapter: bsaleAdapter, name: 'bsale', docs: 'bsale.dev' },
     { adapter: libredteAdapter, name: 'libredte', docs: 'libredte.cl' },
   ];
 
@@ -270,5 +272,11 @@ describe('PSE stub adapters (deferred to Round 2)', () => {
 
   it.each(stubs)('$name has the correct adapter.name string', ({ adapter, name }) => {
     expect(adapter.name).toBe(name);
+  });
+
+  // Bsale is real now — assert only its name to keep the facade contract
+  // covered. Behavior is exercised in bsaleAdapter.test.ts.
+  it('bsale has the correct adapter.name string (real impl, see bsaleAdapter.test.ts)', () => {
+    expect(bsaleAdapter.name).toBe('bsale');
   });
 });
