@@ -31,6 +31,10 @@ import { largeBodyJson } from "./src/server/middleware/largeBodyJson.js";
 import { securityHeaders } from "./src/server/middleware/securityHeaders.js";
 import { verifyAuth } from "./src/server/middleware/verifyAuth.js";
 import adminRouter from "./src/server/routes/admin.js";
+// Sprint 23 Bucket CC — B2D admin (key management + revenue dashboards).
+import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
+// Sprint 23 Bucket BB — B2D public API (Climate / Hazmat / Normativa / Suite).
+import b2dApiRouter from "./src/server/routes/b2d/index.js";
 import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
 import auditRouter from "./src/server/routes/audit.js";
@@ -61,6 +65,9 @@ import zettelkastenRouter from "./src/server/routes/zettelkasten.js";
 import commuteRouter from "./src/server/routes/commute.js";
 import emergencyRouter from "./src/server/routes/emergency.js";
 import cadRouter from "./src/server/routes/cad.js";
+import complianceRouter from "./src/server/routes/compliance.js";
+// Sprint 23 Bucket GG — DTE / SII admin endpoints (Bsale-backed).
+import dteRouter from "./src/server/routes/dte.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import admin from "firebase-admin";
@@ -328,6 +335,17 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again after 15 minutes"
 });
 
+// Sprint 23 Bucket BB — B2D public API mounted BEFORE the global `/api/`
+// IP rate limiter so paid B2D tiers (50–100 req/sec on Pro) are not
+// crushed by the 100/15min IP cap that protects the tenant surface. The
+// router carries its own express.json() + b2dFreeLimiter + b2dAuth chain,
+// and DOES NOT route through `verifyAuth` (Firebase ID tokens) — B2D
+// integrators authenticate via static `Bearer pk_*` API keys.
+//
+// Privacy boundary (PRICING.md §9.3): the entire B2D surface NEVER reads
+// tenant Zettelkasten data. Audited per-route in src/server/routes/b2d/.
+app.use("/api/b2d/v1", b2dApiRouter);
+
 app.use("/api/", limiter);
 
 // `geminiLimiter` extracted to src/server/middleware/limiters.ts in
@@ -382,6 +400,12 @@ app.use(session({
 // Round 16 R5 Phase 1 split. Final paths preserved: POST /api/admin/set-role
 // and POST /api/admin/revoke-access.
 app.use("/api/admin", adminRouter);
+
+// Sprint 23 Bucket CC — B2D admin panel backend (key CRUD + MRR/ARR/churn).
+// Mounted at /api/admin/b2d so the same admin-role gate semantics apply
+// (each endpoint inside b2dAdminRouter calls assertAdmin internally —
+// matches admin.ts pattern).
+app.use("/api/admin/b2d", b2dAdminRouter);
 
 // Round 19 R2 Phase 4 split — POST /api/ask-guardian + POST /api/gemini
 // extracted to src/server/routes/gemini.ts. The whitelisted action set
@@ -478,6 +502,11 @@ app.use('/api/emergency', emergencyRouter);
 // Converter server-side so the frontend can stay MIT-only — see ADR 0002).
 app.use('/api/cad', cadRouter);
 
+// Sprint 23 Bucket FF — Ley 19.628 compliance surface (consent + RAT +
+// data-subject access/rectification/erasure/portability). All write paths
+// go through verifyAuth; the RAT catalog is intentionally public.
+app.use('/api/compliance', complianceRouter);
+
 // Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
 // Safari invokes AR Quick Look. Without this header the browser treats
 // the file as a generic download. Applies to BOTH dev (vite middleware)
@@ -557,6 +586,10 @@ app.use("/api/billing", billingApiRouter);
 // Round 22 — audit fix CRITICAL #1: subscription upgrade with payment verify
 app.use("/api/subscription", subscriptionRouter);
 app.use("/billing", billingWebpayRouter);
+// Sprint 23 Bucket GG — DTE / SII admin endpoints. Mount AFTER /api/billing
+// because the auto-issue path is invoked from billing handlers; mounting the
+// admin surface here keeps the route surface co-located with billing.
+app.use("/api/dte", dteRouter);
 
 // Initialize RAG system asynchronously
 initializeRAG().catch(console.error);
