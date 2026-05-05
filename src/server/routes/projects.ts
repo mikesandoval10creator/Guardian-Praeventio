@@ -47,7 +47,8 @@ import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Sprint 25 (CI fix) — same fallback as curriculum.ts; see note there.
+const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 /**
  * Map the granular domain role (`gerente`, `prevencionista`, `supervisor`,
