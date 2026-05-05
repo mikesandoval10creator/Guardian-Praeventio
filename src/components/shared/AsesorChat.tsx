@@ -11,6 +11,7 @@ import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, W
 import { db } from '../../services/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useRiskEngine } from '../../hooks/useRiskEngine';
+import { NodeType } from '../../types';
 import { useProject } from '../../contexts/ProjectContext';
 import ReactMarkdown from 'react-markdown';
 import { getOfflineResponse, savePendingOfflineQuery, getPendingOfflineQueries, clearPendingOfflineQueries } from '../../utils/offlineKnowledge';
@@ -109,7 +110,7 @@ export function AsesorChat() {
       const newNode = await addNode({
         title: `Asesoría: ${topic || 'Consulta IA'}`,
         description: content,
-        type: 'normative' as any,
+        type: NodeType.NORMATIVE,
         tags: ['ia-advice', 'chat-capture', topic].filter(Boolean),
         projectId: selectedProject.id,
         connections: [],

@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Plus, Network, Lightbulb, Tag, X, Save, Loader2, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
-import { KnowledgeGraph } from '../components/shared/KnowledgeGraph';
+// Sprint 29 Bucket BB H24 — lazy split: KnowledgeGraph pulls
+// react-force-graph-2d/3d (~1MB combined) and three.js. Defer until
+// the user actually opens the Pizarra view.
+const KnowledgeGraph = lazy(() =>
+  import('../components/shared/KnowledgeGraph').then((m) => ({ default: m.KnowledgeGraph })),
+);
 import { SmartConnectionsPanel } from '../components/knowledge/SmartConnectionsPanel';
 import { EmptyState } from '../components/shared/EmptyState';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -227,7 +232,13 @@ export function Pizarra() {
               action={{ label: 'Nuevo nodo', onClick: () => setShowForm(true) }}
             />
           ) : (
-            <KnowledgeGraph />
+            <Suspense fallback={
+              <div className="w-full h-[600px] flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+              </div>
+            }>
+              <KnowledgeGraph />
+            </Suspense>
           )}
         </div>
 

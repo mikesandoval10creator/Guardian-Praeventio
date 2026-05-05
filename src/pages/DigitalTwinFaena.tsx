@@ -8,7 +8,12 @@ import {
   Layers, Upload, Loader2, CheckCircle2, AlertTriangle, Cpu, Zap,
   Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
 } from 'lucide-react';
-import { Site25DPanel } from '../components/digital-twin/Site25DPanel';
+// Sprint 29 Bucket BB H24 — lazy split: Site25DPanel hosts the 2.5D
+// canvas (three.js + r3f). Defer to keep the Digital Twin route
+// shell snappy.
+const Site25DPanel = React.lazy(() =>
+  import('../components/digital-twin/Site25DPanel').then((m) => ({ default: m.Site25DPanel })),
+);
 import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
 import { isDemoProject } from '../data/demoProject';
 import { auth, storage, db, doc, getDoc, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
@@ -446,7 +451,13 @@ export function DigitalTwinFaena() {
       {activeTab === 'site25d' ? (
         <div className="flex-1 p-4 sm:p-6 overflow-hidden">
           <div className="h-full bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden">
-            <Site25DPanel />
+            <Suspense fallback={
+              <div className="w-full h-[400px] flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
+              </div>
+            }>
+              <Site25DPanel />
+            </Suspense>
           </div>
         </div>
       ) : (
