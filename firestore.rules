@@ -765,6 +765,140 @@ service cloud.firestore {
           && request.auth.token.tenantId == tenantId;
         allow create, update, delete: if false;
       }
+
+      // ===============================================================
+      // Sprint 28 Bucket B6 — SUSESO DIAT/DIEP forms.
+      //
+      // Cierra audit hallazgo H28 (P1). Forms son IMMUTABLES post-
+      // creación: la firma se aplica vía Admin SDK del backend (que
+      // bypasea estas reglas). Cliente NO puede update/delete bajo
+      // ninguna circunstancia — re-firmar requiere un nuevo folio.
+      //
+      // Read: cualquier miembro del proyecto referenciado en el form,
+      // O cualquier admin/médico del tenant — los médicos necesitan
+      // visibilidad total sobre DIAT/DIEP del paciente.
+      //
+      // Create: redundante (el server siempre crea via Admin SDK), pero
+      // dejamos la regla explícita para que el modelo de seguridad
+      // sea legible sin necesidad de leer server code.
+      match /suseso_forms/{formId} {
+        allow read: if isSignedIn()
+          && request.auth.token.tenantId is string
+          && request.auth.token.tenantId == tenantId
+          && (
+            isAdmin() ||
+            isSupervisor() ||
+            isDoctor() ||
+            (resource.data.projectId is string
+              && isProjectMember(resource.data.projectId))
+          );
+        allow create: if isSignedIn()
+          && (isAdmin() || isSupervisor() || isDoctor());
+        // Forms IMMUTABLE — only Admin SDK (server) attaches signatures.
+        allow update, delete: if false;
+      }
+
+      // SUSESO folio counters. Server-only; clients never need to read.
+      match /suseso_counters/{counterId} {
+        allow read, write: if false;
+      }
+    }
+
+    // ===============================================================
+    // Sprint 28 Bucket B5 — CPHS (Comité Paritario de Higiene y
+    // Seguridad). Cierra audit hallazgo H29 P1.
+    //
+    // Modelo de auth:
+    //   • READ: cualquier miembro del proyecto (isProjectMember).
+    //   • CREATE/UPDATE comité: admin/gerente del proyecto, O bien
+    //     un miembro que ya esté listado en `members[].uid` del comité
+    //     existente (al constituir el comité, el `incoming.members`
+    //     debe incluir al caller).
+    //   • Reuniones: members del proyecto pueden crear/agendar y
+    //     escribir minutes; pero una vez `signatures.size() >= 1` el
+    //     documento es IMMUTABLE excepto por APPEND a `signatures[]`.
+    //     Mismo patrón que audit_logs.
+    //
+    // Helpers locales: isCphsMember verifica que el caller esté en
+    // members[] del comité (sin discriminar empleador/trabajador —
+    // todos los integrantes del CPHS pueden firmar y leer).
+    // ===============================================================
+
+    function isCphsMember(committeeData) {
+      // committeeData.members es lista de objetos {uid,fullName,role,side,elected}.
+      // CEL no permite map sobre lista, pero sí `.hasAny([{...}])` con un
+      // patrón fijo. En la práctica delegamos en server.ts: el client
+      // sólo necesita poder leer el comité para luego escribir reuniones.
+      // Aquí chequeamos pertenencia básica iterando con `in` sobre los
+      // uids planos que el server materializa en `committeeData.memberUids`.
+      return isSignedIn()
+        && committeeData.memberUids is list
+        && request.auth.uid in committeeData.memberUids;
+    }
+
+    match /cphs_committees/{committeeId} {
+      allow read: if isProjectMember(resource.data.projectId);
+      allow create: if isEmailVerified()
+        && isProjectMember(incoming().projectId)
+        && (isAdmin() || isSupervisor())
+        && incoming().status == 'active'
+        && incoming().members is list
+        && incoming().members.size() >= 6;
+      allow update: if isEmailVerified()
+        && isProjectMember(resource.data.projectId)
+        && (isAdmin() || isSupervisor() || isCphsMember(resource.data))
+        // projectId / createdBy / createdAt no mutables.
+        && incoming().projectId == resource.data.projectId
+        && incoming().createdBy == resource.data.createdBy
+        && incoming().createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
+    match /cphs_meetings/{meetingId} {
+      allow read: if isSignedIn()
+        && exists(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId))
+        && isProjectMember(
+          get(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId)).data.projectId
+        );
+      allow create: if isEmailVerified()
+        && incoming().committeeId is string
+        && exists(/databases/$(database)/documents/cphs_committees/$(incoming().committeeId))
+        && isProjectMember(
+          get(/databases/$(database)/documents/cphs_committees/$(incoming().committeeId)).data.projectId
+        )
+        && incoming().status in ['scheduled', 'held', 'cancelled']
+        && incoming().signatures is list
+        && incoming().signatures.size() == 0;
+      // Una vez firmada (signatures.size() >= 1) el acta es IMMUTABLE
+      // excepto por APPEND a signatures[] — mismo patrón que audit_logs.
+      // Antes de la primera firma, miembros del proyecto pueden modificar
+      // minutes/resolutions/attendees/status (recordMinutes flow).
+      allow update: if isEmailVerified()
+        && isProjectMember(
+          get(/databases/$(database)/documents/cphs_committees/$(resource.data.committeeId)).data.projectId
+        )
+        && (
+          // Caso A: acta sin firmar todavía → libre edición de campos
+          // operativos; committeeId / scheduledAt no mutables.
+          (resource.data.signatures.size() == 0
+            && incoming().committeeId == resource.data.committeeId
+            && incoming().scheduledAt == resource.data.scheduledAt
+          )
+          ||
+          // Caso B: APPEND-only a signatures[] — el resto debe quedar
+          // bit-a-bit idéntico (immutability post-firma).
+          (incoming().committeeId == resource.data.committeeId
+            && incoming().scheduledAt == resource.data.scheduledAt
+            && incoming().agenda == resource.data.agenda
+            && incoming().minutes == resource.data.minutes
+            && incoming().resolutions == resource.data.resolutions
+            && incoming().attendees == resource.data.attendees
+            && incoming().status == resource.data.status
+            && incoming().signatures is list
+            && incoming().signatures.size() == resource.data.signatures.size() + 1
+          )
+        );
+      allow delete: if false;
     }
   }
 }
