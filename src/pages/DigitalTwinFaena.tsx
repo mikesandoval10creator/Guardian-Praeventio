@@ -30,6 +30,8 @@ import { PlaceObjectMenu, DRAG_MIME } from '../components/digital-twin/PlaceObje
 import { NormativaWarningsBanner } from '../components/digital-twin/NormativaWarningsBanner';
 import { MaintenanceStatusPanel } from '../components/digital-twin/MaintenanceStatusPanel';
 import { ARObjectOverlay } from '../components/digital-twin/ARObjectOverlay';
+// Sprint 30 Bucket JJ — iOS Quick Look + Android Scene Viewer fallback.
+import { ArViewLink, type ArKind } from '../components/ar/ArViewLink';
 import { useObjectLifecycle } from '../hooks/useObjectLifecycle';
 import type { PlacedObject, PlacedObjectKind } from '../services/digitalTwin/photogrammetry/types';
 import { runComplianceCheck } from '../services/digitalTwin/objectPlacement/normativaRules';
@@ -822,14 +824,27 @@ export function DigitalTwinFaena() {
                         Marcar activo
                       </button>
                     )}
-                    {/* Bucket J.5 — AR overlay bridge (placeholder hasta Ola 4). */}
+                    {/* Bucket J.5 — WebXR AR overlay (Android Chrome / desktop preview). */}
                     <button
                       type="button"
                       onClick={() => setArObject(selectedObject)}
                       className="w-full mt-2 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors border border-white/10"
                     >
-                      Ver en AR
+                      Ver en AR (WebXR)
                     </button>
+                    {/* Sprint 30 Bucket JJ — Native iOS Quick Look + Android
+                        Scene Viewer link for installed objects. Renders nothing
+                        on desktop UAs; the WebXR button above stays as the
+                        cross-platform path. */}
+                    {selectedObject.lifecycle === 'installed' && (
+                      <div className="mt-2">
+                        <ArViewLink
+                          kind={selectedObject.kind as ArKind}
+                          label="Ver en AR (nativo)"
+                          className="inline-flex w-full justify-center items-center gap-2 px-3 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black uppercase tracking-wider transition-colors"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 

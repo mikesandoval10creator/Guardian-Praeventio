@@ -32,6 +32,25 @@ initSentry();
 // calls React Router's `navigate(slug)`. We can't call `useNavigate`
 // here because we're outside the React tree; the CustomEvent bridge is
 // the cleanest way across that boundary.
+// Sprint 30 Bucket LL — first-launch redirect to /demo on native platforms
+// when the user has no Firebase Auth token cached. This means a fresh
+// install Day-1 lands on the public demo instead of a blank login screen.
+// We use localStorage 'praeventio:has-launched' as the trip flag so subsequent
+// launches resume normally even before sign-in.
+if (Capacitor.isNativePlatform()) {
+  try {
+    const launched = localStorage.getItem('praeventio:has-launched');
+    if (!launched && typeof window !== 'undefined' &&
+        window.location.pathname === '/' && !window.location.search.includes('demo=true')) {
+      localStorage.setItem('praeventio:has-launched', String(Date.now()));
+      // History replace so back-button doesn't return to '/'.
+      window.history.replaceState({}, '', '/demo');
+    }
+  } catch {
+    /* swallow — first-launch redirect must never block bootstrap */
+  }
+}
+
 if (Capacitor.isNativePlatform()) {
   CapacitorApp.addListener('appUrlOpen', (event) => {
     try {

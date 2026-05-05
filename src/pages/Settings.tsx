@@ -27,6 +27,8 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useBiometricAuth } from '../hooks/useBiometricAuth';
 import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference';
 import { BunkerManager } from '../components/BunkerManager';
+// Sprint 30 Bucket KK — WebAuthn keys management UI.
+import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection';
 import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
@@ -232,6 +234,10 @@ export function Settings() {
             <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
               Cambiar Contraseña
             </button>
+            {/* Sprint 30 Bucket KK — WebAuthn keys (closes audit gap F-F). */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <WebAuthnKeysSection />
+            </div>
             <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex-1 pr-4">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Detección de Hombre Caído</h4>

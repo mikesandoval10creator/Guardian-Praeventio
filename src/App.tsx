@@ -78,6 +78,8 @@ const MiningContractors = lazy(() => import('./pages/MiningContractors').then(mo
 // Sprint 26 Bucket VV — HealthVault QR sharing.
 const HealthVaultShare = lazy(() => import('./pages/HealthVaultShare').then(module => ({ default: module.HealthVaultShare })));
 const HealthVaultViewer = lazy(() => import('./pages/HealthVaultViewer').then(module => ({ default: module.HealthVaultViewer })));
+// Sprint 30 Bucket LL — public Day-1 demo page (no auth wall).
+const PublicDemo = lazy(() => import('./pages/PublicDemo').then(module => ({ default: module.PublicDemo })));
 
 // Sprint 24 Bucket KK.4 — onboarded-flag hook (self-contained, does not
 // touch FirebaseContext to keep that file's surface area small).
@@ -129,7 +131,9 @@ function AppRoutes() {
     window.location.pathname.startsWith('/public') ||
     window.location.pathname.startsWith('/curriculum/referee') ||
     window.location.pathname.startsWith('/vault/share') ||
-    window.location.pathname.startsWith('/onboarding');
+    window.location.pathname.startsWith('/onboarding') ||
+    // Sprint 30 Bucket LL — public demo page accessible without auth.
+    window.location.pathname.startsWith('/demo');
 
   // Sprint 24 Bucket KK.4 — auto-redirect freshly-signed-up users to the
   // self-service wizard. We wait for `onboarded` to be loaded (non-null)
@@ -185,6 +189,8 @@ function AppRoutes() {
                   <Route path="/onboarding" element={<Onboarding />} />
                   <Route path="/curriculum/referee/:token" element={<RefereeAccept />} />
                   <Route path="/vault/share/:tokenId/:secret" element={<HealthVaultViewer />} />
+                  {/* Sprint 30 Bucket LL — public demo (no auth). */}
+                  <Route path="/demo" element={<PublicDemo />} />
                   <Route
                     path="/public/node/:nodeId"
                     element={<PublicNodeView />}
