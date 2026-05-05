@@ -52,12 +52,22 @@ jobs:
       # config. Full Android build (Gradle + signed bundle) deferred to
       # Sprint 21+ once signing secrets + Fastlane are wired.
       #
-      # `cap doctor android` scopes the Capacitor 8 health check to the Android
-      # toolchain only. Running `cap doctor` without a platform errors on Linux
-      # with "Xcode is not installed" because it also tries to validate the iOS
-      # toolchain. iOS build is gated by a macOS runner (Sprint 21+ Fastlane).
-      - name: Capacitor config sanity (Android scope)
-        run: npx cap doctor android
+      # `cap doctor` (no platform) errors on Linux with "Xcode is not
+      # installed"; `cap doctor android` errors with "android platform has
+      # not been added yet" because android/ is intentionally NOT committed
+      # (ADR-0006 — adding it requires the signing keystore + Sprint 21+
+      # Fastlane). The cheapest correct sanity check is a parse-only
+      # validation of `capacitor.config.ts`: confirm the file exists and
+      # exports the two fields the Capacitor CLI requires (appId, appName).
+      # Vite imports the same file during `npm run build` above, so a
+      # syntax error has already failed by the time we get here.
+      - name: Capacitor config sanity (parse only)
+        run: |
+          test -f capacitor.config.ts || { echo "::error::capacitor.config.ts is missing"; exit 1; }
+          grep -q "appId" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'appId'"; exit 1; }
+          grep -q "appName" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'appName'"; exit 1; }
+          grep -q "export default" capacitor.config.ts || { echo "::error::capacitor.config.ts missing 'export default'"; exit 1; }
+          echo "capacitor.config.ts parses + carries appId/appName"
 
       # Sprint 21+: agregar android-build job real con Gradle + signing.
       # Sketch:
