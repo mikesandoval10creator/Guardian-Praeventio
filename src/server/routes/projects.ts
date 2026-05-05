@@ -46,6 +46,21 @@ import { projectInvitationTemplate } from '../../services/email/templates.js';
 // `auth.role.granted/revoked` from the 15th wave Bucket D admin routes.
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 // Sprint 25 (CI fix) — same fallback as curriculum.ts; see note there.
 const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
@@ -247,6 +262,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
     res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
     console.error('Error creating invitation:', error);
+    sentryCapture(error, { endpoint: '/api/projects/:id/invite', tags: { method: 'POST', projectId, uid: callerUid } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
@@ -323,6 +339,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
     res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
   } catch (error: any) {
     console.error('Error listing project members:', error);
+    sentryCapture(error, { endpoint: '/api/projects/:id/members', tags: { method: 'GET', projectId, uid: callerUid } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
@@ -384,6 +401,7 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error('Error removing project member:', error);
+    sentryCapture(error, { endpoint: '/api/projects/:id/members/:uid', tags: { method: 'DELETE', projectId, targetUid, uid: callerUid } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
@@ -431,6 +449,7 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error('Error canceling invitation:', error);
+    sentryCapture(error, { endpoint: '/api/projects/:id/invite', tags: { method: 'DELETE', projectId, uid: callerUid } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
@@ -472,6 +491,7 @@ invitationsRouter.get('/info/:token', async (req, res) => {
       expiresAt: invite.expiresAt,
     });
   } catch (error: any) {
+    sentryCapture(error, { endpoint: '/api/invitations/info/:token', tags: { method: 'GET' } });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -587,6 +607,7 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
       return res.status(error.statusCode).json({ error: error.message });
     }
     console.error('Error accepting invitation:', error);
+    sentryCapture(error, { endpoint: '/api/invitations/:token/accept', tags: { method: 'POST', uid: callerUid } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'

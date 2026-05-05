@@ -32,6 +32,21 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { erpSyncLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 // Round 22 — input validation for POST /api/erp/sync. The handler used
 // to splat `req.body` straight into Firestore + a log line, so a
@@ -110,6 +125,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
     });
   } catch (error) {
     console.error(`Error syncing with ERP (${erpType}):`, error);
+    sentryCapture(error, { endpoint: '/api/erp/sync', tags: { method: 'POST', erpType, action, uid } });
     res.status(500).json({ error: 'Error de sincronización con ERP' });
   }
 });
@@ -126,6 +142,7 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
     res.json({ success: true, message: 'Community glossary seeded successfully' });
   } catch (error: any) {
     console.error('Error seeding glossary:', error);
+    sentryCapture(error, { endpoint: '/api/seed-glossary', tags: { method: 'POST' } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
@@ -147,6 +164,7 @@ router.post('/seed-data', verifyAuth, async (req, res) => {
     res.json({ success: true, message: 'Initial project data seeded successfully' });
   } catch (error: any) {
     console.error('Error seeding data:', error);
+    sentryCapture(error, { endpoint: '/api/seed-data', tags: { method: 'POST' } });
     res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
@@ -182,6 +200,7 @@ router.get('/legal/check-updates', verifyAuth, async (_req, res) => {
     res.json({ results });
   } catch (error: any) {
     console.error('Error in legal check-updates:', error);
+    sentryCapture(error, { endpoint: '/api/legal/check-updates', tags: { method: 'GET' } });
     res.status(500).json({ error: error.message });
   }
 });

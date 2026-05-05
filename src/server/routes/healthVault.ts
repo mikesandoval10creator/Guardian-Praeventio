@@ -40,6 +40,21 @@ import {
   getRecentHealthRecords,
   type HealthRecord,
 } from '../../services/health/vaultRecord.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 const router = Router();
 
@@ -163,6 +178,7 @@ router.post('/share', verifyAuth, async (req, res) => {
       return res.status(400).json({ error: err.code });
     }
     console.error('[healthVault] share create failed', err);
+    sentryCapture(err, { endpoint: '/api/health-vault/share', tags: { method: 'POST' } });
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -263,6 +279,7 @@ router.get(
       });
     } catch (err) {
       console.error('[healthVault] view failed', err);
+      sentryCapture(err, { endpoint: '/api/health-vault/view/:tokenId/:secret', tags: { method: 'GET' } });
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -304,6 +321,7 @@ router.post('/share/:tokenId/revoke', verifyAuth, async (req, res) => {
     return res.status(200).json({ ok: true, revokedAt: patch.revokedAt });
   } catch (err) {
     console.error('[healthVault] revoke failed', err);
+    sentryCapture(err, { endpoint: '/api/health-vault/share/:tokenId/revoke', tags: { method: 'POST', uid: callerUid } });
     return res.status(500).json({ error: 'internal_error' });
   }
 });

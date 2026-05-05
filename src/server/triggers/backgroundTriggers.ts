@@ -22,6 +22,21 @@
 
 import type admin from 'firebase-admin';
 import type { Resend } from 'resend';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 export interface BackgroundTriggersDeps {
   db: admin.firestore.Firestore;
@@ -157,6 +172,7 @@ export function setupBackgroundTriggers(
               }
             } catch (err) {
               console.error('[TRIGGER: FCM Push] Error:', err);
+              sentryCapture(err, { trigger: 'criticalIncidentNotify', tags: { phase: 'fcm-push' } });
             }
           });
         },
@@ -165,6 +181,7 @@ export function setupBackgroundTriggers(
             'Error in incidents background trigger listener:',
             error,
           );
+          sentryCapture(error, { trigger: 'incidentsListener', tags: { phase: 'onSnapshot-error' } });
         },
       );
 
@@ -231,6 +248,7 @@ export function setupBackgroundTriggers(
                 `[TRIGGER: RAG Pipeline] ❌ Error processing ${change.doc.id}:`,
                 error,
               );
+              sentryCapture(error, { trigger: 'ragPipeline', tags: { docId: change.doc.id, docType: data.type ?? null } });
               await change.doc.ref.update({
                 _ragProcessingStatus: 'failed',
                 _ragError:
@@ -241,10 +259,12 @@ export function setupBackgroundTriggers(
         },
         (error) => {
           console.error('Error in RAG background trigger listener:', error);
+          sentryCapture(error, { trigger: 'ragListener', tags: { phase: 'onSnapshot-error' } });
         },
       );
   } catch (err) {
     console.error('Failed to setup background triggers:', err);
+    sentryCapture(err, { trigger: 'setupBackgroundTriggers', tags: { phase: 'init' } });
   }
 
   return {

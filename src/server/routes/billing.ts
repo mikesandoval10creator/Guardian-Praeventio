@@ -47,6 +47,23 @@ import { invoiceStatusLimiter, googlePlayWebhookLimiter } from '../middleware/li
 import { logger } from '../../utils/logger.js';
 // Sprint 22 Bucket AA — request-scoped tracing on the billing dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+// Sentry capture helper — additive to logger.error. Wrapped so observability
+// failures never crash the request path.
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 import { isAdminRole } from '../../types/roles.js';
 
 import { buildInvoice } from '../../services/billing/invoice.js';
@@ -109,6 +126,7 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
     console.log('Google Play Developer API client initialized.');
   } catch (error) {
     console.error('Failed to initialize Google Play API client:', error);
+    sentryCapture(error, { endpoint: 'billing.googlePlayApiInit', tags: { phase: 'module-init' } });
   }
 }
 
@@ -277,6 +295,7 @@ billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
     res.json({ success: true, data });
   } catch (error: any) {
     logger.error('purchase_verification_failed', error, { uid });
+    sentryCapture(error, { endpoint: '/api/billing/verify', tags: { method: 'POST', uid } });
     res.status(500).json({
       error: 'Failed to verify purchase',
       // Avoid leaking Firebase/googleapis internals in production responses.
@@ -417,6 +436,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
     // work() exception. The staleness window will grant a future
     // redelivery a fresh attempt.
     logger.error('rtdn_webhook_failed', error);
+    sentryCapture(error, { endpoint: '/api/billing/webhook', tags: { method: 'POST', source: 'rtdn' } });
     return res.status(500).send('Webhook processing failed');
   }
 });
@@ -538,6 +558,7 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
         status = 'awaiting-payment';
       } catch (err) {
         logger.error('webpay_create_failed', err, { invoiceId: invoice.id });
+        sentryCapture(err, { endpoint: 'billing.checkout.webpay', tags: { invoiceId: invoice.id } });
       }
     } else if (body.paymentMethod === 'stripe' && stripeAdapter.isConfigured()) {
       try {
@@ -558,6 +579,7 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
         status = 'awaiting-payment';
       } catch (err) {
         logger.error('stripe_create_failed', err, { invoiceId: invoice.id });
+        sentryCapture(err, { endpoint: 'billing.checkout.stripe', tags: { invoiceId: invoice.id } });
       }
     } else if (body.paymentMethod === 'manual-transfer') {
       // No external provider — admin marks paid via /mark-paid endpoint.
@@ -573,6 +595,7 @@ billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
     res.json(response);
   } catch (error: any) {
     logger.error('billing_checkout_failed', error, { uid: callerUid });
+    sentryCapture(error, { endpoint: '/api/billing/checkout', tags: { method: 'POST', uid: callerUid } });
     res.status(500).json({
       error: 'Checkout failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -637,6 +660,7 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
     res.json({ success: true });
   } catch (error: any) {
     logger.error('billing_mark_paid_failed', error, { uid: callerUid, invoiceId });
+    sentryCapture(error, { endpoint: '/api/billing/invoice/:id/mark-paid', tags: { method: 'POST', uid: callerUid, invoiceId } });
     res.status(500).json({
       error: 'Mark-paid failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -720,6 +744,7 @@ billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (re
     return res.json(safe);
   } catch (error: any) {
     logger.error('billing_invoice_status_failed', error, { uid: callerUid, invoiceId });
+    sentryCapture(error, { endpoint: '/api/billing/invoice/:id', tags: { method: 'GET', uid: callerUid, invoiceId } });
     return res.status(500).json({
       error: 'Invoice status read failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -820,6 +845,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
       });
     } catch (err) {
       logger.error('mercadopago_create_failed', err, { invoiceId, country });
+      sentryCapture(err, { endpoint: 'billing.checkout.mercadopago', tags: { invoiceId, country } });
       if (err instanceof MercadoPagoAdapterError) {
         return res.status(502).json({ error: 'MercadoPago preference creation failed' });
       }
@@ -887,6 +913,7 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
     });
   } catch (error: any) {
     logger.error('billing_mercadopago_checkout_failed', error, { uid: callerUid });
+    sentryCapture(error, { endpoint: '/api/billing/checkout/mercadopago', tags: { method: 'POST', uid: callerUid } });
     return res.status(500).json({
       error: 'MercadoPago checkout failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -984,6 +1011,7 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
     logger.error('mp_ipn_processing_failed', err as Error, {
       paymentId: req.body?.data?.id,
     });
+    sentryCapture(err, { endpoint: '/api/billing/webhook/mercadopago', tags: { method: 'POST', paymentId: req.body?.data?.id ?? null } });
     return res.status(500).send('IPN processing failed');
   }
 });
@@ -1143,6 +1171,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         }
       } catch (subErr) {
         logger.error('webpay_subscription_update_failed', subErr as Error, { invoiceId });
+        sentryCapture(subErr, { endpoint: 'billing.webpay.subscriptionUpdate', tags: { invoiceId } });
       }
 
       await db.collection('audit_logs').add({
@@ -1212,6 +1241,7 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
     // 'in_progress' allows the staleness window to grant a future
     // redelivery a fresh attempt — same approach as the RTDN handler.
     logger.error('webpay_return_failed', error, { tokenWs });
+    sentryCapture(error, { endpoint: '/billing/webpay/return', tags: { method: 'GET' } });
     recordWebpayReturnLatency({ outcome: 'failure', latencyMs: elapsed() });
     return res.redirect(`/pricing/failed?error=webpay`);
   }
@@ -1373,6 +1403,7 @@ billingApiRouter.post(
       return res.status(200).json({ received: true });
     } catch (err) {
       logger.error('khipu_ipn_failed', err, { dedupeKey, paymentId });
+      sentryCapture(err, { endpoint: '/api/billing/khipu/webhook', tags: { method: 'POST', paymentId: paymentId ?? null } });
       // 500 keeps the IPN retry loop alive on the Khipu side; the
       // staleness window will grant the next redelivery a fresh attempt.
       return res.status(500).json({ error: 'ipn_processing_failed' });
@@ -1458,6 +1489,7 @@ billingApiRouter.post(
       logger.error('iap_validate_receipt_failed', err, {
         provider: 'google-play',
       });
+      sentryCapture(err, { endpoint: '/api/billing/google-play/validate-receipt', tags: { method: 'POST', provider: 'google-play' } });
       return res.status(500).json({ error: 'iap_receipt_log_failed' });
     }
   },
@@ -1512,6 +1544,7 @@ billingApiRouter.post(
       logger.error('iap_validate_receipt_failed', err, {
         provider: 'app-store',
       });
+      sentryCapture(err, { endpoint: '/api/billing/app-store/validate-receipt', tags: { method: 'POST', provider: 'app-store' } });
       return res.status(500).json({ error: 'iap_receipt_log_failed' });
     }
   },
@@ -1565,6 +1598,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
       return res.status(401).json({ error: 'invalid_signature' });
     }
     logger.error('apple_ssn_verify_unexpected', err);
+    sentryCapture(err, { endpoint: '/api/billing/webhook/apple', tags: { method: 'POST', phase: 'verify' } });
     return res.status(500).json({ error: 'verify_failed' });
   }
 
@@ -1632,6 +1666,7 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
     logger.error('apple_ssn_webhook_failed', error, {
       notificationUUID: payload.notificationUUID,
     });
+    sentryCapture(error, { endpoint: '/api/billing/webhook/apple', tags: { method: 'POST', notificationUUID: payload.notificationUUID } });
     return res.status(500).json({ error: 'webhook_processing_failed' });
   }
 });

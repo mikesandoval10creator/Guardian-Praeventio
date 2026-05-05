@@ -31,6 +31,21 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 // the de-facto incident-report endpoint.
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 const router = Router();
 
@@ -184,6 +199,7 @@ router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSche
     doc.end();
   } catch (error) {
     console.error('Error generating PDF:', error);
+    sentryCapture(error, { endpoint: '/api/reports/generate-pdf', tags: { method: 'POST', type: type ?? 'general', incidentId: incidentId ?? null } });
     res.status(500).json({ error: 'Internal server error during PDF generation' });
   }
 });
