@@ -9,7 +9,9 @@ import {
   Video, Clock, Eye, RefreshCw, Trash2, Info, Map as MapIcon
 } from 'lucide-react';
 import { Site25DPanel } from '../components/digital-twin/Site25DPanel';
-import { auth, storage, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
+import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
+import { isDemoProject } from '../data/demoProject';
+import { auth, storage, db, doc, getDoc, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -632,7 +634,62 @@ export function DigitalTwinFaena() {
           </div>
         </aside>
 
-        {/* RIGHT: 3D viewer */}
+        {/* RIGHT: 3D viewer — Sprint 26 Bucket YY.2: protegido por TwinAccessGuard
+            (ADR 0011 triple-gate). El header + upload + jobs list quedan
+            fuera del guard porque no muestran geometría. */}
+        {selectedProject ? (
+        <TwinAccessGuard
+          projectId={selectedProject.id}
+          hookOptions={{
+            fakers: {
+              getCurrentUser: () =>
+                user
+                  ? {
+                      uid: user.uid,
+                      email: user.email ?? '',
+                      emailVerified: user.emailVerified,
+                    }
+                  : null,
+              isProjectMember: async (uid, projectId) => {
+                try {
+                  const snap = await getDoc(doc(db, 'projects', projectId));
+                  if (!snap.exists()) return false;
+                  const data = snap.data() as
+                    | { members?: unknown; createdBy?: unknown }
+                    | undefined;
+                  const inMembers =
+                    Array.isArray(data?.members) &&
+                    data!.members.includes(uid);
+                  const isCreator =
+                    typeof data?.createdBy === 'string' &&
+                    data!.createdBy === uid;
+                  return inMembers || isCreator;
+                } catch {
+                  return false;
+                }
+              },
+              isDemoProject,
+              runBiometric: async () => {
+                try {
+                  const mod: any = await import(
+                    /* @vite-ignore */ '@aparajita/capacitor-biometric-auth'
+                  );
+                  const result = await mod.BiometricAuth.authenticate({
+                    reason:
+                      'Verifica tu identidad para acceder al Digital Twin',
+                    cancelTitle: 'Cancelar',
+                  });
+                  return {
+                    ok: result?.isAuthenticated ?? true,
+                    method: 'fingerprint' as const,
+                  };
+                } catch {
+                  return { ok: false, method: 'unavailable' as const };
+                }
+              },
+            },
+          }}
+        >
         <section className="lg:col-span-2 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 shrink-0">
             <div className="flex items-center gap-2">
@@ -787,6 +844,14 @@ export function DigitalTwinFaena() {
             )}
           </div>
         </section>
+        </TwinAccessGuard>
+        ) : (
+          <section className="lg:col-span-2 bg-zinc-900/60 border border-white/5 rounded-2xl overflow-hidden flex items-center justify-center min-h-[480px]">
+            <p className="text-xs text-zinc-500">
+              Selecciona un proyecto para ver el Digital Twin.
+            </p>
+          </section>
+        )}
       </div>
       )}
 
