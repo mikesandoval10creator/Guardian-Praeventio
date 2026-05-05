@@ -19,7 +19,7 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { assertProjectMemberFromBody } from '../middleware/assertProjectMemberMiddleware.js';
 import {
@@ -40,7 +40,7 @@ const router = Router();
 const organicLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
-  keyGenerator: (req) => (req as any).user?.uid || (req.ip ?? 'anonymous'),
+  keyGenerator: (req) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas operaciones. Intenta de nuevo más tarde.' },

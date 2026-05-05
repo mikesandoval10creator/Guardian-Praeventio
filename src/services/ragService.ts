@@ -148,6 +148,15 @@ export const downloadSpecificNormative = async (normativeId: string, force: bool
 export const initializeRAG = async () => {
   if (isInitialized) return;
   if (!admin.apps.length) return;
+  // Sprint 28 (CI fix) — without GEMINI_API_KEY the embedding calls
+  // throw immediately; in CI smoke we don't have the secret and the
+  // server boot would log dozens of errors before Playwright probes.
+  // Skip seeding cleanly when the key is absent — RAG resolves later
+  // once the secret lands in prod.
+  if (!process.env.GEMINI_API_KEY) {
+    logger.warn('initializeRAG skipped — GEMINI_API_KEY not configured (expected in CI smoke; required for prod RAG seeding).');
+    return;
+  }
 
   const db = admin.firestore();
   const vectorCollection = db.collection('vector_store');
