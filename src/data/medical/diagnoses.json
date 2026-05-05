@@ -1,0 +1,598 @@
+{
+  "_meta": {
+    "name": "Catálogo de diagnósticos CIE-10 — subset SST Chile",
+    "version": "1.0.0",
+    "license": "CC0 (códigos CIE-10 son de dominio público — WHO)",
+    "source": "WHO ICD-10 + Ley 16.744 (DS 109/DS 73) clasificación enfermedades profesionales Chile",
+    "scope": "Subset de ~70 códigos relevantes a Salud y Seguridad en el Trabajo (SST). Capítulos: F (mentales), J (respiratorio), M (musculoesquelético), S/T (lesiones/envenenamientos), H (sensorial), I (cardiovascular ocupacional).",
+    "disclaimer": "Este catálogo NO sustituye juicio clínico profesional. Calificación laboral final: SUSESO/COMPIN/Mutual.",
+    "lastUpdated": "2026-05-04",
+    "todoExpand": "Expandir hasta ~500 entradas via scripts/generate-medical-catalogs.mjs. Ver docs/medical-catalogs.md."
+  },
+  "data": [
+    {
+      "code": "J62.8",
+      "name": "Neumoconiosis por otros polvos con sílice",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["sílice cristalina", "polvo de cuarzo", "minería"],
+      "description": "Fibrosis pulmonar por inhalación crónica de sílice cristalina. PLANESI Chile. DS 109: enfermedad profesional."
+    },
+    {
+      "code": "J62.0",
+      "name": "Neumoconiosis por polvo de talco",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["talco", "polvo industrial"],
+      "description": "Talcosis. Exposición prolongada en industria cosmética, cerámica y caucho."
+    },
+    {
+      "code": "J63.0",
+      "name": "Aluminosis (pulmonar)",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["aluminio", "humos metálicos"],
+      "description": "Fibrosis pulmonar por exposición a aluminio. Industria metalúrgica."
+    },
+    {
+      "code": "J63.4",
+      "name": "Siderosis",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["óxido de hierro", "soldadura"],
+      "description": "Depósito pulmonar de partículas de hierro. Soldadores arco eléctrico."
+    },
+    {
+      "code": "J64",
+      "name": "Neumoconiosis no especificada",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["polvos minerales"],
+      "description": "Neumoconiosis sin agente identificado. Requiere estudio etiológico."
+    },
+    {
+      "code": "J65",
+      "name": "Neumoconiosis asociada con tuberculosis",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["sílice", "Mycobacterium tuberculosis"],
+      "description": "Silicotuberculosis. Vigilancia en mineros con silicosis activa."
+    },
+    {
+      "code": "J66.0",
+      "name": "Bisinosis",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["polvo de algodón", "lino", "cáñamo"],
+      "description": "Síndrome del lunes. Industria textil. Hiperreactividad bronquial."
+    },
+    {
+      "code": "J67.0",
+      "name": "Pulmón del granjero",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["heno enmohecido", "Saccharopolyspora rectivirgula"],
+      "description": "Neumonitis por hipersensibilidad. Trabajadores agrícolas."
+    },
+    {
+      "code": "J68.0",
+      "name": "Bronquitis y neumonitis por gases químicos",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["cloro", "amoniaco", "gases tóxicos"],
+      "description": "Lesión pulmonar aguda por inhalación de químicos. RILO Chile."
+    },
+    {
+      "code": "J45.0",
+      "name": "Asma predominantemente alérgica (ocupacional)",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["isocianatos", "harinas", "látex", "polvo de madera"],
+      "description": "Asma ocupacional. Tratamiento broncodilatador + retiro de agente."
+    },
+    {
+      "code": "J45.1",
+      "name": "Asma no alérgica",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["irritantes inespecíficos", "humos"],
+      "description": "Asma intrínseca. Hiperreactividad bronquial."
+    },
+    {
+      "code": "J92.0",
+      "name": "Placa pleural con presencia de asbesto",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["asbesto", "amianto"],
+      "description": "Marcador de exposición a asbesto. Riesgo posterior de mesotelioma."
+    },
+    {
+      "code": "C45.0",
+      "name": "Mesotelioma de pleura",
+      "category": "respiratorio",
+      "occupational": true,
+      "riskAgents": ["asbesto crocidolita", "amianto"],
+      "description": "Cáncer pleural por asbesto. Latencia 20-50 años. DS 656 prohíbe asbesto en Chile."
+    },
+    {
+      "code": "M54.5",
+      "name": "Lumbago no especificado",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["levantamiento manual de carga", "posturas forzadas"],
+      "description": "Dolor lumbar mecánico. TMERT Chile. DS 594 Art. 110bis."
+    },
+    {
+      "code": "M54.4",
+      "name": "Lumbago con ciática",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["levantamiento manual de carga", "vibración cuerpo entero"],
+      "description": "Lumbociática. Compresión radicular L5-S1."
+    },
+    {
+      "code": "M54.2",
+      "name": "Cervicalgia",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["trabajo en pantalla", "postura sostenida"],
+      "description": "Dolor cervical. Trabajo administrativo prolongado."
+    },
+    {
+      "code": "M51.1",
+      "name": "Trastorno de disco lumbar con radiculopatía",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["levantamiento manual de carga", "vibración"],
+      "description": "Hernia discal lumbar. Limitación funcional severa."
+    },
+    {
+      "code": "M75.1",
+      "name": "Síndrome de manguito rotador",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["movimientos repetitivos hombro", "trabajo sobre la cabeza"],
+      "description": "Tendinopatía supraespinoso. Operadores de tarrajas, pintores."
+    },
+    {
+      "code": "M65.4",
+      "name": "Tenosinovitis de De Quervain",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["movimientos repetitivos muñeca", "uso de teclado/mouse"],
+      "description": "Tenosinovitis estiloides radial. TMERT-EESS."
+    },
+    {
+      "code": "G56.0",
+      "name": "Síndrome del túnel carpiano",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["movimientos repetitivos muñeca", "vibración", "fuerza"],
+      "description": "Compresión nervio mediano. Operarios línea de ensamblaje."
+    },
+    {
+      "code": "M77.1",
+      "name": "Epicondilitis lateral (codo de tenista)",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["movimientos repetitivos antebrazo", "fuerza prensil"],
+      "description": "Tendinopatía epicóndilo lateral. Mecánicos, carpinteros."
+    },
+    {
+      "code": "M77.0",
+      "name": "Epicondilitis medial (codo de golfista)",
+      "category": "musculoesquelético",
+      "occupational": true,
+      "riskAgents": ["flexión repetitiva muñeca", "torsión"],
+      "description": "Tendinopatía epicóndilo medial."
+    },
+    {
+      "code": "H83.3",
+      "name": "Efectos del ruido sobre el oído interno",
+      "category": "sensorial",
+      "occupational": true,
+      "riskAgents": ["ruido > 85 dB(A)", "ruido impulsivo"],
+      "description": "Hipoacusia neurosensorial inducida por ruido. PREXOR Chile. DS 594 Art. 70."
+    },
+    {
+      "code": "H90.3",
+      "name": "Hipoacusia neurosensorial bilateral",
+      "category": "sensorial",
+      "occupational": true,
+      "riskAgents": ["ruido ocupacional", "ototóxicos"],
+      "description": "Pérdida auditiva permanente bilateral. Audiometría obligatoria."
+    },
+    {
+      "code": "H93.1",
+      "name": "Tinnitus",
+      "category": "sensorial",
+      "occupational": true,
+      "riskAgents": ["ruido", "trauma acústico"],
+      "description": "Acúfenos. Frecuente en mineros, soldadores, operadores."
+    },
+    {
+      "code": "T75.2",
+      "name": "Efectos de la vibración",
+      "category": "vascular",
+      "occupational": true,
+      "riskAgents": ["vibración mano-brazo", "vibración cuerpo entero"],
+      "description": "Síndrome HAVS. Operarios martillo neumático, motosierra. DS 594 Art. 79."
+    },
+    {
+      "code": "I73.0",
+      "name": "Síndrome de Raynaud",
+      "category": "vascular",
+      "occupational": true,
+      "riskAgents": ["vibración mano-brazo", "frío"],
+      "description": "Vasoconstricción episódica. Asociado a HAVS."
+    },
+    {
+      "code": "F43.0",
+      "name": "Reacción aguda al estrés",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["evento traumático laboral", "accidente grave"],
+      "description": "Respuesta aguda. Evaluar TEPT a 30 días."
+    },
+    {
+      "code": "F43.1",
+      "name": "Trastorno de estrés postraumático (TEPT)",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["accidente grave", "exposición violencia"],
+      "description": "TEPT. ATEP Ley 16.744. Protocolo SUSESO."
+    },
+    {
+      "code": "F43.2",
+      "name": "Trastorno adaptativo",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["acoso laboral", "cambios organizacionales"],
+      "description": "EVAST psicosocial. Protocolo de Vigilancia Riesgos Psicosociales."
+    },
+    {
+      "code": "F32.0",
+      "name": "Episodio depresivo leve",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["sobrecarga laboral", "desbalance esfuerzo-recompensa"],
+      "description": "Depresión laboral leve. EVAST."
+    },
+    {
+      "code": "F32.1",
+      "name": "Episodio depresivo moderado",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["sobrecarga laboral", "acoso"],
+      "description": "Requiere licencia médica + tratamiento farmacológico."
+    },
+    {
+      "code": "F41.1",
+      "name": "Trastorno de ansiedad generalizada",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["alta demanda psicológica", "inseguridad laboral"],
+      "description": "TAG. Frecuente en cargos críticos sin control."
+    },
+    {
+      "code": "F48.0",
+      "name": "Neurastenia (síndrome de fatiga)",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["sobrecarga crónica", "burnout"],
+      "description": "Síndrome burnout. EVAST."
+    },
+    {
+      "code": "Z73.0",
+      "name": "Agotamiento (burnout)",
+      "category": "mental",
+      "occupational": true,
+      "riskAgents": ["estrés crónico laboral", "salud", "educación"],
+      "description": "Burnout. CIE-11 lo incluye como fenómeno ocupacional."
+    },
+    {
+      "code": "S06.0",
+      "name": "Conmoción cerebral",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["caída de altura", "golpe en cabeza"],
+      "description": "TEC leve. DIAT obligatorio. Observación 24h."
+    },
+    {
+      "code": "S06.1",
+      "name": "Edema cerebral traumático",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["caída", "impacto severo"],
+      "description": "TEC moderado-severo. Hospitalización."
+    },
+    {
+      "code": "S52.5",
+      "name": "Fractura de la extremidad distal del radio",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["caída con mano extendida"],
+      "description": "Fractura de Colles. Frecuente en caídas."
+    },
+    {
+      "code": "S62.6",
+      "name": "Fractura de otro dedo de la mano",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["aplastamiento", "máquinas en movimiento"],
+      "description": "Lesión digital. Manipulación de maquinaria."
+    },
+    {
+      "code": "S82.6",
+      "name": "Fractura del maléolo lateral",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["torcedura tobillo", "superficies irregulares"],
+      "description": "Fractura tobillo. Frecuente en construcción."
+    },
+    {
+      "code": "S93.4",
+      "name": "Esguince de tobillo",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["torcedura", "superficies inestables"],
+      "description": "Esguince ligamento lateral externo."
+    },
+    {
+      "code": "T20.2",
+      "name": "Quemadura de segundo grado de cabeza/cuello",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["fuego", "líquidos calientes", "vapor"],
+      "description": "Quemadura dérmica. Cocina industrial, soldadura."
+    },
+    {
+      "code": "T23.2",
+      "name": "Quemadura de segundo grado de mano",
+      "category": "lesiones",
+      "occupational": true,
+      "riskAgents": ["contacto térmico", "químicos"],
+      "description": "Quemadura mano. Frecuente sin EPP."
+    },
+    {
+      "code": "T54.2",
+      "name": "Efecto tóxico de ácidos corrosivos",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["ácido sulfúrico", "ácido clorhídrico"],
+      "description": "Quemadura química. Industria minera, galvánica."
+    },
+    {
+      "code": "T56.0",
+      "name": "Efecto tóxico del plomo",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["plomo", "soldadura", "baterías"],
+      "description": "Saturnismo. Vigilancia plumbemia. DS 594 Anexo 4."
+    },
+    {
+      "code": "T56.1",
+      "name": "Efecto tóxico del mercurio",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["mercurio", "amalgamas dentales", "minería"],
+      "description": "Hidrargirismo. Neurotoxicidad."
+    },
+    {
+      "code": "T56.5",
+      "name": "Efecto tóxico del cromo",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["cromo VI", "galvanoplastia", "curtiembres"],
+      "description": "Cromo hexavalente. Carcinógeno IARC 1."
+    },
+    {
+      "code": "T57.1",
+      "name": "Efecto tóxico del fósforo",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["fósforo blanco", "agroquímicos"],
+      "description": "Fosforismo. Necrosis ósea (mandíbula)."
+    },
+    {
+      "code": "T58",
+      "name": "Efecto tóxico del monóxido de carbono",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["CO", "espacios confinados", "combustión"],
+      "description": "Intoxicación CO. Carboxihemoglobina. Espacios confinados DS 132."
+    },
+    {
+      "code": "T59.0",
+      "name": "Efecto tóxico de óxidos de nitrógeno",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["NOx", "combustión diesel", "minería"],
+      "description": "Edema pulmonar tardío. Vigilancia 24-48h."
+    },
+    {
+      "code": "T59.4",
+      "name": "Efecto tóxico del cloro gaseoso",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["cloro", "tratamiento aguas", "papelería"],
+      "description": "Lesión inhalatoria. Edema pulmonar."
+    },
+    {
+      "code": "T60.0",
+      "name": "Efecto tóxico de plaguicidas organofosforados",
+      "category": "envenenamiento",
+      "occupational": true,
+      "riskAgents": ["organofosforados", "plaguicidas"],
+      "description": "Inhibición acetilcolinesterasa. RAPLA Chile (Red plaguicidas)."
+    },
+    {
+      "code": "L23.5",
+      "name": "Dermatitis alérgica de contacto por otros químicos",
+      "category": "dermatológico",
+      "occupational": true,
+      "riskAgents": ["níquel", "cromo", "epoxis"],
+      "description": "DAC. Frecuente en construcción, peluquería."
+    },
+    {
+      "code": "L24.0",
+      "name": "Dermatitis irritante por detergentes",
+      "category": "dermatológico",
+      "occupational": true,
+      "riskAgents": ["detergentes", "solventes", "ácidos diluidos"],
+      "description": "DCI. Trabajadores limpieza, salud."
+    },
+    {
+      "code": "L25.3",
+      "name": "Dermatitis de contacto por otros químicos no especificados",
+      "category": "dermatológico",
+      "occupational": true,
+      "riskAgents": ["químicos varios"],
+      "description": "DC inespecífica. Estudio parche obligatorio."
+    },
+    {
+      "code": "C44.9",
+      "name": "Cáncer de piel no especificado",
+      "category": "neoplasias",
+      "occupational": true,
+      "riskAgents": ["radiación UV", "trabajos al aire libre"],
+      "description": "Cáncer cutáneo. Pesca, construcción, agricultura."
+    },
+    {
+      "code": "C34.9",
+      "name": "Cáncer de pulmón no especificado",
+      "category": "neoplasias",
+      "occupational": true,
+      "riskAgents": ["asbesto", "sílice", "diesel", "radón"],
+      "description": "Carcinoma broncogénico. Múltiples exposiciones laborales."
+    },
+    {
+      "code": "C67.9",
+      "name": "Cáncer de vejiga no especificado",
+      "category": "neoplasias",
+      "occupational": true,
+      "riskAgents": ["aminas aromáticas", "tinturas", "caucho"],
+      "description": "Tumor vesical. Industria textil, cuero."
+    },
+    {
+      "code": "I10",
+      "name": "Hipertensión esencial",
+      "category": "cardiovascular",
+      "occupational": false,
+      "riskAgents": ["sedentarismo", "estrés laboral", "ruido crónico"],
+      "description": "HTA. Comorbilidad frecuente. Vigilancia anual."
+    },
+    {
+      "code": "I20.9",
+      "name": "Angina de pecho no especificada",
+      "category": "cardiovascular",
+      "occupational": false,
+      "riskAgents": ["esfuerzo físico extremo", "estrés agudo"],
+      "description": "Cardiopatía isquémica. Atención inmediata."
+    },
+    {
+      "code": "I21.9",
+      "name": "Infarto agudo de miocardio no especificado",
+      "category": "cardiovascular",
+      "occupational": false,
+      "riskAgents": ["estrés agudo", "esfuerzo extremo"],
+      "description": "IAM. Emergencia. Reanimación + traslado."
+    },
+    {
+      "code": "I63.9",
+      "name": "Accidente cerebrovascular no especificado",
+      "category": "cardiovascular",
+      "occupational": false,
+      "riskAgents": ["HTA", "tabaco"],
+      "description": "ACV. Ventana terapéutica 4.5 horas."
+    },
+    {
+      "code": "T67.0",
+      "name": "Golpe de calor e insolación",
+      "category": "ambiental",
+      "occupational": true,
+      "riskAgents": ["calor extremo", "trabajo sol directo", "humedad alta"],
+      "description": "Hipertermia. Agricultura, construcción, minería rajo."
+    },
+    {
+      "code": "T68",
+      "name": "Hipotermia",
+      "category": "ambiental",
+      "occupational": true,
+      "riskAgents": ["frío extremo", "altura geográfica", "inmersión"],
+      "description": "Hipotermia ocupacional. Pesca, minería altura."
+    },
+    {
+      "code": "T70.2",
+      "name": "Otros efectos de la altitud (mal de altura)",
+      "category": "ambiental",
+      "occupational": true,
+      "riskAgents": ["altitud > 3000m", "minería altura"],
+      "description": "MAM. Hipoxia hipobárica. Resolución SUSESO 425."
+    },
+    {
+      "code": "T70.3",
+      "name": "Enfermedad por descompresión (caisson)",
+      "category": "ambiental",
+      "occupational": true,
+      "riskAgents": ["buceo", "hiperbárica"],
+      "description": "Disbarismo. Cámara hiperbárica."
+    },
+    {
+      "code": "B16.9",
+      "name": "Hepatitis viral B sin coma hepático",
+      "category": "infecciosa",
+      "occupational": true,
+      "riskAgents": ["sangre", "fluidos corporales", "personal salud"],
+      "description": "Riesgo biológico. DS 594 Art. 68. Vacunación obligatoria."
+    },
+    {
+      "code": "B18.2",
+      "name": "Hepatitis viral C crónica",
+      "category": "infecciosa",
+      "occupational": true,
+      "riskAgents": ["accidente cortopunzante", "sangre"],
+      "description": "VHC ocupacional. Personal salud."
+    },
+    {
+      "code": "A15.0",
+      "name": "Tuberculosis pulmonar",
+      "category": "infecciosa",
+      "occupational": true,
+      "riskAgents": ["Mycobacterium tuberculosis", "personal salud"],
+      "description": "TBC pulmonar. Vigilancia personal salud."
+    },
+    {
+      "code": "B97.2",
+      "name": "Coronavirus como causa de enfermedad",
+      "category": "infecciosa",
+      "occupational": true,
+      "riskAgents": ["SARS-CoV-2", "exposición ocupacional"],
+      "description": "COVID-19 ocupacional. Calificación SUSESO."
+    },
+    {
+      "code": "Z57.0",
+      "name": "Exposición ocupacional al ruido",
+      "category": "vigilancia",
+      "occupational": true,
+      "riskAgents": ["ruido"],
+      "description": "Código de vigilancia. Programa PREXOR."
+    },
+    {
+      "code": "Z57.2",
+      "name": "Exposición ocupacional al polvo",
+      "category": "vigilancia",
+      "occupational": true,
+      "riskAgents": ["sílice", "polvo orgánico", "polvo metálico"],
+      "description": "Código de vigilancia. PLANESI."
+    },
+    {
+      "code": "Z57.5",
+      "name": "Exposición ocupacional a otros químicos industriales",
+      "category": "vigilancia",
+      "occupational": true,
+      "riskAgents": ["químicos industriales"],
+      "description": "Vigilancia exposición. DS 594 Anexos."
+    }
+  ]
+}

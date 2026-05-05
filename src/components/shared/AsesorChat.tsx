@@ -1,4 +1,10 @@
 // Sprint 20 fifth wave (Bucket Phi): wired al orchestrator SLM, soporta offline-first via Brecha B.
+// TODO Ola 5b — Bucket O: cuando `SLM_OFFLINE_ENABLED` esté true en prod,
+// migrar este wire al hook `useSlmOffline` (`src/hooks/useSlmOffline.ts`)
+// + `OnnxSlmAdapter` directo. Hoy seguimos sobre `services/slm.ask()`,
+// que usa el adapter Worker-based (registry Phi-3 / Qwen). El nuevo
+// adapter ONNX-direct con TinyLlama 1.1B Q4 y streaming `onToken` queda
+// detrás del feature flag mientras se publican los pesos en CDN.
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Brain, Loader2, Bot, User, Sparkles, WifiOff, Wifi, Shield, Save, CheckCircle2, ThumbsUp, ThumbsDown } from 'lucide-react';

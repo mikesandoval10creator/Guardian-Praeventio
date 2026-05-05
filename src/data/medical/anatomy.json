@@ -1,0 +1,463 @@
+{
+  "_meta": {
+    "name": "Catálogo anatómico — subset SST Chile",
+    "version": "1.0.0",
+    "license": "CC BY-SA 4.0 (descripciones derivadas de Wikipedia ES — fuente abierta)",
+    "source": "Wikipedia anatomía humana (CC BY-SA) + DS 594 + DS 109 (descripciones SST). Iconografía cruzada: Bioicons (MIT/CC0).",
+    "scope": "~50 estructuras anatómicas relevantes a salud ocupacional, agrupadas por sistema corporal con riesgos laborales típicos asociados.",
+    "disclaimer": "Información educativa. No reemplaza atlas anatómico clínico ni juicio médico profesional.",
+    "lastUpdated": "2026-05-04"
+  },
+  "data": [
+    {
+      "id": "lumbar-spine",
+      "name": "Columna lumbar",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["levantamiento manual", "vibración cuerpo entero", "posturas forzadas"],
+      "commonInjuries": ["lumbago (M54.5)", "hernia discal L4-L5 (M51.1)", "lumbociática (M54.4)"],
+      "description": "5 vértebras lumbares L1-L5 que soportan la mayor parte del peso del tronco. Zona de mayor incidencia de lesiones por trabajo manual. TMERT Chile DS 594 Art. 110bis.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/V%C3%A9rtebras_lumbares"
+    },
+    {
+      "id": "cervical-spine",
+      "name": "Columna cervical",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["trabajo en pantalla prolongado", "postura sostenida", "trauma directo"],
+      "commonInjuries": ["cervicalgia (M54.2)", "esguince cervical (S13.4)", "discopatía cervical"],
+      "description": "7 vértebras cervicales C1-C7. Soportan la cabeza. Lesiones frecuentes en trabajo administrativo prolongado y conductores.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/V%C3%A9rtebras_cervicales"
+    },
+    {
+      "id": "thoracic-spine",
+      "name": "Columna torácica",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["postura sedente prolongada", "trauma"],
+      "commonInjuries": ["dorsalgia", "fractura por compresión vertebral"],
+      "description": "12 vértebras torácicas T1-T12. Articulan con costillas formando la caja torácica.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/V%C3%A9rtebras_tor%C3%A1cicas"
+    },
+    {
+      "id": "shoulder-rotator-cuff",
+      "name": "Manguito rotador del hombro",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["trabajo sobre la cabeza", "movimientos repetitivos hombro", "fuerza con brazo elevado"],
+      "commonInjuries": ["sd manguito rotador (M75.1)", "tendinitis supraespinoso", "bursitis subacromial"],
+      "description": "Conjunto de 4 tendones (supraespinoso, infraespinoso, redondo menor, subescapular) que estabilizan la articulación glenohumeral.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Manguito_de_los_rotadores"
+    },
+    {
+      "id": "elbow-lateral-epicondyle",
+      "name": "Epicóndilo lateral del codo",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["movimientos repetitivos antebrazo", "fuerza prensil", "uso de herramientas"],
+      "commonInjuries": ["epicondilitis lateral (M77.1)", "codo de tenista"],
+      "description": "Inserción de tendones extensores del antebrazo. Mecánicos, carpinteros, electricistas son grupo de riesgo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Ep%C3%ADfisis_distal_del_h%C3%BAmero"
+    },
+    {
+      "id": "wrist-carpal-tunnel",
+      "name": "Túnel del carpo (muñeca)",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["movimientos repetitivos muñeca", "vibración mano-brazo", "fuerza prensil sostenida"],
+      "commonInjuries": ["sd túnel carpiano (G56.0)", "tenosinovitis De Quervain (M65.4)"],
+      "description": "Canal osteofibroso por donde pasa el nervio mediano y tendones flexores. Compresión causa parestesias.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/T%C3%BAnel_del_carpo"
+    },
+    {
+      "id": "hand-fingers",
+      "name": "Dedos de la mano",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["aplastamiento maquinaria", "amputaciones", "vibración", "frío extremo"],
+      "commonInjuries": ["fractura digital (S62.6)", "amputación (S68)", "Raynaud (I73.0)"],
+      "description": "Dedos índice, medio, anular y meñique con 3 falanges; pulgar con 2. Lesiones graves frecuentes en operadores de maquinaria.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Dedos_de_la_mano"
+    },
+    {
+      "id": "knee-meniscus",
+      "name": "Meniscos de la rodilla",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["arrodillarse prolongadamente", "torsión con carga", "trabajo de rodilla"],
+      "commonInjuries": ["lesión meniscal (S83.2)", "rotura LCA"],
+      "description": "Meniscos medial y lateral en cartílago fibrocartilaginoso. Trabajadores instaladores de pisos, mineros agachados.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Menisco_(anatom%C3%ADa)"
+    },
+    {
+      "id": "ankle-lateral-ligament",
+      "name": "Ligamentos laterales del tobillo",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["superficies irregulares", "torcedura por inversión", "calzado inadecuado"],
+      "commonInjuries": ["esguince tobillo (S93.4)", "fractura maléolo (S82.6)"],
+      "description": "Complejo ligamentario lateral (peroneoastragalino anterior, calcáneoperoneo, peroneoastragalino posterior).",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Esguince_de_tobillo"
+    },
+    {
+      "id": "achilles-tendon",
+      "name": "Tendón de Aquiles",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["fluoroquinolonas (medicación)", "sobrecarga repetitiva"],
+      "commonInjuries": ["tendinopatía aquílea", "rotura del tendón de Aquiles (S86.0)"],
+      "description": "Tendón más fuerte y grueso del cuerpo, une tríceps sural con calcáneo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Tend%C3%B3n_de_Aquiles"
+    },
+    {
+      "id": "lungs",
+      "name": "Pulmones",
+      "system": "respiratorio",
+      "occupationalRisks": ["sílice cristalina", "asbesto", "polvo de carbón", "humos metálicos", "isocianatos"],
+      "commonInjuries": ["silicosis (J62.8)", "asbestosis (J61)", "asma ocupacional (J45.0)", "neumoconiosis (J64)", "mesotelioma (C45.0)"],
+      "description": "Órgano respiratorio principal. Programa PLANESI Chile vigila sílice. DS 594 Art. 66 establece límites de exposición.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Pulm%C3%B3n"
+    },
+    {
+      "id": "alveoli",
+      "name": "Alvéolos pulmonares",
+      "system": "respiratorio",
+      "occupationalRisks": ["polvo respirable < 5 µm", "fibras finas"],
+      "commonInjuries": ["fibrosis", "alveolitis alérgica (J67.0)"],
+      "description": "Sacos pulmonares donde ocurre intercambio gaseoso. Partículas finas (PM4-PM10) penetran hasta este nivel.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Alv%C3%A9olo_pulmonar"
+    },
+    {
+      "id": "pleura",
+      "name": "Pleura",
+      "system": "respiratorio",
+      "occupationalRisks": ["asbesto", "amianto"],
+      "commonInjuries": ["placas pleurales (J92.0)", "mesotelioma (C45.0)", "derrame pleural"],
+      "description": "Membrana serosa que recubre pulmones (visceral) y caja torácica (parietal). Asbesto causa placas y mesotelioma.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Pleura"
+    },
+    {
+      "id": "trachea",
+      "name": "Tráquea",
+      "system": "respiratorio",
+      "occupationalRisks": ["gases corrosivos", "humo de incendios", "vapores químicos"],
+      "commonInjuries": ["traqueitis química", "estenosis post-inhalación"],
+      "description": "Conducto entre laringe y bronquios. Vulnerable a inhalación de gases tóxicos.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Tr%C3%A1quea"
+    },
+    {
+      "id": "bronchi",
+      "name": "Bronquios",
+      "system": "respiratorio",
+      "occupationalRisks": ["irritantes inhalados", "alérgenos ocupacionales"],
+      "commonInjuries": ["asma ocupacional (J45)", "bronquitis crónica (J42)", "EPOC (J44)"],
+      "description": "Ramificación bronquial conduce aire a alvéolos. Asma ocupacional afecta este nivel.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Bronquio"
+    },
+    {
+      "id": "heart",
+      "name": "Corazón",
+      "system": "cardiovascular",
+      "occupationalRisks": ["estrés laboral crónico", "ruido > 85 dB", "sedentarismo", "trabajo nocturno"],
+      "commonInjuries": ["IAM (I21.9)", "angina (I20.9)", "HTA (I10)", "arritmias"],
+      "description": "Bomba cardiaca de 4 cámaras. Estrés crónico y ruido aumentan riesgo CV. Vigilancia anual recomendada.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Coraz%C3%B3n"
+    },
+    {
+      "id": "coronary-arteries",
+      "name": "Arterias coronarias",
+      "system": "cardiovascular",
+      "occupationalRisks": ["estrés agudo", "dislipidemia", "tabaco", "sedentarismo"],
+      "commonInjuries": ["aterosclerosis", "trombosis coronaria"],
+      "description": "Irrigan músculo cardiaco. Obstrucción genera infarto. Factores ocupacionales secundarios.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Arterias_coronarias"
+    },
+    {
+      "id": "peripheral-vessels",
+      "name": "Vasos sanguíneos periféricos",
+      "system": "cardiovascular",
+      "occupationalRisks": ["vibración mano-brazo", "frío", "tabaquismo"],
+      "commonInjuries": ["sd Raynaud (I73.0)", "HAVS (T75.2)"],
+      "description": "Arterias y venas de extremidades. Vibración y frío inducen vasoespasmo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Sistema_circulatorio"
+    },
+    {
+      "id": "brain",
+      "name": "Cerebro",
+      "system": "neurológico",
+      "occupationalRisks": ["solventes orgánicos", "metales pesados (Pb/Hg)", "estrés psicosocial", "trauma craneal"],
+      "commonInjuries": ["TEC (S06)", "encefalopatía tóxica", "EVAST burnout (Z73.0)"],
+      "description": "Sistema nervioso central. EVAST Chile vigila riesgos psicosociales (DS 594).",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Cerebro"
+    },
+    {
+      "id": "peripheral-nerves",
+      "name": "Nervios periféricos",
+      "system": "neurológico",
+      "occupationalRisks": ["solventes (n-hexano)", "metales (Pb/As)", "compresión mecánica"],
+      "commonInjuries": ["polineuropatía tóxica", "sd túnel carpiano (G56.0)"],
+      "description": "Conducen señales del SNC a órganos. Vulnerables a tóxicos y compresión.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Sistema_nervioso_perif%C3%A9rico"
+    },
+    {
+      "id": "median-nerve",
+      "name": "Nervio mediano",
+      "system": "neurológico",
+      "occupationalRisks": ["compresión en túnel del carpo", "movimientos repetitivos"],
+      "commonInjuries": ["sd túnel carpiano (G56.0)"],
+      "description": "Inerva mano (cara palmar de los 3 primeros dedos). Compresión causa parestesias y atrofia tenar.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Nervio_mediano"
+    },
+    {
+      "id": "limbic-system",
+      "name": "Sistema límbico",
+      "system": "neurológico",
+      "occupationalRisks": ["estrés crónico", "cortisol elevado", "deprivación de sueño"],
+      "commonInjuries": ["TEPT (F43.1)", "depresión (F32)", "ansiedad (F41.1)"],
+      "description": "Hipocampo, amígdala, hipotálamo. Modulan respuesta al estrés. Burnout afecta esta región.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Sistema_l%C3%ADmbico"
+    },
+    {
+      "id": "inner-ear-cochlea",
+      "name": "Cóclea (oído interno)",
+      "system": "sensorial",
+      "occupationalRisks": ["ruido > 85 dB(A)", "ruido impulsivo > 140 dB", "ototóxicos (aminoglucósidos)"],
+      "commonInjuries": ["hipoacusia neurosensorial (H90.3)", "tinnitus (H93.1)", "trauma acústico"],
+      "description": "Estructura coclear con células ciliadas. Ruido daña irreversiblemente células ciliadas externas. PREXOR Chile DS 594 Art. 70.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/C%C3%B3clea"
+    },
+    {
+      "id": "tympanic-membrane",
+      "name": "Membrana timpánica",
+      "system": "sensorial",
+      "occupationalRisks": ["barotrauma", "ruido impulsivo extremo", "explosiones"],
+      "commonInjuries": ["perforación timpánica", "otitis"],
+      "description": "Tímpano. Vulnerable a barotrauma (buceadores, aviación) y explosiones.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/T%C3%ADmpano_(anatom%C3%ADa)"
+    },
+    {
+      "id": "eye-cornea",
+      "name": "Córnea",
+      "system": "sensorial",
+      "occupationalRisks": ["proyectiles metálicos", "salpicaduras químicas", "radiación UV"],
+      "commonInjuries": ["queratitis actínica", "úlcera corneal", "cuerpo extraño"],
+      "description": "Lente externa transparente. Soldadores y trabajadores exteriores son grupos de riesgo. EPP obligatorio.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/C%C3%B3rnea"
+    },
+    {
+      "id": "eye-retina",
+      "name": "Retina",
+      "system": "sensorial",
+      "occupationalRisks": ["luz láser", "radiación UV-A", "luz azul prolongada"],
+      "commonInjuries": ["maculopatía solar", "lesión por láser"],
+      "description": "Capa fotorreceptora. Lesiones graves por láseres clase 3B-4 sin protección.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Retina"
+    },
+    {
+      "id": "lens-eye",
+      "name": "Cristalino",
+      "system": "sensorial",
+      "occupationalRisks": ["radiación ionizante", "calor extremo (sopladores)", "UV crónica"],
+      "commonInjuries": ["cataratas ocupacionales", "presbicia precoz"],
+      "description": "Lente intraocular. Fundidores de vidrio y operadores de horno son grupo de riesgo de cataratas térmicas.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Cristalino"
+    },
+    {
+      "id": "skin",
+      "name": "Piel",
+      "system": "tegumentario",
+      "occupationalRisks": ["químicos irritantes", "alérgenos de contacto", "radiación UV", "calor/frío extremos"],
+      "commonInjuries": ["dermatitis irritante (L24)", "dermatitis alérgica (L23.5)", "quemaduras (T20-T25)", "cáncer cutáneo (C44)"],
+      "description": "Mayor órgano del cuerpo. Barrera primaria. Trabajadores limpieza, peluquería, construcción son grupos de riesgo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Piel"
+    },
+    {
+      "id": "hands-skin",
+      "name": "Piel de las manos",
+      "system": "tegumentario",
+      "occupationalRisks": ["detergentes", "solventes", "epoxis", "guantes con látex"],
+      "commonInjuries": ["dermatitis manos", "alergia látex"],
+      "description": "Zona de mayor exposición ocupacional dérmica. EPP guantes + cremas barrera obligatorios.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Mano"
+    },
+    {
+      "id": "liver",
+      "name": "Hígado",
+      "system": "digestivo",
+      "occupationalRisks": ["solventes hepatotóxicos (CCl4, tricloroetileno)", "alcohol", "hepatitis viral"],
+      "commonInjuries": ["hepatitis tóxica", "hepatitis B/C ocupacional (B16/B18)", "cirrosis"],
+      "description": "Órgano metabolizador principal. Solventes orgánicos son hepatotóxicos. Vigilancia con transaminasas.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/H%C3%ADgado"
+    },
+    {
+      "id": "kidneys",
+      "name": "Riñones",
+      "system": "urinario",
+      "occupationalRisks": ["metales pesados (Pb/Cd/Hg)", "solventes", "deshidratación crónica"],
+      "commonInjuries": ["nefritis tubulointersticial", "insuficiencia renal aguda", "litiasis"],
+      "description": "Filtración renal. Plomo y cadmio son nefrotóxicos. Vigilancia con creatinina y proteinuria.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Ri%C3%B1%C3%B3n"
+    },
+    {
+      "id": "bladder",
+      "name": "Vejiga",
+      "system": "urinario",
+      "occupationalRisks": ["aminas aromáticas", "tinturas industriales", "cauchos"],
+      "commonInjuries": ["cáncer de vejiga (C67.9)", "cistitis química"],
+      "description": "Reservorio urinario. Aminas aromáticas (industria textil/cuero) son cancerígenos vesicales.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Vejiga_urinaria"
+    },
+    {
+      "id": "stomach",
+      "name": "Estómago",
+      "system": "digestivo",
+      "occupationalRisks": ["AINEs (medicación)", "estrés crónico", "alcohol"],
+      "commonInjuries": ["úlcera péptica", "gastritis", "ERGE"],
+      "description": "Vulnerable a AINEs (frecuente en TMERT). Gastroprotección con IBP recomendada.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Est%C3%B3mago"
+    },
+    {
+      "id": "thyroid",
+      "name": "Glándula tiroides",
+      "system": "endocrino",
+      "occupationalRisks": ["radiación ionizante", "disruptores endocrinos"],
+      "commonInjuries": ["cáncer tiroideo", "hipotiroidismo"],
+      "description": "Regula metabolismo basal. Trabajadores en radiología son grupo de riesgo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Gl%C3%A1ndula_tiroides"
+    },
+    {
+      "id": "adrenal-glands",
+      "name": "Glándulas suprarrenales",
+      "system": "endocrino",
+      "occupationalRisks": ["estrés crónico", "deprivación de sueño"],
+      "commonInjuries": ["fatiga adrenal", "burnout (Z73.0)"],
+      "description": "Producen cortisol y adrenalina. Estrés crónico altera el eje HPA.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Gl%C3%A1ndula_suprarrenal"
+    },
+    {
+      "id": "blood",
+      "name": "Sangre",
+      "system": "hematológico",
+      "occupationalRisks": ["benceno", "radiación ionizante", "plomo"],
+      "commonInjuries": ["leucemia (C92)", "anemia (D50-D64)", "saturnismo (T56.0)"],
+      "description": "Tejido líquido. Benceno es carcinógeno hematológico (gasolineras, refinerías).",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Sangre"
+    },
+    {
+      "id": "bone-marrow",
+      "name": "Médula ósea",
+      "system": "hematológico",
+      "occupationalRisks": ["benceno", "radiación ionizante", "citostáticos"],
+      "commonInjuries": ["aplasia medular", "leucemia mieloide"],
+      "description": "Hematopoyesis. Vulnerable a tóxicos hematopoyéticos.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/M%C3%A9dula_%C3%B3sea"
+    },
+    {
+      "id": "muscles-paraspinal",
+      "name": "Músculos paravertebrales",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["sobrecarga", "posturas forzadas"],
+      "commonInjuries": ["contractura muscular", "lumbago mecánico (M54.5)"],
+      "description": "Erectores espinales. Sobrecargados en trabajos de manipulación manual.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/M%C3%BAsculos_de_la_espalda"
+    },
+    {
+      "id": "trapezius",
+      "name": "Músculo trapecio",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["estrés psicosocial", "trabajo en pantalla", "transporte de carga"],
+      "commonInjuries": ["sd miofascial", "cervicalgia (M54.2)"],
+      "description": "Músculo cervicodorsal. Tensión por estrés y posturas estáticas.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/M%C3%BAsculo_trapecio"
+    },
+    {
+      "id": "diaphragm",
+      "name": "Diafragma",
+      "system": "respiratorio",
+      "occupationalRisks": ["fatiga respiratoria", "carga física extrema"],
+      "commonInjuries": ["disfunción diafragmática"],
+      "description": "Músculo respiratorio principal. Fatiga en esfuerzos sostenidos.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Diafragma_(anatom%C3%ADa)"
+    },
+    {
+      "id": "vocal-cords",
+      "name": "Cuerdas vocales",
+      "system": "respiratorio",
+      "occupationalRisks": ["uso vocal intenso", "irritantes inhalados", "humo"],
+      "commonInjuries": ["disfonía profesional", "nódulos vocales", "laringitis"],
+      "description": "Producción vocal. Profesores, locutores, vendedores de feria son grupos de riesgo. Disfonía profesional reconocida en DS 109.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Cuerdas_vocales"
+    },
+    {
+      "id": "intervertebral-disc",
+      "name": "Disco intervertebral",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["compresión axial", "vibración cuerpo entero", "torsión con carga"],
+      "commonInjuries": ["protrusión discal", "hernia discal (M51.1)", "discopatía"],
+      "description": "Estructura amortiguadora entre vértebras. Vulnerable a vibración cuerpo entero (conductores camiones).",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Disco_intervertebral"
+    },
+    {
+      "id": "femoral-head",
+      "name": "Cabeza del fémur",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["caídas", "traumatismos", "carga axial extrema"],
+      "commonInjuries": ["fractura de cadera (S72.0)", "necrosis avascular"],
+      "description": "Articulación coxofemoral. Fracturas de cadera en caídas desde altura son frecuentes.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/F%C3%A9mur"
+    },
+    {
+      "id": "skull",
+      "name": "Cráneo",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["caída de objetos", "golpes contra estructuras", "caídas de altura"],
+      "commonInjuries": ["TEC (S06)", "fractura craneal (S02)"],
+      "description": "Estructura ósea protectora del encéfalo. Casco obligatorio (DS 594 Art. 53). Norma EN 397 / ANSI Z89.1.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Cr%C3%A1neo"
+    },
+    {
+      "id": "ribs",
+      "name": "Costillas",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["traumatismos torácicos", "aplastamiento"],
+      "commonInjuries": ["fractura costal (S22.3)", "tórax inestable"],
+      "description": "Costillas (12 pares). Protegen pulmones y corazón. Trauma directo causa fracturas.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Costilla"
+    },
+    {
+      "id": "feet",
+      "name": "Pies",
+      "system": "musculoesquelético",
+      "occupationalRisks": ["bipedestación prolongada", "caída de objetos", "calzado inadecuado"],
+      "commonInjuries": ["fascitis plantar", "fractura metatarsiana", "esguince tobillo"],
+      "description": "Soporte postural. Calzado de seguridad obligatorio (puntera reforzada — norma ASTM F2413).",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Pie"
+    },
+    {
+      "id": "respiratory-mucosa",
+      "name": "Mucosa respiratoria",
+      "system": "respiratorio",
+      "occupationalRisks": ["polvos finos", "humos químicos", "alérgenos"],
+      "commonInjuries": ["rinitis ocupacional (J30.5)", "sinusitis crónica"],
+      "description": "Tapizado epitelial vías respiratorias. Primera barrera ante inhalantes.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Sistema_respiratorio"
+    },
+    {
+      "id": "skin-hands-arms",
+      "name": "Piel de manos y brazos",
+      "system": "tegumentario",
+      "occupationalRisks": ["radiación UV", "quemaduras térmicas/químicas"],
+      "commonInjuries": ["cáncer de piel (C44.9)", "quemaduras (T22-T23)"],
+      "description": "Áreas más expuestas en trabajo al aire libre. Pesca, agricultura, construcción son grupos de riesgo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Brazo"
+    },
+    {
+      "id": "lymphatic-system",
+      "name": "Sistema linfático",
+      "system": "inmune",
+      "occupationalRisks": ["químicos inmunotóxicos", "radiación ionizante"],
+      "commonInjuries": ["linfomas ocupacionales (C81-C85)"],
+      "description": "Drenaje linfático e inmunidad. Algunos solventes son inmunotóxicos.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Sistema_linf%C3%A1tico"
+    },
+    {
+      "id": "thermoregulation",
+      "name": "Sistema de termorregulación",
+      "system": "ambiental",
+      "occupationalRisks": ["calor extremo", "humedad alta", "frío extremo", "altitud"],
+      "commonInjuries": ["golpe de calor (T67.0)", "hipotermia (T68)", "MAM (T70.2)"],
+      "description": "Regulación térmica corporal. Trabajadores en agricultura, minería rajo, pesca austral, altura son grupos de riesgo.",
+      "wikipediaUrl": "https://es.wikipedia.org/wiki/Termorregulaci%C3%B3n"
+    }
+  ]
+}

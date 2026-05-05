@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { differentialDiagnosis } from '../../services/geminiService';
 import { MedicalIcon } from '../medical/MedicalIcon';
+import { CatalogBrowser } from './CatalogBrowser';
+import { diagnoses, diagnosesMeta, type DiagnosisEntry } from '../../data/medical';
 
 interface DiagnosisItem {
   condition: string;
@@ -96,6 +98,53 @@ export function DifferentialDiagnosis() {
         <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-teal-400/10 dark:bg-gold-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 dark:border-gold-400/20 uppercase">
           {t('differential_dx.badge_medical', 'Médico')}
         </span>
+      </div>
+
+      {/* Sprint 21 — Bucket R · Catálogo CIE-10 offline-first (subset SST Chile). */}
+      <div className="px-5 pt-4 pb-2">
+        <CatalogBrowser<DiagnosisEntry>
+          title={t('differential_dx.catalog_title', 'Catálogo CIE-10 SST')}
+          badge="CC0"
+          items={diagnoses}
+          searchKeys={['code', 'name', 'category', 'riskAgents', 'description']}
+          getPrimary={(d) => d.code}
+          getLabel={(d) => d.name}
+          placeholder={t('differential_dx.catalog_placeholder', 'Buscar código, síntoma o agente (ej: sílice, J62, lumbago)')}
+          metaFooter={`${diagnosesMeta.license} · ${diagnosesMeta.source}`}
+          renderDetail={(d) => (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[10px] font-mono font-black tracking-widest border border-violet-500/20">
+                  {d.code}
+                </span>
+                <span className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-700/60 text-[9px] font-bold text-zinc-600 dark:text-zinc-300 uppercase">
+                  {d.category}
+                </span>
+                {d.occupational && (
+                  <span className="px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-600 dark:text-gold-400 text-[9px] font-bold border border-teal-400/20 uppercase">
+                    {t('differential_dx.catalog_occupational', 'Ocupacional')}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-black text-zinc-900 dark:text-white">{d.name}</p>
+              <p className="text-[11px] text-zinc-600 dark:text-zinc-400">{d.description}</p>
+              {d.riskAgents.length > 0 && (
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mb-1">
+                    {t('differential_dx.catalog_risk_agents', 'Agentes de riesgo')}
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {d.riskAgents.map((r) => (
+                      <span key={r} className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold border border-amber-500/20">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        />
       </div>
 
       <form onSubmit={submit} className="p-5 space-y-4">

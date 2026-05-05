@@ -441,12 +441,31 @@ app.use('/api/emergency', emergencyRouter);
 // Converter server-side so the frontend can stay MIT-only — see ADR 0002).
 app.use('/api/cad', cadRouter);
 
-// Sprint 21 Ola 4 Bucket M.5 — set IANA-registered MIME for `.usdz` so iOS
-// Safari invokes AR Quick Look. Without this header the browser treats the
-// file as a generic download. Applies to BOTH dev (vite middleware) and
-// prod (express.static) — declared upstream so both paths inherit it.
+// Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
+// Safari invokes AR Quick Look. Without this header the browser treats
+// the file as a generic download. Applies to BOTH dev (vite middleware)
+// and prod (express.static) — declared upstream so both paths inherit it.
 app.get(/^\/models\/ar\/.*\.usdz$/, (_req, res, next) => {
   res.type('model/vnd.usdz+zip');
+  next();
+});
+
+// Sprint 21 Ola 5 Bucket O (Brecha B) — cross-origin isolation headers
+// for the SLM offline weights served under `/models/slm/*`.
+//
+// ONNX Runtime Web's WASM threading + SharedArrayBuffer code paths
+// require the page to be cross-origin isolated. We scope COEP=require-corp
+// to `/models/slm/*` rather than the whole app because globally enabling
+// it would break our embedded Google Maps / Stripe / OAuth callbacks
+// (they don't ship CORP headers).
+//
+// The `immutable` cache directive is safe because the weights are
+// versioned by URL (cache-busted via `cacheVersion` in OnnxSlmAdapter).
+app.use('/models/slm', (_req, res, next) => {
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   next();
 });
 

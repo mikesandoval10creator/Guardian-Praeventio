@@ -137,9 +137,9 @@ Sprint 21. Lo que queda son inputs externos (humanos).
 | AptitudeCertificateForm | ✓ | n/a | ✓ | ✗ | ninguna | 🟡 | |
 | VigilanciaScheduler | ✓ | n/a | ✓ | ✗ | ninguna | 🟡 | |
 | HumanBodyViewer | ✓ [components/occupational-health/HumanBodyViewer.tsx](src/components/occupational-health/HumanBodyViewer.tsx) | n/a | ✗ | ✗ | ninguna | 🟡 | UI 3D solo. |
-| AnatomyLibrary, DifferentialDiagnosis, DrugInteractions | ✓ | n/a | ✗ datos hardcoded | ✗ | ninguna | 🔴 | Catálogos estáticos. |
+| AnatomyLibrary, DifferentialDiagnosis, DrugInteractions | ✓ | n/a | catálogos JSON bundled (~190 entradas reales) | ✓ [src/data/medical/medicalCatalogs.test.ts](src/data/medical/medicalCatalogs.test.ts) (11 tests) | ninguna | 🟡 | Sprint 21 Bucket R: CIE-10 (CC0) + ATC (CC0) + Wikipedia (CC BY-SA). Browser fuzzy con Fuse.js. Falta wire completo con health facade Bucket P. |
 | WearablesPanel | ✓ [components/telemetry/WearablesPanel.tsx:1](src/components/telemetry/WearablesPanel.tsx) | parcial (BLE en `Telemetry.tsx`) | ✗ | ✗ | requiere Capacitor health plugin | 🟡 | Solo componente visual; el dance real está en Telemetry.tsx (Web Bluetooth + Google Fit OAuth). HealthConnect/HealthKit nativo: pendiente. |
-| VitalityMonitor | ✓ | n/a | ✗ | ✗ | ninguna | 🔴 | |
+| VitalityMonitor | ✓ | n/a | mapping ambiente→CIE-10 vía catálogo bundled | ✗ | ninguna | 🟡 | Sprint 21 Bucket R: alertas clínicas CIE-10 según calor/altitud/carga. TODO Ola 5b: wire health facade Bucket P. |
 | Health facade (BLE/Fit/HealthKit) | n/a | n/a | n/a | ✓ [services/health/healthFacade.test.ts](src/services/health/healthFacade.test.ts) | varios | 🟡 | Adapter con tests; integración nativa pendiente. |
 
 ### E. Modos UX (4-mode)

@@ -22,3 +22,9 @@ test-results/
 # Stryker mutation testing artifacts
 .stryker-tmp/
 reports/mutation/
+
+# Bucket O (Brecha B) — SLM offline weights. The TinyLlama 1.1B Q4 ONNX
+# file is ~600 MB and is fetched via `scripts/download-slm-model.mjs` /
+# served from CDN in production. Never commit weights to the repo.
+public/models/slm/*.onnx
+public/models/slm/*.onnx.partial
