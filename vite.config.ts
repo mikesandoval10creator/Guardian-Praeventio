@@ -160,6 +160,10 @@ export default defineConfig(({mode}) => {
           __dirname,
           'src/services/observability/cloudErrorReportingAdapter.browser-stub.ts',
         ),
+        './noopErrorTrackingAdapter': path.resolve(
+          __dirname,
+          'src/services/observability/noopErrorTrackingAdapter.browser-stub.ts',
+        ),
       },
     },
     build: {
