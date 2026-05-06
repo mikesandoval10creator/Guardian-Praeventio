@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   Brain, 
   Activity, 
@@ -23,6 +24,7 @@ import { AddPsychosocialModal } from '../components/psychosocial/AddPsychosocial
 import { AIPsychosocialAnalysisModal } from '../components/psychosocial/AIPsychosocialAnalysisModal';
 
 export function Psychosocial() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,9 +59,9 @@ export function Psychosocial() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Riesgos Psicosociales</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('psychosocial.title')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Evaluación ISTAS21, bienestar mental y clima laboral
+            {t('psychosocial.subtitle')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
@@ -68,14 +70,14 @@ export function Psychosocial() {
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-500/20 active:scale-95"
           >
             <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Análisis Predictivo IA</span>
+            <span>{t('psychosocial.predictive_ai')}</span>
           </button>
           <button 
             onClick={() => setIsModalOpen(true)}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-6 py-4 sm:py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-rose-500/20 active:scale-95"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Nueva Evaluación</span>
+            <span>{t('psychosocial.new_evaluation')}</span>
           </button>
         </div>
       </div>
@@ -87,7 +89,7 @@ export function Psychosocial() {
             <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
             <input
               type="text"
-              placeholder="Buscar por departamento o título..."
+              placeholder={t('psychosocial.search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-zinc-900/50 border border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all"
@@ -124,7 +126,7 @@ export function Psychosocial() {
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1 sm:mt-2 text-[10px] sm:text-xs text-zinc-400">
                           <span className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
-                            {node.metadata.department || 'General'}
+                            {node.metadata.department || t('psychosocial.general')}
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
@@ -135,14 +137,14 @@ export function Psychosocial() {
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-4 sm:w-auto w-full border-t border-white/5 sm:border-t-0 pt-3 sm:pt-0">
                       <div className="text-left sm:text-right">
-                        <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">Nivel de Riesgo</div>
+                        <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">{t('psychosocial.risk_level')}</div>
                         <div className={`text-xs sm:text-sm font-black uppercase tracking-widest ${
                           node.metadata.riskLevel === 'high' ? 'text-rose-500' :
                           node.metadata.riskLevel === 'medium' ? 'text-amber-500' :
                           'text-emerald-500'
                         }`}>
-                          {node.metadata.riskLevel === 'high' ? 'Alto' :
-                           node.metadata.riskLevel === 'medium' ? 'Medio' : 'Bajo'}
+                          {node.metadata.riskLevel === 'high' ? t('psychosocial.high') :
+                           node.metadata.riskLevel === 'medium' ? t('psychosocial.medium') : t('psychosocial.low')}
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-600 group-hover:text-rose-500 transition-colors" />
@@ -153,8 +155,8 @@ export function Psychosocial() {
             ) : (
               <div className="text-center py-12 sm:py-20 bg-zinc-900/30 rounded-2xl border border-white/5">
                 <Brain className="w-10 h-10 sm:w-12 sm:h-12 text-zinc-600 mx-auto mb-3 sm:mb-4" />
-                <h3 className="text-sm sm:text-base font-bold text-white mb-1 sm:mb-2">Sin Evaluaciones</h3>
-                <p className="text-xs sm:text-sm text-zinc-500">No se han registrado evaluaciones ISTAS21.</p>
+                <h3 className="text-sm sm:text-base font-bold text-white mb-1 sm:mb-2">{t('psychosocial.empty_title')}</h3>
+                <p className="text-xs sm:text-sm text-zinc-500">{t('psychosocial.empty_subtitle')}</p>
               </div>
             )}
           </div>
@@ -165,13 +167,13 @@ export function Psychosocial() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-2xl p-5 sm:p-6">
             <h3 className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4 sm:mb-6 flex items-center gap-2">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
-              Resumen ISTAS21
+              {t('psychosocial.istas_summary')}
             </h3>
-            
+
             <div className="space-y-4 sm:space-y-6">
               <div>
                 <div className="flex justify-between text-xs sm:text-sm mb-2">
-                  <span className="text-zinc-400">Cobertura de Evaluación</span>
+                  <span className="text-zinc-400">{t('psychosocial.coverage')}</span>
                   <span className="text-white font-bold">{stats.evaluated}%</span>
                 </div>
                 <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
@@ -185,11 +187,11 @@ export function Psychosocial() {
               <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="bg-zinc-800/50 rounded-xl p-3 sm:p-4 border border-white/5">
                   <div className="text-xl sm:text-2xl font-black text-rose-500 mb-1">{stats.highRisk}</div>
-                  <div className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Riesgo Alto</div>
+                  <div className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('psychosocial.high_risk')}</div>
                 </div>
                 <div className="bg-zinc-800/50 rounded-xl p-3 sm:p-4 border border-white/5">
                   <div className="text-xl sm:text-2xl font-black text-amber-500 mb-1">{stats.mediumRisk}</div>
-                  <div className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Riesgo Medio</div>
+                  <div className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('psychosocial.medium_risk')}</div>
                 </div>
               </div>
             </div>
@@ -198,10 +200,10 @@ export function Psychosocial() {
           <div className="bg-gradient-to-br from-rose-500/10 to-transparent border border-rose-500/20 rounded-2xl p-5 sm:p-6">
             <h3 className="text-[10px] sm:text-xs font-bold text-rose-400 uppercase tracking-widest mb-3 sm:mb-4 flex items-center gap-2">
               <Info className="w-3 h-3 sm:w-4 sm:h-4" />
-              Protocolo ISTAS21
+              {t('psychosocial.protocol_title')}
             </h3>
             <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
-              El cuestionario SUSESO/ISTAS21 es el instrumento oficial en Chile para medir los riesgos psicosociales en el trabajo. Evalúa dimensiones como exigencias psicológicas, trabajo activo, apoyo social, compensaciones y doble presencia.
+              {t('psychosocial.protocol_text')}
             </p>
           </div>
         </div>

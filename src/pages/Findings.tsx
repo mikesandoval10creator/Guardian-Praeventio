@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   AlertTriangle, 
   Plus, 
@@ -26,6 +27,7 @@ import { generateActionPlan } from '../services/geminiService';
 import { logAuditAction } from '../services/auditService';
 
 export function Findings() {
+  const { t } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -83,15 +85,15 @@ export function Findings() {
       );
 
       if (created === total) {
-        showPlanToast(`${created} tareas de acción correctiva generadas y vinculadas.`, true);
+        showPlanToast(t('findings.toast_success', { count: created }), true);
       } else {
-        showPlanToast(`Se crearon ${created}/${total} tareas. Reintenta para crear las restantes.`, false);
+        showPlanToast(t('findings.toast_partial', { created, total }), false);
       }
     } catch {
       if (created > 0) {
-        showPlanToast(`Se crearon ${created}/${total} tareas antes del error. Reintenta para completar.`, false);
+        showPlanToast(t('findings.toast_partial_error', { created, total }), false);
       } else {
-        showPlanToast('Error al generar el plan con IA. Verifica tu conexión e inténtalo nuevamente.', false);
+        showPlanToast(t('findings.toast_error'), false);
       }
     } finally {
       setProcessingId(null);
@@ -159,8 +161,8 @@ export function Findings() {
             <AlertTriangle className="w-6 h-6 text-amber-500" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white leading-tight">Hallazgos</h1>
-            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Observaciones y No Conformidades</p>
+            <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white leading-tight">{t('findings.title')}</h1>
+            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-0.5">{t('findings.subtitle')}</p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -171,7 +173,7 @@ export function Findings() {
             className="bg-teal-600 text-white px-3 py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 w-full sm:w-auto"
           >
             <FileSpreadsheet className="w-4 h-4" />
-            <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Import/Export CSV</span>
+            <span className="text-xs sm:text-sm font-black uppercase tracking-widest">{t('findings.csv')}</span>
           </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -180,7 +182,7 @@ export function Findings() {
             className="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-2.5 sm:py-2 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-black/20 dark:shadow-white/10 group w-full sm:w-auto"
           >
             <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-            <span className="text-xs sm:text-sm font-black uppercase tracking-widest">Nuevo Hallazgo</span>
+            <span className="text-xs sm:text-sm font-black uppercase tracking-widest">{t('findings.new_finding')}</span>
           </motion.button>
         </div>
       </div>
@@ -188,10 +190,10 @@ export function Findings() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total', value: stats.total, icon: Activity, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-          { label: 'Abiertos', value: stats.open, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-          { label: 'Críticos', value: stats.critical, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-          { label: 'Resueltos', value: stats.resolved, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: t('findings.stats.total'), value: stats.total, icon: Activity, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+          { label: t('findings.stats.open'), value: stats.open, icon: AlertCircle, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: t('findings.stats.critical'), value: stats.critical, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+          { label: t('findings.stats.resolved'), value: stats.resolved, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -217,7 +219,7 @@ export function Findings() {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar hallazgos..."
+            placeholder={t('findings.search_placeholder')}
             className="w-full bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all placeholder:text-zinc-500"
           />
         </div>
@@ -230,16 +232,16 @@ export function Findings() {
           }`}
         >
           <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
-          <span>Filtros{(severityFilter !== 'all' || statusFilter !== 'all') ? ' •' : ''}</span>
+          <span>{t('findings.filters')}{(severityFilter !== 'all' || statusFilter !== 'all') ? ' •' : ''}</span>
         </button>
       </div>
 
       {showFilters && (
         <div className="flex flex-wrap gap-4 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl">
           <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Severidad</span>
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('findings.severity')}</span>
             <div className="flex gap-2 flex-wrap">
-              {[{ v: 'all', label: 'Todas' }, { v: 'crítica', label: 'Crítica' }, { v: 'alta', label: 'Alta' }, { v: 'media', label: 'Media' }, { v: 'baja', label: 'Baja' }].map(opt => (
+              {[{ v: 'all', label: t('findings.sev_all') }, { v: 'crítica', label: t('findings.sev_critical') }, { v: 'alta', label: t('findings.sev_high') }, { v: 'media', label: t('findings.sev_medium') }, { v: 'baja', label: t('findings.sev_low') }].map(opt => (
                 <button
                   key={opt.v}
                   onClick={() => setSeverityFilter(opt.v)}
@@ -251,9 +253,9 @@ export function Findings() {
             </div>
           </div>
           <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Estado</span>
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('findings.status')}</span>
             <div className="flex gap-2 flex-wrap">
-              {[{ v: 'all', label: 'Todos' }, { v: 'open', label: 'Abiertos' }, { v: 'resolved', label: 'Cerrados' }].map(opt => (
+              {[{ v: 'all', label: t('findings.st_all') }, { v: 'open', label: t('findings.st_open') }, { v: 'resolved', label: t('findings.st_closed') }].map(opt => (
                 <button
                   key={opt.v}
                   onClick={() => setStatusFilter(opt.v)}
@@ -272,7 +274,7 @@ export function Findings() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 sm:py-20 gap-3 sm:gap-4">
             <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-amber-500 animate-spin" />
-            <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-400">Sincronizando Hallazgos...</p>
+            <p className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-zinc-400">{t('findings.syncing')}</p>
           </div>
         ) : findings.length > 0 ? (
           findings.map((finding, i) => (
@@ -317,7 +319,7 @@ export function Findings() {
                     {finding.isPendingSync && (
                       <span className="px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 animate-spin" />
-                        Pendiente
+                        {t('findings.pending')}
                       </span>
                     )}
                   </div>
@@ -338,7 +340,7 @@ export function Findings() {
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
                     >
                       {processingId === finding.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-400 dark:text-amber-500" />}
-                      Plan IA
+                      {t('findings.ai_plan')}
                     </button>
                     <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-amber-500 group-hover:translate-x-1 transition-all hidden sm:block" />
                   </div>
@@ -349,8 +351,8 @@ export function Findings() {
         ) : (
           <div className="text-center py-12 sm:py-20 bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border border-dashed border-zinc-200 dark:border-white/10">
             <AlertTriangle className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-4" />
-            <p className="text-sm sm:text-base font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">No se encontraron hallazgos</p>
-            <p className="text-[10px] sm:text-xs text-zinc-400 dark:text-zinc-500 mt-1">Registra una nueva observación para comenzar</p>
+            <p className="text-sm sm:text-base font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('findings.empty_title')}</p>
+            <p className="text-[10px] sm:text-xs text-zinc-400 dark:text-zinc-500 mt-1">{t('findings.empty_subtitle')}</p>
           </div>
         )}
       </div>

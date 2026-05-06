@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   Shield, 
   Wind, 
@@ -32,6 +33,7 @@ const iconMap: Record<string, any> = {
 };
 
 export function Hygiene() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { nodes, loading } = useRiskEngine();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,15 +49,15 @@ export function Hygiene() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Higiene y Salud</h1>
-          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Monitoreo de agentes ambientales y salud ocupacional</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('hygiene.title')}</h1>
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('hygiene.subtitle')}</p>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
           className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3 sm:py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-emerald-500/20 active:scale-95 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
-          <span>Nuevo Registro</span>
+          <span>{t('hygiene.new_record')}</span>
         </button>
       </div>
 
@@ -88,7 +90,7 @@ export function Hygiene() {
                       <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                         status === 'safe' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
                       }`}>
-                        {status === 'safe' ? 'Normal' : 'Alerta'}
+                        {status === 'safe' ? t('hygiene.status_normal') : t('hygiene.status_alert')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 mb-1">
@@ -100,7 +102,7 @@ export function Hygiene() {
                     </div>
                     <div className="flex items-baseline gap-2">
                       <span className="text-3xl font-bold text-white">{node.metadata.value} {node.metadata.unit}</span>
-                      <span className="text-xs text-zinc-500 font-medium">Límite: {node.metadata.limit} {node.metadata.unit}</span>
+                      <span className="text-xs text-zinc-500 font-medium">{t('hygiene.limit')}: {node.metadata.limit} {node.metadata.unit}</span>
                     </div>
                     <div className="mt-6 h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
                       <div 
@@ -117,7 +119,7 @@ export function Hygiene() {
               <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Shield className="w-8 h-8 text-zinc-600" />
               </div>
-              <p className="text-zinc-500 text-sm">No hay registros de higiene ambiental para este proyecto.</p>
+              <p className="text-zinc-500 text-sm">{t('hygiene.empty')}</p>
             </div>
           )}
 
@@ -125,11 +127,11 @@ export function Hygiene() {
             <div className="flex items-center justify-between mb-8">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <BarChart3 className="w-6 h-6 text-indigo-500" />
-                Tendencias Mensuales
+                {t('hygiene.monthly_trends')}
               </h3>
               <select className="bg-zinc-800 border border-white/10 text-zinc-400 text-xs rounded-lg px-3 py-1.5 focus:outline-none">
-                <option>Últimos 30 días</option>
-                <option>Últimos 6 meses</option>
+                <option>{t('hygiene.last_30_days')}</option>
+                <option>{t('hygiene.last_6_months')}</option>
               </select>
             </div>
             <div className="h-48 flex items-end justify-between gap-2">
@@ -140,7 +142,7 @@ export function Hygiene() {
                   style={{ height: `${h}%` }}
                 >
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    {h}% Nivel
+                    {h}% {t('hygiene.level')}
                   </div>
                 </div>
               ))}
@@ -165,12 +167,12 @@ export function Hygiene() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5 text-rose-500" />
-              Salud Ocupacional
+              {t('hygiene.occupational_health')}
             </h3>
             <div className="space-y-4">
               <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-zinc-400">Exámenes Médicos</span>
+                  <span className="text-sm text-zinc-400">{t('hygiene.medical_exams')}</span>
                   <span className="text-xs font-bold text-emerald-500">92%</span>
                 </div>
                 <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
@@ -179,7 +181,7 @@ export function Hygiene() {
               </div>
               <div className="p-4 rounded-2xl bg-zinc-800/50 border border-white/5">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-zinc-400">Vacunación</span>
+                  <span className="text-sm text-zinc-400">{t('hygiene.vaccination')}</span>
                   <span className="text-xs font-bold text-blue-500">78%</span>
                 </div>
                 <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
@@ -192,7 +194,7 @@ export function Hygiene() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Alertas Críticas ({alerts.length})
+              {t('hygiene.critical_alerts')} ({alerts.length})
             </h3>
             <div className="space-y-3">
               {alerts.length > 0 ? (
@@ -210,7 +212,7 @@ export function Hygiene() {
               ) : (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                   <Shield className="w-4 h-4 text-emerald-500" />
-                  <p className="text-xs text-emerald-200">No hay alertas críticas activas.</p>
+                  <p className="text-xs text-emerald-200">{t('hygiene.no_critical_alerts')}</p>
                 </div>
               )}
             </div>

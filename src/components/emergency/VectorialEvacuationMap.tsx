@@ -75,7 +75,8 @@ export function VectorialEvacuationMap({ showDeadReckoning = false }: VectorialE
         <div className="absolute bottom-3 left-3 flex items-center gap-2">
           <button
             onClick={isActive ? stop : start}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+            // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+            className={`min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
               isActive ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 bg-black/60'
             }`}
           >
@@ -87,7 +88,8 @@ export function VectorialEvacuationMap({ showDeadReckoning = false }: VectorialE
               type="button"
               aria-label="Reiniciar contador de pasos de navegación inercial"
               onClick={reset}
-              className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-white bg-black/60 transition-colors"
+              // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+              className="min-h-11 min-w-11 inline-flex items-center justify-center p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-white bg-black/60 transition-colors"
             >
               <RotateCcw className="w-3 h-3" aria-hidden="true" />
             </button>

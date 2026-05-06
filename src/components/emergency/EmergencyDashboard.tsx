@@ -238,7 +238,8 @@ export function EmergencyDashboard() {
                       <button
                         onClick={startScanning}
                         disabled={isScanning}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                        // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                        className="min-h-11 inline-flex items-center justify-center px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 disabled:opacity-50 transition-colors"
                       >
                         {isScanning ? 'Escaneando...' : 'Escanear'}
                       </button>

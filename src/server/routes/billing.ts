@@ -123,9 +123,9 @@ if (process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON) {
     playAuth = google.auth.fromJSON(credentials);
     // @ts-ignore
     playAuth.scopes = ['https://www.googleapis.com/auth/androidpublisher'];
-    console.log('Google Play Developer API client initialized.');
+    logger.info('google_play_api_initialized');
   } catch (error) {
-    console.error('Failed to initialize Google Play API client:', error);
+    logger.error('google_play_api_init_failed', error);
     sentryCapture(error, { endpoint: 'billing.googlePlayApiInit', tags: { phase: 'module-init' } });
   }
 }

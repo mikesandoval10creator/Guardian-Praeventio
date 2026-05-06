@@ -210,7 +210,8 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
           type="button"
           aria-label={t('emergency.survival_close_aria', 'Cerrar modo supervivencia')}
           onClick={onClose}
-          className="p-2 hover:bg-white/5 rounded-full transition-colors"
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 hover:bg-white/5 rounded-full transition-colors"
         >
           <X className="w-6 h-6 text-zinc-400" aria-hidden="true" />
         </button>
@@ -317,7 +318,8 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
               >
                 <button
                   onClick={() => setActiveGuide(null)}
-                  className="text-sm font-bold text-zinc-400 hover:text-white flex items-center gap-2 uppercase tracking-wider"
+                  // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                  className="min-h-11 inline-flex items-center gap-2 text-sm font-bold text-zinc-400 hover:text-white uppercase tracking-wider"
                 >
                   <ChevronRight className="w-4 h-4 rotate-180" />
                   {t('emergency.survival_back_to_menu', 'Volver al Menú')}

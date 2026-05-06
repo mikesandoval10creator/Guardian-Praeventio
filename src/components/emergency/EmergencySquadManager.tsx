@@ -245,10 +245,11 @@ export function EmergencySquadManager() {
                         ))}
                       </div>
                       <div className="mt-4 flex gap-2">
-                        <Button className="flex-1 bg-rose-600 hover:bg-rose-700 text-white text-xs py-1.5 h-auto">
+                        {/* Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target. */}
+                        <Button className="flex-1 min-h-11 bg-rose-600 hover:bg-rose-700 text-white text-xs py-1.5 h-auto">
                           Reasignar Rol
                         </Button>
-                        <Button variant="outline" className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs py-1.5 h-auto">
+                        <Button variant="outline" className="flex-1 min-h-11 border-zinc-700 text-zinc-300 hover:bg-zinc-800 text-xs py-1.5 h-auto">
                           Ver Ubicación
                         </Button>
                       </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,6 +44,7 @@ import { logger } from '../utils/logger';
 import { EmptyState } from '../components/shared/EmptyState';
 
 export function Workers() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -98,18 +100,18 @@ export function Workers() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-hidden box-border">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">Trabajadores</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">{t('workers.title')}</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-xs sm:text-sm">
-            {selectedProject 
-              ? `Gestionando personal para: ${selectedProject.name}`
-              : 'Gestión centralizada de personal y contratistas'}
+            {selectedProject
+              ? t('workers.managing_for', { project: selectedProject.name })
+              : t('workers.subtitle_centralized')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
             onClick={() => setIsImportModalOpen(true)}
             disabled={!isOnline}
-            title={!isOnline ? 'Requiere conexión a internet' : ''}
+            title={!isOnline ? t('workers.requires_internet') : ''}
             className={`flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 text-xs sm:text-sm ${
               !isOnline
                 ? 'bg-zinc-100 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'
@@ -117,19 +119,19 @@ export function Workers() {
             }`}
           >
             {!isOnline ? <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />}
-            <span>{!isOnline ? 'Requiere Conexión' : 'Importación Masiva'}</span>
+            <span>{!isOnline ? t('workers.requires_connection') : t('workers.mass_import')}</span>
           </button>
           <button 
             onClick={() => setIsAddModalOpen(true)}
             className="flex items-center justify-center gap-2 bg-[#4db6ac] hover:bg-[#3a9e95] text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all active:scale-95 shadow-lg shadow-[#4db6ac]/20 text-xs sm:text-sm"
           >
             <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Añadir Trabajador</span>
+            <span>{t('workers.add_worker')}</span>
           </button>
         </div>
       </div>
 
-      <DataLoadErrorBanner error={workersError} resourceLabel="los trabajadores" />
+      <DataLoadErrorBanner error={workersError} resourceLabel={t('workers.resource_label')} />
 
       {/* Filters & Search */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 mb-6">
@@ -137,7 +139,7 @@ export function Workers() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-zinc-500" />
           <input
             type="text"
-            placeholder="Buscar por nombre, email o cargo..."
+            placeholder={t('workers.search_placeholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-9 sm:pl-10 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 transition-all shadow-sm"
@@ -149,7 +151,7 @@ export function Workers() {
             onChange={(e) => setFilterRole(e.target.value)}
             className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl py-2.5 pl-4 pr-10 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4db6ac]/50 appearance-none transition-all shadow-sm"
           >
-            <option value="all">Todos los roles</option>
+            <option value="all">{t('workers.all_roles')}</option>
             <option value="Prevencionista">Prevencionista</option>
             <option value="Director_Obra">Director de Obra</option>
             <option value="Medico_Ocupacional">Médico Ocupacional</option>
@@ -211,7 +213,7 @@ export function Workers() {
                           }}
                           className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
                         >
-                          Editar
+                          {t('common.edit')}
                         </button>
                         <button 
                           onClick={(e) => {
@@ -221,7 +223,7 @@ export function Workers() {
                           }}
                           className="w-full text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
                         >
-                          Eliminar
+                          {t('common.delete')}
                         </button>
                       </motion.div>
                     )}
@@ -241,12 +243,12 @@ export function Workers() {
                   <div className="flex items-center gap-1.5 sm:gap-2 mt-1">
                     <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${worker.status === 'active' ? 'bg-emerald-500' : 'bg-zinc-500'}`} />
                     <span className="text-[9px] sm:text-[10px] uppercase tracking-wider text-zinc-400 font-bold">
-                      {worker.status === 'active' ? 'Activo' : 'Inactivo'}
+                      {worker.status === 'active' ? t('workers.active') : t('workers.inactive')}
                     </span>
                     {worker.isPendingSync && (
                       <span className="ml-2 px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
                         <RefreshCw className="w-2 h-2 animate-spin" />
-                        Pendiente
+                        {t('workers.pending')}
                       </span>
                     )}
                   </div>
@@ -260,11 +262,11 @@ export function Workers() {
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 text-zinc-400 dark:text-zinc-500 text-xs sm:text-sm">
                   <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  <span>{worker.phone || 'No registrado'}</span>
+                  <span>{worker.phone || t('workers.not_registered')}</span>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 text-zinc-400 dark:text-zinc-500 text-xs sm:text-sm">
                   <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-                  <span>Ingreso: {worker.joinedAt ? new Date(worker.joinedAt).toLocaleDateString() : 'N/A'}</span>
+                  <span>{t('workers.joined')}: {worker.joinedAt ? new Date(worker.joinedAt).toLocaleDateString() : 'N/A'}</span>
                 </div>
               </div>
 
@@ -274,14 +276,14 @@ export function Workers() {
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn col-span-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 mb-2"
                 >
                   <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 dark:text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-black text-amber-600 dark:text-amber-500 tracking-widest">Perfil Usuario</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-black text-amber-600 dark:text-amber-500 tracking-widest">{t('workers.user_profile')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('labor'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <FileSignature className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 dark:text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Laboral</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.labor')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('epp'); }}
@@ -295,28 +297,28 @@ export function Workers() {
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 dark:text-amber-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Docs</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.docs')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('safety-plan'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <BrainCircuit className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Plan</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.plan')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('training'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500 dark:text-indigo-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Capac</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.training')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('traceability'); }}
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-[#4db6ac] dark:text-[#d4af37] group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Trazabilidad</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.traceability')}</span>
                 </button>
                 <button 
                   onClick={() => { setSelectedWorker(worker); setActiveModal('qr'); }}
@@ -330,7 +332,7 @@ export function Workers() {
                   className="flex flex-col items-center gap-1.5 p-2 rounded-xl hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors group/btn"
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 dark:text-rose-400 group-hover/btn:scale-110 transition-transform" />
-                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">Acceso</span>
+                  <span className="text-[10px] sm:text-xs uppercase font-bold text-zinc-500 dark:text-zinc-400">{t('workers.access')}</span>
                 </button>
               </div>
             </motion.div>
@@ -340,9 +342,9 @@ export function Workers() {
         <div className="bg-white dark:bg-zinc-900/50 border border-dashed border-zinc-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-sm">
           <EmptyState
             mascot
-            title="No se encontraron trabajadores"
-            description="Comienza añadiendo personal a este proyecto para gestionar su seguridad y documentación."
-            action={{ label: 'Añadir Trabajador', onClick: () => setIsAddModalOpen(true) }}
+            title={t('workers.empty_title')}
+            description={t('workers.empty_description')}
+            action={{ label: t('workers.add_worker'), onClick: () => setIsAddModalOpen(true) }}
           />
         </div>
       )}
@@ -369,7 +371,7 @@ export function Workers() {
                     <BrainCircuit className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Plan de Seguridad IA</h2>
+                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('workers.ai_safety_plan')}</h2>
                     <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest truncate">{selectedWorker.name}</p>
                   </div>
                 </div>
@@ -421,7 +423,7 @@ export function Workers() {
                     <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">Capacitaciones IA</h2>
+                    <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tight truncate">{t('workers.ai_training')}</h2>
                     <p className="text-[10px] text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-widest truncate">{selectedWorker.name}</p>
                   </div>
                 </div>
@@ -525,9 +527,9 @@ export function Workers() {
       )}
       <ConfirmDialog
         isOpen={!!deleteWorkerId}
-        title="Eliminar trabajador"
-        message="¿Estás seguro? Esta acción eliminará al trabajador y todos sus datos asociados."
-        confirmLabel="Eliminar"
+        title={t('workers.delete_title')}
+        message={t('workers.delete_message')}
+        confirmLabel={t('common.delete')}
         danger
         onConfirm={doDeleteWorker}
         onCancel={() => setDeleteWorkerId(null)}

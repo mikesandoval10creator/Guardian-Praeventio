@@ -32,6 +32,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { logger } from '../../utils/logger.js';
 
 function sentryCapture(
   err: unknown,
@@ -198,7 +199,7 @@ router.post('/reports/generate-pdf', verifyAuth, validate(reportsGeneratePdfSche
 
     doc.end();
   } catch (error) {
-    console.error('Error generating PDF:', error);
+    logger.error('report_pdf_generation_failed', error);
     sentryCapture(error, { endpoint: '/api/reports/generate-pdf', tags: { method: 'POST', type: type ?? 'general', incidentId: incidentId ?? null } });
     res.status(500).json({ error: 'Internal server error during PDF generation' });
   }

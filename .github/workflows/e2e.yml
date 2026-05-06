@@ -77,7 +77,17 @@ jobs:
     # fall-detection-toggle reload locator timeout). Restaurado a `true` para
     # destrabar el merge de #70; Sprint 35+ reabordará la robustez de esos
     # specs específicos antes de re-flipear.
-    continue-on-error: true
+    # Sprint 36 — re-flipeado a `false`. Las 2 specs fueron robustecidas:
+    #   • accessibility.spec.ts:144 → expect tolerante a hidratación lazy
+    #     del LocaleProvider (toHaveText(/\S+/) en lugar de !== '').
+    #   • fall-detection-toggle → locator pasa a `getByRole('switch')` y
+    #     aserción contra `aria-checked` en lugar del aria-label literal,
+    #     sobreviviendo cualquier rewording i18n.
+    # Los aria-labels hardcoded en Settings.tsx también fueron extraídos
+    # a `settings.aria.*` keys (10 toggles), eliminando la última fuente
+    # de fragilidad contra rewording español. Si vuelve a fallar es una
+    # regresión real y debe gatear el merge.
+    continue-on-error: false
     steps:
       - uses: actions/checkout@v4
 

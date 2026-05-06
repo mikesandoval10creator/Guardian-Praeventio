@@ -39,6 +39,7 @@ import {
 // Sprint 22 Bucket AA — request-scoped tracing for the AI dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { logger } from '../../utils/logger.js';
 
 function sentryCapture(
   err: unknown,
@@ -103,13 +104,13 @@ const fetchEnvContextWithTimeout = async (
       timeoutPromise,
     ]);
     if (!result) {
-      console.warn('[ask-guardian] env-context timeout');
+      logger.warn('ask_guardian_env_context_timeout');
       return null;
     }
     const serialized = JSON.stringify(result);
     return serialized.length > 500 ? serialized.slice(0, 497) + '...' : serialized;
   } catch (error) {
-    console.warn('[ask-guardian] env-context timeout', error);
+    logger.warn('ask_guardian_env_context_failed', { err: error instanceof Error ? error.message : String(error) });
     sentryCapture(error, { endpoint: 'gemini.fetchEnvContext', tags: { phase: 'env-context' } });
     return null;
   }
@@ -360,7 +361,7 @@ ${envBlock}
       });
     }
   } catch (error) {
-    console.error('Error in /api/ask-guardian:', error);
+    logger.error('ask_guardian_failed', error);
     sentryCapture(error, { endpoint: '/api/ask-guardian', tags: { method: 'POST', tenantId } });
     // Bucket X: every Gemini exception advances the breaker counter so
     // sustained upstream failure trips it before per-tenant ceilings do.
@@ -445,7 +446,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
       res.status(400).json({ error: `Action ${action} not found` });
     }
   } catch (error: any) {
-    console.error(`Error in Gemini API Proxy for ${action}:`, error);
+    logger.error('gemini_proxy_failed', error, { action });
     sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
     await recordGeminiOutcome(tenantId, 'failure');
     res.status(500).json({
@@ -570,7 +571,7 @@ router.post(
         costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', inTokens, outTokens),
       });
     } catch (error) {
-      console.error('Error in /api/gemini/stream:', error);
+      logger.error('gemini_stream_failed', error);
       sentryCapture(error, { endpoint: '/api/gemini/stream', tags: { method: 'POST', tenantId } });
       await recordGeminiOutcome(tenantId, 'failure');
       if (!res.headersSent) {

@@ -159,7 +159,8 @@ export function EmergencyCheckIn() {
         </div>
         <button
           onClick={toggleEmergency}
-          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className={`min-h-11 inline-flex items-center justify-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
             isEmergencyActive 
               ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white' 
               : 'bg-rose-500 text-white shadow-lg shadow-rose-500/20'

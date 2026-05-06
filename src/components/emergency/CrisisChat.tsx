@@ -214,7 +214,8 @@ export function CrisisChat() {
           <button
             type="button"
             aria-label="Iniciar llamada de voz al canal"
-            className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
+            // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+            className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
           >
             <Phone className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -228,7 +229,8 @@ export function CrisisChat() {
                 e.stopPropagation();
                 setActiveDropdown(activeDropdown === 'menu' ? null : 'menu');
               }}
-              className="p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
+              // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+              className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 hover:bg-rose-100 dark:hover:bg-white/5 rounded-lg text-rose-600 dark:text-zinc-400 transition-colors"
             >
               <MoreVertical className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -250,7 +252,8 @@ export function CrisisChat() {
                       // Handle mute
                       setActiveDropdown(null);
                     }}
-                    className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
+                    // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                    className="w-full min-h-11 text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors"
                   >
                     Silenciar
                   </button>
@@ -261,7 +264,8 @@ export function CrisisChat() {
                       // Handle close
                       setActiveDropdown(null);
                     }}
-                    className="w-full text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                    // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                    className="w-full min-h-11 text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
                   >
                     Cerrar Canal
                   </button>
@@ -356,19 +360,22 @@ export function CrisisChat() {
       <div className="px-4 py-2 bg-rose-50 dark:bg-rose-500/5 border-t border-rose-100 dark:border-white/5 flex items-center gap-4 overflow-x-auto scrollbar-hide">
         <button 
           onClick={() => handleQuickAction('Fuego detectado en mi sector.', 'emergency')}
-          className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className="whitespace-nowrap min-h-11 inline-flex items-center px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
         >
           Reportar Fuego
         </button>
         <button 
           onClick={() => handleQuickAction('Necesito asistencia médica urgente.', 'emergency')}
-          className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className="whitespace-nowrap min-h-11 inline-flex items-center px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
         >
           Solicitar Médico
         </button>
         <button 
           onClick={() => handleQuickAction('Iniciando evacuación del sector.', 'alert')}
-          className="whitespace-nowrap px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className="whitespace-nowrap min-h-11 inline-flex items-center px-3 py-1.5 bg-white dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 rounded-lg text-[9px] font-black text-rose-600 dark:text-rose-500 uppercase tracking-widest hover:bg-rose-500 hover:text-white dark:hover:bg-rose-500 dark:hover:text-white transition-all shadow-sm"
         >
           Evacuación Completa
         </button>

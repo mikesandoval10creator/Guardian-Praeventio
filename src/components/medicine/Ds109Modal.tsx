@@ -109,7 +109,8 @@ function Section({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+        // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+        className="w-full min-h-11 flex items-center justify-between px-5 py-3 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <span className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-200">
           {title}
@@ -314,7 +315,8 @@ export function Ds109Modal({ isOpen, onClose }: Ds109ModalProps) {
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"
+            // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+            className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 transition-colors"
             aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
@@ -388,7 +390,8 @@ export function Ds109Modal({ isOpen, onClose }: Ds109ModalProps) {
                 <div key={i} className="rounded-xl border border-zinc-200 dark:border-white/10 p-3 space-y-2 bg-zinc-50/50 dark:bg-zinc-800/30">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600 dark:text-zinc-300">Período #{i + 1}</span>
-                    <button type="button" onClick={() => removeHistoryEntry(i)} className="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10" aria-label="Eliminar período">
+                    {/* Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target. */}
+                    <button type="button" onClick={() => removeHistoryEntry(i)} className="min-h-11 min-w-11 inline-flex items-center justify-center p-1 rounded-lg text-rose-500 hover:bg-rose-500/10" aria-label="Eliminar período">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -408,7 +411,8 @@ export function Ds109Modal({ isOpen, onClose }: Ds109ModalProps) {
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addRiskAgent(i); } }}
                         placeholder="Ej: Sílice, Ruido, Plomo"
                       />
-                      <button type="button" onClick={() => addRiskAgent(i)} className="px-3 rounded-xl bg-teal-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 hover:bg-teal-400/20">
+                      {/* Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target. */}
+                      <button type="button" onClick={() => addRiskAgent(i)} className="min-h-11 min-w-11 inline-flex items-center justify-center px-3 rounded-xl bg-teal-400/10 text-teal-600 dark:text-gold-400 border border-teal-400/20 hover:bg-teal-400/20" aria-label="Agregar agente de riesgo">
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
@@ -417,7 +421,8 @@ export function Ds109Modal({ isOpen, onClose }: Ds109ModalProps) {
                         {h.riskAgents.map((a, ai) => (
                           <span key={ai} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs">
                             {a}
-                            <button type="button" onClick={() => removeRiskAgent(i, ai)} className="hover:text-amber-900 dark:hover:text-amber-300">
+                            {/* WCAG 2.5.5 exception: dense inline tag chip — UX intentional for compact agent list; agent list also has Trash2 button covering bulk-delete. */}
+                            <button type="button" onClick={() => removeRiskAgent(i, ai)} className="hover:text-amber-900 dark:hover:text-amber-300" aria-label="Quitar agente">
                               <X className="w-3 h-3" />
                             </button>
                           </span>
