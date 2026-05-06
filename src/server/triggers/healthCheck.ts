@@ -42,6 +42,14 @@ export interface HealthCheckDeps {
    * `src/services/safetyEngineBackend.js`). Tests inject a stub.
    */
   performProjectSafetyHealthCheck?: (projectId: string) => Promise<unknown>;
+  /**
+   * Sprint 35 audit P1 §1.3 — distributed lease gate. When provided,
+   * the tick only runs if `gate()` resolves to `true`. This prevents
+   * N Cloud Run replicas from each running the 6h safety pass
+   * independently. If the gate throws, the error is logged and the
+   * tick is skipped (no crash); the next interval re-attempts.
+   */
+  gate?: () => Promise<boolean>;
 }
 
 export interface HealthCheckHandle {
@@ -55,6 +63,17 @@ export function setupHealthCheckInterval(
 
   const tick = async () => {
     try {
+      if (deps.gate) {
+        let gateOk = false;
+        try {
+          gateOk = await deps.gate();
+        } catch (gateErr) {
+          console.warn('[healthCheck] gate threw — skipping tick:', gateErr);
+          sentryCapture(gateErr, { trigger: 'projectHealthCheck', tags: { phase: 'gate' } });
+          return;
+        }
+        if (!gateOk) return; // another replica owns the lease this tick
+      }
       const projects = await deps.db.collection('projects').get();
       const performCheck =
         deps.performProjectSafetyHealthCheck ??

@@ -29,6 +29,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import {
   assertProjectMember,
   ProjectMembershipError,
@@ -136,6 +137,7 @@ const zettelkastenWriteSchema = z.object({
 router.post(
   '/nodes',
   verifyAuth,
+  idempotencyKey(),
   zettelkastenWriteLimiter,
   validate(zettelkastenWriteSchema),
   async (req, res) => {

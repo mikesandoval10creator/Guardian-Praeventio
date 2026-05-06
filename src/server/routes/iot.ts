@@ -29,6 +29,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
@@ -62,6 +63,7 @@ const router = Router();
 router.post(
   '/devices/register',
   verifyAuth,
+  idempotencyKey(),
   validate(RegisterDeviceSchema),
   async (req, res) => {
     const callerUid = (req as any).user.uid;

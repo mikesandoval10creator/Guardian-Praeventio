@@ -1,0 +1,109 @@
+name: DR runbook automated dry-run
+
+# Sprint 35 — Brecha del usuario:
+#   "Ejecutar el DR_RUNBOOK.md en un entorno de staging para validar que la
+#    base de datos de Firebase se replica en menos de 5 minutos ante un
+#    fallo regional."
+#
+# This workflow is the CI-side counterpart to that brecha. It boots the
+# Firestore emulator, seeds a representative dataset, simulates regional
+# failure, restores from "snapshot" (deterministic re-seed), and asserts
+# RTO < 5 min plus zero data loss on critical collections.
+#
+# Scope guardrails:
+#   - workflow_dispatch only on PRs (NEVER auto-run on PR — it's slow
+#     and would burn minutes on every push).
+#   - Schedule: 1st of each month, 04:00 UTC. Cheap monthly drift check
+#     between manual quarterly drills (DR_RUNBOOK §6).
+#   - Touches the LOCAL EMULATOR ONLY. No cloud creds. No prod risk.
+#
+# For real validation against praeventio-staging GCP, run the manual
+# quarterly drill documented in DR_RUNBOOK §6.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you running this manually? (audit trail)'
+        required: false
+        type: string
+        default: 'Ad-hoc DR drift check'
+  schedule:
+    # First of every month, 04:00 UTC == 00:00 America/Santiago (CLT).
+    - cron: '0 4 1 * *'
+
+permissions:
+  contents: read
+
+jobs:
+  dr-dryrun:
+    name: Firestore emulator DR dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+      GOOGLE_CLOUD_PROJECT: demo-dr
+      # CI must have JDK for the firebase-tools emulator JAR.
+      JAVA_TOOL_OPTIONS: '-Xmx2g'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Java (Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install firebase-tools
+        run: npm i -g firebase-tools
+
+      - name: Boot Firestore emulator
+        run: |
+          nohup firebase emulators:start --only firestore --project demo-dr \
+            > /tmp/emulator.log 2>&1 &
+          # Wait up to 60 s for the emulator to bind 8080.
+          for i in $(seq 1 60); do
+            if nc -z 127.0.0.1 8080; then
+              echo "Emulator ready after ${i}s."
+              break
+            fi
+            sleep 1
+          done
+          nc -z 127.0.0.1 8080 || (cat /tmp/emulator.log; exit 1)
+
+      - name: Run DR dry-run spec
+        id: dryrun
+        run: |
+          set -o pipefail
+          npm run test:dr 2>&1 | tee /tmp/dr-dryrun.log
+
+      - name: Extract DR report
+        if: always()
+        run: |
+          # The spec prints a JSON line tagged `"kind": "dr-dryrun-report"`.
+          # Pull it into a stable filename for the artifact.
+          mkdir -p reports/dr
+          TS=$(date -u +%Y%m%dT%H%M%SZ)
+          if grep -q '"kind": "dr-dryrun-report"' /tmp/dr-dryrun.log; then
+            sed -n '/"kind": "dr-dryrun-report"/,/^}/p' /tmp/dr-dryrun.log \
+              > reports/dr/dr-dryrun-${TS}.json || true
+          fi
+          cp /tmp/dr-dryrun.log reports/dr/dr-dryrun-${TS}.log
+          cp /tmp/emulator.log reports/dr/emulator-${TS}.log || true
+
+      - name: Upload DR report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dr-dryrun-report-${{ github.run_id }}
+          path: reports/dr/
+          retention-days: 90
