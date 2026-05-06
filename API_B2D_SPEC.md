@@ -1,8 +1,22 @@
-# Praeventio Guard — API B2D Spec (OpenAPI 3.1, draft)
+# Praeventio Guard — API B2D Spec (OpenAPI 3.1)
 
-> **Status:** draft. Sprint 10 entrega solo la especificación. La
-> implementación de endpoints está planificada para Sprint 16. No
-> existen rutas vivas todavía — esta página fija el contrato.
+> ## Sprint 36 — Esta spec se autogenera
+>
+> **Esta spec se autogenera desde los Zod schemas en runtime. La fuente
+> canónica es `GET /api/openapi.json`. Este markdown queda como
+> referencia humana solamente.**
+>
+> - Endpoint JSON (consumir desde Postman / Stoplight / OpenAPI codegen):
+>   `GET /api/openapi.json`
+> - Explorer interactivo (Swagger UI):
+>   `GET /api/openapi.html`
+> - Fuente del registry: `src/services/openapi/bootstrap.ts`
+> - Generador: `src/services/openapi/specGenerator.ts`
+>
+> Cualquier cambio en un endpoint/Zod schema **no requiere editar este
+> archivo** — el JSON queda al día automáticamente. El contenido manual
+> debajo permanece como contexto histórico (Sprint 10 D4) y narrativa
+> humana sobre tiers, privacidad y modelo de scopes; no es la verdad.
 >
 > **Decisión D4 (2026-05-03):** capa B2D paralela al modelo B2B de 10
 > tiers. 3 APIs individuales (A Climate, B Hazmat, C Normativa) + 1

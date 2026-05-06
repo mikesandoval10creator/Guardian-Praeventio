@@ -40,6 +40,10 @@ import adminRouter from "./src/server/routes/admin.js";
 import b2dAdminRouter from "./src/server/routes/b2dAdmin.js";
 // Sprint 23 Bucket BB — B2D public API (Climate / Hazmat / Normativa / Suite).
 import b2dApiRouter from "./src/server/routes/b2d/index.js";
+// Sprint 36 — Public OpenAPI 3.1 spec auto-generated from Zod schemas.
+// Mounted before the global /api/ rate limiter so integrator tooling
+// (Postman, Stoplight, etc.) can fetch the spec without auth or quota.
+import openapiRouter from "./src/server/routes/openapi.js";
 import { cspReportHandler } from "./src/server/routes/cspReport.js";
 import healthRouter from "./src/server/routes/health.js";
 // Sprint 26 Bucket VV — HealthVault QR sharing (ADR 0012).
@@ -387,6 +391,11 @@ const limiter = rateLimit({
 // Privacy boundary (PRICING.md §9.3): the entire B2D surface NEVER reads
 // tenant Zettelkasten data. Audited per-route in src/server/routes/b2d/.
 app.use("/api/b2d/v1", b2dApiRouter);
+
+// Sprint 36 — Auto-OpenAPI surface (public, no auth, cached 1h). Mounted
+// BEFORE the global /api/ rate limiter so integrator tooling never hits
+// the bucket. Path: /api/openapi.json + /api/openapi.html.
+app.use("/api", openapiRouter);
 
 app.use("/api/", limiter);
 
