@@ -54,6 +54,16 @@
 - [ ] **API-First (Integración ERP/HRM B2B):** Desarrollar APIs bidireccionales con SAP, Workday, o Buk para sincronizar la lista de trabajadores de manera fluida, no solo mediante subidas pasivas, sino a nivel de servicios corporativos.
 - [ ] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase. *(Sprint 32 TT en progreso — `src/services/iot/mqttAdapter.ts` + ADR 0015. Estado real: SHELL — aún no boot ni endpoint expuesto, sin device cert flow ni broker wiring. Ver [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md) §1.5.)*
 - [x] **Reportabilidad Gerencial (ROI y SUSESO):** Automatización de formularios DIAT/DIEP en XML/PDF y cálculo financiero del ahorro por siniestralidad.
+- [ ] **Per-country emission adapters (lanzamiento global):** Estrategia formalizada en [`docs/architecture-decisions/0017-per-country-emission-adapters.md`](docs/architecture-decisions/0017-per-country-emission-adapters.md). Doc-only, **NO push** a SUSESO/SII/OSHA/RIDDOR/NOM/NR/MEM/Rostrud — la empresa cliente firma y entrega. Cobertura por país:
+  - [x] **Chile (CL)**: DS-67, DS-76, DIAT/DIEP, DTE SII (Sprints 33-35 D2/E6/F1). *Sprint 38: consolidar en `registry.ts`.*
+  - [ ] **US**: OSHA Form 301 + 300 log. *Sprint 39.*
+  - [ ] **UK**: RIDDOR. *Sprint 40.*
+  - [ ] **EU**: EU-OSHA + Delt@ (ES) + INAIL (IT). *Sprint 41+.*
+  - [ ] **México**: NOM-019/STPS + IMSS ST-5. *Sprint 41+.*
+  - [ ] **Brasil**: NR-5 + CAT. *Sprint 41+.*
+  - [ ] **Australia**: WHS state-specific. *Sprint 41+.*
+  - [ ] **China**: GB/T 33000 + MEM. *Sprint 41+ (PIPL data residency requerida).*
+  - [ ] **Russia**: 152-FZ + Rostrud. *Sprint 41+.*
 - [ ] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes. *(Estado real: SHELL — `src/pages/CQRSArchitecture.tsx` es solo presentational; sin Redis productivo, sin command/query split en routes. Decisión pendiente: ADR formal o "deferred". Ver [PRAEVENTIO_HONEST_STATE](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).)*
 
 ## Prioridad 6: Visiones Futuras y Expansión (Pendiente de Desarrollo)
