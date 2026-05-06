@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Waves,
@@ -8,11 +8,19 @@ import {
   ShieldAlert,
   Users,
   ArrowUpRight,
-  Loader2
+  Loader2,
+  Layers
 } from "lucide-react";
 import { Card, Button } from "../components/shared/Card";
 import { GoogleMap, useJsApiLoader, Marker, Polyline, Polygon } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
+import {
+  eonetAdapter,
+  bboxFromCenter,
+  buildCalmRecommendation,
+  eonetCategoryGlyph,
+  type EonetEvent,
+} from '../services/external/index.js';
 
 const containerStyle = {
   width: '100%',
@@ -26,6 +34,39 @@ const safeZoneLocation = { lat: -33.050, lng: -71.610 }; // Higher ground
 export function CoastalEmergencyMap() {
   const [isTsunamiWarning, setIsTsunamiWarning] = useState(false);
   const [evacuationProgress, setEvacuationProgress] = useState(0);
+
+  // Sprint 39 J4b — EONET layer (eventos marítimos en zona).
+  // Layer toggle ON por defecto. Click en marker → tooltip tranquilo.
+  const [externalEvents, setExternalEvents] = useState<EonetEvent[]>([]);
+  const [externalLayerOn, setExternalLayerOn] = useState(true);
+  const [hoveredEvent, setHoveredEvent] = useState<EonetEvent | null>(null);
+
+  const externalBbox = useMemo(
+    () => bboxFromCenter(facilityLocation as { lat: number; lng: number }, 1.5),
+    [],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    eonetAdapter
+      .fetchEvents({
+        bbox: externalBbox,
+        days: 7,
+        status: 'open',
+        categories: ['severeStorms', 'seaLakeIce', 'floods'],
+      })
+      .then((events) => {
+        if (cancelled) return;
+        setExternalEvents(events);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setExternalEvents([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [externalBbox]);
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
@@ -192,9 +233,35 @@ export function CoastalEmergencyMap() {
 
         {/* Right Column: Map */}
         <Card className="p-6 border-white/5 lg:col-span-2 min-h-[500px] flex flex-col">
-          <h3 className="text-lg font-bold text-white mb-4">
-            Mapa de Evacuación y Cotas
-          </h3>
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <h3 className="text-lg font-bold text-white">
+              Mapa de Evacuación y Cotas
+            </h3>
+            <button
+              type="button"
+              onClick={() => setExternalLayerOn((v) => !v)}
+              aria-pressed={externalLayerOn}
+              className={`min-h-[44px] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border transition-colors ${
+                externalLayerOn
+                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
+                  : 'bg-zinc-900 border-white/5 text-zinc-400'
+              }`}
+            >
+              <Layers className="w-4 h-4" aria-hidden="true" />
+              Eventos en zona ({externalEvents.length})
+            </button>
+          </div>
+          {hoveredEvent && (
+            <div className="mb-3 p-3 rounded-xl bg-zinc-900 border border-white/5 text-xs text-zinc-300">
+              <span className="mr-2" aria-hidden="true">
+                {eonetCategoryGlyph(hoveredEvent.categories[0]?.id ?? 'manmade')}
+              </span>
+              <span className="font-bold">{hoveredEvent.title}</span>
+              <p className="mt-1 text-[11px] text-zinc-400">
+                {buildCalmRecommendation(hoveredEvent).body}
+              </p>
+            </div>
+          )}
           <div className="flex-1 bg-zinc-900 rounded-xl border border-white/5 relative overflow-hidden flex items-center justify-center">
             {!isLoaded ? (
               <div className="flex flex-col items-center justify-center text-zinc-500">
@@ -328,6 +395,35 @@ export function CoastalEmergencyMap() {
                     strokeColor: "#ffffff"
                   }}
                 />
+
+                {/* Sprint 39 J4b — EONET maritime markers (calm tone). */}
+                {externalLayerOn && externalEvents.map((ev) => {
+                  const geom = ev.geometry[0];
+                  const coords = Array.isArray(geom?.coordinates)
+                    ? (geom!.coordinates as number[])
+                    : null;
+                  if (!coords || typeof coords[0] !== 'number' || typeof coords[1] !== 'number') {
+                    return null;
+                  }
+                  const position = { lat: coords[1] as number, lng: coords[0] as number };
+                  return (
+                    <Marker
+                      key={ev.id}
+                      position={position}
+                      title={`${ev.title} — ${buildCalmRecommendation(ev).body}`}
+                      onMouseOver={() => setHoveredEvent(ev)}
+                      onMouseOut={() => setHoveredEvent(null)}
+                      icon={{
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 7,
+                        fillColor: '#f59e0b',
+                        fillOpacity: 0.9,
+                        strokeWeight: 2,
+                        strokeColor: '#ffffff',
+                      }}
+                    />
+                  );
+                })}
 
                 {/* Evacuation Route */}
                 {isTsunamiWarning && (

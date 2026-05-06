@@ -31,6 +31,7 @@ import { AddEventModal } from '../components/calendar/AddEventModal';
 // TODO(i18n): EventDetailsModal is an external sub-component — its internal
 // strings are scoped to a separate i18n sweep, not this file.
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
+import { ExternalEventsPanel } from '../components/external-events/ExternalEventsPanel';
 import { logger } from '../utils/logger';
 
 interface Event {
@@ -558,6 +559,13 @@ export function Calendar() {
       )}
 
       {/* Upcoming Events (Only show in Calendar view) */}
+      {viewMode === 'calendar' && (
+        <ExternalEventsPanel
+          center={selectedProject?.coordinates ?? null}
+          days={14}
+        />
+      )}
+
       {viewMode === 'calendar' && (
         <div className="space-y-4">
           <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">{t('calendar.upcoming_events.title')}</h2>
