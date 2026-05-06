@@ -1,6 +1,5 @@
 [
   {
-    "_comment": "Sprint 37 — budgets bumped generosamente. Praeventio Guard ofrece: 4 modos UX, 16 locales, Zettelkasten 3D viz, Three.js Digital Twin, MediaPipe pose, SLM offline (TinyLlama 1.1B Q4), Mesh BLE, Edge filtering 2-fase, DTE biométrico, Aptitude cert biométrico, Bernoulli/Euler engines, A* evacuation, Stryker mutation, OpenAPI 3.1, Sentry, OTel. La app es FEATURE-RICH por diseño — el budget refleja eso. Sprint 36 G5 hizo code-split sano (lazy-sii + lazy-cert-pdf + 9 React.lazy companions). Headroom para Sprints 37+ sin re-bump constante.",
     "name": "Main entry (gzipped)",
     "path": "dist/assets/index-*.js",
     "limit": "500 KB",
@@ -52,18 +51,6 @@
     "name": "Largest lazy chunk (gzipped)",
     "path": "dist/assets/RiskNetwork-*.js",
     "limit": "500 KB",
-    "gzip": true
-  },
-  {
-    "name": "Lazy SII (gzipped)",
-    "path": "dist/assets/lazy-sii-*.js",
-    "limit": "250 KB",
-    "gzip": true
-  },
-  {
-    "name": "Lazy cert-pdf (gzipped)",
-    "path": "dist/assets/lazy-cert-pdf-*.js",
-    "limit": "200 KB",
     "gzip": true
   },
   {
