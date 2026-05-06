@@ -14,6 +14,7 @@
 import { Router, type Request, type Response } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { BsaleAdapter, type DteCreateInput } from '../../services/sii/bsaleAdapter.js';
@@ -88,7 +89,7 @@ function isValidDteCreateInput(body: unknown): body is DteCreateInput {
 // ---------------------------------------------------------------------------
 // POST /api/dte/create  — admin-only manual DTE emission.
 // ---------------------------------------------------------------------------
-dteRouter.post('/create', verifyAuth, async (req: Request, res: Response) => {
+dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
   const adapter = resolveBsale(res);
   if (!adapter) return;
