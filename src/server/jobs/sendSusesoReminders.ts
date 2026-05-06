@@ -21,6 +21,7 @@
 
 import type { Firestore } from 'firebase-admin/firestore';
 import type { messaging as adminMessaging } from 'firebase-admin';
+import { tracedAsync } from '../../services/observability/tracing.js';
 import {
   daysUntilDeadline,
   escalationLevel,
@@ -132,6 +133,16 @@ async function resolveRecipients(
  * Scan + remind. Returns counts for the consolidated maintenance JSON.
  */
 export async function sendSusesoReminders(
+  opts: SendSusesoRemindersOptions = {},
+): Promise<SendSusesoRemindersResult> {
+  return tracedAsync(
+    'job.send_suseso_reminders',
+    { tenantLimit: opts.tenantLimit ?? 100, formLimit: opts.formLimit ?? 200 },
+    () => sendSusesoRemindersInner(opts),
+  );
+}
+
+async function sendSusesoRemindersInner(
   opts: SendSusesoRemindersOptions = {},
 ): Promise<SendSusesoRemindersResult> {
   const db = opts.getDb

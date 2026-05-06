@@ -1650,5 +1650,78 @@
       "cta_secondary": "Comecar gratis",
       "free_tier_note": "Grátis até 10 trabalhadores · Sem cartão de crédito"
     }
+  },
+  "public_demo": {
+    "banner": "MODO DEMO — os dados não são persistidos · sem conta",
+    "your_country": "Seu país",
+    "select_country_aria": "Selecione seu país",
+    "regulatory_framework": "Marco regulatório",
+    "no_alerts": "Sem alertas com os dados atuais.",
+    "calculators_heading": "Calculadoras ao vivo",
+    "wind_kmh": "Vento (km/h)",
+    "hero": {
+      "eyebrow": "Praeventio Guard · Demo público",
+      "title": "Prevenção HSE inteligente para sua empresa",
+      "subtitle": "Calcule riscos em tempo real, visualize seu canteiro em 3D e cumpra a regulamentação local sem instalar nada. Experimente abaixo — sem conta.",
+      "cta_signup": "Criar conta para sua empresa",
+      "privacy_link": "Ver política de privacidade"
+    },
+    "gas": {
+      "title": "Dispersão de gás",
+      "subtitle": "Pasquill-Gifford F",
+      "release_rate": "Taxa de vazamento (kg/s)"
+    },
+    "dike": {
+      "title": "Dique hidrostático",
+      "height": "Altura (m)",
+      "piezometer_kpa": "P piezômetro 2 (kPa)"
+    },
+    "scaffold": {
+      "title": "Andaime — sucção pelo vento",
+      "area_m2": "Área (m²)"
+    },
+    "twin": {
+      "heading": "Digital Twin (prévia)",
+      "aria": "Prévia do Digital Twin",
+      "svg_label": "Canteiro Demo · Mesh sintético estático",
+      "note": "Visualização estática — a versão completa com WebXR e AR aparece após o login."
+    }
+  },
+  "risk_network": {
+    "resource_label": "a rede neural",
+    "title": "O Cérebro",
+    "subtitle": "Rede Neural de Prevenção e Conhecimento",
+    "active_consciousness": "Consciência Ativa",
+    "realtime_synapses": "Sinapses em Tempo Real",
+    "info_banner": {
+      "title": "Como funciona a Rede Neural?",
+      "body": "Cada análise de risco, trabalhador ou regulamentação se torna um \"nó\" de conhecimento. O sistema conecta automaticamente esses nós para revelar padrões invisíveis, permitindo uma gestão proativa baseada na interconexão de dados."
+    },
+    "tabs": {
+      "graph": "Grafo 3D",
+      "explorer": "Explorador",
+      "health": "Saúde da Rede",
+      "manager": "Gestor"
+    },
+    "graph_viz_heading": "Visualização do Grafo",
+    "graph_viz_hint": "Interaja com os nós para ver detalhes",
+    "recent_nodes": "Nós Recentes",
+    "no_recent_nodes": "Nenhum nó recente",
+    "connections_analysis": "Análise de Conexões",
+    "synapse_density": "Densidade de Sinapses",
+    "total_connections": "Conexões Totais",
+    "network_factor": "Fator de Rede",
+    "avg_per_node": "Média / Nó",
+    "capacity_note": "A rede neural está operando a <span class=\"font-black\">{{capacity}}%</span> de sua capacidade projetada. Cada nova conexão reduz a incerteza operacional em <span class=\"font-black\">2.4%</span>.",
+    "requires_connection": "Requer Conexão",
+    "analyzing": "Analisando...",
+    "analyze_network": "Analisar Rede Neural",
+    "guardian_insight": "Insight do Guardião",
+    "predictive_hub": "AI Hub Preditivo",
+    "predictive_hub_desc": "Cruza dados da Rede Neural com telemetria em tempo real para prever acidentes antes que aconteçam.",
+    "predicting": "Prevendo...",
+    "predict_imminent": "Prever Riscos Iminentes",
+    "probability_pct": "{{value}}% Prob.",
+    "immediate_action": "Ação Preventiva Imediata"
   }
 }
