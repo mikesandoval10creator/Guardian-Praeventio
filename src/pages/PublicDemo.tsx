@@ -18,6 +18,7 @@
 // usa `cite()` directamente que es puro.
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Wind,
   Droplets,
@@ -61,13 +62,14 @@ export const DEMO_COUNTRIES: Array<{
 
 /** Banner permanente — modo demo. */
 function DemoBanner() {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="demo-banner"
       role="status"
       className="sticky top-0 z-50 bg-amber-500/90 text-amber-950 text-center py-1.5 text-xs font-bold tracking-wider"
     >
-      MODO DEMO — los datos no se persisten · sin cuenta
+      {t('public_demo.banner')}
     </div>
   );
 }
@@ -79,16 +81,17 @@ function CountrySelector({
   value: string;
   onChange: (code: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <label className="block">
       <span className="block text-[11px] font-bold uppercase tracking-widest text-zinc-500 mb-1">
-        Tu país
+        {t('public_demo.your_country')}
       </span>
       <div className="relative">
         <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
         <select
           data-testid="demo-country-select"
-          aria-label="Selecciona tu país"
+          aria-label={t('public_demo.select_country_aria')}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-white dark:bg-slate-900 border border-zinc-300 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-zinc-900 dark:text-white focus:ring-2 focus:ring-[#4db6ac] outline-none"
@@ -105,6 +108,7 @@ function CountrySelector({
 }
 
 function FrameworkBadge({ country }: { country: string }) {
+  const { t } = useTranslation();
   const meta = DEMO_COUNTRIES.find((c) => c.code === country) ?? DEMO_COUNTRIES[0];
   return (
     <div
@@ -112,7 +116,7 @@ function FrameworkBadge({ country }: { country: string }) {
       className="rounded-xl bg-[#4db6ac]/10 border border-[#4db6ac]/30 p-3"
     >
       <p className="text-[10px] uppercase tracking-widest text-[#4db6ac] font-black">
-        Marco regulatorio
+        {t('public_demo.regulatory_framework')}
       </p>
       <p className="text-sm font-bold text-zinc-900 dark:text-white mt-0.5">
         {meta.label} · {meta.jurisdiction}
@@ -129,12 +133,13 @@ function NodeResult({
 }: {
   node: { severity: string; title: string; description: string } | null;
 }) {
+  const { t } = useTranslation();
   if (!node) {
     return (
       <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 flex items-center gap-2">
         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
         <p className="text-xs text-emerald-700 dark:text-emerald-300">
-          Sin alertas con los inputs actuales.
+          {t('public_demo.no_alerts')}
         </p>
       </div>
     );
@@ -156,6 +161,7 @@ function NodeResult({
 
 /** Gas dispersion calculator standalone (no project context). */
 function GasDispersionCalcDemo() {
+  const { t } = useTranslation();
   const [releaseRate, setReleaseRate] = useState(0.5);
   const [windKmh, setWindKmh] = useState(10);
 
@@ -178,15 +184,15 @@ function GasDispersionCalcDemo() {
         <Wind className="w-5 h-5 text-[#4db6ac]" />
         <div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-            Dispersión de gas
+            {t('public_demo.gas.title')}
           </h4>
-          <p className="text-[10px] text-slate-500">Pasquill-Gifford F</p>
+          <p className="text-[10px] text-slate-500">{t('public_demo.gas.subtitle')}</p>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
-            Tasa fuga (kg/s)
+            {t('public_demo.gas.release_rate')}
           </span>
           <input
             data-testid="demo-gas-rate"
@@ -199,7 +205,7 @@ function GasDispersionCalcDemo() {
         </label>
         <label className="block">
           <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
-            Viento (km/h)
+            {t('public_demo.wind_kmh')}
           </span>
           <input
             data-testid="demo-gas-wind"
@@ -218,6 +224,7 @@ function GasDispersionCalcDemo() {
 
 /** Dike hydrostatic standalone. */
 function DikeCalcDemo() {
+  const { t } = useTranslation();
   const [heightM, setHeightM] = useState(30);
   const [pressureKpa, setPressureKpa] = useState(280);
 
@@ -242,7 +249,7 @@ function DikeCalcDemo() {
         <Droplets className="w-5 h-5 text-[#4db6ac]" />
         <div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-            Dique hidrostático
+            {t('public_demo.dike.title')}
           </h4>
           <p className="text-[10px] text-slate-500">DS 594 Art. 41</p>
         </div>
@@ -250,7 +257,7 @@ function DikeCalcDemo() {
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
-            Altura (m)
+            {t('public_demo.dike.height')}
           </span>
           <input
             data-testid="demo-dike-h"
@@ -263,7 +270,7 @@ function DikeCalcDemo() {
         </label>
         <label className="block">
           <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
-            P piezómetro 2 (kPa)
+            {t('public_demo.dike.piezometer_kpa')}
           </span>
           <input
             type="number"
@@ -281,6 +288,7 @@ function DikeCalcDemo() {
 
 /** Scaffold wind suction standalone. */
 function ScaffoldCalcDemo() {
+  const { t } = useTranslation();
   const [areaM2, setAreaM2] = useState(50);
   const [windKmh, setWindKmh] = useState(90);
 
@@ -303,7 +311,7 @@ function ScaffoldCalcDemo() {
         <Building2 className="w-5 h-5 text-[#4db6ac]" />
         <div>
           <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-            Andamio — succión por viento
+            {t('public_demo.scaffold.title')}
           </h4>
           <p className="text-[10px] text-slate-500">DS 594 Art. 53 / OSHA 1926.451</p>
         </div>
@@ -311,7 +319,7 @@ function ScaffoldCalcDemo() {
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
-            Área (m²)
+            {t('public_demo.scaffold.area_m2')}
           </span>
           <input
             data-testid="demo-scaffold-area"
@@ -324,7 +332,7 @@ function ScaffoldCalcDemo() {
         </label>
         <label className="block">
           <span className="block text-[11px] text-slate-600 dark:text-slate-300 mb-1">
-            Viento (km/h)
+            {t('public_demo.wind_kmh')}
           </span>
           <input
             type="number"
@@ -342,12 +350,13 @@ function ScaffoldCalcDemo() {
 
 /** Estatico SVG mock del Digital Twin para no requerir three.js. */
 function DigitalTwinPreview() {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="demo-twin-preview"
       className="rounded-xl border border-zinc-200 dark:border-slate-700 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 aspect-video relative overflow-hidden"
     >
-      <svg viewBox="0 0 400 225" className="w-full h-full" aria-label="Vista previa Digital Twin">
+      <svg viewBox="0 0 400 225" className="w-full h-full" aria-label={t('public_demo.twin.aria')}>
         <rect x="20" y="160" width="360" height="50" fill="#94a3b8" opacity="0.4" />
         <rect x="60" y="80" width="80" height="80" fill="#4db6ac" opacity="0.6" />
         <rect x="160" y="50" width="100" height="110" fill="#4db6ac" opacity="0.8" />
@@ -356,7 +365,7 @@ function DigitalTwinPreview() {
         <circle cx="210" cy="170" r="6" fill="#dc2626" />
         <circle cx="310" cy="170" r="6" fill="#16a34a" />
         <text x="200" y="30" fill="#475569" fontSize="12" fontWeight="bold" textAnchor="middle">
-          Faena Demo · Mesh sintético estático
+          {t('public_demo.twin.svg_label')}
         </text>
       </svg>
     </div>
@@ -364,6 +373,7 @@ function DigitalTwinPreview() {
 }
 
 export function PublicDemo() {
+  const { t } = useTranslation();
   const [country, setCountry] = useState<string>('CL');
 
   const handleSignup = () => {
@@ -380,14 +390,13 @@ export function PublicDemo() {
         <section className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#4db6ac]/10 border border-[#4db6ac]/30 text-[#4db6ac] text-[10px] font-black uppercase tracking-widest">
             <ShieldCheck className="w-3 h-3" />
-            Praeventio Guard · Demo público
+            {t('public_demo.hero.eyebrow')}
           </div>
           <h1 className="text-3xl sm:text-5xl font-black text-zinc-900 dark:text-white tracking-tight">
-            Prevención HSE inteligente para tu empresa
+            {t('public_demo.hero.title')}
           </h1>
           <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 max-w-2xl mx-auto">
-            Calcula riesgos en tiempo real, visualiza tu faena en 3D y cumple
-            normativa local sin instalar nada. Pruébalo abajo — sin cuenta.
+            {t('public_demo.hero.subtitle')}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-center pt-2">
             <button
@@ -395,14 +404,14 @@ export function PublicDemo() {
               onClick={handleSignup}
               className="px-5 py-3 rounded-xl bg-[#4db6ac] hover:bg-[#3fa39a] text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors"
             >
-              Crear cuenta para tu empresa
+              {t('public_demo.hero.cta_signup')}
               <ArrowRight className="w-4 h-4" />
             </button>
             <a
               href="/privacidad"
               className="px-5 py-3 rounded-xl border border-zinc-300 dark:border-slate-700 text-zinc-700 dark:text-zinc-300 font-bold text-sm hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors text-center"
             >
-              Ver política de privacidad
+              {t('public_demo.hero.privacy_link')}
             </a>
           </div>
         </section>
@@ -416,7 +425,7 @@ export function PublicDemo() {
         {/* Calculadoras */}
         <section className="space-y-4">
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
-            Calculadoras live
+            {t('public_demo.calculators_heading')}
           </h2>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <GasDispersionCalcDemo />
@@ -428,12 +437,11 @@ export function PublicDemo() {
         {/* Digital Twin preview */}
         <section className="space-y-3">
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white">
-            Digital Twin (vista previa)
+            {t('public_demo.twin.heading')}
           </h2>
           <DigitalTwinPreview />
           <p className="text-xs text-zinc-500">
-            Vista estática — la versión completa con WebXR y AR aparece tras
-            iniciar sesión.
+            {t('public_demo.twin.note')}
           </p>
         </section>
       </main>

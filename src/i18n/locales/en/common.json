@@ -76,7 +76,189 @@
     "tier_corporate": "Corporate",
     "tier_unlimited": "Unlimited",
     "currency_clp": "USD",
-    "per_month": "per month"
+    "per_month": "per month",
+    "hero": {
+      "title": "Plans and legal compliance",
+      "subtitle": "Capacity (workers + projects) decides the tier · Regulatory compliance is billed per project · Multi-country at no extra cost.",
+      "transparency_link": "How we bill"
+    },
+    "units": {
+      "workers": "Workers",
+      "projects": "Projects",
+      "unlimited": "Unlimited",
+      "per_month_short": "/mo"
+    },
+    "iva": {
+      "included": "VAT 19% included",
+      "subtotal": "Subtotal {{amount}}",
+      "iva_line": "+ VAT 19% {{amount}}",
+      "total": "= Total {{amount}}"
+    },
+    "discounts": {
+      "annual": "Annual {{price}} · save 20%",
+      "intro": "3-month intro {{price}}"
+    },
+    "tier_subtitles": {
+      "free": "For small teams and education",
+      "premium": "B2B Enterprise · Workspace Native",
+      "default": "For SMEs and growing companies"
+    },
+    "workspace_native_tag": "Workspace Native",
+    "badges": {
+      "gratis": "Always free",
+      "departamento_prevencion": "Most popular for SME",
+      "diamante": "Most popular B2B",
+      "corporativo": "Chosen by multinationals",
+      "global_titanio": "Recommended · Multinational"
+    },
+    "cta": {
+      "current_plan": "Current plan",
+      "start_free": "Start free",
+      "select_plan": "Select plan",
+      "contact_sales": "Talk to sales",
+      "view_transparency": "View pricing transparency",
+      "close": "Close"
+    },
+    "tier_features": {
+      "gratis": [
+        "Full Calendar predictions",
+        "Unlimited multi-country",
+        "ISO 45001 global fallback",
+        "Basic PPE inventory",
+        "Always-on emergency button"
+      ],
+      "comite-paritario": [
+        "Everything in Free",
+        "Full Joint Committee management (DS 54)",
+        "Quick risk assessments",
+        "Basic PDF/Excel reports",
+        "Multi-country at no extra cost"
+      ],
+      "departamento-prevencion": [
+        "Everything in Joint Committee",
+        "Prevention Department (DS 40)",
+        "AI-generated Safe Work Procedures",
+        "SUSESO dashboard",
+        "Automated ISO audits"
+      ],
+      "plata": [
+        "Everything in Department",
+        "Up to 250 workers / 25 projects",
+        "Collaborative Risk Network",
+        "Advanced executive reports",
+        "Priority chat support"
+      ],
+      "oro": [
+        "Everything in Silver",
+        "Up to 500 workers / 50 projects",
+        "Custom AI-powered IPERC",
+        "Predictive incident analysis",
+        "Basic ERP integration"
+      ],
+      "titanio": [
+        "Workspace Native: basic SSO",
+        "750 workers / 75 projects (no overage)",
+        "Dedicated Customer Success",
+        "99.5% monthly SLA",
+        "On-site onboarding"
+      ],
+      "diamante": [
+        "Workspace Native: SSO + CASA Tier",
+        "1,000 workers / 100 projects",
+        "Annual security audit",
+        "Private API with enterprise rate limits",
+        "24/7 support with < 1h response time"
+      ],
+      "empresarial": [
+        "Native multi-tenant",
+        "2,500 workers / 250 projects",
+        "Multiple subsidiaries/RUTs",
+        "SAP / Oracle integrations",
+        "Custom reports + CL data residency"
+      ],
+      "corporativo": [
+        "Multi-tenant + dedicated CSM",
+        "5,000 workers / 500 projects",
+        "Quarterly roadmap influence",
+        "Annual penetration testing included",
+        "24/7 executive hotline"
+      ],
+      "ilimitado": [
+        "Vertex Fine-Tuned: your own AI model",
+        "Unlimited workers and projects",
+        "Optional private deployment",
+        "Ad-hoc compliance (NIST, SOC2)",
+        "Embedded prevention team"
+      ],
+      "global-titanio": [
+        "Worldwide coverage: ISO 45001 + your country + any additional jurisdiction",
+        "Simultaneous multi-jurisdiction (no country limit)",
+        "Unlimited workers and projects",
+        "Multi-region data residency",
+        "Vertex AI global orchestrator enabled",
+        "Customer Success + per-country onboarding"
+      ]
+    },
+    "payment_banners": {
+      "web_title": "Pay with Webpay, MercadoPago or Khipu — electronic invoice included",
+      "web_body": "CL → Webpay (Transbank). LATAM (PE/AR/CO/MX/BR) → MercadoPago. B2B bank transfer → Khipu. For Titanium plans and above use Talk to sales.",
+      "android_title": "Buy with Google Play",
+      "android_body": "Your subscription is billed and managed from your Google Play account. You can cancel any time from Play Store › Subscriptions.",
+      "ios_title": "Buy with Apple App Store",
+      "ios_body": "Your subscription is billed and managed from your Apple ID. You can cancel or restore previous purchases from Settings › Subscriptions."
+    },
+    "compliance_alert": {
+      "title": "Regulatory compliance alert",
+      "body": "You have <strong>{{workers}} workers</strong> registered. You need the <strong>{{plan}}</strong> plan to maintain coverage."
+    },
+    "transparency_block": {
+      "title": "Why prevention shouldn't be opaque",
+      "body": "We publish how we bill, what each tier includes, and when an upgrade actually makes sense. Compare it against real alternatives in the Chilean market."
+    },
+    "return_banner": {
+      "paid_title": "Payment confirmed!",
+      "paid_body": "We charged {{total}} to your card. Your subscription is now active{{invoice}}. We sent the electronic receipt to your registered email.",
+      "rejected_title": "Payment was declined",
+      "rejected_default_reason": "Your card did not authorize the charge.",
+      "cancelled_default_reason": "The transaction was cancelled before completion.",
+      "rejected_body": "{{reason}}{{invoice}} You can try a different payment method by selecting the plan again.",
+      "refunded_title": "Refund processed",
+      "refunded_body": "We refunded {{total}} to your original payment method{{invoice}}. The credit may take 1-2 business days depending on your bank.",
+      "timeout_title": "Your payment is taking longer than usual",
+      "timeout_body": "We couldn't confirm the status of your transaction{{invoice}} within the expected time. If the charge appears on your statement but the subscription wasn't activated, contact us at ",
+      "error_title": "We couldn't verify your payment",
+      "error_body": "We received the Webpay response{{invoice}} but couldn't confirm it. Please write to us at ",
+      "error_body_suffix": " and we'll review your transaction.",
+      "rejected_loading_body": "Your card did not authorize the charge{{invoice}}. We're verifying the final status with Webpay…",
+      "retry_title": "Retry the payment",
+      "retry_body": "We had a temporary issue processing your payment{{invoice}}. Verifying status with the bank — select the plan again if the invoice is still pending.",
+      "loading_title": "Processing payment…",
+      "loading_body": "We received the Webpay response{{invoice}}. Confirming with the bank — this usually takes a few seconds.",
+      "invoice_suffix": " (invoice {{id}})",
+      "invoice_for": " for invoice {{id}}"
+    },
+    "checkout": {
+      "error_title": "Error starting payment",
+      "error_default": "We couldn't start the payment. Try again in a few seconds.",
+      "login_required_title": "Sign in first",
+      "login_required_msg": "You need to sign in to subscribe to a paid plan.",
+      "provider_unavailable": "The payment provider is not available. Try again in a few seconds or contact soporte@praeventio.net.",
+      "mp_unavailable": "MercadoPago is not available. Try again in a few seconds or contact soporte@praeventio.net.",
+      "international_title": "International payments",
+      "international_msg": "We currently only process payments in Chile and LATAM markets. Write to ventas@praeventio.cl for your country.",
+      "free_activated_title": "Free plan activated",
+      "free_activated_msg": "Welcome to Praeventio Guard!",
+      "contact_sales_title": "Contact sales",
+      "contact_sales_msg": "{{tier}} requires a custom proposal. We'll contact you.",
+      "store_purchase_failed": "We couldn't complete the store purchase.",
+      "store_purchase_failed_title": "Purchase not completed",
+      "store_received_title": "Purchase received",
+      "store_received_msg": "We're confirming your subscription with the store. This usually takes a few seconds.",
+      "store_start_failed": "We couldn't start the store payment.",
+      "checkout_failed_status": "Checkout failed with status {{status}}",
+      "mailto_subject": "{{tier}} plan quote request",
+      "mailto_body": "Hi, I'm interested in the {{tier}} plan ({{workers}} workers / {{projects}} projects).\n\nPlease send me a proposal."
+    }
   },
   "dashboard": {
     "welcome": "Hello, {{name}}",
@@ -537,7 +719,67 @@
     "details_action_delete": "Delete",
     "details_field_title_placeholder": "E.g.: Working at Heights Training",
     "details_delete_title": "Delete event",
-    "details_delete_message": "Are you sure you want to delete this event from the calendar?"
+    "details_delete_message": "Are you sure you want to delete this event from the calendar?",
+    "page": {
+      "title": "Strategic Planning",
+      "subtitle": "Operational Calendar and Gantt Chart (Zettelkasten)"
+    },
+    "view_toggle": {
+      "calendar": "Calendar",
+      "gantt": "Gantt"
+    },
+    "month_nav": {
+      "prev": "Previous month",
+      "next": "Next month"
+    },
+    "actions": {
+      "schedule": "Schedule"
+    },
+    "weather": {
+      "bulletin_title": "Weather Bulletin (Next 3 Days)",
+      "zettelkasten_active": "Zettelkasten Active",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "loading": "Loading...",
+      "forecast_unavailable": "Forecast unavailable",
+      "alert": "Alert",
+      "alert_message": "Review critical outdoor tasks.",
+      "rainy": "Rain",
+      "stormy": "Storm",
+      "snow": "Snow",
+      "windy": "Strong wind",
+      "extreme_heat": "Extreme heat",
+      "cold_snap": "Extreme cold",
+      "sunny": "Clear"
+    },
+    "weekdays_short": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "gantt": {
+      "activity_milestone": "Activity / Milestone",
+      "duration_unspecified_inline": "· duration unspecified",
+      "duration_unspecified_tooltip": "Duration unspecified — set an end date on the event.",
+      "duration_unspecified_short": "Duration unspecified",
+      "no_events": "No events in this month to show on the Gantt chart."
+    },
+    "upcoming_events": {
+      "title": "Upcoming Events",
+      "syncing": "Syncing schedule..."
+    },
+    "legal_obligations": {
+      "comite_paritario_title": "Comité Paritario Meeting (DS 54)",
+      "comite_paritario_description": "Mandatory monthly meeting of the Joint Health and Safety Committee.",
+      "depto_prevencion_title": "Prevention Dept. Report (DS 40)",
+      "depto_prevencion_description": "Monthly accident-rate and preventive-management report submission.",
+      "location_meeting_room": "Meeting Room",
+      "location_management": "Management Office"
+    }
   },
   "differential_dx": {
     "analyzing": "Analyzing with AI…",
@@ -1501,5 +1743,78 @@
       "cta_secondary": "Start free",
       "free_tier_note": "Free up to 10 workers . No credit card required"
     }
+  },
+  "public_demo": {
+    "banner": "DEMO MODE — data is not persisted · no account needed",
+    "your_country": "Your country",
+    "select_country_aria": "Select your country",
+    "regulatory_framework": "Regulatory framework",
+    "no_alerts": "No alerts with the current inputs.",
+    "calculators_heading": "Live calculators",
+    "wind_kmh": "Wind (km/h)",
+    "hero": {
+      "eyebrow": "Praeventio Guard · Public demo",
+      "title": "Smart HSE prevention for your company",
+      "subtitle": "Compute risks in real time, visualize your worksite in 3D, and meet local regulations without installing anything. Try it below — no account.",
+      "cta_signup": "Create an account for your company",
+      "privacy_link": "View privacy policy"
+    },
+    "gas": {
+      "title": "Gas dispersion",
+      "subtitle": "Pasquill-Gifford F",
+      "release_rate": "Release rate (kg/s)"
+    },
+    "dike": {
+      "title": "Hydrostatic dike",
+      "height": "Height (m)",
+      "piezometer_kpa": "Piezometer 2 P (kPa)"
+    },
+    "scaffold": {
+      "title": "Scaffold — wind suction",
+      "area_m2": "Area (m²)"
+    },
+    "twin": {
+      "heading": "Digital Twin (preview)",
+      "aria": "Digital Twin preview",
+      "svg_label": "Demo Site · Synthetic static mesh",
+      "note": "Static view — the full version with WebXR and AR is unlocked after signing in."
+    }
+  },
+  "risk_network": {
+    "resource_label": "the neural network",
+    "title": "The Brain",
+    "subtitle": "Neural Network of Prevention and Knowledge",
+    "active_consciousness": "Active Consciousness",
+    "realtime_synapses": "Real-Time Synapses",
+    "info_banner": {
+      "title": "How does the Neural Network work?",
+      "body": "Each risk analysis, worker, or regulation becomes a knowledge \"node\". The system automatically connects these nodes to surface invisible patterns, enabling proactive management based on data interconnection."
+    },
+    "tabs": {
+      "graph": "3D Graph",
+      "explorer": "Explorer",
+      "health": "Network Health",
+      "manager": "Manager"
+    },
+    "graph_viz_heading": "Graph Visualization",
+    "graph_viz_hint": "Interact with the nodes to see details",
+    "recent_nodes": "Recent Nodes",
+    "no_recent_nodes": "No recent nodes",
+    "connections_analysis": "Connections Analysis",
+    "synapse_density": "Synapse Density",
+    "total_connections": "Total Connections",
+    "network_factor": "Network Factor",
+    "avg_per_node": "Average / Node",
+    "capacity_note": "The neural network is operating at <span class=\"font-black\">{{capacity}}%</span> of its projected capacity. Each new connection reduces operational uncertainty by <span class=\"font-black\">2.4%</span>.",
+    "requires_connection": "Connection Required",
+    "analyzing": "Analyzing...",
+    "analyze_network": "Analyze Neural Network",
+    "guardian_insight": "Guardian Insight",
+    "predictive_hub": "Predictive AI Hub",
+    "predictive_hub_desc": "Cross-reference Neural Network data with real-time telemetry to predict accidents before they happen.",
+    "predicting": "Predicting...",
+    "predict_imminent": "Predict Imminent Risks",
+    "probability_pct": "{{value}}% Prob.",
+    "immediate_action": "Immediate Preventive Action"
   }
 }

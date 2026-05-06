@@ -76,7 +76,189 @@
     "tier_corporate": "Corporativo",
     "tier_unlimited": "Ilimitado",
     "currency_clp": "BRL",
-    "per_month": "por mês"
+    "per_month": "por mês",
+    "hero": {
+      "title": "Planos e conformidade legal",
+      "subtitle": "Capacidade (trabalhadores + projetos) define o tier · Conformidade regulatória cobrada por projeto · Multi-país sem custo adicional.",
+      "transparency_link": "Como cobramos"
+    },
+    "units": {
+      "workers": "Trabalhadores",
+      "projects": "Projetos",
+      "unlimited": "Ilimitados",
+      "per_month_short": "/mês"
+    },
+    "iva": {
+      "included": "IVA 19% incluído",
+      "subtotal": "Subtotal {{amount}}",
+      "iva_line": "+ IVA 19% {{amount}}",
+      "total": "= Total {{amount}}"
+    },
+    "discounts": {
+      "annual": "Anual {{price}} · economize 20%",
+      "intro": "Intro 3 meses {{price}}"
+    },
+    "tier_subtitles": {
+      "free": "Para equipes pequenas e educação",
+      "premium": "B2B Enterprise · Workspace Native",
+      "default": "Para PMEs e empresas em crescimento"
+    },
+    "workspace_native_tag": "Workspace Native",
+    "badges": {
+      "gratis": "Sempre grátis",
+      "departamento_prevencion": "Mais popular para PME",
+      "diamante": "Mais popular B2B",
+      "corporativo": "Escolhido por multinacionais",
+      "global_titanio": "Recomendado · Multinacional"
+    },
+    "cta": {
+      "current_plan": "Plano atual",
+      "start_free": "Começar grátis",
+      "select_plan": "Selecionar plano",
+      "contact_sales": "Falar com vendas",
+      "view_transparency": "Ver transparência de preços",
+      "close": "Fechar"
+    },
+    "tier_features": {
+      "gratis": [
+        "Calendar predictions completas",
+        "Multi-país ilimitado",
+        "ISO 45001 fallback global",
+        "Inventário básico de EPI",
+        "Botão de emergência sempre ativo"
+      ],
+      "comite-paritario": [
+        "Tudo do plano grátis",
+        "Gestão completa de Comissão Paritária (DS 54)",
+        "Avaliações rápidas de risco",
+        "Relatórios básicos PDF/Excel",
+        "Multi-país sem custo adicional"
+      ],
+      "departamento-prevencion": [
+        "Tudo da Comissão Paritária",
+        "Departamento de Prevenção (DS 40)",
+        "Geração de PTS com IA",
+        "Dashboard SUSESO",
+        "Auditorias ISO automatizadas"
+      ],
+      "plata": [
+        "Tudo do Departamento",
+        "Até 250 trabalhadores / 25 projetos",
+        "Risk Network colaborativo",
+        "Relatórios executivos avançados",
+        "Suporte prioritário por chat"
+      ],
+      "oro": [
+        "Tudo do plano Prata",
+        "Até 500 trabalhadores / 50 projetos",
+        "IPERC com IA personalizada",
+        "Análise preditiva de incidentes",
+        "Integração ERP básica"
+      ],
+      "titanio": [
+        "Workspace Native: SSO básico",
+        "750 trabalhadores / 75 projetos (sem overage)",
+        "Customer Success dedicado",
+        "SLA 99,5% mensal",
+        "Onboarding presencial"
+      ],
+      "diamante": [
+        "Workspace Native: SSO + CASA Tier",
+        "1.000 trabalhadores / 100 projetos",
+        "Auditoria de segurança anual",
+        "API privada com rate-limit empresarial",
+        "Suporte 24/7 com tempo de resposta < 1h"
+      ],
+      "empresarial": [
+        "Multi-tenant nativo",
+        "2.500 trabalhadores / 250 projetos",
+        "Múltiplas filiais/RUTs",
+        "Integrações SAP / Oracle",
+        "Custom reports + data residency CL"
+      ],
+      "corporativo": [
+        "Multi-tenant + CSM dedicado",
+        "5.000 trabalhadores / 500 projetos",
+        "Roadmap influence trimestral",
+        "Penetration testing anual incluso",
+        "Hot-line executivo 24/7"
+      ],
+      "ilimitado": [
+        "Vertex Fine-Tuned: modelo IA próprio",
+        "Trabalhadores e projetos ilimitados",
+        "Implantação privada opcional",
+        "Compliance ad-hoc (NIST, SOC2)",
+        "Equipe de prevenção embedded"
+      ],
+      "global-titanio": [
+        "Cobertura mundial: ISO 45001 + seu país + qualquer jurisdição adicional",
+        "Multi-jurisdição simultâneo (sem limite de países)",
+        "Trabalhadores e projetos ilimitados",
+        "Data residency multi-região",
+        "Vertex AI orquestrador global ativado",
+        "Customer Success + onboarding por país"
+      ]
+    },
+    "payment_banners": {
+      "web_title": "Pague com Webpay, MercadoPago ou Khipu — nota fiscal eletrônica inclusa",
+      "web_body": "CL → Webpay (Transbank). LATAM (PE/AR/CO/MX/BR) → MercadoPago. B2B transferência bancária → Khipu. Para planos Titânio em diante, use Falar com vendas.",
+      "android_title": "Compre com Google Play",
+      "android_body": "Sua assinatura é cobrada e gerenciada pela sua conta Google Play. Você pode cancelar a qualquer momento em Play Store › Assinaturas.",
+      "ios_title": "Compre com Apple App Store",
+      "ios_body": "Sua assinatura é cobrada e gerenciada pelo seu Apple ID. Você pode cancelar ou restaurar compras anteriores em Ajustes › Assinaturas."
+    },
+    "compliance_alert": {
+      "title": "Alerta de conformidade regulatória",
+      "body": "Você tem <strong>{{workers}} trabalhadores</strong> registrados. Precisa do plano <strong>{{plan}}</strong> para manter a cobertura."
+    },
+    "transparency_block": {
+      "title": "Por que a prevenção não deve ser opaca?",
+      "body": "Publicamos como cobramos, o que cada tier inclui, e quando realmente vale a pena fazer upgrade. Compare com alternativas reais do mercado chileno."
+    },
+    "return_banner": {
+      "paid_title": "Pagamento confirmado!",
+      "paid_body": "Cobramos {{total}} no seu cartão. Sua assinatura já está ativa{{invoice}}. Enviamos a nota fiscal eletrônica ao e-mail registrado.",
+      "rejected_title": "O pagamento foi rejeitado",
+      "rejected_default_reason": "Seu cartão não autorizou a cobrança.",
+      "cancelled_default_reason": "A transação foi cancelada antes de ser concluída.",
+      "rejected_body": "{{reason}}{{invoice}} Você pode tentar com outro meio de pagamento selecionando o plano novamente.",
+      "refunded_title": "Reembolso processado",
+      "refunded_body": "Devolvemos {{total}} ao seu meio de pagamento original{{invoice}}. O crédito pode levar 1-2 dias úteis dependendo do seu banco.",
+      "timeout_title": "Seu pagamento está demorando mais que o normal",
+      "timeout_body": "Não conseguimos confirmar o estado da sua transação{{invoice}} dentro do tempo esperado. Se a cobrança aparecer no seu extrato mas a assinatura não foi ativada, contate-nos em ",
+      "error_title": "Não conseguimos verificar seu pagamento",
+      "error_body": "Recebemos a resposta do Webpay{{invoice}} mas não conseguimos confirmá-la. Por favor escreva para ",
+      "error_body_suffix": " e revisaremos sua transação.",
+      "rejected_loading_body": "Seu cartão não autorizou a cobrança{{invoice}}. Estamos verificando o estado final com o Webpay…",
+      "retry_title": "Tente o pagamento novamente",
+      "retry_body": "Tivemos um problema temporário processando seu pagamento{{invoice}}. Verificando estado com o banco — selecione o plano novamente se a fatura continuar pendente.",
+      "loading_title": "Processando pagamento…",
+      "loading_body": "Recebemos a resposta do Webpay{{invoice}}. Confirmando com o banco — isso geralmente leva alguns segundos.",
+      "invoice_suffix": " (fatura {{id}})",
+      "invoice_for": " para a fatura {{id}}"
+    },
+    "checkout": {
+      "error_title": "Erro ao iniciar o pagamento",
+      "error_default": "Não conseguimos iniciar o pagamento. Tente novamente em alguns segundos.",
+      "login_required_title": "Faça login primeiro",
+      "login_required_msg": "Você precisa fazer login para assinar um plano pago.",
+      "provider_unavailable": "O provedor de pagamentos não está disponível. Tente novamente em alguns segundos ou contate soporte@praeventio.net.",
+      "mp_unavailable": "MercadoPago não está disponível. Tente novamente em alguns segundos ou contate soporte@praeventio.net.",
+      "international_title": "Pagamentos internacionais",
+      "international_msg": "Atualmente só processamos pagamentos no Chile e mercados LATAM. Escreva para ventas@praeventio.cl para seu país.",
+      "free_activated_title": "Plano grátis ativado",
+      "free_activated_msg": "Bem-vindo ao Praeventio Guard!",
+      "contact_sales_title": "Contate vendas",
+      "contact_sales_msg": "{{tier}} requer uma proposta sob medida. Entraremos em contato.",
+      "store_purchase_failed": "Não conseguimos concluir a compra na loja.",
+      "store_purchase_failed_title": "Compra não concluída",
+      "store_received_title": "Compra recebida",
+      "store_received_msg": "Estamos confirmando sua assinatura com a loja. Isso geralmente leva alguns segundos.",
+      "store_start_failed": "Não conseguimos iniciar o pagamento na loja.",
+      "checkout_failed_status": "Checkout falhou com estado {{status}}",
+      "mailto_subject": "Solicitação de cotação plano {{tier}}",
+      "mailto_body": "Olá, tenho interesse no plano {{tier}} ({{workers}} trabalhadores / {{projects}} projetos).\n\nPor favor envie uma proposta."
+    }
   },
   "dashboard": {
     "welcome": "Olá, {{name}}",
@@ -537,7 +719,67 @@
     "details_action_delete": "Excluir",
     "details_field_title_placeholder": "Ex.: Treinamento em Altura",
     "details_delete_title": "Excluir evento",
-    "details_delete_message": "Tem certeza de que deseja excluir este evento do calendário?"
+    "details_delete_message": "Tem certeza de que deseja excluir este evento do calendário?",
+    "page": {
+      "title": "Planejamento Estratégico",
+      "subtitle": "Calendário Operacional e Gráfico de Gantt (Zettelkasten)"
+    },
+    "view_toggle": {
+      "calendar": "Calendário",
+      "gantt": "Gantt"
+    },
+    "month_nav": {
+      "prev": "Mês anterior",
+      "next": "Próximo mês"
+    },
+    "actions": {
+      "schedule": "Agendar"
+    },
+    "weather": {
+      "bulletin_title": "Boletim Climático (Próximos 3 Dias)",
+      "zettelkasten_active": "Zettelkasten Ativo",
+      "today": "Hoje",
+      "tomorrow": "Amanhã",
+      "loading": "Carregando...",
+      "forecast_unavailable": "Previsão indisponível",
+      "alert": "Alerta",
+      "alert_message": "Revisar tarefas críticas ao ar livre.",
+      "rainy": "Chuva",
+      "stormy": "Tempestade",
+      "snow": "Neve",
+      "windy": "Vento forte",
+      "extreme_heat": "Calor extremo",
+      "cold_snap": "Frio extremo",
+      "sunny": "Tempo limpo"
+    },
+    "weekdays_short": {
+      "mon": "Seg",
+      "tue": "Ter",
+      "wed": "Qua",
+      "thu": "Qui",
+      "fri": "Sex",
+      "sat": "Sáb",
+      "sun": "Dom"
+    },
+    "gantt": {
+      "activity_milestone": "Atividade / Marco",
+      "duration_unspecified_inline": "· duração não especificada",
+      "duration_unspecified_tooltip": "Duração não especificada — registre uma data de término no evento.",
+      "duration_unspecified_short": "Duração não especificada",
+      "no_events": "Não há eventos neste mês para exibir no Gráfico de Gantt."
+    },
+    "upcoming_events": {
+      "title": "Próximos Eventos",
+      "syncing": "Sincronizando agenda..."
+    },
+    "legal_obligations": {
+      "comite_paritario_title": "Reunião Comité Paritario (DS 54)",
+      "comite_paritario_description": "Reunião mensal obrigatória do Comité Paritario de Higiene e Segurança.",
+      "depto_prevencion_title": "Relatório Depto. Prevención (DS 40)",
+      "depto_prevencion_description": "Entrega do relatório mensal de acidentabilidade e gestão preventiva.",
+      "location_meeting_room": "Sala de Reuniões",
+      "location_management": "Gerência"
+    }
   },
   "differential_dx": {
     "analyzing": "Analisando com IA…",

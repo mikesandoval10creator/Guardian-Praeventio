@@ -76,7 +76,189 @@
     "tier_corporate": "Corporativo",
     "tier_unlimited": "Ilimitado",
     "currency_clp": "CLP",
-    "per_month": "por mes"
+    "per_month": "por mes",
+    "hero": {
+      "title": "Planes y cumplimiento legal",
+      "subtitle": "Capacidad (trabajadores + proyectos) decide el tier · Cumplimiento normativo se cobra por proyecto · Multi-país sin recargo.",
+      "transparency_link": "Cómo cobramos"
+    },
+    "units": {
+      "workers": "Trabajadores",
+      "projects": "Proyectos",
+      "unlimited": "Ilimitados",
+      "per_month_short": "/mes"
+    },
+    "iva": {
+      "included": "IVA 19% incluido",
+      "subtotal": "Subtotal {{amount}}",
+      "iva_line": "+ IVA 19% {{amount}}",
+      "total": "= Total {{amount}}"
+    },
+    "discounts": {
+      "annual": "Anual {{price}} · ahorra 20%",
+      "intro": "Intro 3 meses {{price}}"
+    },
+    "tier_subtitles": {
+      "free": "Para equipos pequeños y educación",
+      "premium": "B2B Enterprise · Workspace Native",
+      "default": "Para PYMES y empresas en crecimiento"
+    },
+    "workspace_native_tag": "Workspace Native",
+    "badges": {
+      "gratis": "Siempre gratis",
+      "departamento_prevencion": "Más popular para PYME",
+      "diamante": "Más popular B2B",
+      "corporativo": "Elegido por multinacionales",
+      "global_titanio": "Recomendado · Multinacional"
+    },
+    "cta": {
+      "current_plan": "Plan actual",
+      "start_free": "Empezar gratis",
+      "select_plan": "Seleccionar plan",
+      "contact_sales": "Hablar con ventas",
+      "view_transparency": "Ver transparencia de precios",
+      "close": "Cerrar"
+    },
+    "tier_features": {
+      "gratis": [
+        "Calendar predictions completas",
+        "Multi-país ilimitado",
+        "ISO 45001 fallback global",
+        "Inventario básico de EPP",
+        "Botón de emergencia siempre activo"
+      ],
+      "comite-paritario": [
+        "Todo lo del plan gratis",
+        "Gestión completa de Comité Paritario (DS 54)",
+        "Evaluaciones rápidas de riesgo",
+        "Informes básicos PDF/Excel",
+        "Multi-país sin recargo"
+      ],
+      "departamento-prevencion": [
+        "Todo lo de Comité Paritario",
+        "Departamento de Prevención (DS 40)",
+        "Generación de PTS con IA",
+        "Dashboard SUSESO",
+        "Auditorías ISO automatizadas"
+      ],
+      "plata": [
+        "Todo lo de Departamento",
+        "Hasta 250 trabajadores / 25 proyectos",
+        "Risk Network colaborativo",
+        "Reportes ejecutivos avanzados",
+        "Soporte prioritario por chat"
+      ],
+      "oro": [
+        "Todo lo del plan Plata",
+        "Hasta 500 trabajadores / 50 proyectos",
+        "IPERC con IA personalizada",
+        "Análisis predictivo de incidentes",
+        "Integración ERP básica"
+      ],
+      "titanio": [
+        "Workspace Native: SSO básico",
+        "750 trabajadores / 75 proyectos (sin overage)",
+        "Customer Success dedicado",
+        "SLA 99.5% mensual",
+        "Onboarding en sitio"
+      ],
+      "diamante": [
+        "Workspace Native: SSO + CASA Tier",
+        "1.000 trabajadores / 100 proyectos",
+        "Auditoría de seguridad anual",
+        "API privada con rate-limit empresarial",
+        "Soporte 24/7 con tiempo de respuesta < 1h"
+      ],
+      "empresarial": [
+        "Multi-tenant nativo",
+        "2.500 trabajadores / 250 proyectos",
+        "Múltiples filiales/RUTs",
+        "Integraciones SAP / Oracle",
+        "Custom reports + data residency CL"
+      ],
+      "corporativo": [
+        "Multi-tenant + CSM dedicado",
+        "5.000 trabajadores / 500 proyectos",
+        "Roadmap influence cuarterly",
+        "Penetration testing anual incluido",
+        "Hot-line ejecutivo 24/7"
+      ],
+      "ilimitado": [
+        "Vertex Fine-Tuned: modelo IA propio",
+        "Trabajadores y proyectos ilimitados",
+        "Despliegue privado opcional",
+        "Compliance ad-hoc (NIST, SOC2)",
+        "Equipo de prevención embedded"
+      ],
+      "global-titanio": [
+        "Cobertura mundial: ISO 45001 + tu país + cualquier jurisdicción adicional",
+        "Multi-jurisdicción simultáneo (sin límite de países)",
+        "Trabajadores y proyectos ilimitados",
+        "Data residency multi-región",
+        "Vertex AI orquestador global activado",
+        "Customer Success + onboarding por país"
+      ]
+    },
+    "payment_banners": {
+      "web_title": "Pagas con Webpay, MercadoPago o Khipu — boleta electrónica incluida",
+      "web_body": "CL → Webpay (Transbank). LATAM (PE/AR/CO/MX/BR) → MercadoPago. B2B transferencia bancaria → Khipu. Para planes Titanio en adelante usa Hablar con ventas.",
+      "android_title": "Compra con Google Play",
+      "android_body": "Tu suscripción se cobra y se gestiona desde tu cuenta Google Play. Puedes cancelar en cualquier momento desde Play Store › Suscripciones.",
+      "ios_title": "Compra con Apple App Store",
+      "ios_body": "Tu suscripción se cobra y se gestiona desde tu Apple ID. Puedes cancelar o restaurar compras anteriores desde Ajustes › Suscripciones."
+    },
+    "compliance_alert": {
+      "title": "Alerta de cumplimiento normativo",
+      "body": "Tienes <strong>{{workers}} trabajadores</strong> registrados. Necesitas el plan <strong>{{plan}}</strong> para mantener la cobertura."
+    },
+    "transparency_block": {
+      "title": "¿Por qué la prevención no debe ser opaca?",
+      "body": "Publicamos cómo cobramos, qué incluye cada tier, y cuándo realmente te conviene upgradear. Compáralo contra alternativas reales del mercado chileno."
+    },
+    "return_banner": {
+      "paid_title": "¡Pago confirmado!",
+      "paid_body": "Cobramos {{total}} a tu tarjeta. Tu suscripción ya está activa{{invoice}}. Te enviamos la boleta electrónica al correo registrado.",
+      "rejected_title": "El pago fue rechazado",
+      "rejected_default_reason": "Tu tarjeta no autorizó el cargo.",
+      "cancelled_default_reason": "La transacción fue cancelada antes de completarse.",
+      "rejected_body": "{{reason}}{{invoice}} Puedes intentar con otro medio de pago seleccionando el plan de nuevo.",
+      "refunded_title": "Reembolso procesado",
+      "refunded_body": "Devolvimos {{total}} a tu medio de pago original{{invoice}}. El abono puede tardar 1-2 días hábiles según tu banco.",
+      "timeout_title": "Tu pago tarda más de lo normal",
+      "timeout_body": "No pudimos confirmar el estado de tu transacción{{invoice}} dentro del tiempo esperado. Si el cargo aparece en tu cartola pero la suscripción no se activó, contáctanos a ",
+      "error_title": "No pudimos verificar tu pago",
+      "error_body": "Recibimos la respuesta de Webpay{{invoice}} pero no pudimos confirmarla. Por favor escríbenos a ",
+      "error_body_suffix": " y revisaremos tu transacción.",
+      "rejected_loading_body": "Tu tarjeta no autorizó el cargo{{invoice}}. Estamos verificando el estado final con Webpay…",
+      "retry_title": "Reintenta el pago",
+      "retry_body": "Tuvimos un problema temporal procesando tu pago{{invoice}}. Verificando estado con el banco — selecciona el plan de nuevo si la factura sigue pendiente.",
+      "loading_title": "Procesando pago…",
+      "loading_body": "Recibimos la respuesta de Webpay{{invoice}}. Confirmando con el banco — esto suele tardar unos segundos.",
+      "invoice_suffix": " (factura {{id}})",
+      "invoice_for": " para la factura {{id}}"
+    },
+    "checkout": {
+      "error_title": "Error al iniciar el pago",
+      "error_default": "No pudimos iniciar el pago. Reintentá en unos segundos.",
+      "login_required_title": "Inicia sesión primero",
+      "login_required_msg": "Necesitas iniciar sesión para suscribirte a un plan pago.",
+      "provider_unavailable": "El proveedor de pagos no está disponible. Reintentá en unos segundos o contacta a soporte@praeventio.net.",
+      "mp_unavailable": "MercadoPago no está disponible. Reintentá en unos segundos o contacta a soporte@praeventio.net.",
+      "international_title": "Pagos internacionales",
+      "international_msg": "Por el momento sólo procesamos pagos en Chile y mercados LATAM. Escríbenos a ventas@praeventio.cl para tu país.",
+      "free_activated_title": "Plan gratis activado",
+      "free_activated_msg": "¡Bienvenido a Praeventio Guard!",
+      "contact_sales_title": "Contacta ventas",
+      "contact_sales_msg": "{{tier}} requiere una propuesta a medida. Te contactaremos.",
+      "store_purchase_failed": "No pudimos completar la compra en la tienda.",
+      "store_purchase_failed_title": "Compra no completada",
+      "store_received_title": "Compra recibida",
+      "store_received_msg": "Estamos confirmando tu suscripción con la tienda. Esto suele tardar unos segundos.",
+      "store_start_failed": "No pudimos iniciar el pago en la tienda.",
+      "checkout_failed_status": "Checkout falló con estado {{status}}",
+      "mailto_subject": "Cotización plan {{tier}}",
+      "mailto_body": "Hola, me interesa el plan {{tier}} ({{workers}} trabajadores / {{projects}} proyectos).\n\nPor favor envíenme una propuesta."
+    }
   },
   "dashboard": {
     "welcome": "Hola, {{name}}",
@@ -537,7 +719,67 @@
     "details_action_delete": "Eliminar",
     "details_field_title_placeholder": "Ej: Capacitación de Altura",
     "details_delete_title": "Eliminar evento",
-    "details_delete_message": "¿Estás seguro de que deseas eliminar este evento del calendario?"
+    "details_delete_message": "¿Estás seguro de que deseas eliminar este evento del calendario?",
+    "page": {
+      "title": "Planificación Estratégica",
+      "subtitle": "Calendario Operativo y Carta Gantt (Zettelkasten)"
+    },
+    "view_toggle": {
+      "calendar": "Calendario",
+      "gantt": "Gantt"
+    },
+    "month_nav": {
+      "prev": "Mes anterior",
+      "next": "Mes siguiente"
+    },
+    "actions": {
+      "schedule": "Agendar"
+    },
+    "weather": {
+      "bulletin_title": "Boletín Climático (Próximos 3 Días)",
+      "zettelkasten_active": "Zettelkasten Activo",
+      "today": "Hoy",
+      "tomorrow": "Mañana",
+      "loading": "Cargando...",
+      "forecast_unavailable": "Pronóstico no disponible",
+      "alert": "Alerta",
+      "alert_message": "Revisar tareas críticas a la intemperie.",
+      "rainy": "Lluvia",
+      "stormy": "Tormenta",
+      "snow": "Nieve",
+      "windy": "Viento fuerte",
+      "extreme_heat": "Calor extremo",
+      "cold_snap": "Frío extremo",
+      "sunny": "Despejado"
+    },
+    "weekdays_short": {
+      "mon": "Lun",
+      "tue": "Mar",
+      "wed": "Mié",
+      "thu": "Jue",
+      "fri": "Vie",
+      "sat": "Sáb",
+      "sun": "Dom"
+    },
+    "gantt": {
+      "activity_milestone": "Actividad / Hito",
+      "duration_unspecified_inline": "· duración no especificada",
+      "duration_unspecified_tooltip": "Duración no especificada — registrá una fecha de término en el evento.",
+      "duration_unspecified_short": "Duración no especificada",
+      "no_events": "No hay eventos en este mes para mostrar en la Carta Gantt."
+    },
+    "upcoming_events": {
+      "title": "Próximos Eventos",
+      "syncing": "Sincronizando Agenda..."
+    },
+    "legal_obligations": {
+      "comite_paritario_title": "Reunión Comité Paritario (DS 54)",
+      "comite_paritario_description": "Reunión mensual obligatoria del Comité Paritario de Higiene y Seguridad.",
+      "depto_prevencion_title": "Informe Depto. Prevención (DS 40)",
+      "depto_prevencion_description": "Entrega de informe mensual de accidentabilidad y gestión preventiva.",
+      "location_meeting_room": "Sala de Reuniones",
+      "location_management": "Gerencia"
+    }
   },
   "differential_dx": {
     "analyzing": "Analizando con IA…",
@@ -1501,5 +1743,78 @@
       "cta_secondary": "Comenzar gratis",
       "free_tier_note": "Gratis hasta 10 trabajadores · Sin tarjeta de crédito"
     }
+  },
+  "public_demo": {
+    "banner": "MODO DEMO — los datos no se persisten · sin cuenta",
+    "your_country": "Tu país",
+    "select_country_aria": "Selecciona tu país",
+    "regulatory_framework": "Marco regulatorio",
+    "no_alerts": "Sin alertas con los inputs actuales.",
+    "calculators_heading": "Calculadoras live",
+    "wind_kmh": "Viento (km/h)",
+    "hero": {
+      "eyebrow": "Praeventio Guard · Demo público",
+      "title": "Prevención HSE inteligente para tu empresa",
+      "subtitle": "Calcula riesgos en tiempo real, visualiza tu faena en 3D y cumple normativa local sin instalar nada. Pruébalo abajo — sin cuenta.",
+      "cta_signup": "Crear cuenta para tu empresa",
+      "privacy_link": "Ver política de privacidad"
+    },
+    "gas": {
+      "title": "Dispersión de gas",
+      "subtitle": "Pasquill-Gifford F",
+      "release_rate": "Tasa fuga (kg/s)"
+    },
+    "dike": {
+      "title": "Dique hidrostático",
+      "height": "Altura (m)",
+      "piezometer_kpa": "P piezómetro 2 (kPa)"
+    },
+    "scaffold": {
+      "title": "Andamio — succión por viento",
+      "area_m2": "Área (m²)"
+    },
+    "twin": {
+      "heading": "Digital Twin (vista previa)",
+      "aria": "Vista previa Digital Twin",
+      "svg_label": "Faena Demo · Mesh sintético estático",
+      "note": "Vista estática — la versión completa con WebXR y AR aparece tras iniciar sesión."
+    }
+  },
+  "risk_network": {
+    "resource_label": "la red neuronal",
+    "title": "El Cerebro",
+    "subtitle": "Red Neuronal de Prevención y Conocimiento",
+    "active_consciousness": "Conciencia Activa",
+    "realtime_synapses": "Sinapsis en Tiempo Real",
+    "info_banner": {
+      "title": "¿Cómo funciona la Red Neuronal?",
+      "body": "Cada análisis de riesgo, trabajador o normativa se convierte en un \"nodo\" de conocimiento. El sistema conecta automáticamente estos nodos para revelar patrones invisibles, permitiendo una gestión proactiva basada en la interconexión de datos."
+    },
+    "tabs": {
+      "graph": "Grafo 3D",
+      "explorer": "Explorador",
+      "health": "Salud de Red",
+      "manager": "Gestor"
+    },
+    "graph_viz_heading": "Visualización del Grafo",
+    "graph_viz_hint": "Interactúa con los nodos para ver detalles",
+    "recent_nodes": "Nodos Recientes",
+    "no_recent_nodes": "No hay nodos recientes",
+    "connections_analysis": "Análisis de Conexiones",
+    "synapse_density": "Densidad de Sinapsis",
+    "total_connections": "Conexiones Totales",
+    "network_factor": "Factor de Red",
+    "avg_per_node": "Promedio / Nodo",
+    "capacity_note": "La red neuronal está operando al <span class=\"font-black\">{{capacity}}%</span> de su capacidad proyectada. Cada nueva conexión reduce la incertidumbre operativa en un <span class=\"font-black\">2.4%</span>.",
+    "requires_connection": "Requiere Conexión",
+    "analyzing": "Analizando...",
+    "analyze_network": "Analizar Red Neuronal",
+    "guardian_insight": "Insight de El Guardián",
+    "predictive_hub": "AI Hub Predictivo",
+    "predictive_hub_desc": "Cruza datos de la Red Neuronal con telemetría en tiempo real para predecir accidentes antes de que ocurran.",
+    "predicting": "Prediciendo...",
+    "predict_imminent": "Predecir Riesgos Inminentes",
+    "probability_pct": "{{value}}% Prob.",
+    "immediate_action": "Acción Preventiva Inmediata"
   }
 }

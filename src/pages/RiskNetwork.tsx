@@ -1,5 +1,6 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 // Sprint 29 Bucket BB H24 — lazy split: KnowledgeGraph carries
 // react-force-graph + three.js (~1MB). Suspended on entry to
 // /risk-network so the surrounding page renders immediately.
@@ -49,6 +50,7 @@ export function resolveSelectedNodeIdFromSearch(
 }
 
 export function RiskNetwork() {
+  const { t } = useTranslation();
   const { nodes, loading, error: nodesError } = useRiskEngine();
   const [activeTab, setActiveTab] = useState<'graph' | 'explorer' | 'health' | 'manager'>('graph');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -142,7 +144,7 @@ export function RiskNetwork() {
       data-page="risk-network"
       data-selected-node-id={selectedNodeId ?? ''}
     >
-        <DataLoadErrorBanner error={nodesError} resourceLabel="la red neuronal" />
+        <DataLoadErrorBanner error={nodesError} resourceLabel={t('risk_network.resource_label')} />
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
@@ -151,19 +153,19 @@ export function RiskNetwork() {
               <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-[#4db6ac] dark:text-[#d4af37]" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white leading-tight">El Cerebro</h1>
-              <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">Red Neuronal de Prevención y Conocimiento</p>
+              <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white leading-tight">{t('risk_network.title')}</h1>
+              <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">{t('risk_network.subtitle')}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3">
             <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
               <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500" />
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Conciencia Activa</span>
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">{t('risk_network.active_consciousness')}</span>
             </div>
             <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2">
               <Network className="w-3 h-3 sm:w-4 sm:h-4 text-[#4db6ac] dark:text-[#d4af37]" />
-              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Sinapsis en Tiempo Real</span>
+              <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-500 dark:text-zinc-400">{t('risk_network.realtime_synapses')}</span>
             </div>
           </div>
         </div>
@@ -178,11 +180,9 @@ export function RiskNetwork() {
             <Info className="w-5 h-5 text-blue-500" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">¿Cómo funciona la Red Neuronal?</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">{t('risk_network.info_banner.title')}</h3>
             <p className="text-[11px] text-zinc-600 dark:text-zinc-500 leading-relaxed max-w-2xl">
-              Cada análisis de riesgo, trabajador o normativa se convierte en un "nodo" de conocimiento. 
-              El sistema conecta automáticamente estos nodos para revelar patrones invisibles, 
-              permitiendo una gestión proactiva basada en la interconexión de datos.
+              {t('risk_network.info_banner.body')}
             </p>
           </div>
         </motion.div>
@@ -190,10 +190,10 @@ export function RiskNetwork() {
       {/* Tabs */}
       <div className="flex flex-wrap items-center gap-2 p-1 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl w-fit">
         {[
-          { id: 'graph', label: 'Grafo 3D', icon: Network },
-          { id: 'explorer', label: 'Explorador', icon: LayoutGrid },
-          { id: 'health', label: 'Salud de Red', icon: Activity },
-          { id: 'manager', label: 'Gestor', icon: Settings },
+          { id: 'graph', label: t('risk_network.tabs.graph'), icon: Network },
+          { id: 'explorer', label: t('risk_network.tabs.explorer'), icon: LayoutGrid },
+          { id: 'health', label: t('risk_network.tabs.health'), icon: Activity },
+          { id: 'manager', label: t('risk_network.tabs.manager'), icon: Settings },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -220,9 +220,9 @@ export function RiskNetwork() {
               className="space-y-4"
             >
               <div className="flex items-center justify-between">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Visualización del Grafo</h2>
+                <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">{t('risk_network.graph_viz_heading')}</h2>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">Interactúa con los nodos para ver detalles</span>
+                  <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest mr-2">{t('risk_network.graph_viz_hint')}</span>
                 </div>
               </div>
               <Suspense fallback={
@@ -268,7 +268,7 @@ export function RiskNetwork() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">Nodos Recientes</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">{t('risk_network.recent_nodes')}</h3>
             <Clock className="w-4 h-4 text-zinc-500" />
           </div>
           <div className="space-y-3">
@@ -277,7 +277,7 @@ export function RiskNetwork() {
                 <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
               </div>
             ) : recentNodes.length === 0 ? (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-4">No hay nodos recientes</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-4">{t('risk_network.no_recent_nodes')}</p>
             ) : (
               recentNodes.map((node) => (
                 <div key={node.id} className="group flex items-center justify-between p-3 bg-white dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5 hover:border-[#4db6ac]/30 transition-all cursor-pointer">
@@ -302,26 +302,25 @@ export function RiskNetwork() {
 
         <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">Análisis de Conexiones</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">{t('risk_network.connections_analysis')}</h3>
             <Activity className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-white dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Densidad de Sinapsis</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">{t('risk_network.synapse_density')}</p>
               <p className="text-2xl font-black text-zinc-900 dark:text-white tracking-tighter">{stats.totalConnections}</p>
-              <p className="text-[9px] text-[#4db6ac] dark:text-[#d4af37] font-bold mt-1 uppercase tracking-wider">Conexiones Totales</p>
+              <p className="text-[9px] text-[#4db6ac] dark:text-[#d4af37] font-bold mt-1 uppercase tracking-wider">{t('risk_network.total_connections')}</p>
             </div>
             <div className="p-4 bg-white dark:bg-white/5 rounded-2xl border border-zinc-200 dark:border-white/5">
-              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Factor de Red</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">{t('risk_network.network_factor')}</p>
               <p className="text-2xl font-black text-zinc-900 dark:text-white tracking-tighter">{stats.avgConnections}</p>
-              <p className="text-[9px] text-blue-600 dark:text-blue-500 font-bold mt-1 uppercase tracking-wider">Promedio / Nodo</p>
+              <p className="text-[9px] text-blue-600 dark:text-blue-500 font-bold mt-1 uppercase tracking-wider">{t('risk_network.avg_per_node')}</p>
             </div>
           </div>
           <div className="pt-2">
             <div className="bg-[#4db6ac]/10 dark:bg-[#4db6ac]/10 border border-[#4db6ac]/20 dark:border-[#d4af37]/20 rounded-2xl p-4">
               <p className="text-[10px] text-[#2a8a81] dark:text-[#d4af37] leading-relaxed font-medium">
-                La red neuronal está operando al <span className="font-black">{(Math.min(100, (stats.totalNodes * 5))).toFixed(0)}%</span> de su capacidad proyectada. 
-                Cada nueva conexión reduce la incertidumbre operativa en un <span className="font-black">2.4%</span>.
+                <span dangerouslySetInnerHTML={{ __html: t('risk_network.capacity_note', { capacity: Math.min(100, stats.totalNodes * 5).toFixed(0) }) }} />
               </p>
             </div>
           </div>
@@ -332,7 +331,7 @@ export function RiskNetwork() {
               className="w-full flex items-center justify-center gap-2 bg-[var(--btn-secondary-bg)] hover:opacity-80 disabled:opacity-50 text-[var(--btn-secondary-text,white)] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg"
             >
               {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {!isOnline ? 'Requiere Conexión' : isAnalyzing ? 'Analizando...' : 'Analizar Red Neuronal'}
+              {!isOnline ? t('risk_network.requires_connection') : isAnalyzing ? t('risk_network.analyzing') : t('risk_network.analyze_network')}
             </button>
             
             {aiInsight && (
@@ -343,7 +342,7 @@ export function RiskNetwork() {
               >
                 <div className="flex items-center gap-2 mb-2">
                   <Brain className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
-                  <h4 className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest">Insight de El Guardián</h4>
+                  <h4 className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest">{t('risk_network.guardian_insight')}</h4>
                 </div>
                 <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">{aiInsight.analysis}</p>
                 {aiInsight.recommendations && aiInsight.recommendations.length > 0 && (
@@ -363,11 +362,11 @@ export function RiskNetwork() {
 
         <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 space-y-4 md:col-span-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">AI Hub Predictivo</h3>
+            <h3 className="text-xs font-black uppercase tracking-widest text-zinc-900 dark:text-white">{t('risk_network.predictive_hub')}</h3>
             <ShieldAlert className="w-4 h-4 text-rose-500" />
           </div>
           <p className="text-[10px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
-            Cruza datos de la Red Neuronal con telemetría en tiempo real para predecir accidentes antes de que ocurran.
+            {t('risk_network.predictive_hub_desc')}
           </p>
           <button
             onClick={handlePredict}
@@ -375,7 +374,7 @@ export function RiskNetwork() {
             className="w-full flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-500/20"
           >
             {isPredicting ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-            {!isOnline ? 'Requiere Conexión' : isPredicting ? 'Prediciendo...' : 'Predecir Riesgos Inminentes'}
+            {!isOnline ? t('risk_network.requires_connection') : isPredicting ? t('risk_network.predicting') : t('risk_network.predict_imminent')}
           </button>
 
           {predictions.length > 0 && (
@@ -395,12 +394,12 @@ export function RiskNetwork() {
                       pred.probability > 40 ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-500' : 
                       'bg-[#4db6ac]/20 dark:bg-[#d4af37]/20 text-[#4db6ac] dark:text-[#d4af37]'
                     }`}>
-                      {pred.probability}% Prob.
+                      {t('risk_network.probability_pct', { value: pred.probability })}
                     </span>
                   </div>
                   <p className="text-[10px] text-zinc-600 dark:text-zinc-400 mb-3 flex-grow">{pred.description}</p>
                   <div className="bg-rose-50 dark:bg-rose-500/10 p-3 rounded-xl border border-rose-100 dark:border-rose-500/20 mt-auto">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-1">Acción Preventiva Inmediata</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-1">{t('risk_network.immediate_action')}</p>
                     <p className="text-[10px] text-rose-700 dark:text-rose-200">{pred.preventiveAction}</p>
                   </div>
                 </motion.div>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { 
-  Calendar as CalendarIcon, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  Clock, 
-  MapPin, 
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Clock,
+  MapPin,
   Users,
   Loader2,
   X,
@@ -24,7 +25,11 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { es } from 'date-fns/locale';
 import { fetchWeatherData } from '../services/orchestratorService';
 
+// TODO(i18n): AddEventModal is an external sub-component — its internal strings
+// are scoped to a separate i18n sweep, not this file.
 import { AddEventModal } from '../components/calendar/AddEventModal';
+// TODO(i18n): EventDetailsModal is an external sub-component — its internal
+// strings are scoped to a separate i18n sweep, not this file.
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
 import { logger } from '../utils/logger';
 
@@ -42,6 +47,7 @@ interface Event {
 }
 
 export function Calendar() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { totalWorkers, plan } = useSubscription();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -124,17 +130,17 @@ export function Calendar() {
   ) => {
     switch (code) {
       case 'rainy':
-        return { icon: CloudRain, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', condition: 'Lluvia' };
+        return { icon: CloudRain, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', condition: t('calendar.weather.rainy') };
       case 'stormy':
-        return { icon: CloudRain, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-500/10', condition: 'Tormenta' };
+        return { icon: CloudRain, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-500/10', condition: t('calendar.weather.stormy') };
       case 'snow':
-        return { icon: CloudRain, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-500/10', condition: 'Nieve' };
+        return { icon: CloudRain, color: 'text-cyan-500', bg: 'bg-cyan-50 dark:bg-cyan-500/10', condition: t('calendar.weather.snow') };
       case 'windy':
-        return { icon: Wind, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', condition: 'Viento fuerte' };
+        return { icon: Wind, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', condition: t('calendar.weather.windy') };
       case 'extreme-heat':
-        return { icon: Sun, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', condition: 'Calor extremo' };
+        return { icon: Sun, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', condition: t('calendar.weather.extreme_heat') };
       case 'cold-snap':
-        return { icon: Cloud, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', condition: 'Frío extremo' };
+        return { icon: Cloud, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', condition: t('calendar.weather.cold_snap') };
       case 'sunny':
       default: {
         const hot = typeof temp === 'number' && temp > 25;
@@ -142,7 +148,7 @@ export function Calendar() {
           icon: hot ? Sun : Cloud,
           color: hot ? 'text-amber-500' : 'text-zinc-500',
           bg: hot ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-zinc-50 dark:bg-zinc-500/10',
-          condition: 'Despejado',
+          condition: t('calendar.weather.sunny'),
         };
       }
     }
@@ -163,7 +169,7 @@ export function Calendar() {
           return {
             date,
             temp: '--°C',
-            condition: 'Cargando...',
+            condition: t('calendar.weather.loading'),
             icon: Cloud,
             color: 'text-zinc-500',
             bg: 'bg-zinc-50 dark:bg-zinc-500/10',
@@ -186,7 +192,7 @@ export function Calendar() {
         return {
           date,
           temp: '--°C',
-          condition: 'Cargando...',
+          condition: t('calendar.weather.loading'),
           icon: Cloud,
           color: 'text-zinc-500',
           bg: 'bg-zinc-50 dark:bg-zinc-500/10',
@@ -198,7 +204,7 @@ export function Calendar() {
         return {
           date,
           temp: '—°C',
-          condition: 'Pronóstico no disponible',
+          condition: t('calendar.weather.forecast_unavailable'),
           icon: Cloud,
           color: 'text-zinc-500',
           bg: 'bg-zinc-50 dark:bg-zinc-500/10',
@@ -214,7 +220,7 @@ export function Calendar() {
         return {
           date,
           temp: '—°C',
-          condition: 'Pronóstico no disponible',
+          condition: t('calendar.weather.forecast_unavailable'),
           icon: Cloud,
           color: 'text-zinc-500',
           bg: 'bg-zinc-50 dark:bg-zinc-500/10',
@@ -246,7 +252,9 @@ export function Calendar() {
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
 
-  // Generate legal obligations based on worker count
+  // Generate legal obligations based on worker count.
+  // NOTE: SUSESO/ACHS/IST/Mutual/ONEMI/SAMU/CITUC and Chilean legal references
+  // (DS 54, DS 40, Comité Paritario) are proper nouns and stay untranslated.
   const legalObligations = React.useMemo(() => {
     const obligations: Event[] = [];
     if (totalWorkers >= 25) {
@@ -254,12 +262,12 @@ export function Calendar() {
       const meetingDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 15); // 15th of the month
       obligations.push({
         id: 'legal-comite',
-        title: 'Reunión Comité Paritario (DS 54)',
+        title: t('calendar.legal_obligations.comite_paritario_title'),
         date: meetingDate.toISOString(),
         time: '09:00',
         type: 'Reunión',
-        description: 'Reunión mensual obligatoria del Comité Paritario de Higiene y Seguridad.',
-        location: 'Sala de Reuniones',
+        description: t('calendar.legal_obligations.comite_paritario_description'),
+        location: t('calendar.legal_obligations.location_meeting_room'),
         projectId: selectedProject?.id || '',
         endDate: new Date(meetingDate.getTime() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours
         progress: 0
@@ -270,19 +278,20 @@ export function Calendar() {
       const reportDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0); // Last day of month
       obligations.push({
         id: 'legal-depto',
-        title: 'Informe Depto. Prevención (DS 40)',
+        title: t('calendar.legal_obligations.depto_prevencion_title'),
         date: reportDate.toISOString(),
         time: '15:00',
         type: 'Auditoría',
-        description: 'Entrega de informe mensual de accidentabilidad y gestión preventiva.',
-        location: 'Gerencia',
+        description: t('calendar.legal_obligations.depto_prevencion_description'),
+        location: t('calendar.legal_obligations.location_management'),
         projectId: selectedProject?.id || '',
         endDate: new Date(reportDate.getTime() + 4 * 60 * 60 * 1000).toISOString(),
         progress: 0
       });
     }
     return obligations;
-  }, [totalWorkers, currentDate, selectedProject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalWorkers, currentDate, selectedProject, t]);
 
   const allEvents = [...(events || []), ...legalObligations];
 
@@ -309,14 +318,24 @@ export function Calendar() {
 
   const forecast = getForecast();
 
+  const weekdayShort = [
+    t('calendar.weekdays_short.mon'),
+    t('calendar.weekdays_short.tue'),
+    t('calendar.weekdays_short.wed'),
+    t('calendar.weekdays_short.thu'),
+    t('calendar.weekdays_short.fri'),
+    t('calendar.weekdays_short.sat'),
+    t('calendar.weekdays_short.sun'),
+  ];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Planificación Estratégica</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('calendar.page.title')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Calendario Operativo y Carta Gantt (Zettelkasten)
+            {t('calendar.page.subtitle')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -324,41 +343,43 @@ export function Calendar() {
           <div className="flex bg-zinc-100 dark:bg-zinc-900/50 p-1 rounded-xl border border-zinc-200 dark:border-white/10">
             <button
               onClick={() => setViewMode('calendar')}
+              aria-label={t('calendar.view_toggle.calendar')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
                 viewMode === 'calendar' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
-              <span>Calendario</span>
+              <span>{t('calendar.view_toggle.calendar')}</span>
             </button>
             <button
               onClick={() => setViewMode('gantt')}
+              aria-label={t('calendar.view_toggle.gantt')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
                 viewMode === 'gantt' ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-white'
               }`}
             >
               <BarChartHorizontal className="w-4 h-4" />
-              <span>Gantt</span>
+              <span>{t('calendar.view_toggle.gantt')}</span>
             </button>
           </div>
 
           <div className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-1 w-full sm:w-auto">
-            <button onClick={prevMonth} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+            <button onClick={prevMonth} aria-label={t('calendar.month_nav.prev')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
               <ChevronLeft className="w-5 h-5" />
             </button>
             <span className="px-2 sm:px-4 text-[10px] sm:text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest min-w-[120px] sm:min-w-[140px] text-center">
               {format(currentDate, 'MMMM yyyy', { locale: es })}
             </span>
-            <button onClick={nextMonth} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
+            <button onClick={nextMonth} aria-label={t('calendar.month_nav.next')} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/5 rounded-xl text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-all">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
-          <button 
+          <button
             onClick={() => setIsAdding(true)}
             className="bg-zinc-900 dark:bg-white text-white dark:text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xl shadow-zinc-900/5 dark:shadow-white/5 flex items-center justify-center gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
-            <span>Agendar</span>
+            <span>{t('calendar.actions.schedule')}</span>
           </button>
         </div>
       </div>
@@ -366,9 +387,9 @@ export function Calendar() {
       {/* Weather Forecast Widget */}
       <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2rem] p-4 sm:p-6 shadow-xl">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Boletín Climático (Próximos 3 Días)</h2>
+          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">{t('calendar.weather.bulletin_title')}</h2>
           <span className="text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-wider bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 px-2 py-1 rounded-lg">
-            Zettelkasten Activo
+            {t('calendar.weather.zettelkasten_active')}
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -378,7 +399,7 @@ export function Calendar() {
               <div key={i} className={`p-4 rounded-2xl border ${day.alert ? 'border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10' : 'border-zinc-200 dark:border-white/5 bg-zinc-50 dark:bg-zinc-800/50'} flex items-center justify-between`}>
                 <div>
                   <div className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">
-                    {i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : format(day.date, 'EEEE', { locale: es })}
+                    {i === 0 ? t('calendar.weather.today') : i === 1 ? t('calendar.weather.tomorrow') : format(day.date, 'EEEE', { locale: es })}
                   </div>
                   <div className="flex items-center gap-2">
                     <Icon className={`w-5 h-5 ${day.alert ? 'text-red-500' : day.color}`} />
@@ -394,10 +415,10 @@ export function Calendar() {
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-red-500 justify-end mb-1">
                       <Wind className="w-3 h-3" />
-                      <span className="text-[9px] font-bold uppercase tracking-wider">Alerta</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider">{t('calendar.weather.alert')}</span>
                     </div>
                     <p className="text-[8px] text-red-600/80 dark:text-red-400/80 max-w-[100px] leading-tight">
-                      Revisar tareas críticas a la intemperie.
+                      {t('calendar.weather.alert_message')}
                     </p>
                   </div>
                 )}
@@ -411,7 +432,7 @@ export function Calendar() {
       {viewMode === 'calendar' ? (
         <div className="bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/5 rounded-[2.5rem] p-6 shadow-xl">
           <div className="grid grid-cols-7 gap-4 mb-4">
-            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(day => (
+            {weekdayShort.map(day => (
               <div key={day} className="text-center text-[8px] font-black text-zinc-500 uppercase tracking-widest">
                 {day}
               </div>
@@ -421,10 +442,10 @@ export function Calendar() {
             {days.map((day, i) => {
               const dayEvents = getEventsForDay(day);
               return (
-                <div 
+                <div
                   key={i}
                   className={`min-h-[120px] p-3 rounded-2xl border transition-all ${
-                    isSameDay(day, new Date()) 
+                    isSameDay(day, new Date())
                       ? 'bg-[#4db6ac]/10 dark:bg-[#4db6ac]/10 border-[#4db6ac]/30 dark:border-[#d4af37]/30'
                       : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10'
                   }`}
@@ -434,7 +455,7 @@ export function Calendar() {
                   </span>
                   <div className="mt-2 space-y-1">
                     {dayEvents.map(event => (
-                      <div 
+                      <div
                         key={event.id}
                         onClick={() => setSelectedEvent(event)}
                         className="p-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 text-[8px] font-bold text-zinc-900 dark:text-white uppercase tracking-wider truncate cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
@@ -454,7 +475,7 @@ export function Calendar() {
           <div className="min-w-[800px]">
             {/* Gantt Header */}
             <div className="flex border-b border-zinc-200 dark:border-white/10 pb-2 mb-4">
-              <div className="w-1/4 font-black text-[10px] text-zinc-500 uppercase tracking-widest">Actividad / Hito</div>
+              <div className="w-1/4 font-black text-[10px] text-zinc-500 uppercase tracking-widest">{t('calendar.gantt.activity_milestone')}</div>
               <div className="w-3/4 flex">
                 {days.map((day, i) => (
                   <div key={i} className="flex-1 text-center text-[8px] font-bold text-zinc-400 border-l border-zinc-100 dark:border-white/5">
@@ -469,12 +490,12 @@ export function Calendar() {
               {ganttEvents.map(event => {
                 const startDate = new Date(event.date);
                 const endDate = new Date(event.endDate!);
-                
+
                 // Calculate position and width
                 const startOffset = Math.max(0, differenceInDays(startDate, monthStart));
                 const duration = differenceInDays(endDate, startDate) + 1;
                 const totalDays = days.length;
-                
+
                 const leftPercent = (startOffset / totalDays) * 100;
                 const widthPercent = (duration / totalDays) * 100;
 
@@ -485,8 +506,8 @@ export function Calendar() {
                       <div className="text-[9px] text-zinc-500 uppercase tracking-wider">
                         {event.type}
                         {event.durationUnspecified && (
-                          <span className="ml-1 text-amber-500" title="Duración no especificada — registrá una fecha de término en el evento.">
-                            · duración no especificada
+                          <span className="ml-1 text-amber-500" title={t('calendar.gantt.duration_unspecified_tooltip')}>
+                            {t('calendar.gantt.duration_unspecified_inline')}
                           </span>
                         )}
                       </div>
@@ -511,7 +532,7 @@ export function Calendar() {
                           }`}
                           style={{ left: `${leftPercent}%` }}
                           onClick={() => setSelectedEvent(event)}
-                          title={event.durationUnspecified ? 'Duración no especificada' : undefined}
+                          title={event.durationUnspecified ? t('calendar.gantt.duration_unspecified_short') : undefined}
                         >
                           <div
                             className={`h-full ${event.durationUnspecified ? 'bg-amber-500' : 'bg-emerald-500'}`}
@@ -528,7 +549,7 @@ export function Calendar() {
               })}
               {ganttEvents.length === 0 && (
                 <div className="text-center py-8 text-zinc-500 text-sm">
-                  No hay eventos en este mes para mostrar en la Carta Gantt.
+                  {t('calendar.gantt.no_events')}
                 </div>
               )}
             </div>
@@ -539,16 +560,16 @@ export function Calendar() {
       {/* Upcoming Events (Only show in Calendar view) */}
       {viewMode === 'calendar' && (
         <div className="space-y-4">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Próximos Eventos</h2>
+          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">{t('calendar.upcoming_events.title')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {loading ? (
               <div className="col-span-full py-12 flex flex-col items-center gap-3">
                 <Loader2 className="w-8 h-8 text-[#4db6ac] dark:text-[#d4af37] animate-spin" />
-                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sincronizando Agenda...</p>
+                <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('calendar.upcoming_events.syncing')}</p>
               </div>
             ) : (events || []).slice(0, 3).map(event => (
-              <div 
-                key={event.id} 
+              <div
+                key={event.id}
                 onClick={() => setSelectedEvent(event)}
                 className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-3xl p-6 space-y-4 group hover:border-[#4db6ac]/30 transition-all cursor-pointer shadow-sm"
               >
@@ -579,10 +600,10 @@ export function Calendar() {
         </div>
       )}
       <AddEventModal isOpen={isAdding} onClose={() => setIsAdding(false)} />
-      <EventDetailsModal 
-        isOpen={!!selectedEvent} 
-        onClose={() => setSelectedEvent(null)} 
-        event={selectedEvent} 
+      <EventDetailsModal
+        isOpen={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        event={selectedEvent}
       />
     </div>
   );
