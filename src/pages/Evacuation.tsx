@@ -34,6 +34,19 @@ import { WifiOff } from 'lucide-react';
 import { useEmergency } from '../contexts/EmergencyContext';
 import { useSeismicMonitor } from '../hooks/useSeismicMonitor';
 import { get } from 'idb-keyval';
+// Sprint 37 — Brecha B (SLM offline fallback). Ver `docs/slm-offline.md`
+// + `product_strategic_gaps_2026-05-04.md`. El hook `useSlmOffline` ya
+// implementa la política de decisión online→offline internamente: le
+// pasamos una función `online(prompt)` que invoca Gemini y, si falla o
+// `navigator.onLine === false`, el hook resuelve via TinyLlama 1.1B Q4
+// ONNX en device. Aquí sólo cableamos la página `/evacuation` —
+// `/driving` y `/inhospitable-guide` no hacen llamadas Gemini directas
+// (la primera es un wrapper de Google Maps, la segunda contenido
+// estático), y `/emergency` delega la generación al sub-page
+// `EmergencyGenerator` cuyo `generateEmergencyPlanJSON` devuelve JSON
+// estructurado que el SLM no puede reemplazar sin riesgo de schema
+// drift — fallback queda fuera de scope.
+import { useSlmOffline } from '../hooks/useSlmOffline';
 
 const containerStyle = {
   width: '100%',
@@ -71,6 +84,9 @@ export function Evacuation() {
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [savingPlan, setSavingPlan] = useState(false);
   const [emergencyPlan, setEmergencyPlan] = useState<string | null>(null);
+  // Brecha B: cuando el plan se sirve via SLM on-device, marcamos para
+  // que la UI muestre el badge "Modo offline" + el disclaimer científico.
+  const [planServedOffline, setPlanServedOffline] = useState(false);
   const [aiRoute, setAiRoute] = useState<any>(null);
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [lastRecalculation, setLastRecalculation] = useState<Date | null>(null);
@@ -78,6 +94,26 @@ export function Evacuation() {
   const isOnline = useOnlineStatus();
   const { triggerEmergency } = useEmergency();
   const { criticalAlert } = useSeismicMonitor();
+
+  // Brecha B — SLM offline fallback para generación de Plan de
+  // Emergencia. El hook llama a `online(prompt)` (Gemini) primero y, si
+  // falla o el device está sin red, ejecuta TinyLlama 1.1B Q4 en
+  // navegador (WebGPU/WASM-SIMD según device). El prompt se construye
+  // dentro del adapter para mantener compatibilidad con la firma actual
+  // de `generateEmergencyPlan(projectName, context, industry)`.
+  const slmOffline = useSlmOffline({
+    online: async (prompt: string) => {
+      // Re-parsear el prompt synthetic para llamar al wrapper Gemini
+      // existente. El payload viaja JSON-encoded en una sola línea —
+      // mantiene el hook genérico (string→string) sin filtrar tipos.
+      const { projectName, context, industry } = JSON.parse(prompt) as {
+        projectName: string;
+        context: string;
+        industry?: string;
+      };
+      return generateEmergencyPlan(projectName, context, industry);
+    },
+  });
 
   const emergencyNodes = nodes.filter(n => (n.type === NodeType.EMERGENCY || n.type === NodeType.ASSET) && n.metadata?.lat && n.metadata?.lng);
   const incidentNodes = nodes.filter(n => n.type === NodeType.INCIDENT);
@@ -144,12 +180,29 @@ export function Evacuation() {
   }, [recentEvents]);
 
   const handleGenerateEmergencyPlan = async () => {
-    if (!isOnline) return;
+    // Brecha B — antes: `if (!isOnline) return`. Ahora delegamos al
+    // hook `useSlmOffline`, que decide Gemini vs SLM on-device según
+    // `navigator.onLine` y la disponibilidad del adapter ONNX. Si no
+    // hay red Y el SLM no está cacheado, el hook lanza y caemos al
+    // catch (no plan generado, mismo UX que antes).
     setGeneratingPlan(true);
+    setPlanServedOffline(false);
     try {
-      const context = nodes.map(n => `- [${n.type}] ${n.title}: ${n.description}`).join('\n');
-      const plan = await generateEmergencyPlan(selectedProject?.name || 'Proyecto Actual', context, selectedProject?.industry);
+      const context = nodes
+        .map((n) => `- [${n.type}] ${n.title}: ${n.description}`)
+        .join('\n');
+      const projectName = selectedProject?.name || 'Proyecto Actual';
+      const industry = selectedProject?.industry;
+      const plan = await slmOffline.generate(
+        JSON.stringify({ projectName, context, industry }),
+      );
       setEmergencyPlan(plan);
+      // `slm-ready` significa que el SLM on-device sirvió la respuesta
+      // (sea por offline o por fallback ante fallo de Gemini). En ese
+      // caso surfaceamos el badge "Modo offline" + disclaimer normativo
+      // en el modal del plan (regla del usuario: recommendations con
+      // bases científicas).
+      setPlanServedOffline(slmOffline.status === 'slm-ready');
     } catch (error) {
       logger.error('Error generating emergency plan', { error });
     } finally {
@@ -267,13 +320,32 @@ export function Evacuation() {
             <AlertCircle className="w-4 h-4" />
             <span>{alarmActivatedAt ? `Alarma Activa ${alarmActivatedAt}` : 'Activar Alarma Manual'}</span>
           </button>
-          <button 
+          {/* Brecha B — botón ya no se inhabilita offline si el SLM está
+              cargado: `slmOffline.slmAvailable` reporta el flag
+              `SLM_OFFLINE_ENABLED`. Cuando offline + slmAvailable,
+              reetiquetamos a "Generar (offline)" para que el usuario
+              sepa que la respuesta viene del modelo on-device. */}
+          <button
             onClick={handleGenerateEmergencyPlan}
-            disabled={generatingPlan || !isOnline}
-            className={`flex items-center justify-center gap-2 bg-zinc-900 border border-white/10 text-white px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 w-full sm:w-auto ${!isOnline ? 'cursor-not-allowed opacity-50' : 'hover:bg-zinc-800'}`}
+            disabled={
+              generatingPlan || (!isOnline && !slmOffline.slmAvailable)
+            }
+            className={`flex items-center justify-center gap-2 bg-zinc-900 border border-white/10 text-white px-4 py-3 sm:py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 w-full sm:w-auto ${!isOnline && !slmOffline.slmAvailable ? 'cursor-not-allowed opacity-50' : 'hover:bg-zinc-800'}`}
           >
-            {!isOnline ? <WifiOff className="w-4 h-4" /> : generatingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-            <span>{!isOnline ? 'Requiere Conexión' : 'Generar Plan de Emergencia (PE)'}</span>
+            {!isOnline && !slmOffline.slmAvailable ? (
+              <WifiOff className="w-4 h-4" />
+            ) : generatingPlan ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <FileText className="w-4 h-4" />
+            )}
+            <span>
+              {!isOnline && !slmOffline.slmAvailable
+                ? 'Requiere Conexión'
+                : !isOnline && slmOffline.slmAvailable
+                  ? 'Generar Plan (offline)'
+                  : 'Generar Plan de Emergencia (PE)'}
+            </span>
           </button>
           <button 
             onClick={() => runDynamicCalculation()}
@@ -303,7 +375,29 @@ export function Evacuation() {
                   </div>
                   <div>
                     <h2 className="text-xl font-black text-white uppercase tracking-tighter">Plan de Emergencia (PE)</h2>
-                    <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Generado por El Guardián AI</p>
+                    <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-2">
+                      <span>Generado por El Guardián AI</span>
+                      {/* Brecha B — badge SLM. Sólo aparece si el plan
+                          actual fue servido por el modelo on-device.
+                          La cita normativa explicita la base científica
+                          (DS 594 / Ley 16.744 / NCh 2245) — regla del
+                          usuario: recommendations con bases científicas. */}
+                      {planServedOffline && (
+                        <span
+                          data-testid="evacuation-plan-offline-badge"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[9px] font-black uppercase tracking-widest"
+                        >
+                          <WifiOff className="w-3 h-3" />
+                          Modo Offline · TinyLlama
+                        </span>
+                      )}
+                    </p>
+                    {planServedOffline && (
+                      <p className="text-[10px] text-amber-400/80 mt-1 leading-snug">
+                        Generado en device (SLM). Validar contra DS 594,
+                        Ley 16.744 y NCh 2245 antes de uso operativo.
+                      </p>
+                    )}
                   </div>
                 </div>
                 <button 

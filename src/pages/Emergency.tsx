@@ -1,3 +1,14 @@
+// Sprint 37 — Brecha B (SLM offline) audit decision:
+// `Emergency.tsx` no realiza llamadas Gemini directamente. El botón
+// "AI Generator" enlaza con `/emergency-generator` (página
+// `EmergencyGenerator.tsx`) cuyo `generateEmergencyPlanJSON` devuelve
+// JSON estructurado con schema fijo (resumen / brigada / procedimientos
+// / evacuación / normativas). El SLM on-device produce texto libre, no
+// JSON estructurado garantizado, por lo que un fallback ingenuo
+// rompería el rendering tab-por-tab. El fallback semántico vive en
+// `Evacuation.handleGenerateEmergencyPlan` (texto libre, ya cableado).
+// Si el futuro adapter SLM incluye output JSON-schema-constrained,
+// reabrimos este wire. Ver `docs/slm-offline.md`.
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
