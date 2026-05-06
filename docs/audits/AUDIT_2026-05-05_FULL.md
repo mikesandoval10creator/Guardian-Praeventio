@@ -39,7 +39,7 @@ Tres ejes de riesgo:
 | W1 | `emergency/autoTrigger` → `notifications/fcmAdapter` (no dispara push) | Alto/S |
 | W2 | `iot/ingestRuleEngine.evaluateSample` → `emergency.pushCompanyEmergency` | Alto/S |
 | W4 | Eventos de dominio → `gamification/positiveXp.awardXp` (cero hooks desde incidents/medical/cphs/curriculum) | Alto/M |
-| W6 | `normativa/locationNormativa` → `compliance/ds67ds76` (no consulta país) | Alto/M |
+| W6 | `normativa/locationNormativa` → `compliance/ds67ds76` (no consulta país) | Alto/M — Sprint 33 D2 cerró country gate con `JurisdictionNotSupportedError` + `suggestedAdapters`. **W6.1: ADR-0017 written 2026-05-06** (`docs/architecture-decisions/0017-per-country-emission-adapters.md`), implementation incremental Sprint 38+ (Chile consolidación → US OSHA → UK RIDDOR → EU/MX/BR/AU/CN/RU). |
 | W10 | `mesh/transportFacade` → `emergency/autoTrigger` (emergencia offline no rebroadcast) | Alto/L |
 
 ### 1.2 Frontend Components (`src/components/`, `pages/`)

@@ -29,6 +29,7 @@ import { validate } from '../middleware/validate.js';
 import { aiFeedbackLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 // ─────────────────────────────────────────────────────────────────────────
 // PII redaction (pure, exported for tests).
@@ -217,7 +218,10 @@ router.post(
         | { kind: 'conflict'; existingVote: 'up' | 'down' }
         | { kind: 'written'; override: boolean; previousVote: 'up' | 'down' | null };
 
-      const outcome: TxOutcome = await db.runTransaction(async (tx) => {
+      const outcome: TxOutcome = await tracedAsync(
+        'ai.feedback.persist',
+        { 'praeventio.uid': tenantId, vote: body.vote, domain: body.domain ?? null, force },
+        () => db.runTransaction(async (tx) => {
         const snap = await tx.get(docRef);
         const existing = snap.exists ? (snap.data() as { vote?: 'up' | 'down' } | undefined) : null;
         const previousVote = existing?.vote ?? null;
@@ -250,7 +254,8 @@ router.post(
         // while the transaction guarantees vote-flip atomicity.
         tx.set(docRef, doc, { merge: true });
         return { kind: 'written', override: Boolean(previousVote), previousVote };
-      });
+        }),
+      );
 
       if (outcome.kind === 'conflict') {
         return res.status(409).json({

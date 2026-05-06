@@ -830,7 +830,10 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
 
     let preference: { id: string; init_point: string };
     try {
-      preference = await mercadoPagoAdapter.createPreference({
+      preference = await tracedAsync(
+        'billing.checkout.mercadopago',
+        { invoiceId, country, currency: expectedCurrency, tierKey: body.tierKey },
+        () => mercadoPagoAdapter.createPreference({
         items: [
           {
             title: `Praeventio Guard — ${body.tierKey} (${body.billingCycle})`,
@@ -843,7 +846,8 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
         back_urls: backUrls,
         notification_url: notificationUrl,
         external_reference: invoiceId,
-      });
+        }),
+      );
     } catch (err) {
       logger.error('mercadopago_create_failed', err, { invoiceId, country });
       sentryCapture(err, { endpoint: 'billing.checkout.mercadopago', tags: { invoiceId, country } });
@@ -985,8 +989,12 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
   }
 
   try {
-    const result = await processMercadoPagoIpn(req.body ?? {});
     const paymentId = req.body?.data?.id;
+    const result = await tracedAsync(
+      'billing.webhook.mercadopago',
+      { paymentId: paymentId ?? null, action: req.body?.action ?? null },
+      () => processMercadoPagoIpn(req.body ?? {}),
+    );
     // Sprint 28 H18 — audit success and replay for MP webhooks.
     if (result.idempotencyKind === 'duplicate') {
       await auditServerEvent(req, 'billing.webhook.replay', 'billing', {
@@ -1322,7 +1330,11 @@ billingApiRouter.post(
           // Re-fetch canonical state — never trust status fields from the
           // webhook body alone (they're informational; the producer might
           // be fooled by a downstream replay).
-          const status = await adapter.getPaymentStatus(paymentId);
+          const status = await tracedAsync(
+            'billing.webhook.khipu',
+            { paymentId, dedupeKey },
+            () => adapter.getPaymentStatus(paymentId),
+          );
           const invoiceId = status.buyOrder;
           if (!invoiceId) {
             logger.warn('khipu_ipn_no_transaction_id', { paymentId });
@@ -1618,10 +1630,18 @@ billingApiRouter.post('/webhook/apple', validate(appleWebhookSchema), async (req
           // bearer-equivalent material in the App Store Server API.
         });
 
-        const result = await applyAppleEntitlement({
-          payload,
-          db: db as any,
-        });
+        const result = await tracedAsync(
+          'billing.webhook.apple',
+          {
+            notificationType: payload.notificationType ?? null,
+            subtype: payload.subtype ?? null,
+            verifiedChain,
+          },
+          () => applyAppleEntitlement({
+            payload,
+            db: db as any,
+          }),
+        );
 
         await db
           .collection('apple_ssn_attempts')

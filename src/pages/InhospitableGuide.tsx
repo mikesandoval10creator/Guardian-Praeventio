@@ -1,3 +1,12 @@
+// Sprint 37 — Brecha B (SLM offline) audit decision:
+// `InhospitableGuide.tsx` es 100% contenido estático JSX (consejos
+// para ambientes inhóspitos: cordillera, calor extremo, tormentas
+// eléctricas, exposición solar, viento). No hay AI calls a cablear,
+// y por design la página debe trabajar offline-first sin red — el
+// contenido ya está pre-renderizado en bundle. El offline banner
+// global (`SLMShellOverlay`, AppProviders) cubre el feedback visual.
+// Si en futuro se agrega un asesor dinámico ("¿qué hago ante hipotermia
+// en altura?"), ahí va el wire `useSlmOffline`. Ver `docs/slm-offline.md`.
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Mountain, ThermometerSnowflake, Wind, Sun, CloudLightning, AlertTriangle, Info, ChevronDown, ChevronUp } from 'lucide-react';

@@ -76,7 +76,189 @@
     "tier_corporate": "Corporativo",
     "tier_unlimited": "Ilimitado",
     "currency_clp": "BRL",
-    "per_month": "por mês"
+    "per_month": "por mês",
+    "hero": {
+      "title": "Planos e conformidade legal",
+      "subtitle": "Capacidade (trabalhadores + projetos) define o tier · Conformidade regulatória cobrada por projeto · Multi-país sem custo adicional.",
+      "transparency_link": "Como cobramos"
+    },
+    "units": {
+      "workers": "Trabalhadores",
+      "projects": "Projetos",
+      "unlimited": "Ilimitados",
+      "per_month_short": "/mês"
+    },
+    "iva": {
+      "included": "IVA 19% incluído",
+      "subtotal": "Subtotal {{amount}}",
+      "iva_line": "+ IVA 19% {{amount}}",
+      "total": "= Total {{amount}}"
+    },
+    "discounts": {
+      "annual": "Anual {{price}} · economize 20%",
+      "intro": "Intro 3 meses {{price}}"
+    },
+    "tier_subtitles": {
+      "free": "Para equipes pequenas e educação",
+      "premium": "B2B Enterprise · Workspace Native",
+      "default": "Para PMEs e empresas em crescimento"
+    },
+    "workspace_native_tag": "Workspace Native",
+    "badges": {
+      "gratis": "Sempre grátis",
+      "departamento_prevencion": "Mais popular para PME",
+      "diamante": "Mais popular B2B",
+      "corporativo": "Escolhido por multinacionais",
+      "global_titanio": "Recomendado · Multinacional"
+    },
+    "cta": {
+      "current_plan": "Plano atual",
+      "start_free": "Começar grátis",
+      "select_plan": "Selecionar plano",
+      "contact_sales": "Falar com vendas",
+      "view_transparency": "Ver transparência de preços",
+      "close": "Fechar"
+    },
+    "tier_features": {
+      "gratis": [
+        "Calendar predictions completas",
+        "Multi-país ilimitado",
+        "ISO 45001 fallback global",
+        "Inventário básico de EPI",
+        "Botão de emergência sempre ativo"
+      ],
+      "comite-paritario": [
+        "Tudo do plano grátis",
+        "Gestão completa de Comissão Paritária (DS 54)",
+        "Avaliações rápidas de risco",
+        "Relatórios básicos PDF/Excel",
+        "Multi-país sem custo adicional"
+      ],
+      "departamento-prevencion": [
+        "Tudo da Comissão Paritária",
+        "Departamento de Prevenção (DS 40)",
+        "Geração de PTS com IA",
+        "Dashboard SUSESO",
+        "Auditorias ISO automatizadas"
+      ],
+      "plata": [
+        "Tudo do Departamento",
+        "Até 250 trabalhadores / 25 projetos",
+        "Risk Network colaborativo",
+        "Relatórios executivos avançados",
+        "Suporte prioritário por chat"
+      ],
+      "oro": [
+        "Tudo do plano Prata",
+        "Até 500 trabalhadores / 50 projetos",
+        "IPERC com IA personalizada",
+        "Análise preditiva de incidentes",
+        "Integração ERP básica"
+      ],
+      "titanio": [
+        "Workspace Native: SSO básico",
+        "750 trabalhadores / 75 projetos (sem overage)",
+        "Customer Success dedicado",
+        "SLA 99,5% mensal",
+        "Onboarding presencial"
+      ],
+      "diamante": [
+        "Workspace Native: SSO + CASA Tier",
+        "1.000 trabalhadores / 100 projetos",
+        "Auditoria de segurança anual",
+        "API privada com rate-limit empresarial",
+        "Suporte 24/7 com tempo de resposta < 1h"
+      ],
+      "empresarial": [
+        "Multi-tenant nativo",
+        "2.500 trabalhadores / 250 projetos",
+        "Múltiplas filiais/RUTs",
+        "Integrações SAP / Oracle",
+        "Custom reports + data residency CL"
+      ],
+      "corporativo": [
+        "Multi-tenant + CSM dedicado",
+        "5.000 trabalhadores / 500 projetos",
+        "Roadmap influence trimestral",
+        "Penetration testing anual incluso",
+        "Hot-line executivo 24/7"
+      ],
+      "ilimitado": [
+        "Vertex Fine-Tuned: modelo IA próprio",
+        "Trabalhadores e projetos ilimitados",
+        "Implantação privada opcional",
+        "Compliance ad-hoc (NIST, SOC2)",
+        "Equipe de prevenção embedded"
+      ],
+      "global-titanio": [
+        "Cobertura mundial: ISO 45001 + seu país + qualquer jurisdição adicional",
+        "Multi-jurisdição simultâneo (sem limite de países)",
+        "Trabalhadores e projetos ilimitados",
+        "Data residency multi-região",
+        "Vertex AI orquestrador global ativado",
+        "Customer Success + onboarding por país"
+      ]
+    },
+    "payment_banners": {
+      "web_title": "Pague com Webpay, MercadoPago ou Khipu — nota fiscal eletrônica inclusa",
+      "web_body": "CL → Webpay (Transbank). LATAM (PE/AR/CO/MX/BR) → MercadoPago. B2B transferência bancária → Khipu. Para planos Titânio em diante, use Falar com vendas.",
+      "android_title": "Compre com Google Play",
+      "android_body": "Sua assinatura é cobrada e gerenciada pela sua conta Google Play. Você pode cancelar a qualquer momento em Play Store › Assinaturas.",
+      "ios_title": "Compre com Apple App Store",
+      "ios_body": "Sua assinatura é cobrada e gerenciada pelo seu Apple ID. Você pode cancelar ou restaurar compras anteriores em Ajustes › Assinaturas."
+    },
+    "compliance_alert": {
+      "title": "Alerta de conformidade regulatória",
+      "body": "Você tem <strong>{{workers}} trabalhadores</strong> registrados. Precisa do plano <strong>{{plan}}</strong> para manter a cobertura."
+    },
+    "transparency_block": {
+      "title": "Por que a prevenção não deve ser opaca?",
+      "body": "Publicamos como cobramos, o que cada tier inclui, e quando realmente vale a pena fazer upgrade. Compare com alternativas reais do mercado chileno."
+    },
+    "return_banner": {
+      "paid_title": "Pagamento confirmado!",
+      "paid_body": "Cobramos {{total}} no seu cartão. Sua assinatura já está ativa{{invoice}}. Enviamos a nota fiscal eletrônica ao e-mail registrado.",
+      "rejected_title": "O pagamento foi rejeitado",
+      "rejected_default_reason": "Seu cartão não autorizou a cobrança.",
+      "cancelled_default_reason": "A transação foi cancelada antes de ser concluída.",
+      "rejected_body": "{{reason}}{{invoice}} Você pode tentar com outro meio de pagamento selecionando o plano novamente.",
+      "refunded_title": "Reembolso processado",
+      "refunded_body": "Devolvemos {{total}} ao seu meio de pagamento original{{invoice}}. O crédito pode levar 1-2 dias úteis dependendo do seu banco.",
+      "timeout_title": "Seu pagamento está demorando mais que o normal",
+      "timeout_body": "Não conseguimos confirmar o estado da sua transação{{invoice}} dentro do tempo esperado. Se a cobrança aparecer no seu extrato mas a assinatura não foi ativada, contate-nos em ",
+      "error_title": "Não conseguimos verificar seu pagamento",
+      "error_body": "Recebemos a resposta do Webpay{{invoice}} mas não conseguimos confirmá-la. Por favor escreva para ",
+      "error_body_suffix": " e revisaremos sua transação.",
+      "rejected_loading_body": "Seu cartão não autorizou a cobrança{{invoice}}. Estamos verificando o estado final com o Webpay…",
+      "retry_title": "Tente o pagamento novamente",
+      "retry_body": "Tivemos um problema temporário processando seu pagamento{{invoice}}. Verificando estado com o banco — selecione o plano novamente se a fatura continuar pendente.",
+      "loading_title": "Processando pagamento…",
+      "loading_body": "Recebemos a resposta do Webpay{{invoice}}. Confirmando com o banco — isso geralmente leva alguns segundos.",
+      "invoice_suffix": " (fatura {{id}})",
+      "invoice_for": " para a fatura {{id}}"
+    },
+    "checkout": {
+      "error_title": "Erro ao iniciar o pagamento",
+      "error_default": "Não conseguimos iniciar o pagamento. Tente novamente em alguns segundos.",
+      "login_required_title": "Faça login primeiro",
+      "login_required_msg": "Você precisa fazer login para assinar um plano pago.",
+      "provider_unavailable": "O provedor de pagamentos não está disponível. Tente novamente em alguns segundos ou contate soporte@praeventio.net.",
+      "mp_unavailable": "MercadoPago não está disponível. Tente novamente em alguns segundos ou contate soporte@praeventio.net.",
+      "international_title": "Pagamentos internacionais",
+      "international_msg": "Atualmente só processamos pagamentos no Chile e mercados LATAM. Escreva para ventas@praeventio.cl para seu país.",
+      "free_activated_title": "Plano grátis ativado",
+      "free_activated_msg": "Bem-vindo ao Praeventio Guard!",
+      "contact_sales_title": "Contate vendas",
+      "contact_sales_msg": "{{tier}} requer uma proposta sob medida. Entraremos em contato.",
+      "store_purchase_failed": "Não conseguimos concluir a compra na loja.",
+      "store_purchase_failed_title": "Compra não concluída",
+      "store_received_title": "Compra recebida",
+      "store_received_msg": "Estamos confirmando sua assinatura com a loja. Isso geralmente leva alguns segundos.",
+      "store_start_failed": "Não conseguimos iniciar o pagamento na loja.",
+      "checkout_failed_status": "Checkout falhou com estado {{status}}",
+      "mailto_subject": "Solicitação de cotação plano {{tier}}",
+      "mailto_body": "Olá, tenho interesse no plano {{tier}} ({{workers}} trabalhadores / {{projects}} projetos).\n\nPor favor envie uma proposta."
+    }
   },
   "dashboard": {
     "welcome": "Olá, {{name}}",
@@ -120,6 +302,26 @@
     "unsupported": "Seu dispositivo não suporta autenticação biométrica"
   },
   "audits": {
+    "title": "Auditorias e Inspeções",
+    "subtitle": "Verificação de Conformidade e Auditoria Colaborativa",
+    "resource_label": "as auditorias",
+    "tab_history": "Histórico",
+    "tab_inspection": "Inspeção Colaborativa",
+    "tab_iso": "Dashboard ISO",
+    "stats": {
+      "total": "Total",
+      "planned": "Planejadas",
+      "completed": "Concluídas",
+      "avg_score": "Pontuação Média"
+    },
+    "search_placeholder": "Buscar auditorias...",
+    "new_audit": "Nova Auditoria",
+    "syncing": "Sincronizando Auditorias...",
+    "type_internal": "Interna",
+    "no_date": "Sem data",
+    "compliance": "Conformidade",
+    "empty_title": "Não há auditorias programadas",
+    "empty_subtitle": "Planeje sua primeira auditoria para começar",
     "kpi_total_documents": "Total de Documentos",
     "kpi_completed_audits": "Auditorias Concluídas",
     "kpi_in_progress_improvements": "Melhorias em Andamento",
@@ -142,7 +344,6 @@
     "modal_field_description": "Descrição",
     "modal_field_description_placeholder": "Detalhes adicionais...",
     "modal_submit": "Planejar Auditoria",
-    "type_internal": "Interna",
     "type_external": "Externa",
     "type_certification": "Certificação",
     "type_governmental": "Governamental",
@@ -162,6 +363,32 @@
     "docs_status_obsolete": "Obsoleto"
   },
   "medicine": {
+    "title": "Medicina Ocupacional",
+    "subtitle": "Gestão de saúde, exames médicos e vigilância epidemiológica",
+    "ds109_tooltip": "Gerar formulário DS 109 (qualificação de doença ocupacional)",
+    "ds109_label": "Qualificação DS 109",
+    "new_consultation": "Nova Consulta",
+    "workstation": "Estação de Trabalho Médica",
+    "tab_visor": "Visor Corporal",
+    "tab_dx": "Dx Diferencial IA",
+    "tab_aptitude": "Certificado DS 109",
+    "tab_anatomy": "Biblioteca Anatômica",
+    "tab_surveillance": "Vigilância Programada",
+    "tab_drugs": "Interações IA",
+    "search_placeholder": "Buscar por paciente ou tipo de exame...",
+    "result": "Resultado",
+    "date": "Data",
+    "empty": "Não há registros médicos para este projeto.",
+    "health_status": "Estado de Saúde",
+    "medical_aptitude": "Aptidão Médica",
+    "active_restrictions": "Restrições Ativas",
+    "pending_exams": "Exames Pendentes",
+    "surveillance": "Vigilância Médica",
+    "cardiovascular": "Controle Cardiovascular",
+    "ergonomic_control": "Controle Ergonômico",
+    "psychosocial_control": "Controle Psicossocial",
+    "health_alert": "Alerta de Saúde",
+    "health_alert_text": "Foi detectado um aumento de 15% nas consultas por fadiga visual na área administrativa. Recomenda-se revisão da iluminação e pausas ativas.",
     "modal_new_title": "Nova Consulta",
     "modal_new_subtitle": "Registro de saúde ocupacional",
     "icon_alt_consultation": "Consulta médica",
@@ -274,6 +501,37 @@
     "mismatch_configure": "Configurar"
   },
   "findings": {
+    "title": "Achados",
+    "subtitle": "Observações e Não Conformidades",
+    "csv": "Importar/Exportar CSV",
+    "new_finding": "Novo Achado",
+    "stats": {
+      "total": "Total",
+      "open": "Abertos",
+      "critical": "Críticos",
+      "resolved": "Resolvidos"
+    },
+    "search_placeholder": "Buscar achados...",
+    "filters": "Filtros",
+    "severity": "Severidade",
+    "sev_all": "Todas",
+    "sev_critical": "Crítica",
+    "sev_high": "Alta",
+    "sev_medium": "Média",
+    "sev_low": "Baixa",
+    "status": "Estado",
+    "st_all": "Todos",
+    "st_open": "Abertos",
+    "st_closed": "Fechados",
+    "syncing": "Sincronizando Achados...",
+    "pending": "Pendente",
+    "ai_plan": "Plano IA",
+    "empty_title": "Nenhum achado encontrado",
+    "empty_subtitle": "Registre uma nova observação para começar",
+    "toast_success": "{{count}} tarefas de ação corretiva geradas e vinculadas.",
+    "toast_partial": "Foram criadas {{created}}/{{total}} tarefas. Tente novamente para criar as restantes.",
+    "toast_partial_error": "Foram criadas {{created}}/{{total}} tarefas antes do erro. Tente novamente para concluir.",
+    "toast_error": "Erro ao gerar o plano com IA. Verifique sua conexão e tente novamente.",
     "modal_new_title": "Novo Achado",
     "modal_new_subtitle": "Registrar observação ou não conformidade",
     "image_analyzing": "Analisando imagem com IA...",
@@ -341,6 +599,34 @@
     "toast_offline_edited": "Edição salva para sincronização quando houver conexão."
   },
   "epp": {
+    "title": "Gestão de EPI",
+    "subtitle": "Catálogo Mestre e Inventário de Segurança",
+    "total_items": "Total de Itens",
+    "verify_ai": "Verificar com IA",
+    "assign_epp": "Atribuir EPI",
+    "add_to_catalog": "Adicionar ao Catálogo",
+    "add": "Adicionar",
+    "all": "Todos",
+    "in_stock": "Em Estoque",
+    "to_replenish": "A Repor",
+    "expirations": "Vencimentos",
+    "assigned": "Atribuídos",
+    "search_placeholder": "Buscar EPI por nome ou descrição...",
+    "stock_available": "Estoque Disponível",
+    "units_short": "u.",
+    "empty_title": "Nenhum item encontrado",
+    "empty_subtitle": "Ajuste seus filtros de busca",
+    "add_modal_title": "Adicionar EPI",
+    "field_name": "Nome",
+    "placeholder_name": "Ex: Capacete de Segurança",
+    "field_category": "Categoria",
+    "placeholder_category": "Ex: Proteção da Cabeça",
+    "field_description": "Descrição",
+    "placeholder_description": "Descrição do EPI...",
+    "field_initial_stock": "Estoque Inicial",
+    "field_image_url": "URL da Imagem",
+    "required": "EPI Obrigatório",
+    "save_item": "Salvar Item",
     "assign_title": "Atribuir EPI",
     "assign_subtitle": "Geração de Recibo",
     "field_worker": "Trabalhador",
@@ -537,7 +823,67 @@
     "details_action_delete": "Excluir",
     "details_field_title_placeholder": "Ex.: Treinamento em Altura",
     "details_delete_title": "Excluir evento",
-    "details_delete_message": "Tem certeza de que deseja excluir este evento do calendário?"
+    "details_delete_message": "Tem certeza de que deseja excluir este evento do calendário?",
+    "page": {
+      "title": "Planejamento Estratégico",
+      "subtitle": "Calendário Operacional e Gráfico de Gantt (Zettelkasten)"
+    },
+    "view_toggle": {
+      "calendar": "Calendário",
+      "gantt": "Gantt"
+    },
+    "month_nav": {
+      "prev": "Mês anterior",
+      "next": "Próximo mês"
+    },
+    "actions": {
+      "schedule": "Agendar"
+    },
+    "weather": {
+      "bulletin_title": "Boletim Climático (Próximos 3 Dias)",
+      "zettelkasten_active": "Zettelkasten Ativo",
+      "today": "Hoje",
+      "tomorrow": "Amanhã",
+      "loading": "Carregando...",
+      "forecast_unavailable": "Previsão indisponível",
+      "alert": "Alerta",
+      "alert_message": "Revisar tarefas críticas ao ar livre.",
+      "rainy": "Chuva",
+      "stormy": "Tempestade",
+      "snow": "Neve",
+      "windy": "Vento forte",
+      "extreme_heat": "Calor extremo",
+      "cold_snap": "Frio extremo",
+      "sunny": "Tempo limpo"
+    },
+    "weekdays_short": {
+      "mon": "Seg",
+      "tue": "Ter",
+      "wed": "Qua",
+      "thu": "Qui",
+      "fri": "Sex",
+      "sat": "Sáb",
+      "sun": "Dom"
+    },
+    "gantt": {
+      "activity_milestone": "Atividade / Marco",
+      "duration_unspecified_inline": "· duração não especificada",
+      "duration_unspecified_tooltip": "Duração não especificada — registre uma data de término no evento.",
+      "duration_unspecified_short": "Duração não especificada",
+      "no_events": "Não há eventos neste mês para exibir no Gráfico de Gantt."
+    },
+    "upcoming_events": {
+      "title": "Próximos Eventos",
+      "syncing": "Sincronizando agenda..."
+    },
+    "legal_obligations": {
+      "comite_paritario_title": "Reunião Comité Paritario (DS 54)",
+      "comite_paritario_description": "Reunião mensal obrigatória do Comité Paritario de Higiene e Segurança.",
+      "depto_prevencion_title": "Relatório Depto. Prevención (DS 40)",
+      "depto_prevencion_description": "Entrega do relatório mensal de acidentabilidade e gestão preventiva.",
+      "location_meeting_room": "Sala de Reuniões",
+      "location_management": "Gerência"
+    }
   },
   "differential_dx": {
     "analyzing": "Analisando com IA…",
@@ -693,6 +1039,22 @@
     "worker_proposal_placeholder": "O que o trabalhador sugere para resolver isso?"
   },
   "hygiene": {
+    "title": "Higiene e Saúde",
+    "subtitle": "Monitoramento de agentes ambientais e saúde ocupacional",
+    "new_record": "Novo Registro",
+    "status_normal": "Normal",
+    "status_alert": "Alerta",
+    "limit": "Limite",
+    "empty": "Não há registros de higiene ambiental para este projeto.",
+    "monthly_trends": "Tendências Mensais",
+    "last_30_days": "Últimos 30 dias",
+    "last_6_months": "Últimos 6 meses",
+    "level": "Nível",
+    "occupational_health": "Saúde Ocupacional",
+    "medical_exams": "Exames Médicos",
+    "vaccination": "Vacinação",
+    "critical_alerts": "Alertas Críticos",
+    "no_critical_alerts": "Não há alertas críticos ativos.",
     "modal_title": "Novo Registro",
     "modal_subtitle": "Monitoramento de agentes ambientais",
     "field_parameter": "Parâmetro",
@@ -1340,14 +1702,38 @@
     "settings": "Configurações",
     "logout": "Sair",
     "achievements": {
-      "first_steps": { "title": "Primeiros Passos", "desc": "Conclua seu primeiro treinamento" },
-      "active_guardian": { "title": "Guardião Ativo", "desc": "Publique 5 vezes no mural" },
-      "risk_expert": { "title": "Especialista em Riscos", "desc": "Identifique 10 achados" },
-      "safety_leader": { "title": "Líder de Segurança", "desc": "Alcance o nível 10" },
-      "unbeaten_week": { "title": "Semana Invicta", "desc": "Sem incidentes registrados em 7 dias" },
-      "knowledge_curator": { "title": "Curador do Conhecimento", "desc": "Receba 10 curtidas em publicações" },
-      "field_veteran": { "title": "Veterano de Campo", "desc": "30+ dias na plataforma" },
-      "star_collaborator": { "title": "Colaborador Estrela", "desc": "Conclua 3 ou mais treinamentos" }
+      "first_steps": {
+        "title": "Primeiros Passos",
+        "desc": "Conclua seu primeiro treinamento"
+      },
+      "active_guardian": {
+        "title": "Guardião Ativo",
+        "desc": "Publique 5 vezes no mural"
+      },
+      "risk_expert": {
+        "title": "Especialista em Riscos",
+        "desc": "Identifique 10 achados"
+      },
+      "safety_leader": {
+        "title": "Líder de Segurança",
+        "desc": "Alcance o nível 10"
+      },
+      "unbeaten_week": {
+        "title": "Semana Invicta",
+        "desc": "Sem incidentes registrados em 7 dias"
+      },
+      "knowledge_curator": {
+        "title": "Curador do Conhecimento",
+        "desc": "Receba 10 curtidas em publicações"
+      },
+      "field_veteran": {
+        "title": "Veterano de Campo",
+        "desc": "30+ dias na plataforma"
+      },
+      "star_collaborator": {
+        "title": "Colaborador Estrela",
+        "desc": "Conclua 3 ou mais treinamentos"
+      }
     }
   },
   "settings": {
@@ -1422,46 +1808,6 @@
     "empty_title": "Sem notificações",
     "empty_subtitle": "Tudo sob controle por aqui."
   },
-  "audits": {
-    "title": "Auditorias e Inspeções",
-    "subtitle": "Verificação de Conformidade e Auditoria Colaborativa",
-    "resource_label": "as auditorias",
-    "tab_history": "Histórico",
-    "tab_inspection": "Inspeção Colaborativa",
-    "tab_iso": "Dashboard ISO",
-    "stats": {
-      "total": "Total",
-      "planned": "Planejadas",
-      "completed": "Concluídas",
-      "avg_score": "Pontuação Média"
-    },
-    "search_placeholder": "Buscar auditorias...",
-    "new_audit": "Nova Auditoria",
-    "syncing": "Sincronizando Auditorias...",
-    "type_internal": "Interna",
-    "no_date": "Sem data",
-    "compliance": "Conformidade",
-    "empty_title": "Não há auditorias programadas",
-    "empty_subtitle": "Planeje sua primeira auditoria para começar"
-  },
-  "hygiene": {
-    "title": "Higiene e Saúde",
-    "subtitle": "Monitoramento de agentes ambientais e saúde ocupacional",
-    "new_record": "Novo Registro",
-    "status_normal": "Normal",
-    "status_alert": "Alerta",
-    "limit": "Limite",
-    "empty": "Não há registros de higiene ambiental para este projeto.",
-    "monthly_trends": "Tendências Mensais",
-    "last_30_days": "Últimos 30 dias",
-    "last_6_months": "Últimos 6 meses",
-    "level": "Nível",
-    "occupational_health": "Saúde Ocupacional",
-    "medical_exams": "Exames Médicos",
-    "vaccination": "Vacinação",
-    "critical_alerts": "Alertas Críticos",
-    "no_critical_alerts": "Não há alertas críticos ativos."
-  },
   "ergonomics": {
     "title": "Ergonomia",
     "subtitle": "Avaliação de postos de trabalho, carga física e design ergonômico",
@@ -1505,67 +1851,6 @@
     "protocol_title": "Protocolo ISTAS21",
     "protocol_text": "O questionário SUSESO/ISTAS21 é o instrumento oficial no Chile para medir riscos psicossociais no trabalho. Avalia dimensões como exigências psicológicas, trabalho ativo, apoio social, compensações e dupla presença."
   },
-  "medicine": {
-    "title": "Medicina Ocupacional",
-    "subtitle": "Gestão de saúde, exames médicos e vigilância epidemiológica",
-    "ds109_tooltip": "Gerar formulário DS 109 (qualificação de doença ocupacional)",
-    "ds109_label": "Qualificação DS 109",
-    "new_consultation": "Nova Consulta",
-    "workstation": "Estação de Trabalho Médica",
-    "tab_visor": "Visor Corporal",
-    "tab_dx": "Dx Diferencial IA",
-    "tab_aptitude": "Certificado DS 109",
-    "tab_anatomy": "Biblioteca Anatômica",
-    "tab_surveillance": "Vigilância Programada",
-    "tab_drugs": "Interações IA",
-    "search_placeholder": "Buscar por paciente ou tipo de exame...",
-    "result": "Resultado",
-    "date": "Data",
-    "empty": "Não há registros médicos para este projeto.",
-    "health_status": "Estado de Saúde",
-    "medical_aptitude": "Aptidão Médica",
-    "active_restrictions": "Restrições Ativas",
-    "pending_exams": "Exames Pendentes",
-    "surveillance": "Vigilância Médica",
-    "cardiovascular": "Controle Cardiovascular",
-    "ergonomic_control": "Controle Ergonômico",
-    "psychosocial_control": "Controle Psicossocial",
-    "health_alert": "Alerta de Saúde",
-    "health_alert_text": "Foi detectado um aumento de 15% nas consultas por fadiga visual na área administrativa. Recomenda-se revisão da iluminação e pausas ativas."
-  },
-  "findings": {
-    "title": "Achados",
-    "subtitle": "Observações e Não Conformidades",
-    "csv": "Importar/Exportar CSV",
-    "new_finding": "Novo Achado",
-    "stats": {
-      "total": "Total",
-      "open": "Abertos",
-      "critical": "Críticos",
-      "resolved": "Resolvidos"
-    },
-    "search_placeholder": "Buscar achados...",
-    "filters": "Filtros",
-    "severity": "Severidade",
-    "sev_all": "Todas",
-    "sev_critical": "Crítica",
-    "sev_high": "Alta",
-    "sev_medium": "Média",
-    "sev_low": "Baixa",
-    "status": "Estado",
-    "st_all": "Todos",
-    "st_open": "Abertos",
-    "st_closed": "Fechados",
-    "syncing": "Sincronizando Achados...",
-    "pending": "Pendente",
-    "ai_plan": "Plano IA",
-    "empty_title": "Nenhum achado encontrado",
-    "empty_subtitle": "Registre uma nova observação para começar",
-    "toast_success": "{{count}} tarefas de ação corretiva geradas e vinculadas.",
-    "toast_partial": "Foram criadas {{created}}/{{total}} tarefas. Tente novamente para criar as restantes.",
-    "toast_partial_error": "Foram criadas {{created}}/{{total}} tarefas antes do erro. Tente novamente para concluir.",
-    "toast_error": "Erro ao gerar o plano com IA. Verifique sua conexão e tente novamente."
-  },
   "workers": {
     "title": "Trabalhadores",
     "managing_for": "Gerenciando pessoal para: {{project}}",
@@ -1596,34 +1881,77 @@
     "delete_title": "Excluir trabalhador",
     "delete_message": "Tem certeza? Esta ação excluirá o trabalhador e todos os dados associados."
   },
-  "epp": {
-    "title": "Gestão de EPI",
-    "subtitle": "Catálogo Mestre e Inventário de Segurança",
-    "total_items": "Total de Itens",
-    "verify_ai": "Verificar com IA",
-    "assign_epp": "Atribuir EPI",
-    "add_to_catalog": "Adicionar ao Catálogo",
-    "add": "Adicionar",
-    "all": "Todos",
-    "in_stock": "Em Estoque",
-    "to_replenish": "A Repor",
-    "expirations": "Vencimentos",
-    "assigned": "Atribuídos",
-    "search_placeholder": "Buscar EPI por nome ou descrição...",
-    "stock_available": "Estoque Disponível",
-    "units_short": "u.",
-    "empty_title": "Nenhum item encontrado",
-    "empty_subtitle": "Ajuste seus filtros de busca",
-    "add_modal_title": "Adicionar EPI",
-    "field_name": "Nome",
-    "placeholder_name": "Ex: Capacete de Segurança",
-    "field_category": "Categoria",
-    "placeholder_category": "Ex: Proteção da Cabeça",
-    "field_description": "Descrição",
-    "placeholder_description": "Descrição do EPI...",
-    "field_initial_stock": "Estoque Inicial",
-    "field_image_url": "URL da Imagem",
-    "required": "EPI Obrigatório",
-    "save_item": "Salvar Item"
+  "public_demo": {
+    "banner": "MODO DEMO — os dados não são persistidos · sem conta",
+    "your_country": "Seu país",
+    "select_country_aria": "Selecione seu país",
+    "regulatory_framework": "Marco regulatório",
+    "no_alerts": "Sem alertas com os dados atuais.",
+    "calculators_heading": "Calculadoras ao vivo",
+    "wind_kmh": "Vento (km/h)",
+    "hero": {
+      "eyebrow": "Praeventio Guard · Demo público",
+      "title": "Prevenção HSE inteligente para sua empresa",
+      "subtitle": "Calcule riscos em tempo real, visualize seu canteiro em 3D e cumpra a regulamentação local sem instalar nada. Experimente abaixo — sem conta.",
+      "cta_signup": "Criar conta para sua empresa",
+      "privacy_link": "Ver política de privacidade"
+    },
+    "gas": {
+      "title": "Dispersão de gás",
+      "subtitle": "Pasquill-Gifford F",
+      "release_rate": "Taxa de vazamento (kg/s)"
+    },
+    "dike": {
+      "title": "Dique hidrostático",
+      "height": "Altura (m)",
+      "piezometer_kpa": "P piezômetro 2 (kPa)"
+    },
+    "scaffold": {
+      "title": "Andaime — sucção pelo vento",
+      "area_m2": "Área (m²)"
+    },
+    "twin": {
+      "heading": "Digital Twin (prévia)",
+      "aria": "Prévia do Digital Twin",
+      "svg_label": "Canteiro Demo · Mesh sintético estático",
+      "note": "Visualização estática — a versão completa com WebXR e AR aparece após o login."
+    }
+  },
+  "risk_network": {
+    "resource_label": "a rede neural",
+    "title": "O Cérebro",
+    "subtitle": "Rede Neural de Prevenção e Conhecimento",
+    "active_consciousness": "Consciência Ativa",
+    "realtime_synapses": "Sinapses em Tempo Real",
+    "info_banner": {
+      "title": "Como funciona a Rede Neural?",
+      "body": "Cada análise de risco, trabalhador ou regulamentação se torna um \"nó\" de conhecimento. O sistema conecta automaticamente esses nós para revelar padrões invisíveis, permitindo uma gestão proativa baseada na interconexão de dados."
+    },
+    "tabs": {
+      "graph": "Grafo 3D",
+      "explorer": "Explorador",
+      "health": "Saúde da Rede",
+      "manager": "Gestor"
+    },
+    "graph_viz_heading": "Visualização do Grafo",
+    "graph_viz_hint": "Interaja com os nós para ver detalhes",
+    "recent_nodes": "Nós Recentes",
+    "no_recent_nodes": "Nenhum nó recente",
+    "connections_analysis": "Análise de Conexões",
+    "synapse_density": "Densidade de Sinapses",
+    "total_connections": "Conexões Totais",
+    "network_factor": "Fator de Rede",
+    "avg_per_node": "Média / Nó",
+    "capacity_note": "A rede neural está operando a <span class=\"font-black\">{{capacity}}%</span> de sua capacidade projetada. Cada nova conexão reduz a incerteza operacional em <span class=\"font-black\">2.4%</span>.",
+    "requires_connection": "Requer Conexão",
+    "analyzing": "Analisando...",
+    "analyze_network": "Analisar Rede Neural",
+    "guardian_insight": "Insight do Guardião",
+    "predictive_hub": "AI Hub Preditivo",
+    "predictive_hub_desc": "Cruza dados da Rede Neural com telemetria em tempo real para prever acidentes antes que aconteçam.",
+    "predicting": "Prevendo...",
+    "predict_imminent": "Prever Riscos Iminentes",
+    "probability_pct": "{{value}}% Prob.",
+    "immediate_action": "Ação Preventiva Imediata"
   }
 }

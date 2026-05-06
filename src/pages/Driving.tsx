@@ -32,6 +32,15 @@
 // The driving mode is opt-in via the ModeSwitcher; deep-linking to
 // /driving without flipping the mode is a no-op (avoids confusing a
 // pedestrian-mode user landing on a driving UI).
+//
+// Sprint 37 — Brecha B (SLM offline) audit decision:
+// `Driving.tsx` no consume Gemini ni ningún wrapper de LLM (es un
+// shell de Google Maps + speedometer + SOS dial via `tel:`). No hay
+// path AI que cablear con `useSlmOffline`. La voz/dictado de SafeDriving
+// vive en `SafeDrivingMode.tsx` y usa Web Speech API (síntesis local,
+// sin red). Si en el futuro este page incorpora un panel "asesor de
+// manejo" basado en Gemini, ahí va el wire — hoy queda fuera de scope
+// para no inventar features. Ver `docs/slm-offline.md`.
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

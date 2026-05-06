@@ -61,6 +61,7 @@ const renderDtePdf = async (
 import { buildWebAuthnCredentialsDb } from './curriculum.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 function dteSentryCapture(
   err: unknown,
@@ -154,7 +155,12 @@ dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res
     return res.status(400).json({ error: 'invalid_input' });
   }
   try {
-    const result = await adapter.createDte(req.body);
+    const uid = (req as any).user?.uid;
+    const result = await tracedAsync(
+      'dte.create.handler',
+      { 'praeventio.uid': uid, docType: (req.body as any)?.tipoDocumento ?? null },
+      () => adapter.createDte(req.body),
+    );
     if (!result.ok) {
       return res.status(422).json({
         error: 'dte_rejected',
