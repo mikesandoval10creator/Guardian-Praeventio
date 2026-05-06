@@ -26,7 +26,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
+import { aiFeedbackLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 
 // ─────────────────────────────────────────────────────────────────────────
 // PII redaction (pure, exported for tests).
@@ -178,52 +180,130 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const router = Router();
 
-router.post('/feedback', verifyAuth, validate(feedbackBodySchema), async (req, res) => {
-  const body = req.validated as z.infer<typeof feedbackBodySchema>;
-  const tenantId: string = (req as any).user?.uid ?? 'unknown';
-  try {
-    const { getFirestore } = await import('firebase-admin/firestore');
-    const db = getFirestore();
-    const redaction = redactPII(body.response);
-    const rationaleRedaction = body.rationale ? redactPII(body.rationale) : null;
-    const now = Date.now();
-    const ttlAt = now + SEVEN_DAYS_MS;
+router.post(
+  '/feedback',
+  verifyAuth,
+  aiFeedbackLimiter,
+  validate(feedbackBodySchema),
+  async (req, res) => {
+    const body = req.validated as z.infer<typeof feedbackBodySchema>;
+    const tenantId: string = (req as any).user?.uid ?? 'unknown';
+    const callerEmail: string | null = (req as any).user?.email ?? null;
+    // Sprint 33 — replay-attack guard. Without `force`, a duplicate POST on
+    // the same (tenantId, messageId) tuple is rejected with 409. Why: the
+    // pre-Sprint-33 handler used `set({ merge: true })` which silently
+    // overwrites `vote`. An attacker holding a valid Bearer could flip a
+    // genuine 'down' to 'up' (RLHF dataset poisoning) without ever needing
+    // high QPS — the rate limiter alone wouldn't catch it. The transaction
+    // makes the read-then-write atomic so two concurrent first votes can't
+    // race past the existence check.
+    const force = String(req.query.force ?? '') === 'true';
+    try {
+      const { getFirestore } = await import('firebase-admin/firestore');
+      const admin = (await import('firebase-admin')).default;
+      const db = getFirestore();
+      const redaction = redactPII(body.response);
+      const rationaleRedaction = body.rationale ? redactPII(body.rationale) : null;
+      const now = Date.now();
+      const ttlAt = now + SEVEN_DAYS_MS;
 
-    const doc = {
-      messageId: body.messageId,
-      vote: body.vote,
-      // If PII was found, we keep ONLY the redacted version. The flag lets
-      // downstream auditors see "this row was sanitized" without exposing
-      // what was redacted.
-      response: redaction.text,
-      responseHadPII: redaction.hadPII,
-      rationale: rationaleRedaction?.text ?? null,
-      rationaleHadPII: rationaleRedaction?.hadPII ?? false,
-      domain: body.domain ?? null,
-      sessionLengthMs: body.sessionLengthMs ?? null,
-      status: 'pending_review',
-      createdAt: now,
-      ttlAt,
-      tenantId,
-    };
+      const docRef = db
+        .collection('ai_feedback')
+        .doc(tenantId)
+        .collection('items')
+        .doc(body.messageId);
 
-    await db
-      .collection('ai_feedback')
-      .doc(tenantId)
-      .collection('items')
-      .doc(body.messageId)
-      .set(doc, { merge: true });
+      type TxOutcome =
+        | { kind: 'conflict'; existingVote: 'up' | 'down' }
+        | { kind: 'written'; override: boolean; previousVote: 'up' | 'down' | null };
 
-    res.json({
-      ok: true,
-      messageId: body.messageId,
-      sanitized: redaction.hadPII || (rationaleRedaction?.hadPII ?? false),
-    });
-  } catch (err) {
-    logger.error('ai_feedback_persist_failed', { err: String(err) });
-    res.status(500).json({ error: 'feedback_persist_failed' });
-  }
-});
+      const outcome: TxOutcome = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(docRef);
+        const existing = snap.exists ? (snap.data() as { vote?: 'up' | 'down' } | undefined) : null;
+        const previousVote = existing?.vote ?? null;
+        if (previousVote && !force) {
+          // Idempotency rationale: callers retrying the SAME vote (network
+          // hiccup) get a 409, not a silent merge. Clients should not
+          // pretend the second call succeeded — they should drop it.
+          return { kind: 'conflict', existingVote: previousVote };
+        }
+        const doc = {
+          messageId: body.messageId,
+          vote: body.vote,
+          // If PII was found, we keep ONLY the redacted version. The flag
+          // lets downstream auditors see "this row was sanitized" without
+          // exposing what was redacted.
+          response: redaction.text,
+          responseHadPII: redaction.hadPII,
+          rationale: rationaleRedaction?.text ?? null,
+          rationaleHadPII: rationaleRedaction?.hadPII ?? false,
+          domain: body.domain ?? null,
+          sessionLengthMs: body.sessionLengthMs ?? null,
+          status: 'pending_review',
+          createdAt: previousVote ? (existing as any)?.createdAt ?? now : now,
+          updatedAt: now,
+          ttlAt,
+          tenantId,
+        };
+        // merge:true preserves any auxiliary fields downstream cron jobs
+        // may have stamped (review notes, training-set inclusion flags),
+        // while the transaction guarantees vote-flip atomicity.
+        tx.set(docRef, doc, { merge: true });
+        return { kind: 'written', override: Boolean(previousVote), previousVote };
+      });
+
+      if (outcome.kind === 'conflict') {
+        return res.status(409).json({
+          error: 'already_voted',
+          existing: outcome.existingVote,
+        });
+      }
+
+      // Audit row — every successful write (including overrides) gets one
+      // so RLHF dataset auditors can reconstruct vote-flip history. We do
+      // this OUTSIDE the transaction because audit_logs is append-only and
+      // a failed audit append must not roll back a legitimate vote.
+      try {
+        await db.collection('audit_logs').add({
+          action: 'ai_feedback.voted',
+          module: 'ai_feedback',
+          details: {
+            messageId: body.messageId,
+            vote: body.vote,
+            override: outcome.override,
+            previousVote: outcome.previousVote,
+            sanitized: redaction.hadPII || (rationaleRedaction?.hadPII ?? false),
+          },
+          userId: tenantId,
+          userEmail: callerEmail,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+      } catch (auditErr) {
+        logger.warn('ai_feedback_audit_append_failed', { err: String(auditErr) });
+      }
+
+      res.json({
+        ok: true,
+        messageId: body.messageId,
+        sanitized: redaction.hadPII || (rationaleRedaction?.hadPII ?? false),
+        override: outcome.override,
+      });
+    } catch (err) {
+      logger.error('ai_feedback_persist_failed', { err: String(err) });
+      try {
+        getErrorTracker().captureException(
+          err instanceof Error ? err : new Error(String(err)),
+          { endpoint: '/api/ai/feedback', tags: { uid: tenantId } } as any,
+        );
+      } catch {
+        /* observability never blocks the response */
+      }
+      res.status(500).json({ error: 'feedback_persist_failed' });
+    }
+  },
+);
 
 router.get('/feedback/summary', verifyAuth, async (req, res) => {
   const isAdmin = Boolean((req as any).user?.admin);
