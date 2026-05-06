@@ -6,6 +6,16 @@ import { db, storage, handleFirestoreError, OperationType } from '../services/fi
 import { collection, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { offlineSync, SyncOperation } from '../services/sync/syncStateMachine';
+import {
+  detectConflicts,
+  partitionFields,
+  resolveLww,
+  buildAuditRow,
+  requiresManualResolution,
+  type PendingAction,
+  type DocSnapshot,
+} from '../services/sync/conflictResolver';
+import { logAuditAction } from '../services/auditService';
 
 export function OfflineSyncManager() {
   const isOnline = useOnlineStatus();
@@ -32,14 +42,73 @@ export function OfflineSyncManager() {
           const { id, originalUpdatedAt, ...updateData } = action.data;
           if (id) {
             try {
-              // Basic conflict resolution: check if document was updated since we went offline
+              // Per-field conflict detection (Sprint 34): when the server
+              // doc moved after our offline write was queued, route every
+              // diverging critical field to the human supervisor via the
+              // ConflictResolutionDrawer; auto-resolve non-critical fields
+              // via per-field LWW and write an audit row for each.
+              let resolvedUpdate: Record<string, unknown> = { ...updateData };
+              let manualPending = false;
               if (originalUpdatedAt) {
                 const { getDoc } = await import('firebase/firestore');
                 const docSnap = await getDoc(doc(db, action.collection, id));
                 if (docSnap.exists()) {
                   const currentData = docSnap.data();
                   const currentUpdatedAt = currentData.updatedAt?.toDate()?.toISOString() || currentData.updatedAt;
-                  
+
+                  // Per-field divergence pass.
+                  const pending: PendingAction = {
+                    docId: id,
+                    collection: action.collection,
+                    type: 'update',
+                    data: updateData,
+                    localUpdatedAt:
+                      typeof action.data.localUpdatedAt === 'string'
+                        ? action.data.localUpdatedAt
+                        : originalUpdatedAt,
+                  };
+                  const remote: DocSnapshot = {
+                    collection: action.collection,
+                    docId: id,
+                    data: currentData as Record<string, unknown>,
+                    serverUpdatedAt:
+                      currentUpdatedAt ?? new Date().toISOString(),
+                  };
+                  const conflicts = detectConflicts([pending], [remote]);
+                  if (conflicts.length > 0) {
+                    const c = conflicts[0];
+                    const { autoResolvable, manual } = partitionFields(c);
+                    // 1) auto-resolve non-critical fields with LWW + audit.
+                    for (const fc of autoResolvable) {
+                      const resolved = resolveLww(c, fc);
+                      resolvedUpdate[fc.field] = resolved.value;
+                      const audit = buildAuditRow(c, resolved, null, true);
+                      try {
+                        await logAuditAction(
+                          'conflict_resolution.applied',
+                          'sync',
+                          audit as unknown as Record<string, unknown>,
+                        );
+                      } catch {
+                        /* audit is best-effort */
+                      }
+                    }
+                    // 2) critical fields: hand off to the drawer and
+                    // STRIP them from the write so we don't clobber the
+                    // server until the supervisor decides.
+                    if (manual.length > 0) {
+                      manualPending = true;
+                      for (const fc of manual) {
+                        delete resolvedUpdate[fc.field];
+                      }
+                      window.dispatchEvent(
+                        new CustomEvent('sync-critical-conflict', {
+                          detail: c,
+                        }),
+                      );
+                    }
+                  }
+
                   // If the server document is newer than our offline version, we have a conflict.
                   // We are about to apply an LWW (last-write-wins) overwrite that will
                   // silently clobber the peer's edit. Surface this honestly to the user
@@ -64,8 +133,20 @@ export function OfflineSyncManager() {
                 }
               }
 
-              await updateDoc(doc(db, action.collection, id), updateData);
+              // If a manual critical resolution is pending, do not write
+              // the critical fields here — the drawer's
+              // `sync-critical-conflict-resolved` listener (below) will
+              // apply them once the supervisor decides.
+              if (Object.keys(resolvedUpdate).length > 0) {
+                await updateDoc(doc(db, action.collection, id), resolvedUpdate);
+              }
               docId = id;
+              if (manualPending) {
+                logger.info('Critical fields deferred to manual resolution', {
+                  id,
+                  collection: action.collection,
+                });
+              }
             } catch (error) {
               handleFirestoreError(error, OperationType.UPDATE, action.collection);
             }
@@ -208,11 +289,54 @@ export function OfflineSyncManager() {
       void offlineSync.syncNow();
     }
 
+    // Sprint 34: when the ConflictResolutionDrawer reports a manual
+    // resolution, apply the chosen values to Firestore and write an
+    // audit row per field with the supervisor's uid.
+    const handleManualResolution = async (e: Event) => {
+      try {
+        const detail = (e as CustomEvent<{
+          collection: string;
+          docId: string;
+          resolutions: Array<{ field: string; choice: 'local' | 'remote' | 'manual'; value: unknown }>;
+        }>).detail;
+        if (!detail || !detail.docId) return;
+        const update: Record<string, unknown> = {};
+        for (const r of detail.resolutions) {
+          if (r.field === '__deletion__') continue;
+          update[r.field] = r.value;
+        }
+        if (Object.keys(update).length > 0) {
+          try {
+            await updateDoc(doc(db, detail.collection, detail.docId), update);
+          } catch (err) {
+            handleFirestoreError(err, OperationType.UPDATE, detail.collection);
+          }
+        }
+        for (const r of detail.resolutions) {
+          try {
+            await logAuditAction('conflict_resolution.applied', 'sync', {
+              docId: detail.docId,
+              collection: detail.collection,
+              field: r.field,
+              chosen: r.choice,
+              automatic: false,
+            } as unknown as Record<string, unknown>);
+          } catch {
+            /* best-effort */
+          }
+        }
+      } catch (err) {
+        logger.error('Failed to apply manual conflict resolution', { error: err });
+      }
+    };
+
     window.addEventListener('force-sync', runSync);
     window.addEventListener('force-sync-single', handleSingleSync);
+    window.addEventListener('sync-critical-conflict-resolved', handleManualResolution);
     return () => {
       window.removeEventListener('force-sync', runSync);
       window.removeEventListener('force-sync-single', handleSingleSync);
+      window.removeEventListener('sync-critical-conflict-resolved', handleManualResolution);
     };
   }, [isOnline]);
 
