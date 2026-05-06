@@ -66,7 +66,7 @@ export function SystemEngineProvider({
   tenantId,
   enabled = true,
   children,
-}: SystemEngineProviderProps): JSX.Element {
+}: SystemEngineProviderProps): React.ReactElement {
   if (!enabled) return <>{children}</>;
   return (
     <SystemEngineInner tenantId={tenantId}>
@@ -81,7 +81,7 @@ function SystemEngineInner({
 }: {
   tenantId: string;
   children: React.ReactNode;
-}): JSX.Element {
+}): React.ReactElement {
   registerDefaultPolicies();
 
   const { user } = useFirebase();

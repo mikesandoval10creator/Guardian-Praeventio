@@ -9,7 +9,7 @@
 // emits before the Firestore round-trip completes.
 
 import { useEffect, useRef } from 'react';
-import { collection, onSnapshot, orderBy, query, where, limit, type Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query, where, limit, type QueryConstraint, type Unsubscribe } from 'firebase/firestore';
 
 import { db } from '../firebase';
 import { logger } from '../../utils/logger';
@@ -57,7 +57,7 @@ export function useSystemEvent(
 
     let unsubFirestore: Unsubscribe | null = null;
     try {
-      const constraints = [orderBy('ts', 'desc'), limit(filter.pageSize ?? 100)];
+      const constraints: QueryConstraint[] = [orderBy('ts', 'desc'), limit(filter.pageSize ?? 100)];
       if (filter.types && filter.types.length > 0) {
         // `in` accepts ≤30 values per Firestore. We chunk only if needed.
         constraints.push(where('type', 'in', filter.types.slice(0, 30)));
