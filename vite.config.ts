@@ -196,6 +196,28 @@ export default defineConfig(({mode}) => {
           // and size-limit can budget each vendor independently.
           // firebase-admin / pdfkit / express stay externalised above.
           manualChunks(id: string) {
+            // Sprint 36 audit P1 §1.4 — first-party heavy service chunks.
+            // Sprint 34 E6 (DTE) + Sprint 35 F1 (Aptitude/DS109) added
+            // generators/signers/PDF renderers that are only consumed by
+            // a single lazy route. Pinning them to dedicated chunks keeps
+            // `index-*.js` from re-pulling them when the lazy route's
+            // dependency graph overlaps the main bundle (e.g. shared
+            // utils/logger). Resolves the size-limit creep that bumped
+            // 340→380KB in Sprint 34 and was about to bump to 420KB in
+            // Sprint 35.
+            if (id.includes('/src/services/sii/')) return 'lazy-sii';
+            if (id.includes('/src/utils/aptitudeCertificate') ||
+                id.includes('/src/utils/ds109Certificate') ||
+                id.includes('/src/utils/ds67Certificate') ||
+                id.includes('/src/utils/ds67Notification') ||
+                id.includes('/src/utils/ds76Certificate') ||
+                id.includes('/src/utils/ds76MiningContractor') ||
+                id.includes('/src/utils/susesoCertificate') ||
+                id.includes('/src/utils/trainingCertificate') ||
+                id.includes('/src/services/privacy/dpiaTemplate')) return 'lazy-cert-pdf';
+            if (id.includes('/src/services/iot/edgeFilter') ||
+                id.includes('/src/services/ergonomics/poseEdgeFilter')) return 'lazy-edgefilter';
+
             if (!id.includes('node_modules')) return undefined;
 
             // React core + router (~150KB gzip)

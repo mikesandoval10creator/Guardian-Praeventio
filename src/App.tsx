@@ -4,7 +4,6 @@ import { initAdMob } from './services/adService';
 import { preWarmHealthConnect } from './services/health/healthConnectAdapter';
 import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
-import { GuardianVoiceAssistant } from "./components/ai/GuardianVoiceAssistant";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
 import { LanguageProvider } from "./contexts/LanguageProvider";
 import { AppProviders } from "./providers/AppProviders";
@@ -13,18 +12,27 @@ import { ConsciousnessLoader } from "./components/shared/ConsciousnessLoader";
 import { ErrorBoundary } from "./components/shared/ErrorBoundary";
 import { useAutoLogout } from "./hooks/useAutoLogout";
 import { OfflineIndicator } from "./components/OfflineIndicator";
-import { OfflineSyncManager } from "./components/OfflineSyncManager";
 import { EmergencyOverlay } from "./components/shared/EmergencyOverlay";
 import { GeolocationTracker } from "./components/GeolocationTracker";
-import { SurvivalPing } from "./components/SurvivalPing";
 import { GeofenceAlert } from "./components/emergency/GeofenceAlert";
-import { FallDetectionMonitor } from "./components/emergency/FallDetectionMonitor";
-import { DrivingSuggestion } from "./components/driving/DrivingSuggestion";
-import { PWAUpdateToast } from "./components/shared/PWAUpdateToast";
-import { WisdomCapsuleWatcher } from "./components/shared/WisdomCapsuleWatcher";
-import { DeepLinkHandler } from "./components/shared/DeepLinkHandler";
+// Sprint 36 — bundle audit P1 §1.4: heavy non-critical companions (voice
+// assistant, offline sync, consent banner, fall detection, driving
+// suggestion, wisdom watcher, deep-link handler, PWA toast, survival
+// ping) used to be eagerly imported, dragging gemini/jspdf/firestore-
+// listeners into the main entry. They are now React.lazy so the cold-
+// start (Play Store / iOS critical path) only ships the shell.
+// Resolves the size-limit creep: Sprint 34 bumped 340→380KB and Sprint
+// 35 was about to bump 380→420KB; this code-split holds 380.
+const GuardianVoiceAssistant = lazy(() => import('./components/ai/GuardianVoiceAssistant').then(m => ({ default: m.GuardianVoiceAssistant })));
+const OfflineSyncManager = lazy(() => import('./components/OfflineSyncManager').then(m => ({ default: m.OfflineSyncManager })));
+const SurvivalPing = lazy(() => import('./components/SurvivalPing').then(m => ({ default: m.SurvivalPing })));
+const FallDetectionMonitor = lazy(() => import('./components/emergency/FallDetectionMonitor').then(m => ({ default: m.FallDetectionMonitor })));
+const DrivingSuggestion = lazy(() => import('./components/driving/DrivingSuggestion').then(m => ({ default: m.DrivingSuggestion })));
+const PWAUpdateToast = lazy(() => import('./components/shared/PWAUpdateToast').then(m => ({ default: m.PWAUpdateToast })));
+const WisdomCapsuleWatcher = lazy(() => import('./components/shared/WisdomCapsuleWatcher').then(m => ({ default: m.WisdomCapsuleWatcher })));
+const DeepLinkHandler = lazy(() => import('./components/shared/DeepLinkHandler').then(m => ({ default: m.DeepLinkHandler })));
 // Sprint 23 Bucket FF — Ley 19.628 first-time consent banner.
-import { ConsentBanner } from "./components/compliance/ConsentBanner";
+const ConsentBanner = lazy(() => import('./components/compliance/ConsentBanner').then(m => ({ default: m.ConsentBanner })));
 
 // Import Route Groups
 import { EmergencyRoutes } from "./routes/EmergencyRoutes";
@@ -175,10 +183,14 @@ function AppRoutes() {
     <AppProviders>
       <GeolocationTracker />
       <EmergencyOverlay />
-      <FallDetectionMonitor />
-      <DrivingSuggestion />
+      {/* Sprint 36 audit P1 §1.4 — lazy companions; null fallback because
+          they render off-screen overlays/listeners. Reduces main entry. */}
+      <Suspense fallback={null}>
+        <FallDetectionMonitor />
+        <DrivingSuggestion />
+        <WisdomCapsuleWatcher />
+      </Suspense>
       <GeofenceAlert />
-      <WisdomCapsuleWatcher />
       <Suspense fallback={<ConsciousnessLoader />}>
       <Routes>
         <Route
@@ -246,8 +258,10 @@ function AppRoutes() {
                   </Route>
                 </Routes>
               </Suspense>
-              {user && <GuardianVoiceAssistant />}
-              {user && <ConsentBanner />}
+              <Suspense fallback={null}>
+                {user && <GuardianVoiceAssistant />}
+                {user && <ConsentBanner />}
+              </Suspense>
     </AppProviders>
   );
 }
@@ -268,11 +282,15 @@ export default function App() {
         <LanguageProvider>
           <NormativaProvider>
             <BrowserRouter>
-              <DeepLinkHandler />
+              <Suspense fallback={null}>
+                <DeepLinkHandler />
+              </Suspense>
               <OfflineIndicator />
-              <OfflineSyncManager />
-              <SurvivalPing />
-              <PWAUpdateToast />
+              <Suspense fallback={null}>
+                <OfflineSyncManager />
+                <SurvivalPing />
+                <PWAUpdateToast />
+              </Suspense>
               <AppRoutes />
             </BrowserRouter>
           </NormativaProvider>

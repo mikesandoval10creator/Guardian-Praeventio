@@ -29,9 +29,34 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { BsaleAdapter, type DteCreateInput } from '../../services/sii/bsaleAdapter.js';
-import { generateDte } from '../../services/sii/dteGenerator.js';
-import { verifyAndSignDte } from '../../services/sii/dteSigner.js';
-import { renderDtePdf } from '../../services/sii/dtePdfRenderer.js';
+// Sprint 36 audit P1 §1.4 — DTE generator/signer/PDF renderer are lazy-
+// imported so Cloud Run cold-start doesn't pay the xmlbuilder2/pdfkit
+// parse cost for every container; only the first POST /generate pays
+// the ~50-100ms once-per-process import. The endpoint is admin-only and
+// rarely called, so this is a clear win versus eager imports that block
+// the entire `/api/*` surface during boot. Resolves the size-limit
+// creep companion (server-side counterpart to client lazy-cert-pdf).
+type DteGeneratorModule = typeof import('../../services/sii/dteGenerator.js');
+type DteSignerModule = typeof import('../../services/sii/dteSigner.js');
+type DtePdfRendererModule = typeof import('../../services/sii/dtePdfRenderer.js');
+const generateDte = async (
+  ...args: Parameters<DteGeneratorModule['generateDte']>
+): Promise<ReturnType<DteGeneratorModule['generateDte']>> => {
+  const m = await import('../../services/sii/dteGenerator.js');
+  return m.generateDte(...args);
+};
+const verifyAndSignDte = async (
+  ...args: Parameters<DteSignerModule['verifyAndSignDte']>
+): Promise<Awaited<ReturnType<DteSignerModule['verifyAndSignDte']>>> => {
+  const m = await import('../../services/sii/dteSigner.js');
+  return m.verifyAndSignDte(...args);
+};
+const renderDtePdf = async (
+  ...args: Parameters<DtePdfRendererModule['renderDtePdf']>
+): Promise<Awaited<ReturnType<DtePdfRendererModule['renderDtePdf']>>> => {
+  const m = await import('../../services/sii/dtePdfRenderer.js');
+  return m.renderDtePdf(...args);
+};
 import { buildWebAuthnCredentialsDb } from './curriculum.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { getErrorTracker } from '../../services/observability/index.js';
@@ -283,7 +308,9 @@ dteRouter.post('/generate', verifyAuth, async (req: Request, res: Response) => {
 
   let generated;
   try {
-    generated = generateDte({
+    // Sprint 36 audit P1 §1.4 — `generateDte` is now lazy-imported so the
+    // call site must `await` it; the underlying function is still sync.
+    generated = await generateDte({
       type: body.type,
       receptorRut: body.receptorRut,
       receptorRazonSocial: body.receptorRazonSocial,
