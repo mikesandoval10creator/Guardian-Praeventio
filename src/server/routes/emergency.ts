@@ -28,6 +28,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import {
   assertProjectMember,
@@ -385,6 +386,7 @@ const NotifyBrigadaSchema = z.object({
 router.post(
   '/notify-brigada',
   verifyAuth,
+  idempotencyKey(),
   validate(NotifyBrigadaSchema),
   async (req, res) => {
     const { projectId, emergencyType, message } = req.body as z.infer<

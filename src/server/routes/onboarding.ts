@@ -32,6 +32,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { EmailService } from '../../services/email/resendService.js';
@@ -102,7 +103,7 @@ function validatePayload(body: unknown): { ok: true; data: OnboardingPayload } |
   };
 }
 
-onboardingRouter.post('/onboarding/complete', verifyAuth, async (req, res) => {
+onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), async (req, res) => {
   const uid = (req as any).user?.uid;
   if (!uid) return res.status(401).json({ error: 'no_uid' });
 

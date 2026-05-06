@@ -17,6 +17,19 @@ Convenciones:
   que el `req.user.uid` está en `projects/{projectId}.members[]` o es
   `createdBy`. Sin esa guarda, un atacante autenticado puede polucionar
   datos de proyectos ajenos.
+- **Idempotency-Key (Sprint 35 / Audit P1 §1.3):** rutas opt-in aceptan el
+  header opcional `Idempotency-Key: <token>` (RFC-style; Stripe-pattern).
+  El primer request con un par `(uid, key)` corre el handler y cachea el
+  response (status+body+headers seleccionados) por 24h en
+  `system_idempotency_cache`. Requests subsiguientes con la misma key
+  devuelven la respuesta cacheada + `Idempotent-Replayed: true` y NO
+  re-ejecutan el handler. Reusar la key con un body distinto devuelve
+  `422 idempotency_key_reused_with_different_params`. Routes opt-in:
+  `/api/billing/checkout`, `/api/billing/checkout/mercadopago`,
+  `/api/onboarding/complete`, `/api/zettelkasten/nodes`,
+  `/api/dte/create`, `/api/iot/devices/register`,
+  `/api/emergency/notify-brigada`. Audit signals: `idempotency.cache_hit`
+  / `idempotency.cache_write`.
 
 Group navigation:
 1. [Health](#health)

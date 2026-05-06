@@ -39,6 +39,7 @@ import { google } from 'googleapis';
 
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { safeSecretEqual } from '../middleware/safeSecretEqual.js';
 // Sprint 28 Bucket B3 — transversal Zod validation factory. See
 // src/server/middleware/validate.ts for the contract.
@@ -444,7 +445,7 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
 // POST /api/billing/checkout — create invoice + (eventually) redirect URL
 // for Webpay/Stripe. CLP must use webpay or manual-transfer; USD must use
 // stripe. Until adapters are wired, falls back to 'pending-config'.
-billingApiRouter.post('/checkout', verifyAuth, async (req, res) => {
+billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = (req as any).user.uid;
   const callerEmail: string | null = (req as any).user.email ?? null;
 
@@ -757,7 +758,7 @@ billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (re
 // will add the matching IPN webhook with OIDC verification similar to
 // RTDN — until then MP payments must be reconciled via /mark-paid (same
 // admin fallback used for transferencia bancaria).
-billingApiRouter.post('/checkout/mercadopago', verifyAuth, async (req, res) => {
+billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), async (req, res) => {
   const callerUid = (req as any).user.uid;
   const callerEmail: string | null = (req as any).user.email ?? null;
 
