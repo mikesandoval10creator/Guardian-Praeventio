@@ -406,19 +406,23 @@ router.post(
     }
 
     try {
-      const result = await sendToProjectSupervisors(
-        projectId,
-        {
-          title: `🚨 Emergencia: ${emergencyType}`,
-          body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
-          data: {
-            projectId,
-            emergencyType,
-            timestamp: new Date().toISOString(),
+      const result = await tracedAsync(
+        'emergency.notify_brigada.handler',
+        { 'praeventio.uid': callerUid, 'praeventio.projectId': projectId, emergencyType },
+        () => sendToProjectSupervisors(
+          projectId,
+          {
+            title: `🚨 Emergencia: ${emergencyType}`,
+            body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
+            data: {
+              projectId,
+              emergencyType,
+              timestamp: new Date().toISOString(),
+            },
           },
-        },
-        db,
-        admin.messaging(),
+          db,
+          admin.messaging(),
+        ),
       );
 
       // Audit trail — same shape as /sos so dashboards can union the streams.

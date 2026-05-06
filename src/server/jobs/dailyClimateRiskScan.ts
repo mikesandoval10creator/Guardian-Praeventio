@@ -37,6 +37,7 @@ import type {
   ClimateRiskAssessment,
   ClimateRiskFactor,
 } from '../../services/zettelkasten/climateRiskCoupling';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 export type DailyScanSeverity = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
@@ -144,6 +145,20 @@ function shortLabel(a: ClimateRiskAssessment): string {
 }
 
 export async function runDailyClimateRiskScan(
+  deps: ClimateRiskScanDeps,
+  options: ClimateRiskScanOptions = {},
+): Promise<ClimateRiskScanResult> {
+  return tracedAsync(
+    'job.daily_climate_risk_scan',
+    {
+      forecastDays: options.forecastDays ?? 3,
+      minSeverityForFcm: options.minSeverityForFcm ?? 'medium',
+    },
+    () => runDailyClimateRiskScanInner(deps, options),
+  );
+}
+
+async function runDailyClimateRiskScanInner(
   deps: ClimateRiskScanDeps,
   options: ClimateRiskScanOptions = {},
 ): Promise<ClimateRiskScanResult> {
