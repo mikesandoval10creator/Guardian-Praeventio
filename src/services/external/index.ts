@@ -67,3 +67,4 @@ export function eonetCategoryGlyph(categoryId: string): string {
       return '📍';
   }
 }
+// CI retrigger 2026-05-06
