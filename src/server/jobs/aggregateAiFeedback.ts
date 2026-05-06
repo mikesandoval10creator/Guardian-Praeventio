@@ -21,6 +21,7 @@ import {
   type FeedbackItem,
   type FeedbackSummary,
 } from '../routes/aiFeedback.js';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 type FirestoreFactory = () => Firestore;
 
@@ -46,6 +47,16 @@ export interface AggregateResult {
  * summary set for observability + the cron's HTTP wrapper.
  */
 export async function aggregateAiFeedback(
+  opts: AggregateOptions = {},
+): Promise<AggregateResult> {
+  return tracedAsync(
+    'job.aggregate_ai_feedback',
+    { lookbackDays: opts.lookbackDays ?? 7 },
+    () => aggregateAiFeedbackInner(opts),
+  );
+}
+
+async function aggregateAiFeedbackInner(
   opts: AggregateOptions = {},
 ): Promise<AggregateResult> {
   const db = opts.getDb

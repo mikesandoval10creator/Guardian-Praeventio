@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useSubscription, SubscriptionPlan } from '../contexts/SubscriptionContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -127,95 +128,42 @@ const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
   'global-titanio',
 ]);
 
-const TIER_FEATURES: Record<TierId, string[]> = {
-  gratis: [
-    'Calendar predictions completas',
-    'Multi-país ilimitado',
-    'ISO 45001 fallback global',
-    'Inventario básico de EPP',
-    'Botón de emergencia siempre activo',
-  ],
-  'comite-paritario': [
-    'Todo lo del plan gratis',
-    'Gestión completa de Comité Paritario (DS 54)',
-    'Evaluaciones rápidas de riesgo',
-    'Informes básicos PDF/Excel',
-    'Multi-país sin recargo',
-  ],
-  'departamento-prevencion': [
-    'Todo lo de Comité Paritario',
-    'Departamento de Prevención (DS 40)',
-    'Generación de PTS con IA',
-    'Dashboard SUSESO',
-    'Auditorías ISO automatizadas',
-  ],
-  plata: [
-    'Todo lo de Departamento',
-    'Hasta 250 trabajadores / 25 proyectos',
-    'Risk Network colaborativo',
-    'Reportes ejecutivos avanzados',
-    'Soporte prioritario por chat',
-  ],
-  oro: [
-    'Todo lo del plan Plata',
-    'Hasta 500 trabajadores / 50 proyectos',
-    'IPERC con IA personalizada',
-    'Análisis predictivo de incidentes',
-    'Integración ERP básica',
-  ],
-  titanio: [
-    'Workspace Native: SSO básico',
-    '750 trabajadores / 75 proyectos (sin overage)',
-    'Customer Success dedicado',
-    'SLA 99.5% mensual',
-    'Onboarding en sitio',
-  ],
-  diamante: [
-    'Workspace Native: SSO + CASA Tier',
-    '1.000 trabajadores / 100 proyectos',
-    'Auditoría de seguridad anual',
-    'API privada con rate-limit empresarial',
-    'Soporte 24/7 con tiempo de respuesta < 1h',
-  ],
-  empresarial: [
-    'Multi-tenant nativo',
-    '2.500 trabajadores / 250 proyectos',
-    'Múltiples filiales/RUTs',
-    'Integraciones SAP / Oracle',
-    'Custom reports + data residency CL',
-  ],
-  corporativo: [
-    'Multi-tenant + CSM dedicado',
-    '5.000 trabajadores / 500 proyectos',
-    'Roadmap influence cuarterly',
-    'Penetration testing anual incluido',
-    'Hot-line ejecutivo 24/7',
-  ],
-  ilimitado: [
-    'Vertex Fine-Tuned: modelo IA propio',
-    'Trabajadores y proyectos ilimitados',
-    'Despliegue privado opcional',
-    'Compliance ad-hoc (NIST, SOC2)',
-    'Equipo de prevención embedded',
-  ],
-  // Sprint 31 OO — Tier Global Titanio (multi-jurisdicción simultáneo).
-  'global-titanio': [
-    'Cobertura mundial: ISO 45001 + tu país + cualquier jurisdicción adicional',
-    'Multi-jurisdicción simultáneo (sin límite de países)',
-    'Trabajadores y proyectos ilimitados',
-    'Data residency multi-región',
-    'Vertex AI orquestador global activado',
-    'Customer Success + onboarding por país',
-  ],
+// Sprint 37 W61 — i18n refactor: feature lists now live in
+// `src/i18n/locales/{lang}/common.json` under `pricing.tier_features.{tierId}`.
+// They are looked up at render time via `t(key, { returnObjects: true })`. The
+// number of features per tier is invariant across locales (validated by
+// translation review). Keep this map as a thin index of which tiers exist.
+const TIER_FEATURE_COUNTS: Record<TierId, number> = {
+  gratis: 5,
+  'comite-paritario': 5,
+  'departamento-prevencion': 5,
+  plata: 5,
+  oro: 5,
+  titanio: 5,
+  diamante: 5,
+  empresarial: 5,
+  corporativo: 5,
+  ilimitado: 5,
+  'global-titanio': 6,
 };
 
-const TIER_BADGES: Partial<Record<TierId, { label: string; tone: 'green' | 'gold' | 'blue' | 'silver' }>> = {
-  gratis: { label: 'Siempre gratis', tone: 'green' },
-  'departamento-prevencion': { label: 'Más popular para PYME', tone: 'blue' },
-  diamante: { label: 'Más popular B2B', tone: 'gold' },
-  corporativo: { label: 'Elegido por multinacionales', tone: 'silver' },
-  // Sprint 31 OO — Tier Global Titanio recomendado para multinacionales.
-  'global-titanio': { label: 'Recomendado · Multinacional', tone: 'gold' },
+// Tone is intrinsic to the tier's market position; the user-facing label is
+// resolved via i18n (`pricing.badges.{tierId}`).
+const TIER_BADGE_TONES: Partial<Record<TierId, 'green' | 'gold' | 'blue' | 'silver'>> = {
+  gratis: 'green',
+  'departamento-prevencion': 'blue',
+  diamante: 'gold',
+  corporativo: 'silver',
+  'global-titanio': 'gold',
+};
+
+// i18n badge key (replaces hyphens to keep dot-path safe).
+const TIER_BADGE_KEY: Partial<Record<TierId, string>> = {
+  gratis: 'gratis',
+  'departamento-prevencion': 'departamento_prevencion',
+  diamante: 'diamante',
+  corporativo: 'corporativo',
+  'global-titanio': 'global_titanio',
 };
 
 function badgeClasses(tone: 'green' | 'gold' | 'blue' | 'silver'): string {
@@ -240,11 +188,17 @@ interface TierCardProps {
 }
 
 function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContactSales }: TierCardProps) {
+  const { t } = useTranslation();
   const { currency } = useCurrency();
   const isPremium = PREMIUM_TIER_IDS.has(tier.id);
   const legacyId = TIER_TO_LEGACY_PLAN[tier.id];
   const isCurrent = legacyId !== undefined && legacyId === currentLegacyPlan;
-  const badge = TIER_BADGES[tier.id];
+  const badgeTone = TIER_BADGE_TONES[tier.id];
+  const badgeKey = TIER_BADGE_KEY[tier.id];
+  const badgeLabel = badgeKey ? t(`pricing.badges.${badgeKey}`) : null;
+  // Resolve features array from i18n. `returnObjects` returns the raw array.
+  const features = t(`pricing.tier_features.${tier.id}`, { returnObjects: true }) as string[];
+  const featuresArray = Array.isArray(features) ? features : [];
 
   const monthlyDisplay = useMemo(() => {
     if (currency === 'USD') {
@@ -292,19 +246,19 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
       animate={{ opacity: 1, y: 0 }}
       className={`relative rounded-3xl p-6 sm:p-8 flex flex-col ${cardBorder} ${ringClass}`}
     >
-      {badge && (
+      {badgeTone && badgeLabel && (
         <div
           className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClasses(
-            badge.tone,
+            badgeTone,
           )}`}
         >
-          {badge.label}
+          {badgeLabel}
         </div>
       )}
       {isPremium && (
         <div className="absolute top-4 right-4 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
           <Crown className="w-3.5 h-3.5" />
-          Workspace Native
+          {t('pricing.workspace_native_tag')}
         </div>
       )}
 
@@ -314,27 +268,27 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
         </h3>
         <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mt-1">
           {tier.id === 'gratis'
-            ? 'Para equipos pequeños y educación'
+            ? t('pricing.tier_subtitles.free')
             : isPremium
-              ? 'B2B Enterprise · Workspace Native'
-              : 'Para PYMES y empresas en crecimiento'}
+              ? t('pricing.tier_subtitles.premium')
+              : t('pricing.tier_subtitles.default')}
         </p>
 
         <div className="mt-5 flex items-baseline gap-2">
           <span className="text-3xl sm:text-4xl font-black tracking-tighter text-zinc-900 dark:text-white">
             {monthlyDisplay}
           </span>
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">/mes</span>
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{t('pricing.units.per_month_short')}</span>
         </div>
 
         {ivaBreakdown && (
           <div className="group relative inline-flex items-center gap-1 mt-2 text-[11px] text-zinc-500 dark:text-zinc-400 cursor-help">
             <Info className="w-3 h-3" />
-            <span>IVA 19% incluido</span>
+            <span>{t('pricing.iva.included')}</span>
             <div className="invisible group-hover:visible group-focus-within:visible absolute left-0 top-full mt-1 z-10 w-60 bg-zinc-900 text-white text-xs p-3 rounded-lg shadow-lg">
-              Subtotal {formatCurrency(ivaBreakdown.subtotal, 'CLP')}
-              <br />+ IVA 19% {formatCurrency(ivaBreakdown.iva, 'CLP')}
-              <br />= Total {formatCurrency(ivaBreakdown.total, 'CLP')}
+              {t('pricing.iva.subtotal', { amount: formatCurrency(ivaBreakdown.subtotal, 'CLP') })}
+              <br />{t('pricing.iva.iva_line', { amount: formatCurrency(ivaBreakdown.iva, 'CLP') })}
+              <br />{t('pricing.iva.total', { amount: formatCurrency(ivaBreakdown.total, 'CLP') })}
             </div>
           </div>
         )}
@@ -342,10 +296,10 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
         {tier.clpRegular > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-              Anual {annualDisplay} · ahorra 20%
+              {t('pricing.discounts.annual', { price: annualDisplay })}
             </span>
             <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
-              Intro 3 meses {introDisplay}
+              {t('pricing.discounts.intro', { price: introDisplay })}
             </span>
           </div>
         )}
@@ -354,24 +308,24 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
       <div className="grid grid-cols-2 gap-2 mb-6">
         <div className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3">
           <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            <Users className="w-3 h-3" /> Trabajadores
+            <Users className="w-3 h-3" /> {t('pricing.units.workers')}
           </div>
           <p className="font-black text-zinc-900 dark:text-white">
-            {tier.trabajadoresMax === Infinity ? 'Ilimitados' : tier.trabajadoresMax.toLocaleString('es-CL')}
+            {tier.trabajadoresMax === Infinity ? t('pricing.units.unlimited') : tier.trabajadoresMax.toLocaleString('es-CL')}
           </p>
         </div>
         <div className="bg-zinc-50 dark:bg-black/30 rounded-xl p-3">
           <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            <Briefcase className="w-3 h-3" /> Proyectos
+            <Briefcase className="w-3 h-3" /> {t('pricing.units.projects')}
           </div>
           <p className="font-black text-zinc-900 dark:text-white">
-            {tier.proyectosMax === Infinity ? 'Ilimitados' : tier.proyectosMax}
+            {tier.proyectosMax === Infinity ? t('pricing.units.unlimited') : tier.proyectosMax}
           </p>
         </div>
       </div>
 
       <ul className="space-y-3 mb-6 flex-1">
-        {TIER_FEATURES[tier.id].map((feature, i) => (
+        {featuresArray.map((feature, i) => (
           <li key={i} className="flex items-start gap-2.5 text-sm">
             <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
             <span className="text-zinc-700 dark:text-zinc-300">{feature}</span>
@@ -385,7 +339,7 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
           className="w-full inline-flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-zinc-900 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-colors"
         >
           <Mail className="w-4 h-4" />
-          Hablar con ventas
+          {t('pricing.cta.contact_sales')}
         </button>
       ) : (
         <button
@@ -400,16 +354,16 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
           {isProcessing === legacyId ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : isCurrent ? (
-            'Plan actual'
+            t('pricing.cta.current_plan')
           ) : tier.id === 'gratis' ? (
             <>
               <Sparkles className="w-4 h-4" />
-              Empezar gratis
+              {t('pricing.cta.start_free')}
             </>
           ) : (
             <>
               <CreditCard className="w-4 h-4" />
-              Seleccionar plan
+              {t('pricing.cta.select_plan')}
             </>
           )}
         </button>
@@ -435,6 +389,7 @@ function TierCard({ tier, currentLegacyPlan, isProcessing, onPurchase, onContact
  * (server may not have written the doc yet) and bails on 401 / unauth.
  */
 function WebpayReturnBanner() {
+  const { t } = useTranslation();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const invoiceId = params.get('invoice');
@@ -535,6 +490,8 @@ function WebpayReturnBanner() {
     const inv = pollState.invoice;
     const totalLabel = formatCurrency(inv.totals.total, inv.totals.currency);
 
+    const invoiceSuffix = invoiceId ? t('pricing.return_banner.invoice_suffix', { id: invoiceId }) : '';
+
     if (inv.status === 'paid') {
       return (
         <div
@@ -544,12 +501,10 @@ function WebpayReturnBanner() {
           <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
-              ¡Pago confirmado!
+              {t('pricing.return_banner.paid_title')}
             </p>
             <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-              Cobramos {totalLabel} a tu tarjeta. Tu suscripción ya está activa
-              {invoiceId ? ` (factura ${invoiceId})` : ''}. Te enviamos la
-              boleta electrónica al correo registrado.
+              {t('pricing.return_banner.paid_body', { total: totalLabel, invoice: invoiceSuffix })}
             </p>
           </div>
         </div>
@@ -560,8 +515,8 @@ function WebpayReturnBanner() {
       const reason =
         inv.rejectionReason ??
         (inv.status === 'cancelled'
-          ? 'La transacción fue cancelada antes de completarse.'
-          : 'Tu tarjeta no autorizó el cargo.');
+          ? t('pricing.return_banner.cancelled_default_reason')
+          : t('pricing.return_banner.rejected_default_reason'));
       return (
         <div
           role="alert"
@@ -570,12 +525,10 @@ function WebpayReturnBanner() {
           <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-red-900 dark:text-red-300 text-sm">
-              El pago fue rechazado
+              {t('pricing.return_banner.rejected_title')}
             </p>
             <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-              {reason}
-              {invoiceId ? ` (factura ${invoiceId})` : ''} Puedes intentar con
-              otro medio de pago seleccionando el plan de nuevo.
+              {t('pricing.return_banner.rejected_body', { reason, invoice: invoiceSuffix })}
             </p>
           </div>
         </div>
@@ -591,12 +544,10 @@ function WebpayReturnBanner() {
           <RefreshCw className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">
-              Reembolso procesado
+              {t('pricing.return_banner.refunded_title')}
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-              Devolvimos {totalLabel} a tu medio de pago original
-              {invoiceId ? ` (factura ${invoiceId})` : ''}. El abono puede
-              tardar 1-2 días hábiles según tu banco.
+              {t('pricing.return_banner.refunded_body', { total: totalLabel, invoice: invoiceSuffix })}
             </p>
           </div>
         </div>
@@ -616,6 +567,9 @@ function WebpayReturnBanner() {
     });
   }
 
+  const invoiceSuffix = invoiceId ? t('pricing.return_banner.invoice_suffix', { id: invoiceId }) : '';
+  const invoiceFor = invoiceId ? t('pricing.return_banner.invoice_for', { id: invoiceId }) : '';
+
   if (pollState.kind === 'timeout') {
     return (
       <div
@@ -625,13 +579,10 @@ function WebpayReturnBanner() {
         <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
-            Tu pago tarda más de lo normal
+            {t('pricing.return_banner.timeout_title')}
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-            No pudimos confirmar el estado de tu transacción
-            {invoiceId ? ` (factura ${invoiceId})` : ''} dentro del tiempo
-            esperado. Si el cargo aparece en tu cartola pero la suscripción no
-            se activó, contáctanos a{' '}
+            {t('pricing.return_banner.timeout_body', { invoice: invoiceSuffix })}
             <a
               href="mailto:soporte@praeventio.net"
               className="underline font-semibold"
@@ -654,19 +605,17 @@ function WebpayReturnBanner() {
         <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-red-900 dark:text-red-300 text-sm">
-            No pudimos verificar tu pago
+            {t('pricing.return_banner.error_title')}
           </p>
           <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-            Recibimos la respuesta de Webpay
-            {invoiceId ? ` para la factura ${invoiceId}` : ''} pero no pudimos
-            confirmarla. Por favor escríbenos a{' '}
+            {t('pricing.return_banner.error_body', { invoice: invoiceSuffix })}
             <a
               href="mailto:soporte@praeventio.net"
               className="underline font-semibold"
             >
               soporte@praeventio.net
-            </a>{' '}
-            y revisaremos tu transacción.
+            </a>
+            {t('pricing.return_banner.error_body_suffix')}
           </p>
         </div>
       </div>
@@ -685,12 +634,10 @@ function WebpayReturnBanner() {
         <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
         <div>
           <p className="font-bold text-red-900 dark:text-red-300 text-sm">
-            El pago fue rechazado
+            {t('pricing.return_banner.rejected_title')}
           </p>
           <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-            Tu tarjeta no autorizó el cargo
-            {invoiceId ? ` (factura ${invoiceId})` : ''}. Estamos verificando
-            el estado final con Webpay…
+            {t('pricing.return_banner.rejected_loading_body', { invoice: invoiceSuffix })}
           </p>
         </div>
       </div>
@@ -706,13 +653,10 @@ function WebpayReturnBanner() {
         <RefreshCw className="w-6 h-6 text-amber-500 shrink-0 mt-0.5 animate-spin" />
         <div>
           <p className="font-bold text-amber-900 dark:text-amber-300 text-sm">
-            Reintenta el pago
+            {t('pricing.return_banner.retry_title')}
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-            Tuvimos un problema temporal procesando tu pago
-            {invoiceId ? ` (factura ${invoiceId})` : ''}. Verificando estado
-            con el banco — selecciona el plan de nuevo si la factura sigue
-            pendiente.
+            {t('pricing.return_banner.retry_body', { invoice: invoiceSuffix })}
           </p>
         </div>
       </div>
@@ -728,12 +672,10 @@ function WebpayReturnBanner() {
       <Loader2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5 animate-spin" />
       <div>
         <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
-          Procesando pago…
+          {t('pricing.return_banner.loading_title')}
         </p>
         <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-          Recibimos la respuesta de Webpay
-          {invoiceId ? ` para la factura ${invoiceId}` : ''}. Confirmando con
-          el banco — esto suele tardar unos segundos.
+          {t('pricing.return_banner.loading_body', { invoice: invoiceFor })}
         </p>
       </div>
     </div>
@@ -741,6 +683,7 @@ function WebpayReturnBanner() {
 }
 
 function PricingInner() {
+  const { t } = useTranslation();
   const { plan, totalWorkers, recommendedPlan, requiresUpgrade, upgradePlan } = useSubscription();
   const { addNotification } = useNotifications();
   const { user } = useFirebase();
@@ -767,8 +710,8 @@ function PricingInner() {
   const startWebpayCheckout = async (tier: Tier, legacyId: SubscriptionPlan) => {
     if (!user) {
       addNotification({
-        title: 'Inicia sesión primero',
-        message: 'Necesitas iniciar sesión para suscribirte a un plan pago.',
+        title: t('pricing.checkout.login_required_title'),
+        message: t('pricing.checkout.login_required_msg'),
         type: 'error',
       });
       return;
@@ -812,7 +755,7 @@ function PricingInner() {
         const detail = await response.json().catch(() => ({}));
         throw new Error(
           (detail as { error?: string }).error ??
-            `Checkout falló con estado ${response.status}`,
+            t('pricing.checkout.checkout_failed_status', { status: response.status }),
         );
       }
 
@@ -823,9 +766,7 @@ function PricingInner() {
       };
 
       if (data.status === 'pending-config' || !data.paymentUrl) {
-        throw new Error(
-          'El proveedor de pagos no está disponible. Reintentá en unos segundos o contacta a soporte@praeventio.net.',
-        );
+        throw new Error(t('pricing.checkout.provider_unavailable'));
       }
 
       // Redirect the browser to the Webpay hosted form. The user returns to
@@ -839,11 +780,11 @@ function PricingInner() {
       const message =
         err instanceof Error
           ? err.message
-          : 'No pudimos iniciar el pago. Reintentá en unos segundos.';
+          : t('pricing.checkout.error_default');
       setCheckoutError(message);
       addNotification({
-        title: 'Error al iniciar el pago',
-        message: 'No pudimos iniciar el pago. Reintentá en unos segundos.',
+        title: t('pricing.checkout.error_title'),
+        message: t('pricing.checkout.error_default'),
         type: 'error',
       });
       setIsProcessing(null);
@@ -867,8 +808,8 @@ function PricingInner() {
   ) => {
     if (!user) {
       addNotification({
-        title: 'Inicia sesión primero',
-        message: 'Necesitas iniciar sesión para suscribirte a un plan pago.',
+        title: t('pricing.checkout.login_required_title'),
+        message: t('pricing.checkout.login_required_msg'),
         type: 'error',
       });
       return;
@@ -904,7 +845,7 @@ function PricingInner() {
         const detail = await response.json().catch(() => ({}));
         throw new Error(
           (detail as { error?: string }).error ??
-            `Checkout falló con estado ${response.status}`,
+            t('pricing.checkout.checkout_failed_status', { status: response.status }),
         );
       }
 
@@ -915,9 +856,7 @@ function PricingInner() {
       };
 
       if (!data.init_point) {
-        throw new Error(
-          'MercadoPago no está disponible. Reintentá en unos segundos o contacta a soporte@praeventio.net.',
-        );
+        throw new Error(t('pricing.checkout.mp_unavailable'));
       }
 
       window.location.href = data.init_point;
@@ -930,11 +869,11 @@ function PricingInner() {
       const message =
         err instanceof Error
           ? err.message
-          : 'No pudimos iniciar el pago. Reintentá en unos segundos.';
+          : t('pricing.checkout.error_default');
       setCheckoutError(message);
       addNotification({
-        title: 'Error al iniciar el pago',
-        message: 'No pudimos iniciar el pago. Reintentá en unos segundos.',
+        title: t('pricing.checkout.error_title'),
+        message: t('pricing.checkout.error_default'),
         type: 'error',
       });
       setIsProcessing(null);
@@ -985,8 +924,8 @@ function PricingInner() {
     if (!legacyId) {
       // Defensive: premium tiers should never reach here, they use Contact Sales
       addNotification({
-        title: 'Contacta ventas',
-        message: `${tier.nombre} requiere una propuesta a medida. Te contactaremos.`,
+        title: t('pricing.checkout.contact_sales_title'),
+        message: t('pricing.checkout.contact_sales_msg', { tier: tier.nombre }),
         type: 'info',
       });
       return;
@@ -1005,12 +944,12 @@ function PricingInner() {
       try {
         await upgradePlan('free');
         addNotification({
-          title: 'Plan gratis activado',
-          message: '¡Bienvenido a Praeventio Guard!',
+          title: t('pricing.checkout.free_activated_title'),
+          message: t('pricing.checkout.free_activated_msg'),
           type: 'success',
         });
       } catch (err: any) {
-        addNotification({ title: 'Error', message: err.message, type: 'error' });
+        addNotification({ title: t('common.error', 'Error'), message: err.message, type: 'error' });
       }
       return;
     }
@@ -1035,9 +974,8 @@ function PricingInner() {
       // for non-CLP currencies. Surface a friendly error pointing to
       // sales until the international rollout lands.
       addNotification({
-        title: 'Pagos internacionales',
-        message:
-          'Por el momento sólo procesamos pagos en Chile y mercados LATAM. Escríbenos a ventas@praeventio.cl para tu país.',
+        title: t('pricing.checkout.international_title'),
+        message: t('pricing.checkout.international_msg'),
         type: 'info',
       });
       return;
@@ -1086,10 +1024,10 @@ function PricingInner() {
 
       if (!result.success || !result.receiptId) {
         const message =
-          result.errorMessage ?? 'No pudimos completar la compra en la tienda.';
+          result.errorMessage ?? t('pricing.checkout.store_purchase_failed');
         setCheckoutError(message);
         addNotification({
-          title: 'Compra no completada',
+          title: t('pricing.checkout.store_purchase_failed_title'),
           message,
           type: 'error',
         });
@@ -1124,9 +1062,8 @@ function PricingInner() {
       }
 
       addNotification({
-        title: 'Compra recibida',
-        message:
-          'Estamos confirmando tu suscripción con la tienda. Esto suele tardar unos segundos.',
+        title: t('pricing.checkout.store_received_title'),
+        message: t('pricing.checkout.store_received_msg'),
         type: 'success',
       });
       setIsProcessing(null);
@@ -1135,10 +1072,10 @@ function PricingInner() {
       const message =
         err instanceof Error
           ? err.message
-          : 'No pudimos iniciar el pago en la tienda.';
+          : t('pricing.checkout.store_start_failed');
       setCheckoutError(message);
       addNotification({
-        title: 'Error al iniciar el pago',
+        title: t('pricing.checkout.error_title'),
         message,
         type: 'error',
       });
@@ -1148,9 +1085,13 @@ function PricingInner() {
 
   const handleContactSales = (tier: Tier) => {
     // TODO(IMP5): wire Stripe / Webpay invoice + sales CRM. For now: mailto link.
-    const subject = encodeURIComponent(`Cotización plan ${tier.nombre}`);
+    const subject = encodeURIComponent(t('pricing.checkout.mailto_subject', { tier: tier.nombre }));
     const body = encodeURIComponent(
-      `Hola, me interesa el plan ${tier.nombre} (${tier.trabajadoresMax} trabajadores / ${tier.proyectosMax} proyectos).\n\nPor favor envíenme una propuesta.`,
+      t('pricing.checkout.mailto_body', {
+        tier: tier.nombre,
+        workers: tier.trabajadoresMax,
+        projects: tier.proyectosMax,
+      }),
     );
     window.location.href = `mailto:ventas@praeventio.cl?subject=${subject}&body=${body}`;
   };
@@ -1166,7 +1107,7 @@ function PricingInner() {
           <XCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
           <div className="flex-1">
             <p className="font-bold text-red-900 dark:text-red-300 text-sm">
-              No pudimos iniciar el pago. Reintentá en unos segundos.
+              {t('pricing.checkout.error_default')}
             </p>
             <p className="text-xs text-red-700 dark:text-red-400 mt-1">
               {checkoutError}
@@ -1176,17 +1117,17 @@ function PricingInner() {
             onClick={() => setCheckoutError(null)}
             className="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-300 hover:underline"
           >
-            Cerrar
+            {t('pricing.cta.close')}
           </button>
         </div>
       )}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="text-center sm:text-left max-w-3xl">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight mb-3">
-            Planes y cumplimiento legal
+            {t('pricing.hero.title')}
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg">
-            Capacidad (trabajadores + proyectos) decide el tier · Cumplimiento normativo se cobra por proyecto · Multi-país sin recargo.
+            {t('pricing.hero.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -1198,7 +1139,7 @@ function PricingInner() {
             to="/transparencia"
             className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
           >
-            Cómo cobramos <ArrowRight className="w-3.5 h-3.5" />
+            {t('pricing.hero.transparency_link')} <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
@@ -1208,12 +1149,10 @@ function PricingInner() {
           <Smartphone className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-blue-900 dark:text-blue-300 text-sm">
-              Pagas con Webpay, MercadoPago o Khipu — boleta electrónica incluida
+              {t('pricing.payment_banners.web_title')}
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">
-              CL → Webpay (Transbank). LATAM (PE/AR/CO/MX/BR) → MercadoPago. B2B
-              transferencia bancaria → Khipu. Para planes Titanio en adelante usa{' '}
-              <strong>Hablar con ventas</strong>.
+              {t('pricing.payment_banners.web_body')}
             </p>
           </div>
         </div>
@@ -1222,12 +1161,10 @@ function PricingInner() {
           <Smartphone className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-emerald-900 dark:text-emerald-300 text-sm">
-              Compra con Google Play
+              {t('pricing.payment_banners.android_title')}
             </p>
             <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-1">
-              Tu suscripción se cobra y se gestiona desde tu cuenta Google Play.
-              Puedes cancelar en cualquier momento desde Play Store ›
-              Suscripciones.
+              {t('pricing.payment_banners.android_body')}
             </p>
           </div>
         </div>
@@ -1236,12 +1173,10 @@ function PricingInner() {
           <Smartphone className="w-6 h-6 text-zinc-500 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
-              Compra con Apple App Store
+              {t('pricing.payment_banners.ios_title')}
             </p>
             <p className="text-xs text-zinc-700 dark:text-zinc-400 mt-1">
-              Tu suscripción se cobra y se gestiona desde tu Apple ID. Puedes
-              cancelar o restaurar compras anteriores desde Ajustes ›
-              Suscripciones.
+              {t('pricing.payment_banners.ios_body')}
             </p>
           </div>
         </div>
@@ -1258,12 +1193,17 @@ function PricingInner() {
           </div>
           <div className="flex-1 text-center sm:text-left">
             <h3 className="text-lg font-bold text-red-900 dark:text-red-400">
-              Alerta de cumplimiento normativo
+              {t('pricing.compliance_alert.title')}
             </h3>
-            <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-              Tienes <strong>{totalWorkers} trabajadores</strong> registrados. Necesitas el plan{' '}
-              <strong>{recommendedPlan.toUpperCase()}</strong> para mantener la cobertura.
-            </p>
+            <p
+              className="text-sm text-red-700 dark:text-red-300 mt-1"
+              dangerouslySetInnerHTML={{
+                __html: t('pricing.compliance_alert.body', {
+                  workers: totalWorkers,
+                  plan: recommendedPlan.toUpperCase(),
+                }),
+              }}
+            />
           </div>
         </motion.div>
       )}
@@ -1286,18 +1226,17 @@ function PricingInner() {
           <ShieldCheck className="w-6 h-6 text-emerald-500 shrink-0 mt-1" />
           <div>
             <h3 className="text-xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
-              ¿Por qué la prevención no debe ser opaca?
+              {t('pricing.transparency_block.title')}
             </h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-              Publicamos cómo cobramos, qué incluye cada tier, y cuándo realmente te conviene
-              upgradear. Compáralo contra alternativas reales del mercado chileno.
+              {t('pricing.transparency_block.body')}
             </p>
             <Link
               to="/transparencia"
               className="inline-flex items-center gap-2 mt-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-black uppercase tracking-widest text-xs px-5 py-3 rounded-xl"
             >
               <Building2 className="w-4 h-4" />
-              Ver transparencia de precios
+              {t('pricing.cta.view_transparency')}
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>

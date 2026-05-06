@@ -34,6 +34,7 @@ import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 export const IOT_DEVICE_TYPES = [
   'gas_sensor',
@@ -105,21 +106,25 @@ router.post(
     }
 
     try {
-      await db
-        .collection('tenants')
-        .doc(tenantId)
-        .collection('iot_devices')
-        .doc(deviceId)
-        .set(
-          {
-            projectId,
-            type,
-            registeredBy: callerUid,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            status: 'active',
-          },
-          { merge: true },
-        );
+      await tracedAsync(
+        'iot.device.register',
+        { 'praeventio.uid': callerUid, 'praeventio.projectId': projectId, 'praeventio.tenantId': tenantId, deviceType: type },
+        () => db
+          .collection('tenants')
+          .doc(tenantId)
+          .collection('iot_devices')
+          .doc(deviceId)
+          .set(
+            {
+              projectId,
+              type,
+              registeredBy: callerUid,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              status: 'active',
+            },
+            { merge: true },
+          ),
+      );
 
       try {
         await auditServerEvent(req, 'iot.device.register', 'iot', {

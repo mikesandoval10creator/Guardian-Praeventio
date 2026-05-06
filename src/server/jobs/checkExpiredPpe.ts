@@ -21,6 +21,7 @@
 
 import type { Firestore } from 'firebase-admin/firestore';
 import type { messaging as adminMessaging } from 'firebase-admin';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 /** Lazy accessors — keep firebase-admin out of import cycles. */
 type FirestoreFactory = () => Firestore;
@@ -71,6 +72,19 @@ export interface CheckExpiredPpeResult {
  * to the operator dashboard.
  */
 export async function checkExpiredPpe(
+  opts: CheckExpiredPpeOptions = {},
+): Promise<CheckExpiredPpeResult> {
+  return tracedAsync(
+    'job.check_expired_ppe',
+    {
+      projectLimit: opts.projectLimit ?? 100,
+      assignmentLimit: opts.assignmentLimit ?? 200,
+    },
+    () => checkExpiredPpeInner(opts),
+  );
+}
+
+async function checkExpiredPpeInner(
   opts: CheckExpiredPpeOptions = {},
 ): Promise<CheckExpiredPpeResult> {
   const db = opts.getDb

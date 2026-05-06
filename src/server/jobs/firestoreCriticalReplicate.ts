@@ -35,6 +35,7 @@
 //   dependency. See the test file for the mocked surface contract.
 
 import type { Firestore } from 'firebase-admin/firestore';
+import { tracedAsync } from '../../services/observability/tracing.js';
 
 const ONE_HOUR_MS = 3_600_000;
 const DEFAULT_BUCKET = 'praeventio-critical-replica';
@@ -121,6 +122,16 @@ async function defaultUploader(
  * abort the others (W.6 test #4).
  */
 export async function replicateCriticalData(
+  opts: ReplicateOptions = {},
+): Promise<ReplicateResult> {
+  return tracedAsync(
+    'job.firestore_critical_replicate',
+    { collections: (opts.collections ?? CRITICAL_COLLECTIONS).join(',') },
+    () => replicateCriticalDataInner(opts),
+  );
+}
+
+async function replicateCriticalDataInner(
   opts: ReplicateOptions = {},
 ): Promise<ReplicateResult> {
   const now = (opts.now ?? (() => Date.now()))();
