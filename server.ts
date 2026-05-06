@@ -92,8 +92,19 @@ import dteRouter from "./src/server/routes/dte.js";
 import onboardingRouter from "./src/server/routes/onboarding.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
+// Sprint 35 audit P1 §1.3 — distributed lease so in-process cron jobs
+// (env polling 10min, project safety 6h) only run on ONE Cloud Run
+// replica per tick. Without this, every replica ran the tick
+// independently, burning Firestore quota.
+import { acquireLease } from "./src/services/scheduler/distributedLease.js";
+// Sprint 35 audit P1 §1.3 — Cloud Scheduler endpoint for the weekly
+// RLHF feedback aggregator (was orphaned after Sprint 32 B1).
+import adminJobsRouter from "./src/server/routes/adminJobs.js";
 // Sprint 32 Bucket TT — IoT device registration + MQTT broker boot.
 import iotRouter from "./src/server/routes/iot.js";
+// Sprint 35 F1 — Aptitude cert biometric generator (export-only, NO push to
+// MUTUAL/SUSESO/IST per memory product_signing_no_blocking_directives).
+import medicalAptitudeRouter from "./src/server/routes/medicalAptitude.js";
 import {
   connectMqttBroker,
   type IotBrokerAdapterName,
@@ -323,6 +334,10 @@ app.use("/api/health-vault", healthVaultRouter);
 // gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
 // public ingress can't trigger it without the secret.
 app.use("/api/maintenance", maintenanceRouter);
+// Sprint 35 audit P1 §1.3 — Cloud Scheduler endpoint for the weekly
+// `aggregateAiFeedback` job (Sprint 32 B1 left it orphan with no
+// trigger). Gated by SCHEDULER_SHARED_SECRET like /api/maintenance.
+app.use("/api/admin/jobs", adminJobsRouter);
 
 // Sprint 20 twelfth wave Bucket A (TM-I05) — CSP violation reports.
 //
@@ -556,6 +571,11 @@ app.use('/api/cad', cadRouter);
 // path) and /api/admin/iot/rotate-secret (admin-only).
 app.use('/api/iot', iotRouter);
 
+// Sprint 35 F1 — Aptitude cert biometric router. POST /generate +
+// /sign-challenge + /sign. Doctor/admin/gerente role gate. Generates
+// the artifact ONLY — empresa cliente prints + signs in person + sends.
+app.use('/api/medical', medicalAptitudeRouter);
+
 // Sprint 23 Bucket FF — Ley 19.628 compliance surface (consent + RAT +
 // data-subject access/rectification/erasure/portability). All write paths
 // go through verifyAuth; the RAT catalog is intentionally public.
@@ -660,12 +680,52 @@ initializeRAG().catch(console.error);
 // Sprint 27 (audit P0 H10) — capture the timer handle so SIGTERM can
 // clear it; otherwise Cloud Run's 10-second drain budget can't exit
 // cleanly on revision rollover.
-const environmentalPollingHandle = setInterval(() => {
-  updateGlobalEnvironmentalContext().catch(console.error);
-}, 10 * 60 * 1000);
+//
+// Sprint 35 audit P1 §1.3 — gate the tick with a Firestore-backed
+// distributed lease so only ONE Cloud Run replica fetches the global
+// environmental context per interval. TTL = 9 minutes (slightly less
+// than the 10-minute period) so a crashed replica's lease expires
+// before the next tick and the cluster doesn't stall.
+const RUNTIME_INSTANCE_ID =
+  process.env.K_REVISION ||
+  process.env.HOSTNAME ||
+  `pid-${process.pid}-${crypto.randomBytes(4).toString('hex')}`;
+const ENV_POLL_INTERVAL_MS = 10 * 60 * 1000;
+const ENV_POLL_LEASE_TTL_MS = 9 * 60 * 1000;
 
-// Run immediately at startup
-updateGlobalEnvironmentalContext().catch(console.error);
+async function envPollingTick(): Promise<void> {
+  try {
+    const lease = await acquireLease(
+      'envPolling',
+      ENV_POLL_LEASE_TTL_MS,
+      RUNTIME_INSTANCE_ID,
+    );
+    if (!lease.acquired) return; // another replica owns this tick
+    await updateGlobalEnvironmentalContext();
+  } catch (err) {
+    // NEVER crash the timer — log + Sentry capture and let the next
+    // interval re-attempt. The audit explicitly requires this safety.
+    console.error('[envPolling] tick failed:', err);
+    try {
+      getErrorTracker().captureException(
+        err instanceof Error ? err : new Error(String(err)),
+        { trigger: 'envPolling', tags: { phase: 'tick' } } as any,
+      );
+    } catch {
+      /* swallow */
+    }
+  }
+}
+
+const environmentalPollingHandle = setInterval(
+  () => {
+    void envPollingTick();
+  },
+  ENV_POLL_INTERVAL_MS,
+);
+
+// Run immediately at startup (also lease-gated so only one replica wins).
+void envPollingTick();
 
 // Round 21 R21 B1 Phase 5 split — `setupBackgroundTriggers` (FCM + RAG
 // onSnapshot listeners) extracted to src/server/triggers/backgroundTriggers.ts.
@@ -756,8 +816,22 @@ app.listen(PORT, "0.0.0.0", () => {
       firestoreNamespace: admin.firestore,
     });
 
-    // Proactive Project Health Checks (Every 6 hours to balance quota)
-    healthHandle = setupHealthCheckInterval({ db: admin.firestore() });
+    // Proactive Project Health Checks (Every 6 hours to balance quota).
+    // Sprint 35 audit P1 §1.3 — gate with distributed lease so only one
+    // Cloud Run replica runs the 6h safety pass. TTL = 5h 30m: shorter
+    // than the interval so a crashed replica's lease expires before the
+    // next tick.
+    healthHandle = setupHealthCheckInterval({
+      db: admin.firestore(),
+      gate: async () => {
+        const lease = await acquireLease(
+          'projectHealthCheck',
+          5 * 60 * 60 * 1000 + 30 * 60 * 1000,
+          RUNTIME_INSTANCE_ID,
+        );
+        return lease.acquired;
+      },
+    });
 
     // Sprint 32 Bucket TT (audit P0 W2) — MQTT broker boot.
     //

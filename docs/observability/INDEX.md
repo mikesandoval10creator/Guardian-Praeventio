@@ -74,6 +74,28 @@ Definidos en `memory/reference_external_systems.md`:
 | **Post-incident** | Si una alerta no disparó cuando debía, agregar nueva regla. Si disparó tarde, bajar threshold. Documentar en post-mortem (`INCIDENT_RESPONSE.md` §4.3). |
 | **Por ola de Sprint** | Cuando se añaden nuevos signals al código, este docs/observability se actualiza en la **misma** ola, no después. |
 
+## 7.b Cron jobs & scheduling mechanism
+
+Sprint 35 cerró audit P1 §1.3 (cron jobs duplicados en réplicas Cloud
+Run). Tabla canónica de qué corre dónde:
+
+| Job | Frecuencia | Mecanismo | RTO si falla |
+|---|---|---|---|
+| `envPolling` (`updateGlobalEnvironmentalContext`) | 10 min | In-process `setInterval` + Firestore lease (`distributedLease.ts`, TTL 9 min) | 10 min — siguiente tick re-intenta. |
+| `projectHealthCheck` (`setupHealthCheckInterval`) | 6 h | In-process `setInterval` + Firestore lease (TTL 5h30m) | 6 h — siguiente tick re-intenta. |
+| `check-overdue` (maintenance + PPE + SUSESO + calendar pre-warn) | ~1 h | Cloud Scheduler → `POST /api/maintenance/check-overdue` | 1 h. Idempotente. |
+| `aggregate-ai-feedback` (RLHF rollup) | Semanal `0 3 * * 0 UTC` | Cloud Scheduler → `POST /api/admin/jobs/aggregate-ai-feedback` | 1 semana. Idempotente sobre la misma `week`. |
+
+**Lease semantics**: doc en `system/leases/jobs/{jobName}` con
+`{ ownerInstance, leaseId, expiresAt, version, acquiredAt }`. Acquire
+es transaccional — si N réplicas hacen `setInterval` simultáneamente,
+solo 1 escribe el doc; las otras observan el doc fresco y skip el tick.
+Ver `src/services/scheduler/distributedLease.ts` + tests.
+
+**Cloud Scheduler endpoints** están todos gateados por
+`verifySchedulerToken` (`SCHEDULER_SHARED_SECRET`, constant-time
+compare). Failure mode si el secret no está en env: 503 fail-closed.
+
 ## 8. Convenciones
 
 - **IDs de alerta**: `<Severidad>-<dominio>-<descripcion-corta>` (e.g. `P0-slm-hmac-mismatch`).
