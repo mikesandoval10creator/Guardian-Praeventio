@@ -293,7 +293,7 @@ export function Analytics() {
               <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100">
                 <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-indigo-500" />
-                  Recomendaciones Estratégicas
+                  {t('analytics.strategic_recommendations', 'Recomendaciones Estratégicas')}
                 </h3>
                 <ul className="space-y-2">
                   {executiveSummary.recomendacionesClave.map((rec: string, i: number) => (
@@ -312,7 +312,7 @@ export function Analytics() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-white rounded-2xl p-4 border border-zinc-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Riesgos Críticos</p>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('analytics.kpi.critical_risks', 'Riesgos Críticos')}</p>
               <AlertTriangle className="w-4 h-4 text-rose-500" />
             </div>
             <div className="flex items-end gap-2">
@@ -325,7 +325,7 @@ export function Analytics() {
 
           <div className="bg-white rounded-2xl p-4 border border-zinc-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Incidentes (Mes)</p>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('analytics.kpi.incidents_month', 'Incidentes (Mes)')}</p>
               <Activity className="w-4 h-4 text-amber-500" />
             </div>
             <div className="flex items-end gap-2">
@@ -338,7 +338,7 @@ export function Analytics() {
 
           <div className="bg-white rounded-2xl p-4 border border-zinc-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Hallazgos Abiertos</p>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('analytics.kpi.open_findings', 'Hallazgos Abiertos')}</p>
               <FileText className="w-4 h-4 text-blue-500" />
             </div>
             <div className="flex items-end gap-2">
@@ -349,7 +349,7 @@ export function Analytics() {
 
           <div className="bg-white rounded-2xl p-4 border border-zinc-200 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Cumplimiento EPP</p>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('analytics.kpi.epp_compliance', 'Cumplimiento EPP')}</p>
               <ShieldCheck className="w-4 h-4 text-emerald-500" />
             </div>
             <div className="flex items-end gap-2">
@@ -367,7 +367,7 @@ export function Analytics() {
               complianceScore.total >= 60 ? 'border-amber-200' : 'border-rose-200'
             }`}>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Índice Legal</p>
+                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('analytics.kpi.legal_index', 'Índice Legal')}</p>
                 <BrainCircuit className={`w-4 h-4 ${
                   complianceScore.total >= 80 ? 'text-emerald-500' :
                   complianceScore.total >= 60 ? 'text-amber-500' : 'text-rose-500'
@@ -401,7 +401,7 @@ export function Analytics() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Risk Distribution */}
           <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="risk-distribution-title">Distribución de Riesgos</h3>
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="risk-distribution-title">{t('analytics.chart.risk_distribution', 'Distribución de Riesgos')}</h3>
             <div
               className="h-64"
               role="img"
@@ -429,7 +429,7 @@ export function Analytics() {
 
           {/* Incident Trend */}
           <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm">
-            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="incident-trend-title">Tendencia de Incidentes y Hallazgos</h3>
+            <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-widest mb-6" id="incident-trend-title">{t('analytics.chart.incident_trend', 'Tendencia de Incidentes y Hallazgos')}</h3>
             <div
               className="h-64"
               role="img"
@@ -453,7 +453,7 @@ export function Analytics() {
 
           {/* Safety Dimensions (New) */}
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 border border-zinc-200 dark:border-white/5 shadow-sm lg:col-span-2">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6" id="safety-radar-title">Radar de Dimensiones de Seguridad</h3>
+            <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest mb-6" id="safety-radar-title">{t('analytics.chart.safety_radar', 'Radar de Dimensiones de Seguridad')}</h3>
             <div
               className="h-80"
               role="img"

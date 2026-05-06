@@ -183,7 +183,7 @@ export function Settings() {
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label htmlFor={usernameId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nombre de Usuario</label>
+              <label htmlFor={usernameId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.profile.username', 'Nombre de Usuario')}</label>
               <input
                 id={usernameId}
                 type="text"
@@ -193,7 +193,7 @@ export function Settings() {
               />
             </div>
             <div>
-              <label htmlFor={emailFieldId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Correo Electrónico</label>
+              <label htmlFor={emailFieldId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.profile.email', 'Correo Electrónico')}</label>
               <input
                 id={emailFieldId}
                 type="email"
@@ -225,7 +225,7 @@ export function Settings() {
               </button>
             </div>
             <div>
-              <label htmlFor={sessionTimeoutId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Tiempo de Expiración de Sesión</label>
+              <label htmlFor={sessionTimeoutId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.security.session_timeout', 'Tiempo de Expiración de Sesión')}</label>
               <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="15">15 minutos de inactividad</option>
                 <option value="30">30 minutos de inactividad</option>
@@ -251,7 +251,7 @@ export function Settings() {
             </div>
             <div className="flex items-start justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex-1 pr-4">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Detección de Hombre Caído</h4>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.security.fall_detection', 'Detección de Hombre Caído')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-1">
                   Activa el monitoreo continuo del acelerómetro para detectar caídas. Recomendado solo si tu trabajo expone a riesgos de altura, andamios, techos o espacios confinados con desnivel.
                 </p>
@@ -279,7 +279,7 @@ export function Settings() {
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Alertas por Correo Electrónico</h4>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.notifications.email_alerts', 'Alertas por Correo Electrónico')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500">Resúmenes diarios y alertas críticas.</p>
               </div>
               <button
@@ -297,7 +297,7 @@ export function Settings() {
             <div className="flex flex-col gap-3 p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Notificaciones Push</h4>
+                  <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.notifications.push', 'Notificaciones Push')}</h4>
                   <p className="text-xs text-zinc-600 dark:text-zinc-500">Recibe alertas instantáneas.</p>
                 </div>
                 <button
@@ -451,7 +451,7 @@ export function Settings() {
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label htmlFor={themePrefId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Preferencia de Tema</label>
+              <label htmlFor={themePrefId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.appearance.theme', 'Preferencia de Tema')}</label>
               <select
                 id={themePrefId}
                 value={themePref}
@@ -505,7 +505,7 @@ export function Settings() {
                 analytics/event listeners but the dropdown UI is now the
                 single source of truth. */}
             <div>
-              <label htmlFor={timezoneId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Zona Horaria</label>
+              <label htmlFor={timezoneId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.regional.timezone', 'Zona Horaria')}</label>
               <select id={timezoneId} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
                 <option value="America/Santiago">America/Santiago (GMT-4)</option>
                 <option value="America/Lima">America/Lima (GMT-5)</option>
@@ -625,8 +625,8 @@ export function Settings() {
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Configuración</h1>
-        <p className="text-zinc-600 dark:text-zinc-400 mt-1 text-xs sm:text-sm">Personaliza tu experiencia en Praeventio Guard</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">{t('settings.title', 'Configuración')}</h1>
+        <p className="text-zinc-600 dark:text-zinc-400 mt-1 text-xs sm:text-sm">{t('settings.subtitle', 'Personaliza tu experiencia en Praeventio Guard')}</p>
       </div>
 
       <div className="space-y-4 mb-6 sm:mb-8">
@@ -737,7 +737,7 @@ export function Settings() {
       <div className="mt-8 sm:mt-12 p-4 sm:p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl sm:rounded-3xl">
         <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
           <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-rose-500" />
-          <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-widest">Zona de Peligro</h3>
+          <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-widest">{t('settings.danger_zone', 'Zona de Peligro')}</h3>
         </div>
         <p className="text-[10px] sm:text-sm text-zinc-700 dark:text-zinc-500 mb-4 sm:mb-6 leading-relaxed">
           Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.

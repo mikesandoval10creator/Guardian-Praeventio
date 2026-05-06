@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { 
-  User as UserIcon, 
+import { useTranslation } from 'react-i18next';
+import {
+  User as UserIcon,
   Shield, 
   Award, 
   Settings, 
@@ -35,6 +36,7 @@ import { MFASetupModal } from '../components/auth/MFASetupModal';
 import { Medal3DViewer } from '../components/gamification/Medal3DViewer';
 
 export function Profile() {
+  const { t } = useTranslation();
   const { user, isAdmin } = useFirebase();
   const navigate = useNavigate();
   const [isMfaSetupOpen, setIsMfaSetupOpen] = useState(false);
@@ -66,14 +68,14 @@ export function Profile() {
   };
 
   const achievements = [
-    { id: 1, title: 'Primeros Pasos', description: 'Completa tu primera capacitación', icon: Target, color: 'text-blue-500', bg: 'bg-blue-500/10', completed: completedCourses >= 1 },
-    { id: 2, title: 'Guardián Activo', description: 'Publica 5 veces en el muro', icon: MessageSquare, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10', completed: userPosts >= 5 },
-    { id: 3, title: 'Experto en Riesgos', description: 'Identifica 10 hallazgos', icon: Shield, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: totalPoints > 1000 },
-    { id: 4, title: 'Líder de Seguridad', description: 'Llega al nivel 10', icon: Trophy, color: 'text-purple-500', bg: 'bg-purple-500/10', completed: totalPoints > 5000 },
-    { id: 5, title: 'Semana Invicta', description: 'Sin incidentes registrados en 7 días', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: recentIncidents === 0 },
-    { id: 6, title: 'Curador del Conocimiento', description: 'Recibe 10 likes en publicaciones', icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10', completed: userLikes >= 10 },
-    { id: 7, title: 'Veterano de Campo', description: 'Lleva 30+ días en la plataforma', icon: Star, color: 'text-indigo-500', bg: 'bg-indigo-500/10', completed: daysSinceMember >= 30 },
-    { id: 8, title: 'Colaborador Estrella', description: 'Completa 3 o más capacitaciones', icon: TrendingUp, color: 'text-teal-500', bg: 'bg-teal-500/10', completed: completedCourses >= 3 },
+    { id: 1, title: t('profile.achievements.first_steps.title', 'Primeros Pasos'), description: t('profile.achievements.first_steps.desc', 'Completa tu primera capacitación'), icon: Target, color: 'text-blue-500', bg: 'bg-blue-500/10', completed: completedCourses >= 1 },
+    { id: 2, title: t('profile.achievements.active_guardian.title', 'Guardián Activo'), description: t('profile.achievements.active_guardian.desc', 'Publica 5 veces en el muro'), icon: MessageSquare, color: 'text-[#4db6ac] dark:text-[#d4af37]', bg: 'bg-[#4db6ac]/10', completed: userPosts >= 5 },
+    { id: 3, title: t('profile.achievements.risk_expert.title', 'Experto en Riesgos'), description: t('profile.achievements.risk_expert.desc', 'Identifica 10 hallazgos'), icon: Shield, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: totalPoints > 1000 },
+    { id: 4, title: t('profile.achievements.safety_leader.title', 'Líder de Seguridad'), description: t('profile.achievements.safety_leader.desc', 'Llega al nivel 10'), icon: Trophy, color: 'text-purple-500', bg: 'bg-purple-500/10', completed: totalPoints > 5000 },
+    { id: 5, title: t('profile.achievements.unbeaten_week.title', 'Semana Invicta'), description: t('profile.achievements.unbeaten_week.desc', 'Sin incidentes registrados en 7 días'), icon: Zap, color: 'text-amber-500', bg: 'bg-amber-500/10', completed: recentIncidents === 0 },
+    { id: 6, title: t('profile.achievements.knowledge_curator.title', 'Curador del Conocimiento'), description: t('profile.achievements.knowledge_curator.desc', 'Recibe 10 likes en publicaciones'), icon: Heart, color: 'text-rose-500', bg: 'bg-rose-500/10', completed: userLikes >= 10 },
+    { id: 7, title: t('profile.achievements.field_veteran.title', 'Veterano de Campo'), description: t('profile.achievements.field_veteran.desc', 'Lleva 30+ días en la plataforma'), icon: Star, color: 'text-indigo-500', bg: 'bg-indigo-500/10', completed: daysSinceMember >= 30 },
+    { id: 8, title: t('profile.achievements.star_collaborator.title', 'Colaborador Estrella'), description: t('profile.achievements.star_collaborator.desc', 'Completa 3 o más capacitaciones'), icon: TrendingUp, color: 'text-teal-500', bg: 'bg-teal-500/10', completed: completedCourses >= 3 },
   ];
 
   return (
@@ -81,16 +83,16 @@ export function Profile() {
       {/* Header Section - Duolingo Style */}
       <div className="flex items-start justify-between px-4">
         <div className="space-y-2">
-          <h1 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">{user?.displayName || 'Usuario'}</h1>
-          <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">Se unió en Marzo 2024</p>
+          <h1 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">{user?.displayName || t('profile.user_fallback', 'Usuario')}</h1>
+          <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest">{t('profile.joined_on', 'Se unió en Marzo 2024')}</p>
           <div className="flex items-center gap-4 pt-2">
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
-              <span className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37]">12 Siguiendo</span>
+              <span className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37]">{t('profile.following', '{{count}} Siguiendo', { count: 12 })}</span>
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
-              <span className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37]">48 Seguidores</span>
+              <span className="text-xs font-black text-[#4db6ac] dark:text-[#d4af37]">{t('profile.followers', '{{count}} Seguidores', { count: 48 })}</span>
             </div>
           </div>
         </div>
@@ -116,10 +118,10 @@ export function Profile() {
       <div className="px-2">
         <Card className="p-4 border-2 border-zinc-200 dark:border-zinc-800 rounded-[32px] overflow-hidden bg-gradient-to-b from-zinc-50 to-white dark:from-zinc-900 dark:to-black">
           <div className="text-center mb-2">
-            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Medalla Actual</h2>
-            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Gira para interactuar</p>
+            <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('profile.current_medal', 'Medalla Actual')}</h2>
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{t('profile.spin_to_interact', 'Gira para interactuar')}</p>
           </div>
-          <Medal3DViewer title="SEMANA INVICTA" color="#fbbf24" />
+          <Medal3DViewer title={t('profile.medal_unbeaten_week', 'SEMANA INVICTA')} color="#fbbf24" />
         </Card>
       </div>
 
@@ -128,25 +130,25 @@ export function Profile() {
         <Card className="p-4 border-2 border-orange-500/20 bg-orange-500/5 flex flex-col items-center gap-1 rounded-3xl">
           <Flame className="w-6 h-6 text-orange-500 fill-orange-500" />
           <span className="text-xl font-black text-orange-600">12</span>
-          <span className="text-[8px] font-black text-orange-500/60 uppercase tracking-widest">Días Racha</span>
+          <span className="text-[8px] font-black text-orange-500/60 uppercase tracking-widest">{t('profile.streak_days', 'Días Racha')}</span>
         </Card>
         <Card className="p-4 border-2 border-[#4db6ac]/20 dark:border-[#d4af37]/20 bg-[#4db6ac]/5 dark:bg-[#d4af37]/5 flex flex-col items-center gap-1 rounded-3xl">
           <Star className="w-6 h-6 text-[#4db6ac] dark:text-[#d4af37] fill-[#4db6ac] dark:fill-[#d4af37]" />
           <span className="text-xl font-black text-[#4db6ac] dark:text-[#d4af37]">{totalPoints}</span>
-          <span className="text-[8px] font-black text-[#4db6ac]/60 dark:text-[#d4af37]/60 uppercase tracking-widest">Total XP</span>
+          <span className="text-[8px] font-black text-[#4db6ac]/60 dark:text-[#d4af37]/60 uppercase tracking-widest">{t('profile.total_xp', 'Total XP')}</span>
         </Card>
         <Card className="p-4 border-2 border-blue-500/20 bg-blue-500/5 flex flex-col items-center gap-1 rounded-3xl">
           <Trophy className="w-6 h-6 text-blue-500 fill-blue-500" />
-          <span className="text-xl font-black text-blue-600">Oro</span>
-          <span className="text-[8px] font-black text-blue-500/60 uppercase tracking-widest">Liga Actual</span>
+          <span className="text-xl font-black text-blue-600">{t('profile.league_gold', 'Oro')}</span>
+          <span className="text-[8px] font-black text-blue-500/60 uppercase tracking-widest">{t('profile.current_league', 'Liga Actual')}</span>
         </Card>
       </div>
 
       {/* Achievements Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-4">
-          <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Logros</h2>
-          <button onClick={() => navigate('/gamification')} className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest hover:underline">Ver todos</button>
+          <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('profile.achievements_title', 'Logros')}</h2>
+          <button onClick={() => navigate('/gamification')} className="text-[10px] font-black text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest hover:underline">{t('profile.view_all', 'Ver todos')}</button>
         </div>
         <div className="grid grid-cols-1 gap-3 px-2">
           {achievements.map((achievement) => (
@@ -175,15 +177,15 @@ export function Profile() {
 
       {/* Friends Activity */}
       <div className="space-y-4">
-        <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter px-4">Amigos</h2>
+        <h2 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-tighter px-4">{t('profile.friends', 'Amigos')}</h2>
         <Card className="mx-2 p-6 rounded-[32px] bg-zinc-900 border-none relative overflow-hidden">
           <div className="absolute top-0 right-0 p-8 opacity-10">
             <Users className="w-24 h-24 text-white" />
           </div>
           <div className="relative z-10 space-y-4">
-            <p className="text-zinc-400 text-sm font-medium">Encuentra a tus compañeros de equipo y compite por ser el más seguro.</p>
+            <p className="text-zinc-400 text-sm font-medium">{t('profile.friends_desc', 'Encuentra a tus compañeros de equipo y compite por ser el más seguro.')}</p>
             <Button className="bg-white text-black hover:bg-zinc-200 font-black text-[10px] uppercase tracking-widest py-3 px-8 rounded-2xl">
-              Añadir Amigos
+              {t('profile.add_friends', 'Añadir Amigos')}
             </Button>
           </div>
         </Card>
@@ -206,7 +208,7 @@ export function Profile() {
             className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 border-zinc-200 dark:border-zinc-800"
           >
             <Settings className="w-4 h-4" />
-            Ajustes
+            {t('profile.settings', 'Ajustes')}
           </Button>
           <Button 
             variant="danger" 
@@ -214,7 +216,7 @@ export function Profile() {
             className="flex items-center justify-center gap-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-rose-500 hover:bg-rose-600 text-white border-none"
           >
             <LogOut className="w-4 h-4" />
-            Salir
+            {t('profile.logout', 'Salir')}
           </Button>
         </div>
       </div>

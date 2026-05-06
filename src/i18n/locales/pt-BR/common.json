@@ -1250,6 +1250,144 @@
       "first_aid_category": "Saúde"
     }
   },
+  "login": {
+    "tagline": "Identidade e Consciência",
+    "biometric_title": "Proteção Biométrica",
+    "biometric_desc": "Seus dados médicos e projetos protegidos por biometria (Face ID / Impressão digital)."
+  },
+  "projects": {
+    "title": "Gestão de Projetos",
+    "subtitle": "Gerencie seus canteiros, indústrias e níveis de risco",
+    "resource_label": "os projetos",
+    "requires_internet": "Requer conexão à internet",
+    "new_project": "Novo Projeto",
+    "new_subtitle": "Configure um novo canteiro ou local de trabalho",
+    "search_placeholder": "Buscar por nome, indústria ou localização...",
+    "syncing": "Sincronizando Projetos...",
+    "risk_label": "Risco {{level}}",
+    "stats": {
+      "active": "Projetos Ativos",
+      "industries": "Indústrias Cobertas",
+      "critical_risk": "Risco Crítico"
+    },
+    "view": {
+      "cards": "Cartões",
+      "timeline": "Linha do tempo"
+    },
+    "status": {
+      "pending": "Pendente",
+      "active": "Ativo",
+      "completed": "Concluído",
+      "archived": "Arquivado"
+    },
+    "tab": {
+      "overview": "Resumo",
+      "documents": "Docs",
+      "assets": "Ativos"
+    },
+    "detail": {
+      "general_info": "Informações Gerais",
+      "description": "Descrição",
+      "risk_level": "Nível de Risco",
+      "base_safety_eval": "Avaliação de Segurança Base",
+      "employer_suseso": "Empregador (SUSESO)"
+    },
+    "form": {
+      "name": "Nome do Projeto",
+      "name_placeholder": "Ex: Mina Los Bronces - Fase 4",
+      "industry": "Indústria / Setor",
+      "description": "Descrição do Projeto",
+      "description_placeholder": "Detalhes sobre o escopo e objetivos...",
+      "location": "Localização",
+      "location_placeholder": "Cidade, Região",
+      "client": "Cliente",
+      "client_placeholder": "Nome da empresa contratante",
+      "employer_section": "Dados do Empregador (Lei 16.744 / SUSESO)",
+      "legal_name": "Razão Social",
+      "legal_name_placeholder": "Nome legal da empresa",
+      "rut": "CNPJ Empresa",
+      "rut_placeholder": "Ex: 76.123.456-7",
+      "address": "Endereço",
+      "address_placeholder": "Rua, Número, Cidade",
+      "mutual": "Órgão Administrador",
+      "risk_level": "Nível de Risco Base",
+      "start_date": "Data de Início",
+      "shift_section": "Configuração de Jornada e GPS",
+      "shift_start": "Início da Jornada",
+      "shift_end": "Fim da Jornada",
+      "track_commute": "Rastrear Acidentes de Trajeto",
+      "track_commute_desc": "Mantém o GPS ativo 1 hora antes e depois da jornada.",
+      "submit": "Criar Projeto"
+    }
+  },
+  "profile": {
+    "user_fallback": "Usuário",
+    "joined_on": "Entrou em Março 2024",
+    "following": "{{count}} Seguindo",
+    "followers": "{{count}} Seguidores",
+    "current_medal": "Medalha Atual",
+    "spin_to_interact": "Gire para interagir",
+    "medal_unbeaten_week": "SEMANA INVICTA",
+    "streak_days": "Dias de Sequência",
+    "total_xp": "XP Total",
+    "league_gold": "Ouro",
+    "current_league": "Liga Atual",
+    "achievements_title": "Conquistas",
+    "view_all": "Ver todas",
+    "friends": "Amigos",
+    "friends_desc": "Encontre seus colegas de equipe e compita para ser o mais seguro.",
+    "add_friends": "Adicionar Amigos",
+    "settings": "Configurações",
+    "logout": "Sair",
+    "achievements": {
+      "first_steps": { "title": "Primeiros Passos", "desc": "Conclua seu primeiro treinamento" },
+      "active_guardian": { "title": "Guardião Ativo", "desc": "Publique 5 vezes no mural" },
+      "risk_expert": { "title": "Especialista em Riscos", "desc": "Identifique 10 achados" },
+      "safety_leader": { "title": "Líder de Segurança", "desc": "Alcance o nível 10" },
+      "unbeaten_week": { "title": "Semana Invicta", "desc": "Sem incidentes registrados em 7 dias" },
+      "knowledge_curator": { "title": "Curador do Conhecimento", "desc": "Receba 10 curtidas em publicações" },
+      "field_veteran": { "title": "Veterano de Campo", "desc": "30+ dias na plataforma" },
+      "star_collaborator": { "title": "Colaborador Estrela", "desc": "Conclua 3 ou mais treinamentos" }
+    }
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Personalize sua experiência no Praeventio Guard",
+    "danger_zone": "Zona de Perigo",
+    "profile": {
+      "username": "Nome de Usuário",
+      "email": "E-mail"
+    },
+    "security": {
+      "session_timeout": "Tempo de Expiração da Sessão",
+      "fall_detection": "Detecção de Queda"
+    },
+    "notifications": {
+      "email_alerts": "Alertas por E-mail",
+      "push": "Notificações Push"
+    },
+    "appearance": {
+      "theme": "Preferência de Tema"
+    },
+    "regional": {
+      "timezone": "Fuso Horário"
+    }
+  },
+  "analytics": {
+    "strategic_recommendations": "Recomendações Estratégicas",
+    "kpi": {
+      "critical_risks": "Riscos Críticos",
+      "incidents_month": "Incidentes (Mês)",
+      "open_findings": "Achados Abertos",
+      "epp_compliance": "Conformidade EPI",
+      "legal_index": "Índice Legal"
+    },
+    "chart": {
+      "risk_distribution": "Distribuição de Riscos",
+      "incident_trend": "Tendência de Incidentes e Achados",
+      "safety_radar": "Radar de Dimensões de Segurança"
+    }
+  },
   "landing": {
     "skip_to_content": "Pular para o conteúdo",
     "meta": {
