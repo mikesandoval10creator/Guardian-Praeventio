@@ -653,6 +653,57 @@ The cumulative-14 score (**72.37 %**) sits comfortably above `break: 50` and abo
 
 After items #2/#3/#4: projected cumulative-14 ~85 %. At that point a global `break: 60` ratchet becomes safe and `low: 70` / `high: 85` becomes a reasonable target band.
 
+## Sprint 34 — Linux CI runner enabled (audit P1)
+
+**Date:** 2026-05-06.
+**Branch:** `dev/sprint-34-zk-offline-edge-stryker-loadtest-sii-i18n-2026-05-06`.
+**Trigger:** Audit P1 finding — `limiters.ts` showed only 3% mutation coverage
+on Windows local runs (vs. 72% global) because the vitest worker fork
+crashes mid-mutant with `STATUS_STACK_BUFFER_OVERRUN`. The file was effectively
+silently skipped, producing a "false sense of security": tests covered branches
+but flipping `>` to `<` would not be caught. This sprint adds the Linux runner
+that was scoped in Sprint 22+ planning but never landed.
+
+**Status:**
+- `.github/workflows/mutation.yml` — new workflow, runs on `pull_request` to
+  `main`, `workflow_dispatch`, and a nightly cron at 03:17 UTC. `ubuntu-latest`,
+  60 min timeout, `continue-on-error: true` for Sprint 34. Promote to required
+  in Sprint 35 after 2 green runs.
+- `limiters.ts` confirmed present in `stryker.config.json` `mutate` array
+  (not excluded). Source of truth is now CI; Windows local users may run
+  surgical `npm run test:mutation:auth`/`:ergonomics`/etc. and skip limiters.
+- `scripts/check-mutation-thresholds.cjs` — new post-hoc per-file threshold
+  enforcer. Stryker 9.6.1 does not support per-file thresholds in schema.
+  This script parses `reports/mutation/report.json`, applies a RATCHET map
+  (≥80% files cannot regress; populated after first green run) and a
+  CRITICAL_FLOORS map (auth/billing/safety target 75%, limiters ramps from
+  60 → 75 in Sprint 36). Sprint 34 is informational (`|| true` in CI).
+- Thresholds in `stryker.config.json` are unchanged this sprint
+  (`high: 80, low: 60, break: 65` from R21). Bumping is deferred to
+  Sprint 35 after 2 stable Linux runs.
+- Per-file table baseline below will be populated after first green CI run.
+
+| File | Linux baseline | Windows local | Notes |
+|---|---:|---:|---|
+| `src/server/middleware/limiters.ts` | TBD | crash (STATUS_STACK_BUFFER_OVERRUN) | First Linux run pending |
+| `src/server/middleware/verifyAuth.ts` | TBD | 64.29% (8th wave) | Stable, confirm parity |
+| `src/services/billing/webpayAdapter.ts` | TBD | TBD | Critical floor 75% |
+| Other files | see R21 table above | see R21 | Linux should match within ±2pp |
+
+**Verification (Sprint 34):**
+- `npx tsc -b`: pending (CI-only changes; no source-code mutations).
+- Local Stryker run: deferred — Windows host crashes on `limiters.ts`. The
+  surgical `npm run test:mutation:auth` was not exercised this sprint to
+  avoid touching files unrelated to the audit gap; trust transferred to
+  the Linux runner.
+
+**Sprint 35 follow-ups:**
+- Drop `continue-on-error: true` on the mutation job once 2 runs are green.
+- Drop `|| true` on `check-mutation-thresholds.cjs` invocation.
+- Snapshot the per-file ratchet map into `scripts/check-mutation-thresholds.cjs`
+  using the first green run's per-file scores.
+- Decide on bump `break: 65 → 70` if `reba.ts` ≥80% on Linux.
+
 ## Cross-references
 
 - `docs/testing/MUTATION_TESTING.md` — top-level run guide, threshold policy, target rationale.

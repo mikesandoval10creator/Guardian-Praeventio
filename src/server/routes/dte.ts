@@ -1,9 +1,20 @@
-// Praeventio Guard — Sprint 23 Bucket GG.
+// Praeventio Guard — Sprint 23 Bucket GG + Sprint 34 biometric DTE.
+//
+// IMPORTANT (regla de producto inviolable):
+//   Praeventio NO push a SII. La empresa cliente imprime/firma/envía.
+//   Ver memoria producto product_signing_no_blocking_directives_2026-05-06.
 //
 // Admin DTE endpoints. Wraps the Bsale adapter so an operator can:
 //   • POST /api/dte/create  — emit a manual DTE outside the auto-pipeline.
 //   • GET  /api/dte/:folio  — fetch the live status from Bsale.
 //   • POST /api/dte/:folio/cancel — issue a Nota de Crédito to cancel a folio.
+//
+// Sprint 34 additions (biometric, no-push):
+//   • POST /api/dte/generate — build a SII-canonical DTE XML, sign it with
+//     a WebAuthn passkey (FaceID / Android Biometric / Google login
+//     fingerprint), render PDF. Returns { xml, pdfBase64, dteId, signedAt }.
+//     Does NOT push to SII; caller (frontend) downloads the artefacts and
+//     the empresa cliente prints/signs/submits via its own channel.
 //
 // Auto-emission on `invoice.status === 'paid'` lives in
 // `src/services/billing/invoice.ts:tryAutoIssueDte`. This route is the
@@ -13,10 +24,31 @@
 
 import { Router, type Request, type Response } from 'express';
 import admin from 'firebase-admin';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { BsaleAdapter, type DteCreateInput } from '../../services/sii/bsaleAdapter.js';
+import { generateDte } from '../../services/sii/dteGenerator.js';
+import { verifyAndSignDte } from '../../services/sii/dteSigner.js';
+import { renderDtePdf } from '../../services/sii/dtePdfRenderer.js';
+import { buildWebAuthnCredentialsDb } from './curriculum.js';
+import { auditServerEvent } from '../middleware/auditLog.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function dteSentryCapture(
+  err: unknown,
+  context: { endpoint: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] dte capture failed', e);
+  }
+}
 
 export const dteRouter = Router();
 
@@ -181,6 +213,157 @@ dteRouter.post('/:folio/cancel', verifyAuth, async (req: Request, res: Response)
     logger.error('POST /api/dte/:folio/cancel failed', err instanceof Error ? err : new Error(String(err)));
     return res.status(500).json({ error: 'dte_cancel_failed' });
   }
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/dte/generate  — Sprint 34 biometric DTE generator (NO push to SII).
+// ---------------------------------------------------------------------------
+//
+// Body shape (Zod-validated):
+//   {
+//     type: 33 | 39,
+//     receptorRut: string,
+//     receptorRazonSocial: string,
+//     fecha: string (YYYY-MM-DD),
+//     folio: positive int (CAF de la empresa cliente),
+//     items: [{ description, quantity (int>0), unitPrice (int>=0), exemptFromIva? }, …],
+//     biometric?: {
+//       credentialId: string,
+//       signature: string (b64),
+//       authenticatorData: string (b64),
+//       clientDataJSON: string (b64),
+//     }
+//   }
+//
+// If `biometric` is omitted, we return the unsigned XML + PDF (caller can
+// later POST again with the WebAuthn assertion to attach the signature).
+// If present, we verify the assertion against the registered passkey and
+// embed the XMLDSIG-shaped signature block.
+//
+// Response: { xml, pdfBase64, dteId, signedAt? }
+// Audit: action 'dte.generated' (always), 'dte.signed' (when biometric).
+const generateDteSchema = z.object({
+  type: z.union([z.literal(33), z.literal(39)]),
+  receptorRut: z.string().min(1).max(32),
+  receptorRazonSocial: z.string().min(1).max(256),
+  receptorDireccion: z.string().max(256).optional(),
+  receptorComuna: z.string().max(128).optional(),
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  folio: z.number().int().positive(),
+  items: z
+    .array(
+      z.object({
+        description: z.string().min(1).max(512),
+        quantity: z.number().int().positive(),
+        unitPrice: z.number().int().nonnegative(),
+        exemptFromIva: z.boolean().optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
+  biometric: z
+    .object({
+      credentialId: z.string().min(1).max(512),
+      signature: z.string().min(1),
+      authenticatorData: z.string().min(1),
+      clientDataJSON: z.string().min(1),
+    })
+    .optional(),
+});
+
+dteRouter.post('/generate', verifyAuth, async (req: Request, res: Response) => {
+  if (!(await requireAdmin(req, res))) return;
+  const callerUid = (req as any).user?.uid as string;
+
+  const parsed = generateDteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'invalid_input', details: parsed.error.flatten() });
+  }
+  const body = parsed.data;
+
+  let generated;
+  try {
+    generated = generateDte({
+      type: body.type,
+      receptorRut: body.receptorRut,
+      receptorRazonSocial: body.receptorRazonSocial,
+      receptorDireccion: body.receptorDireccion,
+      receptorComuna: body.receptorComuna,
+      fecha: body.fecha,
+      folio: body.folio,
+      items: body.items,
+    });
+  } catch (err) {
+    logger.error('dte.generate failed', err instanceof Error ? err : new Error(String(err)));
+    dteSentryCapture(err, { endpoint: 'POST /api/dte/generate', tags: { stage: 'generate' } });
+    return res.status(422).json({ error: 'dte_generation_failed', message: (err as Error).message });
+  }
+
+  let xmlOut = generated.xml;
+  let signedAt: string | null = null;
+  if (body.biometric) {
+    try {
+      const signed = await verifyAndSignDte(
+        {
+          xml: generated.xml,
+          dteHash: generated.hash,
+          credentialId: body.biometric.credentialId,
+          uid: callerUid,
+          signature: body.biometric.signature,
+          authenticatorData: body.biometric.authenticatorData,
+          clientDataJSON: body.biometric.clientDataJSON,
+        },
+        buildWebAuthnCredentialsDb(),
+      );
+      xmlOut = signed.signedXml;
+      signedAt = signed.signedAt;
+      void auditServerEvent(req, 'dte.signed', 'dte', {
+        dteId: generated.dteId,
+        type: body.type,
+        folio: body.folio,
+        credentialId: body.biometric.credentialId,
+      }).catch(() => {});
+    } catch (err) {
+      logger.warn('dte.sign failed', { message: (err as Error).message });
+      dteSentryCapture(err, { endpoint: 'POST /api/dte/generate', tags: { stage: 'sign' } });
+      void auditServerEvent(req, 'dte.sign_failed', 'dte', {
+        dteId: generated.dteId,
+        reason: (err as Error).message,
+      }).catch(() => {});
+      return res.status(401).json({ error: 'dte_sign_failed', message: (err as Error).message });
+    }
+  }
+
+  let pdfBase64: string;
+  try {
+    const buf = await renderDtePdf({
+      dte: generated,
+      signedAt,
+      items: body.items,
+      receptorRazonSocial: body.receptorRazonSocial,
+    });
+    pdfBase64 = buf.toString('base64');
+  } catch (err) {
+    logger.error('dte.pdf render failed', err instanceof Error ? err : new Error(String(err)));
+    dteSentryCapture(err, { endpoint: 'POST /api/dte/generate', tags: { stage: 'pdf' } });
+    return res.status(500).json({ error: 'dte_pdf_failed' });
+  }
+
+  void auditServerEvent(req, 'dte.generated', 'dte', {
+    dteId: generated.dteId,
+    type: body.type,
+    folio: body.folio,
+    total: generated.summary.total,
+    signed: !!body.biometric,
+  }).catch(() => {});
+
+  return res.json({
+    xml: xmlOut,
+    pdfBase64,
+    dteId: generated.dteId,
+    signedAt,
+    summary: generated.summary,
+  });
 });
 
 export default dteRouter;

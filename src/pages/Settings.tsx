@@ -35,6 +35,23 @@ import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
 
+/**
+ * Sprint 34 D4 — IDs estables para el switch del render (audit P0 §1.4).
+ * Antes el switch matcheaba contra strings ES como `case 'Perfil y Cuenta':`
+ * lo cual bloqueaba el sweep i18n: cambiar el label rompía el render.
+ * Ahora `activeSection` es un ID inmutable y el sidebar mapea
+ * `{ id, labelKey }` para renderizar `t(labelKey)`.
+ */
+type SettingsSectionId =
+  | 'profile'
+  | 'security'
+  | 'notifications'
+  | 'ai'
+  | 'database'
+  | 'appearance'
+  | 'regional'
+  | 'admin';
+
 export function Settings() {
   const { t, i18n } = useTranslation();
   const { notificationPermissionStatus, requestPermission } = usePushNotifications();
@@ -44,7 +61,10 @@ export function Settings() {
   const { user, isAdmin } = useFirebase();
   const { authenticate, isSupported } = useBiometricAuth();
   const { enabled: fallDetectionEnabled, setEnabled: setFallDetectionEnabled, loading: fallDetectionLoading } = useFallDetectionPreference();
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  // Sprint 34 D4 — stable IDs en lugar de strings ES (audit P0 §1.4).
+  // Cambiar el labelKey ya no rompe el switch del render: el
+  // `activeSection` ahora referencia un ID inmutable.
+  const [activeSection, setActiveSection] = useState<SettingsSectionId | null>(null);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
   // Stable IDs so each <label htmlFor> binds to the matching control
   // and screen readers can announce the field name on focus.
@@ -65,10 +85,10 @@ export function Settings() {
   useEffect(() => {
     const checkAuth = async () => {
       if (isSupported) {
-        const success = await authenticate('Confirme su identidad para acceder a la configuración');
+        const success = await authenticate(t('settings.auth.confirm_identity', 'Confirme su identidad para acceder a la configuración'));
         setIsAuthenticated(success);
         if (!success) {
-          addNotification({ title: 'Autenticación fallida', message: 'No se pudo verificar la identidad', type: 'warning' });
+          addNotification({ title: t('settings.auth.failed_title', 'Autenticación fallida'), message: t('settings.auth.failed_msg', 'No se pudo verificar la identidad'), type: 'warning' });
           navigate('/');
         }
       } else {
@@ -76,7 +96,7 @@ export function Settings() {
       }
     };
     checkAuth();
-  }, [isSupported, authenticate, navigate, addNotification]);
+  }, [isSupported, authenticate, navigate, addNotification, t]);
 
   React.useEffect(() => {
     const observer = new MutationObserver((mutations) => {
@@ -128,7 +148,7 @@ export function Settings() {
     i18n.changeLanguage(newLang);
     addNotification({
       title: t('common.success', 'Éxito'),
-      message: `Idioma cambiado a ${newLang === 'es' ? 'Español' : 'English'}`,
+      message: t('settings.regional.language_changed', 'Idioma cambiado a {{lang}}', { lang: newLang === 'es' ? 'Español' : 'English' }),
       type: 'success'
     });
   };
@@ -160,8 +180,8 @@ export function Settings() {
     }
   };
 
-  const handleSectionClick = (title: string) => {
-    setActiveSection(prev => prev === title ? null : title);
+  const handleSectionClick = (id: SettingsSectionId) => {
+    setActiveSection(prev => prev === id ? null : id);
   };
 
   const handleThemeToggle = async () => {
@@ -177,9 +197,9 @@ export function Settings() {
     }
   };
 
-  const renderSectionContent = (title: string) => {
-    switch (title) {
-      case 'Perfil y Cuenta':
+  const renderSectionContent = (id: SettingsSectionId) => {
+    switch (id) {
+      case 'profile':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
@@ -202,16 +222,16 @@ export function Settings() {
                 className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white opacity-50 cursor-not-allowed"
               />
             </div>
-            <p className="text-xs text-zinc-600 dark:text-zinc-500">Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.</p>
+            <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.profile.contact_admin', 'Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth.')}</p>
           </div>
         );
-      case 'Seguridad y Privacidad':
+      case 'security':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Autenticación de Dos Factores (2FA)</h4>
-                <p className="text-xs text-zinc-600 dark:text-zinc-500">Añade una capa extra de seguridad a tu cuenta.</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.security.mfa_title', 'Autenticación de Dos Factores (2FA)')}</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.security.mfa_desc', 'Añade una capa extra de seguridad a tu cuenta.')}</p>
               </div>
               <button
                 type="button"
@@ -227,14 +247,14 @@ export function Settings() {
             <div>
               <label htmlFor={sessionTimeoutId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.security.session_timeout', 'Tiempo de Expiración de Sesión')}</label>
               <select id={sessionTimeoutId} value={sessionTimeout} onChange={(e) => setSessionTimeout(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
-                <option value="15">15 minutos de inactividad</option>
-                <option value="30">30 minutos de inactividad</option>
-                <option value="60">1 hora de inactividad</option>
-                <option value="never">Nunca (No recomendado)</option>
+                <option value="15">{t('settings.security.timeout_15', '15 minutos de inactividad')}</option>
+                <option value="30">{t('settings.security.timeout_30', '30 minutos de inactividad')}</option>
+                <option value="60">{t('settings.security.timeout_60', '1 hora de inactividad')}</option>
+                <option value="never">{t('settings.security.timeout_never', 'Nunca (No recomendado)')}</option>
               </select>
             </div>
-            <button onClick={() => addNotification({title: 'Correo Enviado', message: 'Se ha enviado un enlace para restablecer tu contraseña.', type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
-              Cambiar Contraseña
+            <button onClick={() => addNotification({title: t('settings.security.password_email_title', 'Correo Enviado'), message: t('settings.security.password_email_msg', 'Se ha enviado un enlace para restablecer tu contraseña.'), type: 'success'})} className="w-full py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
+              {t('settings.security.change_password', 'Cambiar Contraseña')}
             </button>
             {/* Sprint 30 Bucket KK — WebAuthn keys (closes audit gap F-F). */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
@@ -242,10 +262,9 @@ export function Settings() {
             </div>
             {/* Sprint 31 Bucket MM — Datos personales y privacidad. */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
-              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">Datos personales y privacidad</h4>
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">{t('settings.security.privacy_title', 'Datos personales y privacidad')}</h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
-                Regímenes de protección de datos aplicables a tu cuenta + plazos legales
-                para responder solicitudes de acceso, rectificación o supresión.
+                {t('settings.security.privacy_desc', 'Regímenes de protección de datos aplicables a tu cuenta + plazos legales para responder solicitudes de acceso, rectificación o supresión.')}
               </p>
               <PrivacyComplianceMatrix country="CL" />
             </div>
@@ -253,10 +272,10 @@ export function Settings() {
               <div className="flex-1 pr-4">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.security.fall_detection', 'Detección de Hombre Caído')}</h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-1">
-                  Activa el monitoreo continuo del acelerómetro para detectar caídas. Recomendado solo si tu trabajo expone a riesgos de altura, andamios, techos o espacios confinados con desnivel.
+                  {t('settings.security.fall_detection_desc', 'Activa el monitoreo continuo del acelerómetro para detectar caídas. Recomendado solo si tu trabajo expone a riesgos de altura, andamios, techos o espacios confinados con desnivel.')}
                 </p>
                 <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-2 font-semibold">
-                  ⚠ Consume batería en segundo plano. Manténlo apagado si tu rubro no lo requiere.
+                  {t('settings.security.fall_detection_warn', '⚠ Consume batería en segundo plano. Manténlo apagado si tu rubro no lo requiere.')}
                 </p>
               </div>
               <button
@@ -274,13 +293,13 @@ export function Settings() {
             </div>
           </div>
         );
-      case 'Notificaciones':
+      case 'notifications':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.notifications.email_alerts', 'Alertas por Correo Electrónico')}</h4>
-                <p className="text-xs text-zinc-600 dark:text-zinc-500">Resúmenes diarios y alertas críticas.</p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.notifications.email_alerts_desc', 'Resúmenes diarios y alertas críticas.')}</p>
               </div>
               <button
                 type="button"
@@ -298,7 +317,7 @@ export function Settings() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.notifications.push', 'Notificaciones Push')}</h4>
-                  <p className="text-xs text-zinc-600 dark:text-zinc-500">Recibe alertas instantáneas.</p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.notifications.push_desc', 'Recibe alertas instantáneas.')}</p>
                 </div>
                 <button
                   type="button"
@@ -320,8 +339,8 @@ export function Settings() {
                 <div className="pl-4 border-l-2 border-zinc-100 dark:border-white/10 space-y-4 mt-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🚨 Emergencias (S.O.S)</h5>
-                      <p className="text-[10px] text-zinc-500">Alertas de S.O.S, evacuación y clima extremo. (No se puede desactivar por seguridad)</p>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_emergencies', '🚨 Emergencias (S.O.S)')}</h5>
+                      <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_emergencies_desc', 'Alertas de S.O.S, evacuación y clima extremo. (No se puede desactivar por seguridad)')}</p>
                     </div>
                     <button
                       type="button"
@@ -338,8 +357,8 @@ export function Settings() {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🩺 Exámenes Médicos</h5>
-                      <p className="text-[10px] text-zinc-500">Recordatorios de vigencia y nuevos resultados médicos.</p>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_medical', '🩺 Exámenes Médicos')}</h5>
+                      <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_medical_desc', 'Recordatorios de vigencia y nuevos resultados médicos.')}</p>
                     </div>
                     <button
                       type="button"
@@ -355,8 +374,8 @@ export function Settings() {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">📚 Capacitaciones</h5>
-                      <p className="text-[10px] text-zinc-500">Asignaciones de cursos, ODI y charlas programadas.</p>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_training', '📚 Capacitaciones')}</h5>
+                      <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_training_desc', 'Asignaciones de cursos, ODI y charlas programadas.')}</p>
                     </div>
                     <button
                       type="button"
@@ -372,8 +391,8 @@ export function Settings() {
                   
                   <div className="flex items-center justify-between">
                     <div>
-                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">🤖 Asistente IA (Guardian)</h5>
-                      <p className="text-[10px] text-zinc-500">Consejos predictivos y anomalías detectadas en terreno.</p>
+                      <h5 className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 uppercase tracking-widest">{t('settings.notifications.cat_ai', '🤖 Asistente IA (Guardian)')}</h5>
+                      <p className="text-[10px] text-zinc-500">{t('settings.notifications.cat_ai_desc', 'Consejos predictivos y anomalías detectadas en terreno.')}</p>
                     </div>
                     <button
                       type="button"
@@ -391,21 +410,21 @@ export function Settings() {
             </div>
           </div>
         );
-      case 'Configuración de IA':
+      case 'ai':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
-              <label htmlFor={aiDetailId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">Nivel de Detalle del Asistente</label>
+              <label htmlFor={aiDetailId} className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest">{t('settings.ai.detail_level', 'Nivel de Detalle del Asistente')}</label>
               <select id={aiDetailId} value={aiDetail} onChange={(e) => setAiDetail(e.target.value)} className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none">
-                <option value="conciso">Conciso (Respuestas directas y cortas)</option>
-                <option value="equilibrado">Equilibrado (Recomendado)</option>
-                <option value="detallado">Detallado (Explicaciones exhaustivas y normativas)</option>
+                <option value="conciso">{t('settings.ai.opt_concise', 'Conciso (Respuestas directas y cortas)')}</option>
+                <option value="equilibrado">{t('settings.ai.opt_balanced', 'Equilibrado (Recomendado)')}</option>
+                <option value="detallado">{t('settings.ai.opt_detailed', 'Detallado (Explicaciones exhaustivas y normativas)')}</option>
               </select>
             </div>
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Análisis Predictivo Autónomo</h4>
-                <p className="text-xs text-zinc-600 dark:text-zinc-500">Permite a la IA analizar datos en segundo plano.</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.ai.predictive_title', 'Análisis Predictivo Autónomo')}</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.ai.predictive_desc', 'Permite a la IA analizar datos en segundo plano.')}</p>
               </div>
               <button
                 type="button"
@@ -420,7 +439,7 @@ export function Settings() {
             </div>
           </div>
         );
-      case 'Base de Datos y Red Neuronal':
+      case 'database':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-6">
             <BunkerManager />
@@ -429,25 +448,25 @@ export function Settings() {
               <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Database className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
                 <span className="text-2xl font-black text-zinc-900 dark:text-white">1.2GB</span>
-                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">Almacenamiento</p>
+                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">{t('settings.database.storage', 'Almacenamiento')}</p>
               </div>
               <div className="p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 text-center">
                 <Network className="w-6 h-6 text-indigo-500 mx-auto mb-2" />
                 <span className="text-2xl font-black text-zinc-900 dark:text-white">842</span>
-                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">Nodos Activos</p>
+                <p className="text-[10px] font-bold text-zinc-700 dark:text-zinc-500 uppercase tracking-widest mt-1">{t('settings.database.active_nodes', 'Nodos Activos')}</p>
               </div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => addNotification({title: 'Exportación Iniciada', message: 'Tus datos se están preparando para descarga.', type: 'success'})} className="flex-1 py-2 bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] text-xs font-bold rounded-xl transition-colors border border-[#4db6ac]/20">
-                Exportar Datos (JSON)
+              <button onClick={() => addNotification({title: t('settings.database.export_title', 'Exportación Iniciada'), message: t('settings.database.export_msg', 'Tus datos se están preparando para descarga.'), type: 'success'})} className="flex-1 py-2 bg-[#4db6ac]/10 hover:bg-[#4db6ac]/20 text-[#2a8a81] dark:text-[#4db6ac] text-xs font-bold rounded-xl transition-colors border border-[#4db6ac]/20">
+                {t('settings.database.export_btn', 'Exportar Datos (JSON)')}
               </button>
-              <button onClick={() => addNotification({title: 'Caché Limpiada', message: 'Se ha liberado espacio local correctamente.', type: 'success'})} className="flex-1 py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
-                Limpiar Caché
+              <button onClick={() => addNotification({title: t('settings.database.cache_title', 'Caché Limpiada'), message: t('settings.database.cache_msg', 'Se ha liberado espacio local correctamente.'), type: 'success'})} className="flex-1 py-2 bg-zinc-100 dark:bg-white/5 hover:bg-zinc-200 dark:hover:bg-white/10 text-zinc-900 dark:text-white text-xs font-bold rounded-xl transition-colors border border-zinc-200 dark:border-white/10">
+                {t('settings.database.cache_btn', 'Limpiar Caché')}
               </button>
             </div>
           </div>
         );
-      case 'Interfaz y Tema':
+      case 'appearance':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
             <div>
@@ -463,16 +482,16 @@ export function Settings() {
                 }}
                 className="mt-1 w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
               >
-                <option value="light">Claro (Fondo #4EB5AC)</option>
-                <option value="dark">Oscuro</option>
-                <option value="auto">Automático (Día/Noche)</option>
-                <option value="system">Sistema Operativo</option>
+                <option value="light">{t('settings.appearance.theme_light', 'Claro (Fondo #4EB5AC)')}</option>
+                <option value="dark">{t('settings.appearance.theme_dark', 'Oscuro')}</option>
+                <option value="auto">{t('settings.appearance.theme_auto', 'Automático (Día/Noche)')}</option>
+                <option value="system">{t('settings.appearance.theme_system', 'Sistema Operativo')}</option>
               </select>
             </div>
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
               <div>
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">Modo Oscuro Manual</h4>
-                <p className="text-xs text-zinc-600 dark:text-zinc-500">Alternar rápidamente (sobrescribe la preferencia)</p>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white">{t('settings.appearance.dark_manual_title', 'Modo Oscuro Manual')}</h4>
+                <p className="text-xs text-zinc-600 dark:text-zinc-500">{t('settings.appearance.dark_manual_desc', 'Alternar rápidamente (sobrescribe la preferencia)')}</p>
               </div>
               <button
                 type="button"
@@ -494,10 +513,10 @@ export function Settings() {
             </div>
           </div>
         );
-      case 'Idioma y Región':
+      case 'regional':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-4">
-            <LocalePicker label="Idioma de la Interfaz" />
+            <LocalePicker label={t('settings.regional.ui_language', 'Idioma de la Interfaz')} />
             {/* LocalePicker delegates to LanguageProvider which syncs
                 i18next, the RTL `<html dir>` flag, lazy locale chunks and
                 the Firestore user doc. The legacy `language` /
@@ -515,22 +534,22 @@ export function Settings() {
             </div>
           </div>
         );
-      case 'Administración de Usuarios':
+      case 'admin':
         return (
           <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-white/5 space-y-6">
             {/* Set Role */}
             <div className="space-y-3">
-              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest" id={`${adminUidId}-group-label`}>Asignar Rol a Usuario</p>
-              <label htmlFor={adminUidId} className="sr-only">UID del usuario (Firebase Auth)</label>
+              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest" id={`${adminUidId}-group-label`}>{t('settings.admin.assign_role', 'Asignar Rol a Usuario')}</p>
+              <label htmlFor={adminUidId} className="sr-only">{t('settings.admin.uid_label', 'UID del usuario (Firebase Auth)')}</label>
               <input
                 id={adminUidId}
                 type="text"
-                placeholder="UID del usuario (Firebase Auth)"
+                placeholder={t('settings.admin.uid_label', 'UID del usuario (Firebase Auth)')}
                 value={adminTargetUid}
                 onChange={e => { setAdminTargetUid(e.target.value); setAdminActionStatus(null); }}
                 className="w-full bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-xl px-4 py-2 text-sm text-zinc-900 dark:text-white focus:border-emerald-500 outline-none"
               />
-              <label htmlFor={adminRoleId} className="sr-only">Rol a asignar</label>
+              <label htmlFor={adminRoleId} className="sr-only">{t('settings.admin.role_label', 'Rol a asignar')}</label>
               <select
                 id={adminRoleId}
                 value={adminTargetRole}
@@ -544,7 +563,7 @@ export function Settings() {
               <button
                 disabled={!adminTargetUid.trim()}
                 onClick={async () => {
-                  setAdminActionStatus('Guardando...');
+                  setAdminActionStatus(t('settings.admin.saving', 'Guardando...'));
                   try {
                     const token = await user?.getIdToken();
                     const res = await fetch('/api/admin/set-role', {
@@ -553,23 +572,23 @@ export function Settings() {
                       body: JSON.stringify({ uid: adminTargetUid.trim(), role: adminTargetRole }),
                     });
                     const data = await res.json();
-                    setAdminActionStatus(res.ok ? `✓ Rol "${adminTargetRole}" asignado` : `Error: ${data.error}`);
-                  } catch { setAdminActionStatus('Error de red'); }
+                    setAdminActionStatus(res.ok ? `✓ ${t('settings.admin.role_assigned', 'Rol asignado')}: ${adminTargetRole}` : `${t('common.error', 'Error')}: ${data.error}`);
+                  } catch { setAdminActionStatus(t('settings.admin.network_error', 'Error de red')); }
                 }}
                 className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-white text-xs font-black rounded-xl transition-colors"
               >
-                Asignar Rol
+                {t('settings.admin.assign_role_btn', 'Asignar Rol')}
               </button>
             </div>
 
             {/* Revoke Access */}
             <div className="space-y-3 border-t border-zinc-200 dark:border-white/5 pt-4">
-              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Revocar Acceso</p>
-              <p className="text-xs text-zinc-500">Invalida inmediatamente todos los tokens de sesión del usuario.</p>
+              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{t('settings.admin.revoke', 'Revocar Acceso')}</p>
+              <p className="text-xs text-zinc-500">{t('settings.admin.revoke_desc', 'Invalida inmediatamente todos los tokens de sesión del usuario.')}</p>
               <button
                 disabled={!adminTargetUid.trim()}
                 onClick={async () => {
-                  setAdminActionStatus('Revocando...');
+                  setAdminActionStatus(t('settings.admin.revoking', 'Revocando...'));
                   try {
                     const token = await user?.getIdToken();
                     const res = await fetch('/api/admin/revoke-access', {
@@ -578,12 +597,12 @@ export function Settings() {
                       body: JSON.stringify({ targetUid: adminTargetUid.trim() }),
                     });
                     const data = await res.json();
-                    setAdminActionStatus(res.ok ? '✓ Acceso revocado' : `Error: ${data.error}`);
-                  } catch { setAdminActionStatus('Error de red'); }
+                    setAdminActionStatus(res.ok ? `✓ ${t('settings.admin.revoked_ok', 'Acceso revocado')}` : `${t('common.error', 'Error')}: ${data.error}`);
+                  } catch { setAdminActionStatus(t('settings.admin.network_error', 'Error de red')); }
                 }}
                 className="w-full py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white text-xs font-black rounded-xl transition-colors"
               >
-                Revocar Acceso
+                {t('settings.admin.revoke', 'Revocar Acceso')}
               </button>
             </div>
 
@@ -605,21 +624,31 @@ export function Settings() {
 
   const handleDeleteAccount = () => {
     addNotification({
-      title: 'Acción Restringida',
-      message: 'Para eliminar tu cuenta permanentemente, por favor contacta al administrador del sistema.',
+      title: t('settings.delete_restricted_title', 'Acción Restringida'),
+      message: t('settings.delete_restricted_msg', 'Para eliminar tu cuenta permanentemente, por favor contacta al administrador del sistema.'),
       type: 'warning'
     });
   };
 
-  const sections = [
-    { title: 'Perfil y Cuenta', icon: User, description: 'Gestiona tu información personal y preferencias de acceso.' },
-    { title: 'Seguridad y Privacidad', icon: Lock, description: 'Configura la autenticación de dos factores y permisos de datos.' },
-    { title: 'Notificaciones', icon: Bell, description: 'Personaliza qué alertas deseas recibir y por qué canales.' },
-    { title: 'Configuración de IA', icon: Zap, description: 'Ajusta el comportamiento de Gemini y el análisis predictivo.' },
-    { title: 'Base de Datos y Red Neuronal', icon: Database, description: 'Gestión de nodos, conexiones y exportación de datos.' },
-    { title: 'Interfaz y Tema', icon: Palette, description: 'Personaliza el aspecto visual de Praeventio Guard.' },
-    { title: 'Idioma y Región', icon: Globe, description: 'Ajusta el idioma de la plataforma y formatos regionales.' },
-    ...(isAdmin ? [{ title: 'Administración de Usuarios', icon: Shield, description: 'Asigna roles y revoca acceso a usuarios de la plataforma.' }] : []),
+  // Sprint 34 D4 — sidebar items con ID estable + labelKey i18n
+  // (audit P0 §1.4). El render consume `t(labelKey)` y `t(descKey)`,
+  // no hard-coded ES strings.
+  const sections: Array<{
+    id: SettingsSectionId;
+    labelKey: string;
+    descKey: string;
+    fallbackLabel: string;
+    fallbackDesc: string;
+    icon: typeof User;
+  }> = [
+    { id: 'profile', labelKey: 'settings.sections.profile.label', descKey: 'settings.sections.profile.desc', fallbackLabel: 'Perfil y Cuenta', fallbackDesc: 'Gestiona tu información personal y preferencias de acceso.', icon: User },
+    { id: 'security', labelKey: 'settings.sections.security.label', descKey: 'settings.sections.security.desc', fallbackLabel: 'Seguridad y Privacidad', fallbackDesc: 'Configura la autenticación de dos factores y permisos de datos.', icon: Lock },
+    { id: 'notifications', labelKey: 'settings.sections.notifications.label', descKey: 'settings.sections.notifications.desc', fallbackLabel: 'Notificaciones', fallbackDesc: 'Personaliza qué alertas deseas recibir y por qué canales.', icon: Bell },
+    { id: 'ai', labelKey: 'settings.sections.ai.label', descKey: 'settings.sections.ai.desc', fallbackLabel: 'Configuración de IA', fallbackDesc: 'Ajusta el comportamiento de Gemini y el análisis predictivo.', icon: Zap },
+    { id: 'database', labelKey: 'settings.sections.database.label', descKey: 'settings.sections.database.desc', fallbackLabel: 'Base de Datos y Red Neuronal', fallbackDesc: 'Gestión de nodos, conexiones y exportación de datos.', icon: Database },
+    { id: 'appearance', labelKey: 'settings.sections.appearance.label', descKey: 'settings.sections.appearance.desc', fallbackLabel: 'Interfaz y Tema', fallbackDesc: 'Personaliza el aspecto visual de Praeventio Guard.', icon: Palette },
+    { id: 'regional', labelKey: 'settings.sections.regional.label', descKey: 'settings.sections.regional.desc', fallbackLabel: 'Idioma y Región', fallbackDesc: 'Ajusta el idioma de la plataforma y formatos regionales.', icon: Globe },
+    ...(isAdmin ? [{ id: 'admin' as const, labelKey: 'settings.sections.admin.label', descKey: 'settings.sections.admin.desc', fallbackLabel: 'Administración de Usuarios', fallbackDesc: 'Asigna roles y revoca acceso a usuarios de la plataforma.', icon: Shield }] : []),
   ];
 
   return (
@@ -637,8 +666,8 @@ export function Settings() {
                 <Smartphone className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Notificaciones Push (FCM)</h3>
-                <p className="text-zinc-600 dark:text-zinc-400 text-[10px] sm:text-sm">Recibe alertas críticas y de emergencia en tiempo real.</p>
+                <h3 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">{t('settings.fcm.title', 'Notificaciones Push (FCM)')}</h3>
+                <p className="text-zinc-600 dark:text-zinc-400 text-[10px] sm:text-sm">{t('settings.fcm.desc', 'Recibe alertas críticas y de emergencia en tiempo real.')}</p>
               </div>
             </div>
             <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start w-full sm:w-auto mt-2 sm:mt-0">
@@ -647,9 +676,9 @@ export function Settings() {
                 notificationPermissionStatus === 'denied' ? 'bg-rose-500/20 text-rose-400' :
                 'bg-amber-500/20 text-amber-400'
               }`}>
-                {notificationPermissionStatus === 'granted' ? 'Activas' :
-                 notificationPermissionStatus === 'denied' ? 'Bloqueadas' :
-                 'Pendientes'}
+                {notificationPermissionStatus === 'granted' ? t('settings.fcm.status_granted', 'Activas') :
+                 notificationPermissionStatus === 'denied' ? t('settings.fcm.status_denied', 'Bloqueadas') :
+                 t('settings.fcm.status_pending', 'Pendientes')}
               </span>
               {notificationPermissionStatus !== 'granted' && (
                 <button 
@@ -664,27 +693,29 @@ export function Settings() {
                   {!isOnline ? (
                     <>
                       <WifiOff className="w-3 h-3" />
-                      Requiere Conexión
+                      {t('settings.fcm.requires_connection', 'Requiere Conexión')}
                     </>
                   ) : (
-                    'Activar Notificaciones'
+                    t('settings.fcm.enable_btn', 'Activar Notificaciones')
                   )}
                 </button>
               )}
             </div>
           </div>
           <p className="text-[10px] sm:text-xs text-zinc-700 dark:text-zinc-500 leading-relaxed">
-            Para recibir notificaciones push, debes permitir el acceso en tu navegador. Esto habilitará Firebase Cloud Messaging (FCM) para enviarte alertas críticas incluso cuando la aplicación esté en segundo plano.
+            {t('settings.fcm.long_desc', 'Para recibir notificaciones push, debes permitir el acceso en tu navegador. Esto habilitará Firebase Cloud Messaging (FCM) para enviarte alertas críticas incluso cuando la aplicación esté en segundo plano.')}
           </p>
         </div>
       </div>
 
       <div className="space-y-3 sm:space-y-4">
         {sections.map((section, index) => {
-          const isActive = activeSection === section.title;
+          const isActive = activeSection === section.id;
+          const label = t(section.labelKey, section.fallbackLabel);
+          const description = t(section.descKey, section.fallbackDesc);
           return (
             <motion.div
-              key={section.title}
+              key={section.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
@@ -692,9 +723,9 @@ export function Settings() {
             >
               <button
                 type="button"
-                onClick={() => handleSectionClick(section.title)}
+                onClick={() => handleSectionClick(section.id)}
                 aria-expanded={isActive}
-                aria-controls={`settings-section-${section.title.replace(/\s+/g, '-').toLowerCase()}`}
+                aria-controls={`settings-section-${section.id}`}
                 className="w-full p-4 sm:p-5 flex items-center justify-between gap-4 cursor-pointer group text-left"
               >
                 <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1">
@@ -702,15 +733,15 @@ export function Settings() {
                     <section.icon className="w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{section.title}</h2>
-                    <p className="text-zinc-600 dark:text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{section.description}</p>
+                    <h2 className={`font-bold text-sm sm:text-base transition-colors truncate ${isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400'}`}>{label}</h2>
+                    <p className="text-zinc-600 dark:text-zinc-500 text-[10px] sm:text-sm line-clamp-2 sm:line-clamp-1">{description}</p>
                   </div>
                 </div>
                 <motion.div animate={{ rotate: isActive ? 180 : 0 }} transition={{ duration: 0.2 }} aria-hidden="true">
                   <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 shrink-0 transition-colors ${isActive ? 'text-emerald-600 dark:text-emerald-500' : 'text-zinc-400 dark:text-zinc-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-500'}`} />
                 </motion.div>
               </button>
-              
+
               <AnimatePresence>
                 {isActive && (
                   <motion.div
@@ -719,12 +750,12 @@ export function Settings() {
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2, ease: "easeInOut" }}
                     className="overflow-hidden"
-                    id={`settings-section-${section.title.replace(/\s+/g, '-').toLowerCase()}`}
+                    id={`settings-section-${section.id}`}
                     role="region"
-                    aria-label={section.title}
+                    aria-label={label}
                   >
                     <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-                      {renderSectionContent(section.title)}
+                      {renderSectionContent(section.id)}
                     </div>
                   </motion.div>
                 )}
@@ -740,20 +771,20 @@ export function Settings() {
           <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white uppercase tracking-widest">{t('settings.danger_zone', 'Zona de Peligro')}</h3>
         </div>
         <p className="text-[10px] sm:text-sm text-zinc-700 dark:text-zinc-500 mb-4 sm:mb-6 leading-relaxed">
-          Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.
+          {t('settings.danger_desc', 'Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.')}
         </p>
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <button 
             onClick={handleLogout}
             className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all border border-rose-500/20 active:scale-95"
           >
-            Cerrar Sesión Global
+            {t('settings.logout_global', 'Cerrar Sesión Global')}
           </button>
           <button 
             onClick={handleDeleteAccount}
             className="w-full sm:w-auto px-4 py-3 sm:py-2 bg-rose-500 hover:bg-rose-600 text-white text-[10px] sm:text-sm font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20 active:scale-95"
           >
-            Eliminar Cuenta
+            {t('settings.delete_account', 'Eliminar Cuenta')}
           </button>
         </div>
       </div>

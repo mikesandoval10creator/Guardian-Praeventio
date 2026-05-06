@@ -23,6 +23,11 @@
 import type admin from 'firebase-admin';
 import type { Resend } from 'resend';
 import { getErrorTracker } from '../../services/observability/index.js';
+import {
+  writeIncidentPostmortemNode,
+  type IncidentDoc as PostmortemIncidentDoc,
+  type MinimalFirestore as PostmortemMinimalStore,
+} from '../../services/zettelkasten/incidentPostmortem.js';
 
 function sentryCapture(
   err: unknown,
@@ -60,6 +65,19 @@ export interface BackgroundTriggersHandle {
 }
 
 /**
+ * Resolves a single-text embedding via the configured batch embedder.
+ * Used by the incident post-mortem trigger.
+ */
+function singleEmbedAdapter(
+  batch: (texts: string[]) => Promise<number[][]>,
+): (text: string) => Promise<number[]> {
+  return async (text: string) => {
+    const out = await batch([text]);
+    return out?.[0] ?? [];
+  };
+}
+
+/**
  * Wire up the two real-time listeners and return a handle whose
  * `unsubscribe()` cancels both subscriptions. Safe to call multiple times
  * — each call returns an independent handle.
@@ -70,11 +88,13 @@ export function setupBackgroundTriggers(
   const noop = () => {};
   let unsubIncidents: () => void = noop;
   let unsubRag: () => void = noop;
+  let unsubIncidentClose: () => void = noop;
 
   try {
     const { db, messaging, resend, firestoreNamespace } = deps;
     let isInitialLoadIncidents = true;
     let isInitialLoadRAG = true;
+    let isInitialLoadIncidentClose = true;
 
     // Trigger 1: critical incidents → FCM + CPHS email
     unsubIncidents = db
@@ -262,6 +282,73 @@ export function setupBackgroundTriggers(
           sentryCapture(error, { trigger: 'ragListener', tags: { phase: 'onSnapshot-error' } });
         },
       );
+    // Trigger 3: incident close → Zettelkasten post-mortem auto-write.
+    // Listens to top-level `incidents` collection (cross-tenant). Each doc
+    // must carry `tenantId`, `projectId`, `status`, and `rootCause` for the
+    // service to act. Fire-and-forget — never throws back to the listener.
+    unsubIncidentClose = db.collection('incidents').onSnapshot(
+      (snapshot) => {
+        if (isInitialLoadIncidentClose) {
+          isInitialLoadIncidentClose = false;
+          return;
+        }
+        snapshot.docChanges().forEach(async (change) => {
+          if (change.type !== 'modified' && change.type !== 'added') return;
+          const data = change.doc.data() as Record<string, unknown>;
+          const status = String(data.status ?? '').toLowerCase();
+          if (status !== 'closed' && status !== 'resolved') return;
+          if (!data.rootCause || typeof data.rootCause !== 'string') return;
+
+          const incident: PostmortemIncidentDoc = {
+            id: change.doc.id,
+            tenantId: String(data.tenantId ?? ''),
+            projectId: String(data.projectId ?? ''),
+            status,
+            type: typeof data.type === 'string' ? data.type : undefined,
+            rootCause: data.rootCause,
+            workerUid: typeof data.workerUid === 'string' ? data.workerUid : undefined,
+            occurredAt: typeof data.occurredAt === 'string' ? data.occurredAt : undefined,
+            severity: typeof data.severity === 'string' ? data.severity : undefined,
+          };
+
+          if (!incident.tenantId || !incident.projectId) return;
+
+          try {
+            const embedFn =
+              deps.generateEmbeddingsBatch ?? (await loadDefaultEmbedder());
+            await writeIncidentPostmortemNode(incident, {
+              store: db as unknown as PostmortemMinimalStore,
+              genEmbedding: singleEmbedAdapter(embedFn),
+              captureError: (err, ctx) =>
+                sentryCapture(err, {
+                  trigger: 'incidentPostmortem',
+                  tags: ctx as Record<string, string | number | boolean | null | undefined>,
+                }),
+              logger: {
+                warn: (msg, ctx) =>
+                  console.warn(`[TRIGGER: Postmortem] ${msg}`, ctx ?? ''),
+                info: (msg, ctx) =>
+                  console.log(`[TRIGGER: Postmortem] ${msg}`, ctx ?? ''),
+              },
+            });
+          } catch (err) {
+            // Defensa final: nada en este path debe romper el cierre del incidente.
+            console.error('[TRIGGER: Postmortem] unexpected error:', err);
+            sentryCapture(err, {
+              trigger: 'incidentPostmortem',
+              tags: { phase: 'unexpected', incidentId: change.doc.id },
+            });
+          }
+        });
+      },
+      (error) => {
+        console.error('Error in incident-close trigger listener:', error);
+        sentryCapture(error, {
+          trigger: 'incidentCloseListener',
+          tags: { phase: 'onSnapshot-error' },
+        });
+      },
+    );
   } catch (err) {
     console.error('Failed to setup background triggers:', err);
     sentryCapture(err, { trigger: 'setupBackgroundTriggers', tags: { phase: 'init' } });
@@ -278,6 +365,11 @@ export function setupBackgroundTriggers(
         unsubRag();
       } catch (e) {
         console.warn('[triggers] failed to unsubscribe RAG listener:', e);
+      }
+      try {
+        unsubIncidentClose();
+      } catch (e) {
+        console.warn('[triggers] failed to unsubscribe incident-close listener:', e);
       }
     },
   };

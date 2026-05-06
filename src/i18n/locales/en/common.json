@@ -1354,23 +1354,116 @@
     "title": "Settings",
     "subtitle": "Personalize your Praeventio Guard experience",
     "danger_zone": "Danger Zone",
+    "danger_desc": "These actions are permanent and cannot be undone. Please proceed with extreme caution.",
+    "logout_global": "Global Logout",
+    "delete_account": "Delete Account",
+    "delete_restricted_title": "Restricted Action",
+    "delete_restricted_msg": "To permanently delete your account, please contact the system administrator.",
+    "auth": {
+      "confirm_identity": "Confirm your identity to access settings",
+      "failed_title": "Authentication failed",
+      "failed_msg": "Could not verify identity"
+    },
+    "sections": {
+      "profile": { "label": "Profile and Account", "desc": "Manage your personal information and access preferences." },
+      "security": { "label": "Security and Privacy", "desc": "Configure two-factor authentication and data permissions." },
+      "notifications": { "label": "Notifications", "desc": "Customize which alerts you want to receive and through which channels." },
+      "ai": { "label": "AI Configuration", "desc": "Adjust Gemini's behavior and predictive analysis." },
+      "database": { "label": "Database and Neural Network", "desc": "Node management, connections, and data export." },
+      "appearance": { "label": "Interface and Theme", "desc": "Customize the visual appearance of Praeventio Guard." },
+      "regional": { "label": "Language and Region", "desc": "Adjust platform language and regional formats." },
+      "admin": { "label": "User Administration", "desc": "Assign roles and revoke access to platform users." }
+    },
     "profile": {
       "username": "Username",
-      "email": "Email Address"
+      "email": "Email Address",
+      "contact_admin": "To modify these details, contact the system administrator or use the Firebase Auth panel."
     },
     "security": {
       "session_timeout": "Session Timeout",
-      "fall_detection": "Fall Detection"
+      "fall_detection": "Fall Detection",
+      "fall_detection_desc": "Enables continuous accelerometer monitoring to detect falls. Recommended only if your work involves height, scaffolding, roofs, or confined spaces with elevation differences.",
+      "fall_detection_warn": "⚠ Consumes battery in the background. Keep it off if your work doesn't require it.",
+      "mfa_title": "Two-Factor Authentication (2FA)",
+      "mfa_desc": "Add an extra layer of security to your account.",
+      "password_email_title": "Email Sent",
+      "password_email_msg": "A password reset link has been sent.",
+      "change_password": "Change Password",
+      "privacy_title": "Personal data and privacy",
+      "privacy_desc": "Data protection regimes applicable to your account + legal deadlines to respond to access, rectification or deletion requests.",
+      "timeout_15": "15 minutes of inactivity",
+      "timeout_30": "30 minutes of inactivity",
+      "timeout_60": "1 hour of inactivity",
+      "timeout_never": "Never (Not recommended)"
     },
     "notifications": {
       "email_alerts": "Email Alerts",
-      "push": "Push Notifications"
+      "email_alerts_desc": "Daily summaries and critical alerts.",
+      "push": "Push Notifications",
+      "push_desc": "Receive instant alerts.",
+      "cat_emergencies": "🚨 Emergencies (S.O.S)",
+      "cat_emergencies_desc": "S.O.S, evacuation and extreme weather alerts. (Cannot be disabled for safety reasons)",
+      "cat_medical": "🩺 Medical Exams",
+      "cat_medical_desc": "Validity reminders and new medical results.",
+      "cat_training": "📚 Training",
+      "cat_training_desc": "Course assignments, ODI and scheduled talks.",
+      "cat_ai": "🤖 AI Assistant (Guardian)",
+      "cat_ai_desc": "Predictive advice and anomalies detected in the field."
+    },
+    "ai": {
+      "detail_level": "Assistant Detail Level",
+      "opt_concise": "Concise (Direct and short answers)",
+      "opt_balanced": "Balanced (Recommended)",
+      "opt_detailed": "Detailed (Exhaustive explanations and regulations)",
+      "predictive_title": "Autonomous Predictive Analysis",
+      "predictive_desc": "Allows the AI to analyze data in the background."
+    },
+    "database": {
+      "storage": "Storage",
+      "active_nodes": "Active Nodes",
+      "export_title": "Export Started",
+      "export_msg": "Your data is being prepared for download.",
+      "export_btn": "Export Data (JSON)",
+      "cache_title": "Cache Cleared",
+      "cache_msg": "Local space has been freed successfully.",
+      "cache_btn": "Clear Cache"
     },
     "appearance": {
-      "theme": "Theme Preference"
+      "theme": "Theme Preference",
+      "theme_light": "Light (Background #4EB5AC)",
+      "theme_dark": "Dark",
+      "theme_auto": "Automatic (Day/Night)",
+      "theme_system": "Operating System",
+      "dark_manual_title": "Manual Dark Mode",
+      "dark_manual_desc": "Toggle quickly (overrides preference)"
     },
     "regional": {
-      "timezone": "Time Zone"
+      "timezone": "Time Zone",
+      "ui_language": "Interface Language",
+      "language_changed": "Language changed to {{lang}}"
+    },
+    "admin": {
+      "assign_role": "Assign Role to User",
+      "uid_label": "User UID (Firebase Auth)",
+      "role_label": "Role to assign",
+      "saving": "Saving...",
+      "role_assigned": "Role assigned",
+      "network_error": "Network error",
+      "assign_role_btn": "Assign Role",
+      "revoke": "Revoke Access",
+      "revoke_desc": "Immediately invalidates all of the user's session tokens.",
+      "revoking": "Revoking...",
+      "revoked_ok": "Access revoked"
+    },
+    "fcm": {
+      "title": "Push Notifications (FCM)",
+      "desc": "Receive critical and emergency alerts in real time.",
+      "status_granted": "Active",
+      "status_denied": "Blocked",
+      "status_pending": "Pending",
+      "requires_connection": "Requires Connection",
+      "enable_btn": "Enable Notifications",
+      "long_desc": "To receive push notifications, you must allow access in your browser. This will enable Firebase Cloud Messaging (FCM) to send you critical alerts even when the app is in the background."
     }
   },
   "analytics": {

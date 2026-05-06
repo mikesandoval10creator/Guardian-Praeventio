@@ -1,0 +1,59 @@
+# SOS 1k load test — manual trigger only.
+#
+# Not wired into PR CI: emulator + 1000 VUs takes ~3 min and is
+# expensive to run on every pull request. Use `workflow_dispatch`
+# from the Actions tab when validating fan-out throughput changes,
+# Sprint sign-offs, or pre-launch readiness.
+
+name: SOS Load Test (1k concurrent)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_alerts:
+        description: "Expected emergency_alerts count"
+        required: false
+        default: "1000"
+
+jobs:
+  loadtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EXPECTED_ALERTS: ${{ github.event.inputs.target_alerts || '1000' }}
+      GOOGLE_CLOUD_PROJECT: demo-test
+      FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+      E2E_TEST_SECRET: e2e-test-secret-do-not-use-in-prod
+      E2E_MODE: "1"
+      NODE_ENV: test
+      PORT: "3000"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install repo deps
+        run: npm ci
+
+      - name: Install firebase-tools + artillery
+        run: npm i -g firebase-tools artillery
+
+      - name: Run SOS 1k load test
+        run: bash loadtest/run.sh
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sos-loadtest-report
+          path: loadtest/reports/
+          if-no-files-found: warn

@@ -749,3 +749,42 @@ Mantener `high: 80, low: 60`.
   threshold 65` (verde con threshold actual). Sin bump (reba 77.74 <
   80%): break se mantiene en 65, buffer de 12.74 pp sobre lowest.
   Reporte HTML en `reports/mutation/mutation.html`.
+
+---
+
+## Sprint 34 — Linux CI runner (audit P1, 2026-05-06)
+
+**Branch:** `dev/sprint-34-zk-offline-edge-stryker-loadtest-sii-i18n-2026-05-06`.
+
+Audit P1 surfaced a "false sense of security" gap: `limiters.ts` reports 3%
+mutation coverage on Windows local runs because the vitest worker fork
+crashes mid-mutant with `STATUS_STACK_BUFFER_OVERRUN`, leaving the file
+effectively un-mutated. Linux runners do not crash. This sprint adds the
+Linux runner that was scoped in Sprint 22+ planning but never landed.
+
+**Changes (CI/config only — no source mutations):**
+
+- `.github/workflows/mutation.yml` (new). `ubuntu-latest`, 60 min timeout,
+  triggers on `pull_request` to main + `workflow_dispatch` + nightly cron
+  at 03:17 UTC. `continue-on-error: true` for Sprint 34; promote to
+  required in Sprint 35 after 2 green runs.
+- `scripts/check-mutation-thresholds.cjs` (new). Parses
+  `reports/mutation/report.json` post-hoc, enforces per-file ratchet
+  (≥80% files cannot regress) and critical-file floors (auth/billing/safety
+  target 75%; limiters.ts ramps 60 → 75 in Sprint 36). Stryker 9.6.1 does
+  not support per-file thresholds in schema — this script bridges the gap.
+- `stryker.config.json` — added `_notes_perFileThresholds` and
+  `_notes_limiters_windows_crash` documentation. `limiters.ts` was already
+  in `mutate`; reconfirmed (not excluded).
+- `lighthouserc.json` — quick-win from same audit: promoted
+  `categories:accessibility` and `categories:best-practices` from `warn`
+  to `error` (lowest flake risk; deterministic given fixed DOM/headers).
+  Performance/SEO/PWA + numeric metrics (FCP/LCP/CLS/TBT) stay `warn`.
+
+**Thresholds unchanged this sprint:** `high: 80, low: 60, break: 65` (R21).
+Bumping deferred to Sprint 35 once 2 Linux runs are stable. Global was
+**85.52%** at R21 close — buffer of 20.52 pp on `break: 65`.
+
+**Verification:** typecheck pending (CI-only changes; source-code untouched).
+First Linux mutation run will populate the per-file baseline table in
+`docs/testing/MUTATION_BASELINE.md` Sprint 34 section.

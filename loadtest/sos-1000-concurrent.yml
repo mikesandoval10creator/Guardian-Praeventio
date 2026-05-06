@@ -1,0 +1,62 @@
+# Praeventio Guard — Sprint 34 / Brecha D (E2E load).
+#
+# 1,000 concurrent SOS submissions against the Express server with
+# Firestore emulator. Validates the worst-case "estampida nacional"
+# scenario: a regional disaster where every worker on every project
+# fires SOS at once.
+#
+# Why YAML + an inline JS processor (not pure JS):
+#   - Artillery's YAML config gives us per-phase metrics + the HTML
+#     report out of the box. The processor only fabricates the auth
+#     header per virtual user (each VU gets its own preseeded uid).
+#
+# Contract under test:
+#   POST /api/emergency/sos
+#   Headers: Authorization: E2E <secret>:<uid>
+#   Body:    { type: "sos", projectId: "load-test-project",
+#              geo: { lat: -33.45, lng: -70.66 } }
+#
+# Success thresholds (mirrored in docs/testing/SOS_LOAD_TEST.md):
+#   - p95 < 800ms   (fan-out included)
+#   - error rate < 1%
+#   - 1000/1000 emergency_alerts persisted (asserted by run.sh post-run)
+
+config:
+  target: "http://127.0.0.1:3000"
+  processor: "./sos-processor.cjs"
+  phases:
+    # 1,000 unique VUs ramped over 10 seconds → sustained ~100 RPS peak,
+    # then quick drain. Single shot per VU.
+    - duration: 10
+      arrivalCount: 1000
+      name: "ramp-1000-workers"
+  http:
+    timeout: 30
+    pool: 200          # keep-alive sockets; avoids ephemeral-port exhaustion
+  ensure:
+    thresholds:
+      - "http.response_time.p95": 800
+      - "vusers.failed": 0
+  variables:
+    projectId: "load-test-project"
+
+scenarios:
+  - name: "single-shot-sos"
+    flow:
+      - function: "assignWorker"
+      - post:
+          url: "/api/emergency/sos"
+          headers:
+            Authorization: "E2E {{ e2eSecret }}:{{ uid }}"
+            Content-Type: "application/json"
+          json:
+            type: "sos"
+            projectId: "{{ projectId }}"
+            geo:
+              lat: -33.45
+              lng: -70.66
+          expect:
+            - statusCode: [200, 201]
+          capture:
+            - json: "$.alertId"
+              as: "alertId"
