@@ -12,8 +12,14 @@ tsconfig.tsbuildinfo
 # Firebase config — contains project credentials, use env vars in production
 firebase-applet-config.json
 
-# Claude Code local config (never commit)
-.claude/
+# Sprint 40 — gstack pirate adoption: share commands/settings via repo
+# (per Garry Tan team-mode pattern). Local outputs stay private.
+.claude/agents-output/
+.claude/launch.json
+# Reports from canary/security/retro scripts — local-only output
+reports/canary/
+reports/security/
+reports/retro/
 
 # Playwright local artifacts
 playwright-report/
