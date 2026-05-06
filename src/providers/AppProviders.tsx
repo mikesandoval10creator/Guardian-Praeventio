@@ -10,6 +10,7 @@ import { AppModeProvider } from "../contexts/AppModeContext";
 import { NormativeProvider } from "../contexts/NormativeContext";
 import { SLMProvider } from "../components/slm/SLMProvider";
 import { SLMShellOverlay } from "../components/slm/SLMShellOverlay";
+import { MeshProvider } from "./MeshProvider";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -46,7 +47,14 @@ export function AppProviders({ children }: AppProvidersProps) {
                 <SensorProvider>
                   <SLMProvider>
                     <SLMShellOverlay />
-                    {children}
+                    {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
+                        Mounted inside ProjectProvider + FirebaseProvider so
+                        useFirebase() + useProject() resolve. Early-returns
+                        until uid + projectId are available. Flow Infinito
+                        Fase 2 (Adaptive Response) requires this wire live. */}
+                    <MeshProvider>
+                      {children}
+                    </MeshProvider>
                   </SLMProvider>
                 </SensorProvider>
               </EmergencyProvider>
