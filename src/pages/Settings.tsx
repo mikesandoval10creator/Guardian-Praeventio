@@ -237,7 +237,7 @@ export function Settings() {
                 type="button"
                 role="switch"
                 aria-checked={mfaEnabled}
-                aria-label="Activar autenticación de dos factores"
+                aria-label={t('settings.aria.toggle_mfa', 'Activar autenticación de dos factores')}
                 onClick={() => setMfaEnabled(!mfaEnabled)}
                 className={`w-12 h-6 rounded-full transition-colors relative ${mfaEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
@@ -285,7 +285,7 @@ export function Settings() {
                 aria-busy={fallDetectionLoading}
                 onClick={() => setFallDetectionEnabled(!fallDetectionEnabled)}
                 disabled={fallDetectionLoading}
-                aria-label={fallDetectionEnabled ? 'Desactivar detección de caída' : 'Activar detección de caída'}
+                aria-label={t(fallDetectionEnabled ? 'settings.aria.disable_fall_detection' : 'settings.aria.enable_fall_detection', fallDetectionEnabled ? 'Desactivar detección de caída' : 'Activar detección de caída')}
                 className={`w-12 h-6 rounded-full transition-colors relative shrink-0 mt-1 ${fallDetectionEnabled ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'} ${fallDetectionLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${fallDetectionEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
@@ -305,7 +305,7 @@ export function Settings() {
                 type="button"
                 role="switch"
                 aria-checked={emailNotifs}
-                aria-label="Activar alertas por correo electrónico"
+                aria-label={t('settings.aria.toggle_email_alerts', 'Activar alertas por correo electrónico')}
                 onClick={() => setEmailNotifs(!emailNotifs)}
                 className={`w-12 h-6 rounded-full transition-colors relative ${emailNotifs ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
@@ -323,7 +323,7 @@ export function Settings() {
                   type="button"
                   role="switch"
                   aria-checked={pushNotifs}
-                  aria-label="Activar notificaciones push"
+                  aria-label={t('settings.aria.toggle_push', 'Activar notificaciones push')}
                   onClick={() => {
                     setPushNotifs(!pushNotifs);
                     if (!pushNotifs && notificationPermissionStatus !== 'granted') requestPermission();
@@ -347,7 +347,7 @@ export function Settings() {
                       role="switch"
                       aria-checked={true}
                       aria-disabled={true}
-                      aria-label="Alertas de emergencia (siempre activas por seguridad)"
+                      aria-label={t('settings.aria.emergency_always_on', 'Alertas de emergencia (siempre activas por seguridad)')}
                       disabled
                       className="w-10 h-5 rounded-full bg-red-500 opacity-50 cursor-not-allowed relative"
                     >
@@ -364,7 +364,7 @@ export function Settings() {
                       type="button"
                       role="switch"
                       aria-checked={notifPrefs.medical}
-                      aria-label="Notificaciones de exámenes médicos"
+                      aria-label={t('settings.aria.toggle_medical', 'Notificaciones de exámenes médicos')}
                       onClick={() => updateNotifPref('medical', !notifPrefs.medical)}
                       className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.medical ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
                     >
@@ -381,7 +381,7 @@ export function Settings() {
                       type="button"
                       role="switch"
                       aria-checked={notifPrefs.training}
-                      aria-label="Notificaciones de capacitaciones"
+                      aria-label={t('settings.aria.toggle_training', 'Notificaciones de capacitaciones')}
                       onClick={() => updateNotifPref('training', !notifPrefs.training)}
                       className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.training ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
                     >
@@ -398,7 +398,7 @@ export function Settings() {
                       type="button"
                       role="switch"
                       aria-checked={notifPrefs.ai_alerts}
-                      aria-label="Notificaciones del asistente IA"
+                      aria-label={t('settings.aria.toggle_ai', 'Notificaciones del asistente IA')}
                       onClick={() => updateNotifPref('ai_alerts', !notifPrefs.ai_alerts)}
                       className={`w-10 h-5 rounded-full transition-colors relative ${notifPrefs.ai_alerts ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
                     >
@@ -430,7 +430,7 @@ export function Settings() {
                 type="button"
                 role="switch"
                 aria-checked={aiProactive}
-                aria-label="Activar análisis predictivo autónomo"
+                aria-label={t('settings.aria.toggle_predictive_ai', 'Activar análisis predictivo autónomo')}
                 onClick={() => setAiProactive(!aiProactive)}
                 className={`w-12 h-6 rounded-full transition-colors relative ${aiProactive ? 'bg-[#4db6ac]' : 'bg-zinc-300 dark:bg-zinc-700'}`}
               >
@@ -497,7 +497,7 @@ export function Settings() {
                 type="button"
                 role="switch"
                 aria-checked={isDark}
-                aria-label="Alternar modo oscuro manual"
+                aria-label={t('settings.aria.toggle_dark_mode', 'Alternar modo oscuro manual')}
                 onClick={async () => {
                   const root = window.document.documentElement;
                   const isCurrentlyDark = root.classList.contains('dark');

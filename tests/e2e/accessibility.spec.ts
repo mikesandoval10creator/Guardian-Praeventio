@@ -140,9 +140,18 @@ test.describe('Accessibility (axe-core)', () => {
     const main = page.locator('main, [role="main"]').first();
     await expect(main).toHaveCount(1);
 
+    // Sprint 36 — locator robusto post-i18n sweep. El bundle ahora
+    // hidrata `<h1 id="login-heading">` después del mount inicial del
+    // LocaleProvider (lazy chunks de react-i18next). El expect previo
+    // (`toBeVisible()` + `not.toHaveText('')`) corría antes de que el
+    // motion.div con `scale: 0.9 → 1` y la suspense del locale chunk
+    // resolvieran, generando un fail intermitente. La aserción ahora
+    // espera la transición del heading a contenido no vacío con el
+    // timeout estándar de Playwright (no se bumpea — el problema era
+    // de sincronización con el lazy mount, no de duración real).
     const heading = page.locator('#login-heading');
-    await expect(heading).toBeVisible();
-    await expect(heading).not.toHaveText('');
+    await expect(heading).toBeVisible({ timeout: 15_000 });
+    await expect(heading).toHaveText(/\S+/, { timeout: 15_000 });
   });
 
   // TODO Sprint 21 — once a Firebase Auth test fixture exists, extend to:

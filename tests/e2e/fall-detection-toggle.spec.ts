@@ -21,30 +21,41 @@ test.describe('FallDetection toggle preference', () => {
     await loginAsTestUser(page);
     await page.goto('/settings');
 
-    const securitySection = page.getByText(/Seguridad y Privacidad/i).first();
+    // Sprint 36 — locator robusto post-Sprint 34 E7 refactor.
+    // El sidebar ahora usa IDs estables (`activeSection: SettingsSectionId`)
+    // y el toggle en JSX está marcado como `<button role="switch">`. El
+    // spec previo usaba `getByRole('button', { name: ... })`, lo cual no
+    // resuelve elementos con `role="switch"` explícito (Playwright
+    // respeta el role override). Cambiamos a `getByRole('switch')` que
+    // matchea el ARIA real del componente. El name se mantiene como
+    // regex i18n-tolerante por si el aria-label en algún momento
+    // cambia de cadena (el español default sigue siendo el mismo, pero
+    // así sobrevivimos cualquier ajuste menor de wording).
+    const securitySection = page.getByRole('button', { name: /Seguridad y Privacidad/i }).first();
     await securitySection.waitFor({ state: 'visible', timeout: 10_000 });
     await securitySection.click();
 
-    const enable = page.getByRole('button', { name: /Activar detecci[oó]n de ca[ií]da/i });
-    await enable.waitFor({ state: 'visible', timeout: 10_000 });
+    const fallSwitch = page.getByRole('switch', { name: /detecci[oó]n de ca[ií]da/i });
+    await fallSwitch.waitFor({ state: 'visible', timeout: 10_000 });
+    // aria-checked es la fuente de verdad del estado (no el aria-label).
+    await expect(fallSwitch).toHaveAttribute('aria-checked', 'false');
 
-    await enable.click();
+    await fallSwitch.click();
 
-    const disable = page.getByRole('button', { name: /Desactivar detecci[oó]n de ca[ií]da/i });
     // El switch flip dispara un write a idb-keyval; expect.poll es más
     // robusto que un solo expect contra el race condition del aria-busy.
     await expect.poll(
-      async () => disable.isVisible(),
+      async () => fallSwitch.getAttribute('aria-checked'),
       { timeout: 8_000, intervals: [200, 400, 800] },
-    ).toBe(true);
+    ).toBe('true');
 
     // Reload — la preferencia debe sobrevivir gracias a idb-keyval.
     await page.reload();
-    const securitySection2 = page.getByText(/Seguridad y Privacidad/i).first();
+    const securitySection2 = page.getByRole('button', { name: /Seguridad y Privacidad/i }).first();
     await securitySection2.waitFor({ state: 'visible', timeout: 10_000 });
     await securitySection2.click();
-    await expect(
-      page.getByRole('button', { name: /Desactivar detecci[oó]n de ca[ií]da/i }),
-    ).toBeVisible({ timeout: 10_000 });
+    const fallSwitchReloaded = page.getByRole('switch', { name: /detecci[oó]n de ca[ií]da/i });
+    await expect(fallSwitchReloaded).toBeVisible({ timeout: 10_000 });
+    await expect(fallSwitchReloaded).toHaveAttribute('aria-checked', 'true');
   });
 });
