@@ -21,9 +21,14 @@
 //   We use Node's built-in `AsyncLocalStorage` (node:async_hooks) so each
 //   request's user context is isolated even when the runtime concurrently
 //   serves multiple requests in the same process (Cloud Run + serverless).
-//   See OBSERVABILITY.md §1 (Per-request user context with AsyncLocalStorage)
-//   for the Express middleware integration pattern.
-
+//   See OBSERVABILITY.md §1.
+//
+// Server-only file. The browser bundle goes through a Vite resolve.alias
+// to `noopErrorTrackingAdapter.browser-stub.ts` (configured in vite.config
+// .ts), so this static import of `node:async_hooks` is never seen by the
+// client bundler — Vite would otherwise rewrite it to a browser-external
+// stub that fails to export AsyncLocalStorage. Vitest runs in Node and
+// resolves this file normally, so tests see the real AsyncLocalStorage.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logger } from '../../utils/logger';
 import type {

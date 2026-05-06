@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 interface SplashProps {
   onEnter: () => void;
 }
 
 export function Splash({ onEnter }: SplashProps) {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-teal-400 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
       <motion.div
@@ -14,19 +16,19 @@ export function Splash({ onEnter }: SplashProps) {
         className="text-center w-full max-w-3xl mx-auto"
       >
         <h1 className="text-5xl sm:text-7xl md:text-9xl font-black tracking-tighter text-zinc-950 mb-3 sm:mb-4 leading-none">
-          Praeventio
+          {t('splash.brand')}
         </h1>
         <p className="text-lg sm:text-xl md:text-2xl font-medium text-zinc-800 mb-8 sm:mb-12">
-          Haz clic para entrar
+          {t('splash.tap_to_enter')}
         </p>
-        
+
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onEnter}
           className="bg-[#B666FF] text-white px-8 sm:px-12 py-3.5 sm:py-4 rounded-xl sm:rounded-2xl text-lg sm:text-xl font-black uppercase tracking-widest shadow-xl hover:shadow-2xl transition-all w-full sm:w-auto max-w-xs mx-auto"
         >
-          Entrar
+          {t('splash.enter')}
         </motion.button>
       </motion.div>
     </div>

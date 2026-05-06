@@ -34,6 +34,7 @@
 // pedestrian-mode user landing on a driving UI).
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { Phone, AlertTriangle, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
@@ -59,6 +60,7 @@ function speedColor(kmh: number): string {
 }
 
 export function Driving(): React.ReactElement {
+  const { t } = useTranslation();
   const { mode } = useAppMode();
   const { selectedProject } = useProject();
   const speed = useSpeedMonitor(mode === 'driving');
@@ -88,13 +90,13 @@ export function Driving(): React.ReactElement {
   const baseEnabled = Boolean(phone && phone.length > 0);
 
   const handleNearMiss = (): void => {
-    show('Near-miss registrado. Continúa atento.', 'warning');
+    show(t('driving.toast.near_miss'), 'warning');
   };
   const handleIncidente = (): void => {
-    show('Incidente reportado. Se notificó a la base.', 'error');
+    show(t('driving.toast.incident'), 'error');
   };
   const handleArrived = (): void => {
-    show('Llegada confirmada. Buen viaje.', 'success');
+    show(t('driving.toast.arrived'), 'success');
   };
 
   return (
@@ -140,7 +142,7 @@ export function Driving(): React.ReactElement {
             border: `2px solid ${color}`,
           }}
           aria-live="polite"
-          aria-label={`Velocidad actual ${speedKmh} kilómetros por hora`}
+          aria-label={t('driving.speedometer.aria', { kmh: speedKmh })}
         >
           <div
             className="text-5xl sm:text-6xl md:text-7xl font-black tabular-nums leading-none"
@@ -153,7 +155,7 @@ export function Driving(): React.ReactElement {
             className="text-[10px] font-black uppercase tracking-widest text-center mt-1"
             style={{ color: 'var(--fg-muted, #a1a1aa)' }}
           >
-            km/h{speed.isStale ? ' · sin señal' : ''}
+            {t('driving.speedometer.unit')}{speed.isStale ? t('driving.speedometer.no_signal') : ''}
           </div>
         </div>
       </div>
@@ -168,27 +170,27 @@ export function Driving(): React.ReactElement {
               background: 'var(--accent-danger, #dc2626)',
               color: 'var(--accent-on-danger, #fff)',
             }}
-            aria-label="Llamar a la base"
+            aria-label={t('driving.base.call_aria')}
             data-testid="base-button"
           >
             <Phone className="w-7 h-7" aria-hidden="true" />
-            <span className="text-lg font-black uppercase tracking-widest">Base</span>
+            <span className="text-lg font-black uppercase tracking-widest">{t('driving.base.label')}</span>
           </a>
         ) : (
           <button
             type="button"
             disabled
-            title="Configura el teléfono de la base en los ajustes del proyecto"
+            title={t('driving.base.disabled_title')}
             className="flex items-center gap-3 px-6 py-5 rounded-2xl opacity-40 cursor-not-allowed"
             style={{
               background: 'var(--accent-danger, #dc2626)',
               color: 'var(--accent-on-danger, #fff)',
             }}
-            aria-label="Llamar a la base (no configurado)"
+            aria-label={t('driving.base.disabled_aria')}
             data-testid="base-button-disabled"
           >
             <Phone className="w-7 h-7" aria-hidden="true" />
-            <span className="text-lg font-black uppercase tracking-widest">Base</span>
+            <span className="text-lg font-black uppercase tracking-widest">{t('driving.base.label')}</span>
           </button>
         )}
       </div>
@@ -212,7 +214,7 @@ export function Driving(): React.ReactElement {
           }}
         >
           <AlertTriangle className="w-6 h-6" aria-hidden="true" />
-          <span className="text-[10px] font-black uppercase tracking-widest">Near-miss</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('driving.dock.near_miss')}</span>
         </button>
         <button
           type="button"
@@ -225,7 +227,7 @@ export function Driving(): React.ReactElement {
           }}
         >
           <ShieldAlert className="w-6 h-6" aria-hidden="true" />
-          <span className="text-[10px] font-black uppercase tracking-widest">Incidente</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('driving.dock.incident')}</span>
         </button>
         <button
           type="button"
@@ -238,7 +240,7 @@ export function Driving(): React.ReactElement {
           }}
         >
           <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
-          <span className="text-[10px] font-black uppercase tracking-widest">Llegué</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('driving.dock.arrived')}</span>
         </button>
       </div>
 

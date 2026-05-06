@@ -89,7 +89,9 @@
     "safe": "Safe",
     "danger": "In Danger",
     "last_morning_checkin": "Last Morning Check-in",
-    "morning_wakeup": "Morning Wake-up"
+    "morning_wakeup": "Morning Wake-up",
+    "global_average": "Global Average",
+    "no_projects": "No projects"
   },
   "errors": {
     "something_went_wrong": "Something went wrong",
@@ -1154,5 +1156,119 @@
     "item_helmet_desc": "Missing critical PPE in risk zone.",
     "item_harness_name": "Improperly Hooked Harness",
     "item_harness_desc": "Fall-from-height risk."
+  },
+  "splash": {
+    "brand": "Praeventio",
+    "tap_to_enter": "Tap to enter",
+    "enter": "Enter"
+  },
+  "driving": {
+    "toast": {
+      "near_miss": "Near-miss recorded. Stay alert.",
+      "incident": "Incident reported. Base has been notified.",
+      "arrived": "Arrival confirmed. Safe travels."
+    },
+    "speedometer": {
+      "aria": "Current speed {{kmh}} kilometers per hour",
+      "unit": "km/h",
+      "no_signal": " . no signal"
+    },
+    "base": {
+      "label": "Base",
+      "call_aria": "Call base",
+      "disabled_aria": "Call base (not configured)",
+      "disabled_title": "Set the base phone number in project settings"
+    },
+    "dock": {
+      "near_miss": "Near-miss",
+      "incident": "Incident",
+      "arrived": "Arrived"
+    }
+  },
+  "emergency_page": {
+    "title": "Emergency Plan",
+    "subtitle_with_project": "Protocols and action plans for: {{name}}",
+    "subtitle_default": "Centralized management of safety and response protocols",
+    "requires_internet": "Requires internet connection",
+    "search_placeholder": "Search emergency protocol...",
+    "recent_alerts": "Recent Alerts",
+    "compliance_status": "Compliance Status",
+    "no_workers": "No workers registered in this project.",
+    "no_phone": "No phone",
+    "btn": {
+      "ai_generator": "AI Generator",
+      "requires_connection": "Connection Required",
+      "crisis_active": "Crisis Active",
+      "crisis_mode": "Crisis Mode",
+      "generating": "Generating...",
+      "download_plan": "Download Full Plan",
+      "emergency_contacts": "Emergency Contacts",
+      "activate": "Activate",
+      "deactivate": "Deactivate"
+    },
+    "man_down": {
+      "alert_title": "IMMOBILITY ALERT!",
+      "alert_subtitle": "Prolonged lack of movement detected",
+      "countdown_warning": "If you don't cancel this alert, an emergency notification will be sent to the entire team in {{countdown}} seconds.",
+      "cancel_aria": "Cancel man-down alarm",
+      "im_ok": "I'm OK ({{countdown}}s)",
+      "rescue_coming": "Stop alarm - rescue on the way",
+      "cancel_alert": "Cancel Alert",
+      "panel_title": "Man Down (Auto-Detection)",
+      "monitoring_active": "Motion monitoring active",
+      "system_off": "System deactivated",
+      "sensors_status": "Sensor Status",
+      "connected": "Connected",
+      "inactive": "Inactive",
+      "last_motion": "Last Motion",
+      "one_sec_ago": "1s ago"
+    },
+    "protocol": {
+      "active": "Active",
+      "review": "Under Review",
+      "review_label": "Review: {{date}}"
+    },
+    "alerts": {
+      "drill_title": "Scheduled Drill",
+      "drill_date": "Tomorrow, 10:00 AM",
+      "extinguisher_title": "Extinguisher Inspection",
+      "extinguisher_date": "Friday, 2:00 PM"
+    },
+    "compliance": {
+      "plan": "Emergency Plan",
+      "brigade": "Emergency Brigade",
+      "signage": "Signage"
+    },
+    "default_protocols": {
+      "fire_title": "Fire Protocol",
+      "fire_category": "Fire",
+      "quake_title": "Earthquake Protocol",
+      "quake_category": "Natural",
+      "spill_title": "Chemical Spill Protocol",
+      "spill_category": "Chemical",
+      "first_aid_title": "First Aid Protocol",
+      "first_aid_category": "Health"
+    }
+  },
+  "landing": {
+    "skip_to_content": "Skip to content",
+    "meta": {
+      "title": "Guardian Praeventio - Risk prevention in the palm of your hand",
+      "description": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform"
+    },
+    "nav": {
+      "login": "Log in",
+      "enter": "Enter"
+    },
+    "hero": {
+      "compliance_badge": "Compliant with DS 54 . DS 40 . Law 16.744",
+      "title_line_1": "The revolution of",
+      "title_line_2": "risk prevention",
+      "subtitle": "Risk management, team wellbeing, and regulatory compliance - all in one AI-powered platform",
+      "description": "AI, emergencies, and Chilean regulatory compliance in a single app. For companies that take worker safety seriously.",
+      "cta_primary": "Enter the app",
+      "cta_secondary": "Start free",
+      "free_tier_note": "Free up to 10 workers . No credit card required"
+    }
   }
 }

@@ -108,7 +108,25 @@ export type XpReason =
   | 'reportar_nearmiss'
   | 'evadir_riesgo_predictivo'
   | 'wisdom_capsule_completed'
-  | 'task_done';
+  | 'task_done'
+  // Sprint 32 — Flow Infinito fase 3 (Consolidación de Conocimiento):
+  // cuando un nodo rebroadcastea un SOS por la mesh, su acción puede haber
+  // salvado una vida. Premiamos con XP alto (+50) — narrativa de marca:
+  // "salvaste una vida". Wire-in en src/services/mesh/meshRelayQueue.ts.
+  | 'mesh_relay_sos'
+  // Sprint 32 wire W4 — auto-emit XP desde dominios de eventos (audit ID:
+  // "Cero hooks de awardXp"). Cada uno refuerza una conducta cultural
+  // POSITIVA: reportar near-miss, cerrar incidente con causa raíz, asistir
+  // y firmar CPHS, completar capacitación, emitir documento legal,
+  // completar assessment ergonómico. Cero penalización: la cultura se
+  // construye reforzando, no castigando.
+  | 'near_miss_reported'
+  | 'incident_post_mortem_completed'
+  | 'cphs_session_attended'
+  | 'cphs_acta_signed'
+  | 'training_module_completed'
+  | 'compliance_doc_generated'
+  | 'ergonomic_assessment_completed';
 
 /** Default XP amounts per reason (positive integers only). */
 export const XP_AMOUNTS: Record<XpReason, number> = {
@@ -119,4 +137,13 @@ export const XP_AMOUNTS: Record<XpReason, number> = {
   evadir_riesgo_predictivo: 30,
   wisdom_capsule_completed: 5,
   task_done: 2,
+  mesh_relay_sos: 50,
+  // Sprint 32 wire W4 — ver bloque del XpReason union arriba.
+  near_miss_reported: 30,
+  incident_post_mortem_completed: 50,
+  cphs_session_attended: 20,
+  cphs_acta_signed: 40,
+  training_module_completed: 25,
+  compliance_doc_generated: 35,
+  ergonomic_assessment_completed: 15,
 };

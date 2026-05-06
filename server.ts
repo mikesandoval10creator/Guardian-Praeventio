@@ -92,6 +92,14 @@ import dteRouter from "./src/server/routes/dte.js";
 import onboardingRouter from "./src/server/routes/onboarding.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
+// Sprint 32 Bucket TT — IoT device registration + MQTT broker boot.
+import iotRouter from "./src/server/routes/iot.js";
+import {
+  connectMqttBroker,
+  type IotBrokerAdapterName,
+  type ConnectedBroker,
+} from "./src/services/iot/mqttAdapter.js";
+import { bridgeMqttToFirestore } from "./src/services/iot/firestoreBridge.js";
 import admin from "firebase-admin";
 import fs from 'fs';
 // `googleapis` import removed in Round 17 R2 Phase 2 — its sole use was the
@@ -543,6 +551,11 @@ app.use('/api/emergency', emergencyRouter);
 // Converter server-side so the frontend can stay MIT-only — see ADR 0002).
 app.use('/api/cad', cadRouter);
 
+// Sprint 32 Bucket TT — IoT device registration. Mounted under /api/iot
+// so the surface stays separate from /api/telemetry/ingest (gateway HMAC
+// path) and /api/admin/iot/rotate-secret (admin-only).
+app.use('/api/iot', iotRouter);
+
 // Sprint 23 Bucket FF — Ley 19.628 compliance surface (consent + RAT +
 // data-subject access/rectification/erasure/portability). All write paths
 // go through verifyAuth; the RAT catalog is intentionally public.
@@ -730,6 +743,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 
 let triggersHandle: { unsubscribe: () => void } | null = null;
 let healthHandle: { stop: () => void } | null = null;
+let mqttBrokerHandle: ConnectedBroker | null = null;
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${PORT}`);
@@ -744,6 +758,51 @@ app.listen(PORT, "0.0.0.0", () => {
 
     // Proactive Project Health Checks (Every 6 hours to balance quota)
     healthHandle = setupHealthCheckInterval({ db: admin.firestore() });
+
+    // Sprint 32 Bucket TT (audit P0 W2) — MQTT broker boot.
+    //
+    // Gated by env so dev / preview environments don't try to connect
+    // to a real broker (and the cloud / emqx factories are still
+    // stubbed — see ADR 0015). When IOT_BROKER_ENABLED is unset we log
+    // a warn and skip; existing routes (`/api/iot/devices/register`,
+    // `/api/telemetry/ingest`) keep working without a broker.
+    if (process.env.IOT_BROKER_ENABLED === '1') {
+      const adapterName = (process.env.IOT_BROKER_ADAPTER ?? 'memory') as IotBrokerAdapterName;
+      connectMqttBroker({
+        adapter: adapterName,
+        cloud: adapterName === 'cloud'
+          ? {
+              projectId: process.env.IOT_GCP_PROJECT_ID ?? '',
+              region: process.env.IOT_GCP_REGION ?? '',
+              registryId: process.env.IOT_GCP_REGISTRY_ID ?? '',
+              credentials: process.env.IOT_GCP_CREDENTIALS,
+            }
+          : undefined,
+        emqx: adapterName === 'emqx'
+          ? {
+              url: process.env.IOT_EMQX_URL ?? '',
+              cert: process.env.IOT_EMQX_CERT ?? '',
+              key: process.env.IOT_EMQX_KEY ?? '',
+              ca: process.env.IOT_EMQX_CA ?? '',
+            }
+          : undefined,
+        onTelemetry: async (sample, ctx) => {
+          await bridgeMqttToFirestore(sample, {
+            tenantId: ctx.tenantId,
+            projectId: ctx.projectId,
+          });
+        },
+      })
+        .then((handle) => {
+          mqttBrokerHandle = handle;
+          console.log(`[iot] MQTT broker connected (adapter=${adapterName})`);
+        })
+        .catch((err) => {
+          console.warn('[iot] MQTT broker boot failed (continuing without it):', err);
+        });
+    } else {
+      console.warn('[iot] MQTT broker disabled (set IOT_BROKER_ENABLED=1 to enable).');
+    }
   }
 });
 
@@ -755,5 +814,11 @@ process.on('SIGTERM', () => {
   healthHandle?.stop();
   // Sprint 27 (audit P0 H10) — clear the env polling interval too.
   clearInterval(environmentalPollingHandle);
+  // Sprint 32 Bucket TT — release the MQTT broker subscription.
+  if (mqttBrokerHandle) {
+    mqttBrokerHandle.unsubscribe().catch(() => {
+      /* shutdown — swallow */
+    });
+  }
   process.exit(0);
 });

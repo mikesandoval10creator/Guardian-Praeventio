@@ -32,6 +32,13 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logAuditAction } from '../auditService';
 import { randomId } from '../../utils/randomId';
+import type { MinimalFolioStore } from '../suseso/folioGenerator';
+import {
+  triggerLegalConsequencesIfNeeded,
+  type ErgonomicLegalTriggerResult,
+} from './ergonomicLegalTrigger';
+import { getErrorTracker } from '../observability';
+import { awardXp } from '../gamification/positiveXp';
 
 export type ErgonomicAssessmentType = 'REBA' | 'RULA';
 
@@ -57,6 +64,13 @@ export interface ErgonomicAssessmentPayload {
    * legacy callers (and tests that don't track time) can omit it.
    */
   durationMin?: number;
+  /**
+   * Tenant slug used to allocate a SUSESO DIEP folio if the score crosses
+   * the DS-594 art. 110 legal threshold. Optional — when omitted we skip
+   * the legal-consequence side-effect (legacy callers + unit tests can
+   * keep working unchanged).
+   */
+  tenantId?: string;
 }
 
 const COLLECTION = 'ergonomic_assessments';
@@ -107,7 +121,17 @@ function newId(): string {
  */
 export async function recordErgonomicAssessment(
   payload: ErgonomicAssessmentPayload,
-): Promise<{ id: string }> {
+  /**
+   * Optional dependency container. When `folioStore` is supplied AND the
+   * persisted score crosses the DS-594 art. 110 legal threshold (REBA>=11
+   * or RULA>=7), this fn dispatches `triggerLegalConsequencesIfNeeded`
+   * fire-and-forget — the returned promise resolves as soon as the
+   * Firestore write + audit log finish, NOT after the legal-trigger
+   * side-effects. Errors are captured via getErrorTracker(); the save
+   * NEVER fails because of a folio/audit hiccup.
+   */
+  deps?: { folioStore?: MinimalFolioStore },
+): Promise<{ id: string; legalTrigger?: Promise<ErgonomicLegalTriggerResult> }> {
   validate(payload);
 
   const id = newId();
@@ -154,7 +178,56 @@ export async function recordErgonomicAssessment(
     payload.projectId,
   );
 
-  return { id };
+  // Fire-and-forget legal trigger.
+  // WHY: REBA>=11 / RULA>=7 cruzan el umbral legal DS-594 art. 110 +
+  // Circular SUSESO 3596 (ISO 11226). El folio DIEP debe quedar
+  // pre-asignado y el audit log debe constar, pero NO bloqueamos el
+  // save tecnico — la trazabilidad es side-effect, el assessment es
+  // el record-of-truth.
+  let legalTrigger: Promise<ErgonomicLegalTriggerResult> | undefined;
+  if (deps?.folioStore && payload.tenantId) {
+    legalTrigger = triggerLegalConsequencesIfNeeded(
+      {
+        assessmentId: id,
+        workerId: payload.workerId,
+        projectId: payload.projectId,
+        tenantId: payload.tenantId,
+        type: payload.type,
+        score: payload.score,
+        computedAt: payload.computedAt,
+      },
+      { folioStore: deps.folioStore },
+    ).catch((err) => {
+      // Defense-in-depth: triggerLegalConsequencesIfNeeded already
+      // catches internally, but if a future refactor makes it throw
+      // we still don't want an unhandled rejection.
+      getErrorTracker().captureException(
+        err instanceof Error ? err : new Error(String(err)),
+        { tags: { module: 'ergonomicAssessments', step: 'legalTrigger' } },
+      );
+      return { triggered: false } as ErgonomicLegalTriggerResult;
+    });
+  }
+
+  // Sprint 32 wire W4 — gamificación POSITIVA: reforzar la cultura de
+  // medir. Fire-and-forget; un fallo en awardXp NUNCA debe romper el save
+  // del assessment (que tiene valor legal por DS-594).
+  try {
+    awardXp('ergonomic_assessment_completed', undefined, {
+      assessmentId: id,
+      workerId: payload.workerId,
+      authorUid: payload.authorUid,
+      type: payload.type,
+      score: payload.score,
+    });
+  } catch (err) {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { tags: { module: 'ergonomicAssessments', step: 'awardXp' } },
+    );
+  }
+
+  return { id, legalTrigger };
 }
 
 /**

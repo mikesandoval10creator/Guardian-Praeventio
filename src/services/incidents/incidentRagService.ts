@@ -1,5 +1,14 @@
 // Sprint 29 Bucket AA F-B — Incident RAG (NL search sobre histórico tenant).
 //
+// TODO(sprint32-W4): este servicio es puro indexador/searcher — no tiene
+// concepto de "near-miss reportado" ni "post-mortem cerrado" con uid del
+// reporter. Los hooks `awardXp('near_miss_reported', ...)` y
+// `awardXp('incident_post_mortem_completed', ...)` deben wirearse desde
+// el service que persiste el incidente con el uid del reporter (cuando
+// exista — actualmente no hay una función `reportIncident(uid, ...)`
+// claramente identificable). Los XpReason ya están registrados en
+// `src/types/organic.ts` (30/50 XP respectivamente) listos para wire.
+//
 // Indexa cada incidente del tenant en una colección segregada por tenantId
 // y permite búsquedas naturales mediante embeddings. La aislación
 // multi-tenant es ESTRICTA: el path `incident_vectors/{tenantId}/items` es

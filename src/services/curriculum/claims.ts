@@ -1,5 +1,14 @@
 // Praeventio Guard — Round 14 (R5 agent): Experience-Validation claims.
 //
+// TODO(sprint32-W4): este módulo es referee-cosigning de claims de CV — no
+// es "training_module_completed". El hook `awardXp('training_module_completed',
+// ...)` debe wirearse desde el service que marca un módulo de capacitación
+// como completado por un trabajador (cuando exista — actualmente no hay un
+// `completeTrainingModule(uid, moduleId)` identificable, sólo el regex
+// /^training\..+\.completed$/ que `historyAggregator` lee desde audit_logs).
+// El XpReason ya está registrado en `src/types/organic.ts` (25 XP) listo
+// para wire.
+//
 // FLAGSHIP DIFFERENTIATOR (per A7 audit, never built before this round).
 // A worker writes a claim like "I have 5 years as a safety capataz with no
 // serious incidents." For the claim to count toward their portable

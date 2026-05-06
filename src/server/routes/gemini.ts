@@ -20,7 +20,9 @@
 
 import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
+import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { validate } from '../middleware/validate.js';
 import { geminiLimiter, geminiGlobalDailyLimiter } from '../middleware/limiters.js';
 import { getFirestore } from 'firebase-admin/firestore';
 // Sprint 22 prod hardening (Bucket X) — wire circuit breaker + per-tenant
@@ -36,6 +38,21 @@ import {
 } from '../../services/geminiBackend.js';
 // Sprint 22 Bucket AA — request-scoped tracing for the AI dispatch path.
 import { tracedAsync } from '../../services/observability/tracing.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function sentryCapture(
+  err: unknown,
+  context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      context as any,
+    );
+  } catch (e) {
+    console.warn('[observability] capture failed', e);
+  }
+}
 
 // Sprint 10 — restablece el patrón "Portal → Sentidos → Mente" del prototipo
 // histórico (ver docs/proto/analisis_funcional.md). El orquestador inyecta
@@ -93,6 +110,7 @@ const fetchEnvContextWithTimeout = async (
     return serialized.length > 500 ? serialized.slice(0, 497) + '...' : serialized;
   } catch (error) {
     console.warn('[ask-guardian] env-context timeout', error);
+    sentryCapture(error, { endpoint: 'gemini.fetchEnvContext', tags: { phase: 'env-context' } });
     return null;
   }
 };
@@ -343,6 +361,7 @@ ${envBlock}
     }
   } catch (error) {
     console.error('Error in /api/ask-guardian:', error);
+    sentryCapture(error, { endpoint: '/api/ask-guardian', tags: { method: 'POST', tenantId } });
     // Bucket X: every Gemini exception advances the breaker counter so
     // sustained upstream failure trips it before per-tenant ceilings do.
     await recordGeminiOutcome(tenantId, 'failure');
@@ -427,6 +446,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     }
   } catch (error: any) {
     console.error(`Error in Gemini API Proxy for ${action}:`, error);
+    sentryCapture(error, { endpoint: '/api/gemini', tags: { method: 'POST', action, tenantId } });
     await recordGeminiOutcome(tenantId, 'failure');
     res.status(500).json({
       error:
@@ -436,5 +456,133 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
     });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sprint 32 Bucket UU — SSE streaming endpoint for AsesorChat.
+//
+// POST /api/gemini/stream
+//   • Streams Gemini chunks back to the browser as Server-Sent Events:
+//        data: {"chunk":"...","done":false}\n\n
+//        ...
+//        data: {"chunk":"","done":true,"totalTokens":N}\n\n
+//   • Reuses verifyAuth + geminiLimiter + geminiGlobalDailyLimiter and the
+//     Bucket X circuit/quota guard (`assertGeminiAllowed`).
+//   • Body validated by Zod (Sprint 28 B3 middleware): `{ prompt, sessionId? }`.
+// ─────────────────────────────────────────────────────────────────────────
+
+const streamBodySchema = z.object({
+  prompt: z.string().min(1).max(8000),
+  sessionId: z.string().min(1).max(128).optional(),
+});
+
+router.post(
+  '/gemini/stream',
+  verifyAuth,
+  geminiGlobalDailyLimiter,
+  geminiLimiter,
+  validate(streamBodySchema),
+  async (req, res) => {
+    const { prompt, sessionId } = req.validated as z.infer<typeof streamBodySchema>;
+
+    // E2E mock — keeps Playwright specs offline-cheap.
+    if (
+      process.env.E2E_MODE === '1' &&
+      process.env.NODE_ENV !== 'production' &&
+      typeof req.headers.authorization === 'string' &&
+      req.headers.authorization.startsWith('E2E ')
+    ) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.write(`data: ${JSON.stringify({ chunk: 'E2E mock stream chunk.', done: false })}\n\n`);
+      res.write(`data: ${JSON.stringify({ chunk: '', done: true, totalTokens: 6 })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    const tenantId: string = (req as any).user?.uid ?? 'unknown';
+    const tier: string =
+      (req as any).user?.tier ?? (req as any).user?.subscriptionTier ?? 'bronze';
+    try {
+      await assertGeminiAllowed(tenantId, tier);
+    } catch (err: any) {
+      if (err?.code === 'gemini_circuit_open') {
+        return res
+          .status(503)
+          .json({ error: 'gemini_circuit_open', message: 'AI temporarily unavailable.' });
+      }
+      if (err?.code === 'gemini_quota_exceeded') {
+        return res.status(429).json({
+          error: 'quota_exceeded',
+          reason: err.quota?.reason ?? 'requests_exceeded',
+          usage: err.quota?.usage,
+          limit: err.quota?.limit,
+        });
+      }
+      throw err;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    // Flush headers immediately so the browser opens the EventSource.
+    if (typeof (res as any).flushHeaders === 'function') {
+      (res as any).flushHeaders();
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+    let cancelled = false;
+    req.on('close', () => {
+      cancelled = true;
+    });
+
+    let streamedChars = 0;
+    try {
+      const responseStream = await ai.models.generateContentStream({
+        model: 'gemini-3.1-pro-preview',
+        contents: prompt,
+      });
+
+      for await (const chunk of responseStream as AsyncIterable<{ text?: string }>) {
+        if (cancelled) break;
+        const text = chunk.text ?? '';
+        if (!text) continue;
+        streamedChars += text.length;
+        res.write(`data: ${JSON.stringify({ chunk: text, done: false })}\n\n`);
+      }
+
+      const inTokens = Math.ceil(prompt.length / 4);
+      const outTokens = Math.ceil(streamedChars / 4);
+      const totalTokens = inTokens + outTokens;
+
+      if (!cancelled) {
+        res.write(`data: ${JSON.stringify({ chunk: '', done: true, totalTokens, sessionId: sessionId ?? null })}\n\n`);
+      }
+      res.end();
+      await recordGeminiOutcome(tenantId, 'success', {
+        tokens: totalTokens,
+        costUsd: estimateGeminiCostUsd('gemini-3.1-pro-preview', inTokens, outTokens),
+      });
+    } catch (error) {
+      console.error('Error in /api/gemini/stream:', error);
+      sentryCapture(error, { endpoint: '/api/gemini/stream', tags: { method: 'POST', tenantId } });
+      await recordGeminiOutcome(tenantId, 'failure');
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'stream_failed' });
+      } else {
+        try {
+          res.write(`data: ${JSON.stringify({ error: 'stream_failed', done: true })}\n\n`);
+        } catch { /* socket may already be gone */ }
+        res.end();
+      }
+    }
+  },
+);
 
 export default router;

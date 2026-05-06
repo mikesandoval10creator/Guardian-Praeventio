@@ -22,6 +22,26 @@ import {
   shouldRelay,
 } from './meshPacket';
 
+/**
+ * Sprint 32 — hook que se dispara cuando un packet SOS se rebroadcastea
+ * exitosamente desde este nodo a un peer (drainForPeer). El caller usa
+ * esto para premiar XP al worker (Flow Infinito fase 3: el rebroadcaster
+ * podría haber salvado una vida). Fire-and-forget: la queue NO espera
+ * resultado y NO falla si el listener tira excepción.
+ */
+export interface MeshRelaySuccessEvent {
+  /** Tipo del packet que se relayó (siempre 'sos' por ahora; se podría extender). */
+  packetType: 'sos';
+  /** ID content-addressed del packet rebroadcasteado. */
+  packetId: string;
+  /** UID del worker que originó el SOS (la potencial víctima). */
+  originalSenderId: string;
+  /** UID del worker que rebroadcasteó (este nodo). */
+  relayedBy: string;
+  /** UID del peer al que se entregó. */
+  toPeerUid: string;
+}
+
 export interface MeshRelayQueueOptions {
   /** UID del worker dueño de este nodo. */
   selfUid: string;
@@ -33,6 +53,13 @@ export interface MeshRelayQueueOptions {
   dedupTtlMs?: number;
   /** Override de "ahora" para tests. */
   now?: () => number;
+  /**
+   * Sprint 32 — listener para 'rebroadcast_success' de SOS. Si está
+   * presente, se invoca por cada SOS que sale en drainForPeer. Wire
+   * principal: gamification awardXp('mesh_relay_sos', 50, ctx).
+   * Excepciones del listener se capturan — NO rompen el path de relay.
+   */
+  onRelaySuccess?: (event: MeshRelaySuccessEvent) => void;
 }
 
 export interface RelayResult {
@@ -60,6 +87,7 @@ export class MeshRelayQueue {
   private readonly maxQueueSize: number;
   private readonly dedupTtlMs: number;
   private readonly nowFn: () => number;
+  private readonly onRelaySuccess?: (event: MeshRelaySuccessEvent) => void;
 
   private queue: MeshPacket[] = [];
   /** Set de packet IDs vistos recientemente. Cleanup por TTL. */
@@ -71,6 +99,7 @@ export class MeshRelayQueue {
     this.maxQueueSize = options.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE;
     this.dedupTtlMs = options.dedupTtlMs ?? DEFAULT_DEDUP_TTL_MS;
     this.nowFn = options.now ?? Date.now;
+    this.onRelaySuccess = options.onRelaySuccess;
   }
 
   /** Estado actual (lectura). Útil para UI badge "N pendientes". */
@@ -190,6 +219,27 @@ export class MeshRelayQueue {
 
       const hopped = applyHop(packet, this.selfUid);
       toSend.push(hopped);
+
+      // Sprint 32 — Flow Infinito fase 3: si rebroadcasteamos un SOS,
+      // el worker dueño de este nodo podría haber salvado una vida.
+      // Notificamos al listener (gamification wire awardXp 'mesh_relay_sos').
+      // Fire-and-forget: una excepción acá NO debe romper la entrega del
+      // packet (la lógica core de mesh es vital — XP es secundario).
+      if (packet.type === 'sos' && this.onRelaySuccess) {
+        try {
+          this.onRelaySuccess({
+            packetType: 'sos',
+            packetId: packet.id,
+            originalSenderId: packet.fromUid,
+            relayedBy: this.selfUid,
+            toPeerUid: peerUid,
+          });
+        } catch (err) {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('[MeshRelayQueue] onRelaySuccess listener threw — ignored', err);
+          }
+        }
+      }
     }
 
     // Sort por priority + age

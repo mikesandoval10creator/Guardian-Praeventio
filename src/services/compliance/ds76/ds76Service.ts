@@ -9,6 +9,7 @@ import {
   tenantSlug,
 } from '../../suseso/folioGenerator.js';
 import { generateDs76Pdf } from '../../../utils/ds76Certificate.js';
+import { awardXp } from '../../gamification/positiveXp.js';
 
 export function formatDs76Folio(
   year: number,
@@ -158,7 +159,25 @@ export async function signForm(
   if (!/^[0-9a-f]{64}$/.test(signature.payloadHashHex)) {
     throw new Error('payloadHashHex must be a 64-char lowercase hex digest.');
   }
-  return deps.formStore.attachSignature(tenantId, formId, signature);
+  const result = await deps.formStore.attachSignature(tenantId, formId, signature);
+
+  // Sprint 32 wire W4 — gamificación POSITIVA: emitir y firmar el DS-76
+  // (subcontratación minera) formaliza el cumplimiento legal. XP al
+  // firmante. Fire-and-forget; el path legal nunca se rompe por gamification.
+  try {
+    awardXp('compliance_doc_generated', undefined, {
+      docType: 'DS76',
+      folio: existing.folio,
+      tenantId,
+      signerUid: signature.signerUid,
+    });
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[ds76Service] awardXp(compliance_doc_generated) threw — ignored', err);
+    }
+  }
+
+  return result;
 }
 
 export async function listVersions(

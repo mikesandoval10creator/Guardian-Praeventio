@@ -34,6 +34,7 @@ import {
   isValidQuorum,
   workersAreElected,
 } from './types.js';
+import { awardXp } from '../gamification/positiveXp.js';
 
 // ───────────────────────────────────────────────────────────────────────
 // Firestore-shape DI
@@ -268,6 +269,25 @@ export async function recordMinutes(
   };
 
   await docRef.update(patch);
+
+  // Sprint 32 wire W4 — gamificación POSITIVA: cada asistente firma su
+  // presencia y recibe XP por participar en la sesión CPHS (DS 54).
+  // Fire-and-forget; un fallo en awardXp NUNCA debe romper el record-
+  // minutes (que tiene valor legal ISO 45001 §5.4).
+  for (const attendeeUid of input.attendees) {
+    try {
+      awardXp('cphs_session_attended', undefined, {
+        meetingId: input.meetingId,
+        committeeId: meeting.committeeId,
+        attendeeUid,
+      });
+    } catch (err) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[cphsService] awardXp(cphs_session_attended) threw — ignored', err);
+      }
+    }
+  }
+
   return { ...meeting, ...patch, id: input.meetingId };
 }
 
@@ -317,6 +337,22 @@ export async function signMinutes(
   };
   const updated = [...(meeting.signatures ?? []), newSignature];
   await docRef.update({ signatures: updated });
+
+  // Sprint 32 wire W4 — gamificación POSITIVA: firmar el acta CPHS por
+  // WebAuthn es un acto de compromiso con la cultura preventiva. XP alto
+  // (40) refuerza la conducta. Fire-and-forget; el path legal del acta
+  // nunca se rompe por gamificación.
+  try {
+    awardXp('cphs_acta_signed', undefined, {
+      meetingId,
+      uid,
+      credentialId,
+    });
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[cphsService] awardXp(cphs_acta_signed) threw — ignored', err);
+    }
+  }
 }
 
 /**

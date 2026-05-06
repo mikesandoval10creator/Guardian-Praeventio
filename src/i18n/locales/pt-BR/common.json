@@ -89,7 +89,9 @@
     "safe": "Seguro",
     "danger": "Em Perigo",
     "last_morning_checkin": "Último Check-in Matinal",
-    "morning_wakeup": "Despertar Matinal"
+    "morning_wakeup": "Despertar Matinal",
+    "global_average": "Média Global",
+    "no_projects": "Sem projetos"
   },
   "errors": {
     "something_went_wrong": "Algo deu errado",
@@ -1154,5 +1156,119 @@
     "item_helmet_desc": "Falta de EPI crítico em zona de risco.",
     "item_harness_name": "Cinturão Mal Engatado",
     "item_harness_desc": "Risco de queda em altura."
+  },
+  "splash": {
+    "brand": "Praeventio",
+    "tap_to_enter": "Toque para entrar",
+    "enter": "Entrar"
+  },
+  "driving": {
+    "toast": {
+      "near_miss": "Quase-acidente registrado. Continue atento.",
+      "incident": "Incidente reportado. A base foi notificada.",
+      "arrived": "Chegada confirmada. Boa viagem."
+    },
+    "speedometer": {
+      "aria": "Velocidade atual {{kmh}} quilômetros por hora",
+      "unit": "km/h",
+      "no_signal": " . sem sinal"
+    },
+    "base": {
+      "label": "Base",
+      "call_aria": "Ligar para a base",
+      "disabled_aria": "Ligar para a base (não configurado)",
+      "disabled_title": "Configure o telefone da base nas configurações do projeto"
+    },
+    "dock": {
+      "near_miss": "Quase-acidente",
+      "incident": "Incidente",
+      "arrived": "Cheguei"
+    }
+  },
+  "emergency_page": {
+    "title": "Plano de Emergência",
+    "subtitle_with_project": "Protocolos e planos de ação para: {{name}}",
+    "subtitle_default": "Gestão centralizada de protocolos de segurança e resposta",
+    "requires_internet": "Requer conexão com a internet",
+    "search_placeholder": "Buscar protocolo de emergência...",
+    "recent_alerts": "Alertas Recentes",
+    "compliance_status": "Estado de Conformidade",
+    "no_workers": "Não há trabalhadores registrados neste projeto.",
+    "no_phone": "Sem telefone",
+    "btn": {
+      "ai_generator": "Gerador IA",
+      "requires_connection": "Requer Conexão",
+      "crisis_active": "Crise Ativa",
+      "crisis_mode": "Modo Crise",
+      "generating": "Gerando...",
+      "download_plan": "Baixar Plano Completo",
+      "emergency_contacts": "Contatos de Emergência",
+      "activate": "Ativar",
+      "deactivate": "Desativar"
+    },
+    "man_down": {
+      "alert_title": "ALERTA DE IMOBILIDADE!",
+      "alert_subtitle": "Falta de movimento prolongada detectada",
+      "countdown_warning": "Se você não cancelar este alerta, uma notificação de emergência será enviada a toda a equipe em {{countdown}} segundos.",
+      "cancel_aria": "Cancelar alarme de homem caído",
+      "im_ok": "Estou bem ({{countdown}}s)",
+      "rescue_coming": "Parar alarme — resgate a caminho",
+      "cancel_alert": "Cancelar Alerta",
+      "panel_title": "Homem Caído (Auto-Detecção)",
+      "monitoring_active": "Monitoramento de movimento ativo",
+      "system_off": "Sistema desativado",
+      "sensors_status": "Estado dos Sensores",
+      "connected": "Conectado",
+      "inactive": "Inativo",
+      "last_motion": "Último Movimento",
+      "one_sec_ago": "Há 1s"
+    },
+    "protocol": {
+      "active": "Vigente",
+      "review": "Em Revisão",
+      "review_label": "Revisão: {{date}}"
+    },
+    "alerts": {
+      "drill_title": "Simulado Programado",
+      "drill_date": "Amanhã, 10:00",
+      "extinguisher_title": "Revisão de Extintores",
+      "extinguisher_date": "Sexta, 14:00"
+    },
+    "compliance": {
+      "plan": "Plano de Emergência",
+      "brigade": "Brigada de Emergência",
+      "signage": "Sinalização"
+    },
+    "default_protocols": {
+      "fire_title": "Protocolo de Incêndio",
+      "fire_category": "Fogo",
+      "quake_title": "Protocolo de Terremoto",
+      "quake_category": "Natural",
+      "spill_title": "Protocolo de Derramamento Químico",
+      "spill_category": "Químico",
+      "first_aid_title": "Protocolo de Primeiros Socorros",
+      "first_aid_category": "Saúde"
+    }
+  },
+  "landing": {
+    "skip_to_content": "Pular para o conteúdo",
+    "meta": {
+      "title": "Guardian Praeventio — Prevenção de riscos na palma da sua mão",
+      "description": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA"
+    },
+    "nav": {
+      "login": "Entrar",
+      "enter": "Acessar"
+    },
+    "hero": {
+      "compliance_badge": "Conformidade DS 54 · DS 40 · Lei 16.744",
+      "title_line_1": "A revolução da",
+      "title_line_2": "prevenção de riscos",
+      "subtitle": "Gestão de riscos, bem-estar da equipe e conformidade regulatória — tudo em uma plataforma com IA",
+      "description": "IA, emergências e conformidade regulatória chilena em um único aplicativo. Para empresas que levam a segurança dos trabalhadores a sério.",
+      "cta_primary": "Acessar o app",
+      "cta_secondary": "Comecar gratis",
+      "free_tier_note": "Grátis até 10 trabalhadores · Sem cartão de crédito"
+    }
   }
 }
