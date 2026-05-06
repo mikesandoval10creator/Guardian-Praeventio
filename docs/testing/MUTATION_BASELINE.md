@@ -704,6 +704,44 @@ that was scoped in Sprint 22+ planning but never landed.
   using the first green run's per-file scores.
 - Decide on bump `break: 65 → 70` if `reba.ts` ≥80% on Linux.
 
+## Sprint 38 I4 — Initial RATCHET seed (2026-05-06)
+
+**Date:** 2026-05-06.
+**Branch:** `dev/sprint-38-cl-adapter-photogrammetry-stryker-locales-2026-05-06`.
+**Trigger:** Sprint 37 confirmed CI #74 mutation job green on Linux runner. Time to seed `RATCHET` in `scripts/check-mutation-thresholds.cjs` so future PRs cannot regress stable files.
+
+**Method:** Conservative seed from Run #5 cumulative-14 documented scores (the last fully-tabulated per-module multi-run baseline, immediately above). Each ratchet floor = `documented_score - ~5pp` rounded down to the nearest 5, honoring the project's stated "lowest module − 5" safety rule. The CI #74 numbers were not machine-extractable on the dev Windows host (`gh` CLI not present and Windows host crashes on local `npx stryker run` of `limiters.ts` per the known `STATUS_STACK_BUFFER_OVERRUN` issue), so we used the documented baseline directly. Sprint 39+ will re-seed from extracted CI `report.json` after 2 consecutive green runs.
+
+| File | Run #5 score | RATCHET floor | Notes |
+|---|---:|---:|---|
+| `src/services/ergonomics/rula.ts` | 94.22 % | 89 | Highest-confidence anchor. |
+| `src/services/protocols/iper.ts` | 89.36 % | 80 | |
+| `src/services/safety/ergonomicAssessments.ts` | 88.08 % | 80 | Also has `CRITICAL_FLOORS` 75 — RATCHET 80 supersedes when score holds. |
+| `src/services/safety/iperAssessments.ts` | 88.05 % | 80 | Same — CRITICAL 75 + RATCHET 80. |
+| `src/services/protocols/tmert.ts` | 85.07 % | 80 | |
+| `src/services/observability/sentryInstrumentation.ts` | 85.48 % | 80 | PII redaction guarantees. |
+| `src/services/protocols/prexor.ts` | 81.71 % | 76 | |
+| `src/services/slm/reconciliation.ts` | 81.48 % | 76 | HMAC verification path. |
+| `src/services/ergonomics/reba.ts` | 77.74 % | 70 | Sub-80 — light ratchet to lock in current health. |
+| `src/server/middleware/verifyAuth.ts` | 76.19 % | n/a | Skipped — `CRITICAL_FLOORS` 75 is the higher floor. |
+| `src/services/billing/webpayAdapter.ts` | 58.26 % | n/a | Skipped — needs to grow into `CRITICAL_FLOORS` 75 first. |
+| `src/services/slm/offlineQueue.ts` | 60.44 % | n/a | Let grow organically. |
+| `src/services/slm/orchestrator.ts` | 43.59 % | n/a | Test-debt; do not lock. |
+| `src/server/middleware/limiters.ts` | 3.05 % | n/a | Linux runner re-test pending; CRITICAL ramps 60→75. |
+
+**Rules applied:**
+- Scores ≥80% → RATCHET at `documented − ~5pp`, rounded to nearest 5.
+- Scores 60–80% → RATCHET only if file is small/stable (`reba.ts` 70).
+- Scores <60% → no RATCHET (let organic growth or CRITICAL_FLOORS handle).
+- Files already in `CRITICAL_FLOORS` with a higher floor → no duplicate RATCHET entry.
+
+**Verification:**
+- `node -c scripts/check-mutation-thresholds.cjs` → OK (syntax clean).
+- No `.ts` source touched; typecheck unaffected.
+- Thresholds in `stryker.config.json` untouched (`high: 80, low: 60, break: 50`).
+
+**Sprint 39+ plan:** wait for 2 consecutive green CI mutation runs, extract per-file scores from `reports/mutation/report.json` artifact, bump RATCHET entries upward where stable (and append entries to `RATCHET_BUMP_LOG`). Promote `webpayAdapter`, `offlineQueue`, `verifyAuth` into RATCHET once they cross 75% on Linux.
+
 ## Cross-references
 
 - `docs/testing/MUTATION_TESTING.md` — top-level run guide, threshold policy, target rationale.

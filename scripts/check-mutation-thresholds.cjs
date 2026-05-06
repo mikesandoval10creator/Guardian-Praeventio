@@ -43,12 +43,44 @@ const REPORT_PATH = path.join(
 
 // Files with mutation score ≥80% on first run get baselined here. Any
 // regression below the ratchet floor fails this script in Sprint 35+.
-// Sprint 34: empty until first green run snapshot is committed.
+//
+// Sprint 38 I4 — initial ratchet seed. Source: Run #5 cumulative-14 table
+// in docs/testing/MUTATION_BASELINE.md (14-module baseline 2026-05-04, the
+// last full multi-module run with documented per-file scores).
+//
+// Sprint 37 CI #74 confirmed Stryker passes green on Linux runner for the
+// first time, but the per-file CI numbers are not yet machine-extractable
+// from this host (no `gh` CLI). The seed below uses the documented Run #5
+// scores minus a ~5pp safety margin (the explicit "do not increase break
+// above lowest module's score − 5" rule the baseline doc states). Each
+// entry locks a floor; future PRs can RAISE but never lower a value.
+//
+// Files NOT in RATCHET intentionally: orchestrator (43.59%), webpayAdapter
+// (58.26% — covered by CRITICAL_FLOORS), offlineQueue (60.44%), limiters
+// (3.05% — covered by CRITICAL_FLOORS ramp), verifyAuth (76.19% — covered
+// by CRITICAL_FLOORS at 75% which is the higher floor). Let those grow
+// organically; promote into RATCHET once a CI run shows them ≥80%.
+//
+// Sprint 39+: after 2 consecutive green CI mutation runs, re-seed from
+// machine-extracted report.json and bump entries upward where stable.
 const RATCHET = {
-  // Example (populate after first run):
-  // 'src/services/ergonomics/rula.ts': 90,
-  // 'src/services/safety/ergonomicAssessments.ts': 85,
+  'src/services/ergonomics/rula.ts': 89,
+  'src/services/protocols/iper.ts': 80,
+  'src/services/safety/ergonomicAssessments.ts': 80,
+  'src/services/safety/iperAssessments.ts': 80,
+  'src/services/protocols/tmert.ts': 80,
+  'src/services/observability/sentryInstrumentation.ts': 80,
+  'src/services/protocols/prexor.ts': 76,
+  'src/services/slm/reconciliation.ts': 76,
+  'src/services/ergonomics/reba.ts': 70,
 };
+
+// Sprint 38 I4 onward: append `{ sprint, file, from, to, source }` whenever
+// a RATCHET entry is bumped. Lets us track the ratchet's monotonic climb.
+const RATCHET_BUMP_LOG = [
+  // Example: { sprint: 39, file: 'src/services/slm/orchestrator.ts',
+  //            from: null, to: 70, source: 'CI #82 mutation run' },
+];
 
 // Critical files: must hit a hard floor regardless of ratchet.
 // Mapped from audit P1: auth, billing webhooks, emergency, compliance.

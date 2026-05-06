@@ -130,22 +130,7 @@ const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
 
 // Sprint 37 W61 — i18n refactor: feature lists now live in
 // `src/i18n/locales/{lang}/common.json` under `pricing.tier_features.{tierId}`.
-// They are looked up at render time via `t(key, { returnObjects: true })`. The
-// number of features per tier is invariant across locales (validated by
-// translation review). Keep this map as a thin index of which tiers exist.
-const TIER_FEATURE_COUNTS: Record<TierId, number> = {
-  gratis: 5,
-  'comite-paritario': 5,
-  'departamento-prevencion': 5,
-  plata: 5,
-  oro: 5,
-  titanio: 5,
-  diamante: 5,
-  empresarial: 5,
-  corporativo: 5,
-  ilimitado: 5,
-  'global-titanio': 6,
-};
+// They are looked up at render time via `t(key, { returnObjects: true })`.
 
 // Tone is intrinsic to the tier's market position; the user-facing label is
 // resolved via i18n (`pricing.badges.{tierId}`).
