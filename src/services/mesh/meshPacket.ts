@@ -14,7 +14,15 @@
 //   - dedup (loop avoidance)
 //   - priority ordering
 
-import { createHash } from 'node:crypto';
+// Sprint 33 D3 build fix — replaced node:crypto.createHash with @noble/hashes
+// because Sprint 33 wired meshFallback.ts (which imports buildPacket) into
+// the browser bundle for offline SOS rebroadcast (audit wire W10). vite
+// rejects node:crypto in client builds (__vite-browser-external doesn't
+// export createHash). @noble/hashes is sync, browser+node compatible, and
+// adds ~10KB gzipped to the bundle. The deterministic content-addressed
+// hash semantic stays identical (sha256 of canonical JSON).
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 export type MeshPacketType =
   | 'gps_breadcrumb'
@@ -181,7 +189,7 @@ export function computePacketId(opts: {
     bornAtMs: opts.bornAtMs,
     payload: opts.payload,
   });
-  return createHash('sha256').update(canonical).digest('hex');
+  return bytesToHex(sha256(new TextEncoder().encode(canonical)));
 }
 
 /**
