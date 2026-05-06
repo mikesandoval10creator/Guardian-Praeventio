@@ -105,7 +105,9 @@ export function DrivingSuggestion(): React.ReactElement | null {
           <button
             type="button"
             onClick={handleActivate}
-            className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg"
+            // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+            // Driving surface is high-stakes (speed >20 km/h sustained); fat-finger taps must be reliable.
+            className="min-h-11 inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg"
             style={{
               background: 'var(--accent-primary, #2563eb)',
               color: 'var(--accent-on-primary, #fff)',

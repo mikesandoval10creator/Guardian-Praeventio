@@ -90,7 +90,8 @@ export function DynamicEvacuationMap() {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={() => setShowDeadReckoning(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+            // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+            className={`min-h-11 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
               showDeadReckoning
                 ? 'bg-blue-500/20 border-blue-500/40 text-blue-400'
                 : 'bg-zinc-800/60 border-white/10 text-zinc-400 hover:text-white'
@@ -190,7 +191,8 @@ export function DynamicEvacuationMap() {
                       type="submit"
                       aria-label="Agregar área bloqueada"
                       disabled={!newBlockedArea.trim() || isCalculating}
-                      className="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                      className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus className="w-4 h-4" aria-hidden="true" />
                     </button>

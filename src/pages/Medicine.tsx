@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+// Sprint 36 G1 fix — ADR 0012 enforcement: vistas médicas DEBEN renderizar
+// <MedicalDisclaimer/>. El hook precommit-medical-guard.cjs detectó que
+// Medicine.tsx no lo tenía (regresión histórica que i18n sweep destapó).
+import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import {
   Activity,
   Heart,
@@ -28,6 +33,7 @@ import { Ds109Modal } from '../components/medicine/Ds109Modal';
 import { FileCheck } from 'lucide-react';
 
 export function Medicine() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { nodes, loading } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,29 +62,34 @@ export function Medicine() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
+      {/* ADR 0012 — Praeventio NUNCA diagnostica. Esta vista médica
+          renderiza el disclaimer canónico arriba de todo el contenido
+          para reforzar al usuario que el rol del producto es asistir
+          al profesional, no reemplazarlo. */}
+      <MedicalDisclaimer />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter flex items-center gap-3">
             <Stethoscope className="w-8 h-8 text-rose-500" />
-            Medicina Ocupacional
+            {t('medicine.title')}
           </h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1">Gestión de salud, exámenes médicos y vigilancia epidemiológica</p>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">{t('medicine.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setDs109Open(true)}
             className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95"
-            title="Generar formulario DS 109 (calificación de enfermedad profesional)"
+            title={t('medicine.ds109_tooltip')}
           >
             <FileCheck className="w-5 h-5 text-teal-500 dark:text-gold-400" />
-            <span>Calificación DS 109</span>
+            <span>{t('medicine.ds109_label')}</span>
           </button>
           <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl font-medium transition-all shadow-lg shadow-rose-500/20 active:scale-95"
           >
             <Plus className="w-5 h-5" />
-            <span>Nueva Consulta</span>
+            <span>{t('medicine.new_consultation')}</span>
           </button>
         </div>
       </div>
@@ -87,7 +98,7 @@ export function Medicine() {
       <section className="space-y-4">
         <div className="flex items-center gap-2 flex-wrap">
           <Brain className="w-4 h-4 text-[#4db6ac] dark:text-[#d4af37]" />
-          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">Estación de Trabajo Médica</h2>
+          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">{t('medicine.workstation')}</h2>
           <span className="px-2 py-0.5 rounded text-[9px] font-black tracking-widest bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 text-[#2a8a81] dark:text-[#d4af37] border border-[#4db6ac]/20 dark:border-[#d4af37]/20 uppercase">
             Gemini IA
           </span>
@@ -96,12 +107,12 @@ export function Medicine() {
         {/* Tabs */}
         <div className="flex gap-1 p-1 rounded-2xl bg-zinc-100 dark:bg-zinc-900 overflow-x-auto custom-scrollbar">
           {[
-            { id: 'visor' as const, label: 'Visor Corporal' },
-            { id: 'diagnostico' as const, label: 'Dx Diferencial IA' },
-            { id: 'aptitud' as const, label: 'Certificado DS 109' },
-            { id: 'anatomia' as const, label: 'Librería Anatómica' },
-            { id: 'vigilancia' as const, label: 'Vigilancia Programada' },
-            { id: 'farmacos' as const, label: 'Interacciones IA' },
+            { id: 'visor' as const, label: t('medicine.tab_visor') },
+            { id: 'diagnostico' as const, label: t('medicine.tab_dx') },
+            { id: 'aptitud' as const, label: t('medicine.tab_aptitude') },
+            { id: 'anatomia' as const, label: t('medicine.tab_anatomy') },
+            { id: 'vigilancia' as const, label: t('medicine.tab_surveillance') },
+            { id: 'farmacos' as const, label: t('medicine.tab_drugs') },
           ].map(tab => (
             <button
               key={tab.id}
@@ -137,7 +148,7 @@ export function Medicine() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
             <input
               type="text"
-              placeholder="Buscar por paciente o tipo de examen..."
+              placeholder={t('medicine.search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-3 pl-10 pr-4 text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all"
@@ -170,7 +181,7 @@ export function Medicine() {
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-right hidden md:block">
-                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Resultado</p>
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('medicine.result')}</p>
                         <span className={`text-xs font-bold ${
                           node.metadata.result === 'Apto' ? 'text-[#4db6ac]' : 
                           node.metadata.result === 'Apto con restricción' ? 'text-amber-500' : 
@@ -180,7 +191,7 @@ export function Medicine() {
                         </span>
                       </div>
                       <div className="text-right hidden md:block">
-                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">Fecha</p>
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1">{t('medicine.date')}</p>
                         <span className="text-xs font-bold text-white">{node.metadata.date}</span>
                       </div>
                       <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-rose-500 transition-colors" />
@@ -193,7 +204,7 @@ export function Medicine() {
                 <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Heart className="w-8 h-8 text-zinc-600" />
                 </div>
-                <p className="text-zinc-500 text-sm">No hay registros médicos para este proyecto.</p>
+                <p className="text-zinc-500 text-sm">{t('medicine.empty')}</p>
               </div>
             )}
           </div>
@@ -204,19 +215,19 @@ export function Medicine() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5 text-rose-500" />
-              Estado de Salud
+              {t('medicine.health_status')}
             </h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-400">Aptitud Médica</span>
+                <span className="text-sm text-zinc-400">{t('medicine.medical_aptitude')}</span>
                 <span className="text-xs font-bold text-[#4db6ac]">{stats.aptitude}%</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-400">Restricciones Activas</span>
+                <span className="text-sm text-zinc-400">{t('medicine.active_restrictions')}</span>
                 <span className="text-xs font-bold text-amber-500">{stats.restrictions}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-400">Exámenes Pendientes</span>
+                <span className="text-sm text-zinc-400">{t('medicine.pending_exams')}</span>
                 <span className="text-xs font-bold text-rose-500">{stats.pending}</span>
               </div>
             </div>
@@ -225,13 +236,13 @@ export function Medicine() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-[#4db6ac]" />
-              Vigilancia Médica
+              {t('medicine.surveillance')}
             </h3>
             <div className="space-y-4">
               {[
-                { label: 'Control Cardiovascular', count: 45, color: 'bg-rose-500' },
-                { label: 'Control Ergonómico', count: 28, color: 'bg-orange-500' },
-                { label: 'Control Psicosocial', count: 15, color: 'bg-indigo-500' },
+                { label: t('medicine.cardiovascular'), count: 45, color: 'bg-rose-500' },
+                { label: t('medicine.ergonomic_control'), count: 28, color: 'bg-orange-500' },
+                { label: t('medicine.psychosocial_control'), count: 15, color: 'bg-indigo-500' },
               ].map((stat, i) => (
                 <div key={i} className="space-y-2">
                   <div className="flex justify-between text-xs font-medium">
@@ -249,10 +260,10 @@ export function Medicine() {
           <div className="bg-rose-500/10 border border-rose-500/20 rounded-3xl p-6">
             <div className="flex items-center gap-3 mb-3">
               <AlertCircle className="w-5 h-5 text-rose-500" />
-              <h4 className="font-bold text-rose-500">Alerta de Salud</h4>
+              <h4 className="font-bold text-rose-500">{t('medicine.health_alert')}</h4>
             </div>
             <p className="text-xs text-rose-200 leading-relaxed">
-              Se ha detectado un aumento del 15% en consultas por fatiga visual en el área administrativa. Se recomienda revisión de iluminación y pausas activas.
+              {t('medicine.health_alert_text')}
             </p>
           </div>
         </div>

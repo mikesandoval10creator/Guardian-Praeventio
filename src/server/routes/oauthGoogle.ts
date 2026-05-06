@@ -243,7 +243,7 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
 
     res.json({ success: true, results });
   } catch (error) {
-    console.error('Error syncing with Google Calendar:', error);
+    logger.error('google_calendar_sync_failed', error, { uid });
     sentryCapture(error, { endpoint: '/api/calendar/sync', tags: { method: 'POST', uid } });
     res.status(500).json({ error: 'Failed to sync with Google Calendar' });
   }
@@ -312,14 +312,14 @@ oauthGoogleApiRouter.post('/fitness/sync', verifyAuth, async (req, res) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Google Fit API error:', errorText);
+      logger.error('google_fit_api_error', undefined, { uid, status: response.status, errorText });
       return res.status(response.status).json({ error: 'Failed to fetch Google Fit data' });
     }
 
     const data = await response.json();
     res.json({ success: true, data });
   } catch (error) {
-    console.error('Error syncing with Google Fit:', error);
+    logger.error('google_fit_sync_failed', error, { uid });
     sentryCapture(error, { endpoint: '/api/fitness/sync', tags: { method: 'POST', uid } });
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -381,7 +381,7 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
 
     const tokens = await response.json();
     if (!tokens.access_token) {
-      console.error('Drive token exchange returned no access_token:', tokens);
+      logger.error('drive_token_exchange_no_access_token', undefined, { uid: initiator.uid });
       return res.status(500).send('Token exchange failed');
     }
 
@@ -409,7 +409,7 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('Error in Google Drive Auth Callback:', error);
+    logger.error('google_drive_auth_callback_failed', error);
     sentryCapture(error, { endpoint: '/api/drive/auth/callback', tags: { method: 'GET' } });
     res.status(500).send('Error during authentication');
   }
@@ -450,7 +450,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
 
     const tokens = await response.json();
     if (!tokens.access_token) {
-      console.error('Google token exchange returned no access_token:', tokens);
+      logger.error('google_token_exchange_no_access_token', undefined, { uid: initiator.uid });
       return res.status(500).send('Token exchange failed');
     }
 
@@ -493,7 +493,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    console.error('Error in Google Auth Callback:', error);
+    logger.error('google_auth_callback_failed', error);
     sentryCapture(error, { endpoint: '/auth/google/callback', tags: { method: 'GET' } });
     res.status(500).send('Error during authentication');
   }

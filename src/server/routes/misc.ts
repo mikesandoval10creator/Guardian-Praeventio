@@ -98,7 +98,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   const uid = (req as any).user.uid;
 
   try {
-    console.log(`[ERP Sync] Type: ${erpType}, Action: ${action}`);
+    logger.info('erp_sync_started', { erpType, action, uid });
 
     // Simulate real backend activity by logging the sync attempt
     const db = admin.firestore();
@@ -124,7 +124,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`Error syncing with ERP (${erpType}):`, error);
+    logger.error('erp_sync_failed', error, { erpType, action, uid });
     sentryCapture(error, { endpoint: '/api/erp/sync', tags: { method: 'POST', erpType, action, uid } });
     res.status(500).json({ error: 'Error de sincronización con ERP' });
   }
@@ -141,7 +141,7 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
     await runSeed();
     res.json({ success: true, message: 'Community glossary seeded successfully' });
   } catch (error: any) {
-    console.error('Error seeding glossary:', error);
+    logger.error('seed_glossary_failed', error);
     sentryCapture(error, { endpoint: '/api/seed-glossary', tags: { method: 'POST' } });
     res.status(500).json({
       error:
@@ -163,7 +163,7 @@ router.post('/seed-data', verifyAuth, async (req, res) => {
     await seedInitialData();
     res.json({ success: true, message: 'Initial project data seeded successfully' });
   } catch (error: any) {
-    console.error('Error seeding data:', error);
+    logger.error('seed_data_failed', error);
     sentryCapture(error, { endpoint: '/api/seed-data', tags: { method: 'POST' } });
     res.status(500).json({
       error:
@@ -199,7 +199,7 @@ router.get('/legal/check-updates', verifyAuth, async (_req, res) => {
     );
     res.json({ results });
   } catch (error: any) {
-    console.error('Error in legal check-updates:', error);
+    logger.error('legal_check_updates_failed', error);
     sentryCapture(error, { endpoint: '/api/legal/check-updates', tags: { method: 'GET' } });
     res.status(500).json({ error: error.message });
   }

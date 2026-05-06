@@ -23,6 +23,7 @@
 import type admin from 'firebase-admin';
 import type { Resend } from 'resend';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { logger } from '../../utils/logger.js';
 import {
   writeIncidentPostmortemNode,
   type IncidentDoc as PostmortemIncidentDoc,
@@ -187,20 +188,17 @@ export function setupBackgroundTriggers(
                     html,
                   })
                   .catch((e: unknown) =>
-                    console.warn('[TRIGGER: CPHS Email] delivery failed:', e),
+                    logger.warn('cphs_email_delivery_failed', { err: e instanceof Error ? e.message : String(e) }),
                   );
               }
             } catch (err) {
-              console.error('[TRIGGER: FCM Push] Error:', err);
+              logger.error('fcm_push_failed', err, { trigger: 'criticalIncidentNotify' });
               sentryCapture(err, { trigger: 'criticalIncidentNotify', tags: { phase: 'fcm-push' } });
             }
           });
         },
         (error) => {
-          console.error(
-            'Error in incidents background trigger listener:',
-            error,
-          );
+          logger.error('incidents_listener_error', error, { trigger: 'incidentsListener' });
           sentryCapture(error, { trigger: 'incidentsListener', tags: { phase: 'onSnapshot-error' } });
         },
       );
@@ -227,9 +225,10 @@ export function setupBackgroundTriggers(
               continue;
             }
 
-            console.log(
-              `[TRIGGER: RAG Pipeline] => Generating embeddings for: ${change.doc.id} (${data.type})`,
-            );
+            logger.info('rag_pipeline_embedding_start', {
+              docId: change.doc.id,
+              docType: data.type,
+            });
 
             try {
               await change.doc.ref.update({
@@ -257,17 +256,15 @@ export function setupBackgroundTriggers(
                   _ragProcessedAt:
                     firestoreNamespace.FieldValue.serverTimestamp(),
                 });
-                console.log(
-                  `[TRIGGER: RAG Pipeline] ✅ Embeddings successfully saved for ${change.doc.id}`,
-                );
+                logger.info('rag_pipeline_embedding_saved', { docId: change.doc.id });
               } else {
                 throw new Error('Empty embedding returned');
               }
             } catch (error) {
-              console.error(
-                `[TRIGGER: RAG Pipeline] ❌ Error processing ${change.doc.id}:`,
-                error,
-              );
+              logger.error('rag_pipeline_failed', error, {
+                docId: change.doc.id,
+                docType: data.type,
+              });
               sentryCapture(error, { trigger: 'ragPipeline', tags: { docId: change.doc.id, docType: data.type ?? null } });
               await change.doc.ref.update({
                 _ragProcessingStatus: 'failed',
@@ -278,7 +275,7 @@ export function setupBackgroundTriggers(
           }
         },
         (error) => {
-          console.error('Error in RAG background trigger listener:', error);
+          logger.error('rag_listener_error', error, { trigger: 'ragListener' });
           sentryCapture(error, { trigger: 'ragListener', tags: { phase: 'onSnapshot-error' } });
         },
       );
@@ -326,14 +323,14 @@ export function setupBackgroundTriggers(
                 }),
               logger: {
                 warn: (msg, ctx) =>
-                  console.warn(`[TRIGGER: Postmortem] ${msg}`, ctx ?? ''),
+                  logger.warn(`postmortem_${msg}`, ctx as Record<string, unknown> | undefined),
                 info: (msg, ctx) =>
-                  console.log(`[TRIGGER: Postmortem] ${msg}`, ctx ?? ''),
+                  logger.info(`postmortem_${msg}`, ctx as Record<string, unknown> | undefined),
               },
             });
           } catch (err) {
             // Defensa final: nada en este path debe romper el cierre del incidente.
-            console.error('[TRIGGER: Postmortem] unexpected error:', err);
+            logger.error('postmortem_unexpected_error', err, { incidentId: change.doc.id });
             sentryCapture(err, {
               trigger: 'incidentPostmortem',
               tags: { phase: 'unexpected', incidentId: change.doc.id },
@@ -342,7 +339,7 @@ export function setupBackgroundTriggers(
         });
       },
       (error) => {
-        console.error('Error in incident-close trigger listener:', error);
+        logger.error('incident_close_listener_error', error, { trigger: 'incidentCloseListener' });
         sentryCapture(error, {
           trigger: 'incidentCloseListener',
           tags: { phase: 'onSnapshot-error' },
@@ -350,7 +347,7 @@ export function setupBackgroundTriggers(
       },
     );
   } catch (err) {
-    console.error('Failed to setup background triggers:', err);
+    logger.error('background_triggers_setup_failed', err);
     sentryCapture(err, { trigger: 'setupBackgroundTriggers', tags: { phase: 'init' } });
   }
 
@@ -359,17 +356,17 @@ export function setupBackgroundTriggers(
       try {
         unsubIncidents();
       } catch (e) {
-        console.warn('[triggers] failed to unsubscribe incidents listener:', e);
+        logger.warn('triggers_unsubscribe_failed', { listener: 'incidents', err: e instanceof Error ? e.message : String(e) });
       }
       try {
         unsubRag();
       } catch (e) {
-        console.warn('[triggers] failed to unsubscribe RAG listener:', e);
+        logger.warn('triggers_unsubscribe_failed', { listener: 'rag', err: e instanceof Error ? e.message : String(e) });
       }
       try {
         unsubIncidentClose();
       } catch (e) {
-        console.warn('[triggers] failed to unsubscribe incident-close listener:', e);
+        logger.warn('triggers_unsubscribe_failed', { listener: 'incidentClose', err: e instanceof Error ? e.message : String(e) });
       }
     },
   };

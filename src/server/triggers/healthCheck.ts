@@ -15,6 +15,7 @@
 
 import type admin from 'firebase-admin';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { logger } from '../../utils/logger.js';
 
 function sentryCapture(
   err: unknown,
@@ -61,12 +62,12 @@ export function setupHealthCheckInterval(
 
       for (const project of projects.docs) {
         await performCheck(project.id).catch((e) => {
-          console.error(`Error in health check for ${project.id}:`, e);
+          logger.error('project_health_check_failed', e, { projectId: project.id });
           sentryCapture(e, { trigger: 'projectHealthCheck', tags: { projectId: project.id } });
         });
       }
     } catch (error) {
-      console.error('Error in background health checks:', error);
+      logger.error('background_health_checks_failed', error);
       sentryCapture(error, { trigger: 'backgroundHealthChecks', tags: { phase: 'tick' } });
     }
   };

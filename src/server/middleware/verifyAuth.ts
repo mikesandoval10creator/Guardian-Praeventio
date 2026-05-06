@@ -27,6 +27,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import admin from 'firebase-admin';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { logger } from '../../utils/logger.js';
 
 function sentryCapture(
   err: unknown,
@@ -99,7 +100,7 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
     (req as any).user = decodedToken;
     next();
   } catch (error) {
-    console.error('Error verifying auth token:', error);
+    logger.error('auth_token_verification_failed', error, { endpoint: req.url, method: req.method });
     sentryCapture(error, { endpoint: req.url, tags: { method: req.method, middleware: 'verifyAuth' } });
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
   }

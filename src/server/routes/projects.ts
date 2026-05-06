@@ -47,6 +47,7 @@ import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
 import type { Role as AnalyticsRole } from '../../services/analytics/types.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { logger } from '../../utils/logger.js';
 
 function sentryCapture(
   err: unknown,
@@ -226,7 +227,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
           tag: 'invitation',
         });
         if (result.ok === false) {
-          console.warn('Email delivery failed (invitation stored successfully):', result.error);
+          logger.warn('invitation_email_delivery_failed', { err: String(result.error) });
         }
       } else {
         await resend.emails.send({
@@ -242,7 +243,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
         });
       }
     } catch (emailErr) {
-      console.warn('Email delivery failed (invitation stored successfully):', emailErr);
+      logger.warn('invitation_email_delivery_failed', { err: emailErr instanceof Error ? emailErr.message : String(emailErr) });
     }
 
     // 16th wave (Bucket B) analytics: `project.member.invited` — fires
@@ -261,7 +262,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
 
     res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
-    console.error('Error creating invitation:', error);
+    logger.error('invitation_create_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/invite', tags: { method: 'POST', projectId, uid: callerUid } });
     res.status(500).json({
       error:
@@ -338,7 +339,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
 
     res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
   } catch (error: any) {
-    console.error('Error listing project members:', error);
+    logger.error('project_members_list_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/members', tags: { method: 'GET', projectId, uid: callerUid } });
     res.status(500).json({
       error:
@@ -400,7 +401,7 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
 
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error removing project member:', error);
+    logger.error('project_member_remove_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/members/:uid', tags: { method: 'DELETE', projectId, targetUid, uid: callerUid } });
     res.status(500).json({
       error:
@@ -448,7 +449,7 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
     await inviteDoc.ref.delete();
     res.json({ success: true });
   } catch (error: any) {
-    console.error('Error canceling invitation:', error);
+    logger.error('invitation_cancel_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/invite', tags: { method: 'DELETE', projectId, uid: callerUid } });
     res.status(500).json({
       error:
@@ -606,7 +607,7 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
     if (error && typeof error.statusCode === 'number') {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    console.error('Error accepting invitation:', error);
+    logger.error('invitation_accept_failed', error);
     sentryCapture(error, { endpoint: '/api/invitations/:token/accept', tags: { method: 'POST', uid: callerUid } });
     res.status(500).json({
       error:

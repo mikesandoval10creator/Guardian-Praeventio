@@ -143,7 +143,8 @@ export function SkillTree({ skills = DEFAULT_SKILLS, workerName, crewName, crewS
       <div className="flex rounded-xl overflow-hidden border border-zinc-800">
         <button
           onClick={() => setTrack('individual')}
-          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors ${
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className={`flex-1 min-h-11 flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors ${
             track === 'individual' ? 'bg-amber-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
           }`}
         >
@@ -151,7 +152,8 @@ export function SkillTree({ skills = DEFAULT_SKILLS, workerName, crewName, crewS
         </button>
         <button
           onClick={() => setTrack('crew')}
-          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors ${
+          // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+          className={`flex-1 min-h-11 flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors ${
             track === 'crew' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
           }`}
         >
