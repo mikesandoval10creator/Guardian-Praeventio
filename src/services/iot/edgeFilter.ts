@@ -45,6 +45,10 @@ import {
 } from '../mesh/meshPacket.js';
 import type { TransportFacade } from '../mesh/transportFacade.js';
 import { getErrorTracker, getMetrics } from '../observability/index.js';
+import type { EonetAdapter } from '../external/eonet/eonetAdapter.js';
+import type { EonetEvent, BBox } from '../external/eonet/types.js';
+import type { UsgsEarthquakeAdapter } from '../external/usgs/usgsEarthquakeAdapter.js';
+import type { UsgsEarthquake } from '../external/usgs/types.js';
 
 // ---------------------------------------------------------------------------
 // Tipos publicos
@@ -78,12 +82,24 @@ export interface EdgeRecommendation {
   timestamp: number;
 }
 
+export interface EdgeExternalCorrelations {
+  /** Eventos naturales abiertos cerca del device (EONET). */
+  eonet: EonetEvent[];
+  /** Sismos recientes en proximidad (USGS). */
+  usgs: UsgsEarthquake[];
+}
+
 export interface EdgeContextPacket {
   anomaly: EdgeAnomaly;
   /** Ventana temporal de samples crudos previos (ultimos N segundos). */
   window: TelemetrySample[];
   /** epoch ms en que el contexto se snapshote-o. */
   snapshotAt: number;
+  /**
+   * Correlaciones externas para doble-chequeo del supervisor (Sprint 39 J3b).
+   * Solo presente si al menos un adapter fue inyectado y la consulta succedio.
+   */
+  externalCorrelations?: EdgeExternalCorrelations;
 }
 
 export interface EdgeFilterMetricsSnapshot {
@@ -121,6 +137,18 @@ export interface EdgeFilterOptions {
   projectId?: string;
   /** scheduler inyectable (tests usan setTimeout determinista). */
   scheduleTimeout?: (cb: () => void, ms: number) => void;
+  /**
+   * Sprint 39 J3b — adapters externos para enriquecer Phase 2.
+   * Si están presentes Y el anomaly trae location, se consultan en
+   * `dispatchPhase2`. Fallos son swallow + Sentry, jamás rompen el packet.
+   */
+  externalAdapters?: {
+    eonet?: Pick<EonetAdapter, 'fetchEvents'>;
+    usgs?: Pick<UsgsEarthquakeAdapter, 'fetchRecentEarthquakes'>;
+    /** km de radio para EONET bbox + USGS radius. Default 50 / 200. */
+    eonetBboxKm?: number;
+    usgsRadiusKm?: number;
+  };
 }
 
 /** Subset estructural de TransportFacade — habilita inyectar mocks finos. */
@@ -189,6 +217,7 @@ export class EdgeFilter {
   private readonly onRecommendation?: (rec: EdgeRecommendation) => void;
   private readonly citations: Record<string, { citation: string; text: string }>;
   private readonly schedule: (cb: () => void, ms: number) => void;
+  private readonly externalAdapters?: EdgeFilterOptions['externalAdapters'];
 
   /** Ring buffer de samples brutos. */
   private buffer: TelemetrySample[] = [];
@@ -230,6 +259,7 @@ export class EdgeFilter {
         // setTimeout es seguro en navegador y node moderno.
         setTimeout(cb, ms);
       });
+    this.externalAdapters = opts.externalAdapters;
   }
 
   /**
@@ -367,10 +397,18 @@ export class EdgeFilter {
         (s) => s.timestamp >= cutoff && s.deviceId === anomaly.deviceId,
       );
 
+    // Sprint 39 J3b — Solo introducimos un microtask hop si HAY adapters
+    // configurados. Sin adapters, mantenemos el flujo sincrónico previo
+    // (los tests del Sprint 34 dependen de eso para `advance()` determinista).
+    const externalCorrelations = this.externalAdapters
+      ? await this.collectExternalCorrelations(anomaly)
+      : undefined;
+
     const ctx: EdgeContextPacket = {
       anomaly,
       window,
       snapshotAt: tNow,
+      ...(externalCorrelations ? { externalCorrelations } : {}),
     };
 
     let packet: MeshPacket;
@@ -484,6 +522,80 @@ export class EdgeFilter {
     } catch {
       /* metrics never breaks */
     }
+  }
+
+  /**
+   * Sprint 39 J3b — consulta adapters externos para enriquecer el packet
+   * de Phase 2. Devuelve `undefined` si no hay adapters / location, o si
+   * todas las consultas fallaron. Errores SIEMPRE swallow + Sentry — el
+   * packet de Phase 2 jamás se rompe por el adapter externo.
+   */
+  private async collectExternalCorrelations(
+    anomaly: EdgeAnomaly,
+  ): Promise<EdgeExternalCorrelations | undefined> {
+    const adapters = this.externalAdapters;
+    if (!adapters) return undefined;
+    const lat = anomaly.location?.lat;
+    const lon = anomaly.location?.lng;
+    if (lat == null || lon == null) return undefined;
+
+    const eonetBboxKm = adapters.eonetBboxKm ?? 50;
+    const usgsRadiusKm = adapters.usgsRadiusKm ?? 200;
+
+    const dLat = eonetBboxKm / 111;
+    const dLon = eonetBboxKm / (111 * Math.cos((lat * Math.PI) / 180) || 1);
+    const bbox: BBox = {
+      lonMin: lon - dLon,
+      lonMax: lon + dLon,
+      latMin: lat - dLat,
+      latMax: lat + dLat,
+    };
+
+    const isVibration =
+      anomaly.metric === 'vibration_g' || anomaly.metric.includes('vibration');
+
+    const results = await Promise.allSettled([
+      adapters.eonet
+        ? adapters.eonet.fetchEvents({
+            bbox,
+            days: 7,
+            status: 'open',
+          })
+        : Promise.resolve([] as EonetEvent[]),
+      adapters.usgs && isVibration
+        ? adapters.usgs.fetchRecentEarthquakes({
+            centerLat: lat,
+            centerLon: lon,
+            radiusKm: usgsRadiusKm,
+            sinceHours: 24,
+          })
+        : Promise.resolve([] as UsgsEarthquake[]),
+    ]);
+
+    const eonetEvents: EonetEvent[] =
+      results[0].status === 'fulfilled' ? results[0].value : [];
+    const usgsEvents: UsgsEarthquake[] =
+      results[1].status === 'fulfilled' ? results[1].value : [];
+
+    if (results[0].status === 'rejected') {
+      this.captureError(results[0].reason, 'phase2.eonet');
+    }
+    if (results[1].status === 'rejected') {
+      this.captureError(results[1].reason, 'phase2.usgs');
+    }
+
+    // Si todo falló y no hay nada, devolvemos undefined (packet sin
+    // externalCorrelations).
+    if (
+      eonetEvents.length === 0 &&
+      usgsEvents.length === 0 &&
+      results[0].status === 'rejected' &&
+      (results[1].status === 'rejected' || !adapters.usgs || !isVibration)
+    ) {
+      return undefined;
+    }
+
+    return { eonet: eonetEvents, usgs: usgsEvents };
   }
 
   private captureError(err: unknown, step: string): void {

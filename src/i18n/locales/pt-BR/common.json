@@ -1953,5 +1953,18 @@
     "predict_imminent": "Prever Riscos Iminentes",
     "probability_pct": "{{value}}% Prob.",
     "immediate_action": "Ação Preventiva Imediata"
+  },
+  "external_events": {
+    "title": "Eventos na zona",
+    "loading": "Carregando dados…",
+    "unavailable": "Sem dados de eventos disponíveis.",
+    "empty": "Sem eventos relevantes na zona do projeto.",
+    "badge": "Considerar evento natural na zona",
+    "row_aria": "Detalhes do evento: {{title}}",
+    "close": "Fechar",
+    "citation_toggle": "Ver fonte",
+    "driving_wildfire_banner": "Considerar rota alternativa por evento natural na zona",
+    "driving_wildfire_normative": "Referência normativa: DS 594 + diretrizes de direção segura.",
+    "driving_wildfire_dismiss": "Ocultar aviso"
   }
 }
