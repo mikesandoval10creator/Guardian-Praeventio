@@ -1731,5 +1731,18 @@
     "field_image_url": "URL Imagen",
     "required": "EPP Obligatorio",
     "save_item": "Guardar Item"
+  },
+  "external_events": {
+    "title": "Eventos en zona",
+    "loading": "Cargando datos…",
+    "unavailable": "No hay datos de eventos disponibles.",
+    "empty": "Sin eventos relevantes en la zona del proyecto.",
+    "badge": "Considerar evento natural en zona",
+    "row_aria": "Detalle del evento {{title}}",
+    "close": "Cerrar",
+    "citation_toggle": "Ver fuente",
+    "driving_wildfire_banner": "Considerar ruta alternativa por evento natural en zona",
+    "driving_wildfire_normative": "Referencia normativa: DS 594 + lineamientos de conducción segura.",
+    "driving_wildfire_dismiss": "Ocultar aviso"
   }
 }

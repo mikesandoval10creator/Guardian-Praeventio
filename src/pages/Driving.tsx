@@ -33,17 +33,22 @@
 // /driving without flipping the mode is a no-op (avoids confusing a
 // pedestrian-mode user landing on a driving UI).
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
-import { Phone, AlertTriangle, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
+import { Phone, AlertTriangle, ShieldAlert, CheckCircle2, Loader2, Flame, ChevronRight } from 'lucide-react';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { useAppMode } from '../contexts/AppModeContext';
 import { useProject } from '../contexts/ProjectContext';
 import { useSpeedMonitor } from '../services/driving/speedTrigger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import {
+  eonetAdapter,
+  bboxFromCenter,
+  type EonetEvent,
+} from '../services/external/index.js';
 
 const containerStyle = {
   width: '100%',
@@ -77,6 +82,61 @@ export function Driving(): React.ReactElement {
     if (selectedProject?.coordinates) return selectedProject.coordinates;
     return DEFAULT_CENTER;
   }, [selectedProject]);
+
+  // Sprint 39 J4c — Wildfire route warning (driver decide; no bloquea).
+  // Cita normativa: DS 594 + Chile Driving Safety guidelines.
+  // Offline-safe: sessionStorage cache para Sprint 33 D3 / Sprint 35 F3
+  // mesh fallback — si fetch falla y hay cache reciente, lo usamos.
+  const [wildfires, setWildfires] = useState<EonetEvent[]>([]);
+  const [wildfireBannerDismissed, setWildfireBannerDismissed] = useState(false);
+  const [showWildfireCitation, setShowWildfireCitation] = useState(false);
+
+  useEffect(() => {
+    if (mode !== 'driving') return;
+    const bbox = bboxFromCenter(center, 1.2);
+    const cacheKey = `driving:eonet:wildfires:${center.lat.toFixed(2)}:${center.lng.toFixed(2)}`;
+    let cancelled = false;
+
+    const readCache = (): EonetEvent[] | null => {
+      try {
+        const raw = sessionStorage.getItem(cacheKey);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as { ts: number; events: EonetEvent[] };
+        if (Date.now() - parsed.ts < 60 * 60 * 1000) return parsed.events;
+      } catch {
+        /* ignore */
+      }
+      return null;
+    };
+
+    eonetAdapter
+      .fetchEvents({
+        bbox,
+        days: 7,
+        status: 'open',
+        categories: ['wildfires'],
+      })
+      .then((events) => {
+        if (cancelled) return;
+        setWildfires(events);
+        try {
+          sessionStorage.setItem(
+            cacheKey,
+            JSON.stringify({ ts: Date.now(), events }),
+          );
+        } catch {
+          /* storage may be unavailable — non-fatal */
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const cached = readCache();
+        if (cached) setWildfires(cached);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, center]);
 
   // Route-level gate. When the user toggles mode back to 'normal' from
   // the ModeSwitcher this redirect kicks them out of the driving screen.
@@ -159,6 +219,69 @@ export function Driving(): React.ReactElement {
           </div>
         </div>
       </div>
+
+      {/* Sprint 39 J4c — Wildfire route warning (sutil, no bloquea). */}
+      {wildfires.length > 0 && !wildfireBannerDismissed && (
+        <div className="relative z-10 mx-4 mt-4 pointer-events-auto">
+          <div
+            className="rounded-2xl px-4 py-3 backdrop-blur-md border flex items-start gap-3"
+            style={{
+              background: 'color-mix(in oklab, var(--accent-warning, #f59e0b) 18%, transparent)',
+              borderColor: 'var(--accent-warning, #f59e0b)',
+            }}
+            role="status"
+            aria-live="polite"
+            data-testid="wildfire-route-warning"
+          >
+            <Flame
+              className="w-5 h-5 mt-0.5 shrink-0"
+              style={{ color: 'var(--accent-warning, #f59e0b)' }}
+              aria-hidden="true"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold" style={{ color: 'var(--fg-default, #fafafa)' }}>
+                {t('external_events.driving_wildfire_banner', {
+                  defaultValue: 'Considerar ruta alternativa por evento natural en zona',
+                })}
+              </p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--fg-muted, #a1a1aa)' }}>
+                {t('external_events.driving_wildfire_normative', {
+                  defaultValue: 'Referencia normativa: DS 594 + lineamientos de conducción segura.',
+                })}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowWildfireCitation((v) => !v)}
+                className="mt-2 min-h-[44px] inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest"
+                style={{ color: 'var(--fg-muted, #a1a1aa)' }}
+                aria-expanded={showWildfireCitation}
+              >
+                {t('external_events.citation_toggle', { defaultValue: 'Ver fuente' })}
+                <ChevronRight
+                  className={`w-3 h-3 transition-transform ${showWildfireCitation ? 'rotate-90' : ''}`}
+                  aria-hidden="true"
+                />
+              </button>
+              {showWildfireCitation && (
+                <p className="text-[10px] font-mono mt-1" style={{ color: 'var(--fg-muted, #a1a1aa)' }}>
+                  External feed reference: EONET event {wildfires[0]?.id}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setWildfireBannerDismissed(true)}
+              aria-label={t('external_events.driving_wildfire_dismiss', {
+                defaultValue: 'Ocultar aviso',
+              })}
+              className="w-11 h-11 flex items-center justify-center rounded-full"
+              style={{ color: 'var(--fg-muted, #a1a1aa)' }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Base button (bottom-left) */}
       <div className="absolute bottom-28 left-6 z-10">

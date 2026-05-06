@@ -1718,5 +1718,18 @@
     "field_image_url": "Image URL",
     "required": "Required PPE",
     "save_item": "Save Item"
+  },
+  "external_events": {
+    "title": "Events in area",
+    "loading": "Loading data…",
+    "unavailable": "No event data available.",
+    "empty": "No relevant events in the project area.",
+    "badge": "Consider natural event nearby",
+    "row_aria": "Event details: {{title}}",
+    "close": "Close",
+    "citation_toggle": "View source",
+    "driving_wildfire_banner": "Consider an alternate route — natural event in the area",
+    "driving_wildfire_normative": "Regulatory reference: DS 594 + safe driving guidelines.",
+    "driving_wildfire_dismiss": "Dismiss notice"
   }
 }
