@@ -20,6 +20,50 @@ import {
 } from '../../suseso/folioGenerator.js';
 import { generateDs67Pdf } from '../../../utils/ds67Certificate.js';
 import { awardXp } from '../../gamification/positiveXp.js';
+import type { CountryCode } from '../../normativa/countryPacks.js';
+
+// ─── Sprint 33 wire W6 — country gate ───────────────────────────────────────
+//
+// DS 67/1999 (Reglamento Interno) is rooted in Ley 16.744 (Chile) and the
+// SEREMI registry. Its content (Comité Paritario, MUTUAL system, RUT,
+// SUSESO fiscalisation) does NOT translate to other jurisdictions. Per
+// ADR-0014 (Regulatory Framework Abstraction), each non-CL jurisdiction
+// must use its own emission adapter (e.g. US → OSHA Form 301; UK → RIDDOR;
+// EU → EU-OSHA national reporting; MX → STPS DC-3 / NOM-019; BR → CIPA /
+// NR-5). Until those adapters exist (tracked under wire W6 follow-up),
+// emit a typed `JurisdictionNotSupportedError` and 400 at the API layer.
+//
+// Defense-in-depth: a B2D international tenant should NEVER end up with a
+// DS-67 PDF that does not legally apply to its workforce.
+
+export class JurisdictionNotSupportedError extends Error {
+  readonly code = 'jurisdiction_not_supported_yet' as const;
+  readonly country: CountryCode;
+  readonly docType: 'DS67' | 'DS76';
+  readonly suggestedAdapters: readonly string[];
+  constructor(
+    docType: 'DS67' | 'DS76',
+    country: CountryCode,
+    suggestedAdapters: readonly string[] = SUGGESTED_ADAPTERS,
+  ) {
+    super(
+      `${docType} is Chile-specific (Ley 16.744). Country '${country}' has no emission adapter yet. ` +
+        `See ADR-0014. Suggested per-country forms: ${suggestedAdapters.join(', ')}.`,
+    );
+    this.name = 'JurisdictionNotSupportedError';
+    this.country = country;
+    this.docType = docType;
+    this.suggestedAdapters = suggestedAdapters;
+  }
+}
+
+const SUGGESTED_ADAPTERS: readonly string[] = [
+  'US → OSHA Form 301 (29 CFR 1904.7)',
+  'EU → EU-OSHA national reporting (Directive 89/391/EEC)',
+  'UK → RIDDOR 2013',
+  'MX → STPS NOM-019-STPS-2011 / DC-3',
+  'BR → CIPA / NR-5',
+];
 
 // ─── Folio formatting (DS-67 specific kind prefix) ──────────────────────────
 
@@ -168,13 +212,67 @@ export async function createDs67Form(
   return { form, pdfBytes, payloadHashHex };
 }
 
-/** Attach a signature to an existing form. Re-signing is rejected. */
+/**
+ * Resolve the project country before emitting / signing a DS-67. Defaults
+ * to `'CL'` when the resolver is missing, throws, or returns falsy — the
+ * audit trail records the warn so the operator can investigate.
+ *
+ * The resolver is intentionally async + injectable so callers can wire
+ * it to `locationNormativa.countryFromCoordsAsync` (project coords),
+ * tenant config, or a manual override stored on the project document.
+ */
+export type ResolveCountryFn = () => Promise<CountryCode | null | undefined>;
+
+async function resolveCountrySafely(
+  resolveCountry: ResolveCountryFn | undefined,
+  ctx: { docType: 'DS67' | 'DS76'; tenantId: string; formId: string },
+): Promise<CountryCode> {
+  if (!resolveCountry) return 'CL';
+  try {
+    const c = await resolveCountry();
+    return c ?? 'CL';
+  } catch (err) {
+    // Defense-in-depth: a flaky locationNormativa call MUST NOT block
+    // Chilean compliance emission. Default to CL and warn for audit.
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn(
+        `[${ctx.docType.toLowerCase()}Service] resolveCountry threw — defaulting to CL`,
+        { tenantId: ctx.tenantId, formId: ctx.formId, err },
+      );
+    }
+    return 'CL';
+  }
+}
+
+/** Attach a signature to an existing form. Re-signing is rejected.
+ *
+ * Sprint 33 W6: gates on project country before mutating. Non-CL
+ * tenants get a `JurisdictionNotSupportedError` (HTTP 400 at the
+ * route layer). See ADR-0014 + Ley 16.744.
+ */
 export async function signForm(
   tenantId: string,
   formId: string,
   signature: Ds67Signature,
-  deps: { formStore: MinimalDs67FormStore },
+  deps: {
+    formStore: MinimalDs67FormStore;
+    /**
+     * Optional country resolver (e.g. wraps `locationNormativa` +
+     * project coords). Missing → defaults to 'CL'. Throwing →
+     * defaults to 'CL' with audit warn.
+     */
+    resolveCountry?: ResolveCountryFn;
+  },
 ): Promise<Ds67Form> {
+  const country = await resolveCountrySafely(deps.resolveCountry, {
+    docType: 'DS67',
+    tenantId,
+    formId,
+  });
+  if (country !== 'CL') {
+    throw new JurisdictionNotSupportedError('DS67', country);
+  }
+
   const existing = await deps.formStore.loadForm(tenantId, formId);
   if (!existing) throw new Error(`Form not found: ${tenantId}/${formId}`);
   if (existing.signature) {

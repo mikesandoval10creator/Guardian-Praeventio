@@ -3,6 +3,8 @@ import { db, auth, serverTimestamp } from '../services/firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { logger } from '../utils/logger';
 import { captureEmergencyError } from '../lib/sentry';
+import { isOnline } from '../utils/networkStatus';
+import { enqueueOutbound as meshEnqueueOutbound } from '../services/emergency/meshFallback';
 
 // Sprint 32 audit W1 — map raw trigger types to the FCM brigade-notify
 // enum accepted by POST /api/emergency/notify-brigada (Zod whitelist).
@@ -26,15 +28,32 @@ function toBrigadaType(rawType: string): string {
  * happened to be inside the app. The H7 token-store fix was useless without
  * a caller to actually trigger the fan-out.
  */
+// Sprint 33 W10 — el resultado distingue tres caminos para que el caller
+// decida si gatillar el mesh fallback (ADR 0013). 'network-fail' = device
+// offline o fetch rejected (TypeError/NetworkError). 'server-error' = el
+// server respondió 5xx → bug del backend, NO offline → mesh fallback NO
+// aplica (peers tampoco van a poder llegar al server). 'ok' = todo bien.
+type NotifyResult = 'ok' | 'network-fail' | 'server-error';
+
 async function notifyBrigadeServer(
   type: string,
   projectId: string,
-): Promise<void> {
+): Promise<NotifyResult> {
+  // Pre-check rápido: si `navigator.onLine === false` ya sabemos que el
+  // fetch va a fallar → cortocircuitamos al mesh fallback sin gastar el
+  // round-trip. Caso típico: minero entrando al túnel, alerta inmediata.
+  if (!isOnline()) {
+    logger.warn('EmergencyContext: device offline — skipping server fan-out', {
+      type,
+      projectId,
+    });
+    return 'network-fail';
+  }
   try {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) return 'ok'; // sin usuario no podemos firmar; no es fallo de red
     const idToken = await user.getIdToken();
-    await fetch('/api/emergency/notify-brigada', {
+    const res = await fetch('/api/emergency/notify-brigada', {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -47,9 +66,21 @@ async function notifyBrigadeServer(
         message: `Activación automática: ${type}`,
       }),
     });
+    if (!res.ok) {
+      // 5xx no es offline — el server está vivo, su lógica falló. El
+      // mesh tampoco va a salvarnos (peers usan el mismo backend). Sigue
+      // el camino fail-soft del Firestore doc.
+      logger.warn('EmergencyContext: notify-brigada returned non-OK', {
+        status: res.status,
+      });
+      return 'server-error';
+    }
+    return 'ok';
   } catch (err) {
+    // fetch rejected → TypeError "Failed to fetch" (DNS / CORS / red).
+    // Tratamos como network-fail incluso si navigator.onLine mintió true.
     logger.warn('EmergencyContext: notify-brigada server call failed', { err });
-    // Fail-soft: the Firestore doc is the authoritative artifact.
+    return 'network-fail';
   }
 }
 
@@ -96,7 +127,57 @@ export function EmergencyProvider({ children }: { children: React.ReactNode }) {
     // Firestore write success: if the doc write failed (e.g. offline), the
     // server call will still attempt and queue the push. The two failure
     // domains are uncorrelated so we don't gate one on the other.
-    void notifyBrigadeServer(type, projectId);
+    //
+    // Sprint 33 audit W10 — si el server fan-out falla por RED CAÍDA
+    // (no por bug del server), encolamos un SOS packet en el mesh para
+    // rebroadcast por BLE/WiFi Direct. Cierra ADR 0013 + Flow Infinito
+    // Fase 2 (respuesta adaptativa offline). Caso real: túnel minero
+    // LATAM sin señal celular — el peer con red hace el server call por
+    // nosotros (transitivo). El packet `type:'sos'` también dispara el
+    // XP wire de Sprint 32 B3 en cada peer relayer (medalla "salvaste
+    // una vida"). Fire-and-forget — nunca bloquea la UI.
+    void notifyBrigadeServer(type, projectId).then(async (result) => {
+      if (result === 'ok') {
+        logger.info('EmergencyContext: server fan-out OK', { type, projectId });
+        return;
+      }
+      if (result === 'server-error') {
+        // Bug del backend, no offline — peers no nos pueden ayudar.
+        logger.warn('EmergencyContext: server fan-out failed (5xx), no mesh fallback', {
+          type,
+          projectId,
+        });
+        return;
+      }
+      // result === 'network-fail' → mesh fallback path
+      const uid = auth.currentUser?.uid ?? 'anonymous';
+      try {
+        const meshRes = await meshEnqueueOutbound({
+          projectId,
+          emergencyType: type,
+          uid,
+          triggeredAtMs: Date.now(),
+        });
+        if (meshRes.enqueued) {
+          logger.info('EmergencyContext: SOS encolado en mesh (offline fallback)', {
+            packetId: meshRes.packetId,
+            type,
+            projectId,
+          });
+        } else {
+          logger.warn('EmergencyContext: mesh fallback no enqueued', {
+            reason: meshRes.reason,
+            type,
+            projectId,
+          });
+        }
+      } catch (err) {
+        // El wrapper no debería tirar (todo errores van por meshRes.reason),
+        // pero si lo hace, capturamos sin romper la UI de emergencia.
+        logger.error('EmergencyContext: mesh fallback threw', { err });
+        captureEmergencyError(err, { trigger: type, projectId, path: 'mesh_fallback' });
+      }
+    });
   };
 
   const resolveEmergency = () => {

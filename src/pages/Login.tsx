@@ -155,7 +155,7 @@ export default function Login() {
                 Guardian Praeventio
               </h1>
               <span className="text-[8px] sm:text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest text-center">
-                Identidad y Conciencia
+                {t('login.tagline', 'Identidad y Conciencia')}
               </span>
             </div>
 
@@ -163,9 +163,9 @@ export default function Login() {
               <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
                 <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 mt-0.5 sm:mt-1 shrink-0" aria-hidden="true" />
                 <div>
-                  <h2 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">Protección Biométrica</h2>
+                  <h2 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">{t('login.biometric_title', 'Protección Biométrica')}</h2>
                   <p className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                    Tus datos médicos y proyectos sellados bajo biometría (Face ID / Huella).
+                    {t('login.biometric_desc', 'Tus datos médicos y proyectos sellados bajo biometría (Face ID / Huella).')}
                   </p>
                 </div>
               </div>

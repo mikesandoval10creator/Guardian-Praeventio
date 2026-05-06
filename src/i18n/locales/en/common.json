@@ -1250,6 +1250,144 @@
       "first_aid_category": "Health"
     }
   },
+  "login": {
+    "tagline": "Identity & Awareness",
+    "biometric_title": "Biometric Protection",
+    "biometric_desc": "Your medical data and projects sealed under biometrics (Face ID / Fingerprint)."
+  },
+  "projects": {
+    "title": "Project Management",
+    "subtitle": "Manage your worksites, industries and risk levels",
+    "resource_label": "the projects",
+    "requires_internet": "Requires internet connection",
+    "new_project": "New Project",
+    "new_subtitle": "Set up a new worksite or workplace",
+    "search_placeholder": "Search by name, industry or location...",
+    "syncing": "Syncing Projects...",
+    "risk_label": "{{level}} Risk",
+    "stats": {
+      "active": "Active Projects",
+      "industries": "Industries Covered",
+      "critical_risk": "Critical Risk"
+    },
+    "view": {
+      "cards": "Cards",
+      "timeline": "Timeline"
+    },
+    "status": {
+      "pending": "Pending",
+      "active": "Active",
+      "completed": "Completed",
+      "archived": "Archived"
+    },
+    "tab": {
+      "overview": "Overview",
+      "documents": "Docs",
+      "assets": "Assets"
+    },
+    "detail": {
+      "general_info": "General Information",
+      "description": "Description",
+      "risk_level": "Risk Level",
+      "base_safety_eval": "Baseline Safety Assessment",
+      "employer_suseso": "Employer (SUSESO)"
+    },
+    "form": {
+      "name": "Project Name",
+      "name_placeholder": "e.g. Los Bronces Mine - Phase 4",
+      "industry": "Industry / Sector",
+      "description": "Project Description",
+      "description_placeholder": "Details on scope and objectives...",
+      "location": "Location",
+      "location_placeholder": "City, Region",
+      "client": "Client",
+      "client_placeholder": "Name of the contracting company",
+      "employer_section": "Employer Data (Law 16.744 / SUSESO)",
+      "legal_name": "Legal Name",
+      "legal_name_placeholder": "Legal name of the company",
+      "rut": "Company Tax ID",
+      "rut_placeholder": "e.g. 76.123.456-7",
+      "address": "Address",
+      "address_placeholder": "Street, Number, City",
+      "mutual": "Insurance Administrator",
+      "risk_level": "Baseline Risk Level",
+      "start_date": "Start Date",
+      "shift_section": "Shift & GPS Configuration",
+      "shift_start": "Shift Start",
+      "shift_end": "Shift End",
+      "track_commute": "Track Commute Accidents",
+      "track_commute_desc": "Keeps GPS active 1 hour before and after the shift.",
+      "submit": "Create Project"
+    }
+  },
+  "profile": {
+    "user_fallback": "User",
+    "joined_on": "Joined in March 2024",
+    "following": "{{count}} Following",
+    "followers": "{{count}} Followers",
+    "current_medal": "Current Medal",
+    "spin_to_interact": "Spin to interact",
+    "medal_unbeaten_week": "UNBEATEN WEEK",
+    "streak_days": "Streak Days",
+    "total_xp": "Total XP",
+    "league_gold": "Gold",
+    "current_league": "Current League",
+    "achievements_title": "Achievements",
+    "view_all": "View all",
+    "friends": "Friends",
+    "friends_desc": "Find your teammates and compete to be the safest.",
+    "add_friends": "Add Friends",
+    "settings": "Settings",
+    "logout": "Sign Out",
+    "achievements": {
+      "first_steps": { "title": "First Steps", "desc": "Complete your first training session" },
+      "active_guardian": { "title": "Active Guardian", "desc": "Post 5 times on the wall" },
+      "risk_expert": { "title": "Risk Expert", "desc": "Identify 10 findings" },
+      "safety_leader": { "title": "Safety Leader", "desc": "Reach level 10" },
+      "unbeaten_week": { "title": "Unbeaten Week", "desc": "No incidents recorded in 7 days" },
+      "knowledge_curator": { "title": "Knowledge Curator", "desc": "Receive 10 likes on posts" },
+      "field_veteran": { "title": "Field Veteran", "desc": "30+ days on the platform" },
+      "star_collaborator": { "title": "Star Collaborator", "desc": "Complete 3 or more trainings" }
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Personalize your Praeventio Guard experience",
+    "danger_zone": "Danger Zone",
+    "profile": {
+      "username": "Username",
+      "email": "Email Address"
+    },
+    "security": {
+      "session_timeout": "Session Timeout",
+      "fall_detection": "Fall Detection"
+    },
+    "notifications": {
+      "email_alerts": "Email Alerts",
+      "push": "Push Notifications"
+    },
+    "appearance": {
+      "theme": "Theme Preference"
+    },
+    "regional": {
+      "timezone": "Time Zone"
+    }
+  },
+  "analytics": {
+    "strategic_recommendations": "Strategic Recommendations",
+    "kpi": {
+      "critical_risks": "Critical Risks",
+      "incidents_month": "Incidents (Month)",
+      "open_findings": "Open Findings",
+      "epp_compliance": "PPE Compliance",
+      "legal_index": "Legal Index"
+    },
+    "chart": {
+      "risk_distribution": "Risk Distribution",
+      "incident_trend": "Incident & Findings Trend",
+      "safety_radar": "Safety Dimensions Radar"
+    }
+  },
   "landing": {
     "skip_to_content": "Skip to content",
     "meta": {

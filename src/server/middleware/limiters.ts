@@ -149,6 +149,26 @@ export const zettelkastenWriteLimiter = rateLimit({
   message: { error: 'Demasiadas escrituras de nodos. Intenta de nuevo en 15 minutos.' },
 });
 
+// Sprint 33 — per-uid rate limiter for POST /api/ai/feedback. The global
+// /api/* bucket (100 req / 15 min) is too loose for the RLHF feedback
+// surface: a Bearer-bearing attacker doesn't need high QPS to inflate the
+// `up` count and skew the dataset (low-and-slow bias attack). The replay
+// guard inside the handler stops same-`messageId` overwrites; this
+// limiter bounds the rate at which DIFFERENT messageIds can be voted on
+// from the same uid. 30 votes / 5 min is well above legitimate
+// AsesorChat session traffic (a chatty user lands maybe 5–10 votes per
+// session) while choking automated dataset poisoning. Mirrors the
+// `zettelkastenWriteLimiter` shape; mounted AFTER `verifyAuth` so the
+// keyGenerator can read `req.user.uid`.
+export const aiFeedbackLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req: Request) => (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'ai_feedback_rate_limited', retryAfterMs: 5 * 60 * 1000 },
+});
+
 // Per-uid rate limiter for the ERP sync mock (POST /api/erp/sync).
 // 30 req/min keyed on the authenticated uid (verifyAuth runs first, so
 // req.user.uid is always present in the steady state); falls back to

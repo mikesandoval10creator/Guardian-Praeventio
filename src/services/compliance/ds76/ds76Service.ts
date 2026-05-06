@@ -10,6 +10,37 @@ import {
 } from '../../suseso/folioGenerator.js';
 import { generateDs76Pdf } from '../../../utils/ds76Certificate.js';
 import { awardXp } from '../../gamification/positiveXp.js';
+import {
+  JurisdictionNotSupportedError,
+  type ResolveCountryFn,
+} from '../ds67/ds67Service.js';
+import type { CountryCode } from '../../normativa/countryPacks.js';
+
+// ─── Sprint 33 wire W6 — country gate ───────────────────────────────────────
+//
+// DS 76/2007 (Reglamento Especial Subcontratación) is Chile-specific
+// (Ley 16.744 + Ley 20.123). Non-CL projects must use their own emission
+// adapter (per ADR-0014). Until those exist, throw the shared
+// `JurisdictionNotSupportedError` and 400 at the API layer.
+async function resolveCountrySafelyDs76(
+  resolveCountry: ResolveCountryFn | undefined,
+  tenantId: string,
+  formId: string,
+): Promise<CountryCode> {
+  if (!resolveCountry) return 'CL';
+  try {
+    const c = await resolveCountry();
+    return c ?? 'CL';
+  } catch (err) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn(
+        '[ds76Service] resolveCountry threw — defaulting to CL',
+        { tenantId, formId, err },
+      );
+    }
+    return 'CL';
+  }
+}
 
 export function formatDs76Folio(
   year: number,
@@ -143,8 +174,21 @@ export async function signForm(
   tenantId: string,
   formId: string,
   signature: Ds76Signature,
-  deps: { formStore: MinimalDs76FormStore },
+  deps: {
+    formStore: MinimalDs76FormStore;
+    resolveCountry?: ResolveCountryFn;
+  },
 ): Promise<Ds76Form> {
+  // Sprint 33 W6 — country gate. Default CL; throw for non-CL.
+  const country = await resolveCountrySafelyDs76(
+    deps.resolveCountry,
+    tenantId,
+    formId,
+  );
+  if (country !== 'CL') {
+    throw new JurisdictionNotSupportedError('DS76', country);
+  }
+
   const existing = await deps.formStore.loadForm(tenantId, formId);
   if (!existing) throw new Error(`Form not found: ${tenantId}/${formId}`);
   if (existing.signature) {
