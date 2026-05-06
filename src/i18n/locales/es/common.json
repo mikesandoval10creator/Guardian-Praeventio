@@ -1354,23 +1354,116 @@
     "title": "Configuración",
     "subtitle": "Personaliza tu experiencia en Praeventio Guard",
     "danger_zone": "Zona de Peligro",
+    "danger_desc": "Estas acciones son permanentes y no se pueden deshacer. Por favor, procede con extrema precaución.",
+    "logout_global": "Cerrar Sesión Global",
+    "delete_account": "Eliminar Cuenta",
+    "delete_restricted_title": "Acción Restringida",
+    "delete_restricted_msg": "Para eliminar tu cuenta permanentemente, por favor contacta al administrador del sistema.",
+    "auth": {
+      "confirm_identity": "Confirme su identidad para acceder a la configuración",
+      "failed_title": "Autenticación fallida",
+      "failed_msg": "No se pudo verificar la identidad"
+    },
+    "sections": {
+      "profile": { "label": "Perfil y Cuenta", "desc": "Gestiona tu información personal y preferencias de acceso." },
+      "security": { "label": "Seguridad y Privacidad", "desc": "Configura la autenticación de dos factores y permisos de datos." },
+      "notifications": { "label": "Notificaciones", "desc": "Personaliza qué alertas deseas recibir y por qué canales." },
+      "ai": { "label": "Configuración de IA", "desc": "Ajusta el comportamiento de Gemini y el análisis predictivo." },
+      "database": { "label": "Base de Datos y Red Neuronal", "desc": "Gestión de nodos, conexiones y exportación de datos." },
+      "appearance": { "label": "Interfaz y Tema", "desc": "Personaliza el aspecto visual de Praeventio Guard." },
+      "regional": { "label": "Idioma y Región", "desc": "Ajusta el idioma de la plataforma y formatos regionales." },
+      "admin": { "label": "Administración de Usuarios", "desc": "Asigna roles y revoca acceso a usuarios de la plataforma." }
+    },
     "profile": {
       "username": "Nombre de Usuario",
-      "email": "Correo Electrónico"
+      "email": "Correo Electrónico",
+      "contact_admin": "Para modificar estos datos, contacta al administrador del sistema o utiliza el panel de Firebase Auth."
     },
     "security": {
       "session_timeout": "Tiempo de Expiración de Sesión",
-      "fall_detection": "Detección de Hombre Caído"
+      "fall_detection": "Detección de Hombre Caído",
+      "fall_detection_desc": "Activa el monitoreo continuo del acelerómetro para detectar caídas. Recomendado solo si tu trabajo expone a riesgos de altura, andamios, techos o espacios confinados con desnivel.",
+      "fall_detection_warn": "⚠ Consume batería en segundo plano. Manténlo apagado si tu rubro no lo requiere.",
+      "mfa_title": "Autenticación de Dos Factores (2FA)",
+      "mfa_desc": "Añade una capa extra de seguridad a tu cuenta.",
+      "password_email_title": "Correo Enviado",
+      "password_email_msg": "Se ha enviado un enlace para restablecer tu contraseña.",
+      "change_password": "Cambiar Contraseña",
+      "privacy_title": "Datos personales y privacidad",
+      "privacy_desc": "Regímenes de protección de datos aplicables a tu cuenta + plazos legales para responder solicitudes de acceso, rectificación o supresión.",
+      "timeout_15": "15 minutos de inactividad",
+      "timeout_30": "30 minutos de inactividad",
+      "timeout_60": "1 hora de inactividad",
+      "timeout_never": "Nunca (No recomendado)"
     },
     "notifications": {
       "email_alerts": "Alertas por Correo Electrónico",
-      "push": "Notificaciones Push"
+      "email_alerts_desc": "Resúmenes diarios y alertas críticas.",
+      "push": "Notificaciones Push",
+      "push_desc": "Recibe alertas instantáneas.",
+      "cat_emergencies": "🚨 Emergencias (S.O.S)",
+      "cat_emergencies_desc": "Alertas de S.O.S, evacuación y clima extremo. (No se puede desactivar por seguridad)",
+      "cat_medical": "🩺 Exámenes Médicos",
+      "cat_medical_desc": "Recordatorios de vigencia y nuevos resultados médicos.",
+      "cat_training": "📚 Capacitaciones",
+      "cat_training_desc": "Asignaciones de cursos, ODI y charlas programadas.",
+      "cat_ai": "🤖 Asistente IA (Guardian)",
+      "cat_ai_desc": "Consejos predictivos y anomalías detectadas en terreno."
+    },
+    "ai": {
+      "detail_level": "Nivel de Detalle del Asistente",
+      "opt_concise": "Conciso (Respuestas directas y cortas)",
+      "opt_balanced": "Equilibrado (Recomendado)",
+      "opt_detailed": "Detallado (Explicaciones exhaustivas y normativas)",
+      "predictive_title": "Análisis Predictivo Autónomo",
+      "predictive_desc": "Permite a la IA analizar datos en segundo plano."
+    },
+    "database": {
+      "storage": "Almacenamiento",
+      "active_nodes": "Nodos Activos",
+      "export_title": "Exportación Iniciada",
+      "export_msg": "Tus datos se están preparando para descarga.",
+      "export_btn": "Exportar Datos (JSON)",
+      "cache_title": "Caché Limpiada",
+      "cache_msg": "Se ha liberado espacio local correctamente.",
+      "cache_btn": "Limpiar Caché"
     },
     "appearance": {
-      "theme": "Preferencia de Tema"
+      "theme": "Preferencia de Tema",
+      "theme_light": "Claro (Fondo #4EB5AC)",
+      "theme_dark": "Oscuro",
+      "theme_auto": "Automático (Día/Noche)",
+      "theme_system": "Sistema Operativo",
+      "dark_manual_title": "Modo Oscuro Manual",
+      "dark_manual_desc": "Alternar rápidamente (sobrescribe la preferencia)"
     },
     "regional": {
-      "timezone": "Zona Horaria"
+      "timezone": "Zona Horaria",
+      "ui_language": "Idioma de la Interfaz",
+      "language_changed": "Idioma cambiado a {{lang}}"
+    },
+    "admin": {
+      "assign_role": "Asignar Rol a Usuario",
+      "uid_label": "UID del usuario (Firebase Auth)",
+      "role_label": "Rol a asignar",
+      "saving": "Guardando...",
+      "role_assigned": "Rol asignado",
+      "network_error": "Error de red",
+      "assign_role_btn": "Asignar Rol",
+      "revoke": "Revocar Acceso",
+      "revoke_desc": "Invalida inmediatamente todos los tokens de sesión del usuario.",
+      "revoking": "Revocando...",
+      "revoked_ok": "Acceso revocado"
+    },
+    "fcm": {
+      "title": "Notificaciones Push (FCM)",
+      "desc": "Recibe alertas críticas y de emergencia en tiempo real.",
+      "status_granted": "Activas",
+      "status_denied": "Bloqueadas",
+      "status_pending": "Pendientes",
+      "requires_connection": "Requiere Conexión",
+      "enable_btn": "Activar Notificaciones",
+      "long_desc": "Para recibir notificaciones push, debes permitir el acceso en tu navegador. Esto habilitará Firebase Cloud Messaging (FCM) para enviarte alertas críticas incluso cuando la aplicación esté en segundo plano."
     }
   },
   "analytics": {

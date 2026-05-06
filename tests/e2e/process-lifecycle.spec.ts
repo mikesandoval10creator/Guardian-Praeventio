@@ -27,22 +27,37 @@ test.describe('Process lifecycle (start → close → XP)', () => {
     });
 
     try {
+      // Sprint 34 — robustness pass per audit P0 §1.4. Cada interacción
+      // ahora tiene timeout explícito (default 5s era muy corto en el
+      // emulador frío) y waitFor en los botones evita race conditions
+      // con los listeners de Firestore que pintan el modal.
       await page.goto(`/projects/${seed.projectId}/gantt`);
 
-      await page.getByRole('button', { name: /Iniciar proceso/i }).click();
+      const startBtn = page.getByRole('button', { name: /Iniciar proceso/i });
+      await startBtn.waitFor({ state: 'visible', timeout: 15_000 });
+      await startBtn.click();
+
       await page.getByLabel(/Tipo/i).selectOption('concreto');
       await page.getByLabel(/Nombre/i).fill('Hormigonado piso 3');
       await page.getByRole('button', { name: /^Iniciar/i }).click();
-      await expect(page.getByText(/Hormigonado piso 3/i)).toBeVisible();
 
-      await page.getByText(/Hormigonado piso 3/i).click();
-      await page.getByRole('button', { name: /Cerrar proceso/i }).click();
+      const newProcess = page.getByText(/Hormigonado piso 3/i).first();
+      await expect(newProcess).toBeVisible({ timeout: 10_000 });
 
-      const xpPreview = await page.getByText(/\+\s*\d+\s*XP/i).innerText();
-      expect(xpPreview).toMatch(/\+\s*\d+\s*XP/);
+      await newProcess.click();
+      const closeBtn = page.getByRole('button', { name: /Cerrar proceso/i });
+      await closeBtn.waitFor({ state: 'visible', timeout: 10_000 });
+      await closeBtn.click();
+
+      // expect.poll en lugar de innerText() one-shot: el preview de XP
+      // se calcula async desde el cloud function y a veces tarda 1-2s.
+      await expect.poll(
+        async () => (await page.getByText(/\+\s*\d+\s*XP/i).innerText().catch(() => '')),
+        { timeout: 8_000, intervals: [300, 500, 1000] },
+      ).toMatch(/\+\s*\d+\s*XP/);
 
       await page.getByRole('button', { name: /Cerrar y celebrar/i }).click();
-      await expect(page.getByText(/proceso completado/i)).toBeVisible({ timeout: 5_000 });
+      await expect(page.getByText(/proceso completado/i)).toBeVisible({ timeout: 10_000 });
     } finally {
       await seed.cleanup();
     }
