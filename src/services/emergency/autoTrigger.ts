@@ -15,6 +15,10 @@
  * Each predicate is debounced: at most one rising-edge per 60 s.
  */
 
+import type { UsgsEarthquakeAdapter } from '../external/usgs/usgsEarthquakeAdapter.js';
+import type { UsgsEarthquake } from '../external/usgs/types.js';
+import { getErrorTracker } from '../observability/index.js';
+
 const DEBOUNCE_MS = 60_000;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -44,7 +48,39 @@ export function __resetEmergencyBridges(): void {
   companyEmergencyActive = false;
   peakAccelG = 0;
   peakSinceMs = 0;
+  usgsAdapter = null;
+  lastSeismicLocation = null;
   for (const k of Object.keys(lastTriggerByKey)) delete lastTriggerByKey[k];
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// USGS cross-check bridge (Sprint 39 J3c)
+// ─────────────────────────────────────────────────────────────────────
+
+let usgsAdapter:
+  | Pick<UsgsEarthquakeAdapter, 'fetchRecentEarthquakes'>
+  | null = null;
+
+let lastSeismicLocation: { lat: number; lon: number } | null = null;
+
+/**
+ * Inyecta el USGS adapter para cross-check del checkSismo. Llamado por
+ * la app shell con la singleton. Si no se llama, `checkSismoEnriched`
+ * degrada a severity 'caution' (mismo comportamiento que timeout).
+ */
+export function pushUsgsAdapter(
+  adapter: Pick<UsgsEarthquakeAdapter, 'fetchRecentEarthquakes'> | null,
+): void {
+  usgsAdapter = adapter;
+}
+
+/**
+ * Inyecta la última ubicación conocida del device (GPS / faena). Necesaria
+ * para que `checkSismoEnriched` pueda preguntar al feed sísmico por
+ * eventos cercanos.
+ */
+export function pushDeviceLocation(loc: { lat: number; lon: number } | null): void {
+  lastSeismicLocation = loc;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -177,6 +213,135 @@ export async function checkSismo(): Promise<boolean> {
   attachMotionListener();
   const sustained = peakAccelG >= SISMO_PEAK_G && Date.now() - peakSinceMs >= SISMO_SUSTAIN_MS;
   return debounced('sismo', sustained);
+}
+
+/**
+ * Sismo enriquecido con cross-check USGS (Sprint 39 J3c).
+ *
+ * Política directiva:
+ *   - SIEMPRE blockOperation: false (regla #1 del usuario).
+ *   - El cross-check NO bloquea el trigger — solo enriquece la severity:
+ *       * USGS confirma sismo M≥3.5 en proximidad → severity 'high'.
+ *       * USGS responde sin coincidencia → severity 'caution' (puede ser
+ *         false positive del DeviceMotion).
+ *       * USGS timeout / adapter ausente → severity 'caution' + warn log.
+ *   - El recommendation body es construido externamente vía
+ *     `buildCalmRecommendation`; este módulo solo provee la severity y
+ *     la lista cruda de eventos.
+ */
+export interface EnrichedSismoResult {
+  fired: boolean;
+  severity: 'caution' | 'high';
+  externalConfirmed: boolean;
+  matchedEvents: UsgsEarthquake[];
+  blockOperation: false;
+}
+
+/** Constantes del cross-check. */
+const USGS_MIN_MAG = 3.5;
+const USGS_SINCE_MIN = 5;
+const USGS_RADIUS_KM = 200;
+const USGS_TIMEOUT_MS = 3_000;
+
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('USGS cross-check timeout')), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function checkSismoEnriched(
+  opts: { now?: number; timeoutMs?: number } = {},
+): Promise<EnrichedSismoResult> {
+  const fired = await checkSismo();
+  if (!fired) {
+    return {
+      fired: false,
+      severity: 'caution',
+      externalConfirmed: false,
+      matchedEvents: [],
+      blockOperation: false,
+    };
+  }
+
+  // Default conservador: caution. Solo subimos a 'high' con confirmación.
+  if (!usgsAdapter || !lastSeismicLocation) {
+    try {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[autoTrigger] USGS cross-check skipped — adapter/location missing',
+      );
+    } catch {
+      /* console may not exist */
+    }
+    return {
+      fired: true,
+      severity: 'caution',
+      externalConfirmed: false,
+      matchedEvents: [],
+      blockOperation: false,
+    };
+  }
+
+  const sinceHours = USGS_SINCE_MIN / 60;
+  try {
+    const events = await withTimeout(
+      usgsAdapter.fetchRecentEarthquakes({
+        centerLat: lastSeismicLocation.lat,
+        centerLon: lastSeismicLocation.lon,
+        radiusKm: USGS_RADIUS_KM,
+        minMagnitude: USGS_MIN_MAG,
+        sinceHours,
+      }),
+      opts.timeoutMs ?? USGS_TIMEOUT_MS,
+    );
+    if (events.length > 0) {
+      return {
+        fired: true,
+        severity: 'high',
+        externalConfirmed: true,
+        matchedEvents: events,
+        blockOperation: false,
+      };
+    }
+    return {
+      fired: true,
+      severity: 'caution',
+      externalConfirmed: false,
+      matchedEvents: [],
+      blockOperation: false,
+    };
+  } catch (err) {
+    try {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[autoTrigger] USGS cross-check failed; falling back to severity caution',
+        err,
+      );
+    } catch {
+      /* swallow */
+    }
+    try {
+      getErrorTracker().captureException(
+        err instanceof Error ? err : new Error(String(err)),
+        { tags: { component: 'autoTrigger.usgs' } },
+      );
+    } catch {
+      /* observability never breaks */
+    }
+    return {
+      fired: true,
+      severity: 'caution',
+      externalConfirmed: false,
+      matchedEvents: [],
+      blockOperation: false,
+    };
+  }
 }
 
 /** Company emergency mirrors EmergencyContext via `pushCompanyEmergency`. */

@@ -13,6 +13,13 @@ import {
   windLoadOnSurface,
   windSpeedKmhToMs,
 } from '../physics/bernoulliEngine';
+import type { EonetAdapter } from '../external/eonet/eonetAdapter.js';
+import type { BBox, EonetEvent } from '../external/eonet/types.js';
+import {
+  buildCalmRecommendation,
+  type CalmRecommendation,
+} from '../external/recommendationBuilder.js';
+import { getErrorTracker } from '../observability/index.js';
 
 const AIR_DENSITY_KG_M3 = 1.225;
 
@@ -430,5 +437,200 @@ export function generateWindloadRiskNode(
       'Asegurar andamios y campamentos modulares; suspender izajes.',
     ],
     riskNodePayload: payload,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* External natural-event coupling (Sprint 39 J3a)                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Multiplicadores aplicados al risk score base por categoría EONET observada
+ * en bbox del proyecto. Conservadores — política directiva 4: no alarmar,
+ * solo nudgear severidad.
+ */
+const EONET_CATEGORY_MULTIPLIER: Record<string, number> = {
+  wildfires: 1.3,
+  severeStorms: 1.2,
+  floods: 1.2,
+  volcanoes: 1.3,
+};
+
+const PROXIMITY_KM_DEFAULT = 50;
+
+export interface ClimateRiskWithExternalResult {
+  /** Score base derivado de risk factors locales (1.0 = baseline). */
+  baselineScore: number;
+  /** Score final luego de multiplicadores por eventos externos en bbox. */
+  riskScore: number;
+  /** Eventos externos relevantes (recortados por bbox). */
+  externalEvents: EonetEvent[];
+  /** Recomendación tranquila construida vía buildCalmRecommendation (J1+J2). */
+  recommendation: CalmRecommendation | null;
+}
+
+export interface ClimateRiskCouplingDeps {
+  eonetAdapter: Pick<EonetAdapter, 'fetchEvents'>;
+  /** Inyección para tests. */
+  now?: () => number;
+}
+
+/**
+ * Distancia haversine aproximada (km). Usada para detectar si la geometry
+ * Point del evento cae dentro del radio de proximidad declarado por el
+ * proyecto. Para Polygon/MultiLine se conserva el evento si CUALQUIER
+ * vértice cae dentro — heurística conservadora.
+ */
+function haversineKm(
+  aLat: number,
+  aLon: number,
+  bLat: number,
+  bLon: number,
+): number {
+  const R = 6371;
+  const toRad = (d: number): number => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLon = toRad(bLon - aLon);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+function bboxCenter(bbox: BBox): { lat: number; lon: number } {
+  return {
+    lat: (bbox.latMin + bbox.latMax) / 2,
+    lon: (bbox.lonMin + bbox.lonMax) / 2,
+  };
+}
+
+function flattenCoords(coords: unknown): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  const visit = (n: unknown): void => {
+    if (!Array.isArray(n)) return;
+    if (
+      n.length >= 2 &&
+      typeof n[0] === 'number' &&
+      typeof n[1] === 'number'
+    ) {
+      out.push([n[0] as number, n[1] as number]);
+      return;
+    }
+    for (const child of n) visit(child);
+  };
+  visit(coords);
+  return out;
+}
+
+/**
+ * Filtra los eventos EONET que caen dentro del radio (km) del bbox center.
+ * Conservador: si ninguna geometry tiene coordenadas parseables, descartado.
+ */
+export function filterEventsByProximity(
+  events: EonetEvent[],
+  bbox: BBox,
+  radiusKm: number = PROXIMITY_KM_DEFAULT,
+): EonetEvent[] {
+  const { lat: cLat, lon: cLon } = bboxCenter(bbox);
+  return events.filter((ev) => {
+    for (const g of ev.geometry) {
+      const points = flattenCoords(g.coordinates);
+      for (const [lon, lat] of points) {
+        if (haversineKm(cLat, cLon, lat, lon) <= radiusKm) return true;
+      }
+    }
+    return false;
+  });
+}
+
+/**
+ * Aplica multiplicadores conservadores al baseline score por cada evento
+ * en bbox según categoría dominante.
+ */
+export function applyExternalEventMultipliers(
+  baselineScore: number,
+  events: EonetEvent[],
+): number {
+  let score = baselineScore;
+  for (const ev of events) {
+    let bestMul = 1;
+    for (const cat of ev.categories) {
+      const m = EONET_CATEGORY_MULTIPLIER[cat.id];
+      if (m && m > bestMul) bestMul = m;
+    }
+    score *= bestMul;
+  }
+  return score;
+}
+
+/**
+ * Coupling principal — añade EONET como 4ta señal al climate risk.
+ *
+ * - Llama `eonetAdapter.fetchEvents` con bbox del proyecto.
+ * - Filtra por proximidad (50 km del bbox center).
+ * - Multiplica el baseline score por categoría dominante.
+ * - Construye una recomendación tranquila (J1+J2) si hay events.
+ * - Si el adapter falla → graceful degradation: devuelve baseline sin
+ *   externalEvents y captura la excepción a Sentry. NO propaga.
+ */
+export async function assessClimateRiskWithExternalEvents(opts: {
+  baselineScore?: number;
+  projectBbox: BBox;
+  proximityKm?: number;
+  days?: number;
+  deps: ClimateRiskCouplingDeps;
+}): Promise<ClimateRiskWithExternalResult> {
+  const baselineScore = opts.baselineScore ?? 1.0;
+  const proximityKm = opts.proximityKm ?? PROXIMITY_KM_DEFAULT;
+
+  let events: EonetEvent[] = [];
+  try {
+    events = await opts.deps.eonetAdapter.fetchEvents({
+      bbox: opts.projectBbox,
+      days: opts.days ?? 14,
+      categories: ['wildfires', 'severeStorms', 'floods', 'volcanoes'],
+      status: 'open',
+    });
+  } catch (err) {
+    try {
+      getErrorTracker().captureException(
+        err instanceof Error ? err : new Error(String(err)),
+        { tags: { component: 'climateRiskCoupling.eonet' } },
+      );
+    } catch {
+      /* observability never breaks */
+    }
+    return {
+      baselineScore,
+      riskScore: baselineScore,
+      externalEvents: [],
+      recommendation: null,
+    };
+  }
+
+  const inRange = filterEventsByProximity(events, opts.projectBbox, proximityKm);
+  const riskScore = applyExternalEventMultipliers(baselineScore, inRange);
+
+  // Recomendación opcional: la del evento más severo (volcano > wildfire >
+  // storm/flood). buildCalmRecommendation ya pasa por assertCalm.
+  let recommendation: CalmRecommendation | null = null;
+  if (inRange.length > 0) {
+    const ranked = [...inRange].sort((a, b) => {
+      const ma = Math.max(
+        ...a.categories.map((c) => EONET_CATEGORY_MULTIPLIER[c.id] ?? 1),
+      );
+      const mb = Math.max(
+        ...b.categories.map((c) => EONET_CATEGORY_MULTIPLIER[c.id] ?? 1),
+      );
+      return mb - ma;
+    });
+    recommendation = buildCalmRecommendation(ranked[0]);
+  }
+
+  return {
+    baselineScore,
+    riskScore,
+    externalEvents: inRange,
+    recommendation,
   };
 }

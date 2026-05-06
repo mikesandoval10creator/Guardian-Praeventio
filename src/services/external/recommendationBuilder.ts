@@ -73,7 +73,7 @@ const FORBIDDEN_WORDS = [
   'USGS DETECTA',
 ];
 
-function assertCalm(text: string): void {
+export function assertCalm(text: string): void {
   const upper = text.toUpperCase();
   for (const w of FORBIDDEN_WORDS) {
     if (upper.includes(w.toUpperCase())) {
