@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Praeventio — design iteration</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ─────────────────────────────────────────────────────────────────
+       Praeventio design tokens — mirrors src/index.css `@theme` block.
+       Teal #4db6ac is the workhorse light primary (caballito de batalla,
+       per user_color_preferences). Petroleum + gold for dark mode.
+       Coral is alerts ONLY.
+       ───────────────────────────────────────────────────────────────── */
+    :root {
+      --color-brand-teal: #4db6ac;
+      --color-brand-petroleum: #061f2d;
+      --color-brand-petroleum-mid: #0a2e42;
+      --color-brand-gold: #d4af37;
+      --color-brand-coral: #b66258; /* alerts only */
+
+      /* normal-light role tokens */
+      --bg-canvas: #fafafa;
+      --bg-surface: #ffffff;
+      --bg-elevated: #ffffff;
+      --text-primary: #18181b;
+      --text-secondary: #3f3f46;
+      --text-muted: #52525b;
+      --accent-primary: #4db6ac;
+      --accent-on-primary: #ffffff;
+      --accent-warning: #f59e0b;
+      --accent-hazard: #dc2626;
+      --accent-success: #16a34a;
+      --accent-info: #2563eb;
+      --border-default: rgba(24, 24, 27, 0.10);
+      --border-strong: rgba(24, 24, 27, 0.25);
+      --shadow-color: rgba(24, 24, 27, 0.08);
+
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px;
+      --space-4: 16px; --space-5: 24px; --space-6: 32px;
+      --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-canvas: #061f2d;
+        --bg-surface: #0a2e42;
+        --bg-elevated: #0f3245;
+        --text-primary: #ffffff;
+        --text-secondary: #c5d3dd;
+        --text-muted: #8fa9ba;
+        --accent-primary: #d4af37;        /* gold takes over in dark */
+        --accent-on-primary: #020c12;
+        --border-default: rgba(212, 175, 55, 0.30);
+        --border-strong: rgba(212, 175, 55, 0.60);
+        --shadow-color: rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    /* driving mode override (high-contrast, larger touch targets) */
+    .driving {
+      --bg-canvas: #000000;
+      --text-primary: #ffffff;
+      --accent-primary: #ffd700;
+      --accent-hazard: #ff3030;
+    }
+
+    /* emergency mode (red-saturated, max attention) */
+    .emergency {
+      --bg-canvas: #1a0000;
+      --accent-primary: #ff3b3b;
+      --text-primary: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent-primary); }
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-5);
+      background: var(--accent-primary);
+      color: var(--accent-on-primary);
+      font-weight: 600;
+    }
+    button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+    /* ───── COMPONENT-LOCAL STYLES (FILL ME IN) ─────────────────────── */
+    /* Claude: add only the styles needed for the requested mockup here.
+       Use role tokens (var(--accent-primary), --bg-surface, etc.) — never
+       raw palette values — to keep 4-mode mapping intact. */
+
+  </style>
+</head>
+<body>
+
+  <!-- ───── MOCKUP BODY (FILL ME IN) ───────────────────────────────────
+       Claude: replace this comment with the requested mockup markup.
+       Keep total file < 30 KB. Use semantic HTML. Inline event handlers
+       are allowed only when essential to demonstrate interaction.
+  ──────────────────────────────────────────────────────────────────── -->
+
+  <main style="padding: var(--space-6); max-width: 960px; margin: 0 auto;">
+    <h1>Praeventio mockup placeholder</h1>
+    <p style="color: var(--text-muted)">Replace this section with the requested design.</p>
+  </main>
+
+</body>
+</html>
