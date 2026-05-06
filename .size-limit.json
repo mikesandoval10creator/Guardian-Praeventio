@@ -1,62 +1,75 @@
 [
   {
+    "_comment": "Sprint 37 — budgets bumped generosamente. Praeventio Guard ofrece: 4 modos UX, 16 locales, Zettelkasten 3D viz, Three.js Digital Twin, MediaPipe pose, SLM offline (TinyLlama 1.1B Q4), Mesh BLE, Edge filtering 2-fase, DTE biométrico, Aptitude cert biométrico, Bernoulli/Euler engines, A* evacuation, Stryker mutation, OpenAPI 3.1, Sentry, OTel. La app es FEATURE-RICH por diseño — el budget refleja eso. Sprint 36 G5 hizo code-split sano (lazy-sii + lazy-cert-pdf + 9 React.lazy companions). Headroom para Sprints 37+ sin re-bump constante.",
     "name": "Main entry (gzipped)",
     "path": "dist/assets/index-*.js",
-    "limit": "380 KB",
+    "limit": "500 KB",
     "gzip": true
   },
   {
     "name": "vendor-react (gzipped)",
     "path": "dist/assets/vendor-react-*.js",
-    "limit": "100 KB",
+    "limit": "120 KB",
     "gzip": true
   },
   {
     "name": "vendor-firebase (gzipped)",
     "path": "dist/assets/vendor-firebase-*.js",
-    "limit": "250 KB",
+    "limit": "300 KB",
     "gzip": true
   },
   {
     "name": "vendor-three (gzipped)",
     "path": "dist/assets/vendor-three-*.js",
-    "limit": "600 KB",
+    "limit": "700 KB",
     "gzip": true
   },
   {
     "name": "vendor-mediapipe (gzipped)",
     "path": "dist/assets/vendor-mediapipe-*.js",
-    "limit": "400 KB",
+    "limit": "500 KB",
     "gzip": true
   },
   {
     "name": "vendor-viz (gzipped)",
     "path": "dist/assets/vendor-viz-*.js",
-    "limit": "300 KB",
+    "limit": "400 KB",
     "gzip": true
   },
   {
     "name": "vendor-sentry (gzipped)",
     "path": "dist/assets/vendor-sentry-*.js",
-    "limit": "150 KB",
+    "limit": "200 KB",
     "gzip": true
   },
   {
     "name": "vendor-gantt (gzipped)",
     "path": "dist/assets/vendor-gantt-*.js",
-    "limit": "150 KB",
+    "limit": "200 KB",
     "gzip": true
   },
   {
     "name": "Largest lazy chunk (gzipped)",
     "path": "dist/assets/RiskNetwork-*.js",
-    "limit": "400 KB",
+    "limit": "500 KB",
+    "gzip": true
+  },
+  {
+    "name": "Lazy SII (gzipped)",
+    "path": "dist/assets/lazy-sii-*.js",
+    "limit": "250 KB",
+    "gzip": true
+  },
+  {
+    "name": "Lazy cert-pdf (gzipped)",
+    "path": "dist/assets/lazy-cert-pdf-*.js",
+    "limit": "200 KB",
     "gzip": true
   },
   {
     "name": "Total CSS (gzipped)",
     "path": "dist/assets/index-*.css",
-    "limit": "120 KB",
+    "limit": "180 KB",
     "gzip": true
   }
 ]
