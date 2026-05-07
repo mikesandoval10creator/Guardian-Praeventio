@@ -456,3 +456,63 @@ _Transformación de la PWA en una aplicación móvil nativa real con acceso a ha
 - [x] **Uso Predictivo para la Optimización de Energía:** Conectar la telemetría de wearables (Web Bluetooth API / DeviceMotion) para medir biometría y ritmo de trabajo en tiempo real, anticipando fatiga antes de que se convierta en accidente.
 - [x] **Blindaje de Credenciales:** Asegurar que todas las claves sensibles (como la API Key de Gemini) se procesen exclusivamente del lado del servidor (Cloud Functions o Node.js) para proteger la integridad del ecosistema.
 
+---
+
+## Prioridad 0.1: Cierre de Auditoría Técnica (CRITICAL — Verificado en Código)
+
+> Ítems identificados en `TECHNICAL_DEBT_AUDIT.md` con file:line exactos. Sin estos, el producto no es certificable como seguro.
+
+### 0.1.A — Seguridad Crítica (Bloquea certificación)
+
+- [ ] **KMS producción obligatorio:** Activar `KMS_ADAPTER=cloud-kms` en Cloud Run y migrar datos cifrados con la clave de desarrollo actual. (`src/services/security/kmsAdapter.ts:57` — clave hardcodeada `praeventio-in-memory-kms-dev-kek-v1` activa por defecto).
+- [ ] **WebAuthn validación CBOR en servidor:** El servidor nunca valida la firma biométrica — cualquier payload pasa. (`src/services/curriculum.ts:688` — TODO Round 20+, marcado explícitamente).
+- [ ] **Validación de recibos IAP (Google Play + Apple):** Ambas tiendas retornan `true` sin consultar los servidores de Apple/Google. (`src/services/billing.ts:1467` Google, `billing.ts:1527` Apple).
+- [ ] **Revocación de tokens en logout:** Los JWTs no se invalidan al cerrar sesión — un token robado permanece válido hasta expirar. (`src/services/auth/tokenService.ts` — sin blacklist ni revocación).
+
+### 0.1.B — Cableado de Despliegue (Bloquea producción)
+
+- [ ] **MercadoPago IPN montado en servidor:** El router de webhooks existe pero no está montado en `server.ts`. (`src/services/payments/mercadoPagoIpn.ts` existe; `server.ts` — sin `app.use('/ipn/mp', ...)`) — pagos silenciosos que nunca se confirman.
+- [ ] **`firebase.json` completar secciones:** Solo contiene `firestore` y `emulators`; faltan `hosting`, `storage` y `functions`. (`firebase.json` — desplegará sin CDN, sin reglas de Storage ni Functions).
+- [ ] **`storage.rules` crear archivo:** No existe archivo de reglas de Cloud Storage — todos los archivos serán públicos en producción.
+- [ ] **SHA256 de certificado Android reemplazar:** El placeholder literal bloquea el App Links y WebAuthn nativo en Android. (`public/.well-known/assetlinks.json` — `"REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD"`).
+- [ ] **Carpeta `android/` generar con Capacitor:** Sin carpeta nativa no hay APK ni acceso a servicios en primer plano. (`npx cap add android` — no ejecutado aún).
+- [ ] **`storage.rules` crear con reglas de acceso mínimo:** Definir reglas por colección (evidencias solo del dueño, PDFs corporativos solo rol admin, etc.).
+
+### 0.1.C — Calidad de Código (Bloquea tests en CI)
+
+- [ ] **`ctx.skip()` eliminar en tests de seguridad:** Dos archivos de tests de Firestore tienen `ctx.skip()` — las reglas críticas nunca se validan en CI. (`src/rules-tests/firestore.rules.test.ts:153`, `src/rules-tests/dirtyDozen.test.ts:114`).
+- [ ] **`Site25DPanel` tests de snapshot añadir:** Componente crítico de riesgo sin cobertura de tests. (`src/components/Site25DPanel.tsx` — 0 tests).
+- [ ] **Nodos de calculadoras persistir:** Los nodos del Zettelkasten generados por las 3 calculadoras (PREXOR, TMERT, IPER) se descartan al navegar — nunca se persisten en Firestore. (Identificado en `TECHNICAL_DEBT_AUDIT.md` §calculadoras).
+- [ ] **`@ts-ignore` auditar y tipar:** Bloques `@ts-ignore` encubren errores de tipo en código de seguridad crítico. (Ver `TECHNICAL_DEBT_AUDIT.md` §ts-ignore — múltiples archivos).
+- [ ] **i18n completar traducciones:** Strings en español hardcodeados en componentes críticos (alertas, formularios de emergencia). (Identificado en `TECHNICAL_DEBT_AUDIT.md` §i18n — Sprint 38 pendiente).
+
+### 0.1.D — IA/ML Hardening (Bloquea confianza en inferencias)
+
+- [ ] **SHA256 de modelos ONNX verificar:** Los modelos SLM se cargan sin verificar integridad — un modelo comprometido podría generar recomendaciones de seguridad incorrectas. (`src/services/ml/registry.ts:44,61,76` — sin hash check).
+- [ ] **SLM errores tipados con `SLMError`:** Los errores del runtime ONNX se capturan como `unknown` y se silencian. (`src/services/ml/` — sin tipo de error estructurado).
+- [ ] **MediaPipe local en vez de CDN:** MediaPipe se carga desde CDN externo — falla sin internet y representa riesgo de supply-chain. (Actualmente CDN; necesita bundling local con `@mediapipe/tasks-vision`).
+- [ ] **Vertex AI Federated Learning activar:** Stub `NOT_ENABLED` — el modelo nunca mejora con datos de campo reales. (`src/services/ml/vertexTrainer.ts:126-131` — TODO Sprint 33).
+
+---
+
+## Prioridad 0.2: Los 3 Puentes Arquitectónicos (Alta Complejidad — Requieren Sprint Dedicado)
+
+> Sin estos, el sistema tiene puntos únicos de falla en escenarios de emergencia real.
+
+- [ ] **Event Bus Zustand (correlación multi-sensor):** Sin bus de eventos, los sensores (GPS, acelerómetro, frecuencia cardíaca, gas) operan en silos. Un solo sensor fallido genera falsos positivos de "Man Down". Necesita `useEmergencyEventBus` store + suscriptores en cada sensor. (Ver `IMPLEMENTATION_ROADMAP.md` §Level 1.5).
+- [ ] **Foreground Service nativo Capacitor (Android + iOS):** El SO mata los procesos PWA tras ~5 min en segundo plano — las alertas de emergencia dejan de transmitir. Requiere plugin Capacitor con `ForegroundService` en Android (Kotlin) y `BGTaskScheduler` en iOS (Swift). (Ver `IMPLEMENTATION_ROADMAP.md` §Level 1.1 con código completo).
+- [ ] **Sincronización predictiva por topología de grafo:** El sistema descarga datos de forma reactiva. En minería, el trabajador pierde señal antes de que los datos lleguen. Necesita pre-descarga inteligente de nodos Zettelkasten vecinos basada en historial de desplazamiento. (Ver `IMPLEMENTATION_ROADMAP.md` §Level 1.4).
+
+---
+
+## Rectificaciones de Auditoría (Ya Implementado — Marcar como Completado)
+
+> Ítems que la auditoría inicial marcó como deuda pero que ya están implementados. Registrar para trazabilidad.
+
+- [x] **Rate limiting por IP:** `express-rate-limit` correctamente configurado en `server.ts` — no es deuda.
+- [x] **CORS restrictivo:** `cors({ origin: allowedOrigins })` con lista blanca en `server.ts` — no es deuda.
+- [x] **Helmet.js activo:** Headers de seguridad HTTP correctamente configurados — no es deuda.
+- [x] **Firebase Auth Server-Side:** `admin.auth().verifyIdToken()` en todos los endpoints sensibles — no es deuda.
+- [x] **Firestore Rules básicas:** Reglas de acceso por `uid` implementadas para colecciones principales — no es deuda.
+- [x] **Zod validation en endpoints:** Schemas de validación con Zod en endpoints de entrada — no es deuda.
+
