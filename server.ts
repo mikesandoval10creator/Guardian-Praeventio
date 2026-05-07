@@ -236,7 +236,7 @@ try {
 // /api/billing/verify and /api/billing/webhook handlers consume it.
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 57335;
 
 // `safeSecretEqual` extracted to src/server/middleware/safeSecretEqual.ts in
 // Round 16 R5 Phase 1 split.
