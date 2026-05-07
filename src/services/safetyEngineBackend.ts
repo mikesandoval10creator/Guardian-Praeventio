@@ -16,19 +16,39 @@ export const performProjectSafetyHealthCheck = async (projectId: string) => {
     const reports = await db.collection('projects').doc(projectId).collection('reports').limit(10).get();
     const controls = await db.collection('projects').doc(projectId).collection('controls').get();
     const telemetry = await db.collection('telemetry_events').where('projectId', '==', projectId).limit(20).get();
-    const nodes = await db.collection('nodes').where('projectId', '==', projectId).get();
-    
+
+    // Bridge read across the three Zettelkasten paths (legacy `nodes`,
+    // top-level `zettelkasten_nodes`, and tenant-scoped
+    // `tenants/{tid}/zettelkasten_nodes`). The split was introduced
+    // incrementally (Sprint 11 → Sprint 28) without a sync writer, so a
+    // single-path read silently misses new knowledge from the canonical
+    // POST /api/zettelkasten/nodes endpoint. Until the data-migration
+    // job lands, the read side merges all three by id (last-write-wins).
+    const [legacyNodesSnap, zkNodesSnap, scopedNodesSnap] = await Promise.all([
+      db.collection('nodes').where('projectId', '==', projectId).get(),
+      db.collection('zettelkasten_nodes').where('projectId', '==', projectId).get(),
+      db.collectionGroup('zettelkasten_nodes').where('projectId', '==', projectId).get(),
+    ]);
+
+    const mergedNodes = new Map<string, { id: string; [k: string]: unknown }>();
+    for (const snap of [legacyNodesSnap, zkNodesSnap, scopedNodesSnap]) {
+      for (const d of snap.docs) {
+        mergedNodes.set(d.id, { id: d.id, ...d.data() });
+      }
+    }
+    const nodesArray = Array.from(mergedNodes.values());
+
     const projectData = {
         name: projectDoc.data()?.name,
         reports: reports.docs.map(d => d.data()),
         controls: controls.docs.map(d => d.data()),
         telemetry: telemetry.docs.map(d => d.data()),
-        nodesSummary: nodes.docs.map(d => d.id)
+        nodesSummary: nodesArray.map(n => n.id)
     };
-    
+
     // 2. Call AI logic
     const auditResult = await processGlobalSafetyAudit(projectId, projectData);
-    const complianceSummary = await calculateComplianceSummary(projectId, nodes.docs.map(d => ({ id: d.id, ...d.data() })));
+    const complianceSummary = await calculateComplianceSummary(projectId, nodesArray);
     
     // 3. Store result in a "health_checks" collection for historical tracking
     const healthCheckRef = db.collection('projects').doc(projectId).collection('health_checks').doc('latest');
