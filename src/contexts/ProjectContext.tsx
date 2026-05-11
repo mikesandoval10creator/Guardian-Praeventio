@@ -4,6 +4,7 @@ import { useFirebase } from './FirebaseContext';
 import { usePendingActions } from '../hooks/usePendingActions';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import { GuestSaveModal } from '../components/shared/GuestSaveModal';
 import { analytics } from '../services/analytics';
 import type { IndustryCode, ProjectTier } from '../services/analytics';
 
@@ -97,6 +98,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [guestSaveOpen, setGuestSaveOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.localStorage) return;
@@ -140,6 +142,10 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [fetchedProjects, pendingActions]);
 
   const createProject = async (projectData: Omit<Project, 'id'>): Promise<string> => {
+    if (!user) {
+      setGuestSaveOpen(true);
+      return Promise.reject(new Error('auth-required'));
+    }
     try {
       if (!navigator.onLine) {
         const { saveForSync } = await import('../utils/pwa-offline');
@@ -236,6 +242,11 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     <ProjectContext.Provider value={{ projects, selectedProject, setSelectedProject, createProject, loading, error }}>
       {children}
       <ToastContainer toasts={toasts} onDismiss={dismiss} />
+      <GuestSaveModal
+        isOpen={guestSaveOpen}
+        onClose={() => setGuestSaveOpen(false)}
+        industry={selectedProject?.industry}
+      />
     </ProjectContext.Provider>
   );
 }
