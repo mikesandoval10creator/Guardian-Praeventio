@@ -132,6 +132,34 @@ describe('POST /api/billing/checkout', () => {
     expect(res.body.error).toMatch(/tierId/);
   });
 
+  it('creates Webpay transactions with the exact production return handler URL', async () => {
+    let capturedTx: any = null;
+    handle = buildTestServer({
+      firestore: fs,
+      webpayConfigured: true,
+      webpayCreate: async (tx) => {
+        capturedTx = tx;
+        return { token: 'tok-create', url: 'https://webpay.test/tok-create' };
+      },
+    });
+
+    const res = await request(handle.app)
+      .post('/api/billing/checkout')
+      .set('Authorization', 'Bearer test:uid-A:a@test.com')
+      .send({
+        tierId: 'comite-paritario',
+        cycle: 'monthly',
+        currency: 'CLP',
+        paymentMethod: 'webpay',
+        totalWorkers: 10,
+        totalProjects: 1,
+        cliente: { nombre: 'Cliente Test', email: 'c@test.com' },
+      });
+
+    expect(res.status).toBe(200);
+    expect(capturedTx.returnUrl).toBe('/billing/webpay/return');
+  });
+
   it('happy path: webpay checkout writes invoice doc and returns paymentUrl', async () => {
     const res = await request(handle.app)
       .post('/api/billing/checkout')
@@ -306,11 +334,21 @@ describe('GET /billing/webpay/return', () => {
         authorizationCode: 'AUTH-OK',
       }),
     });
-    fs.store.set('invoices/inv_OK', { status: 'pending-payment', createdBy: 'uid-A' });
+    fs.store.set('invoices/inv_OK', {
+      status: 'pending-payment',
+      createdBy: 'uid-A',
+      lineItems: [{ tierId: 'oro', quantity: 1 }],
+    });
     const res = await request(handle.app).get('/billing/webpay/return?token_ws=tok-OK');
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe('/pricing/success?invoice=inv_OK');
     expect((fs.store.get('invoices/inv_OK') as any).status).toBe('paid');
+    expect((fs.store.get('users/uid-A') as any).subscription).toMatchObject({
+      planId: 'oro',
+      tierId: 'oro',
+      status: 'active',
+      paymentMethod: 'webpay',
+    });
     // Audit row emitted
     expect(fs.audit.some((e) => e.action === 'billing.webpay-return.authorized')).toBe(true);
   });

@@ -87,6 +87,25 @@ describe('POST /api/subscription/upgrade — paid-invoice gate (DT-01/DT-05)', (
     });
   });
 
+  it('accepts canonical pricing tier ids when they map to the requested legacy plan', async () => {
+    fs.store.set('invoices/inv_canonical', {
+      createdBy: 'uid-A',
+      status: 'paid',
+      lineItems: [{ tierId: 'departamento-prevencion' }],
+    });
+    const res = await request(handle.app)
+      .post('/api/subscription/upgrade')
+      .set('Authorization', 'Bearer test:uid-A:a@test.com')
+      .send({ planId: 'departamento' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, planId: 'departamento' });
+    expect((fs.store.get('users/uid-A') as any).subscription).toMatchObject({
+      planId: 'departamento',
+      tierId: 'departamento-prevencion',
+      status: 'active',
+    });
+  });
+
   it('also accepts legacy top-level tierId on the invoice (schema back-compat)', async () => {
     fs.store.set('invoices/inv_legacy', {
       createdBy: 'uid-A',

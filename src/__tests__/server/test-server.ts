@@ -35,6 +35,11 @@ import crypto from 'crypto';
 
 import { buildInvoice } from '../../services/billing/invoice.js';
 import {
+  isSubscriptionPlan,
+  normalizeSubscriptionPlanId,
+  subscriptionPlanMatchesPaidTier,
+} from '../../services/pricing/subscriptionPlan.js';
+import {
   assertProjectMember,
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
@@ -504,18 +509,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         type: type ?? 'subscription',
         status: 'verified',
       });
-      const VALID_PLANS = [
-        'free',
-        'comite',
-        'departamento',
-        'plata',
-        'oro',
-        'platino',
-        'empresarial',
-        'corporativo',
-        'ilimitado',
-      ];
-      const resolvedPlan = VALID_PLANS.includes(productId) ? productId : 'comite';
+      const resolvedPlan = normalizeSubscriptionPlanId(productId) ?? 'comite';
       if (type === 'subscription') {
         const expiryDate = data.expiryTimeMillis
           ? new Date(parseInt(data.expiryTimeMillis)).toISOString()
@@ -621,7 +615,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           buyOrder: invoice.id.slice(0, 26),
           sessionId: callerUid,
           amount: invoice.totals.total,
-          returnUrl: '/billing/return',
+          returnUrl: '/billing/webpay/return',
         });
         paymentUrl = tx.url;
         status = 'awaiting-payment';
@@ -788,6 +782,28 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           { status: 'paid', paidAt: new Date().toISOString(), paymentSource: 'webpay' },
           { merge: true },
         );
+        const invoiceSnap = await invoiceRef.get();
+        const invoiceData = invoiceSnap.data() ?? {};
+        const lineItems = Array.isArray(invoiceData.lineItems) ? invoiceData.lineItems : [];
+        const tierId = lineItems[0]?.tierId ?? invoiceData.tierId ?? null;
+        const ownerUid = invoiceData.createdBy ?? null;
+        const planId = normalizeSubscriptionPlanId(tierId);
+        if (ownerUid && tierId && planId) {
+          await deps.firestore.collection('users').doc(ownerUid).set(
+            {
+              subscriptionPlan: planId,
+              subscription: {
+                planId,
+                tierId,
+                status: 'active',
+                updatedAt: new Date().toISOString(),
+                lastInvoiceId: invoiceId,
+                paymentMethod: 'webpay',
+              },
+            },
+            { merge: true },
+          );
+        }
         await deps.firestore.collection('audit_logs').add({
           action: 'billing.webpay-return.authorized',
           module: 'billing',
@@ -1280,22 +1296,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // ─── /api/subscription/upgrade ──────────────────────────────────
   // Closes DT-01/DT-05: only callers with a paid invoice for the
   // requested plan may upgrade. Mirrors the production gate.
-  const VALID_PLANS = new Set([
-    'free',
-    'comite',
-    'departamento',
-    'plata',
-    'oro',
-    'titanio',
-    'platino',
-    'empresarial',
-    'corporativo',
-    'ilimitado',
-  ]);
   app.post('/api/subscription/upgrade', verifyAuth, async (req, res) => {
     const callerUid = (req as any).user.uid;
     const { planId } = req.body ?? {};
-    if (typeof planId !== 'string' || !VALID_PLANS.has(planId)) {
+    if (!isSubscriptionPlan(planId)) {
       return res.status(400).json({ error: 'invalid_plan' });
     }
     const paid = await deps.firestore
@@ -1303,12 +1307,22 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       .where('createdBy', '==', callerUid)
       .where('status', '==', 'paid')
       .get();
+    let paidTierId: string | null = null;
     const hasPaidForPlan = paid.docs.some((d) => {
       const data = d.data() ?? {};
       const lineItems = Array.isArray(data.lineItems) ? data.lineItems : [];
-      return (
-        lineItems.some((li: any) => li?.tierId === planId) || data.tierId === planId
+      const lineItem = lineItems.find((li: any) =>
+        subscriptionPlanMatchesPaidTier(planId, li?.tierId),
       );
+      if (lineItem?.tierId) {
+        paidTierId = lineItem.tierId;
+        return true;
+      }
+      if (subscriptionPlanMatchesPaidTier(planId, data.tierId)) {
+        paidTierId = data.tierId;
+        return true;
+      }
+      return false;
     });
     if (!hasPaidForPlan) {
       return res.status(403).json({
@@ -1316,17 +1330,25 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         message: 'No paid invoice found for this plan. Complete a checkout first.',
       });
     }
+    const normalizedPlanId = normalizeSubscriptionPlanId(planId) ?? planId;
     await deps.firestore.collection('users').doc(callerUid).set(
-      { subscriptionPlan: planId, subscription: { planId, status: 'active' } },
+      {
+        subscriptionPlan: normalizedPlanId,
+        subscription: {
+          planId: normalizedPlanId,
+          tierId: paidTierId ?? normalizedPlanId,
+          status: 'active',
+        },
+      },
       { merge: true },
     );
     await deps.firestore.collection('audit_logs').add({
       action: 'subscription.upgraded',
       module: 'subscription',
-      details: { planId, method: 'verified-payment' },
+      details: { planId: normalizedPlanId, tierId: paidTierId ?? normalizedPlanId, method: 'verified-payment' },
       userId: callerUid,
     });
-    res.status(200).json({ success: true, planId });
+    res.status(200).json({ success: true, planId: normalizedPlanId });
   });
 
   // ─── /api/zettelkasten/nodes (Sprint 11) ───────────────────────────

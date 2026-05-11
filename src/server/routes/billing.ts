@@ -83,6 +83,10 @@ import {
 import { KhipuAdapter } from '../../services/billing/khipuAdapter.js';
 import { stripeAdapter } from '../../services/billing/stripeAdapter.js';
 import { withIdempotency } from '../../services/billing/idempotency.js';
+// Sprint 39 P0.3 — synchronous server-to-server IAP receipt validators.
+// See file headers in each for the auth/env contract.
+import { validateGooglePlaySubscription } from '../../services/billing/googlePlayValidator.js';
+import { validateAppleTransaction } from '../../services/billing/appleTransactionValidator.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { recordWebpayReturnLatency } from '../../services/billing/webpayMetrics.js';
 import {
@@ -105,6 +109,7 @@ import {
   MP_CURRENCY_BY_COUNTRY,
   type LatamCurrency,
 } from '../../services/billing/currency.js';
+import { normalizeSubscriptionPlanId } from '../../services/pricing/subscriptionPlan.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // Google Play Developer API client.
@@ -267,9 +272,9 @@ billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Validate productId is a known plan name (whitelist)
-    const VALID_PLANS = ['free', 'comite', 'departamento', 'plata', 'oro', 'platino', 'empresarial', 'corporativo', 'ilimitado'];
-    const resolvedPlan = VALID_PLANS.includes(productId) ? productId : 'comite';
+    // Store entitlements using the legacy subscription ids expected by
+    // feature gates, even when providers send canonical pricing tier ids.
+    const resolvedPlan = normalizeSubscriptionPlanId(productId) ?? 'comite';
 
     // Update user subscription status
     if (type === 'subscription') {
@@ -552,7 +557,7 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
             buyOrder: invoice.id.slice(0, 26),
             sessionId: callerUid,
             amount: invoice.totals.total,
-            returnUrl: `${process.env.APP_BASE_URL ?? ''}/billing/return`,
+            returnUrl: `${process.env.APP_BASE_URL ?? ''}/billing/webpay/return`,
           }),
         );
         paymentUrl = tx.url;
@@ -1160,12 +1165,14 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         const lineItems = Array.isArray(invoiceData?.lineItems) ? invoiceData!.lineItems : [];
         const tierId = lineItems[0]?.tierId ?? invoiceData?.tierId ?? null;
         const ownerUid = invoiceData?.createdBy ?? null;
-        if (ownerUid && tierId) {
+        const planId = normalizeSubscriptionPlanId(tierId);
+        if (ownerUid && tierId && planId) {
           await db.collection('users').doc(ownerUid).set(
             {
-              subscriptionPlan: tierId,
+              subscriptionPlan: planId,
               subscription: {
-                planId: tierId,
+                planId,
+                tierId,
                 status: 'active',
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                 lastInvoiceId: invoiceId,
@@ -1463,47 +1470,129 @@ billingApiRouter.post(
       return res.status(400).json({ error: 'missing_fields' });
     }
 
+    // Always persist the attempt (best-effort) so ops can correlate with
+    // RTDN later. We never store the full token — it's token-equivalent
+    // material and would broaden the blast radius of a Firestore breach.
+    const recordAttempt = async (outcome: string, reason?: string) => {
+      try {
+        const db = admin.firestore();
+        await db.collection('iap_receipt_attempts').add({
+          provider: 'google-play',
+          userId: uid ?? null,
+          productId,
+          tierId: tierId ?? null,
+          receiptIdHash: receiptId.slice(0, 16) + '…',
+          outcome,
+          reason: reason ?? null,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+      } catch (err) {
+        logger.warn('iap_validate_receipt_attempt_log_failed', {
+          provider: 'google-play',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+
     try {
-      // TODO: implement receipt validation against Google servers when
-      // production secrets ready. The hook point is `playDeveloperApi.
-      // purchases.subscriptions.get({ packageName, subscriptionId:
-      // productId, token: receiptId })` (same call the RTDN handler
-      // makes on each notification). For now we just persist the
-      // attempt so ops can correlate with the eventual RTDN.
-      const db = admin.firestore();
-      await db.collection('iap_receipt_attempts').add({
+      const result = await validateGooglePlaySubscription(receiptId, productId);
+
+      if (result.ok === false) {
+        const failure = result;
+        await recordAttempt('rejected', failure.reason);
+
+        // Map internal reasons to HTTP status. We deliberately do NOT
+        // echo `failure.detail` to the client — it carries operator info
+        // (env var names, internal state) that could help an attacker
+        // probe the validation surface.
+        switch (failure.reason) {
+          case 'token_not_found':
+          case 'token_invalid':
+          case 'token_replaced':
+          case 'product_mismatch':
+          case 'subscription_inactive':
+          case 'expired':
+          case 'test_purchase':
+            logger.warn('iap_validate_receipt_rejected', {
+              provider: 'google-play',
+              productId,
+              reason: failure.reason,
+              detail: failure.detail,
+            });
+            return res.status(400).json({
+              error: 'receipt_invalid',
+              reason: failure.reason,
+            });
+
+          case 'config_missing':
+          case 'permission_denied':
+            logger.error('iap_validate_receipt_config_error', null, {
+              provider: 'google-play',
+              reason: failure.reason,
+              detail: failure.detail,
+            });
+            sentryCapture(new Error(`google_play_validator_${failure.reason}`), {
+              endpoint: '/api/billing/google-play/validate-receipt',
+              tags: { method: 'POST', provider: 'google-play' },
+            });
+            return res.status(502).json({
+              error: 'validator_unavailable',
+            });
+
+          case 'transient_error':
+            logger.warn('iap_validate_receipt_transient', {
+              provider: 'google-play',
+              detail: failure.detail,
+            });
+            return res.status(503).json({
+              error: 'transient_error',
+              retryable: true,
+            });
+
+          default: {
+            // Exhaustiveness guard — a new failure reason must land here.
+            const _exhaustive: never = failure.reason;
+            void _exhaustive;
+            return res.status(500).json({ error: 'iap_receipt_validation_failed' });
+          }
+        }
+      }
+
+      // result.ok === true here.
+      const success = result;
+      await recordAttempt('granted');
+      logger.info('iap_validate_receipt_granted', {
         provider: 'google-play',
-        userId: uid ?? null,
         productId,
         tierId: tierId ?? null,
-        receiptIdHash: receiptId.slice(0, 16) + '…',
-        // Never store the full receipt — it carries token-equivalent
-        // material that could be replayed. The hashing here is a coarse
-        // "first 16 chars" preview; ops uses Sentry breadcrumbs for the
-        // full signal under access control.
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        ip: req.ip ?? null,
-        userAgent: req.header('user-agent') ?? null,
+        expiryMs: success.expiryMs,
+        regionCode: success.regionCode,
+        subscriptionState: success.subscriptionState,
       });
 
-      logger.info('iap_validate_receipt_recorded', {
-        provider: 'google-play',
-        productId,
-        tierId: tierId ?? null,
-      });
-
-      return res.status(202).json({
-        accepted: true,
-        message:
-          'Receipt logged. Subscription benefit will activate once the ' +
-          'Google Play RTDN webhook confirms the purchase server-to-server.',
+      return res.status(200).json({
+        ok: true,
+        productId: success.productId,
+        expiryMs: success.expiryMs,
+        regionCode: success.regionCode,
+        // The actual subscription grant in Firestore is performed
+        // server-side by the RTDN handler when it processes the
+        // corresponding pub/sub notification. The synchronous validation
+        // here lets the client unblock immediately and is the
+        // authoritative "this purchase is real" check.
       });
     } catch (err) {
+      await recordAttempt('error', err instanceof Error ? err.message : 'unknown');
       logger.error('iap_validate_receipt_failed', err, {
         provider: 'google-play',
       });
-      sentryCapture(err, { endpoint: '/api/billing/google-play/validate-receipt', tags: { method: 'POST', provider: 'google-play' } });
-      return res.status(500).json({ error: 'iap_receipt_log_failed' });
+      sentryCapture(err, {
+        endpoint: '/api/billing/google-play/validate-receipt',
+        tags: { method: 'POST', provider: 'google-play' },
+      });
+      return res.status(500).json({ error: 'iap_receipt_validation_failed' });
     }
   },
 );
@@ -1523,42 +1612,120 @@ billingApiRouter.post(
       return res.status(400).json({ error: 'missing_fields' });
     }
 
+    const recordAttempt = async (outcome: string, reason?: string) => {
+      try {
+        const db = admin.firestore();
+        await db.collection('iap_receipt_attempts').add({
+          provider: 'app-store',
+          userId: uid ?? null,
+          productId,
+          tierId: tierId ?? null,
+          receiptIdHash: receiptId.slice(0, 16) + '…',
+          outcome,
+          reason: reason ?? null,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          ip: req.ip ?? null,
+          userAgent: req.header('user-agent') ?? null,
+        });
+      } catch (err) {
+        logger.warn('iap_validate_receipt_attempt_log_failed', {
+          provider: 'app-store',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+
     try {
-      // TODO: implement receipt validation against Apple servers when
-      // production secrets ready. The hook point is the App Store
-      // Server API (`/inApps/v1/transactions/{transactionId}` or the
-      // legacy `/verifyReceipt` endpoint). Sandbox vs production routing
-      // and JWS signature verification (Apple Root CA chain) belong here.
-      const db = admin.firestore();
-      await db.collection('iap_receipt_attempts').add({
+      // `receiptId` here is the iOS transactionId — StoreKit 2 and the
+      // Capacitor IAP plugin both surface the transactionId, not the
+      // legacy base64 receipt blob.
+      const result = await validateAppleTransaction(receiptId, productId);
+
+      if (result.ok === false) {
+        const failure = result;
+        await recordAttempt('rejected', failure.reason);
+
+        switch (failure.reason) {
+          case 'transaction_not_found':
+          case 'jws_invalid':
+          case 'bundle_mismatch':
+          case 'product_mismatch':
+          case 'expired':
+          case 'revoked':
+            logger.warn('iap_validate_receipt_rejected', {
+              provider: 'app-store',
+              productId,
+              reason: failure.reason,
+              detail: failure.detail,
+            });
+            return res.status(400).json({
+              error: 'receipt_invalid',
+              reason: failure.reason,
+            });
+
+          case 'config_missing':
+          case 'permission_denied':
+            logger.error('iap_validate_receipt_config_error', null, {
+              provider: 'app-store',
+              reason: failure.reason,
+              detail: failure.detail,
+            });
+            sentryCapture(new Error(`apple_validator_${failure.reason}`), {
+              endpoint: '/api/billing/app-store/validate-receipt',
+              tags: { method: 'POST', provider: 'app-store' },
+            });
+            return res.status(502).json({
+              error: 'validator_unavailable',
+            });
+
+          case 'transient_error':
+            logger.warn('iap_validate_receipt_transient', {
+              provider: 'app-store',
+              detail: failure.detail,
+            });
+            return res.status(503).json({
+              error: 'transient_error',
+              retryable: true,
+            });
+
+          default: {
+            const _exhaustive: never = failure.reason;
+            void _exhaustive;
+            return res.status(500).json({ error: 'iap_receipt_validation_failed' });
+          }
+        }
+      }
+
+      const success = result;
+      await recordAttempt('granted');
+      logger.info('iap_validate_receipt_granted', {
         provider: 'app-store',
-        userId: uid ?? null,
-        productId,
+        productId: success.productId,
         tierId: tierId ?? null,
-        receiptIdHash: receiptId.slice(0, 16) + '…',
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        ip: req.ip ?? null,
-        userAgent: req.header('user-agent') ?? null,
+        expiryMs: success.expiryMs,
+        environment: success.environment,
+        originalTransactionId: success.originalTransactionId,
       });
 
-      logger.info('iap_validate_receipt_recorded', {
-        provider: 'app-store',
-        productId,
-        tierId: tierId ?? null,
-      });
-
-      return res.status(202).json({
-        accepted: true,
-        message:
-          'Receipt logged. Subscription benefit will activate once the ' +
-          'App Store Server Notification confirms the purchase server-to-server.',
+      return res.status(200).json({
+        ok: true,
+        productId: success.productId,
+        expiryMs: success.expiryMs,
+        environment: success.environment,
+        // Persistent grant + entitlement bookkeeping is handled by the
+        // SSN v2 webhook in services/billing/appleSsn.ts; this endpoint
+        // is the synchronous "is this transaction real?" gate.
       });
     } catch (err) {
+      await recordAttempt('error', err instanceof Error ? err.message : 'unknown');
       logger.error('iap_validate_receipt_failed', err, {
         provider: 'app-store',
       });
-      sentryCapture(err, { endpoint: '/api/billing/app-store/validate-receipt', tags: { method: 'POST', provider: 'app-store' } });
-      return res.status(500).json({ error: 'iap_receipt_log_failed' });
+      sentryCapture(err, {
+        endpoint: '/api/billing/app-store/validate-receipt',
+        tags: { method: 'POST', provider: 'app-store' },
+      });
+      return res.status(500).json({ error: 'iap_receipt_validation_failed' });
     }
   },
 );
