@@ -527,6 +527,7 @@ function buildCryptoVerifyApp(deps: CryptoVerifyTestDeps): Express {
       authenticatorData,
       signature,
       type: assertionType,
+      clientExtensionResults,
     } = req.body ?? {};
 
     if (typeof challengeId !== 'string' || challengeId.length === 0 || challengeId.length > 256) {
@@ -540,6 +541,22 @@ function buildCryptoVerifyApp(deps: CryptoVerifyTestDeps): Express {
     }
     if (typeof signature !== 'string' || signature.length === 0) {
       return res.status(400).json({ error: 'signature is required' });
+    }
+    if (typeof credentialId !== 'string' || credentialId.length === 0) {
+      return res.status(400).json({ error: 'id is required' });
+    }
+    if (typeof rawId !== 'string' || rawId.length === 0) {
+      return res.status(400).json({ error: 'rawId is required' });
+    }
+    if (assertionType !== 'public-key') {
+      return res.status(400).json({ error: 'type must be public-key' });
+    }
+    if (
+      clientExtensionResults === null ||
+      typeof clientExtensionResults !== 'object' ||
+      Array.isArray(clientExtensionResults)
+    ) {
+      return res.status(400).json({ error: 'clientExtensionResults is required' });
     }
 
     let providedChallenge: Uint8Array;
@@ -584,10 +601,10 @@ function buildCryptoVerifyApp(deps: CryptoVerifyTestDeps): Express {
         verification = await verifyAuthenticationResponse({
           response: {
             id: credentialId,
-            rawId: typeof rawId === 'string' && rawId.length > 0 ? rawId : credentialId,
+            rawId,
             response: { clientDataJSON, authenticatorData, signature },
-            clientExtensionResults: {},
-            type: (assertionType as 'public-key') ?? 'public-key',
+            clientExtensionResults: clientExtensionResults ?? {},
+            type: 'public-key',
           },
           expectedChallenge: challengeB64u,
           expectedOrigin,
@@ -659,6 +676,26 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
     );
   });
 
+  it('returns 400 when the assertion omits credential id instead of falling back to consume-only', async () => {
+    const uid = 'uid-crypto';
+    const issued = await issueChallenge(fs, uid);
+    const res = await request(app)
+      .post('/api/auth/webauthn/verify')
+      .set('Authorization', `Bearer test:${uid}:c@test.com`)
+      .send({
+        challengeId: issued.challengeId,
+        type: 'public-key',
+        clientDataJSON: issued.clientDataJSON,
+        authenticatorData: 'YXV0aA==',
+        signature: 'c2ln',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('id is required');
+    expect(mockVerifyAuthenticationResponse).not.toHaveBeenCalled();
+    expect(fs.audit.some((e) => e.action === 'auth.webauthn.verified')).toBe(false);
+  });
+
   it('returns 200 verified:true when the signature verifies + counter advances', async () => {
     const uid = 'uid-crypto';
     const issued = await issueChallenge(fs, uid);
@@ -674,6 +711,7 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
         id: 'cred-CRYPTO',
         rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'c2ln',
@@ -702,7 +740,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'cred-CRYPTO',
+        rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'YmFkc2ln',
@@ -724,7 +764,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'cred-CRYPTO',
+        rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'c2ln',
@@ -747,7 +789,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'cred-CRYPTO',
+        rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'c2ln',
@@ -765,7 +809,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'never-registered',
+        rawId: 'never-registered',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'c2ln',
@@ -788,7 +834,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'cred-CRYPTO',
+        rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'c2ln',
@@ -810,7 +858,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'cred-CRYPTO',
+        rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'c2VjcmV0LWF1dGgtZGF0YQ==',
         signature: 'c2VjcmV0LXNpZ25hdHVyZQ==',
@@ -850,7 +900,9 @@ describe('POST /api/auth/webauthn/verify — R19 crypto-verify path', () => {
       .send({
         challengeId: issued.challengeId,
         id: 'cred-CRYPTO',
+        rawId: 'cred-CRYPTO',
         type: 'public-key',
+        clientExtensionResults: {},
         clientDataJSON: issued.clientDataJSON,
         authenticatorData: 'YXV0aA==',
         signature: 'c2ln',

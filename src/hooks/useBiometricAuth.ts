@@ -173,6 +173,8 @@ async function verifyAssertionWithServer(
       for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
       return btoa(bin);
     };
+    const toB64Url = (buf: ArrayBuffer): string =>
+      toB64(buf).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
     const res = await fetch('/api/auth/webauthn/verify', {
       method: 'POST',
       headers: {
@@ -181,9 +183,13 @@ async function verifyAssertionWithServer(
       },
       body: JSON.stringify({
         challengeId,
-        clientDataJSON: toB64(response.clientDataJSON),
-        authenticatorData: toB64(response.authenticatorData),
-        signature: toB64(response.signature),
+        id: assertion.id,
+        rawId: toB64Url(assertion.rawId),
+        type: assertion.type,
+        clientExtensionResults: assertion.getClientExtensionResults(),
+        clientDataJSON: toB64Url(response.clientDataJSON),
+        authenticatorData: toB64Url(response.authenticatorData),
+        signature: toB64Url(response.signature),
       }),
     });
     if (!res.ok) return false;

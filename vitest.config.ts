@@ -29,6 +29,7 @@ export default defineConfig({
     // file (Vitest docs → "Environment" → per-file).
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    exclude: ['src/rules-tests/**', 'node_modules/**', 'dist/**', 'coverage/**'],
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
   },
