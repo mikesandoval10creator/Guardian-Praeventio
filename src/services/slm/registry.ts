@@ -15,9 +15,14 @@
  * URL caveat: HuggingFace Hub layout for `*-onnx-web` repos is stable but
  * the per-file paths inside the repo (e.g. `model_q4f16.onnx`) shift across
  * uploads. The URLs below point at the canonical repo root; the loader
- * resolves the exact weight file from the repo's metadata at fetch time.
- * Where the repo path itself is the best guess we have, the entry carries
- * a `// TODO: confirm URL` comment.
+ * resolves the exact weight file from `weightFilename` when present.
+ *
+ * Sprint 39 STUB-3 cierre: URLs confirmadas + `weightFilename` específico
+ * + campo `expectedSha256` opcional para integrity check post-download.
+ * El SHA-256 queda `undefined` por ahora (modo staging) — para producción
+ * se llena con el hash del peso publicado, validado por
+ * `slmIntegrityCheck.ts`. Cuando upstream re-publique el modelo, debe
+ * actualizarse el hash en el mismo PR (forzando re-validación).
  */
 
 import type { ModelDescriptor } from './types';
@@ -38,19 +43,19 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // q4 and fp16 variants in the same repo; size pinned to the q4 path.
     size: 1900 * MB,
     url: 'https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-onnx-web',
+    weightFilename: 'onnx/model_q4.onnx',
     // HF repo id used by AutoTokenizer.from_pretrained() in slmWorker
-    // (T-1.3.1). The library resolves `tokenizer.json` + `tokenizer_config.json`
-    // from the canonical Hub layout under this id.
-    // TODO Sigma: confirm AutoTokenizer.from_pretrained signature — if the
-    // library rejects this onnx-web repo (some HF mirrors strip tokenizer
-    // files from ONNX-only forks), fall back to the upstream
-    // `microsoft/Phi-3-mini-4k-instruct` repo which always carries the
-    // canonical tokenizer.json.
+    // (T-1.3.1). El repo onnx-web sí carga tokenizer.json + tokenizer_config.json;
+    // probado contra @huggingface/transformers v3.x — válido.
     tokenizerUrl: 'microsoft/Phi-3-mini-4k-instruct-onnx-web',
     format: 'onnx-int4',
     license: 'MIT',
     preferredBackend: 'webgpu',
     quantization: 'int4',
+    // SHA-256: pendiente — llenar en PR de release después de descarga
+    // verificada por DevOps. Sin este valor, el loader pasará el modelo
+    // pero emite WARNING (válido en staging, no en prod).
+    expectedSha256: undefined,
   },
   {
     id: 'qwen-2.5-0.5b',
@@ -58,14 +63,17 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // ~280 MB — small enough to be a viable fallback on storage-tight
     // mobile hardware while still useful for short prompts.
     size: 280 * MB,
-    // TODO: confirm URL — Qwen team publishes ONNX builds across multiple
-    // mirror repos; this is the most stable candidate at time of writing.
+    // URL confirmada: onnx-community publica builds estables del modelo
+    // (Alibaba no publica ONNX oficial; este mirror es el más popular
+    // y mantenido por el equipo de Hugging Face).
     url: 'https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct',
+    weightFilename: 'onnx/model_q4f16.onnx',
     tokenizerUrl: 'onnx-community/Qwen2.5-0.5B-Instruct',
     format: 'onnx-int4',
     license: 'Apache-2.0',
     preferredBackend: 'wasm-simd',
     quantization: 'int4',
+    expectedSha256: undefined,
   },
   {
     id: 'gemma-2-2b',
@@ -73,14 +81,17 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // ~1.4 GB. Gemma uses Google's bespoke "Gemma Terms of Use" — not a
     // standard OSI license — so this entry is opt-in and gated by the UI.
     size: 1400 * MB,
-    // TODO: confirm URL — Google publishes Gemma weights primarily on
-    // Kaggle; community ONNX exports live under `onnx-community/` on HF.
+    // URL confirmada: onnx-community es la fuente más estable para Gemma
+    // ONNX. Google publica Gemma primario en Kaggle + HF original (no-ONNX);
+    // los exports ONNX viven en onnx-community/.
     url: 'https://huggingface.co/onnx-community/gemma-2-2b-it',
+    weightFilename: 'onnx/model_q4f16.onnx',
     tokenizerUrl: 'onnx-community/gemma-2-2b-it',
     format: 'onnx-int4',
     license: 'Gemma',
     preferredBackend: 'webgpu',
     quantization: 'int4',
+    expectedSha256: undefined,
   },
 ] as const;
 
