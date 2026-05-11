@@ -707,6 +707,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
     authenticatorData,
     signature,
     type: assertionType,
+    clientExtensionResults,
   } = req.body ?? {};
 
   if (typeof challengeId !== 'string' || challengeId.length === 0 || challengeId.length > 256) {
@@ -720,6 +721,22 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
   }
   if (typeof signature !== 'string' || signature.length === 0) {
     return res.status(400).json({ error: 'signature is required' });
+  }
+  if (typeof credentialId !== 'string' || credentialId.length === 0) {
+    return res.status(400).json({ error: 'id is required' });
+  }
+  if (typeof rawId !== 'string' || rawId.length === 0) {
+    return res.status(400).json({ error: 'rawId is required' });
+  }
+  if (assertionType !== 'public-key') {
+    return res.status(400).json({ error: 'type must be public-key' });
+  }
+  if (
+    clientExtensionResults === null ||
+    typeof clientExtensionResults !== 'object' ||
+    Array.isArray(clientExtensionResults)
+  ) {
+    return res.status(400).json({ error: 'clientExtensionResults is required' });
   }
 
   // Extract the challenge bytes from the WebAuthn clientDataJSON. The
@@ -760,11 +777,9 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
       req.header('user-agent') ?? undefined,
     );
 
-    // R19 full crypto path: only triggered when the client supplies the
-    // credential `id` (base64url). Without it we fall back to R18 R6
-    // consume-only for backward compatibility — see body-shape comment.
-    if (typeof credentialId === 'string' && credentialId.length > 0) {
-      const credsDb = buildWebAuthnCredentialsDb();
+    // Full crypto path. The credential id/rawId/type/clientExtensionResults
+    // validation above fails closed before consuming a challenge.
+    const credsDb = buildWebAuthnCredentialsDb();
       const stored = await findByCredentialId(credentialId, credsDb);
       if (!stored) {
         return res.status(401).json({ verified: false, reason: 'unknown_credential' });
@@ -786,14 +801,14 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
         verification = await verifyAuthenticationResponse({
           response: {
             id: credentialId,
-            rawId: typeof rawId === 'string' && rawId.length > 0 ? rawId : credentialId,
+            rawId,
             response: {
               clientDataJSON,
               authenticatorData,
               signature,
             },
-            clientExtensionResults: {},
-            type: (assertionType as 'public-key') ?? 'public-key',
+            clientExtensionResults: clientExtensionResults as any,
+            type: 'public-key',
           },
           expectedChallenge: challengeB64u,
           expectedOrigin,
@@ -842,11 +857,6 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
       });
 
       return res.json({ verified: true, uid: callerUid, newCounter });
-    }
-
-    // Legacy R18 R6 consume-only path. Same audit shape (uid only).
-    await audit('auth.webauthn.verified', { uid: callerUid });
-    return res.json({ verified: true, uid: callerUid });
   } catch (error: any) {
     logger.error('webauthn_verify_failed', {
       uid: callerUid,
