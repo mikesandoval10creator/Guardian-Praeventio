@@ -74,10 +74,10 @@ export const RealTimeStatusWidget: React.FC = () => {
                 {new Date(status.node.createdAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
-            <h3 className="text-[9px] sm:text-xs font-black text-zinc-900 dark:text-white leading-tight mb-0.5 truncate">
+            <h3 className="text-[9px] sm:text-xs font-black text-primary-token leading-tight mb-0.5 truncate">
               {status.node.title}
             </h3>
-            <p className="text-[8px] sm:text-[10px] text-zinc-600 dark:text-zinc-300 leading-snug line-clamp-1 sm:line-clamp-none">
+            <p className="text-[8px] sm:text-[10px] text-secondary-token leading-snug line-clamp-1 sm:line-clamp-none">
               {status.node.description}
             </p>
           </div>
@@ -109,10 +109,10 @@ export const RealTimeStatusWidget: React.FC = () => {
               {t('realtime_status.normal_operation', 'Faena Normal')}
             </span>
           </div>
-          <h3 className="text-[9px] sm:text-xs font-black text-zinc-900 dark:text-white leading-tight mb-0.5 truncate">
+          <h3 className="text-[9px] sm:text-xs font-black text-primary-token leading-tight mb-0.5 truncate">
             {t('realtime_status.recommendation_label', 'Recomendación')}
           </h3>
-          <p className="text-[8px] sm:text-[10px] text-zinc-600 dark:text-zinc-300 leading-snug line-clamp-1 sm:line-clamp-none">
+          <p className="text-[8px] sm:text-[10px] text-secondary-token leading-snug line-clamp-1 sm:line-clamp-none">
             {getRecommendation(industry)}
           </p>
         </div>

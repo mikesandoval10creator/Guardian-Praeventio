@@ -16,7 +16,6 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Sun } from 'lucide-react';
 import { get, set } from 'idb-keyval';
 import { useProject } from '../contexts/ProjectContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -46,6 +45,8 @@ import { ComplianceCard } from '../components/dashboard/ComplianceCard';
 import { DashboardQuickActions } from '../components/dashboard/DashboardQuickActions';
 import { EPPRequiredWidget } from '../components/dashboard/EPPRequiredWidget';
 import { ManDownSupervisorWidget } from '../components/dashboard/ManDownSupervisorWidget';
+import { DashboardHero } from '../components/dashboard/DashboardHero';
+import { AdviceBanner } from '../components/dashboard/AdviceBanner';
 import { ModuleGroupsGrid } from '../components/dashboard/ModuleGroupsGrid';
 import { PlannerModal } from '../components/dashboard/PlannerModal';
 
@@ -129,7 +130,15 @@ export function Dashboard() {
       }
     };
 
-    fetchInsights();
+    // Defer until browser is idle so first paint isn't blocked
+    const id = 'requestIdleCallback' in window
+      ? window.requestIdleCallback(() => fetchInsights())
+      : setTimeout(fetchInsights, 500) as unknown as number;
+
+    return () => {
+      if ('cancelIdleCallback' in window) window.cancelIdleCallback(id as number);
+      else clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
+    };
   }, [nodes.length, weather, seismic, isOnline]);
 
   const industry = selectedProject?.industry || 'General';
@@ -229,24 +238,24 @@ export function Dashboard() {
   return (
     <div className="flex-1 flex flex-col justify-start gap-1 sm:gap-4 pb-20 sm:pb-4 pt-1 sm:pt-4 px-2 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-h-[calc(100vh-4rem)]">
 
-      {/* Quick Action Bar */}
-      <div className="flex justify-end mb-1 sm:mb-2">
-        <button
-          onClick={() => setShowMorningCheckIn(true)}
-          className="flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-full text-[10px] sm:text-xs font-bold transition-all border border-emerald-500/20 hover:scale-105"
-        >
-          <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          {t('dashboard.morning_wakeup')}
-        </button>
-      </div>
+      {/* Hero greeting + morning check-in trigger */}
+      <DashboardHero onMorningCheckIn={() => setShowMorningCheckIn(true)} />
 
       {showMorningCheckIn && (
         <MorningCheckIn onComplete={handleMorningCheckInComplete} />
       )}
+
+      {/* Predictive alerts (renders nothing when no alerts) */}
       <PredictiveAlertWidget />
 
-      {/* 1. Boletín Climático + Cumplimiento */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4 mt-1 sm:mt-0">
+      {/* Quick Actions */}
+      <DashboardQuickActions
+        onFastCheck={() => setIsFastCheckOpen(true)}
+        onPlanner={() => setIsPlannerOpen(true)}
+      />
+
+      {/* Boletín Climático + Cumplimiento */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1 sm:gap-4">
         <WeatherBulletin weather={weather} loading={loadingWeather} />
         <ComplianceCard
           percentage={complianceData.percentage}
@@ -255,11 +264,8 @@ export function Dashboard() {
         />
       </div>
 
-      {/* 3. Quick Actions */}
-      <DashboardQuickActions
-        onFastCheck={() => setIsFastCheckOpen(true)}
-        onPlanner={() => setIsPlannerOpen(true)}
-      />
+      {/* Daily safety tip — industry-aware */}
+      <AdviceBanner />
 
       {/* 4. Real-Time Status Widget */}
       <RealTimeStatusWidget />
