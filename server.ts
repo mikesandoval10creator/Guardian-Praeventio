@@ -95,6 +95,9 @@ import ds67ds76Router from "./src/server/routes/ds67ds76.js";
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
 import onboardingRouter from "./src/server/routes/onboarding.js";
+// Sprint 39 PASO 2 — Wire UI bridge routes (persistence layer + insights).
+import sitebookRouter from "./src/server/routes/sitebook.js";
+import insightsRouter from "./src/server/routes/insights.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 // Sprint 35 audit P1 §1.3 — distributed lease so in-process cron jobs
@@ -592,6 +595,13 @@ app.use('/api/compliance', ds67ds76Router);
 // Sprint 24 Bucket KK — POST /api/onboarding/complete. Self-service
 // tenant onboarding (industry, countries, tier, invites, first project).
 app.use('/api', onboardingRouter);
+
+// Sprint 39 PASO 2 — Wire UI bridge: persistence-backed read/write endpoints.
+// `sitebook` exposes the Libro de Obra (atomic folio + idempotent writes).
+// `insights` aggregates the inputs for risk-ranking, safety-talks and
+// role-view widgets (read-only — engines are pure, server only stages data).
+app.use('/api/sitebook', sitebookRouter);
+app.use('/api/insights', insightsRouter);
 
 // Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
 // Safari invokes AR Quick Look. Without this header the browser treats
