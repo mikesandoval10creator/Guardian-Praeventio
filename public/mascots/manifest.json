@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "mascots": [
+    { "mood": "default",     "file": "guardian-default.png",     "description": "Guardian saludando, estado normal" },
+    { "mood": "celebrating", "file": "guardian-celebrando.png",  "description": "Guardian saltando con confetti, logro completado" },
+    { "mood": "alert",       "file": "guardian-atento.png",      "description": "Guardian en pose de advertencia, alerta activa" },
+    { "mood": "thinking",    "file": "guardian-pensativo.png",   "description": "Guardian pensativo, cargando o analizando" },
+    { "mood": "emergency",   "file": "guardian-emergencias.png", "description": "Guardian en equipo de emergencia completo, modo emergencia" }
+  ],
+  "rules": {
+    "driving_mode": "exclude — no mascot shown while driving",
+    "emergency_mood": "only when app mode === emergency",
+    "no_recolor": "never apply CSS filters to recolor the mascot"
+  }
+}
