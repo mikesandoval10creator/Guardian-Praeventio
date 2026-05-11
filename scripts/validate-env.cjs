@@ -53,12 +53,35 @@ const REQUIRED_PROD = [
   { name: 'VITE_SENTRY_DSN', purpose: 'Error tracking client', mode: 'prod' },
 
   // === KMS ===
+  // Sprint 39 Fase B.3: en prod SOLO se acepta cloud-kms. El boot ya falla
+  // cerrado en server.ts via kmsPreflight.ts, este check duplica la
+  // protección en el contrato de deploy para que un PR que cambie a
+  // in-memory-dev en prod sea rechazado por CI antes del rollout.
   {
     name: 'KMS_ADAPTER',
-    purpose: 'KEK source prod',
+    purpose: 'KEK source prod (debe ser cloud-kms en prod)',
     mode: 'prod',
-    allowedValues: ['cloud-kms', 'in-memory-dev'],
+    allowedValues: ['cloud-kms'],
   },
+  {
+    name: 'KMS_KEY_RESOURCE_NAME',
+    purpose: 'KEK resource name prod (projects/.../cryptoKeys/...)',
+    mode: 'prod',
+    requiredIf: (env) => env.KMS_ADAPTER === 'cloud-kms',
+  },
+
+  // === MercadoPago prod contract (Sprint 39 Fase B.4) ===
+  // BACKLOG: hasta Sprint 38 solo MP_IPN_SECRET estaba en el contrato.
+  // Sin MP_ACCESS_TOKEN no se puede crear preferencia → checkout cae 503.
+  { name: 'MP_ACCESS_TOKEN', purpose: 'MercadoPago Access Token prod', mode: 'prod' },
+  { name: 'MP_ENV', purpose: 'MercadoPago environment (prod|sandbox)', mode: 'prod', allowedValues: ['prod', 'sandbox'] },
+
+  // === Apple App Store Server API (Sprint 39 Fase A.2 — IAP validation) ===
+  { name: 'APPLE_BUNDLE_ID', purpose: 'Apple bundle identifier', mode: 'prod' },
+  { name: 'APPLE_API_KEY_PATH', purpose: 'Apple Connect API .p8 path', mode: 'prod' },
+  { name: 'APPLE_KEY_ID', purpose: 'Apple Connect Key ID (10 chars)', mode: 'prod' },
+  { name: 'APPLE_ISSUER_ID', purpose: 'Apple Connect Issuer ID (UUID)', mode: 'prod' },
+  { name: 'ANDROID_PACKAGE_NAME', purpose: 'Android package name', mode: 'prod' },
 
   // === AI ===
   { name: 'GEMINI_API_KEY', purpose: 'Gemini LLM', mode: 'prod' },
@@ -146,9 +169,18 @@ function check(env, options = {}) {
     const value = env[spec.name];
     const isEmpty = !value || String(value).trim() === '';
 
+    // Conditional requirement: only enforce when predicate returns true.
+    // Sprint 39 Fase B.3: e.g. KMS_KEY_RESOURCE_NAME es requerido SOLO
+    // si KMS_ADAPTER=cloud-kms.
+    const isRequiredHere =
+      typeof spec.requiredIf === 'function' ? spec.requiredIf(env) : true;
+
     if (isEmpty) {
-      if (spec.optional) {
-        warnings.push(`${spec.name} (${spec.purpose}) — feature disabled`);
+      if (spec.optional || !isRequiredHere) {
+        if (spec.optional) {
+          warnings.push(`${spec.name} (${spec.purpose}) — feature disabled`);
+        }
+        continue;
       } else if (mode === 'test') {
         // CI smoke: missing non-optional becomes a warning.
         warnings.push(`${spec.name} (${spec.purpose}) — missing in test mode`);
