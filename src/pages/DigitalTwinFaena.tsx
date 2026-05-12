@@ -16,7 +16,7 @@ const Site25DPanel = React.lazy(() =>
 );
 import { TwinAccessGuard } from '../components/digital-twin/TwinAccessGuard';
 import { isDemoProject } from '../data/demoProject';
-import { auth, storage, db, doc, getDoc, ref as storageRef, uploadBytes, getDownloadURL } from '../services/firebase';
+import { auth, storage, db, doc, getDoc, ref as storageRef, uploadBytes } from '../services/firebase';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -132,7 +132,7 @@ export function DigitalTwinFaena() {
   const reducedMotion = useReducedMotion();
 
   const [activeTab, setActiveTab] = useState<'reconstruction' | 'site25d'>('reconstruction');
-  const [mode, setMode] = useState<ProcessingMode>('gpu');
+  const [mode, setMode] = useState<ProcessingMode>('cpu');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -281,7 +281,7 @@ export function DigitalTwinFaena() {
     if (!selectedProject) return;
     setLoadingJobs(true);
     try {
-      const list = await apiCall<ReconstructionJob[]>(`/api/digitalTwin/jobs?projectId=${selectedProject.id}`);
+      const list = await apiCall<ReconstructionJob[]>(`/api/photogrammetry/jobs?projectId=${selectedProject.id}`);
       setJobs(list);
       const completed = list.find(j => j.status === 'completed');
       if (completed && !activeJob) setActiveJob(completed);
@@ -345,31 +345,22 @@ export function DigitalTwinFaena() {
       const path = `digital_twin/${selectedProject.id}/${Date.now()}_${videoFile.name}`;
       const sRef = storageRef(storage, path);
       await uploadBytes(sRef, videoFile);
-      const videoUrl = await getDownloadURL(sRef);
+      const videoUrl = sRef.toString();
       setUploading(false);
 
-      // 2. Submit reconstruction job.
-      //
-      // The "Vista previa" badge stays on while the backend resolves the
-      // adapter via `ColmapAdapter.fromEnv()` (Bucket H — see
-      // src/services/digitalTwin/photogrammetry/colmapAdapter.ts). When
-      // PHOTOGRAMMETRY_WORKER_URL + PHOTOGRAMMETRY_WORKER_TOKEN are set
-      // on the API runtime, the request hits the real COLMAP Cloud Run
-      // worker; otherwise the API falls back to the mock adapter and the
-      // page shows demo point clouds. The `mode` field below ('cpu'
-      // here) maps to ColmapAdapter on the backend, while 'gpu' is
-      // reserved for the Modal.run worker (Bucket I, separate adapter).
+      // 2. Submit reconstruction job to the real photogrammetry API.
+      // GPU/Modal is not wired into this UI yet; production uses the CPU
+      // COLMAP worker when PHOTOGRAMMETRY_WORKER_URL/TOKEN are configured.
       setSubmitting(true);
-      const result = await apiCall<{ jobId: string; status: string }>('/api/digitalTwin/reconstruct', {
+      const result = await apiCall<{ jobId: string; status: string }>('/api/photogrammetry/jobs', {
         method: 'POST',
         body: JSON.stringify({
           projectId: selectedProject.id,
           videoUrl,
-          notes: notes.trim() || undefined,
-          mode,
+          name: notes.trim() || videoFile.name,
         }),
       });
-      show(`Job ${result.jobId.slice(0, 8)} encolado (${mode === 'gpu' ? '~2-5 min' : '~10-15 min CPU'})`, 'success');
+      show(`Job ${result.jobId.slice(0, 8)} encolado (~10-15 min CPU)`, 'success');
       setVideoFile(null);
       setNotes('');
       await refreshJobs();
@@ -474,16 +465,17 @@ export function DigitalTwinFaena() {
               <button
                 role="radio"
                 aria-checked={mode === 'gpu'}
-                onClick={() => setMode('gpu')}
-                className={`p-3 rounded-xl border transition-all ${
+                aria-disabled="true"
+                onClick={() => show('GPU Modal.run pendiente de habilitar; usando CPU COLMAP.', 'error')}
+                className={`p-3 rounded-xl border transition-all opacity-60 cursor-not-allowed ${
                   mode === 'gpu'
                     ? 'bg-cyan-500/15 border-cyan-500/50 ring-2 ring-cyan-500/30'
-                    : 'bg-zinc-800/40 border-white/5 hover:bg-zinc-800/80'
+                    : 'bg-zinc-800/40 border-white/5'
                 }`}
               >
                 <Zap className={`w-5 h-5 mb-1 ${mode === 'gpu' ? 'text-cyan-400' : 'text-zinc-500'}`} aria-hidden="true" />
                 <p className={`text-xs font-black ${mode === 'gpu' ? 'text-white' : 'text-zinc-400'}`}>GPU Cloud</p>
-                <p className="text-[9px] text-zinc-500 mt-0.5">~2-5 min · Modal.run</p>
+                <p className="text-[9px] text-zinc-500 mt-0.5">Pendiente</p>
               </button>
               <button
                 role="radio"
@@ -503,9 +495,7 @@ export function DigitalTwinFaena() {
             <div className="flex items-start gap-2 mt-3 p-2 bg-zinc-800/40 rounded-lg">
               <Info className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-[10px] text-zinc-500 leading-relaxed">
-                {mode === 'gpu'
-                  ? 'GPU serverless dedicada (~$0.44/hr). Resultado rápido para revisión inmediata.'
-                  : 'Procesamiento sin GPU dedicada. Más lento pero sin costo por job.'}
+                Procesamiento CPU con COLMAP. Modal.run/GPU queda pendiente hasta coordinar credenciales y despliegue.
               </p>
             </div>
             {mode === 'cpu' && (

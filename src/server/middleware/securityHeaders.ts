@@ -139,16 +139,16 @@ function generateNonce(): string {
 }
 
 function buildCspString(nonce: string): string {
-  // script-src is built per-call so the nonce is fresh for every request.
-  // Order: 'self' first (some scanners are sensitive), then nonce, then
-  // strict-dynamic, then explicit-host fallback. Modern browsers stop at
-  // strict-dynamic; legacy browsers ignore strict-dynamic and use the
-  // host list. 'self' covers the same-origin /assets/*.js bundle Vite
-  // emits and gives belt-and-braces coverage when older browsers fall
-  // back without strict-dynamic.
-  const scriptSrc = `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${SCRIPT_SRC_FALLBACK_ORIGINS.join(' ')}`;
+  const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
+  const devDirectives = isDev ? "'unsafe-inline' 'unsafe-eval'" : `'nonce-${nonce}' 'strict-dynamic'`;
+  const scriptSrc = `script-src 'self' ${devDirectives} ${SCRIPT_SRC_FALLBACK_ORIGINS.join(' ')}`;
 
-  const otherDirectives = Object.entries(CSP_STATIC_DIRECTIVES)
+  const directives = { ...CSP_STATIC_DIRECTIVES };
+  if (isDev) {
+    directives['connect-src'] = `${directives['connect-src']} ws://localhost:* http://localhost:* ws://127.0.0.1:* http://127.0.0.1:*`;
+  }
+
+  const otherDirectives = Object.entries(directives)
     .map(([k, v]) => (v ? `${k} ${v}` : k))
     .join('; ');
 

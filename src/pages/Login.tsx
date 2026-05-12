@@ -119,14 +119,14 @@ export default function Login() {
     <main
       role="main"
       aria-labelledby="login-heading"
-      className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-6 font-sans relative"
+      className="min-h-screen flex items-center justify-center bg-canvas text-primary-token p-4 sm:p-6 font-sans relative"
     >
       <div className="max-w-md w-full">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="bg-white dark:bg-zinc-900 rounded-[2rem] sm:rounded-3xl p-6 sm:p-10 shadow-2xl border border-zinc-200 dark:border-zinc-800 relative overflow-hidden"
+          className="bg-elevated rounded-[2rem] sm:rounded-3xl p-6 sm:p-10 shadow-mode-lg border border-default-token relative overflow-hidden"
         >
           {/* Background Accents (decorative — hidden from a11y tree) */}
           <div aria-hidden="true" className="absolute -top-24 -right-24 w-48 h-48 bg-[#4db6ac]/10 rounded-full blur-3xl" />
@@ -135,7 +135,7 @@ export default function Login() {
           <div className="relative z-10">
             <Link
               to="/"
-              className="inline-flex items-center gap-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors font-medium text-xs uppercase tracking-wider mb-8"
+              className="inline-flex items-center gap-2 min-h-[44px] text-muted-token hover:text-primary-token transition-colors font-medium text-xs uppercase tracking-wider mb-8"
               aria-label={t('auth.back_home', 'Volver al inicio')}
             >
               <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -154,17 +154,17 @@ export default function Login() {
               <h1 id="login-heading" className="text-2xl sm:text-3xl font-black uppercase tracking-tighter leading-none mb-2 text-center">
                 Guardian Praeventio
               </h1>
-              <span className="text-[8px] sm:text-[10px] font-bold text-[#4db6ac] dark:text-[#d4af37] uppercase tracking-widest text-center">
+              <span className="text-[8px] sm:text-[10px] font-bold accent-text uppercase tracking-widest text-center">
                 {t('login.tagline', 'Identidad y Conciencia')}
               </span>
             </div>
 
             <div className="space-y-4 sm:space-y-6 mb-8 sm:mb-10">
-              <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-canvas border border-default-token">
                 <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 mt-0.5 sm:mt-1 shrink-0" aria-hidden="true" />
                 <div>
                   <h2 className="text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1">{t('login.biometric_title', 'Protección Biométrica')}</h2>
-                  <p className="text-[10px] sm:text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                  <p className="text-[10px] sm:text-[11px] text-muted-token leading-relaxed">
                     {t('login.biometric_desc', 'Tus datos médicos y proyectos sellados bajo biometría (Face ID / Huella).')}
                   </p>
                 </div>
@@ -237,7 +237,7 @@ export default function Login() {
               </p>
             )}
 
-            <p className="mt-6 sm:mt-8 text-center text-[8px] sm:text-[10px] text-zinc-400 dark:text-zinc-500 font-medium uppercase tracking-widest leading-relaxed px-4">
+            <p className="mt-6 sm:mt-8 text-center text-[8px] sm:text-[10px] text-muted-token font-medium uppercase tracking-widest leading-relaxed px-4">
               {t('auth.consent_notice', 'Al ingresar, aceptas nuestra red de conciencia y protocolos de seguridad.')}
             </p>
           </div>

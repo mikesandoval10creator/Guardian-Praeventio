@@ -37,33 +37,33 @@ export function AppProviders({ children }: AppProvidersProps) {
   // also reach the SLM state.
   return (
     <AppModeProvider>
-    <ThemeProvider>
-      <NormativeProvider>
-      <UniversalKnowledgeProvider>
-        <ProjectProvider>
-          <SubscriptionProvider>
-            <NotificationProvider>
-              <EmergencyProvider>
-                <SensorProvider>
-                  <SLMProvider>
-                    <SLMShellOverlay />
-                    {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
-                        Mounted inside ProjectProvider + FirebaseProvider so
-                        useFirebase() + useProject() resolve. Early-returns
-                        until uid + projectId are available. Flow Infinito
-                        Fase 2 (Adaptive Response) requires this wire live. */}
-                    <MeshProvider>
-                      {children}
-                    </MeshProvider>
-                  </SLMProvider>
-                </SensorProvider>
-              </EmergencyProvider>
-            </NotificationProvider>
-          </SubscriptionProvider>
-        </ProjectProvider>
-      </UniversalKnowledgeProvider>
-      </NormativeProvider>
-    </ThemeProvider>
+      <ThemeProvider>
+        <NormativeProvider>
+          <ProjectProvider>
+            <UniversalKnowledgeProvider>
+              <SubscriptionProvider>
+                <NotificationProvider>
+                  <EmergencyProvider>
+                    <SensorProvider>
+                      <SLMProvider>
+                        <SLMShellOverlay />
+                        {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
+                            Mounted inside ProjectProvider + FirebaseProvider so
+                            useFirebase() + useProject() resolve. Early-returns
+                            until uid + projectId are available. Flow Infinito
+                            Fase 2 (Adaptive Response) requires this wire live. */}
+                        <MeshProvider>
+                          {children}
+                        </MeshProvider>
+                      </SLMProvider>
+                    </SensorProvider>
+                  </EmergencyProvider>
+                </NotificationProvider>
+              </SubscriptionProvider>
+            </UniversalKnowledgeProvider>
+          </ProjectProvider>
+        </NormativeProvider>
+      </ThemeProvider>
     </AppModeProvider>
   );
 }

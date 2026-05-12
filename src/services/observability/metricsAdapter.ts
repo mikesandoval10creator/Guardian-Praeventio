@@ -55,7 +55,7 @@ class CloudMonitoringAdapter implements MetricsAdapter {
   constructor() {
     // Same gating as cloudErrorReportingAdapter — explicit project ID, ADC
     // for auth.
-    this.isAvailable = Boolean(process.env.GCP_PROJECT_ID);
+    this.isAvailable = typeof process !== 'undefined' && Boolean(process.env.GCP_PROJECT_ID);
   }
 
   counter(_name: string, _labels?: Record<string, string>): CounterHandle {
@@ -87,7 +87,7 @@ class PrometheusAdapter implements MetricsAdapter {
     // the operator opts in via `PROMETHEUS_ENABLED=1`. That keeps the
     // stub from claiming availability on systems that haven't actually
     // installed the SDK yet.
-    this.isAvailable = process.env.PROMETHEUS_ENABLED === '1';
+    this.isAvailable = typeof process !== 'undefined' && process.env.PROMETHEUS_ENABLED === '1';
   }
 
   counter(_name: string, _labels?: Record<string, string>): CounterHandle {

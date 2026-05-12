@@ -103,7 +103,7 @@ export function Card({ children, className, interactive = true, ...props }: Card
     <div
       ref={scopeRef}
       className={cn(
-        "bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm overflow-hidden",
+        "bg-elevated border border-default-token rounded-2xl shadow-mode overflow-hidden",
         className
       )}
       {...props}

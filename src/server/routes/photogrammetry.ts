@@ -45,14 +45,33 @@ import {
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 
+// Codex P2 (PR #88): relax gs:// path regex to accept percent-encoded
+// characters and literal spaces — Cloud Storage object names legally
+// include spaces and Unicode (https://cloud.google.com/storage/docs/objects#naming).
+// Pattern: gs://<bucket>/<object>. Bucket: alphanum + . _ -.
+// Object: any printable char except control chars; we use \S plus a literal
+// space so a path with one or more spaces validates, while newlines/tabs
+// (which would break the HTTP boundary) are still rejected.
+// Codex P2 PR #96: aceptar Unicode en object name (recorrido_bodega_ñ.mp4
+// y acentos). Bucket sigue ASCII por spec GCS; object permite cualquier
+// codepoint excepto control chars que rompan el boundary HTTP.
+const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[^\r\n\t]+$/u;
+
 const CreateJobSchema = z.object({
   projectId: z.string().min(1).max(128),
   imageUrls: z
-    .array(z.string().url().or(z.string().regex(/^gs:\/\/[A-Za-z0-9_.\-/]+$/)))
+    .array(z.string().url().or(z.string().regex(GS_URI_REGEX)))
     .min(3, 'photogrammetry needs >= 3 images')
-    .max(500, 'photogrammetry capped at 500 images per job'),
+    .max(500, 'photogrammetry capped at 500 images per job')
+    .optional(),
+  // Codex P2 (PR #88): worker only supports gs:// videos — reject https URLs
+  // at the schema level so callers get a 400 instead of a worker-side failure.
+  videoUrl: z.string().regex(GS_URI_REGEX, 'videoUrl must be a gs:// URI').optional(),
   name: z.string().min(1).max(256).optional(),
-});
+}).refine(
+  (value) => Boolean(value.videoUrl) || Boolean(value.imageUrls && value.imageUrls.length >= 3),
+  { message: 'videoUrl or at least 3 imageUrls are required' },
+);
 
 const router = Router();
 
@@ -79,7 +98,7 @@ function estimateDurationMin(imageCount: number): number {
 // -----------------------------------------------------------------------------
 router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => {
   const callerUid = (req as any).user.uid as string;
-  const { projectId, imageUrls, name } = (req as any).validated as z.infer<
+  const { projectId, imageUrls, videoUrl, name } = (req as any).validated as z.infer<
     typeof CreateJobSchema
   >;
 
@@ -132,7 +151,8 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
     .collection('photogrammetry_jobs')
     .doc();
   const jobId = jobRef.id;
-  const estimatedDurationMin = estimateDurationMin(imageUrls.length);
+  const inputCount = imageUrls?.length ?? 90;
+  const estimatedDurationMin = estimateDurationMin(inputCount);
   try {
     await jobRef.set({
       projectId,
@@ -140,7 +160,9 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
       name: name ?? null,
       status: 'queued',
       engine: 'colmap',
-      imageCount: imageUrls.length,
+      sourceType: videoUrl ? 'video' : 'images',
+      imageCount: imageUrls?.length ?? null,
+      videoUrl: videoUrl ?? null,
       requestedBy: callerUid,
       estimatedDurationMin,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -178,7 +200,7 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
         projectId,
         tenantId,
         jobId,
-        imageUrls,
+        ...(videoUrl ? { videoUrl } : { imageUrls }),
         outputBucket,
       }),
     });
@@ -198,6 +220,72 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
   }
 
   return res.status(201).json({ jobId, status: 'queued', estimatedDurationMin });
+});
+
+// -----------------------------------------------------------------------------
+// GET /api/photogrammetry/jobs — list recent jobs for the Digital Twin UI.
+// -----------------------------------------------------------------------------
+router.get('/jobs', verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid as string;
+  const projectId = req.query.projectId;
+  if (typeof projectId !== 'string' || projectId.length === 0) {
+    return res.status(400).json({ error: 'missing_projectId' });
+  }
+
+  const db = admin.firestore();
+  try {
+    await assertProjectMember(callerUid, projectId, db);
+  } catch (err) {
+    if (err instanceof ProjectMembershipError) {
+      return res.status(err.httpStatus).json({ error: 'forbidden' });
+    }
+    return res.status(500).json({ error: 'membership_check_failed' });
+  }
+
+  let tenantId = projectId;
+  try {
+    const projSnap = await db.collection('projects').doc(projectId).get();
+    if (projSnap.exists) {
+      const candidate = (projSnap.data() as any)?.tenantId;
+      if (typeof candidate === 'string' && candidate.length > 0) tenantId = candidate;
+    }
+  } catch {
+    /* fall through */
+  }
+
+  const snap = await db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('photogrammetry_jobs')
+    .where('projectId', '==', projectId)
+    // Codex P2 (PR #88): order newest-first so the UI list isn't
+    // arbitrary. Requires composite index (projectId ASC, createdAt DESC)
+    // — auto-prompted by Firestore on first cold call in a region.
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+    .get();
+
+  const jobs = snap.docs.map((docSnap) => {
+    const data = docSnap.data() ?? {};
+    const status = data.status === 'running' ? 'processing' : data.status ?? 'queued';
+    return {
+      jobId: docSnap.id,
+      status,
+      progress: status === 'completed' ? 100 : status === 'processing' ? 65 : 0,
+      videoUrl: data.videoUrl ?? null,
+      notes: data.name ?? null,
+      resultUrl: data.meshUri ?? null,
+      meshUri: data.meshUri ?? null,
+      meshFormat: data.meshFormat ?? null,
+      pointCount: data.metrics?.pointsReconstructed ?? data.pointCount ?? null,
+      boundingBox: data.boundingBox ?? null,
+      createdAt: data.createdAt ?? null,
+      error: data.errorMessage ?? null,
+      metrics: data.metrics ?? null,
+    };
+  });
+
+  return res.json(jobs);
 });
 
 // -----------------------------------------------------------------------------

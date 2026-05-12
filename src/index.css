@@ -199,8 +199,8 @@
 
   body {
     @apply antialiased;
-    background-color: var(--bg-main);
-    color: var(--text-main);
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
   }
 
   /* Global Dark Mode Border Overrides (Gold) */
@@ -243,6 +243,34 @@
 }
 
 @layer utilities {
+  /* ─── Semantic surface utilities ──────────────────────────────────────────
+     Use these instead of hardcoded dark: variants so all 4 app modes
+     (normal-light, normal-dark, driving, emergency) render correctly.
+     The CSS vars are defined per-mode in @layer base above.
+     ──────────────────────────────────────────────────────────────────────── */
+  .bg-canvas   { background-color: var(--bg-canvas); }
+  .bg-surface  { background-color: var(--bg-surface); }
+  .bg-elevated { background-color: var(--bg-elevated); }
+
+  .text-primary-token   { color: var(--text-primary); }
+  .text-secondary-token { color: var(--text-secondary); }
+  .text-muted-token     { color: var(--text-muted); }
+
+  .border-default-token { border-color: var(--border-default); }
+  .border-strong-token  { border-color: var(--border-strong); }
+  .border-subtle-token  { border-color: var(--border-subtle); }
+
+  .accent-bg            { background-color: var(--accent-primary); }
+  .accent-text          { color: var(--accent-primary); }
+  .accent-on-primary-text { color: var(--accent-on-primary); }
+
+  .shadow-mode    { box-shadow: 0 1px 3px 0 var(--shadow-color), 0 1px 2px -1px var(--shadow-color); }
+  .shadow-mode-lg { box-shadow: 0 4px 16px 0 var(--shadow-color); }
+
+  /* Safe-area padding for mobile notch / home-indicator */
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

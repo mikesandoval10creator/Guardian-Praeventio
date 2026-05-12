@@ -20,6 +20,7 @@ import viteCompression from 'vite-plugin-compression';
 function cspNoncePlaceholder(): Plugin {
   return {
     name: 'csp-nonce-placeholder',
+    apply: 'build',
     enforce: 'post',
     transformIndexHtml: {
       order: 'post',

@@ -7,11 +7,12 @@
 //
 //   GET  /health                        -> 200 { ok: true }
 //   POST /process                       -> 202 { jobId, status: 'queued' }
-//          body: { projectId, jobId, imageUrls: string[], outputBucket, tenantId? }
+//          body: { projectId, jobId, imageUrls?: string[], videoUrl?: string, outputBucket, tenantId? }
 //   GET  /jobs/:jobId                   -> 200 { jobId, status, meshUri?, errorMessage? }
 //
 // The worker:
-//   1. Pulls input images from a list of `gs://bucket/path.jpg` URLs.
+//   1. Pulls input images or a video from `gs://bucket/path...`.
+//      Videos are converted to frames with ffmpeg before COLMAP.
 //   2. Runs COLMAP automatic_reconstructor on the staged folder
 //      (sparse + dense; CPU-only — slower than GPU but free).
 //   3. Uploads the resulting `meshed-poisson.ply` (or `.glb` if conversion is
@@ -53,7 +54,8 @@ const db = admin.firestore();
 interface ProcessRequest {
   projectId: string;
   jobId: string;
-  imageUrls: string[];
+  imageUrls?: string[];
+  videoUrl?: string;
   outputBucket: string;
   tenantId?: string;
 }
@@ -99,8 +101,7 @@ app.post('/process', async (req: Request, res: Response) => {
   if (
     !body.projectId ||
     !body.jobId ||
-    !Array.isArray(body.imageUrls) ||
-    body.imageUrls.length === 0 ||
+    (!body.videoUrl && (!Array.isArray(body.imageUrls) || body.imageUrls.length === 0)) ||
     !body.outputBucket
   ) {
     return res.status(400).json({ error: 'invalid_payload' });
@@ -188,12 +189,48 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
   const imagesDir = path.join(workDir, 'images');
   await fs.mkdir(imagesDir, { recursive: true });
 
-  // 1. Download images.
-  for (let i = 0; i < req.imageUrls.length; i++) {
-    const url = req.imageUrls[i];
-    const ext = path.extname(new URL(url, 'gs://placeholder').pathname) || '.jpg';
-    const dest = path.join(imagesDir, `img_${String(i).padStart(4, '0')}${ext}`);
-    await downloadGcsObject(url, dest);
+  // 1. Stage images. If the app submits a video, extract frames first.
+  // Codex P2 (PR #88): track `framesExtracted` so the orchestrator can
+  // surface it in `metrics` on the job doc — useful for cost forensics
+  // and for the UI to show "N frames" when sourceType=video.
+  let framesExtracted = 0;
+  if (req.videoUrl) {
+    const videoExt = path.extname(new URL(req.videoUrl, 'gs://placeholder').pathname) || '.mp4';
+    const videoPath = path.join(workDir, `input${videoExt}`);
+    await downloadGcsObject(req.videoUrl, videoPath);
+    // Codex P2 PR #96: cap frame extraction to avoid filling /tmp on long
+    // videos. 500 frames @ fps=2 ≈ 4min de video, suficiente para SLAM
+    // y dentro del budget de COLMAP + disco Cloud Run.
+    const VIDEO_FRAME_CAP = 500;
+    await runFfmpeg([
+      '-y',
+      '-i',
+      videoPath,
+      '-vf',
+      'fps=2',
+      '-frames:v',
+      String(VIDEO_FRAME_CAP),
+      '-q:v',
+      '2',
+      path.join(imagesDir, 'img_%04d.jpg'),
+    ]);
+    const frames = await fs.readdir(imagesDir);
+    framesExtracted = frames.length;
+    if (frames.length < 3) {
+      throw new Error(`insufficient_video_frames:${frames.length}`);
+    }
+    if (frames.length > VIDEO_FRAME_CAP) {
+      // ffmpeg ya enforces -frames:v, defensive log
+      console.warn(`framecap-exceeded:${frames.length}`);
+    }
+  } else {
+    for (let i = 0; i < (req.imageUrls ?? []).length; i++) {
+      const url = req.imageUrls![i];
+      const ext = path.extname(new URL(url, 'gs://placeholder').pathname) || '.jpg';
+      const dest = path.join(imagesDir, `img_${String(i).padStart(4, '0')}${ext}`);
+      await downloadGcsObject(url, dest);
+    }
+    framesExtracted = (req.imageUrls ?? []).length;
   }
 
   // 2. Run COLMAP automatic_reconstructor (CPU). Equivalent CLI:
@@ -221,13 +258,19 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
     .upload(meshPath, { destination: outputObject, resumable: false });
   const meshUri = `gs://${req.outputBucket}/${outputObject}`;
 
-  // 5. Mark complete.
+  // 5. Mark complete. Codex P2 (PR #88): persist `metrics.framesExtracted`
+  // so the GET /jobs response (and the Digital Twin UI) can show how many
+  // frames actually fed COLMAP, instead of the upstream `imageCount`
+  // estimate that doesn't account for ffmpeg sampling.
   await jobRef.set(
     {
       status: 'completed',
       meshUri,
       meshFormat: 'ply',
       completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      metrics: {
+        framesExtracted,
+      },
     },
     { merge: true },
   );
@@ -255,6 +298,17 @@ function runColmap(args: string[]): Promise<void> {
     child.on('exit', (code) => {
       if (code === 0) resolve();
       else reject(new Error(`colmap_exit_${code ?? 'unknown'}`));
+    });
+  });
+}
+
+function runFfmpeg(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('ffmpeg', args, { stdio: 'inherit' });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg_exit_${code ?? 'unknown'}`));
     });
   });
 }

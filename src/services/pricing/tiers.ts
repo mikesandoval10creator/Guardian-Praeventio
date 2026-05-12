@@ -1,8 +1,9 @@
 /**
  * Praeventio Guard - Pricing Tiers (single source of truth)
  *
- * 10 tiers covering Gratis, Comité Paritario, Departamento Prevención,
- * Plata, Oro, Titanio, Diamante, Empresarial, Corporativo, Ilimitado.
+ * 11 tiers covering Gratis, Comité Paritario, Departamento Prevención,
+ * Plata, Oro, Titanio, Diamante, Empresarial, Corporativo, Ilimitado
+ * and Global Titanio.
  *
  * All tiers include: calendar predictions full, multi-país ilimitado,
  * ISO 45001 fallback universal cuando GPS detecta país sin pack local.
