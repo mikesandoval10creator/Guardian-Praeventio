@@ -49,6 +49,53 @@ service cloud.firestore {
       );
     }
 
+    // Fase D.4 — Tenant-scoped supervisor.
+    //
+    // The global isSupervisor() above grants role-wide access across the
+    // whole product. For collections that are partitioned by tenant
+    // (e.g. /tenants/{tid}/projects/...) we need a stricter check: the
+    // user must (a) have a supervisor-tier role AND (b) carry an active
+    // claim binding them to the specific tenant.
+    //
+    // The expected claim shape — written by trusted server code only —
+    // is one of:
+    //
+    //   token.tenantId == <tenantId>                                (single-tenant claim)
+    //   token.tenants is map and token.tenants[tenantId] in [roles] (multi-tenant claim)
+    //
+    // The second form lets the same user act as supervisor in tenant A
+    // and as worker in tenant B without re-issuing tokens.
+    function hasSupervisorTierRole() {
+      return isEmailVerified() && (
+        request.auth.token.role in ['supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional', 'gerente', 'admin']
+      );
+    }
+
+    function isMemberOfTenant(tenantId) {
+      return isEmailVerified() && tenantId is string && tenantId.size() > 0 && (
+        // Single-tenant claim — token.tenantId points at exactly this tenant.
+        (request.auth.token.tenantId is string && request.auth.token.tenantId == tenantId) ||
+        // Multi-tenant claim — token.tenants is a map with the tenant id as key.
+        ('tenants' in request.auth.token && request.auth.token.tenants[tenantId] is string)
+      );
+    }
+
+    function isSupervisorOfTenant(tenantId) {
+      return hasSupervisorTierRole() && isMemberOfTenant(tenantId) && (
+        // Single-tenant claim — global role check is sufficient because the
+        // user only carries credentials for this tenant.
+        (request.auth.token.tenantId is string && request.auth.token.tenantId == tenantId) ||
+        // Multi-tenant claim — the per-tenant role string must match one of
+        // the supervisor-tier roles. Workers/operarios in this tenant are
+        // rejected here even if they have a supervisor claim in another.
+        (
+          'tenants' in request.auth.token &&
+          request.auth.token.tenants[tenantId] is string &&
+          request.auth.token.tenants[tenantId] in ['supervisor', 'prevencionista', 'director_obra', 'medico_ocupacional', 'gerente', 'admin']
+        )
+      );
+    }
+
     function isDoctor() {
       return isEmailVerified() && (
         request.auth.token.role == 'medico_ocupacional' ||
@@ -753,16 +800,22 @@ service cloud.firestore {
     // and ungrep-able. Audit hallazgo H8.
     match /tenants/{tenantId} {
       allow read: if isSignedIn()
-        && request.auth.token.tenantId is string
-        && request.auth.token.tenantId == tenantId;
+        && isMemberOfTenant(tenantId);
       allow create, update, delete: if false;
 
       // Subcollections (entitlements, audit_summaries, etc.) follow
       // the same tenant-claim gate. The server owns writes.
       match /{subcoll}/{docId} {
-        allow read: if isSignedIn()
-          && request.auth.token.tenantId is string
-          && request.auth.token.tenantId == tenantId;
+        allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+        allow create, update, delete: if false;
+      }
+
+      // Fase D.4 — tenant-scoped supervisor-only subcollection.
+      // Used by audit_summaries, supervisor_briefings, cross_project_kpis, …
+      // Cualquier doc bajo /tenants/{tid}/supervisor_only/* solo lo lee
+      // un usuario con role supervisor-tier Y vínculo al tenant.
+      match /supervisor_only/{docId} {
+        allow read: if isSignedIn() && isSupervisorOfTenant(tenantId);
         allow create, update, delete: if false;
       }
 
@@ -783,8 +836,7 @@ service cloud.firestore {
       // sea legible sin necesidad de leer server code.
       match /suseso_forms/{formId} {
         allow read: if isSignedIn()
-          && request.auth.token.tenantId is string
-          && request.auth.token.tenantId == tenantId
+          && isMemberOfTenant(tenantId)
           && (
             isAdmin() ||
             isSupervisor() ||
