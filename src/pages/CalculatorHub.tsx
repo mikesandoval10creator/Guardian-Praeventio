@@ -17,6 +17,7 @@
 //   - Aero/Ergo: microWindEnergy, slamPhotogrammetryNode
 
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Wind, Droplets, Building2, Mountain, Activity, Cpu,
   AlertTriangle, CheckCircle2, BookOpen, Wrench,
@@ -619,21 +620,30 @@ const SlamCalc: React.FC = () => {
 // ─── Page shell ─────────────────────────────────────────────────────────────
 
 export const CalculatorHub: React.FC = () => {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<TabKey>('atmospheres');
+
+  const localizedTabs = useMemo(() => [
+    { key: 'atmospheres' as TabKey, label: t('calcHub.tabs.atmospheres', 'Atmósferas'), icon: Wind },
+    { key: 'hydraulics' as TabKey, label: t('calcHub.tabs.hydraulics', 'Hidráulica'), icon: Droplets },
+    { key: 'structural' as TabKey, label: t('calcHub.tabs.structural', 'Estructural'), icon: Building2 },
+    { key: 'aero' as TabKey, label: t('calcHub.tabs.aero', 'Aero / Ergo / Sensores'), icon: Cpu },
+    { key: 'engineering' as TabKey, label: t('calcHub.tabs.engineering', 'Paneles Ingeniería'), icon: Wrench },
+  ], [t]);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <header className="space-y-1">
         <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-          Calculadoras Especializadas
+          {t('calcHub.header.title', 'Calculadoras Especializadas')}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          12 generadores Bernoulli/Euler con citas normativas e indexación al Zettelkasten.
+          {t('calcHub.header.subtitle', '12 generadores Bernoulli/Euler con citas normativas e indexación al Zettelkasten.')}
         </p>
       </header>
 
       <nav className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-700">
-        {TABS.map(({ key, label, icon: Icon }) => {
+        {localizedTabs.map(({ key, label, icon: Icon }) => {
           const active = tab === key;
           return (
             <button

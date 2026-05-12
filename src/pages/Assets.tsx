@@ -1,12 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { 
+import {
   Truck
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { MaquinariaManager } from '../components/projects/MaquinariaManager';
 
 export function Assets() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
 
   return (
@@ -14,11 +16,11 @@ export function Assets() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Gestión de Activos</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('assets.header.title', 'Gestión de Activos')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            {selectedProject 
-              ? `Maquinaria y Equipos para: ${selectedProject.name}`
-              : 'Base de Datos Centralizada de Activos Industriales'}
+            {selectedProject
+              ? `${t('assets.header.forProject', 'Maquinaria y Equipos para')}: ${selectedProject.name}`
+              : t('assets.header.subtitle', 'Base de Datos Centralizada de Activos Industriales')}
           </p>
         </div>
       </div>
@@ -30,9 +32,9 @@ export function Assets() {
           <div className="w-20 h-20 bg-zinc-100 dark:bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
             <Truck className="w-10 h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
-          <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Selecciona un Proyecto</h3>
+          <h3 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('assets.empty.title', 'Selecciona un Proyecto')}</h3>
           <p className="text-zinc-500 text-sm mt-2 uppercase tracking-widest font-bold max-w-md mx-auto">
-            Para gestionar la maquinaria y activos, primero debes seleccionar un proyecto activo desde el selector lateral.
+            {t('assets.empty.message', 'Para gestionar la maquinaria y activos, primero debes seleccionar un proyecto activo desde el selector lateral.')}
           </p>
         </div>
       )}

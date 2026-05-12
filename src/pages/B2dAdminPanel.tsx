@@ -13,6 +13,7 @@
 // reads `Authorization: Bearer …`).
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Key, TrendingUp, Users, AlertOctagon, Plus, Loader2 } from 'lucide-react';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
@@ -71,6 +72,7 @@ function formatDate(ts: number | null): string {
 }
 
 export function B2dAdminPanel() {
+  const { t } = useTranslation();
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [metrics, setMetrics] = useState<B2dMetrics | null>(null);
   const [events, setEvents] = useState<B2dEvent[]>([]);
@@ -133,7 +135,7 @@ export function B2dAdminPanel() {
 
   const handleRevoke = useCallback(
     async (id: string) => {
-      if (!window.confirm(`¿Revocar API key ${id}? Esto es irreversible.`)) return;
+      if (!window.confirm(t('b2dAdmin.confirms.revoke', '¿Revocar API key {{id}}? Esto es irreversible.', { id }))) return;
       try {
         const res = await authedFetch(`/api/admin/b2d/keys/${id}/revoke`, { method: 'POST' });
         if (!res.ok) {
@@ -142,7 +144,7 @@ export function B2dAdminPanel() {
         void loadAll();
       } catch (err) {
         logger.error('b2d_admin_revoke_failed', err);
-        window.alert('No se pudo revocar la API key.');
+        window.alert(t('b2dAdmin.alerts.revokeFailed', 'No se pudo revocar la API key.'));
       }
     },
     [loadAll],
@@ -176,17 +178,17 @@ export function B2dAdminPanel() {
 
   return (
     <PremiumFeatureGuard
-      featureName="Panel B2D Admin"
-      description="Gestiona API keys de los 8 tiers B2D y revisa MRR/ARR/churn en tiempo real."
+      featureName={t('b2dAdmin.guard.featureName', 'Panel B2D Admin')}
+      description={t('b2dAdmin.guard.description', 'Gestiona API keys de los 8 tiers B2D y revisa MRR/ARR/churn en tiempo real.')}
     >
       <div className="p-4 lg:p-8 space-y-8 max-w-7xl mx-auto">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-white">
-              Panel B2D Admin
+              {t('b2dAdmin.header.title', 'Panel B2D Admin')}
             </h1>
             <p className="text-sm text-zinc-500">
-              Gestión de API keys, ingresos y eventos del producto B2D.
+              {t('b2dAdmin.header.subtitle', 'Gestión de API keys, ingresos y eventos del producto B2D.')}
             </p>
           </div>
           <button
@@ -194,28 +196,28 @@ export function B2dAdminPanel() {
             onClick={() => setCreateOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#4db6ac] text-white font-bold hover:bg-[#3a9b91]"
           >
-            <Plus className="w-4 h-4" /> Crear API key
+            <Plus className="w-4 h-4" /> {t('b2dAdmin.actions.createKey', 'Crear API key')}
           </button>
         </header>
 
         {loading && (
           <div className="flex items-center gap-2 text-zinc-500">
-            <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
+            <Loader2 className="w-4 h-4 animate-spin" /> {t('b2dAdmin.common.loading', 'Cargando…')}
           </div>
         )}
 
         {/* Section 2 — Métricas (rendered above keys for at-a-glance view). */}
         <section aria-labelledby="b2d-metrics-heading" className="space-y-4">
           <h2 id="b2d-metrics-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-[#4db6ac]" /> Métricas
+            <TrendingUp className="w-5 h-5 text-[#4db6ac]" /> {t('b2dAdmin.metrics.title', 'Métricas')}
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            <MetricCard label="MRR" value={metrics ? formatCurrency(metrics.mrr) : '—'} />
-            <MetricCard label="ARR" value={metrics ? formatCurrency(metrics.arr) : '—'} />
-            <MetricCard label="Clientes activos" value={metrics ? String(metrics.customersActive) : '—'} />
-            <MetricCard label="Clientes totales" value={metrics ? String(metrics.customersTotal) : '—'} />
+            <MetricCard label={t('b2dAdmin.metrics.mrr', 'MRR')} value={metrics ? formatCurrency(metrics.mrr) : '—'} />
+            <MetricCard label={t('b2dAdmin.metrics.arr', 'ARR')} value={metrics ? formatCurrency(metrics.arr) : '—'} />
+            <MetricCard label={t('b2dAdmin.metrics.customersActive', 'Clientes activos')} value={metrics ? String(metrics.customersActive) : '—'} />
+            <MetricCard label={t('b2dAdmin.metrics.customersTotal', 'Clientes totales')} value={metrics ? String(metrics.customersTotal) : '—'} />
             <MetricCard
-              label="Churn 30d"
+              label={t('b2dAdmin.metrics.churn30d', 'Churn 30d')}
               value={metrics ? `${(metrics.churnRate30d * 100).toFixed(1)}%` : '—'}
             />
           </div>
@@ -226,7 +228,7 @@ export function B2dAdminPanel() {
             className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4"
           >
             <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">
-              MRR — últimos 12 meses
+              {t('b2dAdmin.metrics.mrrChart', 'MRR — últimos 12 meses')}
             </h3>
             <MrrChart data={mrrSeries} />
           </motion.div>
@@ -240,7 +242,7 @@ export function B2dAdminPanel() {
 
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4">
             <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">
-              Cohortes de retención
+              {t('b2dAdmin.cohorts.title', 'Cohortes de retención')}
             </h3>
             {/* Placeholder: real cohort matrix needs a monthly snapshot job. */}
             <ChurnCohortHeatmap cohorts={[]} />
@@ -256,20 +258,20 @@ export function B2dAdminPanel() {
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
                 <tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
-                  <th className="px-4 py-2">Customer</th>
-                  <th className="px-4 py-2">Tier</th>
-                  <th className="px-4 py-2">Scopes</th>
-                  <th className="px-4 py-2">Status</th>
-                  <th className="px-4 py-2">Last used</th>
-                  <th className="px-4 py-2">Created</th>
-                  <th className="px-4 py-2">Acciones</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.customer', 'Customer')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.tier', 'Tier')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.scopes', 'Scopes')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.status', 'Status')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.lastUsed', 'Last used')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.created', 'Created')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.actions', 'Acciones')}</th>
                 </tr>
               </thead>
               <tbody>
                 {keys.length === 0 && !loading && (
                   <tr>
                     <td colSpan={7} className="px-4 py-6 text-center text-zinc-500">
-                      Sin API keys todavía.
+                      {t('b2dAdmin.table.emptyKeys', 'Sin API keys todavía.')}
                     </td>
                   </tr>
                 )}
@@ -295,7 +297,7 @@ export function B2dAdminPanel() {
                           onClick={() => handleRevoke(k.id)}
                           className="text-xs text-rose-600 hover:underline"
                         >
-                          Revocar
+                          {t('b2dAdmin.actions.revoke', 'Revocar')}
                         </button>
                       )}
                     </td>
@@ -309,16 +311,16 @@ export function B2dAdminPanel() {
         {/* Section 3 — Top customers. */}
         <section aria-labelledby="b2d-top-heading" className="space-y-3">
           <h2 id="b2d-top-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-[#4db6ac]" /> Top 10 customers
+            <Users className="w-5 h-5 text-[#4db6ac]" /> {t('b2dAdmin.topCustomers.title', 'Top 10 customers')}
           </h2>
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
                 <tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
                   <th className="px-4 py-2">#</th>
-                  <th className="px-4 py-2">Customer</th>
-                  <th className="px-4 py-2">Tier principal</th>
-                  <th className="px-4 py-2 text-right">USD/mes</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.customer', 'Customer')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.topCustomers.mainTier', 'Tier principal')}</th>
+                  <th className="px-4 py-2 text-right">{t('b2dAdmin.topCustomers.usdPerMonth', 'USD/mes')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -333,7 +335,7 @@ export function B2dAdminPanel() {
                 {(!metrics || metrics.topCustomers.length === 0) && (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                      Sin clientes B2D activos todavía.
+                      {t('b2dAdmin.topCustomers.empty', 'Sin clientes B2D activos todavía.')}
                     </td>
                   </tr>
                 )}
@@ -345,18 +347,18 @@ export function B2dAdminPanel() {
         {/* Section 4 — Eventos. */}
         <section aria-labelledby="b2d-events-heading" className="space-y-3">
           <h2 id="b2d-events-heading" className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            <AlertOctagon className="w-5 h-5 text-amber-500" /> Eventos
+            <AlertOctagon className="w-5 h-5 text-amber-500" /> {t('b2dAdmin.events.title', 'Eventos')}
           </h2>
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50">
                 <tr className="text-left text-xs uppercase tracking-widest text-zinc-500">
-                  <th className="px-4 py-2">Cuándo</th>
-                  <th className="px-4 py-2">Tipo</th>
-                  <th className="px-4 py-2">Customer</th>
-                  <th className="px-4 py-2">Tier</th>
-                  <th className="px-4 py-2">Key</th>
-                  <th className="px-4 py-2">Actor</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.events.when', 'Cuándo')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.events.type', 'Tipo')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.customer', 'Customer')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.table.tier', 'Tier')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.events.key', 'Key')}</th>
+                  <th className="px-4 py-2">{t('b2dAdmin.events.actor', 'Actor')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -373,7 +375,7 @@ export function B2dAdminPanel() {
                 {events.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-4 py-6 text-center text-zinc-500">
-                      Sin eventos en los últimos 30 días.
+                      {t('b2dAdmin.events.empty', 'Sin eventos en los últimos 30 días.')}
                     </td>
                   </tr>
                 )}
