@@ -1,0 +1,163 @@
+rules_version = '2';
+
+// Praeventio Guard — Sprint 39 Fase D.6: Storage rules estrictas.
+//
+// Cierra Plan Fase D.6 "Storage rules tenant/proyecto + tipo/tamaño/quarantine".
+//
+// Política:
+//   1. Particionamiento por tenant + proyecto. Cross-tenant default-deny.
+//   2. Tipo de contenido restringido por categoría (medical → PDF/JPG;
+//      evidence → JPG/MP4; legal → PDF; general → JPG/PNG/PDF).
+//   3. Tamaño máximo por categoría (medical 10MB, legal 10MB, evidence
+//      videos 50MB, otros 25MB).
+//   4. Quarantine: uploads nuevos → /quarantine/{tid}/... primero. El
+//      backend AV-scan los mueve a /tenants/{tid}/... cuando pasan.
+//   5. Separación estricta de namespaces:
+//        - /tenants/{tid}/medical/...   solo médico ocupacional
+//        - /tenants/{tid}/legal/...     admin / supervisor
+//        - /tenants/{tid}/evidence/...  cualquier miembro del tenant
+//        - /tenants/{tid}/general/...   cualquier miembro autenticado
+//   6. Workers personal vault (/users/{uid}) sigue siendo per-uid privado.
+//
+// La rule layer enforces el contrato del bucket; el server (Admin SDK)
+// bypassa estas reglas y puede mover quarantine → tenants tras scan AV.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ────────────────────────────────────────────────────────────────────
+    // Auth helpers
+    // ────────────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isMemberOfTenant(tid) {
+      return isSignedIn() && tid is string && tid.size() > 0 && (
+        (request.auth.token.tenantId is string && request.auth.token.tenantId == tid) ||
+        ('tenants' in request.auth.token && request.auth.token.tenants[tid] is string)
+      );
+    }
+
+    function isAdminOrSupervisorOfTenant(tid) {
+      return isMemberOfTenant(tid) && (
+        request.auth.token.role in ['admin', 'gerente', 'supervisor', 'prevencionista'] ||
+        ('tenants' in request.auth.token &&
+         request.auth.token.tenants[tid] in ['admin', 'gerente', 'supervisor', 'prevencionista'])
+      );
+    }
+
+    function isDoctorOfTenant(tid) {
+      return isMemberOfTenant(tid) && (
+        request.auth.token.role == 'medico_ocupacional' ||
+        ('tenants' in request.auth.token &&
+         request.auth.token.tenants[tid] == 'medico_ocupacional')
+      );
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Content type + size helpers
+    // ────────────────────────────────────────────────────────────────────
+    function isUnder(bytes) {
+      return request.resource.size != null && request.resource.size < bytes;
+    }
+
+    function isPdfOrImage() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('image/(jpeg|jpg|png)');
+    }
+
+    function isImageOrVideo() {
+      return request.resource.contentType.matches('image/(jpeg|jpg|png)') ||
+             request.resource.contentType.matches('video/mp4');
+    }
+
+    function isPdfOnly() {
+      return request.resource.contentType == 'application/pdf';
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 1. Quarantine — uploads nuevos van aquí hasta AV scan
+    // ────────────────────────────────────────────────────────────────────
+    //
+    // Cualquier upload de cliente DEBE pasar por quarantine. El backend
+    // escanea con AV (ClamAV / VirusTotal) y mueve a /tenants/... si pasa.
+    // El cliente nunca lee ni borra de quarantine — solo escribe.
+    //
+    match /quarantine/{tid}/{allPaths=**} {
+      allow write: if isMemberOfTenant(tid)
+        && isUnder(50 * 1024 * 1024)
+        && request.resource.contentType != null;
+      allow read, delete: if false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 2. Medical files — PHI, sensible (Ley 20.584)
+    // ────────────────────────────────────────────────────────────────────
+    match /tenants/{tid}/medical/{workerUid}/{allPaths=**} {
+      allow read: if (isSignedIn() && request.auth.uid == workerUid) ||
+                     isDoctorOfTenant(tid);
+      allow create, update: if isDoctorOfTenant(tid)
+        && isPdfOrImage()
+        && isUnder(10 * 1024 * 1024);
+      allow delete: if false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 3. Legal documents — RIOHS, contratos, anexos
+    // ────────────────────────────────────────────────────────────────────
+    match /tenants/{tid}/legal/{allPaths=**} {
+      allow read: if isMemberOfTenant(tid);
+      allow create, update: if isAdminOrSupervisorOfTenant(tid)
+        && isPdfOnly()
+        && isUnder(10 * 1024 * 1024);
+      allow delete: if false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 4. Evidence — fotos/videos de incidentes, inspecciones
+    // ────────────────────────────────────────────────────────────────────
+    match /tenants/{tid}/evidence/{allPaths=**} {
+      allow read: if isMemberOfTenant(tid);
+      allow create: if isMemberOfTenant(tid)
+        && isImageOrVideo()
+        && isUnder(50 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 5. General — uploads de bajo riesgo (avatares, logos)
+    // ────────────────────────────────────────────────────────────────────
+    match /tenants/{tid}/general/{allPaths=**} {
+      allow read: if isMemberOfTenant(tid);
+      allow create, update: if isMemberOfTenant(tid)
+        && isPdfOrImage()
+        && isUnder(25 * 1024 * 1024);
+      allow delete: if isAdminOrSupervisorOfTenant(tid);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 6. Worker personal vault (Ley 20.584)
+    // ────────────────────────────────────────────────────────────────────
+    match /workers/{uid}/{allPaths=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == uid
+        && isUnder(25 * 1024 * 1024);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // 7. Legacy companies/* (deprecated — to migrate to tenants/*)
+    // ────────────────────────────────────────────────────────────────────
+    match /companies/{companyId}/{allPaths=**} {
+      allow read: if isSignedIn() && request.auth.token.companyId == companyId;
+      allow write: if isSignedIn()
+                   && request.auth.token.companyId == companyId
+                   && request.auth.token.role in ['admin', 'prevencionista']
+                   && isUnder(25 * 1024 * 1024);
+    }
+
+    // Default-deny: cualquier otro path queda explícitamente cerrado.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

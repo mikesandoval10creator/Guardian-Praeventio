@@ -1,0 +1,127 @@
+// Praeventio Guard — Wire UI #2: <ComplianceTrafficLight />
+//
+// Reusable widget that renders the F.2 compliance traffic light for a project.
+// Owns no state; consumer passes the result of `computeComplianceTrafficLight`
+// from `src/services/compliance/trafficLightEngine.ts`.
+//
+// Used in: Dashboard header, ProjectDetail page header, and the Inbox card.
+//
+// Variants:
+//   - `variant="compact"` → 1-row badge (header bar)
+//   - `variant="full"`    → 8-category grid (drill-down)
+
+import { useTranslation } from 'react-i18next';
+import { AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
+import type {
+  ComplianceTrafficLightResult,
+  TrafficLight,
+  CategoryStatus,
+} from '../../services/compliance/trafficLightEngine.js';
+
+interface ComplianceTrafficLightProps {
+  result: ComplianceTrafficLightResult;
+  variant?: 'compact' | 'full';
+  onCategoryClick?: (cat: CategoryStatus) => void;
+}
+
+const LIGHT_CLASS: Record<TrafficLight, string> = {
+  green: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+  yellow: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',
+  red: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30',
+};
+
+const LIGHT_ICON: Record<TrafficLight, typeof CheckCircle2> = {
+  green: CheckCircle2,
+  yellow: AlertTriangle,
+  red: AlertCircle,
+};
+
+const CATEGORY_LABEL_KEY: Record<CategoryStatus['category'], string> = {
+  legal: 'compliance.cat.legal',
+  documentation: 'compliance.cat.documentation',
+  training: 'compliance.cat.training',
+  epp: 'compliance.cat.epp',
+  emergencies: 'compliance.cat.emergencies',
+  occupational_health: 'compliance.cat.occupational_health',
+  maintenance: 'compliance.cat.maintenance',
+  audits: 'compliance.cat.audits',
+};
+
+const CATEGORY_LABEL_FALLBACK: Record<CategoryStatus['category'], string> = {
+  legal: 'Legal',
+  documentation: 'Documentación',
+  training: 'Capacitación',
+  epp: 'EPP',
+  emergencies: 'Emergencias',
+  occupational_health: 'Salud ocupacional',
+  maintenance: 'Mantenimiento',
+  audits: 'Auditorías',
+};
+
+export function ComplianceTrafficLight({
+  result,
+  variant = 'compact',
+  onCategoryClick,
+}: ComplianceTrafficLightProps) {
+  const { t } = useTranslation();
+  const OverallIcon = LIGHT_ICON[result.overall];
+
+  if (variant === 'compact') {
+    return (
+      <div
+        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-xs font-semibold ${LIGHT_CLASS[result.overall]}`}
+        data-testid="compliance-traffic-light-compact"
+      >
+        <OverallIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
+        <span>
+          {t('compliance.score', 'Cumplimiento')}: {result.score}/100
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <section
+      className="rounded-2xl border border-default-token bg-surface p-4 shadow-mode"
+      data-testid="compliance-traffic-light-full"
+      aria-label={t('compliance.aria.full', 'Semáforo de cumplimiento') as string}
+    >
+      <header className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-black text-primary-token uppercase tracking-wide">
+          {t('compliance.title', 'Semáforo Cumplimiento')}
+        </h2>
+        <div
+          className={`inline-flex items-center gap-2 px-3 py-1 rounded-md border text-xs font-semibold ${LIGHT_CLASS[result.overall]}`}
+        >
+          <OverallIcon className="w-4 h-4" aria-hidden="true" />
+          {result.score}/100
+        </div>
+      </header>
+
+      <ul className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        {result.byCategory.map((cat) => {
+          const Icon = LIGHT_ICON[cat.light];
+          const label = t(CATEGORY_LABEL_KEY[cat.category], CATEGORY_LABEL_FALLBACK[cat.category]);
+          const clickable = Boolean(onCategoryClick);
+          return (
+            <li key={cat.category}>
+              <button
+                type="button"
+                disabled={!clickable}
+                onClick={clickable ? () => onCategoryClick?.(cat) : undefined}
+                className={`w-full text-left rounded-lg border p-2 text-xs font-medium transition-colors ${LIGHT_CLASS[cat.light]} ${clickable ? 'hover:brightness-110 cursor-pointer' : 'cursor-default'}`}
+                aria-label={`${label}: ${cat.summary}`}
+              >
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <Icon className="w-3 h-3 shrink-0" aria-hidden="true" />
+                  <span className="font-semibold">{label}</span>
+                </div>
+                <p className="text-[10px] opacity-80 leading-tight line-clamp-2">{cat.summary}</p>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}

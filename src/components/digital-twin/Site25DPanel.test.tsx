@@ -7,7 +7,7 @@
 // can drive `features` deterministically. The hazmat overlay logic itself
 // is exercised through `projectWindSuction` with canned wind values.
 
-import React from 'react';
+import React, { act } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
@@ -152,6 +152,10 @@ vi.mock('../../utils/logger', () => ({
 import { Site25DPanel } from './Site25DPanel';
 
 // Helper: build a minimal hazard polygon feature.
+// Polygon size is ~5m × 5m (≈25 m² footprint, ≈10 m² exposed). Kept
+// intentionally tiny so projectWindSuction's radius cap (250 m) does not
+// saturate at both 30 km/h and 120 km/h wind speeds — the wind-reactivity
+// test needs the radius to actually scale with v².
 function hazardFeature(id: string) {
   return {
     type: 'Feature' as const,
@@ -160,11 +164,11 @@ function hazardFeature(id: string) {
     geometry: {
       type: 'Polygon' as const,
       coordinates: [[
-        [-70.66, -33.45],
-        [-70.659, -33.45],
-        [-70.659, -33.4495],
-        [-70.66, -33.4495],
-        [-70.66, -33.45],
+        [-70.66000, -33.45000],
+        [-70.65995, -33.45000],
+        [-70.65995, -33.44995],
+        [-70.66000, -33.44995],
+        [-70.66000, -33.45000],
       ] as [number, number][]],
     },
   };
@@ -202,7 +206,14 @@ describe('Site25DPanel — Bucket YY.1 wrap (TwinAccessGuard)', () => {
   });
 });
 
-describe.skip('Site25DPanel (skipped — flaky CI mocks, see TODO)', () => {
+// Sprint 39 P0.3 follow-up: previously this whole describe was `.skip`'d
+// with the note "flaky CI mocks, see TODO" — the real root cause was
+// invoking `lastSubscribeCb` synchronously without wrapping in React's
+// `act()`, so the state update was scheduled but not flushed by the time
+// the DOM queries ran (`expected 0 to be >= 1`). React 18+ batches state
+// updates and only flushes them inside `act()` or at the next microtask;
+// the fix is to wrap every state-changing callback call.
+describe('Site25DPanel — features + wind reactivity', () => {
   beforeEach(() => {
     universalState.windSpeed = 30;
     universalState.windDirection = 270;
@@ -219,7 +230,11 @@ describe.skip('Site25DPanel (skipped — flaky CI mocks, see TODO)', () => {
     const { container } = render(<Site25DPanel />);
     expect(lastSubscribeCb).toBeTruthy();
 
-    lastSubscribeCb!([hazardFeature('h1')]);
+    // Push features through React's batched-commit gate so the
+    // hazard-polygon useEffect actually runs before we query the DOM.
+    act(() => {
+      lastSubscribeCb!([hazardFeature('h1')]);
+    });
 
     const polys = $all(container, '[data-testid="polygon"]');
     expect(polys.length).toBeGreaterThanOrEqual(1);
@@ -232,14 +247,18 @@ describe.skip('Site25DPanel (skipped — flaky CI mocks, see TODO)', () => {
 
   it('updates the wind halo radius when the wind snapshot changes', () => {
     const { container, rerender } = render(<Site25DPanel />);
-    lastSubscribeCb!([hazardFeature('h1')]);
+    act(() => {
+      lastSubscribeCb!([hazardFeature('h1')]);
+    });
     const radiusLow = Number(
       $all(container, '[data-testid="wind-halo"]')[0].getAttribute('data-radius'),
     );
 
     // Strong wind → radius scales with v² via windLoadOnSurface.
     universalState.windSpeed = 120;
-    rerender(<Site25DPanel />);
+    act(() => {
+      rerender(<Site25DPanel />);
+    });
     const radiusHigh = Number(
       $all(container, '[data-testid="wind-halo"]')[0].getAttribute('data-radius'),
     );

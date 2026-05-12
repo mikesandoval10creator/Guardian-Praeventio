@@ -4,18 +4,12 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { useProject } from './ProjectContext';
 import { logger } from '../utils/logger';
+import {
+  normalizeSubscriptionPlanId,
+  type SubscriptionPlan,
+} from '../services/pricing/subscriptionPlan';
 
-export type SubscriptionPlan =
-  | 'free'
-  | 'comite'
-  | 'departamento'
-  | 'plata'
-  | 'oro'
-  | 'titanio'
-  | 'platino'
-  | 'empresarial'
-  | 'corporativo'
-  | 'ilimitado';
+export type { SubscriptionPlan };
 
 /**
  * Per-feature gating matrix. Replaces the coarse `isPremium` / `isEnterprise`
@@ -141,14 +135,10 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         if (docSnap.exists()) {
           const userData = docSnap.data();
-          // Use the new subscription object OR fallback to old field for compatibility
+          // Use the new subscription object OR fallback to old field for compatibility.
+          // Billing rails may write canonical pricing tier ids; normalize before gating.
           const rawPlan = userData.subscription?.planId || userData.subscriptionPlan || 'free';
-          // Normalize legacy plan names written by old billing code
-          const PLAN_MIGRATION: Record<string, SubscriptionPlan> = {
-            premium: 'departamento',
-            basic: 'comite',
-          };
-          const activePlan: SubscriptionPlan = PLAN_MIGRATION[rawPlan] ?? (rawPlan as SubscriptionPlan) ?? 'free';
+          const activePlan = normalizeSubscriptionPlanId(rawPlan) ?? 'free';
           setPlan(activePlan);
         } else {
           await setDoc(docRef, {

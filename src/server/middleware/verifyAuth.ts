@@ -96,10 +96,29 @@ export const verifyAuth = async (req: Request, res: Response, next: NextFunction
 
   const token = authHeader.split('Bearer ')[1];
   try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    // Sprint 39 Fase B.2: checkRevoked=true valida `tokensValidAfterTime`
+    // en cada request. Cuando un usuario se desactiva via deactivateUser()
+    // → admin.auth().revokeRefreshTokens(uid), todos los tokens emitidos
+    // antes del revoke quedan inmediatamente inválidos sin esperar la
+    // expiración natural de 1h. Cierra IMPLEMENTATION_ROADMAP 0.6 (riesgo
+    // activo: ex-empleados con acceso por hasta 1h post-desactivación).
+    const decodedToken = await admin.auth().verifyIdToken(token, true);
     (req as any).user = decodedToken;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    // Distinguish revoked tokens from other auth failures for ops/audit.
+    // Firebase Admin sets code='auth/id-token-revoked' cuando checkRevoked=true
+    // detecta que el token fue emitido antes de revokeRefreshTokens().
+    if (error?.code === 'auth/id-token-revoked') {
+      logger.warn('auth_token_revoked', {
+        endpoint: req.url,
+        method: req.method,
+      });
+      return res.status(401).json({
+        error: 'Unauthorized: Token revoked — please re-authenticate',
+        reason: 'token_revoked',
+      });
+    }
     logger.error('auth_token_verification_failed', error, { endpoint: req.url, method: req.method });
     sentryCapture(error, { endpoint: req.url, tags: { method: req.method, middleware: 'verifyAuth' } });
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });

@@ -37,6 +37,7 @@
 import crypto from 'crypto';
 import admin from 'firebase-admin';
 import { jwtVerify, importJWK, errors as joseErrors, type JWTPayload } from 'jose';
+import { normalizeSubscriptionPlanId } from '../pricing/subscriptionPlan.js';
 
 import { mercadoPagoAdapter } from './mercadoPagoAdapter.js';
 import { withIdempotency } from './idempotency.js';
@@ -534,12 +535,14 @@ export async function processMercadoPagoIpn(
           const lineItems = Array.isArray(invoiceData?.lineItems) ? invoiceData!.lineItems : [];
           const tierId = lineItems[0]?.tierId ?? invoiceData?.tierId ?? null;
           const ownerUid = invoiceData?.createdBy ?? null;
-          if (ownerUid && tierId) {
+          const planId = normalizeSubscriptionPlanId(tierId);
+          if (ownerUid && tierId && planId) {
             await db.collection('users').doc(ownerUid).set(
               {
-                subscriptionPlan: tierId,
+                subscriptionPlan: planId,
                 subscription: {
-                  planId: tierId,
+                  planId,
+                  tierId,
                   status: 'active',
                   updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                   lastInvoiceId: invoiceId,

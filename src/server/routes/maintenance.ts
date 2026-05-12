@@ -22,6 +22,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
 import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
 import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
@@ -33,6 +34,16 @@ import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 // projects/tasks collection is not seeded yet, so the cron is safe to
 // run from day one.
 import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendarPreWarn.js';
+
+function captureRouteError(err: unknown, endpoint: string): void {
+  try {
+    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
+      endpoint,
+    } as Record<string, string | number | boolean | null | undefined>);
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -56,6 +67,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       });
     } catch (ppeErr) {
       logger.error('[maintenance] check-expired-ppe failed', ppeErr);
+      captureRouteError(ppeErr, 'maintenance.check-expired-ppe');
     }
     // Sprint 28 follow-up — third step: SUSESO DIAT/DIEP deadline reminders.
     // Independent + idempotent like the prior two steps.
@@ -68,6 +80,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       susesoReminders = await sendSusesoReminders();
     } catch (susesoErr) {
       logger.error('[maintenance] suseso-reminders failed', susesoErr);
+      captureRouteError(susesoErr, 'maintenance.suseso-reminders');
     }
     // Sprint 29 Bucket DD F-E — predictive × calendar pre-warn.
     // Wired after SUSESO reminders so failures stay isolated. Factories
@@ -89,6 +102,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       calendarPreWarn = { scanned: preWarnResult.scanned, warned: preWarnResult.warned };
     } catch (preWarnErr) {
       logger.error('[maintenance] calendar-prewarn failed', preWarnErr);
+      captureRouteError(preWarnErr, 'maintenance.calendar-prewarn');
     }
     const tookMs = Date.now() - start;
     logger.info('[maintenance] check-overdue done', {
@@ -103,6 +117,7 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       .json({ ok: true, ...maintenance, ppe, susesoReminders, calendarPreWarn, tookMs });
   } catch (err) {
     logger.error('[maintenance] check-overdue failed', err);
+    captureRouteError(err, 'maintenance.check-overdue');
     return res
       .status(500)
       .json({ ok: false, error: 'internal_error', message: 'check-overdue failed' });

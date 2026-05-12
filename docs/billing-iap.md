@@ -44,7 +44,8 @@ sheet.
 
 ## Server-side receipt validation flow
 
-Client receipts are NEVER trusted on their own. The server-side flow is:
+Client receipts are NEVER trusted on their own. The server-side flow has
+TWO complementary layers:
 
 ```
 Client (Capacitor IAP plugin)
@@ -53,35 +54,63 @@ Client (Capacitor IAP plugin)
   │ 2. native dialog → user authenticates → store returns receipt
   │
   ▼
-POST /api/billing/{google-play|app-store}/validate-receipt   (this PR)
+POST /api/billing/{google-play|app-store}/validate-receipt   ← SYNC LAYER
   │
-  │ logs the attempt to `iap_receipt_attempts/{auto-id}`
-  │ returns 202 Accepted
+  │ Sprint 39 P0.3 — calls the store's authoritative API:
+  │   • Google Play: androidpublisher.purchases.subscriptionsv2.get
+  │   • Apple: App Store Server API /inApps/v1/transactions/{id}
+  │ Returns 200 with the verified expiry / state on success,
+  │ 400 on rejection (forged / mismatched / expired),
+  │ 502 on validator config error, 503 on transient store outage.
+  │ Always writes `iap_receipt_attempts/{auto}` with outcome+reason.
   │
-  │ ── Authoritative grant happens out of band ──
+  │ ── Async lifecycle events keep going through the webhook ──
   │
   ▼
-Google Play RTDN  →  POST /api/billing/webhook
+Google Play RTDN  →  POST /api/billing/webhook                ← ASYNC LAYER
+App Store SSN v2  →  POST /api/billing/webhook/apple
                    │
-                   │ re-fetches `purchases.subscriptions.get`
-                   │ writes `users/{uid}.subscription.*`
+                   │ re-fetches the same authoritative API,
+                   │ writes `users/{uid}.subscription.*`,
+                   │ handles renewals / refunds / expiry.
                    ▼
                   Tier benefit live in Firestore.
 ```
 
-For Apple, the equivalent is **App Store Server Notifications v2**
-(SSN). That webhook handler is **deferred to a follow-up bucket** alongside
-the App Store Connect entitlement configuration; today the
-`/app-store/validate-receipt` endpoint is a TODO stub that records the
-attempt without granting benefit.
+The synchronous layer unblocks the client immediately on a real purchase
+and rejects forged receipts at the door. The async layer keeps the
+Firestore subscription state in sync with the store's truth across
+renewals and refunds.
 
-### Why 202 Accepted, not 200 OK
+### Why the validator returns 200 not 202
 
-Returning 200 would imply the subscription is live, which it isn't until
-the store confirms server-to-server. 202 (Accepted, processing) is the
-correct semantic and stops a future engineer from accidentally wiring
-"set `subscription.status='active'` on receipt-validate response" — they
-will see the 202 and know the path isn't done.
+Pre-Sprint-39 the endpoint returned 202 with a "we'll grant when RTDN
+fires" message because the validation was a TODO. Now that the validator
+makes the real `purchases.subscriptionsv2.get` (or App Store Server API)
+call before responding, the receipt is either *cryptographically proven
+to be a real, active purchase* or rejected. 200 is the correct semantic
+for that proof.
+
+## Validator environment variables
+
+### Google Play
+- `ANDROID_PACKAGE_NAME` — e.g. `com.praeventio.guard`. Required.
+- `GOOGLE_APPLICATION_CREDENTIALS` — path to the service account JSON
+  with `Manage orders and subscriptions` access in Play Console. In Cloud
+  Run, omit this and use Workload Identity bound to the same SA.
+- `GOOGLE_PLAY_ALLOW_TEST_PURCHASES` — `'true'` in staging to accept
+  license-tester purchases; unset in production.
+
+### Apple App Store
+- `APPLE_BUNDLE_ID` — e.g. `com.praeventio.guard`. Required.
+- `APPLE_API_KEY_PATH` — filesystem path to the `.p8` private key from
+  App Store Connect → Users and Access → Keys. Required.
+- `APPLE_KEY_ID` — 10-char Key ID alongside the `.p8`. Required.
+- `APPLE_ISSUER_ID` — UUID Issuer ID from App Store Connect (NOT the
+  Team ID — common confusion). Required.
+
+The `.p8` file is read on every validate call (~milliseconds), so
+rotation is just an atomic file replace; no service restart needed.
 
 ## Restore Purchases (iOS requirement)
 
@@ -131,22 +160,30 @@ uses the same `processed_pubsub` lock pattern as the Webpay return.
 ## Operational checklist before going live
 
 - [ ] SKU ids match exactly across Play Console / App Store Connect / `WEB_CATALOG`.
-- [ ] `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` env set; account has Finance access.
-- [ ] `GOOGLE_PLAY_PACKAGE_NAME` env set and matches the Play listing.
+- [ ] `ANDROID_PACKAGE_NAME` env set and matches the Play listing.
+- [ ] `GOOGLE_APPLICATION_CREDENTIALS` set (or Workload Identity in Cloud
+  Run) with `Manage orders and subscriptions` access on the SA.
+- [ ] `APPLE_BUNDLE_ID`, `APPLE_API_KEY_PATH`, `APPLE_KEY_ID`,
+  `APPLE_ISSUER_ID` env set; `.p8` file mounted via Secret Manager.
 - [ ] RTDN Pub/Sub topic configured + push subscription wired to
   `POST /api/billing/webhook` with shared-secret header.
 - [ ] App Store Connect → App Information → App Store Server Notifications
-  → URL points at the (forthcoming) SSN handler, with JWS verification
-  against Apple's root CA enabled.
+  v2 URL points at `POST /api/billing/webhook/apple` — JWS verification
+  is already implemented (`appleSsn.ts`, leaf-only; full Apple Root G3
+  chain is a documented follow-up).
 - [ ] "Restore Purchases" button visible somewhere in the app UI (App
   Store Review Guideline 3.1.1).
 - [ ] Receipt logs (`iap_receipt_attempts`) reviewed in dashboard for
-  fraud signals after the first week of production traffic.
+  fraud signals after the first week of production traffic — every row
+  carries `outcome` (granted|rejected|error) + `reason`.
 
 ## Related files
 
 - `src/services/billing/iapAdapter.ts` — adapter
 - `src/services/billing/iapAdapter.test.ts` — unit tests
+- `src/services/billing/googlePlayValidator.ts` + `.test.ts` — Sprint 39 synchronous Play validator
+- `src/services/billing/appleTransactionValidator.ts` + `.test.ts` — Sprint 39 synchronous Apple validator
+- `src/services/billing/appleSsn.ts` — Apple SSN v2 webhook verifier (shared JWS helper)
 - `src/pages/Pricing.tsx` — call site
 - `src/server/routes/billing.ts` — `/api/billing/{google-play,app-store}/validate-receipt`
 - `src/services/billing/webpayAdapter.ts` / `mercadoPagoAdapter.ts` / `khipuAdapter.ts` — web rails

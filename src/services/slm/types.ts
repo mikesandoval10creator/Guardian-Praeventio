@@ -74,6 +74,35 @@ export interface ModelDescriptor {
   preferredBackend: SLMBackend;
   /** Quantization scheme of the published weights. */
   quantization: SLMQuantization;
+  /**
+   * Sprint 39 STUB-3 close: SHA-256 expected del archivo principal de
+   * pesos (post-download integrity check).
+   *
+   * NOTA: HuggingFace Hub usa LFS para los archivos >10MB, así que los
+   * hashes cambian raramente (solo cuando el equipo re-publica). El
+   * loader compara este valor contra `sha256(downloadedBytes)` antes
+   * de cargar el modelo en sesión ONNX — si NO coincide, fail-closed
+   * (modelo descartado, no se carga).
+   *
+   * Cuando se actualice el modelo upstream, este campo debe sincronizarse
+   * en el mismo PR — eso fuerza al equipo a validar la versión.
+   *
+   * Si se deja `undefined`, el loader emite WARNING en consola y omite
+   * la verificación (modo dev/staging). En production, `getDefaultModel()`
+   * debe rechazar modelos sin hash si `process.env.NODE_ENV==='production'`.
+   *
+   * Formato: hex lowercase (64 chars), del SHA-256 del archivo
+   * principal de pesos `.onnx` referenciado por `url`/repo.
+   */
+  expectedSha256?: string;
+  /**
+   * Filename principal de pesos dentro del repo HF (e.g.
+   * `onnx/model_q4f16.onnx`). Cuando se publica un repo onnx-web, el
+   * loader resuelve este path desde el repo root para descargar el
+   * peso real. Si está ausente, el loader usa heurística (busca el
+   * primer .onnx en la carpeta `onnx/`).
+   */
+  weightFilename?: string;
 }
 
 /**

@@ -12,6 +12,7 @@ import { initializeRAG } from "./src/services/ragService.js";
 import { updateGlobalEnvironmentalContext } from "./src/services/environmentBackend.js";
 import { logger, runWithRequestContext } from "./src/utils/logger.js";
 import { initTracing, getActiveTraceId } from "./src/services/observability/tracing.js";
+import { validateKmsBootConfig } from "./src/server/kmsPreflight.js";
 // Billing imports (buildInvoice, webpayAdapter, stripeAdapter, withIdempotency,
 // webpayMetrics, mercadoPagoAdapter, currency, billing/types) moved to
 // src/server/routes/billing.ts in Round 17 R2 Phase 2 split. `isAdminRole`
@@ -94,6 +95,10 @@ import ds67ds76Router from "./src/server/routes/ds67ds76.js";
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
 import onboardingRouter from "./src/server/routes/onboarding.js";
+// Sprint 39 PASO 2 — Wire UI bridge routes (persistence layer + insights).
+import sitebookRouter from "./src/server/routes/sitebook.js";
+import insightsRouter from "./src/server/routes/insights.js";
+import sprintKRouter from "./src/server/routes/sprintK.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 import { setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
@@ -131,25 +136,19 @@ dotenv.config();
 // /api/reports/daily-email, /api/projects/:projectId/health-check.
 // Future re-introduction must use assertProjectMember.
 
-// Round 14 (A6 audit) — KMS production pre-flight. The OAuth token store
+// Round 14 (A6 audit) -> hard fail in production. The OAuth token store
 // uses envelope encryption with a Key Encryption Key resolved by
-// `KMS_ADAPTER` (see src/services/security/kmsAdapter.ts). In dev the
-// default `'in-memory-dev'` is fine; in production use `'cloud-kms'`.
-// `in-memory-dev` is allowed in production when explicitly set (preview/staging
-// environments). Unknown adapter names are rejected.
-const _kmsAdapter = process.env.KMS_ADAPTER ?? 'in-memory-dev';
-if (
-  process.env.NODE_ENV === 'production' &&
-  _kmsAdapter !== 'cloud-kms' &&
-  _kmsAdapter !== 'in-memory-dev'
-) {
-  console.error(
-    `[boot] FATAL: Unknown KMS_ADAPTER="${_kmsAdapter}". Must be 'cloud-kms' or 'in-memory-dev'.`,
-  );
-  process.exit(1);
+// `KMS_ADAPTER` (see src/services/security/kmsAdapter.ts). Dev may use
+// `in-memory-dev`; production must use `cloud-kms` plus KMS_KEY_RESOURCE_NAME.
+const _kmsPreflight = validateKmsBootConfig(process.env);
+for (const warning of _kmsPreflight.warnings) {
+  console.warn(`[boot] WARNING: ${warning}`);
 }
-if (process.env.NODE_ENV === 'production' && _kmsAdapter === 'in-memory-dev') {
-  console.warn('[boot] WARNING: Running production with KMS_ADAPTER=in-memory-dev. Keys are ephemeral — configure cloud-kms before handling real user data.');
+if (!_kmsPreflight.ok) {
+  for (const error of _kmsPreflight.errors) {
+    console.error(`[boot] FATAL: ${error}`);
+  }
+  process.exit(1);
 }
 
 // Sentry initialization — must happen as early as possible, before any
@@ -605,6 +604,14 @@ app.use('/api/compliance', ds67ds76Router);
 // Sprint 24 Bucket KK — POST /api/onboarding/complete. Self-service
 // tenant onboarding (industry, countries, tier, invites, first project).
 app.use('/api', onboardingRouter);
+
+// Sprint 39 PASO 2 — Wire UI bridge: persistence-backed read/write endpoints.
+// `sitebook` exposes the Libro de Obra (atomic folio + idempotent writes).
+// `insights` aggregates the inputs for risk-ranking, safety-talks and
+// role-view widgets (read-only — engines are pure, server only stages data).
+app.use('/api/sitebook', sitebookRouter);
+app.use('/api/insights', insightsRouter);
+app.use('/api/sprint-k', sprintKRouter);
 
 // Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
 // Safari invokes AR Quick Look. Without this header the browser treats

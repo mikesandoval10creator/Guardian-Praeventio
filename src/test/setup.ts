@@ -10,8 +10,21 @@
 //
 // Component test files declare `// @vitest-environment jsdom` at the
 // top — that's where these matchers will be active.
+//
+// Sprint 39 P0.3 follow-up: when `globals: false` (our config), Vitest
+// does NOT auto-wire `afterEach(cleanup)`. Previously this caused
+// cross-test DOM contamination — tests for the same component would
+// see elements from previous renders, leading to spurious failures
+// like "found 1, expected 0". We register the cleanup hook here so
+// every jsdom test gets a fresh DOM. Reference:
+// https://testing-library.com/docs/react-testing-library/api/#cleanup
 if (typeof (globalThis as any).document !== 'undefined') {
   await import('@testing-library/jest-dom/vitest');
+  const { afterEach } = await import('vitest');
+  const { cleanup } = await import('@testing-library/react');
+  afterEach(() => {
+    cleanup();
+  });
 }
 
 export {};

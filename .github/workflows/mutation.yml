@@ -1,15 +1,12 @@
 name: Mutation Testing (Stryker)
 
-# Sprint 34 — Linux runner enabled to fix the Windows-only
-# STATUS_STACK_BUFFER_OVERRUN crash on `limiters.ts` that left it at 3% mutation
-# coverage despite 72% global. The runner is informational for 1-2 runs
-# (continue-on-error: true), then promoted to a required check in Sprint 35
-# once we have 2 green runs.
+# Sprint 39 (Fase B.1) — promoted to **required check** by removing
+# `continue-on-error: true` and the `|| true` suffix on the threshold
+# script. Honest gating: if mutation coverage falls below thresholds,
+# the PR is red. Mantiene CODEX P1-6 "CI warning-only" cerrado.
 #
-# Audit P1 / user gap: Stryker on Windows local crashes with
-# STATUS_STACK_BUFFER_OVERRUN inside vitest worker forks for `limiters.ts`.
-# The Linux runner does not exhibit the crash. This workflow is the source
-# of truth until Windows local is fixed (deferred).
+# Runner: ubuntu-latest. Windows local sigue con
+# STATUS_STACK_BUFFER_OVERRUN en `limiters.ts` (deuda separada).
 
 on:
   pull_request:
@@ -30,9 +27,12 @@ jobs:
     # ceiling — anything slower indicates pathological mutant set or
     # regression in test runtime.
     timeout-minutes: 60
-    # Sprint 34: do NOT block merges yet. Promote to required in Sprint 35
-    # once we observe 2 successful runs with stable thresholds.
-    continue-on-error: true
+    # Sprint 39 Fase B.1: continue-on-error removido — el job ahora
+    # bloquea merge si la mutación cae bajo thresholds. Esto cierra
+    # CODEX P1-6 (CI warning-only). Si el threshold se vuelve flaky
+    # por una razón legítima (mutant equivalente, oracle drift), ajustar
+    # el script en scripts/check-mutation-thresholds.cjs, no re-activar
+    # continue-on-error.
     steps:
       - uses: actions/checkout@v4
 
@@ -55,9 +55,9 @@ jobs:
         # Stryker 9.6.1 schema does not support per-file thresholds. This
         # script parses reports/mutation/report.json and enforces per-file
         # ratchets (high-coverage files cannot regress, critical files
-        # target 75%+). Sprint 34: warning-only via `|| true` so the job
-        # surface signal without blocking. Sprint 35: drop the `|| true`.
-        run: node scripts/check-mutation-thresholds.cjs || true
+        # target 75%+). Sprint 39 Fase B.1: `|| true` removido — el script
+        # ahora falla el job si los thresholds no se cumplen.
+        run: node scripts/check-mutation-thresholds.cjs
 
       - name: Upload Stryker HTML report
         if: always()
