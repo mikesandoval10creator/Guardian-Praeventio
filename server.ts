@@ -103,6 +103,8 @@ import insightsRouter from "./src/server/routes/insights.js";
 import sprintKRouter from "./src/server/routes/sprintK.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
+import { setupSystemEngineTrigger } from "./src/server/triggers/systemEngineTrigger.js";
+import systemEventsRouter from "./src/server/routes/systemEvents.js";
 // Sprint 35 audit P1 §1.3 — distributed lease so in-process cron jobs
 // (env polling 10min, project safety 6h) only run on ONE Cloud Run
 // replica per tick. Without this, every replica ran the tick
@@ -564,6 +566,12 @@ app.use('/api', gamificationRouter);
 // Reuses verifyAuth + assertProjectMember + zettelkastenWriteLimiter.
 app.use('/api/zettelkasten', zettelkastenRouter);
 
+// SystemEngine — POST /api/system-events/emit. Server-side emit endpoint
+// so clients without direct Firestore write rights can publish to the
+// bus. Verified token's tenant claim is the authoritative tenantId; any
+// mismatch with the body tenantId is rejected.
+app.use('/api/system-events', systemEventsRouter);
+
 // Sprint 12 — POST /api/commute/{start,sample,end}. Server-side mirror of
 // the client `useCommuteSession` writes for accidente-de-trayecto (Ley
 // 16.744 SUSESO). Member-guarded + per-uid rate limited.
@@ -825,6 +833,7 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 
 let triggersHandle: { unsubscribe: () => void } | null = null;
 let healthHandle: { stop: () => void } | null = null;
+let systemEngineHandle: { unsubscribe: () => void } | null = null;
 let mqttBrokerHandle: ConnectedBroker | null = null;
 
 app.listen(PORT, "0.0.0.0", () => {
@@ -836,6 +845,13 @@ app.listen(PORT, "0.0.0.0", () => {
       messaging: admin.messaging(),
       resend,
       firestoreNamespace: admin.firestore,
+    });
+
+    // SystemEngine — server-side trigger. Listens via collectionGroup so a
+    // single subscription covers every tenant's system_events subcollection.
+    // Cleanup is wired into SIGTERM (no leaked listener on rolling deploy).
+    systemEngineHandle = setupSystemEngineTrigger({
+      db: admin.firestore(),
     });
 
     // Proactive Project Health Checks (Every 6 hours to balance quota).
@@ -908,6 +924,7 @@ app.listen(PORT, "0.0.0.0", () => {
 process.on('SIGTERM', () => {
   triggersHandle?.unsubscribe();
   healthHandle?.stop();
+  systemEngineHandle?.unsubscribe();
   // Sprint 27 (audit P0 H10) — clear the env polling interval too.
   clearInterval(environmentalPollingHandle);
   // Sprint 32 Bucket TT — release the MQTT broker subscription.

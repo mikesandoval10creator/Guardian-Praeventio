@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -41,6 +42,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function Attendance() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { addNode, addConnection, getConnectedNodes } = useRiskEngine();
   const [searchTerm, setSearchTerm] = useState('');
@@ -335,21 +337,21 @@ export function Attendance() {
             <ShieldCheck className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-3xl font-black text-zinc-950 dark:text-white uppercase tracking-tighter leading-tight">Torniquete Virtual</h1>
-            <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-0.5">Control de Acceso Inteligente</p>
+            <h1 className="text-xl sm:text-3xl font-black text-zinc-950 dark:text-white uppercase tracking-tighter leading-tight">{t('attendance.header.title', 'Torniquete Virtual')}</h1>
+            <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-0.5">{t('attendance.header.subtitle', 'Control de Acceso Inteligente')}</p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
           <button 
             onClick={handleAnalyzeAttendance}
             disabled={analyzing || attendanceNodes.length === 0 || !isOnline}
-            title={!isOnline ? 'Requiere conexión a internet' : ''}
+            title={!isOnline ? t('attendance.online.requiresInternet', 'Requiere conexión a internet') : ''}
             className={`flex items-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs active:scale-95 transition-all disabled:opacity-50 justify-center w-full sm:w-auto ${
               !isOnline ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
             }`}
           >
             {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : !isOnline ? <WifiOff className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-            <span>{!isOnline ? 'Requiere Conexión' : 'Analizar Patrones IA'}</span>
+            <span>{!isOnline ? t('attendance.online.requiresConnection', 'Requiere Conexión') : t('attendance.actions.analyzeAI', 'Analizar Patrones IA')}</span>
           </button>
           <div className="flex gap-2 w-full sm:w-auto">
             <button 
@@ -357,15 +359,15 @@ export function Attendance() {
               className="flex items-center gap-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-black/20 dark:shadow-white/20 active:scale-95 transition-all flex-1 sm:flex-none justify-center"
             >
               <QrCode className="w-4 h-4" />
-              <span>Escanear QR</span>
+              <span>{t('attendance.actions.scanQR', 'Escanear QR')}</span>
             </button>
             <button
               onClick={handleDailyReport}
               className="flex items-center gap-2 bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 text-zinc-900 dark:text-white px-4 py-3 sm:py-2.5 rounded-xl font-black uppercase tracking-widest text-xs shadow-sm active:scale-95 transition-all flex-1 sm:flex-none justify-center"
             >
               <Calendar className="w-4 h-4" />
-              <span className="hidden sm:inline">Reporte Diario</span>
-              <span className="sm:hidden">Reporte</span>
+              <span className="hidden sm:inline">{t('attendance.actions.dailyReport', 'Reporte Diario')}</span>
+              <span className="sm:hidden">{t('attendance.actions.report', 'Reporte')}</span>
             </button>
           </div>
         </div>
@@ -397,7 +399,7 @@ export function Attendance() {
                   )}
                 </div>
                 <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-                  {accessResult.passed ? 'Acceso Permitido' : 'Acceso Denegado'}
+                  {accessResult.passed ? t('attendance.access.granted', 'Acceso Permitido') : t('attendance.access.denied', 'Acceso Denegado')}
                 </h2>
                 <p className="text-white/80 text-sm font-medium mt-1">{accessResult.worker.name}</p>
               </div>
@@ -405,7 +407,7 @@ export function Attendance() {
               <div className="p-6 bg-white dark:bg-zinc-900">
                 {!accessResult.passed ? (
                   <div className="space-y-4">
-                    <p className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest text-center mb-4">Motivos de Bloqueo:</p>
+                    <p className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-widest text-center mb-4">{t('attendance.access.blockReasons', 'Motivos de Bloqueo')}:</p>
                     <ul className="space-y-2">
                       {accessResult.reasons.map((reason, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-sm text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 p-3 rounded-xl border border-rose-100 dark:border-rose-500/20">
@@ -415,13 +417,13 @@ export function Attendance() {
                       ))}
                     </ul>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400 text-center mt-4">
-                      Este incidente ha sido registrado automáticamente en la Red Neuronal.
+                      {t('attendance.access.incidentLogged', 'Este incidente ha sido registrado automáticamente en la Red Neuronal.')}
                     </p>
                   </div>
                 ) : (
                   <div className="text-center space-y-2">
-                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Validación Exitosa</p>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">Exámenes médicos, EPP y certificaciones al día.</p>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">{t('attendance.access.validationSuccess', 'Validación Exitosa')}</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">{t('attendance.access.validationDetail', 'Exámenes médicos, EPP y certificaciones al día.')}</p>
                   </div>
                 )}
                 
@@ -470,9 +472,9 @@ export function Attendance() {
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
         {[
-          { label: 'Presentes Hoy', value: workers.filter(w => getStatus(w.id) === 'Dentro').length, icon: UserCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { label: 'Ausentes', value: workers.filter(w => getStatus(w.id) === 'Fuera').length, icon: UserX, color: 'text-rose-500', bg: 'bg-rose-500/10' },
-          { label: 'Total Dotación', value: workers.length, icon: UserCheck, color: 'text-blue-500', bg: 'bg-blue-500/10', className: 'col-span-2 md:col-span-1' },
+          { label: t('attendance.stats.presentToday', 'Presentes Hoy'), value: workers.filter(w => getStatus(w.id) === 'Dentro').length, icon: UserCheck, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: t('attendance.stats.absent', 'Ausentes'), value: workers.filter(w => getStatus(w.id) === 'Fuera').length, icon: UserX, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+          { label: t('attendance.stats.totalStaff', 'Total Dotación'), value: workers.length, icon: UserCheck, color: 'text-blue-500', bg: 'bg-blue-500/10', className: 'col-span-2 md:col-span-1' },
         ].map((stat, i) => (
           <div key={i} className={`bg-white dark:bg-zinc-900/50 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-zinc-100 dark:border-white/5 shadow-sm flex items-center gap-3 sm:gap-4 ${stat.className || ''}`}>
             <div className={`w-10 h-10 sm:w-12 sm:h-12 ${stat.bg} rounded-xl flex items-center justify-center shrink-0`}>
@@ -514,9 +516,9 @@ export function Attendance() {
       {showAdvancedFilters && (
         <div className="flex flex-wrap gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl">
           <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Estado del trabajador</span>
+            <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('attendance.filters.workerStatus', 'Estado del trabajador')}</span>
             <div className="flex gap-2">
-              {[{ v: 'all', label: 'Todos' }, { v: 'active', label: 'Activos' }, { v: 'inactive', label: 'Inactivos' }].map(opt => (
+              {[{ v: 'all', label: t('attendance.filters.all', 'Todos') }, { v: 'active', label: t('attendance.filters.active', 'Activos') }, { v: 'inactive', label: t('attendance.filters.inactive', 'Inactivos') }].map(opt => (
                 <button
                   key={opt.v}
                   onClick={() => setStatusFilter(opt.v as any)}
@@ -724,7 +726,7 @@ export function Attendance() {
         ) : (
           <div className="col-span-full text-center py-12 sm:py-20 bg-zinc-50 dark:bg-zinc-900/30 rounded-2xl sm:rounded-3xl border border-dashed border-zinc-200 dark:border-white/10">
             <UserX className="w-10 h-10 sm:w-12 sm:h-12 text-zinc-200 dark:text-zinc-700 mx-auto mb-3 sm:mb-4" />
-            <p className="text-xs sm:text-sm font-bold text-zinc-400 uppercase tracking-widest">No se encontraron trabajadores</p>
+            <p className="text-xs sm:text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('attendance.workers.notFound', 'No se encontraron trabajadores')}</p>
           </div>
         )}
       </div>
@@ -743,7 +745,7 @@ export function Attendance() {
               await handleCheckOut(worker);
             }
           } else {
-            showToast('Trabajador no encontrado en este proyecto.', 'warning');
+            showToast(t('attendance.toasts.workerNotFound', 'Trabajador no encontrado en este proyecto.'), 'warning');
           }
         }}
       />

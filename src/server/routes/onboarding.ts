@@ -35,6 +35,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import { EmailService } from '../../services/email/resendService.js';
 import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { TIERS } from '../../services/pricing/tiers.js';
@@ -149,6 +150,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     );
   } catch (writeErr) {
     logger.error('onboarding_user_write_failed', writeErr as Error, { uid });
+    captureRouteError(writeErr, 'onboarding.user_write', { uid });
     return res.status(500).json({ error: 'persist_failed' });
   }
 
@@ -172,6 +174,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     });
   } catch (projErr) {
     logger.error('onboarding_project_create_failed', projErr as Error, { uid });
+    captureRouteError(projErr, 'onboarding.project_create', { uid });
     return res.status(500).json({ error: 'project_create_failed' });
   }
 

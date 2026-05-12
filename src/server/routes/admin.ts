@@ -32,6 +32,7 @@ import {
   isAdminRole,
 } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 // 15th wave (Bucket D): real server analytics adapter — closes the 13th
 // wave Sentry-breadcrumb deferral for `auth.role.granted/revoked`.
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
@@ -154,6 +155,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
     res.json({ success: true, message: `Access revoked for user ${targetUid}` });
   } catch (error) {
     logger.error('admin_revoke_access_failed', error, { callerUid, targetUid });
+    captureRouteError(error, 'admin.revoke_access', { callerUid, targetUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -229,6 +231,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
     res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {
     logger.error('admin_set_role_failed', error, { callerUid, targetUid: uid });
+    captureRouteError(error, 'admin.set_role', { callerUid, targetUid: uid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -273,6 +276,7 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     logger.error('admin_replicate_critical_failed', error, { callerUid });
+    captureRouteError(error, 'admin.replicate_critical', { callerUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -314,6 +318,7 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     logger.error('admin_weekly_digest_failed', error, { callerUid });
+    captureRouteError(error, 'admin.weekly_digest', { callerUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -463,6 +468,7 @@ router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
     res.json({ ok: true, result });
   } catch (error) {
     logger.error('admin_climate_scan_failed', error, { callerUid });
+    captureRouteError(error, 'admin.climate_scan', { callerUid });
     res.status(500).json({ error: 'climate_scan_failed' });
   }
 });
@@ -513,6 +519,7 @@ router.get('/quotas', verifyAuth, async (req, res) => {
     res.json({ ok: true, usage });
   } catch (error) {
     logger.error('admin_quotas_get_failed', error, { tenantId, date });
+    captureRouteError(error, 'admin.quotas_get', { tenantId, date });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -535,6 +542,7 @@ router.get('/quotas/global', verifyAuth, async (req, res) => {
     res.json({ ok: true, date, limit, tenants: top });
   } catch (error) {
     logger.error('admin_quotas_global_failed', error, { date, limit });
+    captureRouteError(error, 'admin.quotas_global', { date, limit });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -568,6 +576,7 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
     res.json({ ok: true, tenantId, date });
   } catch (error) {
     logger.error('admin_quotas_reset_failed', error, { tenantId, date });
+    captureRouteError(error, 'admin.quotas_reset', { tenantId, date });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -589,6 +598,7 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error('admin_circuit_state_failed', error);
+    captureRouteError(error, 'admin.circuit_state');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -646,6 +656,7 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
       callerUid,
       targetUid,
     });
+    captureRouteError(error, 'admin.sync_clear_user_queue', { callerUid, targetUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -685,6 +696,7 @@ router.get('/sync/stats', verifyAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error('admin_sync_stats_failed', error);
+    captureRouteError(error, 'admin.sync_stats');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

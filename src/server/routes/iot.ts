@@ -33,6 +33,7 @@ import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
@@ -144,6 +145,7 @@ router.post(
         deviceId,
         projectId,
       });
+      captureRouteError(err, 'iot.device_register', { callerUid, deviceId, projectId });
       return res.status(500).json({ error: 'iot_device_register_failed' });
     }
   },

@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   getAdapter,
   getSuggestedAdapters,
@@ -159,6 +160,7 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
     });
   } catch (err) {
     logger.error('[complianceEmit] generate failed', { err, country, type });
+    captureRouteError(err, 'complianceEmit.generate', { country, type });
     await auditServerEvent(req, `compliance.emit.${country}.${type}`, 'compliance', {
       result: 'error',
       message: err instanceof Error ? err.message : 'unknown',
