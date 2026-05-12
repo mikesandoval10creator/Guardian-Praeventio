@@ -23,7 +23,6 @@ function doc(over: Partial<DocumentRecord> & { id: string }): DocumentRecord {
     readReceiptCount: over.readReceiptCount ?? 5,
     referencesNorm: over.referencesNorm ?? true,
     isLinkedToOperations: over.isLinkedToOperations ?? true,
-    authorUid: 'a1',
   };
 }
 
