@@ -4,6 +4,7 @@ import { Download, Printer, QrCode, Loader2, Shield, AlertTriangle, CheckCircle2
 import { QRCodeSVG } from 'qrcode.react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useTranslation } from 'react-i18next';
 import { useProject } from '../contexts/ProjectContext';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
@@ -273,6 +274,7 @@ const FORMAT_SIZES: Record<string, [number, number]> = {
 // ─── Poster preview component (also used as PDF capture target) ───────────────
 
 function PosterCard({ tpl, projectName, qrUrl }: { tpl: PosterTemplate; projectName: string; qrUrl: string }) {
+  const { t } = useTranslation();
   const Icon = tpl.icon === 'shield' ? Shield : tpl.icon === 'warning' ? AlertTriangle : CheckCircle2;
   return (
     <div
@@ -309,7 +311,7 @@ function PosterCard({ tpl, projectName, qrUrl }: { tpl: PosterTemplate; projectN
       {/* Footer */}
       <div className="mt-5 pt-4 border-t border-white/20 flex items-end justify-between gap-4">
         <div>
-          <p className="text-[9px] opacity-60 uppercase tracking-widest font-bold">Referencia legal</p>
+          <p className="text-[9px] opacity-60 uppercase tracking-widest font-bold">{t('afiches.poster.legalRef', 'Referencia legal')}</p>
           <p className="text-[11px] font-bold opacity-90">{tpl.legalRef}</p>
           {projectName && (
             <p className="text-[9px] opacity-50 mt-0.5 uppercase tracking-widest">{projectName}</p>
@@ -327,6 +329,7 @@ function PosterCard({ tpl, projectName, qrUrl }: { tpl: PosterTemplate; projectN
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function AfichesSeguridad() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [selected, setSelected] = useState<PosterTemplate>(TEMPLATES[0]);
   const [format, setFormat] = useState<'A4' | 'A3' | 'A2'>('A4');
@@ -353,10 +356,10 @@ export function AfichesSeguridad() {
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
       pdf.addImage(imgData, 'JPEG', 0, 0, mmW, mmH);
       pdf.save(`afiches-seguridad-${selected.id}-${format}.pdf`);
-      showToast(`Afiche descargado en formato ${format}`, 'success');
+      showToast(t('afiches.toasts.downloaded', 'Afiche descargado en formato {{format}}', { format }), 'success');
     } catch (err) {
       logger.error('[AfichesSeguridad] PDF generation failed', { message: (err as Error).message });
-      showToast('Error al generar el PDF. Intenta de nuevo.', 'error');
+      showToast(t('afiches.toasts.error', 'Error al generar el PDF. Intenta de nuevo.'), 'error');
     } finally {
       setDownloading(false);
     }
@@ -373,10 +376,10 @@ export function AfichesSeguridad() {
           </div>
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
-              Afiches de Seguridad
+              {t('afiches.header.title', 'Afiches de Seguridad')}
             </h1>
             <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-              Generador PDF con código QR — Impresión en faena
+              {t('afiches.header.subtitle', 'Generador PDF con código QR — Impresión en faena')}
             </p>
           </div>
         </div>
@@ -403,7 +406,7 @@ export function AfichesSeguridad() {
             className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl text-xs font-black uppercase tracking-wider hover:opacity-80 transition-opacity disabled:opacity-50"
           >
             {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Descargar {format}
+            {t('afiches.actions.download', 'Descargar')} {format}
           </button>
         </div>
       </div>
@@ -412,7 +415,7 @@ export function AfichesSeguridad() {
         {/* Template selector */}
         <div className="space-y-2">
           <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">
-            Plantillas ({TEMPLATES.length})
+            {t('afiches.templates.label', 'Plantillas')} ({TEMPLATES.length})
           </p>
           {TEMPLATES.map(tpl => (
             <button
@@ -438,7 +441,7 @@ export function AfichesSeguridad() {
         {/* Live preview + hidden PDF target */}
         <div className="lg:col-span-2">
           <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-3">
-            Vista Previa — <span className="text-blue-500">{format}</span>
+            {t('afiches.preview.label', 'Vista Previa')} — <span className="text-blue-500">{format}</span>
           </p>
           <motion.div
             key={selected.id}
@@ -455,7 +458,7 @@ export function AfichesSeguridad() {
           <div className="flex items-center gap-2 mt-3">
             <QrCode className="w-4 h-4 text-zinc-400" />
             <p className="text-[10px] text-zinc-400">
-              El QR lleva a la red de conocimiento del proyecto: <span className="font-mono">{qrUrl.slice(0, 50)}…</span>
+              {t('afiches.preview.qrHint', 'El QR lleva a la red de conocimiento del proyecto')}: <span className="font-mono">{qrUrl.slice(0, 50)}…</span>
             </p>
           </div>
         </div>

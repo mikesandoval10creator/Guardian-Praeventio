@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Database, ShieldAlert, Activity, Filter, Search, Download, Clock, User, FileText } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Card, Button } from '../components/shared/Card';
 
 export function AuditTrail() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,16 +40,16 @@ export function AuditTrail() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Database className="w-8 h-8 text-rose-500" />
-            Caja Negra (Audit Trail)
+            {t('audit.header.title', 'Caja Negra (Audit Trail)')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Registro Inmutable de Operaciones
+            {t('audit.header.subtitle', 'Registro Inmutable de Operaciones')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-rose-500 bg-rose-500/10 border-rose-500/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Nivel: Compliance Legal
+            {t('audit.header.level', 'Nivel: Compliance Legal')}
           </span>
         </div>
       </div>
@@ -56,20 +58,20 @@ export function AuditTrail() {
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full sm:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
-            <input 
-              type="text" 
-              placeholder="Buscar por usuario, acción o recurso..." 
+            <input
+              type="text"
+              placeholder={t('audit.search.placeholder', 'Buscar por usuario, acción o recurso...')}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-rose-500 transition-colors"
             />
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button variant="secondary" className="flex-1 sm:flex-none">
               <Filter className="w-4 h-4 mr-2" />
-              Filtros
+              {t('audit.actions.filters', 'Filtros')}
             </Button>
             <Button className="flex-1 sm:flex-none">
               <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
+              {t('audit.actions.exportCsv', 'Exportar CSV')}
             </Button>
           </div>
         </div>
@@ -78,11 +80,11 @@ export function AuditTrail() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-zinc-800 text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                <th className="p-4">Timestamp</th>
-                <th className="p-4">Acción</th>
-                <th className="p-4">Usuario</th>
-                <th className="p-4">Recurso</th>
-                <th className="p-4">Detalles</th>
+                <th className="p-4">{t('audit.table.timestamp', 'Timestamp')}</th>
+                <th className="p-4">{t('audit.table.action', 'Acción')}</th>
+                <th className="p-4">{t('audit.table.user', 'Usuario')}</th>
+                <th className="p-4">{t('audit.table.resource', 'Recurso')}</th>
+                <th className="p-4">{t('audit.table.details', 'Detalles')}</th>
               </tr>
             </thead>
             <tbody className="text-sm">
@@ -91,13 +93,13 @@ export function AuditTrail() {
                   <td colSpan={5} className="p-8 text-center text-zinc-500">
                     <div className="flex flex-col items-center justify-center">
                       <Activity className="w-8 h-8 animate-spin mb-2 text-rose-500" />
-                      Cargando registros inmutables...
+                      {t('audit.table.loading', 'Cargando registros inmutables...')}
                     </div>
                   </td>
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <motion.tr 
+                  <motion.tr
                     key={log.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
