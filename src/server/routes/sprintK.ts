@@ -28,6 +28,10 @@ import { SIFAdapter } from '../../services/sif/sifFirestoreAdapter.js';
 import { PositiveObservationsAdapter } from '../../services/positiveObservations/positiveObservationsFirestoreAdapter.js';
 import { WasteAdapter } from '../../services/environmental/wasteFirestoreAdapter.js';
 import { VisitorAdapter } from '../../services/visitors/visitorFirestoreAdapter.js';
+import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAdapter.js';
+import { CorrectiveActionsAdapter } from '../../services/correctiveActions/correctiveActionsFirestoreAdapter.js';
+import { LotoAdapter } from '../../services/loto/lotoFirestoreAdapter.js';
+import { EquipmentAdapter } from '../../services/equipment/equipmentFirestoreAdapter.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
 
@@ -269,6 +273,203 @@ router.get('/:projectId/visitors/active', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('sprintK.visitors.error', err);
     captureRouteError(err, 'sprintK.visitors');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Lessons learned (tenant-scoped, but still gated by project membership)
+// ────────────────────────────────────────────────────────────────────────
+
+router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return;
+  try {
+    const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
+    const scope = typeof req.query.scope === 'string' ? req.query.scope : null;
+    const riskCategory =
+      typeof req.query.riskCategory === 'string' ? req.query.riskCategory : null;
+    let lessons;
+    if (riskCategory) {
+      lessons = await adapter.listByRiskCategory(riskCategory);
+    } else if (
+      scope === 'global' ||
+      scope === 'industry' ||
+      scope === 'project' ||
+      scope === 'crew'
+    ) {
+      lessons = await adapter.listByScope(scope);
+    } else {
+      lessons = await adapter.listTopAdopted();
+    }
+    return res.json({ lessons });
+  } catch (err) {
+    logger.error?.('sprintK.lessons.list.error', err);
+    captureRouteError(err, 'sprintK.lessons.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+const lessonSchema = z.object({
+  id: z.string().min(1),
+  summary: z.string().min(3).max(2000),
+  preventiveAction: z.string().min(3).max(2000),
+  riskCategories: z.array(z.string().min(1)).max(50),
+  tags: z.array(z.string().min(1)).max(50),
+  scope: z.enum(['global', 'industry', 'project', 'crew']),
+  industry: z.string().min(1).max(200).optional(),
+  derivedFromIncidentId: z.string().min(1).optional(),
+  publishedAt: z.string().min(10),
+  adoptionCount: z.number().int().nonnegative(),
+});
+
+router.post(
+  '/:projectId/lessons',
+  verifyAuth,
+  validate(lessonSchema),
+  async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof lessonSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return;
+    try {
+      const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
+      await adapter.save(body);
+      return res.status(201).json({ ok: true });
+    } catch (err) {
+      logger.error?.('sprintK.lessons.create.error', err);
+      captureRouteError(err, 'sprintK.lessons.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// Corrective actions
+// ────────────────────────────────────────────────────────────────────────
+
+router.get('/:projectId/corrective-actions', verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return;
+  try {
+    const adapter = new CorrectiveActionsAdapter(
+      admin.firestore() as any,
+      g.tenantId,
+      projectId,
+    );
+    const status = typeof req.query.status === 'string' ? req.query.status : 'open';
+    const validStatus =
+      status === 'open' || status === 'closed' || status === 'verified'
+        ? status
+        : 'open';
+    const [byStatus, systemic] = await Promise.all([
+      adapter.listByStatus(validStatus as 'open' | 'closed' | 'verified'),
+      adapter.listSystemic(),
+    ]);
+    return res.json({ actions: byStatus, systemic });
+  } catch (err) {
+    logger.error?.('sprintK.correctiveActions.list.error', err);
+    captureRouteError(err, 'sprintK.correctiveActions.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+const correctiveActionSchema = z.object({
+  id: z.string().min(1),
+  description: z.string().min(3).max(4000),
+  level: z
+    .enum([
+      'elimination',
+      'engineering',
+      'administrative',
+      'training',
+      'epp',
+      'supervision',
+      'communication',
+    ])
+    .optional(),
+  status: z.enum(['open', 'closed', 'verified']),
+  isSystemic: z.boolean(),
+  sourceCause: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/:projectId/corrective-actions',
+  verifyAuth,
+  validate(correctiveActionSchema),
+  async (req, res) => {
+    const callerUid = (req as any).user.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof correctiveActionSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return;
+    try {
+      const adapter = new CorrectiveActionsAdapter(
+        admin.firestore() as any,
+        g.tenantId,
+        projectId,
+      );
+      await adapter.save(body);
+      return res.status(201).json({ ok: true });
+    } catch (err) {
+      logger.error?.('sprintK.correctiveActions.create.error', err);
+      captureRouteError(err, 'sprintK.correctiveActions.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+// ────────────────────────────────────────────────────────────────────────
+// LOTO digital
+// ────────────────────────────────────────────────────────────────────────
+
+router.get('/:projectId/loto', verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return;
+  try {
+    const adapter = new LotoAdapter(admin.firestore() as any, g.tenantId, projectId);
+    const equipmentId =
+      typeof req.query.equipmentId === 'string' ? req.query.equipmentId : null;
+    const applications = equipmentId
+      ? await adapter.listForEquipment(equipmentId)
+      : await adapter.listActive();
+    return res.json({ applications });
+  } catch (err) {
+    logger.error?.('sprintK.loto.list.error', err);
+    captureRouteError(err, 'sprintK.loto.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Equipment
+// ────────────────────────────────────────────────────────────────────────
+
+router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
+  const callerUid = (req as any).user.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return;
+  try {
+    const adapter = new EquipmentAdapter(
+      admin.firestore() as any,
+      g.tenantId,
+      projectId,
+    );
+    const status =
+      typeof req.query.status === 'string' ? req.query.status : 'operativo';
+    const equipment = await adapter.listByStatus(status as any);
+    return res.json({ equipment });
+  } catch (err) {
+    logger.error?.('sprintK.equipment.list.error', err);
+    captureRouteError(err, 'sprintK.equipment.list');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
