@@ -68,7 +68,8 @@ export function assessTaskWeather(
 ): TaskWeatherAssessment {
   const reasons: string[] = [];
   const additionalControls: string[] = [];
-  let decision: WeatherDecision = 'proceed';
+  // Cast explícito para que TS no narrow a 'proceed' después del init.
+  let decision = 'proceed' as WeatherDecision;
 
   // ─── Lluvia ───
   if (weather.rainProbability > 0.7 && task.outdoor) {
