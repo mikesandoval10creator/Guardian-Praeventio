@@ -98,6 +98,7 @@ import onboardingRouter from "./src/server/routes/onboarding.js";
 // Sprint 39 PASO 2 — Wire UI bridge routes (persistence layer + insights).
 import sitebookRouter from "./src/server/routes/sitebook.js";
 import insightsRouter from "./src/server/routes/insights.js";
+import sprintKRouter from "./src/server/routes/sprintK.js";
 import { setupBackgroundTriggers } from "./src/server/triggers/backgroundTriggers.js";
 import { setupHealthCheckInterval } from "./src/server/triggers/healthCheck.js";
 // Sprint 35 audit P1 §1.3 — distributed lease so in-process cron jobs
@@ -602,6 +603,7 @@ app.use('/api', onboardingRouter);
 // role-view widgets (read-only — engines are pure, server only stages data).
 app.use('/api/sitebook', sitebookRouter);
 app.use('/api/insights', insightsRouter);
+app.use('/api/sprint-k', sprintKRouter);
 
 // Sprint 21 Ola 4 Bucket M.5 — IANA-registered MIME for `.usdz` so iOS
 // Safari invokes AR Quick Look. Without this header the browser treats
