@@ -131,11 +131,22 @@ export interface FeedInputs {
   }>;
   /** UID del prevencionista actual (asignación default). */
   responsibleUid: string;
+  /** Codex P2 PR #97: dismissals persisted by caller — map InboxItem.id
+   *  to dismissed/postponed-until ISO timestamp. aggregateInbox aplica
+   *  esto al re-construir items para que hideDismissed funcione tras
+   *  refresh. */
+  dismissals?: Record<string, string>;
 }
 
 // ────────────────────────────────────────────────────────────────────────
 // Quick action templates per kind
 // ────────────────────────────────────────────────────────────────────────
+
+// Codex P2 PR #97: each call clones template so UI mutations on one item
+// don't leak to the shared catalog or to other items of the same kind.
+function quickActionsFor(kind: InboxItemKind): QuickAction[] {
+  return QUICK_ACTIONS_BY_KIND[kind].map((a) => ({ ...a }));
+}
 
 const QUICK_ACTIONS_BY_KIND: Record<InboxItemKind, QuickAction[]> = {
   document_pending_approval: [
@@ -252,7 +263,7 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'documents', docId: d.id },
       createdAt: d.createdAt,
-      quickActions: QUICK_ACTIONS_BY_KIND.document_pending_approval,
+      quickActions: quickActionsFor('document_pending_approval'),
       priorityScore: urgencyToScore('medium'),
     });
   }
@@ -268,13 +279,21 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'incidents', docId: i.id },
       createdAt: i.occurredAt,
-      quickActions: QUICK_ACTIONS_BY_KIND.incident_pending_review,
+      quickActions: quickActionsFor('incident_pending_review'),
       priorityScore: urgencyToScore(urgency),
     });
   }
 
   for (const a of feeds.correctiveActionsOpen) {
-    const overdue = a.daysOverdue ?? 0;
+    // Codex P2 PR #97: derive daysOverdue from dueDate when caller omits it.
+    let overdue = a.daysOverdue;
+    if (overdue === undefined && a.dueDate) {
+      const dueMs = Date.parse(a.dueDate);
+      if (Number.isFinite(dueMs)) {
+        overdue = Math.max(0, Math.floor((now.getTime() - dueMs) / 86_400_000));
+      }
+    }
+    overdue = overdue ?? 0;
     const urgency: InboxUrgency = overdue > 7 ? 'urgent' : overdue > 0 ? 'high' : 'medium';
     items.push({
       id: `ca_${a.id}`,
@@ -286,7 +305,7 @@ export function aggregateInbox(
       sourceRef: { collection: 'corrective_actions', docId: a.id },
       createdAt: nowIso,
       dueAt: a.dueDate,
-      quickActions: QUICK_ACTIONS_BY_KIND.corrective_action_open,
+      quickActions: quickActionsFor('corrective_action_open'),
       priorityScore: urgencyToScore(urgency),
     });
   }
@@ -301,7 +320,7 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'epp_assignments', docId: e.id },
       createdAt: e.submittedAt,
-      quickActions: QUICK_ACTIONS_BY_KIND.epp_pending_validation,
+      quickActions: quickActionsFor('epp_pending_validation'),
       priorityScore: urgencyToScore('medium'),
     });
   }
@@ -317,7 +336,7 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'workers', docId: w.id },
       createdAt: nowIso,
-      quickActions: QUICK_ACTIONS_BY_KIND.worker_pending_onboarding,
+      quickActions: quickActionsFor('worker_pending_onboarding'),
       priorityScore: urgencyToScore(urgency),
     });
   }
@@ -333,7 +352,7 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'risk_patterns', docId: r.id },
       createdAt: r.lastSeenAt,
-      quickActions: QUICK_ACTIONS_BY_KIND.alert_repeating_risk,
+      quickActions: quickActionsFor('alert_repeating_risk'),
       priorityScore: urgencyToScore(urgency),
     });
   }
@@ -348,7 +367,7 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'data_quality', docId: g.id },
       createdAt: nowIso,
-      quickActions: QUICK_ACTIONS_BY_KIND.data_quality_gap,
+      quickActions: quickActionsFor('data_quality_gap'),
       priorityScore: urgencyToScore('low'),
     });
   }
@@ -363,7 +382,7 @@ export function aggregateInbox(
       assignedToUid: feeds.responsibleUid,
       sourceRef: { collection: 'sif_precursors', docId: s.id },
       createdAt: s.createdAt,
-      quickActions: QUICK_ACTIONS_BY_KIND.sif_precursor_pending,
+      quickActions: quickActionsFor('sif_precursor_pending'),
       priorityScore: urgencyToScore('urgent'),
     });
   }
@@ -380,7 +399,7 @@ export function aggregateInbox(
       sourceRef: { collection: 'legal_obligations', docId: l.id },
       createdAt: nowIso,
       dueAt: l.nextDueAt,
-      quickActions: QUICK_ACTIONS_BY_KIND.legal_obligation_due,
+      quickActions: quickActionsFor('legal_obligation_due'),
       priorityScore: urgencyToScore(urgency),
     });
   }
@@ -397,9 +416,18 @@ export function aggregateInbox(
       sourceRef: { collection: 'exceptions', docId: e.id },
       createdAt: nowIso,
       dueAt: e.validUntil,
-      quickActions: QUICK_ACTIONS_BY_KIND.exception_expiring,
+      quickActions: quickActionsFor('exception_expiring'),
       priorityScore: urgencyToScore(urgency),
     });
+  }
+
+  // Codex P2 PR #97: apply persisted dismissals so hideDismissed survives
+  // refresh. Caller passes feeds.dismissals = { [itemId]: dismissedAtIso }.
+  if (feeds.dismissals) {
+    for (const it of items) {
+      const ts = feeds.dismissals[it.id];
+      if (ts) it.dismissedAt = ts;
+    }
   }
 
   // Filter + sort

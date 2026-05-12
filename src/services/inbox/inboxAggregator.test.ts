@@ -166,6 +166,42 @@ describe('aggregateInbox', () => {
   });
 });
 
+describe('Codex P2 PR #97 fixes', () => {
+  it('daysOverdue derivado de dueDate cuando se omite (urgent si >7d)', () => {
+    const feeds = emptyFeeds();
+    feeds.correctiveActionsOpen = [
+      { id: 'a1', label: 'old', dueDate: '2026-04-01T00:00:00Z' },
+    ];
+    const r = aggregateInbox(feeds, { now: NOW });
+    expect(r[0].urgency).toBe('urgent');
+  });
+
+  it('quickActions clonadas — mutar uno no afecta otro', () => {
+    const feeds = emptyFeeds();
+    feeds.documentsPending = [
+      { id: 'd1', title: 'A', createdAt: NOW.toISOString(), submittedByUid: 'u1' },
+      { id: 'd2', title: 'B', createdAt: NOW.toISOString(), submittedByUid: 'u2' },
+    ];
+    const r = aggregateInbox(feeds, { now: NOW });
+    r[0].quickActions[0].label = 'MUTATED';
+    expect(r[1].quickActions[0].label).not.toBe('MUTATED');
+  });
+
+  it('dismissals persistidos via feeds.dismissals + hideDismissed filtra', () => {
+    const feeds = emptyFeeds();
+    feeds.documentsPending = [
+      { id: 'd1', title: 'A', createdAt: NOW.toISOString(), submittedByUid: 'u1' },
+      { id: 'd2', title: 'B', createdAt: NOW.toISOString(), submittedByUid: 'u2' },
+    ];
+    feeds.dismissals = { doc_d1: '2026-05-12T10:00:00Z' };
+    const visible = aggregateInbox(feeds, { now: NOW, hideDismissed: true });
+    expect(visible).toHaveLength(1);
+    expect(visible[0].id).toBe('doc_d2');
+    const all = aggregateInbox(feeds, { now: NOW });
+    expect(all.find((i) => i.id === 'doc_d1')?.dismissedAt).toBe('2026-05-12T10:00:00Z');
+  });
+});
+
 describe('summarizeInbox', () => {
   it('cuenta total y by-urgency', () => {
     const feeds = emptyFeeds();
