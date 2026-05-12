@@ -183,8 +183,13 @@ export function decodeFromQr(qrText: string): QrSignatureChallenge {
   const str = typeof atob !== 'undefined' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
   const bytes = new Uint8Array(str.length);
   for (let i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i);
-  let json = '';
-  for (let i = 0; i < bytes.length; i++) json += String.fromCharCode(bytes[i]);
+  // Codex P2 PR #94: decode UTF-8 properly so accented characters
+  // (itemId="arnés-001", etc.) round-trip; previous charCode loop produced
+  // mojibake breaking the recomputed HMAC.
+  const json =
+    typeof TextDecoder !== 'undefined'
+      ? new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+      : Buffer.from(bytes).toString('utf8');
   const parsed = JSON.parse(json) as QrSignatureChallenge;
   if (!parsed.challengeId || !parsed.signatureHex || !parsed.expiresAt) {
     throw new QrSignatureValidationError('MALFORMED_QR', 'missing required QR fields');
@@ -239,6 +244,12 @@ export function verifyChallenge(input: VerifyInput): VerificationResult {
   if (input.consumedNonces?.has(challenge.nonceHex)) {
     return { valid: false, reason: 'replayed' };
   }
+
+  // Codex P2 PR #94: mark nonce consumed AFTER successful verification so
+  // the next call with the same Set rejects the replay. Caller still owns
+  // persistence (Set is per-process); for cross-process replay protection
+  // the caller wraps this with a Firestore-backed nonce store.
+  input.consumedNonces?.add(challenge.nonceHex);
 
   return { valid: true };
 }

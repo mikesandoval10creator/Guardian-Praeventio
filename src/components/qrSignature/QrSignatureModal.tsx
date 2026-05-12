@@ -44,23 +44,36 @@ export function QrSignatureModal({
   const { t } = useTranslation();
   const [tick, setTick] = useState(0);
 
+  // Codex P2 PR #94: stale-ack guard reused for effect + expired checks.
+  const ackMatchesChallenge =
+    Boolean(acknowledgement) &&
+    acknowledgement?.challengeId === challenge.challengeId;
+
   // Re-render cada 1s para countdown
   useEffect(() => {
-    if (acknowledgement) return; // ya firmado, no countdown
+    if (ackMatchesChallenge) return; // ya firmado, no countdown
     const id = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(id);
-  }, [acknowledgement]);
+  }, [ackMatchesChallenge]);
 
   const currentNow = now ?? new Date();
   // tick consumed para forzar re-render (no se usa directo)
   void tick;
   const expiresMs = useMemo(() => Date.parse(challenge.expiresAt), [challenge.expiresAt]);
   const remainingSec = secondsBetween(currentNow, new Date(expiresMs));
-  const expired = !acknowledgement && remainingSec === 0;
+  const expired = !ackMatchesChallenge && remainingSec === 0;
 
   const qrPayload = useMemo(() => encodeForQr(challenge), [challenge]);
 
-  if (acknowledgement) {
+  // Codex P2 PR #94: only switch to signed state if the acknowledgement
+  // matches the CURRENT challenge. Prevents late polling responses or
+  // regenerated QRs from showing a stale signed banner.
+  const matchingAck =
+    acknowledgement && acknowledgement.challengeId === challenge.challengeId
+      ? acknowledgement
+      : undefined;
+
+  if (matchingAck) {
     return (
       <section
         role="dialog"
@@ -88,11 +101,11 @@ export function QrSignatureModal({
         </header>
         <p className="text-xs text-secondary-token">
           {t('qrSig.signedBy', 'Firmado por')}:{' '}
-          <span className="font-bold tabular-nums">{acknowledgement.signedByUid}</span>
+          <span className="font-bold tabular-nums">{matchingAck.signedByUid}</span>
         </p>
         <p className="text-[10px] text-secondary-token tabular-nums">
-          {acknowledgement.signedAt.slice(0, 19).replace('T', ' ')}{' '}
-          {acknowledgement.biometricUsed && (
+          {matchingAck.signedAt.slice(0, 19).replace('T', ' ')}{' '}
+          {matchingAck.biometricUsed && (
             <span className="ml-2 inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
               ✓ {t('qrSig.biometric', 'Biometría')}
             </span>

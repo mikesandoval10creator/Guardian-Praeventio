@@ -125,6 +125,42 @@ describe('verifyChallenge', () => {
     expect(r.reason).toBe('replayed');
   });
 
+  it('Codex P2 PR #94: marca nonce consumido al pasar (1ra OK, 2da rechazada)', () => {
+    const ch = buildChallenge(baseInput(), SECRET);
+    const consumed = new Set<string>();
+    const first = verifyChallenge({
+      challenge: ch,
+      serverSecret: SECRET,
+      now: NOW,
+      consumedNonces: consumed,
+    });
+    expect(first.valid).toBe(true);
+    expect(consumed.has(ch.nonceHex)).toBe(true);
+    const second = verifyChallenge({
+      challenge: ch,
+      serverSecret: SECRET,
+      now: NOW,
+      consumedNonces: consumed,
+    });
+    expect(second.valid).toBe(false);
+    expect(second.reason).toBe('replayed');
+  });
+
+  it('Codex P2 PR #94: round-trip QR con itemId UTF-8 (arnés-001)', () => {
+    const ch = buildChallenge(baseInput({ itemId: 'arnés-001' }), SECRET);
+    const qr = encodeForQr(ch);
+    const decoded = decodeFromQr(qr);
+    expect(decoded.itemId).toBe('arnés-001');
+    expect(decoded.signatureHex).toBe(ch.signatureHex);
+    // y verify pasa: bytes UTF-8 idénticos al original
+    const r = verifyChallenge({
+      challenge: decoded,
+      serverSecret: SECRET,
+      now: NOW,
+    });
+    expect(r.valid).toBe(true);
+  });
+
   it('rechaza expiresAt malformado', () => {
     const ch = buildChallenge(baseInput(), SECRET);
     const broken = { ...ch, expiresAt: 'not-a-date' };
