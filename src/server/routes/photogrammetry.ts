@@ -52,7 +52,10 @@ import { logger } from '../../utils/logger.js';
 // Object: any printable char except control chars; we use \S plus a literal
 // space so a path with one or more spaces validates, while newlines/tabs
 // (which would break the HTTP boundary) are still rejected.
-const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[\w\-./%+ !*'()&$,:;=@~]+$/;
+// Codex P2 PR #96: aceptar Unicode en object name (recorrido_bodega_ñ.mp4
+// y acentos). Bucket sigue ASCII por spec GCS; object permite cualquier
+// codepoint excepto control chars que rompan el boundary HTTP.
+const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[^\r\n\t]+$/u;
 
 const CreateJobSchema = z.object({
   projectId: z.string().min(1).max(128),

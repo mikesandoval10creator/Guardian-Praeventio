@@ -198,12 +198,18 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
     const videoExt = path.extname(new URL(req.videoUrl, 'gs://placeholder').pathname) || '.mp4';
     const videoPath = path.join(workDir, `input${videoExt}`);
     await downloadGcsObject(req.videoUrl, videoPath);
+    // Codex P2 PR #96: cap frame extraction to avoid filling /tmp on long
+    // videos. 500 frames @ fps=2 ≈ 4min de video, suficiente para SLAM
+    // y dentro del budget de COLMAP + disco Cloud Run.
+    const VIDEO_FRAME_CAP = 500;
     await runFfmpeg([
       '-y',
       '-i',
       videoPath,
       '-vf',
       'fps=2',
+      '-frames:v',
+      String(VIDEO_FRAME_CAP),
       '-q:v',
       '2',
       path.join(imagesDir, 'img_%04d.jpg'),
@@ -212,6 +218,10 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
     framesExtracted = frames.length;
     if (frames.length < 3) {
       throw new Error(`insufficient_video_frames:${frames.length}`);
+    }
+    if (frames.length > VIDEO_FRAME_CAP) {
+      // ffmpeg ya enforces -frames:v, defensive log
+      console.warn(`framecap-exceeded:${frames.length}`);
     }
   } else {
     for (let i = 0; i < (req.imageUrls ?? []).length; i++) {
