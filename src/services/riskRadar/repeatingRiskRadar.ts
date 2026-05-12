@@ -100,8 +100,15 @@ function filterRecent(
   windowDays: number,
   now: Date,
 ): IncidentSample[] {
-  const cutoff = now.getTime() - windowDays * 86_400_000;
-  return incidents.filter((i) => Date.parse(i.occurredAt) >= cutoff);
+  const nowMs = now.getTime();
+  const cutoff = nowMs - windowDays * 86_400_000;
+  // Codex P2 PR #100: drop incidents with future timestamps (clock skew /
+  // bad import / scheduled test data) — they would generate patterns with
+  // lastSeenAt in the future and survive across runs.
+  return incidents.filter((i) => {
+    const t = Date.parse(i.occurredAt);
+    return Number.isFinite(t) && t >= cutoff && t <= nowMs;
+  });
 }
 
 function groupBy<K extends string>(
@@ -119,9 +126,18 @@ function groupBy<K extends string>(
 }
 
 function latestIso(list: IncidentSample[]): string {
+  // Codex P2 PR #100: compare by parsed timestamps, not lexicographic — ISO
+  // strings with timezone offsets break string compare ('2026-05-10T23:30:00-03:00'
+  // is later than '2026-05-11T00:15:00Z' but sorts earlier).
   let latest = list[0].occurredAt;
+  let latestMs = Date.parse(latest);
+  if (!Number.isFinite(latestMs)) latestMs = -Infinity;
   for (const i of list) {
-    if (i.occurredAt > latest) latest = i.occurredAt;
+    const t = Date.parse(i.occurredAt);
+    if (Number.isFinite(t) && t > latestMs) {
+      latest = i.occurredAt;
+      latestMs = t;
+    }
   }
   return latest;
 }
@@ -248,34 +264,57 @@ function detectTimeCluster(
   minOccurrences: number,
   now: Date,
 ): RepeatingPattern[] {
-  // Cluster: ≥minOccurrences incidentes en una ventana de 14 días continuos.
+  // Codex P2 PR #100: cluster window de 14d; iterate hasta agotar incidents
+  // (no break tras el primero), y expand cada cluster a TODOS los
+  // incidents dentro de la ventana (no solo minOccurrences). ID estable
+  // basado en el rango de 14d-window-bucket, no en la fecha del primer
+  // incident (que cambia con backfills).
   const out: RepeatingPattern[] = [];
+  void now;
   if (incidents.length < minOccurrences) return out;
   const sorted = [...incidents].sort(
     (a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt),
   );
-  for (let i = 0; i <= sorted.length - minOccurrences; i++) {
+  const WINDOW_MS = 14 * 86_400_000;
+
+  let i = 0;
+  while (i <= sorted.length - minOccurrences) {
     const startMs = Date.parse(sorted[i].occurredAt);
-    const endIdx = i + minOccurrences - 1;
-    const endMs = Date.parse(sorted[endIdx].occurredAt);
-    if (endMs - startMs <= 14 * 86_400_000) {
+    // Expand: include all incidents whose occurredAt is within 14d from start
+    let endIdx = i;
+    while (
+      endIdx + 1 < sorted.length &&
+      Date.parse(sorted[endIdx + 1].occurredAt) - startMs <= WINDOW_MS
+    ) {
+      endIdx += 1;
+    }
+    const sliceLen = endIdx - i + 1;
+    if (sliceLen >= minOccurrences) {
       const slice = sorted.slice(i, endIdx + 1);
+      const endMs = Date.parse(slice[slice.length - 1].occurredAt);
+      // Stable ID: anchor to the 14-day window bucket starting at the
+      // earliest UTC midnight that contains the slice start. Backfilling
+      // an earlier incident within the same window keeps the same bucket.
+      const bucketStartMs = Math.floor(startMs / WINDOW_MS) * WINDOW_MS;
+      const bucketStartIso = new Date(bucketStartMs).toISOString().slice(0, 10);
       out.push({
-        id: `time_cluster:${sorted[i].occurredAt.slice(0, 10)}`,
+        id: `time_cluster:${bucketStartIso}`,
         kind: 'time_cluster',
         label: `Pico de ${slice.length} incidentes en ${Math.ceil((endMs - startMs) / 86_400_000) || 0} días`,
         involvedIncidentIds: slice.map((s) => s.id),
         occurrences: slice.length,
-        lastSeenAt: sorted[endIdx].occurredAt,
+        lastSeenAt: latestIso(slice),
         recommendedAction:
           'Revisar qué cambió en operación durante el período: nuevo contrato, cambio de cuadrilla, condiciones extremas, presión de plazo.',
         severity: maxSeverity(slice),
       });
-      break; // Solo reportar el primer cluster — evita duplicados
+      // Advance past this cluster so siguientes clusters no-overlapping
+      // se reporten también (P2: do not stop at first cluster).
+      i = endIdx + 1;
+    } else {
+      i += 1;
     }
   }
-  // Cuando "now" se usa con ventana, podemos extender — por ahora solo void.
-  void now;
   return out;
 }
 

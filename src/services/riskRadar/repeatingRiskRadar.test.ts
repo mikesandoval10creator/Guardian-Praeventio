@@ -152,6 +152,83 @@ describe('buildRepeatingRiskRadar', () => {
   });
 });
 
+describe('Codex P2 PR #100 fixes', () => {
+  it('time_cluster incluye TODOS los incidents dentro de ventana 14d', () => {
+    const incidents = [
+      inc({ id: '1', occurredAt: '2026-05-08T00:00:00Z' }),
+      inc({ id: '2', occurredAt: '2026-05-09T00:00:00Z' }),
+      inc({ id: '3', occurredAt: '2026-05-10T00:00:00Z' }),
+      inc({ id: '4', occurredAt: '2026-05-11T00:00:00Z' }), // dentro de ventana, antes era omitido
+    ];
+    const r = buildRepeatingRiskRadar(incidents, { minOccurrences: 3, windowDays: 90, now: NOW });
+    const cluster = r.patterns.find((p) => p.kind === 'time_cluster');
+    expect(cluster?.occurrences).toBe(4);
+    expect(cluster?.involvedIncidentIds).toContain('4');
+  });
+
+  it('time_cluster: filtra futuros (clock skew / bad import)', () => {
+    const future = new Date(NOW.getTime() + 30 * 86_400_000).toISOString();
+    const incidents = [
+      inc({ id: '1', occurredAt: future }),
+      inc({ id: '2', occurredAt: future }),
+      inc({ id: '3', occurredAt: future }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, { minOccurrences: 3, windowDays: 90, now: NOW });
+    expect(r.consideredIncidents).toBe(0);
+    expect(r.patterns).toHaveLength(0);
+  });
+
+  it('time_cluster: emite múltiples clusters no-superpuestos', () => {
+    const incidents = [
+      // Cluster 1: 3 lows enero
+      inc({ id: 'a', severity: 'low', occurredAt: '2026-03-01T00:00:00Z' }),
+      inc({ id: 'b', severity: 'low', occurredAt: '2026-03-02T00:00:00Z' }),
+      inc({ id: 'c', severity: 'low', occurredAt: '2026-03-03T00:00:00Z' }),
+      // Cluster 2: 3 criticals últimas semanas
+      inc({ id: 'd', severity: 'critical', occurredAt: '2026-05-08T00:00:00Z' }),
+      inc({ id: 'e', severity: 'critical', occurredAt: '2026-05-09T00:00:00Z' }),
+      inc({ id: 'f', severity: 'critical', occurredAt: '2026-05-10T00:00:00Z' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, { minOccurrences: 3, windowDays: 90, now: NOW });
+    const clusters = r.patterns.filter((p) => p.kind === 'time_cluster');
+    expect(clusters.length).toBe(2);
+    // Después del severity sort, el critical cluster aparece primero
+    expect(clusters[0].severity).toBe('critical');
+  });
+
+  it('latestIso: compara por timestamp parseado (timezone offsets)', () => {
+    const incidents = [
+      inc({ id: '1', workerUid: 'w', occurredAt: '2026-05-11T00:15:00Z' }),
+      // Este es POSTERIOR cronológicamente (23:30 GMT-3 = 02:30 UTC siguiente día)
+      inc({ id: '2', workerUid: 'w', occurredAt: '2026-05-11T23:30:00-03:00' }),
+      inc({ id: '3', workerUid: 'w', occurredAt: '2026-05-10T00:00:00Z' }),
+    ];
+    const r = buildRepeatingRiskRadar(incidents, { minOccurrences: 3, windowDays: 90, now: NOW });
+    const p = r.patterns.find((x) => x.kind === 'same_worker_repeated');
+    expect(p?.lastSeenAt).toBe('2026-05-11T23:30:00-03:00');
+  });
+
+  it('time_cluster: ID estable ante backfill anterior', () => {
+    // Caso 1: incident a + b + c en marzo (bucket fijo de 14d)
+    const base = [
+      inc({ id: 'a', occurredAt: '2026-03-10T00:00:00Z' }),
+      inc({ id: 'b', occurredAt: '2026-03-11T00:00:00Z' }),
+      inc({ id: 'c', occurredAt: '2026-03-12T00:00:00Z' }),
+    ];
+    const r1 = buildRepeatingRiskRadar(base, { minOccurrences: 3, windowDays: 90, now: NOW });
+    const c1 = r1.patterns.find((p) => p.kind === 'time_cluster');
+    // Backfill: el mismo cluster, mismo bucket — debería tener el mismo ID
+    const withBackfill = [
+      ...base,
+      inc({ id: 'before', occurredAt: '2026-03-09T00:00:00Z' }),
+    ];
+    const r2 = buildRepeatingRiskRadar(withBackfill, { minOccurrences: 3, windowDays: 90, now: NOW });
+    const c2 = r2.patterns.find((p) => p.kind === 'time_cluster');
+    // ambos buckets caen en el mismo 14-d window — IDs idénticos
+    expect(c2?.id).toBe(c1?.id);
+  });
+});
+
 describe('toInboxAlerts', () => {
   it('mapea patterns a shape compatible con F.8', () => {
     // Spread temporal para evitar time_cluster (>14 días entre primero y último)
