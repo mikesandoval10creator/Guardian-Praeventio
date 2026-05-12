@@ -22,7 +22,7 @@
 import { Router } from 'express';
 import admin from 'firebase-admin';
 import { logger } from '../../utils/logger.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import { checkOverdueMaintenance } from '../jobs/checkOverdueMaintenance.js';
 import { checkExpiredPpe } from '../jobs/checkExpiredPpe.js';
 import { sendSusesoReminders } from '../jobs/sendSusesoReminders.js';
@@ -34,16 +34,6 @@ import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 // projects/tasks collection is not seeded yet, so the cron is safe to
 // run from day one.
 import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendarPreWarn.js';
-
-function captureRouteError(err: unknown, endpoint: string): void {
-  try {
-    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
-      endpoint,
-    } as Record<string, string | number | boolean | null | undefined>);
-  } catch (e) {
-    logger.warn?.('observability.capture_failed', { err: String(e) });
-  }
-}
 
 const router = Router();
 

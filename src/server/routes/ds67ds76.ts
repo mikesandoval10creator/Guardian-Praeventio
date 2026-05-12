@@ -22,7 +22,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   createDs67Form,
   signForm as signDs67Form,
@@ -40,24 +40,6 @@ import type { Ds67Form, Ds67Signature } from '../../services/compliance/ds67/typ
 import type { Ds76Form, Ds76Signature } from '../../services/compliance/ds76/types.js';
 import { generateDs67Pdf } from '../../utils/ds67Certificate.js';
 import { generateDs76Pdf } from '../../utils/ds76Certificate.js';
-
-/**
- * Sentry coverage helper — Fase D.13.a (batch 2).
- */
-function captureRouteError(
-  err: unknown,
-  endpoint: string,
-  extra: Record<string, string | number | boolean | null | undefined> = {},
-): void {
-  try {
-    getErrorTracker().captureException(
-      err instanceof Error ? err : new Error(String(err)),
-      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
-    );
-  } catch (e) {
-    logger.warn?.('observability.capture_failed', { err: String(e) });
-  }
-}
 
 const router = Router();
 

@@ -29,27 +29,9 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const VALID_PLATFORMS = new Set<string>(['ios', 'android', 'web']);
-
-/**
- * Sentry coverage helper — Fase D.13.a (batch 2).
- */
-function captureRouteError(
-  err: unknown,
-  endpoint: string,
-  extra: Record<string, string | number | boolean | null | undefined> = {},
-): void {
-  try {
-    getErrorTracker().captureException(
-      err instanceof Error ? err : new Error(String(err)),
-      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
-    );
-  } catch (e) {
-    logger.warn?.('observability.capture_failed', { err: String(e) });
-  }
-}
 
 const router = Router();
 

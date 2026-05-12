@@ -27,7 +27,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   getAdapter,
   getSuggestedAdapters,
@@ -41,24 +41,6 @@ import {
   DOCTOR_ROLES,
   SUPERVISOR_ROLES,
 } from '../../types/roles.js';
-
-/**
- * Sentry coverage helper — Fase D.13.a (batch 2).
- */
-function captureRouteError(
-  err: unknown,
-  endpoint: string,
-  extra: Record<string, string | number | boolean | null | undefined> = {},
-): void {
-  try {
-    getErrorTracker().captureException(
-      err instanceof Error ? err : new Error(String(err)),
-      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
-    );
-  } catch (e) {
-    logger.warn?.('observability.capture_failed', { err: String(e) });
-  }
-}
 
 const router = Router();
 

@@ -23,7 +23,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 // Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   recordConsent,
   revokeConsent,
@@ -65,24 +65,6 @@ function getDb(): MinimalComplianceDb {
   // structurally compatible at the call sites we use. The cast is the same
   // pattern as `assertProjectMember(uid, projectId, admin.firestore())`.
   return admin.firestore() as unknown as MinimalComplianceDb;
-}
-
-/**
- * Sentry coverage helper — Fase D.13.a (batch 2).
- */
-function captureRouteError(
-  err: unknown,
-  endpoint: string,
-  extra: Record<string, string | number | boolean | null | undefined> = {},
-): void {
-  try {
-    getErrorTracker().captureException(
-      err instanceof Error ? err : new Error(String(err)),
-      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
-    );
-  } catch (e) {
-    logger.warn?.('observability.capture_failed', { err: String(e) });
-  }
 }
 
 const router = Router();

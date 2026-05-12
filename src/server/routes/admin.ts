@@ -32,7 +32,7 @@ import {
   isAdminRole,
 } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 // 15th wave (Bucket D): real server analytics adapter — closes the 13th
 // wave Sentry-breadcrumb deferral for `auth.role.granted/revoked`.
 import { serverAnalytics } from '../../services/analytics/serverAdapter.js';
@@ -66,24 +66,6 @@ import { geminiCircuit } from '../middleware/geminiCircuit.js';
 
 // Firebase Auth uid format constraint shared by privileged admin endpoints.
 const UID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
-
-/**
- * Sentry coverage helper — Fase D.13.a (batch 2).
- */
-function captureRouteError(
-  err: unknown,
-  endpoint: string,
-  extra: Record<string, string | number | boolean | null | undefined> = {},
-): void {
-  try {
-    getErrorTracker().captureException(
-      err instanceof Error ? err : new Error(String(err)),
-      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
-    );
-  } catch (e) {
-    logger.warn?.('observability.capture_failed', { err: String(e) });
-  }
-}
 
 /**
  * Map a Firestore/Auth domain role (the granular operational role like
