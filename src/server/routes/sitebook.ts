@@ -24,6 +24,17 @@ import {
 } from '../../services/siteBook/siteBookService.js';
 import { SiteBookAdapter } from '../../services/siteBook/siteBookFirestoreAdapter.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function captureRouteError(err: unknown, endpoint: string): void {
+  try {
+    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
+      endpoint,
+    } as Record<string, string | number | boolean | null | undefined>);
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -167,6 +178,7 @@ router.post(
         return res.status(400).json({ error: err.code, message: err.message });
       }
       logger.error?.('sitebook.create.error', err);
+      captureRouteError(err, 'sitebook.create');
       return res.status(500).json({ error: 'internal_error' });
     }
   },

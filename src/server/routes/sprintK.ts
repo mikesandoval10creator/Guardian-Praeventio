@@ -29,6 +29,17 @@ import { PositiveObservationsAdapter } from '../../services/positiveObservations
 import { WasteAdapter } from '../../services/environmental/wasteFirestoreAdapter.js';
 import { VisitorAdapter } from '../../services/visitors/visitorFirestoreAdapter.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+function captureRouteError(err: unknown, endpoint: string, extra: Record<string, string | number | boolean | null | undefined> = {}): void {
+  try {
+    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
+      endpoint, ...extra,
+    } as Record<string, string | number | boolean | null | undefined>);
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -84,6 +95,7 @@ router.get('/:projectId/vulnerability/latest', verifyAuth, async (req, res) => {
     return res.json({ snapshot: latest });
   } catch (err) {
     logger.error?.('sprintK.vulnerability.latest.error', err);
+    captureRouteError(err, 'sprintK.vulnerability.latest');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -103,6 +115,7 @@ router.get('/:projectId/sif/pending-review', verifyAuth, async (req, res) => {
     return res.json({ precursors: pending });
   } catch (err) {
     logger.error?.('sprintK.sif.pending.error', err);
+    captureRouteError(err, 'sprintK.sif.pending');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -134,6 +147,7 @@ router.post(
       return res.status(204).end();
     } catch (err) {
       logger.error?.('sprintK.sif.review.error', err);
+      captureRouteError(err, 'sprintK.sif.review');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -161,6 +175,7 @@ router.get(
       return res.json({ observations: list });
     } catch (err) {
       logger.error?.('sprintK.positive.error', err);
+      captureRouteError(err, 'sprintK.positive.list');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -208,6 +223,7 @@ router.post(
       return res.status(201).json({ ok: true });
     } catch (err) {
       logger.error?.('sprintK.positive.create.error', err);
+      captureRouteError(err, 'sprintK.positive.create');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -232,6 +248,7 @@ router.get('/:projectId/waste/inventory', verifyAuth, async (req, res) => {
     return res.json({ wastes: stock, pendingManifests, permits });
   } catch (err) {
     logger.error?.('sprintK.waste.error', err);
+    captureRouteError(err, 'sprintK.waste');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -251,6 +268,7 @@ router.get('/:projectId/visitors/active', verifyAuth, async (req, res) => {
     return res.json({ visitors: list });
   } catch (err) {
     logger.error?.('sprintK.visitors.error', err);
+    captureRouteError(err, 'sprintK.visitors');
     return res.status(500).json({ error: 'internal_error' });
   }
 });

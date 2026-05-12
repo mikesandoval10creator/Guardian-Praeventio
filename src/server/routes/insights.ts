@@ -39,6 +39,27 @@ import {
   type UserRole,
 } from '../../services/roleViews/roleViewBuilder.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+/**
+ * Sentry coverage helper — Fase D.13.a.
+ * Captures the original error AND logs a structured event for the
+ * tracker. Never throws so a misbehaving tracker can't break the route.
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(err instanceof Error ? err : new Error(String(err)), {
+      endpoint,
+      ...extra,
+    } as Record<string, string | number | boolean | null | undefined>);
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -85,6 +106,7 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
     return res.json({ topRisks, weakControls, computedAt: new Date().toISOString() });
   } catch (err) {
     logger.error?.('insights.risk_ranking.error', err);
+    captureRouteError(err, 'insights.risk_ranking');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -152,6 +174,7 @@ router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
     } } });
   } catch (err) {
     logger.error?.('insights.safety_talks.error', err);
+    captureRouteError(err, 'insights.safety_talks');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -247,6 +270,7 @@ router.get('/:projectId/role-view', verifyAuth, async (req, res) => {
     return res.json({ state, cards, userEmail: callerEmail });
   } catch (err) {
     logger.error?.('insights.role_view.error', err);
+    captureRouteError(err, 'insights.role_view');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
