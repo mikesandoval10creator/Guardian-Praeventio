@@ -29,6 +29,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const VALID_PLATFORMS = new Set<string>(['ios', 'android', 'web']);
 
@@ -79,6 +80,7 @@ router.post('/register-token', verifyAuth, async (req, res) => {
       platform,
       message: error?.message,
     });
+    captureRouteError(error, 'push.register_token', { uid: callerUid, platform });
     res.status(500).json({
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,

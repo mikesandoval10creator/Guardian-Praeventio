@@ -12,9 +12,11 @@ import {
   FileText,
   CheckCircle2,
 } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 import { Card, Button } from "../components/shared/Card";
 
 export function BlueprintViewer() {
+  const { t } = useTranslation();
   const [scale, setScale] = useState(1);
   const [activeLayer, setActiveLayer] = useState<
     "all" | "structural" | "electrical" | "hvac" | "safety"
@@ -31,10 +33,10 @@ export function BlueprintViewer() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Map className="w-8 h-8 text-blue-500" />
-            Visor de Planos Avanzado
+            {t('blueprintViewer.header.title', 'Visor de Planos Avanzado')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Análisis de Layout y Nodos de Riesgo
+            {t('blueprintViewer.header.subtitle', 'Análisis de Layout y Nodos de Riesgo')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -42,12 +44,12 @@ export function BlueprintViewer() {
             variant="outline"
             onClick={() => setShowRiskNodes(!showRiskNodes)}
           >
-            {showRiskNodes ? "Ocultar Nodos" : "Mostrar Nodos"}
+            {showRiskNodes ? t('blueprintViewer.actions.hideNodes', 'Ocultar Nodos') : t('blueprintViewer.actions.showNodes', 'Mostrar Nodos')}
           </Button>
           <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-blue-500 bg-blue-500/10 border-blue-500/20">
             <Layers className="w-5 h-5" />
             <span className="font-bold uppercase tracking-wider text-sm">
-              Capa: {activeLayer}
+              {t('blueprintViewer.layer.label', 'Capa')}: {activeLayer}
             </span>
           </div>
         </div>
@@ -58,15 +60,15 @@ export function BlueprintViewer() {
         <Card className="p-6 border-white/5 space-y-6 lg:col-span-1">
           <div>
             <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">
-              Capas del Plano
+              {t('blueprintViewer.layers.title', 'Capas del Plano')}
             </h3>
             <div className="space-y-2">
               {[
-                { id: "all", label: "Todas las Capas" },
-                { id: "structural", label: "Estructural" },
-                { id: "electrical", label: "Eléctrico" },
-                { id: "hvac", label: "Climatización" },
-                { id: "safety", label: "Seguridad / Evacuación" },
+                { id: "all", label: t('blueprintViewer.layers.all', 'Todas las Capas') },
+                { id: "structural", label: t('blueprintViewer.layers.structural', 'Estructural') },
+                { id: "electrical", label: t('blueprintViewer.layers.electrical', 'Eléctrico') },
+                { id: "hvac", label: t('blueprintViewer.layers.hvac', 'Climatización') },
+                { id: "safety", label: t('blueprintViewer.layers.safety', 'Seguridad / Evacuación') },
               ].map((layer) => (
                 <button
                   key={layer.id}
@@ -85,7 +87,7 @@ export function BlueprintViewer() {
 
           <div>
             <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wider">
-              Herramientas
+              {t('blueprintViewer.tools.title', 'Herramientas')}
             </h3>
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -94,7 +96,7 @@ export function BlueprintViewer() {
                 onClick={handleZoomIn}
               >
                 <ZoomIn className="w-5 h-5 mb-2" />
-                <span className="text-xs">Acercar</span>
+                <span className="text-xs">{t('blueprintViewer.tools.zoomIn', 'Acercar')}</span>
               </Button>
               <Button
                 variant="outline"
@@ -102,7 +104,7 @@ export function BlueprintViewer() {
                 onClick={handleZoomOut}
               >
                 <ZoomOut className="w-5 h-5 mb-2" />
-                <span className="text-xs">Alejar</span>
+                <span className="text-xs">{t('blueprintViewer.tools.zoomOut', 'Alejar')}</span>
               </Button>
               <Button
                 variant="outline"
@@ -110,14 +112,14 @@ export function BlueprintViewer() {
                 onClick={handleReset}
               >
                 <Maximize className="w-5 h-5 mb-2" />
-                <span className="text-xs">Ajustar</span>
+                <span className="text-xs">{t('blueprintViewer.tools.fit', 'Ajustar')}</span>
               </Button>
               <Button
                 variant="outline"
                 className="flex flex-col items-center justify-center py-4 h-auto"
               >
                 <Move className="w-5 h-5 mb-2" />
-                <span className="text-xs">Mover</span>
+                <span className="text-xs">{t('blueprintViewer.tools.move', 'Mover')}</span>
               </Button>
             </div>
           </div>
@@ -152,13 +154,13 @@ export function BlueprintViewer() {
 
               {/* Rooms Labels */}
               <div className="absolute top-10 left-10 text-zinc-500 font-mono text-sm uppercase">
-                Zona de Acopio
+                {t('blueprintViewer.rooms.storage', 'Zona de Acopio')}
               </div>
               <div className="absolute top-10 right-10 text-zinc-500 font-mono text-sm uppercase">
-                Taller Mecánico
+                {t('blueprintViewer.rooms.workshop', 'Taller Mecánico')}
               </div>
               <div className="absolute bottom-10 right-10 text-zinc-500 font-mono text-sm uppercase">
-                Oficinas
+                {t('blueprintViewer.rooms.offices', 'Oficinas')}
               </div>
 
               {/* Risk Nodes Overlay */}
@@ -179,11 +181,10 @@ export function BlueprintViewer() {
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-zinc-900 border border-red-500/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                           <p className="text-xs font-bold text-red-400 uppercase mb-1">
-                            Riesgo Químico
+                            {t('blueprintViewer.risks.chemical.title', 'Riesgo Químico')}
                           </p>
                           <p className="text-[10px] text-zinc-400">
-                            Almacenamiento de solventes cerca de zona de
-                            tránsito.
+                            {t('blueprintViewer.risks.chemical.desc', 'Almacenamiento de solventes cerca de zona de tránsito.')}
                           </p>
                         </div>
                       </div>
@@ -203,11 +204,10 @@ export function BlueprintViewer() {
                         {/* Tooltip */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-zinc-900 border border-yellow-500/30 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                           <p className="text-xs font-bold text-yellow-400 uppercase mb-1">
-                            Riesgo Eléctrico
+                            {t('blueprintViewer.risks.electrical.title', 'Riesgo Eléctrico')}
                           </p>
                           <p className="text-[10px] text-zinc-400">
-                            Tablero principal expuesto sin señalización
-                            adecuada.
+                            {t('blueprintViewer.risks.electrical.desc', 'Tablero principal expuesto sin señalización adecuada.')}
                           </p>
                         </div>
                       </div>
@@ -220,7 +220,7 @@ export function BlueprintViewer() {
 
           {/* Scale Indicator */}
           <div className="absolute bottom-4 right-4 px-3 py-1 bg-black/50 backdrop-blur-md border border-white/10 rounded-lg text-xs font-mono text-zinc-400">
-            Escala: {Math.round(scale * 100)}%
+            {t('blueprintViewer.scale.label', 'Escala')}: {Math.round(scale * 100)}%
           </div>
         </Card>
       </div>

@@ -33,6 +33,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
@@ -86,6 +87,7 @@ router.post('/audit-log', verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     logger.error('audit_log_write_failed', { uid: callerUid, action, message: error?.message });
+    captureRouteError(error, 'audit.log_write', { uid: callerUid, action });
     res.status(500).json({
       error: 'Audit log write failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,

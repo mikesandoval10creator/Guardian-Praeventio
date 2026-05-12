@@ -29,6 +29,7 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
@@ -116,6 +117,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
       projectId,
       message: error?.message,
     });
+    captureRouteError(error, 'commute.start', { uid: callerUid, projectId });
     return res.status(500).json({ error: 'commute start failed' });
   }
 });
@@ -165,6 +167,7 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
     }
   } catch (err: any) {
     logger.error('commute_sample_lookup_failed', { uid: callerUid, sessionId, message: err?.message });
+    captureRouteError(err, 'commute.sample_lookup', { uid: callerUid, sessionId });
     return res.status(500).json({ error: 'commute sample failed' });
   }
   if (!sessionDoc) {
@@ -193,6 +196,7 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
     return res.json({ success: true });
   } catch (error: any) {
     logger.error('commute_sample_failed', { uid: callerUid, sessionId, message: error?.message });
+    captureRouteError(error, 'commute.sample', { uid: callerUid, sessionId });
     return res.status(500).json({ error: 'commute sample failed' });
   }
 });
@@ -217,6 +221,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
     if (!groupSnap.empty) sessionDoc = groupSnap.docs[0];
   } catch (err: any) {
     logger.error('commute_end_lookup_failed', { uid: callerUid, sessionId, message: err?.message });
+    captureRouteError(err, 'commute.end_lookup', { uid: callerUid, sessionId });
     return res.status(500).json({ error: 'commute end failed' });
   }
   if (!sessionDoc) {
@@ -245,6 +250,7 @@ router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
     return res.json({ success: true });
   } catch (error: any) {
     logger.error('commute_end_failed', { uid: callerUid, sessionId, message: error?.message });
+    captureRouteError(error, 'commute.end', { uid: callerUid, sessionId });
     return res.status(500).json({ error: 'commute end failed' });
   }
 });
