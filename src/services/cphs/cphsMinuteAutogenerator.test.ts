@@ -69,6 +69,20 @@ describe('buildMonthlyMinuteDraft', () => {
     expect(draft.markdown).toMatch(/Abiertas: \*\*2\*\*/);
   });
 
+  it('acepta status "verified" (legacy F.4) como cerrada — Codex P2 PR #95', () => {
+    const draft = buildMonthlyMinuteDraft(
+      inputs({
+        correctiveActions: [
+          { id: 'a1', status: 'verified', label: 'legacy verified' },
+          { id: 'a2', status: 'verified_effective', label: 'nuevo verified' },
+          { id: 'a3', status: 'open', label: 'abierta' },
+        ],
+      }),
+    );
+    expect(draft.metrics.openActionsCount).toBe(1);
+    expect(draft.metrics.closedActionsCount).toBe(2);
+  });
+
   it('totaliza participantes de capacitaciones', () => {
     const draft = buildMonthlyMinuteDraft(
       inputs({

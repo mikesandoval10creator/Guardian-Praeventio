@@ -30,10 +30,13 @@ export interface MonthlyInputs {
     description: string;
     rootCauseKnown: boolean;
   }>;
-  /** Acciones correctivas abiertas/cerradas (F.4). */
+  /** Acciones correctivas abiertas/cerradas (F.4).
+   *  Acepta 'verified' (legacy weakActionDetector) y 'verified_effective'
+   *  (correctiveActionsCenter nuevo) como cerrada verificada
+   *  (Codex P2 PR #95). */
   correctiveActions: Array<{
     id: string;
-    status: 'open' | 'in_progress' | 'closed' | 'verified_effective';
+    status: 'open' | 'in_progress' | 'closed' | 'verified' | 'verified_effective';
     dueDate?: string;
     label: string;
   }>;
@@ -126,7 +129,7 @@ function suggestResolutions(
   }
 
   // 2) Action backlog
-  const open = input.correctiveActions.filter((a) => a.status !== 'closed' && a.status !== 'verified_effective');
+  const open = input.correctiveActions.filter((a) => a.status !== 'closed' && a.status !== 'verified' && a.status !== 'verified_effective');
   if (open.length >= 5) {
     out.push({
       text: `Priorizar y reasignar las ${open.length} acciones correctivas abiertas; revisar acumulación.`,
@@ -174,10 +177,10 @@ export function buildMonthlyMinuteDraft(input: MonthlyInputs): MinuteDraft {
     (i) => i.severity === 'critical' || i.severity === 'high',
   ).length;
   const openActions = input.correctiveActions.filter(
-    (a) => a.status !== 'closed' && a.status !== 'verified_effective',
+    (a) => a.status !== 'closed' && a.status !== 'verified' && a.status !== 'verified_effective',
   );
   const closedActions = input.correctiveActions.filter(
-    (a) => a.status === 'closed' || a.status === 'verified_effective',
+    (a) => a.status === 'closed' || a.status === 'verified' || a.status === 'verified_effective',
   );
 
   const sections: string[] = [];
