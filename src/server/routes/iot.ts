@@ -33,6 +33,7 @@ import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
@@ -58,6 +59,24 @@ const RegisterDeviceSchema = z.object({
   type: z.enum(IOT_DEVICE_TYPES),
   secret: z.string().min(8).max(512).optional(),
 });
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -144,6 +163,7 @@ router.post(
         deviceId,
         projectId,
       });
+      captureRouteError(err, 'iot.device_register', { callerUid, deviceId, projectId });
       return res.status(500).json({ error: 'iot_device_register_failed' });
     }
   },

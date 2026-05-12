@@ -33,6 +33,25 @@ import {
   ProjectMembershipError,
 } from '../../services/auth/projectMembership.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -86,6 +105,7 @@ router.post('/audit-log', verifyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     logger.error('audit_log_write_failed', { uid: callerUid, action, message: error?.message });
+    captureRouteError(error, 'audit.log_write', { uid: callerUid, action });
     res.status(500).json({
       error: 'Audit log write failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,

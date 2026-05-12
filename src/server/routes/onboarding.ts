@@ -35,9 +35,28 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { idempotencyKey } from '../middleware/idempotencyKey.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 import { EmailService } from '../../services/email/resendService.js';
 import { projectInvitationTemplate } from '../../services/email/templates.js';
 import { TIERS } from '../../services/pricing/tiers.js';
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 export const onboardingRouter = Router();
 
@@ -149,6 +168,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     );
   } catch (writeErr) {
     logger.error('onboarding_user_write_failed', writeErr as Error, { uid });
+    captureRouteError(writeErr, 'onboarding.user_write', { uid });
     return res.status(500).json({ error: 'persist_failed' });
   }
 
@@ -172,6 +192,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     });
   } catch (projErr) {
     logger.error('onboarding_project_create_failed', projErr as Error, { uid });
+    captureRouteError(projErr, 'onboarding.project_create', { uid });
     return res.status(500).json({ error: 'project_create_failed' });
   }
 

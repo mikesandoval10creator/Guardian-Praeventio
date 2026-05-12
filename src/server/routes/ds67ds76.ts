@@ -22,6 +22,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 import {
   createDs67Form,
   signForm as signDs67Form,
@@ -39,6 +40,24 @@ import type { Ds67Form, Ds67Signature } from '../../services/compliance/ds67/typ
 import type { Ds76Form, Ds76Signature } from '../../services/compliance/ds76/types.js';
 import { generateDs67Pdf } from '../../utils/ds67Certificate.js';
 import { generateDs76Pdf } from '../../utils/ds76Certificate.js';
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -185,6 +204,7 @@ router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
     });
   } catch (err) {
     logger.error('ds67_create_failed', { err: String(err) });
+    captureRouteError(err, 'ds67.create');
     res.status(500).json({ error: 'ds67_create_failed' });
   }
 });
@@ -207,6 +227,7 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
     res.end(Buffer.from(bytes));
   } catch (err) {
     logger.error('ds67_pdf_failed', { err: String(err) });
+    captureRouteError(err, 'ds67.pdf');
     res.status(500).json({ error: 'ds67_pdf_failed' });
   }
 });
@@ -256,6 +277,7 @@ router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
     });
   } catch (err) {
     logger.error('ds76_create_failed', { err: String(err) });
+    captureRouteError(err, 'ds76.create');
     res.status(500).json({ error: 'ds76_create_failed' });
   }
 });
@@ -278,6 +300,7 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
     res.end(Buffer.from(bytes));
   } catch (err) {
     logger.error('ds76_pdf_failed', { err: String(err) });
+    captureRouteError(err, 'ds76.pdf');
     res.status(500).json({ error: 'ds76_pdf_failed' });
   }
 });

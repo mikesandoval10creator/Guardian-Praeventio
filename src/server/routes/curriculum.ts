@@ -34,6 +34,25 @@ import {
   webauthnRegisterLimiter,
 } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 import {
   createClaim as curriculumCreateClaim,
@@ -161,6 +180,7 @@ export function buildCurriculumAuditor(
       });
     } catch (err: any) {
       logger.error('curriculum_audit_failed', { action, message: err?.message });
+      captureRouteError(err, 'curriculum.audit_write', { action });
     }
   };
 }
@@ -368,6 +388,10 @@ router.post('/claim', verifyAuth, async (req, res) => {
             refereeIndex: idx,
             message: (emailErr as any)?.message,
           });
+          captureRouteError(emailErr, 'curriculum.claim_email', {
+            claimId: result.id,
+            refereeIndex: idx,
+          });
         }
       }),
     );
@@ -380,6 +404,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
       return res.status(400).json({ error: message });
     }
     logger.error('curriculum_claim_create_failed', { uid: callerUid, message });
+    captureRouteError(error, 'curriculum.claim_create', { uid: callerUid });
     res.status(500).json({
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : message,
     });
@@ -394,6 +419,7 @@ router.get('/claims', verifyAuth, async (req, res) => {
     res.json({ success: true, claims });
   } catch (error: any) {
     logger.error('curriculum_claims_list_failed', { uid: callerUid, message: error?.message });
+    captureRouteError(error, 'curriculum.claims_list', { uid: callerUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -456,10 +482,12 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
         claimId,
         message: (emailErr as any)?.message,
       });
+      captureRouteError(emailErr, 'curriculum.resend_email', { claimId });
     }
     res.json({ success: true });
   } catch (error: any) {
     logger.error('curriculum_resend_failed', { uid: callerUid, message: error?.message });
+    captureRouteError(error, 'curriculum.resend', { uid: callerUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -527,6 +555,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
     });
   } catch (error: any) {
     logger.error('curriculum_referee_preview_failed', { message: error?.message });
+    captureRouteError(error, 'curriculum.referee_preview');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -620,6 +649,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
     if (/already/i.test(message)) return res.status(409).json({ error: message });
     if (/token|match/i.test(message)) return res.status(404).json({ error: message });
     logger.error('curriculum_referee_endorse_failed', { message });
+    captureRouteError(error, 'curriculum.referee_endorse');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -650,6 +680,7 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
       uid: callerUid,
       message: error?.message,
     });
+    captureRouteError(error, 'curriculum.webauthn_challenge', { uid: callerUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -862,6 +893,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
       uid: callerUid,
       message: error?.message,
     });
+    captureRouteError(error, 'curriculum.webauthn_verify', { uid: callerUid });
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -939,6 +971,7 @@ webauthnChallengeRouter.post(
         uid: callerUid,
         message: error?.message,
       });
+      captureRouteError(error, 'curriculum.webauthn_register_options', { uid: callerUid });
       return res.status(500).json({ error: 'Internal server error' });
     }
   },
@@ -1059,6 +1092,7 @@ webauthnChallengeRouter.post(
         uid: callerUid,
         message: error?.message,
       });
+      captureRouteError(error, 'curriculum.webauthn_register_verify', { uid: callerUid });
       return res.status(500).json({ error: 'Internal server error' });
     }
   },

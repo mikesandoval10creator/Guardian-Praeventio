@@ -26,6 +26,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier.js';
 // Bucket BB shipped — we depend on the canonical key service directly.
@@ -36,6 +37,24 @@ import {
 } from '../../services/b2d/apiKeyService.js';
 
 const router = Router();
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const VALID_TIER_IDS: ReadonlySet<string> = new Set(API_TIERS.map((t) => t.id));
 const CUSTOMER_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
@@ -56,6 +75,7 @@ async function assertAdmin(req: any, res: any): Promise<boolean> {
     return true;
   } catch (error) {
     logger.error('b2d_admin_assert_failed', error, { callerUid });
+    captureRouteError(error, 'b2dAdmin.assert_admin', { callerUid });
     res.status(500).json({ error: 'Internal server error' });
     return false;
   }
@@ -111,6 +131,7 @@ router.get('/keys', verifyAuth, async (req, res) => {
     res.json({ ok: true, keys });
   } catch (error) {
     logger.error('b2d_admin_keys_list_failed', error);
+    captureRouteError(error, 'b2dAdmin.keys_list');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -180,6 +201,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
     res.json({ ok: true, id, rawKey, maskedKey });
   } catch (error) {
     logger.error('b2d_admin_keys_create_failed', error, { callerUid });
+    captureRouteError(error, 'b2dAdmin.keys_create', { callerUid });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -216,6 +238,7 @@ router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
     res.json({ ok: true, id });
   } catch (error) {
     logger.error('b2d_admin_keys_revoke_failed', error, { callerUid, id });
+    captureRouteError(error, 'b2dAdmin.keys_revoke', { callerUid, id });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -230,6 +253,7 @@ router.get('/metrics', verifyAuth, async (req, res) => {
     res.json({ ok: true, metrics });
   } catch (error) {
     logger.error('b2d_admin_metrics_failed', error);
+    captureRouteError(error, 'b2dAdmin.metrics');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -274,6 +298,7 @@ router.get('/events', verifyAuth, async (req, res) => {
     // The composite range+order query needs an index; surface a clean
     // empty result if the index isn't built yet rather than a 500.
     logger.error('b2d_admin_events_failed', error);
+    captureRouteError(error, 'b2dAdmin.events');
     res.json({ ok: true, from, to, events: [] });
   }
 });

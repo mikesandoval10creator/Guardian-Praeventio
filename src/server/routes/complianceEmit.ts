@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { getErrorTracker } from '../../services/observability/index.js';
 import {
   getAdapter,
   getSuggestedAdapters,
@@ -40,6 +41,24 @@ import {
   DOCTOR_ROLES,
   SUPERVISOR_ROLES,
 } from '../../types/roles.js';
+
+/**
+ * Sentry coverage helper — Fase D.13.a (batch 2).
+ */
+function captureRouteError(
+  err: unknown,
+  endpoint: string,
+  extra: Record<string, string | number | boolean | null | undefined> = {},
+): void {
+  try {
+    getErrorTracker().captureException(
+      err instanceof Error ? err : new Error(String(err)),
+      { endpoint, ...extra } as Record<string, string | number | boolean | null | undefined>,
+    );
+  } catch (e) {
+    logger.warn?.('observability.capture_failed', { err: String(e) });
+  }
+}
 
 const router = Router();
 
@@ -159,6 +178,7 @@ router.post('/:type', verifyAuth, async (req: Request, res: Response) => {
     });
   } catch (err) {
     logger.error('[complianceEmit] generate failed', { err, country, type });
+    captureRouteError(err, 'complianceEmit.generate', { country, type });
     await auditServerEvent(req, `compliance.emit.${country}.${type}`, 'compliance', {
       result: 'error',
       message: err instanceof Error ? err.message : 'unknown',
