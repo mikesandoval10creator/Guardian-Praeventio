@@ -41,13 +41,22 @@ export interface Gap {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Domain shapes — campos mínimos que el scanner necesita
+// Domain shapes — campos mínimos que el scanner necesita.
+//
+// Codex P1 PR #98: aceptar AMBOS shapes (documentado y real persistido)
+// para evitar falsos positivos. Los aliases reflejan lo que el app
+// realmente guarda (`Worker.name/role`, `EPPAssignment.assignedAt`,
+// `TrainingSession.attendees`, `Project.coordinates`, `ProjectDocument.name`).
 // ────────────────────────────────────────────────────────────────────────
 
 export interface WorkerLike {
   id: string;
   fullName?: string;
+  /** Alias real del modelo `Worker`. */
+  name?: string;
   cargo?: string;
+  /** Alias real del modelo `Worker`. */
+  role?: string;
   rut?: string;
   industry?: string;
   joinDate?: string;
@@ -58,7 +67,12 @@ export interface ProjectLike {
   name?: string;
   industry?: string;
   workersCount?: number;
-  location?: { lat?: number; lng?: number };
+  /** Documentado por el scanner. */
+  location?: { lat?: number; lng?: number } | string;
+  /** Alias real (`ProjectContext`). */
+  coordinates?: { lat?: number; lng?: number };
+  /** Otro alias del campo geo. */
+  geo?: { lat?: number; lng?: number };
 }
 
 export interface EppAssignmentLike {
@@ -66,12 +80,16 @@ export interface EppAssignmentLike {
   workerUid?: string;
   eppLabel?: string;
   deliveredAt?: string;
+  /** Alias real del modelo `EPPAssignment`. */
+  assignedAt?: string;
   expiresAt?: string;
 }
 
 export interface DocumentLike {
   id: string;
   title?: string;
+  /** Alias real del modelo `ProjectDocument` + EPP acta writer. */
+  name?: string;
   approvedByUid?: string;
   approvedAt?: string;
   kind?: string;
@@ -98,6 +116,8 @@ export interface TrainingLike {
   title?: string;
   expiresAt?: string;
   participants?: string[];
+  /** Alias real del modelo `TrainingSession`. */
+  attendees?: string[];
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -119,7 +139,8 @@ function isFiniteNumber(v: unknown): boolean {
 export function scanWorkers(workers: WorkerLike[]): Gap[] {
   const gaps: Gap[] = [];
   for (const w of workers) {
-    if (!isNonEmpty(w.fullName)) {
+    // Codex P1 PR #98: acepta fullName ó name (alias real del modelo Worker).
+    if (!isNonEmpty(w.fullName) && !isNonEmpty(w.name)) {
       gaps.push({
         docId: w.id,
         domain: 'worker',
@@ -129,7 +150,8 @@ export function scanWorkers(workers: WorkerLike[]): Gap[] {
         quickFixHint: 'Completar nombre + apellidos en /workers/' + w.id,
       });
     }
-    if (!isNonEmpty(w.cargo)) {
+    // Codex P1 PR #98: acepta cargo ó role (alias real del modelo Worker).
+    if (!isNonEmpty(w.cargo) && !isNonEmpty(w.role)) {
       gaps.push({
         docId: w.id,
         domain: 'worker',
@@ -186,17 +208,23 @@ export function scanProjects(projects: ProjectLike[]): Gap[] {
         quickFixHint: 'Elegir industria del wizard PYME',
       });
     }
-    if (!isFiniteNumber(p.workersCount)) {
+    // Codex P2 PR #98: reject negative workersCount como inválido.
+    if (!isFiniteNumber(p.workersCount) || (p.workersCount as number) < 0) {
       gaps.push({
         docId: p.id,
         domain: 'project',
         field: 'workersCount',
-        reason: 'Sin dotación declarada — afecta umbrales legales (≥25 → CPHS)',
+        reason: 'Sin dotación válida — afecta umbrales legales (≥25 → CPHS)',
         severity: 'medium',
-        quickFixHint: 'Declarar dotación inicial',
+        quickFixHint: 'Declarar dotación inicial (entero ≥0)',
       });
     }
-    if (!p.location || !isFiniteNumber(p.location.lat) || !isFiniteNumber(p.location.lng)) {
+    // Codex P2 PR #98: acepta location object O coordinates/geo (aliases reales).
+    const geoCandidate =
+      typeof p.location === 'object' && p.location !== null
+        ? (p.location as { lat?: number; lng?: number })
+        : p.coordinates ?? p.geo;
+    if (!geoCandidate || !isFiniteNumber(geoCandidate.lat) || !isFiniteNumber(geoCandidate.lng)) {
       gaps.push({
         docId: p.id,
         domain: 'project',
@@ -213,7 +241,8 @@ export function scanProjects(projects: ProjectLike[]): Gap[] {
 export function scanEppAssignments(assignments: EppAssignmentLike[]): Gap[] {
   const gaps: Gap[] = [];
   for (const a of assignments) {
-    if (!a.deliveredAt) {
+    // Codex P2 PR #98: acepta deliveredAt ó assignedAt (alias real del modelo EPPAssignment).
+    if (!a.deliveredAt && !a.assignedAt) {
       gaps.push({
         docId: a.id,
         domain: 'epp_assignment',
@@ -240,7 +269,8 @@ export function scanEppAssignments(assignments: EppAssignmentLike[]): Gap[] {
 export function scanDocuments(docs: DocumentLike[]): Gap[] {
   const gaps: Gap[] = [];
   for (const d of docs) {
-    if (!isNonEmpty(d.title)) {
+    // Codex P2 PR #98: acepta title ó name (alias real ProjectDocument).
+    if (!isNonEmpty(d.title) && !isNonEmpty(d.name)) {
       gaps.push({
         docId: d.id,
         domain: 'document',
@@ -351,7 +381,11 @@ export function scanTrainings(trainings: TrainingLike[]): Gap[] {
         quickFixHint: 'Setear vencimiento (2 años default normativa CL)',
       });
     }
-    if (!Array.isArray(t.participants) || t.participants.length === 0) {
+    // Codex P2 PR #98: acepta participants ó attendees (alias real TrainingSession).
+    const peopleCount =
+      (Array.isArray(t.participants) ? t.participants.length : 0) +
+      (Array.isArray(t.attendees) ? t.attendees.length : 0);
+    if (peopleCount === 0) {
       gaps.push({
         docId: t.id,
         domain: 'training',

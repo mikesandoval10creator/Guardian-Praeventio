@@ -148,6 +148,49 @@ describe('scanAll + qualityScore', () => {
   });
 });
 
+describe('Codex P1+P2 PR #98 — aliases del modelo real', () => {
+  it('worker con name+role (modelo real) → 0 gaps fullName/cargo', () => {
+    const gaps = scanWorkers([
+      { id: 'w', name: 'Ana Soto', role: 'soldador', industry: 'construction' },
+    ]);
+    expect(gaps.find((g) => g.field === 'fullName')).toBeUndefined();
+    expect(gaps.find((g) => g.field === 'cargo')).toBeUndefined();
+  });
+
+  it('EPP con assignedAt → 0 gap deliveredAt', () => {
+    const gaps = scanEppAssignments([
+      { id: 'e1', assignedAt: '2026-05-01T00:00:00Z', expiresAt: '2027-05-01T00:00:00Z' },
+    ]);
+    expect(gaps.find((g) => g.field === 'deliveredAt')).toBeUndefined();
+  });
+
+  it('document con name → 0 gap title', () => {
+    const gaps = scanDocuments([{ id: 'd', name: 'RIOHS 2026' }]);
+    expect(gaps.find((g) => g.field === 'title')).toBeUndefined();
+  });
+
+  it('project con coordinates → 0 gap location', () => {
+    const gaps = scanProjects([
+      { id: 'p', name: 'x', industry: 'y', workersCount: 5, coordinates: { lat: -33, lng: -70 } },
+    ]);
+    expect(gaps.find((g) => g.field === 'location')).toBeUndefined();
+  });
+
+  it('workersCount=-1 → gap workersCount', () => {
+    const gaps = scanProjects([
+      { id: 'p', name: 'x', industry: 'y', workersCount: -1, location: { lat: 0, lng: 0 } },
+    ]);
+    expect(gaps.find((g) => g.field === 'workersCount')).toBeDefined();
+  });
+
+  it('training con attendees → 0 gap participants', () => {
+    const gaps = scanTrainings([
+      { id: 't', title: 'altura', expiresAt: '2027-01-01T00:00:00Z', attendees: ['w1'] },
+    ]);
+    expect(gaps.find((g) => g.field === 'participants')).toBeUndefined();
+  });
+});
+
 describe('pickTopGaps', () => {
   it('prioriza high sobre medium/low', () => {
     const r = scanAll({
