@@ -22,14 +22,19 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { isAdminRole, isSupervisorRole } from '../../types/roles.js';
 
+// Mirrors src/server/routes/photogrammetry.ts (Codex P2 fix on PR #88):
+// regex is relaxed to accept percent-encoded and space-containing GCS object
+// names, and videoUrl is gs://-only (worker rejects HTTPS).
+const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[\w\-./%+ !*'()&$,:;=@~]+$/;
+
 const CreateJobSchema = z.object({
   projectId: z.string().min(1).max(128),
   imageUrls: z
-    .array(z.string().url().or(z.string().regex(/^gs:\/\/[A-Za-z0-9_.\-/]+$/)))
+    .array(z.string().url().or(z.string().regex(GS_URI_REGEX)))
     .min(3)
     .max(500)
     .optional(),
-  videoUrl: z.string().url().or(z.string().regex(/^gs:\/\/[A-Za-z0-9_.\-/]+$/)).optional(),
+  videoUrl: z.string().regex(GS_URI_REGEX, 'videoUrl must be a gs:// URI').optional(),
   name: z.string().min(1).max(256).optional(),
 }).refine(
   (value) => Boolean(value.videoUrl) || Boolean(value.imageUrls && value.imageUrls.length >= 3),
@@ -142,6 +147,8 @@ function buildApp(deps: PhotoTestDeps): Express {
     const prefix = `tenants/${tenantId}/photogrammetry_jobs/`;
     const jobs = Array.from(deps.jobs.entries())
       .filter(([key, job]) => key.startsWith(prefix) && job.projectId === projectId)
+      // Codex P2 (PR #88): mirror Firestore `.orderBy('createdAt', 'desc')`.
+      .sort(([, a], [, b]) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
       .map(([key, job]) => ({
         jobId: key.slice(prefix.length),
         status: job.status === 'running' ? 'processing' : job.status,
@@ -324,6 +331,68 @@ describe('/api/photogrammetry/jobs (Sprint 38 Brecha C)', () => {
     expect(r.body.error).toMatch(/Forbidden/);
     expect(deps.jobs.size).toBe(0);
     expect(deps.fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('Codex P2: GET list returns jobs ordered newest-first by createdAt', async () => {
+    deps.jobs.set('tenants/t1/photogrammetry_jobs/job-old', {
+      projectId: 'p1',
+      tenantId: 't1',
+      status: 'completed',
+      createdAt: 1000,
+    });
+    deps.jobs.set('tenants/t1/photogrammetry_jobs/job-mid', {
+      projectId: 'p1',
+      tenantId: 't1',
+      status: 'completed',
+      createdAt: 2000,
+    });
+    deps.jobs.set('tenants/t1/photogrammetry_jobs/job-new', {
+      projectId: 'p1',
+      tenantId: 't1',
+      status: 'running',
+      createdAt: 3000,
+    });
+
+    const r = await request(buildApp(deps))
+      .get('/api/photogrammetry/jobs')
+      .query({ projectId: 'p1' })
+      .set('Authorization', 'Bearer preven-token');
+
+    expect(r.status).toBe(200);
+    expect(r.body.map((j: any) => j.jobId)).toEqual(['job-new', 'job-mid', 'job-old']);
+  });
+
+  it('Codex P2: rejects HTTPS videoUrl with 400 (worker only supports gs://)', async () => {
+    const r = await request(buildApp(deps))
+      .post('/api/photogrammetry/jobs')
+      .set('Authorization', 'Bearer preven-token')
+      .send({
+        projectId: 'p1',
+        videoUrl: 'https://example.com/walkthrough.mp4',
+      });
+    expect(r.status).toBe(400);
+    expect(deps.jobs.size).toBe(0);
+  });
+
+  it('Codex P2: accepts gs:// path with spaces and percent-encoded chars', async () => {
+    process.env.PHOTOGRAMMETRY_WORKER_URL = 'https://worker.run.app';
+    process.env.PHOTOGRAMMETRY_WORKER_TOKEN = 'tok';
+    deps.fetchSpy.mockResolvedValue({ ok: true, status: 202, json: async () => ({}) });
+
+    const r = await request(buildApp(deps))
+      .post('/api/photogrammetry/jobs')
+      .set('Authorization', 'Bearer preven-token')
+      .send({
+        projectId: 'p1',
+        imageUrls: [
+          'gs://bucket/folder with spaces/a.jpg',
+          'gs://bucket/folder%20encoded/b.jpg',
+          "gs://bucket/o'reilly+1/c.jpg",
+        ],
+      });
+
+    expect(r.status).toBe(201);
+    expect(r.body.status).toBe('queued');
   });
 
   it('rejects a non-member admin with 403 (project membership check)', async () => {

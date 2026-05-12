@@ -190,6 +190,10 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
   await fs.mkdir(imagesDir, { recursive: true });
 
   // 1. Stage images. If the app submits a video, extract frames first.
+  // Codex P2 (PR #88): track `framesExtracted` so the orchestrator can
+  // surface it in `metrics` on the job doc — useful for cost forensics
+  // and for the UI to show "N frames" when sourceType=video.
+  let framesExtracted = 0;
   if (req.videoUrl) {
     const videoExt = path.extname(new URL(req.videoUrl, 'gs://placeholder').pathname) || '.mp4';
     const videoPath = path.join(workDir, `input${videoExt}`);
@@ -205,6 +209,7 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
       path.join(imagesDir, 'img_%04d.jpg'),
     ]);
     const frames = await fs.readdir(imagesDir);
+    framesExtracted = frames.length;
     if (frames.length < 3) {
       throw new Error(`insufficient_video_frames:${frames.length}`);
     }
@@ -215,6 +220,7 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
       const dest = path.join(imagesDir, `img_${String(i).padStart(4, '0')}${ext}`);
       await downloadGcsObject(url, dest);
     }
+    framesExtracted = (req.imageUrls ?? []).length;
   }
 
   // 2. Run COLMAP automatic_reconstructor (CPU). Equivalent CLI:
@@ -242,13 +248,19 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
     .upload(meshPath, { destination: outputObject, resumable: false });
   const meshUri = `gs://${req.outputBucket}/${outputObject}`;
 
-  // 5. Mark complete.
+  // 5. Mark complete. Codex P2 (PR #88): persist `metrics.framesExtracted`
+  // so the GET /jobs response (and the Digital Twin UI) can show how many
+  // frames actually fed COLMAP, instead of the upstream `imageCount`
+  // estimate that doesn't account for ffmpeg sampling.
   await jobRef.set(
     {
       status: 'completed',
       meshUri,
       meshFormat: 'ply',
       completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      metrics: {
+        framesExtracted,
+      },
     },
     { merge: true },
   );

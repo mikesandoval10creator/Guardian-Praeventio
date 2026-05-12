@@ -45,14 +45,25 @@ import {
 import { getErrorTracker } from '../../services/observability/index.js';
 import { logger } from '../../utils/logger.js';
 
+// Codex P2 (PR #88): relax gs:// path regex to accept percent-encoded
+// characters and literal spaces — Cloud Storage object names legally
+// include spaces and Unicode (https://cloud.google.com/storage/docs/objects#naming).
+// Pattern: gs://<bucket>/<object>. Bucket: alphanum + . _ -.
+// Object: any printable char except control chars; we use \S plus a literal
+// space so a path with one or more spaces validates, while newlines/tabs
+// (which would break the HTTP boundary) are still rejected.
+const GS_URI_REGEX = /^gs:\/\/[A-Za-z0-9_.\-]+\/[\w\-./%+ !*'()&$,:;=@~]+$/;
+
 const CreateJobSchema = z.object({
   projectId: z.string().min(1).max(128),
   imageUrls: z
-    .array(z.string().url().or(z.string().regex(/^gs:\/\/[A-Za-z0-9_.\-/]+$/)))
+    .array(z.string().url().or(z.string().regex(GS_URI_REGEX)))
     .min(3, 'photogrammetry needs >= 3 images')
     .max(500, 'photogrammetry capped at 500 images per job')
     .optional(),
-  videoUrl: z.string().url().or(z.string().regex(/^gs:\/\/[A-Za-z0-9_.\-/]+$/)).optional(),
+  // Codex P2 (PR #88): worker only supports gs:// videos — reject https URLs
+  // at the schema level so callers get a 400 instead of a worker-side failure.
+  videoUrl: z.string().regex(GS_URI_REGEX, 'videoUrl must be a gs:// URI').optional(),
   name: z.string().min(1).max(256).optional(),
 }).refine(
   (value) => Boolean(value.videoUrl) || Boolean(value.imageUrls && value.imageUrls.length >= 3),
@@ -244,6 +255,10 @@ router.get('/jobs', verifyAuth, async (req, res) => {
     .doc(tenantId)
     .collection('photogrammetry_jobs')
     .where('projectId', '==', projectId)
+    // Codex P2 (PR #88): order newest-first so the UI list isn't
+    // arbitrary. Requires composite index (projectId ASC, createdAt DESC)
+    // — auto-prompted by Firestore on first cold call in a region.
+    .orderBy('createdAt', 'desc')
     .limit(20)
     .get();
 
