@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// C.13 — Placeholder SLAM / fotogrametría (LingBot-Map). Sprint futuro.
+// C.13 — Photogrammetry/SLAM bridge. LingBot-Map is not integrated yet.
 
 import type { RiskNodePayload, RiskNodeSeverity } from '../types';
 
@@ -20,10 +20,9 @@ const MIN_KEYFRAMES = 30;
 const MIN_COVERAGE = 60;
 
 /**
- * Placeholder hasta integración con LingBot-Map open source. Por ahora emite un
- * nodo `slam-mesh` cuando una sesión cumple un mínimo de keyframes/cobertura,
- * para que el Asesor pueda enlazar derrames químicos al gemelo digital cuando
- * exista. Ref.: DS 43/2015, NFPA 30.
+ * Emits a conservative `slam-mesh` node for completed photogrammetry sessions.
+ * `metadata.placeholder=true` remains until a real mesh consumer and any
+ * LingBot-Map integration are wired end-to-end. Ref.: DS 43/2015, NFPA 30.
  */
 export function generateSlamMeshNode(
   cameraSession: CameraSession,
@@ -35,11 +34,11 @@ export function generateSlamMeshNode(
   const severity: RiskNodeSeverity = 'info';
 
   return {
-    title: 'Malla SLAM disponible para gemelo digital de faena',
+    title: 'Malla de fotogrametría registrada para revisión del gemelo digital',
     description: [
       `Sesión ${cameraSession.id} → proyecto ${projectId.id}.`,
       `Keyframes=${cameraSession.keyframeCount}, cobertura=${cameraSession.coveragePercent}%.`,
-      'Placeholder: integración pendiente con LingBot-Map (open source).',
+      'Estado: mesh registrado; integración LingBot-Map pendiente.',
       'Ref.: DS 43/2015, NFPA 30.',
     ].join('\n'),
     type: 'slam-mesh',

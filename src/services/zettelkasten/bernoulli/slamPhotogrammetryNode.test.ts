@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateSlamMeshNode } from './slamPhotogrammetryNode';
 
-describe('generateSlamMeshNode (placeholder LingBot-Map)', () => {
+describe('generateSlamMeshNode (photogrammetry bridge)', () => {
   it('returns node when keyframes ≥ 30 and coverage ≥ 60%', () => {
     const node = generateSlamMeshNode(
       { id: 'cam-A', keyframeCount: 120, coveragePercent: 85 },

@@ -246,10 +246,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
       <nav
         aria-label="Navegación principal"
         id="primary-navigation"
-        className={`fixed top-0 left-0 bottom-0 w-[280px] sm:w-[300px] bg-[#4db6ac] dark:bg-zinc-950 border-r border-zinc-200/50 dark:border-white/10 z-[70] flex flex-col shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        className={`fixed top-0 left-0 bottom-0 w-[280px] sm:w-[300px] bg-surface border-r border-default-token z-[70] flex flex-col shadow-mode-lg transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-zinc-200/50 dark:border-white/5 flex items-center justify-between bg-[#4db6ac]/50 dark:bg-zinc-950/50 shrink-0">
+        <div className="p-4 border-b border-default-token flex items-center justify-between bg-elevated shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-[#4db6ac] to-[#2a8a81] rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(77,182,172,0.3)] relative">
               <span className="text-white font-black text-lg leading-none">
@@ -267,7 +267,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
               )}
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-black tracking-tight text-zinc-900 dark:text-white leading-none">
+              <span className="text-sm font-black tracking-tight text-primary-token leading-none">
                 Praeventio
               </span>
               <div className="flex items-center gap-2 mt-0.5">
@@ -314,7 +314,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
                     aria-controls={`nav-group-${group.title.replace(/\s+/g, '-').toLowerCase()}`}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300 ${
                       isGroupOpen || hasActiveItem
-                        ? "bg-white/30 dark:bg-zinc-800/50 text-zinc-900 dark:text-white shadow-inner border border-white/20 dark:border-white/5"
+                        ? "bg-canvas text-primary-token shadow-mode border border-default-token"
                         : "text-zinc-800 dark:text-zinc-400 hover:bg-white/20 dark:hover:bg-zinc-800/30 hover:text-zinc-900 dark:hover:text-zinc-200"
                     }`}
                   >
@@ -406,7 +406,7 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-zinc-200/50 dark:border-white/5 bg-[#4db6ac] dark:bg-zinc-950 shrink-0 space-y-2">
+        <div className="p-4 border-t border-default-token bg-elevated shrink-0 space-y-2">
           {/* Country normativa selector — mobile only (topbar covers md+) */}
           <div className="md:hidden flex justify-center pb-2 border-b border-zinc-200/50 dark:border-white/5">
             <NormativaSwitch />

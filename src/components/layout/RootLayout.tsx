@@ -117,7 +117,7 @@ export function RootLayout() {
   const { isDarkMode, toggleTheme } = useTheme();
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-[#4db6ac] dark:bg-zinc-950 text-zinc-900 dark:text-white font-sans selection:bg-[#4db6ac]/30 flex flex-col transition-colors duration-300">
+    <div className="h-[100dvh] w-full overflow-hidden bg-canvas text-primary-token font-sans selection:bg-[#4db6ac]/30 flex flex-col transition-colors duration-300">
       {/* Skip link — first focusable element in the shell. Hidden until
           keyboard focus per WCAG 2.4.1 (Bypass Blocks). Uses
           `focus-visible:` (not bare `focus:`) so the link only appears
@@ -158,7 +158,7 @@ export function RootLayout() {
       <header
         role="banner"
         aria-label="Encabezado principal"
-        className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-[#4db6ac]/95 dark:bg-zinc-950/95 backdrop-blur-xl border-b border-zinc-200/50 dark:border-white/5 transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-sm"
+        className="shrink-0 z-40 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between bg-elevated backdrop-blur-xl border-b border-default-token transition-colors duration-300 lg:ml-[300px] lg:w-[calc(100%-300px)] shadow-mode"
       >
         {/* Left: Menu & Logo */}
         <div className="flex items-center gap-3 shrink-0">

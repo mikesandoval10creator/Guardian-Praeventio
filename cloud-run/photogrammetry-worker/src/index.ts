@@ -7,11 +7,12 @@
 //
 //   GET  /health                        -> 200 { ok: true }
 //   POST /process                       -> 202 { jobId, status: 'queued' }
-//          body: { projectId, jobId, imageUrls: string[], outputBucket, tenantId? }
+//          body: { projectId, jobId, imageUrls?: string[], videoUrl?: string, outputBucket, tenantId? }
 //   GET  /jobs/:jobId                   -> 200 { jobId, status, meshUri?, errorMessage? }
 //
 // The worker:
-//   1. Pulls input images from a list of `gs://bucket/path.jpg` URLs.
+//   1. Pulls input images or a video from `gs://bucket/path...`.
+//      Videos are converted to frames with ffmpeg before COLMAP.
 //   2. Runs COLMAP automatic_reconstructor on the staged folder
 //      (sparse + dense; CPU-only — slower than GPU but free).
 //   3. Uploads the resulting `meshed-poisson.ply` (or `.glb` if conversion is
@@ -53,7 +54,8 @@ const db = admin.firestore();
 interface ProcessRequest {
   projectId: string;
   jobId: string;
-  imageUrls: string[];
+  imageUrls?: string[];
+  videoUrl?: string;
   outputBucket: string;
   tenantId?: string;
 }
@@ -99,8 +101,7 @@ app.post('/process', async (req: Request, res: Response) => {
   if (
     !body.projectId ||
     !body.jobId ||
-    !Array.isArray(body.imageUrls) ||
-    body.imageUrls.length === 0 ||
+    (!body.videoUrl && (!Array.isArray(body.imageUrls) || body.imageUrls.length === 0)) ||
     !body.outputBucket
   ) {
     return res.status(400).json({ error: 'invalid_payload' });
@@ -188,12 +189,32 @@ async function runPipeline(req: ProcessRequest, tenantId: string): Promise<void>
   const imagesDir = path.join(workDir, 'images');
   await fs.mkdir(imagesDir, { recursive: true });
 
-  // 1. Download images.
-  for (let i = 0; i < req.imageUrls.length; i++) {
-    const url = req.imageUrls[i];
-    const ext = path.extname(new URL(url, 'gs://placeholder').pathname) || '.jpg';
-    const dest = path.join(imagesDir, `img_${String(i).padStart(4, '0')}${ext}`);
-    await downloadGcsObject(url, dest);
+  // 1. Stage images. If the app submits a video, extract frames first.
+  if (req.videoUrl) {
+    const videoExt = path.extname(new URL(req.videoUrl, 'gs://placeholder').pathname) || '.mp4';
+    const videoPath = path.join(workDir, `input${videoExt}`);
+    await downloadGcsObject(req.videoUrl, videoPath);
+    await runFfmpeg([
+      '-y',
+      '-i',
+      videoPath,
+      '-vf',
+      'fps=2',
+      '-q:v',
+      '2',
+      path.join(imagesDir, 'img_%04d.jpg'),
+    ]);
+    const frames = await fs.readdir(imagesDir);
+    if (frames.length < 3) {
+      throw new Error(`insufficient_video_frames:${frames.length}`);
+    }
+  } else {
+    for (let i = 0; i < (req.imageUrls ?? []).length; i++) {
+      const url = req.imageUrls![i];
+      const ext = path.extname(new URL(url, 'gs://placeholder').pathname) || '.jpg';
+      const dest = path.join(imagesDir, `img_${String(i).padStart(4, '0')}${ext}`);
+      await downloadGcsObject(url, dest);
+    }
   }
 
   // 2. Run COLMAP automatic_reconstructor (CPU). Equivalent CLI:
@@ -255,6 +276,17 @@ function runColmap(args: string[]): Promise<void> {
     child.on('exit', (code) => {
       if (code === 0) resolve();
       else reject(new Error(`colmap_exit_${code ?? 'unknown'}`));
+    });
+  });
+}
+
+function runFfmpeg(args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('ffmpeg', args, { stdio: 'inherit' });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg_exit_${code ?? 'unknown'}`));
     });
   });
 }

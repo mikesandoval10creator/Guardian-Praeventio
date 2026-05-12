@@ -36,6 +36,7 @@ import {
   CurrencyToggle,
   useCurrency,
 } from '../components/pricing/CurrencyToggle';
+import { TIER_TO_SUBSCRIPTION_PLAN } from '../services/pricing/subscriptionPlan';
 
 import { NormativaSwitch } from '../components/normativa/NormativaSwitch';
 import { TierDowngradeModal } from '../components/billing/TierDowngradeModal';
@@ -102,22 +103,9 @@ function detectCountry(search: string): string {
   return 'CL';
 }
 
-// Map our canonical TierId → the legacy SubscriptionPlan id used by the existing
-// Google Play Billing handler. Diamante is routed to the B2B sales contact flow
-// (still no Play SKU); titanio is mapped now that the legacy union has been
-// extended to cover it (R4 Round 14).
-const TIER_TO_LEGACY_PLAN: Partial<Record<TierId, SubscriptionPlan>> = {
-  gratis: 'free',
-  'comite-paritario': 'comite',
-  'departamento-prevencion': 'departamento',
-  plata: 'plata',
-  oro: 'oro',
-  titanio: 'titanio',
-  diamante: 'platino', // legacy "platino" maps to the diamante (~1000 worker) tier
-  empresarial: 'empresarial',
-  corporativo: 'corporativo',
-  ilimitado: 'ilimitado',
-};
+// Canonical TierId -> subscription entitlement id. This shared map keeps
+// checkout, app-store billing, IPN callbacks and feature gating aligned.
+const TIER_TO_LEGACY_PLAN: Record<TierId, SubscriptionPlan> = TIER_TO_SUBSCRIPTION_PLAN;
 
 const PREMIUM_TIER_IDS: ReadonlySet<TierId> = new Set([
   'titanio',

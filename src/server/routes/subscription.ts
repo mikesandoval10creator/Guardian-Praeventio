@@ -25,27 +25,14 @@ import admin from "firebase-admin";
 import { verifyAuth } from "../middleware/verifyAuth.js";
 import { auditServerEvent } from "../middleware/auditLog.js";
 import { logger } from "../../utils/logger.js";
+import {
+  SUBSCRIPTION_PLANS,
+  isSubscriptionPlan,
+  normalizeSubscriptionPlanId,
+  subscriptionPlanMatchesPaidTier,
+} from "../../services/pricing/subscriptionPlan.js";
 
 export const subscriptionRouter = Router();
-
-const VALID_PLANS = [
-  "free",
-  "comite",
-  "departamento",
-  "plata",
-  "oro",
-  "titanio",
-  "platino",
-  "empresarial",
-  "corporativo",
-  "ilimitado",
-] as const;
-
-type ValidPlan = (typeof VALID_PLANS)[number];
-
-function isValidPlan(p: unknown): p is ValidPlan {
-  return typeof p === "string" && (VALID_PLANS as readonly string[]).includes(p);
-}
 
 subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   const uid = (req as any).user?.uid;
@@ -54,8 +41,8 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   }
 
   const { planId } = req.body ?? {};
-  if (!isValidPlan(planId)) {
-    return res.status(400).json({ error: "invalid_plan", validPlans: VALID_PLANS });
+  if (!isSubscriptionPlan(planId)) {
+    return res.status(400).json({ error: "invalid_plan", validPlans: SUBSCRIPTION_PLANS });
   }
 
   const db = admin.firestore();
@@ -65,6 +52,7 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   // in-memory because Firestore can't index nested array fields directly.
   // Volume per-user is low (a paying customer has <50 lifetime invoices)
   // so this is well within latency budget.
+  let paidTierId: string | null = null;
   try {
     const paidInvoices = await db
       .collection("invoices")
@@ -76,12 +64,19 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
       const data = docSnap.data();
       // Newest schema: lineItems is an array of { tierId, quantity, ... }
       const lineItems = Array.isArray(data?.lineItems) ? data.lineItems : [];
-      const fromLineItems = lineItems.some(
-        (item: any) => item?.tierId === planId,
+      const lineItem = lineItems.find((item: any) =>
+        subscriptionPlanMatchesPaidTier(planId, item?.tierId),
       );
+      if (lineItem?.tierId) {
+        paidTierId = lineItem.tierId;
+        return true;
+      }
       // Legacy schema: top-level tierId
-      const fromTopLevel = data?.tierId === planId;
-      return fromLineItems || fromTopLevel;
+      if (subscriptionPlanMatchesPaidTier(planId, data?.tierId)) {
+        paidTierId = data.tierId;
+        return true;
+      }
+      return false;
     });
 
     if (!hasPaidForPlan) {
@@ -99,13 +94,16 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
     return res.status(500).json({ error: "query_failed" });
   }
 
+  const normalizedPlanId = normalizeSubscriptionPlanId(planId) ?? planId;
+
   // Payment exists — update via Admin SDK (bypasses client rules).
   try {
     await db.collection("users").doc(uid).set(
       {
-        subscriptionPlan: planId,
+        subscriptionPlan: normalizedPlanId,
         subscription: {
-          planId,
+          planId: normalizedPlanId,
+          tierId: paidTierId ?? normalizedPlanId,
           status: "active",
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         },
@@ -121,12 +119,13 @@ subscriptionRouter.post("/upgrade", verifyAuth, async (req, res) => {
   }
 
   await auditServerEvent(req, "subscription.upgraded", "subscription", {
-    planId,
+    planId: normalizedPlanId,
+    tierId: paidTierId ?? normalizedPlanId,
     method: "verified-payment",
   });
 
-  logger.info("subscription_upgraded", { uid, planId });
-  return res.status(200).json({ success: true, planId });
+  logger.info("subscription_upgraded", { uid, planId: normalizedPlanId, tierId: paidTierId });
+  return res.status(200).json({ success: true, planId: normalizedPlanId });
 });
 
 export default subscriptionRouter;

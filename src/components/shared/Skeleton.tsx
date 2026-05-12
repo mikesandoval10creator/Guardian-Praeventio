@@ -20,7 +20,9 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
         duration: 1,
         ease: "easeInOut",
       }}
-      className={cn("bg-zinc-200 dark:bg-zinc-800 rounded-md", className)}
+      // Mode-aware: uses elevated surface token so skeleton blends in every
+      // mode (light/dark/driving/emergency) rather than hardcoded zinc.
+      className={cn("bg-elevated border-default-token rounded-md", className)}
       {...props}
     />
   );
@@ -28,7 +30,7 @@ export function Skeleton({ className, ...props }: SkeletonProps) {
 
 export function SkeletonCard({ className }: { className?: string }) {
   return (
-    <div className={cn("p-4 border border-zinc-200 dark:border-zinc-800 rounded-2xl bg-white dark:bg-zinc-900/50 space-y-4", className)}>
+    <div className={cn("p-4 border border-default-token rounded-2xl bg-surface space-y-4 shadow-mode", className)}>
       <div className="flex items-center gap-4">
         <Skeleton className="w-12 h-12 rounded-full" />
         <div className="space-y-2 flex-1">

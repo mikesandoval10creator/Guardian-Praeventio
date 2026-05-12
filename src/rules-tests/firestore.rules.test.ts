@@ -148,9 +148,7 @@ describe('firestore.rules', () => {
   // is that vitest still reports skipped tests rather than crashing.
   function maybeSkip(ctx: { skip: () => void }) {
     if (!testEnv) {
-      // eslint-disable-next-line no-console
-      console.warn(`[rules-tests] skipping: ${skipReason}`);
-      ctx.skip();
+      throw new Error(`[rules-tests] FAILED TO START EMULATOR. Tests cannot be skipped: ${skipReason}`);
     }
   }
 
