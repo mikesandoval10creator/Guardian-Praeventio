@@ -22,6 +22,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   createDs67Form,
   signForm as signDs67Form,
@@ -185,6 +186,7 @@ router.post('/ds67', verifyAuth, validate(ds67Schema), async (req, res) => {
     });
   } catch (err) {
     logger.error('ds67_create_failed', { err: String(err) });
+    captureRouteError(err, 'ds67.create');
     res.status(500).json({ error: 'ds67_create_failed' });
   }
 });
@@ -207,6 +209,7 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
     res.end(Buffer.from(bytes));
   } catch (err) {
     logger.error('ds67_pdf_failed', { err: String(err) });
+    captureRouteError(err, 'ds67.pdf');
     res.status(500).json({ error: 'ds67_pdf_failed' });
   }
 });
@@ -256,6 +259,7 @@ router.post('/ds76', verifyAuth, validate(ds76Schema), async (req, res) => {
     });
   } catch (err) {
     logger.error('ds76_create_failed', { err: String(err) });
+    captureRouteError(err, 'ds76.create');
     res.status(500).json({ error: 'ds76_create_failed' });
   }
 });
@@ -278,6 +282,7 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
     res.end(Buffer.from(bytes));
   } catch (err) {
     logger.error('ds76_pdf_failed', { err: String(err) });
+    captureRouteError(err, 'ds76.pdf');
     res.status(500).json({ error: 'ds76_pdf_failed' });
   }
 });

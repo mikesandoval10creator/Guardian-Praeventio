@@ -23,6 +23,7 @@ import { verifyAuth } from '../middleware/verifyAuth.js';
 // Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   recordConsent,
   revokeConsent,
@@ -115,6 +116,7 @@ router.post('/consent', verifyAuth, async (req, res) => {
       err instanceof Error ? err : new Error(String(err)),
       { uid },
     );
+    captureRouteError(err, 'compliance.record_consent', { uid });
     res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -137,6 +139,7 @@ router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
       err instanceof Error ? err : new Error(String(err)),
       { uid, purpose },
     );
+    captureRouteError(err, 'compliance.revoke_consent', { uid, purpose });
     res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -152,6 +155,7 @@ router.get('/consent', verifyAuth, async (req, res) => {
       err instanceof Error ? err : new Error(String(err)),
       { uid },
     );
+    captureRouteError(err, 'compliance.get_consent', { uid });
     res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -233,6 +237,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
       err instanceof Error ? err : new Error(String(err)),
       { uid, type },
     );
+    captureRouteError(err, 'compliance.data_request', { uid, type });
     res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -259,6 +264,7 @@ router.get('/data-request/:id', verifyAuth, async (req, res) => {
       err instanceof Error ? err : new Error(String(err)),
       { uid, requestId },
     );
+    captureRouteError(err, 'compliance.get_request', { uid, requestId });
     res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -297,6 +303,7 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
       err instanceof Error ? err : new Error(String(err)),
       { uid, requestId },
     );
+    captureRouteError(err, 'compliance.data_export', { uid, requestId });
     res.status(500).json({ error: 'internal_error' });
   }
 });
