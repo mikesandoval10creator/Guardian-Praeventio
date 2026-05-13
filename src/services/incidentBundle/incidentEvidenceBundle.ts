@@ -30,6 +30,31 @@
 
 export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical' | 'sif';
 
+/**
+ * Existing incidents on Firestore (pre-Sprint 43) carry Spanish severity
+ * labels ("Alta", "Crítica", "Media", …). Normalize at the boundary so
+ * the gap detector treats them as canonical English values; otherwise an
+ * Alta/Crítica incident would silently skip `no_root_cause_assigned` and
+ * score 100 without an RCA. Codex P2 PR #122.
+ */
+const SEVERITY_ALIASES: Record<string, IncidentSeverity> = {
+  baja: 'low',
+  media: 'medium',
+  alta: 'high',
+  critica: 'critical',
+  crítica: 'critical',
+  sif: 'sif',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+};
+
+export function normalizeSeverity(raw: string): IncidentSeverity | null {
+  const key = raw.trim().toLowerCase();
+  return SEVERITY_ALIASES[key] ?? null;
+}
+
 export interface IncidentCore {
   id: string;
   projectId: string;
@@ -250,7 +275,13 @@ function detectGaps(input: BuildIncidentBundleInput): CompletenessGap[] {
   }
 
   const severityNeedsRootCause: IncidentSeverity[] = ['high', 'critical', 'sif'];
-  if (severityNeedsRootCause.includes(input.incident.severity)) {
+  // Normalize at boundary (Codex P2 PR #122) — legacy Firestore data uses
+  // Spanish labels ("Alta", "Crítica"). Unknown labels fall through to the
+  // raw value, so we attempt normalize first and only skip the gap if the
+  // normalized value is genuinely outside the required set.
+  const canonicalSeverity =
+    normalizeSeverity(input.incident.severity) ?? input.incident.severity;
+  if (severityNeedsRootCause.includes(canonicalSeverity as IncidentSeverity)) {
     if (!input.rootCause || !input.rootCause.analyzed) {
       gaps.push({
         kind: 'no_root_cause_assigned',

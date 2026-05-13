@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildIncidentBundle,
   manifestToJson,
+  normalizeSeverity,
   summarizeBundle,
   IncidentBundleValidationError,
   type BuildIncidentBundleInput,
@@ -259,6 +260,58 @@ describe('recommendations', () => {
     expect(m.recommendations.length).toBeLessThanOrEqual(5);
     // no_evidence (peso 20) debe ir primero
     expect(m.recommendations[0]).toMatch(/foto/i);
+  });
+});
+
+describe('normalizeSeverity (Codex P2 PR #122)', () => {
+  it('normaliza etiquetas españolas pre-Sprint 43', () => {
+    expect(normalizeSeverity('Alta')).toBe('high');
+    expect(normalizeSeverity('Crítica')).toBe('critical');
+    expect(normalizeSeverity('Critica')).toBe('critical');
+    expect(normalizeSeverity('Media')).toBe('medium');
+    expect(normalizeSeverity('Baja')).toBe('low');
+  });
+
+  it('respeta etiquetas inglesas canónicas', () => {
+    expect(normalizeSeverity('high')).toBe('high');
+    expect(normalizeSeverity('SIF')).toBe('sif');
+  });
+
+  it('devuelve null para etiquetas desconocidas', () => {
+    expect(normalizeSeverity('mortal')).toBeNull();
+    expect(normalizeSeverity('')).toBeNull();
+  });
+});
+
+describe('buildIncidentBundle — severity boundary normalize (Codex P2 PR #122)', () => {
+  it('severidad "Alta" (legacy ES) sin root cause → gap no_root_cause_assigned', () => {
+    const m = buildIncidentBundle(
+      baseInput({
+        incident: { ...baseInput().incident, severity: 'Alta' as never },
+      }),
+      { now: NOW },
+    );
+    expect(m.gaps.some((g) => g.kind === 'no_root_cause_assigned')).toBe(true);
+  });
+
+  it('severidad "Crítica" (legacy ES) sin root cause → gap', () => {
+    const m = buildIncidentBundle(
+      baseInput({
+        incident: { ...baseInput().incident, severity: 'Crítica' as never },
+      }),
+      { now: NOW },
+    );
+    expect(m.gaps.some((g) => g.kind === 'no_root_cause_assigned')).toBe(true);
+  });
+
+  it('severidad "Media" (legacy ES) NO dispara root_cause gap', () => {
+    const m = buildIncidentBundle(
+      baseInput({
+        incident: { ...baseInput().incident, severity: 'Media' as never },
+      }),
+      { now: NOW },
+    );
+    expect(m.gaps.some((g) => g.kind === 'no_root_cause_assigned')).toBe(false);
   });
 });
 
