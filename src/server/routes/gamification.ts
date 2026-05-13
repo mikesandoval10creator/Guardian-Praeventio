@@ -23,6 +23,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
 import { assertProjectMemberFromBody } from '../middleware/assertProjectMemberMiddleware.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import {
   awardPoints,
   getLeaderboard,
@@ -48,15 +49,17 @@ router.post('/gamification/points', verifyAuth, async (req, res) => {
     }
     res.json({ success: true });
   } catch (error: any) {
+    captureRouteError(error, 'gamification.handler', { uid: (req as any).user?.uid });
     res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/gamification/leaderboard', verifyAuth, async (_req, res) => {
+router.get('/gamification/leaderboard', verifyAuth, async (req, res) => {
   try {
     const leaderboard = await getLeaderboard();
     res.json({ success: true, leaderboard });
   } catch (error: any) {
+    captureRouteError(error, 'gamification.handler', { uid: (req as any).user?.uid });
     res.status(500).json({ error: error.message });
   }
 });
@@ -77,6 +80,7 @@ router.post('/gamification/check-medals', verifyAuth, async (req, res) => {
     }
     res.json({ success: true, newMedals });
   } catch (error: any) {
+    captureRouteError(error, 'gamification.handler', { uid: (req as any).user?.uid });
     res.status(500).json({ error: error.message });
   }
 });
