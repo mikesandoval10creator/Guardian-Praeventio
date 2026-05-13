@@ -104,22 +104,33 @@ export type Verifier = (payload: string, signature: string) => boolean;
 const DEFAULT_TTL_SECONDS = 300; // 5 min
 
 function base64UrlEncode(s: string): string {
-  // node-safe + browser-safe (no Buffer dependency for portability)
+  // Codex P2 PR #123: encode as UTF-8 bytes first. `btoa()` only accepts
+  // Latin-1; itemLabel is free-form human text and routinely contains en
+  // dashes, emoji, CJK, accented chars (e.g. "Capacitación – Día 1") which
+  // would throw `InvalidCharacterError` and break QR creation.
+  const utf8Bytes = new TextEncoder().encode(s);
   if (typeof btoa === 'function') {
-    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    let binary = '';
+    for (let i = 0; i < utf8Bytes.length; i++) {
+      binary += String.fromCharCode(utf8Bytes[i] as number);
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
-  // Fallback (Node)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (Buffer as any).from(s, 'utf-8').toString('base64url');
+  return (Buffer as any).from(utf8Bytes).toString('base64url');
 }
 
 function base64UrlDecode(s: string): string {
+  const pad = '='.repeat((4 - (s.length % 4)) % 4);
+  const b64 = (s + pad).replace(/-/g, '+').replace(/_/g, '/');
   if (typeof atob === 'function') {
-    const pad = '='.repeat((4 - (s.length % 4)) % 4);
-    return atob((s + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (Buffer as any).from(s, 'base64url').toString('utf-8');
+  return (Buffer as any).from(b64, 'base64').toString('utf-8');
 }
 
 interface SessionInner {
@@ -204,8 +215,24 @@ export function createAckSession(
 
 export interface ValidateScanOptions {
   now?: Date;
-  /** Set of session ids ya consumidos (replay defense). */
+  /**
+   * Set of `{sessionId}|{workerUid}` keys ya consumidos. Codex P2 PR #123:
+   * antes era solo `sessionId` lo que rompía el flujo grupal (una charla
+   * para 10 trabajadores: el segundo y siguientes recibían `replay` aunque
+   * eran scans legítimos de distintas personas). Ahora la clave incluye
+   * `workerUid` así una sesión QR puede ser firmada por N trabajadores
+   * distintos, pero cada (sessionId, workerUid) solo una vez.
+   *
+   * Construir la clave con `replayKey(sessionId, workerUid)`.
+   */
+  usedScans?: ReadonlySet<string>;
+  /** Legacy alias (whole-session replay) — mantenido para compatibilidad. */
   usedSessionIds?: ReadonlySet<string>;
+}
+
+/** Construye la clave canónica de replay defense. */
+export function replayKey(sessionId: string, workerUid: string): string {
+  return `${sessionId}|${workerUid}`;
 }
 
 export interface ValidScanResult {
@@ -233,13 +260,40 @@ export function validateAckScan(
   verifier: Verifier,
   options: ValidateScanOptions = {},
 ): ScanResult {
+  // Codex P2 PR #123: rechazar scans sin workerUid antes de cualquier
+  // procesamiento. Un endpoint adapter que olvide el auth check no debería
+  // generar un ack con `workerUid: ''` (rompe duplicate detection y deja
+  // un registro no atribuible).
+  if (!req.scannedByUid || req.scannedByUid.trim() === '') {
+    return {
+      ok: false,
+      code: 'bad_payload',
+      detail: 'scannedByUid requerido — el endpoint debe validar auth antes de invocar validateAckScan',
+    };
+  }
+
   let inner: SessionInner;
   try {
     const canonical = base64UrlDecode(req.qrPayload);
-    inner = JSON.parse(canonical) as SessionInner;
-    if (inner.v !== 1 || !inner.sid || !inner.pid) {
-      return { ok: false, code: 'bad_payload', detail: 'estructura de payload inválida' };
+    const parsed = JSON.parse(canonical) as Partial<SessionInner>;
+    // Codex P2 PR #123: validar TODOS los campos requeridos. Un payload
+    // malformado con `exp` faltante haría que `now > inner.exp` fuera
+    // false (porque `undefined > number === false` en JS) y la sesión
+    // nunca expiraría.
+    if (
+      parsed.v !== 1 ||
+      typeof parsed.sid !== 'string' || !parsed.sid ||
+      typeof parsed.pid !== 'string' || !parsed.pid ||
+      typeof parsed.cby !== 'string' || !parsed.cby ||
+      typeof parsed.iid !== 'string' || !parsed.iid ||
+      typeof parsed.ik !== 'string' || !parsed.ik ||
+      typeof parsed.il !== 'string' ||
+      typeof parsed.iat !== 'number' ||
+      typeof parsed.exp !== 'number'
+    ) {
+      return { ok: false, code: 'bad_payload', detail: 'estructura de payload inválida o incompleta' };
     }
+    inner = parsed as SessionInner;
   } catch (e) {
     return { ok: false, code: 'bad_payload', detail: `payload no parseable: ${(e as Error).message}` };
   }
@@ -257,6 +311,17 @@ export function validateAckScan(
     return { ok: false, code: 'no_consent', detail: 'trabajador no marcó consentimiento explícito' };
   }
 
+  // Codex P2 PR #123: replay check ahora prefiere `usedScans` per-worker.
+  // El legacy `usedSessionIds` se mantiene para flujos 1-a-1 (firma
+  // individual) donde no aplica el caso grupal.
+  const scanKey = replayKey(inner.sid, req.scannedByUid);
+  if (options.usedScans?.has(scanKey)) {
+    return {
+      ok: false,
+      code: 'replay',
+      detail: `worker ${req.scannedByUid} ya firmó la sesión ${inner.sid}`,
+    };
+  }
   if (options.usedSessionIds?.has(inner.sid)) {
     return { ok: false, code: 'replay', detail: `sessionId ${inner.sid} ya fue consumido` };
   }

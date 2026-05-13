@@ -3,6 +3,7 @@ import {
   createAckSession,
   validateAckScan,
   rejectDuplicateAck,
+  replayKey,
   QrAckValidationError,
   type Signer,
   type Verifier,
@@ -234,6 +235,133 @@ describe('validateAckScan — rejection paths', () => {
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe('creator_cannot_self_sign');
+  });
+});
+
+describe('Codex P2 fixes (PR #123)', () => {
+  it('UTF-8 encoding: itemLabel con emoji + en dash + acentos no rompe', () => {
+    const s = createAckSession(
+      {
+        projectId: 'p1',
+        createdByUid: 'sup-1',
+        itemKind: 'training',
+        itemId: 't1',
+        itemLabel: 'Capacitación – Día 1 🦺 (sílice)',
+      },
+      signer,
+      { now: NOW, sessionIdGenerator: () => 'sid-utf8' },
+    );
+    // Roundtrip → scan debe validar
+    const r = validateAckScan(
+      {
+        qrPayload: s.qrPayload,
+        signature: s.signature,
+        scannedByUid: 'w1',
+        consent: true,
+        biometricUsed: false,
+      },
+      verifier,
+      { now: NOW },
+    );
+    expect(r.ok).toBe(true);
+  });
+
+  it('replay key per-worker permite N firmas para mismo session (flujo grupal)', () => {
+    const s = createAckSession(
+      {
+        projectId: 'p1',
+        createdByUid: 'sup-1',
+        itemKind: 'talk',
+        itemId: 'charla-x',
+        itemLabel: 'Charla diaria',
+      },
+      signer,
+      { now: NOW, sessionIdGenerator: () => 'sid-group' },
+    );
+
+    // Trabajador 1 firma — usedScans queda con la key suya
+    const used = new Set<string>([replayKey('sid-group', 'w1')]);
+
+    // Trabajador 1 intenta de nuevo → replay
+    const r1 = validateAckScan(
+      {
+        qrPayload: s.qrPayload,
+        signature: s.signature,
+        scannedByUid: 'w1',
+        consent: true,
+        biometricUsed: false,
+      },
+      verifier,
+      { now: NOW, usedScans: used },
+    );
+    expect(r1.ok).toBe(false);
+    if (!r1.ok) expect(r1.code).toBe('replay');
+
+    // Trabajador 2 (distinto uid) firma la misma sesión → OK
+    const r2 = validateAckScan(
+      {
+        qrPayload: s.qrPayload,
+        signature: s.signature,
+        scannedByUid: 'w2',
+        consent: true,
+        biometricUsed: false,
+      },
+      verifier,
+      { now: NOW, usedScans: used },
+    );
+    expect(r2.ok).toBe(true);
+  });
+
+  it('rechaza scannedByUid vacío con bad_payload', () => {
+    const s = createAckSession(
+      {
+        projectId: 'p1',
+        createdByUid: 'sup-1',
+        itemKind: 'epp',
+        itemId: 'x',
+        itemLabel: 'x',
+      },
+      signer,
+      { now: NOW, sessionIdGenerator: () => 'sid-nouid' },
+    );
+    const r = validateAckScan(
+      {
+        qrPayload: s.qrPayload,
+        signature: s.signature,
+        scannedByUid: '',
+        consent: true,
+        biometricUsed: false,
+      },
+      verifier,
+      { now: NOW },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe('bad_payload');
+      expect(r.detail).toMatch(/scannedByUid/i);
+    }
+  });
+
+  it('rechaza payload con campos requeridos faltantes (exp undefined)', () => {
+    // Construimos un payload "viejo" con solo v/sid/pid
+    const malformed = btoa(JSON.stringify({ v: 1, sid: 's-old', pid: 'p1' }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    const sig = signer(malformed);
+    const r = validateAckScan(
+      {
+        qrPayload: malformed,
+        signature: sig,
+        scannedByUid: 'w1',
+        consent: true,
+        biometricUsed: false,
+      },
+      verifier,
+      { now: NOW },
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe('bad_payload');
   });
 });
 
