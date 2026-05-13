@@ -21,6 +21,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { logAuditAction } from '../services/auditService';
+import { useTranslation } from 'react-i18next';
 
 /** Pure helper — clear-sky UV index based on latitude, day-of-year, time-of-day,
  *  cloud cover (0-100%). Used for offline estimation; exported for tests. */
@@ -54,6 +55,7 @@ function todayDoyIso() {
 }
 
 export function SunTracker() {
+  const { t } = useTranslation();
   return (
     <PremiumFeatureGuard
       featureName="Radiación UV (Diamante+)"
@@ -123,9 +125,9 @@ function SunTrackerInner() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <Sun className="w-7 h-7 text-yellow-400" /> Radiación UV
+            <Sun className="w-7 h-7 text-yellow-400" /> {t('sunTracker.title', 'Radiación UV')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">Ley 20.096 · Ley 16.744</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('sunTracker.subtitle', 'Ley 20.096 · Ley 16.744')}</p>
         </div>
         <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 font-bold uppercase tracking-widest text-xs ${band.cls}`}>
           <AlertTriangle className="w-4 h-4" /> Riesgo {band.level} · UV {uv}
@@ -134,7 +136,7 @@ function SunTrackerInner() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border-white/5 space-y-4">
-          <h2 className="text-sm font-bold text-white uppercase tracking-widest">Condiciones</h2>
+          <h2 className="text-sm font-bold text-white uppercase tracking-widest">{t('sunTracker.conditions', 'Condiciones')}</h2>
 
           <Field label="Latitud" right={
             <button onClick={handleGetLocation} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
@@ -152,7 +154,7 @@ function SunTrackerInner() {
 
         <Card className="p-6 border-white/5 space-y-4">
           <h2 className="text-sm font-bold text-white uppercase tracking-widest flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-yellow-500" /> EPP obligatorio
+            <ShieldAlert className="w-4 h-4 text-yellow-500" /> {t('sunTracker.epp.required', 'EPP obligatorio')}
           </h2>
           <ul className="space-y-2 text-sm text-zinc-300">
             <Recommendation active={uv >= 3} color="bg-yellow-500" text="FPS 30+ reaplicado cada 2 hrs." />

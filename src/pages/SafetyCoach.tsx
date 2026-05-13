@@ -5,6 +5,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { useProject } from '../contexts/ProjectContext';
 import { auth } from '../services/firebase';
 import ReactMarkdown from 'react-markdown';
+import { useTranslation } from 'react-i18next';
 
 interface Message {
   id: string;
@@ -20,6 +21,7 @@ interface UserStats {
 }
 
 export function SafetyCoach() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const [messages, setMessages] = useState<Message[]>([
@@ -114,8 +116,8 @@ export function SafetyCoach() {
           <Shield className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-zinc-900 dark:text-white">Praeventio AI Coach</h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">Mentor personal de seguridad laboral</p>
+          <h1 className="font-bold text-zinc-900 dark:text-white">{t('safetyCoach.title', 'Praeventio AI Coach')}</h1>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('safetyCoach.subtitle', 'Mentor personal de seguridad laboral')}</p>
         </div>
 
         {/* User stats chips */}
@@ -214,7 +216,7 @@ export function SafetyCoach() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-            placeholder="Pregunta al coach de seguridad…"
+            placeholder={t('safetyCoach.input.placeholder', 'Pregunta al coach de seguridad…')}
             disabled={loading}
             className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
           />

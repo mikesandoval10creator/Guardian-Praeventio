@@ -14,6 +14,7 @@ import { NormativeQuiz } from '../components/gamification/NormativeQuiz';
 import { ReflexBuzzer } from '../components/gamification/ReflexBuzzer';
 import { DaysWithoutIncidentBadge } from '../components/gamification/DaysWithoutIncidentBadge';
 import { logger } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 interface LeaderboardUser {
   id: string;
@@ -36,6 +37,7 @@ interface Medal {
 }
 
 export function Gamification() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { stats, addPoints, unlockMedal, completeChallenge } = useGamification();
   const [activeTab, setActiveTab] = useState<'perfil' | 'medals' | 'games' | 'ranking'>('perfil');
@@ -242,13 +244,13 @@ export function Gamification() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20 shrink-0">
               <Trophy className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Gamificación</h1>
+            <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('gamification.title', 'Gamificación')}</h1>
           </div>
-          <p className="text-[10px] sm:text-xs md:text-sm text-zinc-500 font-medium">Recompensas, Medallas y Aprendizaje Interactivo</p>
+          <p className="text-[10px] sm:text-xs md:text-sm text-zinc-500 font-medium">{t('gamification.subtitle', 'Recompensas, Medallas y Aprendizaje Interactivo')}</p>
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-4 bg-zinc-900/50 border border-white/5 rounded-2xl p-4 w-full md:w-auto">
           <div className="flex flex-col items-start sm:items-end">
-            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest">Puntos Totales</span>
+            <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('gamification.points.total', 'Puntos Totales')}</span>
             <span className="text-lg sm:text-xl md:text-2xl font-black text-amber-500">{stats.points.toLocaleString()} PTS</span>
           </div>
           <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-500/20 flex items-center justify-center border-2 border-amber-500 shrink-0">
@@ -276,7 +278,7 @@ export function Gamification() {
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-tight">Misión Diaria</h2>
+                <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-tight">{t('gamification.dailyMission.title', 'Misión Diaria')}</h2>
                 <span className={`${dailyChallengeCompleted ? 'bg-emerald-500' : 'bg-amber-500'} text-white text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full transition-colors duration-500`}>
                   +150 PTS
                 </span>

@@ -7,6 +7,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { RiskNode, NodeType } from '../types';
 import { Shield, Info, Volume2, Activity, Wind, Cloud, Accessibility, Brain, ArrowDownCircle, Zap, Loader2, MapPin, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const iconMap: Record<string, any> = {
   Volume2,
@@ -19,6 +20,7 @@ const iconMap: Record<string, any> = {
 };
 
 export function Risks() {
+  const { t } = useTranslation();
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
   const { selectedProject } = useProject();
   const { data: nodes, loading } = useFirestoreCollection<RiskNode>('nodes');
@@ -35,16 +37,16 @@ export function Risks() {
         <div className="bg-emerald-100 dark:bg-emerald-900/20 p-3 sm:p-4 rounded-2xl sm:rounded-3xl mb-3 sm:mb-4">
           <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Gestión de Riesgos</h2>
+        <h2 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('risks.title', 'Gestión de Riesgos')}</h2>
         <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-xs mt-1">
-          Identificación y control de peligros en el entorno laboral.
+          {t('risks.subtitle', 'Identificación y control de peligros en el entorno laboral.')}
         </p>
       </div>
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-10 sm:py-20 gap-3 sm:gap-4">
           <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500 animate-spin" />
-          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest">Cargando riesgos...</p>
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest">{t('risks.loading', 'Cargando riesgos...')}</p>
         </div>
       ) : riskNodes.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -96,7 +98,7 @@ export function Risks() {
         </div>
       ) : (
         <div className="text-center py-8 sm:py-10 bg-white/50 dark:bg-zinc-900/50 rounded-2xl sm:rounded-3xl border border-dashed border-zinc-200 dark:border-white/10">
-          <p className="text-zinc-500 text-xs sm:text-sm px-4">No se han identificado riesgos para este proyecto.</p>
+          <p className="text-zinc-500 text-xs sm:text-sm px-4">{t('risks.empty', 'No se han identificado riesgos para este proyecto.')}</p>
         </div>
       )}
 
@@ -106,8 +108,8 @@ export function Risks() {
             <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="flex flex-col min-w-0">
-            <h3 className="text-sm sm:text-base font-black uppercase tracking-widest truncate">Matriz IPERC IA</h3>
-            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Inteligencia Artificial</span>
+            <h3 className="text-sm sm:text-base font-black uppercase tracking-widest truncate">{t('risks.iperc.title', 'Matriz IPERC IA')}</h3>
+            <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">{t('risks.iperc.badge', 'Inteligencia Artificial')}</span>
           </div>
         </div>
         <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed mb-5 sm:mb-6">
@@ -117,7 +119,7 @@ export function Risks() {
           onClick={() => setIsAnalysisOpen(true)}
           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black uppercase tracking-widest transition-colors"
         >
-          Iniciar Análisis IA
+          {t('risks.iperc.cta', 'Iniciar Análisis IA')}
         </Button>
       </Card>
 
