@@ -1,4 +1,5 @@
 import React, { useState, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, Plus, Network, Lightbulb, Tag, X, Save, Loader2, PanelRightClose, PanelRightOpen
@@ -43,6 +44,7 @@ const EMPTY_FORM: NewNodeForm = {
 };
 
 export function Pizarra() {
+  const { t } = useTranslation();
   const { addNode } = useRiskEngine();
   const { nodes } = useUniversalKnowledge();
   const { selectedProject } = useProject();
@@ -89,7 +91,7 @@ export function Pizarra() {
             <LayoutDashboard className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
-            <h1 className="text-lg font-black uppercase tracking-tighter text-white">Pizarra</h1>
+            <h1 className="text-lg font-black uppercase tracking-tighter text-white">{t('pizarra.title', 'Pizarra')}</h1>
             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Red de Conocimiento Colaborativa</p>
           </div>
         </div>
@@ -169,7 +171,7 @@ export function Pizarra() {
                 <input
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="Ej: Uso de doble guante en ácidos..."
+                  placeholder={t('pizarra.titlePlaceholder', 'Ej: Uso de doble guante en ácidos...')}
                   className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
                 />
               </div>
@@ -180,7 +182,7 @@ export function Pizarra() {
                 <input
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Detalle del conocimiento..."
+                  placeholder={t('pizarra.descPlaceholder', 'Detalle del conocimiento...')}
                   className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
                 />
               </div>
@@ -194,7 +196,7 @@ export function Pizarra() {
                   <input
                     value={form.tags}
                     onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-                    placeholder="seguridad, químicos, DS 594"
+                    placeholder={t('pizarra.tagsPlaceholder', 'seguridad, químicos, DS 594')}
                     className="w-full bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/50"
                   />
                 </div>

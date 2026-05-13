@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle, Activity, Map, Users, Radio, ShieldAlert,
@@ -40,6 +41,7 @@ interface ChatMessage {
 }
 
 export function EmergenciaAvanzada() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user, isAdmin } = useFirebase();
   const [activeTab, setActiveTab] = useState<"map" | "comms" | "resources">("map");
@@ -199,10 +201,10 @@ export function EmergenciaAvanzada() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Activity className="w-8 h-8 text-red-500" />
-            Emergencia Avanzada
+            {t('emergenciaAvanzada.title', 'Emergencia Avanzada')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            OrquestaciÃ³n del Caos Post-Evento CrÃ­tico
+            {t('emergenciaAvanzada.subtitle', 'Orquestación del Caos Post-Evento Crítico')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -212,7 +214,7 @@ export function EmergenciaAvanzada() {
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-xl flex items-center gap-2 transition-colors"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Resolver Emergencia
+              {t('emergenciaAvanzada.resolve', 'Resolver Emergencia')}
             </button>
           ) : (
             <div className="flex items-center gap-2">
@@ -232,7 +234,7 @@ export function EmergenciaAvanzada() {
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase rounded-xl flex items-center gap-2 transition-colors"
               >
                 <AlertTriangle className="w-4 h-4" />
-                Activar Emergencia
+                {t('emergenciaAvanzada.activate', 'Activar Emergencia')}
               </button>
             </div>
           )}
@@ -262,9 +264,9 @@ export function EmergenciaAvanzada() {
               </p>
             </div>
             <div className="flex gap-4 text-xs font-bold shrink-0">
-              <span className="text-emerald-400">{safeCount} Seguros</span>
-              <span className="text-red-400">{dangerCount} En Peligro</span>
-              <span className="text-zinc-400">{unknownCount} Sin Confirmar</span>
+              <span className="text-emerald-400">{safeCount} {t('emergenciaAvanzada.safe', 'Seguros')}</span>
+              <span className="text-red-400">{dangerCount} {t('emergenciaAvanzada.danger', 'En Peligro')}</span>
+              <span className="text-zinc-400">{unknownCount} {t('emergenciaAvanzada.unknown', 'Sin Confirmar')}</span>
             </div>
           </motion.div>
         )}

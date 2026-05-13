@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { FileText, Wand2, Loader2, Save, Download, CheckCircle2, AlertTriangle, Brain } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -23,6 +24,7 @@ import { ToastContainer } from '../components/shared/ToastContainer';
 import { Tooltip } from '../components/shared/Tooltip';
 
 export function EmergencyGenerator() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { addNode } = useRiskEngine();
@@ -280,9 +282,9 @@ export function EmergencyGenerator() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Generador de Planes de Emergencia</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('emergencyGenerator.title', 'Generador de Planes de Emergencia')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Protocolos de Respuesta Asistidos por IA
+            {t('emergencyGenerator.subtitle', 'Protocolos de Respuesta Asistidos por IA')}
           </p>
         </div>
       </div>
@@ -321,7 +323,7 @@ export function EmergencyGenerator() {
           <div className="bg-zinc-900/50 border border-white/10 rounded-2xl sm:rounded-3xl p-4 sm:p-6">
             <h2 className="text-base sm:text-lg font-black text-white uppercase tracking-tight mb-4 sm:mb-6 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500" />
-              Datos del Escenario
+              {t('emergencyGenerator.scenarioData', 'Datos del Escenario')}
             </h2>
             
             <form onSubmit={handleGenerate} className="space-y-4">
@@ -356,26 +358,26 @@ export function EmergencyGenerator() {
                   value={scenario}
                   onChange={(e) => setScenario(e.target.value)}
                   className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all"
-                  placeholder="Ej: Incendio en Bodega de Residuos"
+                  placeholder={t('emergencyGenerator.scenarioPlaceholder', 'Ej: Incendio en Bodega de Residuos')}
                 />
               </div>
 
               <div>
                 <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                  Descripción Detallada
+                  {t('emergencyGenerator.descLabel', 'Descripción Detallada')}
                 </label>
                 <textarea
                   required
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full bg-zinc-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50 transition-all resize-none h-32"
-                  placeholder="Describe el contexto, posibles causas y áreas afectadas..."
+                  placeholder={t('emergencyGenerator.descPlaceholder', 'Describe el contexto, posibles causas y áreas afectadas...')}
                 />
               </div>
 
               <div>
                 <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-2">
-                  Normativa Aplicable
+                  {t('emergencyGenerator.normativeLabel', 'Normativa Aplicable')}
                 </label>
                 <input
                   type="text"

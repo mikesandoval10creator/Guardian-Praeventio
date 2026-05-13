@@ -10,6 +10,7 @@
 // generar PDFs reales contra `downloadDs76Pdf`.
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
   Mountain,
@@ -79,6 +80,7 @@ const ALL_STANDARDS: Ds76SgsstStandard[] = [
 ];
 
 export function MiningContractors() {
+  const { t } = useTranslation();
   const [contractors, setContractors] = useState<Ds76Input[]>([emptyContractor()]);
   const [activeIdx, setActiveIdx] = useState(0);
 
@@ -122,10 +124,10 @@ export function MiningContractors() {
         </div>
         <div>
           <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
-            Contratistas Mineros
+            {t('mining.title', 'Contratistas Mineros')}
           </h1>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-            DS 76/2007 · Ley 16.744 art. 66 bis · SERNAGEOMIN
+            {t('mining.subtitle', 'DS 76/2007 · Ley 16.744 art. 66 bis · SERNAGEOMIN')}
           </p>
         </div>
       </div>
@@ -136,7 +138,7 @@ export function MiningContractors() {
           <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
-                Contratistas
+                {t('mining.contractorsHeading', 'Contratistas')}
               </h3>
               <button
                 onClick={addContractor}
@@ -186,19 +188,19 @@ export function MiningContractors() {
         >
           <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
-              Faena minera
+              {t('mining.worksite', 'Faena minera')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nombre faena</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('mining.worksiteName', 'Nombre faena')}</span>
                 <input className={inputClass} value={active.worksiteName} onChange={e => updateActive('worksiteName', e.target.value)} />
               </label>
               <label className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Código SERNAGEOMIN</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('mining.sernageominCode', 'Código SERNAGEOMIN')}</span>
                 <input className={inputClass} value={active.sernageominCode} onChange={e => updateActive('sernageominCode', e.target.value)} />
               </label>
               <label className="sm:col-span-2 space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Ubicación</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{t('mining.location', 'Ubicación')}</span>
                 <input className={inputClass} value={active.worksiteLocation} onChange={e => updateActive('worksiteLocation', e.target.value)} />
               </label>
             </div>
@@ -206,7 +208,7 @@ export function MiningContractors() {
 
           <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-zinc-700 dark:text-zinc-300">
-              Empresas
+              {t('mining.companies', 'Empresas')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="space-y-1">

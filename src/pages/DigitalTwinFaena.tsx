@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas } from '@react-three/fiber';
@@ -126,6 +127,7 @@ function RiskMarkers() {
 }
 
 export function DigitalTwinFaena() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { toasts, show, dismiss } = useToast();
@@ -385,16 +387,16 @@ export function DigitalTwinFaena() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-black uppercase tracking-tighter text-white">Gemelo Digital 3D</h1>
+              <h1 className="text-lg font-black uppercase tracking-tighter text-white">{t('digitalTwin.title', 'Gemelo Digital 3D')}</h1>
               <span
                 className="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest rounded bg-amber-500/15 text-amber-400 border border-amber-500/40"
                 role="status"
                 aria-label="Función en vista previa, no apta para reportes oficiales"
               >
-                Vista previa
+                {t('digitalTwin.preview', 'Vista previa')}
               </span>
             </div>
-            <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Reconstrucción Faena · lingBot-Map</p>
+            <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{t('digitalTwin.subtitle', 'Reconstrucción Faena · lingBot-Map')}</p>
           </div>
         </div>
         <button
@@ -424,7 +426,7 @@ export function DigitalTwinFaena() {
           }`}
         >
           <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-          Reconstrucción 3D
+          {t('digitalTwin.tab3d', 'Reconstrucción 3D')}
         </button>
         <button
           role="tab"
@@ -437,7 +439,7 @@ export function DigitalTwinFaena() {
           }`}
         >
           <MapIcon className="w-3.5 h-3.5" aria-hidden="true" />
-          Mapa 2.5D del sitio
+          {t('digitalTwin.tab25d', 'Mapa 2.5D del sitio')}
         </button>
       </div>
 
@@ -460,7 +462,7 @@ export function DigitalTwinFaena() {
         <aside className="space-y-4 overflow-y-auto pr-1">
           {/* Mode toggle */}
           <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">Modo de procesamiento</p>
+            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">{t('digitalTwin.processingMode', 'Modo de procesamiento')}</p>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Modo de procesamiento">
               <button
                 role="radio"
@@ -508,7 +510,7 @@ export function DigitalTwinFaena() {
 
           {/* Upload zone */}
           <div className="bg-zinc-900/60 border border-white/5 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">Nuevo escaneo</p>
+            <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-3">{t('digitalTwin.newScan', 'Nuevo escaneo')}</p>
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -547,8 +549,8 @@ export function DigitalTwinFaena() {
               ) : (
                 <>
                   <Upload className="w-8 h-8 text-zinc-500 mx-auto mb-2" aria-hidden="true" />
-                  <p className="text-xs font-bold text-zinc-300">Soltar video aquí</p>
-                  <p className="text-[10px] text-zinc-500 mt-1">mp4, mov, webm · máx 200MB</p>
+                  <p className="text-xs font-bold text-zinc-300">{t('digitalTwin.dropVideo', 'Soltar video aquí')}</p>
+                  <p className="text-[10px] text-zinc-500 mt-1">{t('digitalTwin.videoFormats', 'mp4, mov, webm · máx 200MB')}</p>
                 </>
               )}
               <input
@@ -562,7 +564,7 @@ export function DigitalTwinFaena() {
 
             <input
               type="text"
-              placeholder="Notas (sector, fecha, condiciones)"
+              placeholder={t('digitalTwin.notesPlaceholder', 'Notas (sector, fecha, condiciones)')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full mt-3 bg-zinc-800 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-cyan-500/50"

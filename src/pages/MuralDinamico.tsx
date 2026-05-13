@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { MessageSquare, Image as ImageIcon, AlertTriangle, CheckCircle2, Send, Loader2, ThumbsUp, Share2, MoreVertical, Trash2, Award } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -39,6 +40,7 @@ const reverseTypeMapping: Record<Post['type'], string> = {
 };
 
 export function MuralDinamico() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes } = useRiskEngine();
@@ -153,9 +155,9 @@ export function MuralDinamico() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Mural Dinámico</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('mural.title', 'Mural Dinámico')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Centro de Comando y Comunicación Táctica
+            {t('mural.subtitle', 'Centro de Comando y Comunicación Táctica')}
           </p>
         </div>
       </div>
@@ -166,7 +168,7 @@ export function MuralDinamico() {
           <textarea
             value={newPostContent}
             onChange={(e) => { setNewPostContent(e.target.value); if (moderationError) setModerationError(null); }}
-            placeholder="Comparte una alerta, lección aprendida o comunicado..."
+            placeholder={t('mural.composerPlaceholder', 'Comparte una alerta, lección aprendida o comunicado...')}
             aria-invalid={moderationError !== null}
             aria-describedby={moderationError ? 'mural-mod-error' : undefined}
             className={`w-full h-24 bg-zinc-900/50 border rounded-xl p-4 text-sm text-white placeholder:text-zinc-600 focus:ring-2 outline-none resize-none ${
