@@ -13,6 +13,7 @@ import {
   SlmIntegrityError,
   assertModelIntegrity,
   computeSha256Hex,
+  verifyBundleIntegrity,
 } from './slmIntegrityGuard';
 
 // Known SHA-256 vectors. Verified against `printf '...' | sha256sum`.
@@ -133,5 +134,75 @@ describe('assertModelIntegrity', () => {
     const e = new SlmIntegrityError('aaa', 'bbb', 'foo');
     expect(e).toBeInstanceOf(Error);
     expect(e.name).toBe('SlmIntegrityError');
+  });
+});
+
+describe('Sprint 54 verifyBundleIntegrity — modelos split + companions', () => {
+  it('bundle con todos los hashes correctos → allVerified true', async () => {
+    const r = await verifyBundleIntegrity('phi-3-mini', [
+      { filename: 'model.onnx', payload: bytesOf('hello'), expectedSha256: HELLO_SHA256 },
+      { filename: 'model.onnx_data', payload: bytesOf('abc'), expectedSha256: ABC_SHA256 },
+    ]);
+    expect(r.allVerified).toBe(true);
+    expect(r.files).toHaveLength(2);
+    expect(r.unverifiedCount).toBe(0);
+    expect(r.mismatchCount).toBe(0);
+  });
+
+  it('un archivo con hash inválido → throw + falla rápido', async () => {
+    await expect(
+      verifyBundleIntegrity('phi-3-mini', [
+        { filename: 'model.onnx', payload: bytesOf('hello'), expectedSha256: HELLO_SHA256 },
+        { filename: 'model.onnx_data', payload: bytesOf('abc'), expectedSha256: 'a'.repeat(64) },
+      ]),
+    ).rejects.toThrowError(SlmIntegrityError);
+  });
+
+  it('el SlmIntegrityError reporta el companion file específico', async () => {
+    try {
+      await verifyBundleIntegrity('phi-3-mini', [
+        { filename: 'model.onnx', payload: bytesOf('hello'), expectedSha256: HELLO_SHA256 },
+        { filename: 'companion.onnx_data', payload: bytesOf('abc'), expectedSha256: 'a'.repeat(64) },
+      ]);
+      throw new Error('should have thrown');
+    } catch (e) {
+      expect(e).toBeInstanceOf(SlmIntegrityError);
+      expect((e as Error).message).toContain('companion.onnx_data');
+      expect((e as SlmIntegrityError).computedSha256).toBe(ABC_SHA256);
+    }
+  });
+
+  it('archivos con expectedSha256=null se cuentan como unverified pero no fallan', async () => {
+    const r = await verifyBundleIntegrity('gemma-2-2b', [
+      { filename: 'model.onnx', payload: bytesOf('hello'), expectedSha256: null },
+    ]);
+    expect(r.unverifiedCount).toBe(1);
+    expect(r.allVerified).toBe(false);
+    expect(r.files[0]!.passed).toBe(true); // pass porque sin expectation
+  });
+
+  it('mixed: 1 verified + 1 unverified → allVerified false (caller decide)', async () => {
+    const r = await verifyBundleIntegrity('mixed', [
+      { filename: 'a.onnx', payload: bytesOf('hello'), expectedSha256: HELLO_SHA256 },
+      { filename: 'b.onnx_data', payload: bytesOf('abc'), expectedSha256: null },
+    ]);
+    expect(r.allVerified).toBe(false);
+    expect(r.unverifiedCount).toBe(1);
+    expect(r.mismatchCount).toBe(0);
+  });
+
+  it('reporta computedSha256 para todos los archivos (útil para release pipeline)', async () => {
+    const r = await verifyBundleIntegrity('first-download', [
+      { filename: 'a.onnx', payload: bytesOf('hello'), expectedSha256: null },
+      { filename: 'b.onnx', payload: bytesOf('abc'), expectedSha256: null },
+    ]);
+    expect(r.files[0]!.computedSha256).toBe(HELLO_SHA256);
+    expect(r.files[1]!.computedSha256).toBe(ABC_SHA256);
+  });
+
+  it('bundle vacío → allVerified true (trivially)', async () => {
+    const r = await verifyBundleIntegrity('empty', []);
+    expect(r.allVerified).toBe(true);
+    expect(r.files).toHaveLength(0);
   });
 });

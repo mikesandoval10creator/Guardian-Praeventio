@@ -116,3 +116,95 @@ function bufferToHex(buf: Uint8Array): string {
   }
   return out;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint 54 SLM real: bundle-level integrity (model + companions)
+// ────────────────────────────────────────────────────────────────────────
+
+export interface BundleFileToVerify {
+  filename: string;
+  payload: Uint8Array | ArrayBuffer;
+  expectedSha256: string | null;
+}
+
+export interface BundleVerificationResult {
+  modelId: string;
+  /** Cada archivo + su hash computado + si pasó. */
+  files: Array<{
+    filename: string;
+    computedSha256: string;
+    expectedSha256: string | null;
+    passed: boolean;
+  }>;
+  /** Si todos los archivos pasaron (true = bundle confiable). */
+  allVerified: boolean;
+  /** Archivos sin expected (skip — solo computed se reporta). */
+  unverifiedCount: number;
+  /** Archivos donde el computed NO match. */
+  mismatchCount: number;
+}
+
+/**
+ * Verifica un bundle completo (modelo principal + companions) en una
+ * sola pasada. Útil para modelos split como Phi-3 ONNX-web donde
+ * `.onnx` + `.onnx_data` ambos necesitan integrity check antes de
+ * dar al loader.
+ *
+ * Si CUALQUIER archivo declara expectedSha256 y NO matchea →
+ * throw SlmIntegrityError con detalle del primer archivo malo.
+ *
+ * Archivos con expectedSha256=null pasan y se incluyen en
+ * unverifiedCount (caller decide qué hacer).
+ */
+export async function verifyBundleIntegrity(
+  modelId: string,
+  files: ReadonlyArray<BundleFileToVerify>,
+): Promise<BundleVerificationResult> {
+  const results: BundleVerificationResult['files'] = [];
+  let mismatchCount = 0;
+  let unverifiedCount = 0;
+  let firstMismatch: { filename: string; expected: string; computed: string } | null = null;
+
+  for (const f of files) {
+    const computed = await computeSha256Hex(f.payload);
+    let passed: boolean;
+    if (f.expectedSha256 == null || f.expectedSha256 === '') {
+      passed = true; // sin expected, no se rechaza; caller decide via unverifiedCount
+      unverifiedCount += 1;
+    } else if (computed.toLowerCase() === f.expectedSha256.toLowerCase()) {
+      passed = true;
+    } else {
+      passed = false;
+      mismatchCount += 1;
+      if (!firstMismatch) {
+        firstMismatch = {
+          filename: f.filename,
+          expected: f.expectedSha256,
+          computed,
+        };
+      }
+    }
+    results.push({
+      filename: f.filename,
+      computedSha256: computed,
+      expectedSha256: f.expectedSha256,
+      passed,
+    });
+  }
+
+  if (firstMismatch) {
+    throw new SlmIntegrityError(
+      firstMismatch.expected,
+      firstMismatch.computed,
+      `${modelId}/${firstMismatch.filename}`,
+    );
+  }
+
+  return {
+    modelId,
+    files: results,
+    allVerified: mismatchCount === 0 && unverifiedCount === 0,
+    unverifiedCount,
+    mismatchCount,
+  };
+}
