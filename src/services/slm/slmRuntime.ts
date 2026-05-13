@@ -41,11 +41,12 @@
  * route-split chunk.
  */
 
-import { getModelById } from './registry';
+import { getModelById, listDownloadableFiles } from './registry';
 import {
   SlmIntegrityError,
   assertModelIntegrity,
   computeSha256Hex,
+  verifyBundleIntegrity,
 } from './slmIntegrityGuard';
 import type { ModelDescriptor, SLMBackend } from './types';
 
@@ -120,11 +121,27 @@ export interface SlmTokenizerLike {
  * locally so tests can supply a fake without dragging in the full
  * upstream type surface.
  */
+/**
+ * ORT-web (since 1.17) accepts external data via `externalData` option
+ * for split models like Phi-3 ONNX-web where the `.onnx` file references
+ * a sibling `.onnx_data` blob. Shape mirrors the upstream `FileLike`
+ * structure: each entry has a binary payload + the path the model file
+ * references (NOT the URL — just the relative filename the ONNX graph
+ * uses).
+ */
+export interface OnnxExternalDataFile {
+  data: ArrayBuffer | Uint8Array;
+  path: string;
+}
+
 export interface OnnxRuntimeLike {
   InferenceSession: {
     create(
       buffer: ArrayBuffer | Uint8Array,
-      options?: { executionProviders?: ReadonlyArray<string> },
+      options?: {
+        executionProviders?: ReadonlyArray<string>;
+        externalData?: ReadonlyArray<OnnxExternalDataFile>;
+      },
     ): Promise<OnnxInferenceSessionLike>;
   };
   Tensor?: new (
@@ -188,6 +205,16 @@ export function createSlmRuntime(): SlmRuntime {
       const descriptor = getModelById(id);
       if (!descriptor) {
         throw new Error(`SlmRuntime: unknown model id '${id}'.`);
+      }
+
+      // Sprint 54 SLM real: when a descriptor declares companionFiles
+      // (split ONNX-web models like Phi-3 with .onnx + .onnx_data), we
+      // fan out the download + integrity check across the whole bundle
+      // and pass the companions to ORT as `externalData`. Models
+      // without companions take the simple single-file path below for
+      // backwards compatibility.
+      if (descriptor.companionFiles && descriptor.companionFiles.length > 0) {
+        return loadBundledModel(descriptor, opts);
       }
 
       const url = resolveWeightUrl(descriptor);
@@ -366,6 +393,75 @@ async function fetchWithTimeout(
     clearTimeout(timer);
     if (external) external.removeEventListener('abort', onExternalAbort);
   }
+}
+
+/**
+ * Sprint 54: split-model load path. Resolves descriptor → fan-out
+ * fetch (principal + companions) → bundle-wide integrity check →
+ * ORT session with `externalData` populated. Throws
+ * `SlmIntegrityError` on the first mismatch.
+ *
+ * The companion files are exposed to ORT under the SAME filename the
+ * descriptor declares (e.g. `onnx/model_q4.onnx_data`) because the
+ * principal `.onnx` graph references that exact relative path
+ * internally.
+ */
+async function loadBundledModel(
+  descriptor: ModelDescriptor,
+  opts: LoadModelOptions,
+): Promise<LoadedModel> {
+  const files = listDownloadableFiles(descriptor);
+
+  // Parallel fetch with shared abort signal. If any companion 404s or
+  // times out, we abort the rest — partial bundles can't be loaded.
+  const payloads = await Promise.all(
+    files.map((f) => fetchWithTimeout(f.url, opts)),
+  );
+
+  // Run bundle-wide integrity check. If the descriptor declares
+  // expected hashes (verified at release time), every file MUST match
+  // before any bytes hit ORT. Override applies to the principal file
+  // only — companions stay registry-pinned.
+  const filesToVerify = files.map((f, idx) => ({
+    filename: f.filename,
+    payload: payloads[idx]!,
+    expectedSha256:
+      idx === 0 && opts.expectedSha256Override !== undefined
+        ? opts.expectedSha256Override
+        : f.expectedSha256,
+  }));
+
+  const verification = await verifyBundleIntegrity(
+    descriptor.id,
+    filesToVerify,
+  );
+
+  // The principal file is always at index 0 (registry contract).
+  const principalBytes = payloads[0]!;
+  const externalData: OnnxExternalDataFile[] = payloads
+    .slice(1)
+    .map((data, idx) => ({
+      data,
+      // The path here MUST match what the ONNX graph references —
+      // i.e. the filename inside the repo (e.g. `onnx/model_q4.onnx_data`).
+      path: files[idx + 1]!.filename,
+    }));
+
+  const ort = await (opts.ortFactory ?? defaultOrtFactory)();
+  const session = await ort.InferenceSession.create(principalBytes, {
+    executionProviders: ['webgpu', 'wasm'],
+    externalData,
+  });
+
+  const backend = detectBackend(session);
+
+  return {
+    modelId: descriptor.id,
+    descriptor,
+    observedSha256: verification.files[0]!.computedSha256,
+    backend,
+    session,
+  };
 }
 
 async function defaultOrtFactory(): Promise<OnnxRuntimeLike> {

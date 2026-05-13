@@ -56,6 +56,12 @@ function buildFetchReturning(payload: ArrayBuffer): typeof fetch {
   })) as unknown) as typeof fetch;
 }
 
+// Sprint 54: registry[0] (phi-3-mini) is now a SPLIT model with
+// .onnx_data companion → the basic single-file load path tests use the
+// Qwen entry (no companions) so the fetch stub doesn't have to also
+// satisfy companion integrity. Split-bundle behaviour gets its own
+// `loadModel split` describe below.
+const QWEN_ID = MODEL_REGISTRY[1].id;
 const PHI_ID = MODEL_REGISTRY[0].id;
 
 describe('slmRuntime.loadModel', () => {
@@ -88,7 +94,7 @@ describe('slmRuntime.loadModel', () => {
       }),
     );
     const runtime = createSlmRuntime();
-    const loaded = await runtime.loadModel(PHI_ID, {
+    const loaded = await runtime.loadModel(QWEN_ID, {
       fetchImpl: buildFetchReturning(helloPayload()),
       // Force integrity to pass (registry has no hash for phi-3-mini today).
       expectedSha256Override: HELLO_SHA256,
@@ -98,7 +104,7 @@ describe('slmRuntime.loadModel', () => {
         }) as unknown as OnnxRuntimeLike,
     });
 
-    expect(loaded.modelId).toBe(PHI_ID);
+    expect(loaded.modelId).toBe(QWEN_ID);
     expect(loaded.observedSha256).toBe(HELLO_SHA256);
     expect(loaded.backend).toBe('webgpu');
 
@@ -114,7 +120,7 @@ describe('slmRuntime.loadModel', () => {
     const createSpy = vi.fn();
     const runtime = createSlmRuntime();
     await expect(
-      runtime.loadModel(PHI_ID, {
+      runtime.loadModel(QWEN_ID, {
         fetchImpl: buildFetchReturning(helloPayload()),
         expectedSha256Override:
           '0000000000000000000000000000000000000000000000000000000000000000',
@@ -129,7 +135,7 @@ describe('slmRuntime.loadModel', () => {
 
   it('allows null expected hash (staging mode) but still records observed hash', async () => {
     const runtime = createSlmRuntime();
-    const loaded = await runtime.loadModel(PHI_ID, {
+    const loaded = await runtime.loadModel(QWEN_ID, {
       fetchImpl: buildFetchReturning(helloPayload()),
       expectedSha256Override: null,
       ortFactory: async () => buildFakeOrt({}),
@@ -139,7 +145,7 @@ describe('slmRuntime.loadModel', () => {
 
   it('reports wasm-simd backend when ORT chose the wasm provider', async () => {
     const runtime = createSlmRuntime();
-    const loaded = await runtime.loadModel(PHI_ID, {
+    const loaded = await runtime.loadModel(QWEN_ID, {
       fetchImpl: buildFetchReturning(helloPayload()),
       expectedSha256Override: HELLO_SHA256,
       ortFactory: async () =>
@@ -159,7 +165,7 @@ describe('slmRuntime.loadModel', () => {
       arrayBuffer: async () => new ArrayBuffer(0),
     })) as unknown) as typeof fetch;
     await expect(
-      runtime.loadModel(PHI_ID, {
+      runtime.loadModel(QWEN_ID, {
         fetchImpl: failingFetch,
         ortFactory: async () => buildFakeOrt({}),
       }),
@@ -187,7 +193,7 @@ describe('slmRuntime.loadModel', () => {
       },
     );
     await expect(
-      runtime.loadModel(PHI_ID, {
+      runtime.loadModel(QWEN_ID, {
         fetchImpl: watchedFetch as unknown as typeof fetch,
         signal: controller.signal,
         ortFactory: async () => buildFakeOrt({}),
@@ -200,7 +206,7 @@ describe('slmRuntime.release', () => {
   it('calls session.release() when present', async () => {
     const releaseSpy = vi.fn(async () => undefined);
     const runtime = createSlmRuntime();
-    const loaded = await runtime.loadModel(PHI_ID, {
+    const loaded = await runtime.loadModel(QWEN_ID, {
       fetchImpl: buildFetchReturning(helloPayload()),
       expectedSha256Override: HELLO_SHA256,
       ortFactory: async () =>
@@ -212,7 +218,7 @@ describe('slmRuntime.release', () => {
 
   it('is a no-op when the session has no release()', async () => {
     const runtime = createSlmRuntime();
-    const loaded = await runtime.loadModel(PHI_ID, {
+    const loaded = await runtime.loadModel(QWEN_ID, {
       fetchImpl: buildFetchReturning(helloPayload()),
       expectedSha256Override: HELLO_SHA256,
       ortFactory: async () => buildFakeOrt({ session: { release: undefined } }),
@@ -225,7 +231,7 @@ describe('slmRuntime.release', () => {
       throw new Error('release boom');
     });
     const runtime = createSlmRuntime();
-    const loaded = await runtime.loadModel(PHI_ID, {
+    const loaded = await runtime.loadModel(QWEN_ID, {
       fetchImpl: buildFetchReturning(helloPayload()),
       expectedSha256Override: HELLO_SHA256,
       ortFactory: async () =>
@@ -233,6 +239,169 @@ describe('slmRuntime.release', () => {
     });
     await expect(runtime.release(loaded)).resolves.toBeUndefined();
     expect(releaseSpy).toHaveBeenCalledOnce();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint 54: split-model load path (Phi-3 ONNX-web with .onnx_data)
+// ────────────────────────────────────────────────────────────────────────
+
+describe('slmRuntime.loadModel (Sprint 54 split bundle)', () => {
+  // Real Phi-3 mini hashes from the registry. These match exactly what
+  // the descriptor declares, so we don't need to override anything —
+  // the bundle integrity check runs against the registry-pinned values.
+  const PHI_PRINCIPAL_SHA =
+    '16b8e5d28a757c37bbfa7d9420fd094c0c20e3615ca3c203b5b9501015045c8f';
+  const PHI_COMPANION_SHA =
+    '41d30b87f06b52e6b24c4e2e65a6a14e5c9fb5bc6f495fac17b19c6bc7875ff5';
+
+  // Build a fetch that maps each URL to a payload whose computed SHA-256
+  // matches the registry-pinned hash for that file. We can't actually
+  // produce 1.06GB of real ONNX bytes, so we just stub the digest call.
+  // Instead, the tests use registry mocking — but rather than mock the
+  // crypto subtle, we'll use a hash-aware fetch that returns content
+  // matching the expected hash via a precomputed lookup.
+
+  it('fans out fetch for principal + companion and threads externalData into ORT', async () => {
+    // We can't fabricate bytes that hash to specific values, so this
+    // test patches `crypto.subtle.digest` to return whatever hash the
+    // registry expects for the URL being fetched. That isolates the
+    // bundle-orchestration logic without coupling to real SHA-256.
+    const fetchUrls: string[] = [];
+    const fakeFetch = (vi.fn(async (url: string) => {
+      fetchUrls.push(url);
+      // Distinguishable payloads so the orchestrator can't accidentally
+      // mix them up — bundle indexing relies on order matching files[].
+      const body = url.includes('_data')
+        ? new TextEncoder().encode('companion').buffer
+        : new TextEncoder().encode('principal').buffer;
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        arrayBuffer: async () => body,
+      };
+    }) as unknown) as typeof fetch;
+
+    // Mock subtle.digest so the integrity check passes deterministically.
+    const realSubtle = globalThis.crypto.subtle;
+    const digestSpy = vi.spyOn(globalThis.crypto.subtle, 'digest').mockImplementation(
+      async (_alg: AlgorithmIdentifier, data: BufferSource) => {
+        const bytes =
+          data instanceof Uint8Array
+            ? data
+            : new Uint8Array(data as ArrayBuffer);
+        const txt = new TextDecoder().decode(bytes);
+        const hex = txt === 'principal' ? PHI_PRINCIPAL_SHA : PHI_COMPANION_SHA;
+        const out = new Uint8Array(32);
+        for (let i = 0; i < 32; i++) {
+          out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+        }
+        return out.buffer;
+      },
+    );
+
+    let externalDataReceived: unknown = undefined;
+    const createSpy = vi.fn(
+      async (
+        _buf: ArrayBuffer | Uint8Array,
+        opts?: { executionProviders?: ReadonlyArray<string>; externalData?: unknown },
+      ) => {
+        externalDataReceived = opts?.externalData;
+        return {
+          inputNames: ['input_ids'],
+          outputNames: ['logits'],
+          handler: { _executionProviders: ['webgpu'] },
+          release: vi.fn(async () => undefined),
+        };
+      },
+    );
+
+    try {
+      const runtime = createSlmRuntime();
+      const loaded = await runtime.loadModel(PHI_ID, {
+        fetchImpl: fakeFetch,
+        ortFactory: async () =>
+          ({
+            InferenceSession: { create: createSpy },
+          }) as unknown as OnnxRuntimeLike,
+      });
+
+      // Both URLs hit.
+      expect(fetchUrls).toHaveLength(2);
+      expect(fetchUrls[0]).toMatch(/model_q4\.onnx$/);
+      expect(fetchUrls[1]).toMatch(/model_q4\.onnx_data$/);
+
+      // ORT received externalData with companion under its registry path.
+      expect(Array.isArray(externalDataReceived)).toBe(true);
+      const ed = externalDataReceived as Array<{ path: string }>;
+      expect(ed).toHaveLength(1);
+      expect(ed[0]!.path).toBe('onnx/model_q4.onnx_data');
+
+      // observedSha256 reports the principal hash.
+      expect(loaded.observedSha256).toBe(PHI_PRINCIPAL_SHA);
+      expect(loaded.modelId).toBe(PHI_ID);
+    } finally {
+      digestSpy.mockRestore();
+      expect(globalThis.crypto.subtle).toBe(realSubtle);
+    }
+  });
+
+  it('throws SlmIntegrityError with companion path when only the companion mismatches', async () => {
+    const fakeFetch = (vi.fn(async (url: string) => {
+      const body = url.includes('_data')
+        ? new TextEncoder().encode('wrong-companion').buffer
+        : new TextEncoder().encode('principal').buffer;
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        arrayBuffer: async () => body,
+      };
+    }) as unknown) as typeof fetch;
+
+    // Principal hashes to the registry value, companion to a different value.
+    const BAD_COMPANION_SHA = 'a'.repeat(64);
+    const digestSpy = vi.spyOn(globalThis.crypto.subtle, 'digest').mockImplementation(
+      async (_alg: AlgorithmIdentifier, data: BufferSource) => {
+        const bytes =
+          data instanceof Uint8Array
+            ? data
+            : new Uint8Array(data as ArrayBuffer);
+        const txt = new TextDecoder().decode(bytes);
+        const hex =
+          txt === 'principal' ? PHI_PRINCIPAL_SHA : BAD_COMPANION_SHA;
+        const out = new Uint8Array(32);
+        for (let i = 0; i < 32; i++) {
+          out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+        }
+        return out.buffer;
+      },
+    );
+
+    const createSpy = vi.fn();
+    try {
+      const runtime = createSlmRuntime();
+      let err: unknown;
+      try {
+        await runtime.loadModel(PHI_ID, {
+          fetchImpl: fakeFetch,
+          ortFactory: async () =>
+            ({
+              InferenceSession: { create: createSpy },
+            }) as unknown as OnnxRuntimeLike,
+        });
+      } catch (e) {
+        err = e;
+      }
+      expect(err).toBeInstanceOf(SlmIntegrityError);
+      // Error context names the offending companion file, NOT just the model.
+      expect((err as Error).message).toContain('model_q4.onnx_data');
+      // ORT never sees these bytes when integrity fails.
+      expect(createSpy).not.toHaveBeenCalled();
+    } finally {
+      digestSpy.mockRestore();
+    }
   });
 });
 
