@@ -52,7 +52,7 @@ Leyenda: ✅ cerrado · 🔄 en sprint actual · ⏸ bloqueado por usuario · �
 | H1 | Doc DWG desfasada | ⬜ | Limpieza menor. |
 | H3 | Stripe pre-flight | ⬜ | Mensajes claros cuando flag off. |
 | H5 | SII pre-flight | ⬜ | Idem para 3 adapters stub. |
-| H11 | Geofence in-place edit | ⬜ | `geometryHash` en deps. |
+| H11 | Geofence in-place edit | ✅ | Sprint 44 P2: hash de geometría usa `coordinates` (campo real) — antes leía `polygon`/`points` inexistentes y degeneraba a null, dejando bypass silente al editar polígono. Tests: `src/hooks/useGeofence.test.ts`. |
 | H19 | KnowledgeGraph `as any` x18 | ⬜ | Type cleanup. |
 | H22 | KnowledgeGraph virtualización + worker | ⬜ | Para tenants >1k nodos. |
 | H23 | backgroundTriggers concurrency | ⬜ | `Promise.all` con concurrency 10. |
