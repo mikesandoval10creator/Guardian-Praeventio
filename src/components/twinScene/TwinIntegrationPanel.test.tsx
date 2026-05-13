@@ -1,4 +1,14 @@
 // @vitest-environment jsdom
+//
+// Sprint 48 E.2 — Test enfocado en READOUT HUD (DOM derivado de cálculos
+// matemáticos: COG cargo, thermal steady-state, severidad). El renderer
+// r3f real no aporta aquí porque las aserciones son sobre `data-testid`
+// del footer plain-React, no sobre Three.js. Mantiene mocks ligeros del
+// stack r3f para que el component padre se monte sin WebGL.
+//
+// El scene graph 3D que ESTE panel genera indirectamente se cubre por
+// sceneGraph.r3f.test.tsx (que testea WorkersByStatus + EquipmentRenderer
+// con test-renderer real).
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
