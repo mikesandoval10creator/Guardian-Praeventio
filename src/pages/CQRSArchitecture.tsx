@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Database, ShieldAlert, Activity, ArrowRightLeft, Server, Zap, HardDrive, Layers } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function CQRSArchitecture() {
+  const { t } = useTranslation();
   const [isSimulating, setIsSimulating] = useState(false);
   const [metrics, setMetrics] = useState({ reads: 0, writes: 0, latency: 15 });
 
@@ -38,16 +40,16 @@ export function CQRSArchitecture() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Layers className="w-8 h-8 text-fuchsia-500" />
-            Arquitectura CQRS
+            {t('cqrs.title', 'Arquitectura CQRS')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Command Query Responsibility Segregation + Redis
+            {t('cqrs.subtitle', 'Command Query Responsibility Segregation + Redis')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Nivel: Enterprise
+            {t('cqrs.tierBadge', 'Nivel: Enterprise')}
           </span>
         </div>
       </div>
@@ -58,14 +60,14 @@ export function CQRSArchitecture() {
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Server className="w-5 h-5 text-fuchsia-500" />
-              Topología del Sistema
+              {t('cqrs.topologySection', 'Topología del Sistema')}
             </h2>
             <Button 
               variant={isSimulating ? "danger" : "primary"} 
               onClick={() => setIsSimulating(!isSimulating)}
               className="text-xs py-2"
             >
-              {isSimulating ? 'Detener Simulación' : 'Iniciar Test de Carga'}
+              {isSimulating ? t('cqrs.stopSimulation', 'Detener Simulación') : t('cqrs.startLoadTest', 'Iniciar Test de Carga')}
             </Button>
           </div>
 
@@ -129,7 +131,7 @@ export function CQRSArchitecture() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Activity className="w-5 h-5 text-fuchsia-500" />
-            Métricas de Rendimiento
+            {t('cqrs.metricsSection', 'Métricas de Rendimiento')}
           </h2>
 
           <div className="space-y-4">

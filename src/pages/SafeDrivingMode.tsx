@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -9,6 +10,7 @@ import { useEmergency } from '../contexts/EmergencyContext';
 import { WeatherBulletin } from '../components/WeatherBulletin';
 
 export function SafeDrivingMode() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
@@ -82,8 +84,8 @@ export function SafeDrivingMode() {
         <div className="flex items-center gap-4">
           <Car className="w-10 h-10 text-emerald-500" />
           <div>
-            <h1 className="text-2xl font-black text-white uppercase tracking-widest">Safe Driving</h1>
-            <p className="text-emerald-500 font-bold uppercase tracking-widest text-xs">Modo Activo</p>
+            <h1 className="text-2xl font-black text-white uppercase tracking-widest">{t('safeDrivingMode.title', 'Safe Driving')}</h1>
+            <p className="text-emerald-500 font-bold uppercase tracking-widest text-xs">{t('safeDrivingMode.activeMode', 'Modo Activo')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -92,7 +94,7 @@ export function SafeDrivingMode() {
             onClick={() => navigate(-1)}
             className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-2xl text-white font-black uppercase tracking-widest text-sm transition-colors"
           >
-            Salir
+            {t('safeDrivingMode.exit', 'Salir')}
           </button>
         </div>
       </div>
@@ -110,7 +112,7 @@ export function SafeDrivingMode() {
             {isListening ? <MicOff className="w-16 h-16 text-indigo-300" /> : <Mic className="w-16 h-16 text-indigo-500" />}
           </div>
           <span className="text-3xl font-black text-white uppercase tracking-widest">
-            {isListening ? 'Detener' : 'Dictar Reporte'}
+            {isListening ? t('safeDrivingMode.stop', 'Detener') : t('safeDrivingMode.dictateReport', 'Dictar Reporte')}
           </span>
           {dictatedText && !isListening && (
             <span className="text-sm text-zinc-400 px-6 text-center max-w-xs">{dictatedText}</span>
@@ -118,7 +120,7 @@ export function SafeDrivingMode() {
           {reportSaved && (
             <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold">
               <CheckCircle2 className="w-4 h-4" />
-              Reporte guardado
+              {t('safeDrivingMode.reportSaved', 'Reporte guardado')}
             </div>
           )}
         </button>
@@ -130,7 +132,7 @@ export function SafeDrivingMode() {
             className="flex-1 bg-zinc-900 hover:bg-zinc-800 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 transition-all active:scale-95"
           >
             <MapPin className="w-12 h-12 text-blue-500" />
-            <span className="text-xl font-black text-white uppercase tracking-widest">Ruta</span>
+            <span className="text-xl font-black text-white uppercase tracking-widest">{t('safeDrivingMode.route', 'Ruta')}</span>
           </button>
           {selectedProject?.phone ? (
             <a
@@ -166,7 +168,7 @@ export function SafeDrivingMode() {
         >
           <ShieldAlert className={`w-16 h-16 ${isEmergency ? 'text-white' : 'text-rose-500'}`} aria-hidden="true" />
           <span className={`text-3xl font-black uppercase tracking-widest ${isEmergency ? 'text-white' : 'text-rose-500'}`}>
-            {isEmergency ? (sosConfirmedAt ? `S.O.S. ${sosConfirmedAt}` : 'Enviando...') : 'Emergencia'}
+            {isEmergency ? (sosConfirmedAt ? `S.O.S. ${sosConfirmedAt}` : t('safeDrivingMode.sending', 'Enviando...')) : t('safeDrivingMode.emergency', 'Emergencia')}
           </span>
         </button>
       </div>

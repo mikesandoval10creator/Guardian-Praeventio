@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Activity, Network, CheckCircle, Loader2 } from 'lucide-react';
 import { HumanBodyViewer as HumanBodyViewerComponent, BodyRegion } from '../components/occupational-health/HumanBodyViewer';
 import { MedicalAnalyzer } from '../components/occupational-health/MedicalAnalyzer';
@@ -15,6 +16,7 @@ const SEVERITY_LABEL: Record<NonNullable<BodyRegion['severity']>, string> = {
 };
 
 export function HumanBodyViewer() {
+  const { t } = useTranslation();
   const [regions, setRegions] = useState<BodyRegion[]>([]);
   const [saving, setSaving] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
@@ -61,7 +63,7 @@ export function HumanBodyViewer() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Activity className="w-7 h-7 text-rose-500" />
-            Visor Corporal
+            {t('humanBodyViewer.title', 'Visor Corporal')}
             {/* Sprint 17c — Bioicons body silhouettes (M/F) decorate the page header. */}
             <span className="hidden sm:inline-flex items-center gap-1.5 text-rose-300/80" aria-hidden="true">
               <MedicalIcon name="human-body-male-front" size={28} alt="Cuerpo masculino" />
@@ -70,7 +72,7 @@ export function HumanBodyViewer() {
             </span>
           </h1>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.25em] mt-1.5">
-            Registro de Lesiones — DIAT · Ley 16.744 · DS 594
+            {t('humanBodyViewer.subtitle', 'Registro de Lesiones — DIAT · Ley 16.744 · DS 594')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -95,7 +97,7 @@ export function HumanBodyViewer() {
           )}
           <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-rose-500 bg-rose-500/10 border-rose-500/20 shrink-0">
             <Activity className="w-4 h-4" />
-            <span className="font-bold uppercase tracking-wider text-xs">Salud Ocupacional</span>
+            <span className="font-bold uppercase tracking-wider text-xs">{t('humanBodyViewer.badge', 'Salud Ocupacional')}</span>
           </div>
         </div>
       </div>

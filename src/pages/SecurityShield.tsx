@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Shield, Key, Smartphone, Lock, CheckCircle2, AlertTriangle, Fingerprint, ShieldAlert } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 
 export function SecurityShield() {
+  const { t } = useTranslation();
   const [mfaEnabled, setMfaEnabled] = useState(false);
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [step, setStep] = useState(1);
@@ -32,16 +34,16 @@ export function SecurityShield() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Shield className="w-8 h-8 text-indigo-500" />
-            Escudo de Seguridad
+            {t('securityShield.title', 'Escudo de Seguridad')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Autenticación Multifactor (MFA) y Políticas
+            {t('securityShield.subtitle', 'Autenticación Multifactor (MFA) y Políticas')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-indigo-500 bg-indigo-500/10 border-indigo-500/20">
           <Lock className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Nivel: Enterprise
+            {t('securityShield.tierBadge', 'Nivel: Enterprise')}
           </span>
         </div>
       </div>
@@ -51,7 +53,7 @@ export function SecurityShield() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Key className="w-5 h-5 text-indigo-500" />
-            Autenticación de Dos Factores (2FA)
+            {t('securityShield.twoFactorSection', 'Autenticación de Dos Factores (2FA)')}
           </h2>
 
           <div className={`p-6 rounded-2xl border-2 transition-colors ${mfaEnabled ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5'}`}>
@@ -60,9 +62,9 @@ export function SecurityShield() {
                 {mfaEnabled ? <ShieldAlert className="w-8 h-8" /> : <AlertTriangle className="w-8 h-8" />}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Estado MFA</h3>
+                <h3 className="text-lg font-bold text-white">{t('securityShield.mfaStatus', 'Estado MFA')}</h3>
                 <p className={`text-sm font-medium ${mfaEnabled ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {mfaEnabled ? 'Activado y Protegido' : 'Desactivado - Riesgo Alto'}
+                  {mfaEnabled ? t('securityShield.mfaActivated', 'Activado y Protegido') : t('securityShield.mfaDisabled', 'Desactivado - Riesgo Alto')}
                 </p>
               </div>
             </div>
@@ -79,7 +81,7 @@ export function SecurityShield() {
               onClick={handleEnableMFA} 
             >
               <Smartphone className="w-5 h-5 mr-2" />
-              Configurar Autenticador
+              {t('securityShield.configureAuthenticator', 'Configurar Autenticador')}
             </Button>
           )}
 
