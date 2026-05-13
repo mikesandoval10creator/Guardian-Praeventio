@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Mountain, Wind, AlertTriangle, MapPin, ShieldAlert, Navigation, Info, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polygon } from '@react-google-maps/api';
@@ -33,6 +34,7 @@ const getDestinationPoint = (lat: number, lng: number, distance: number, bearing
 };
 
 export function VolcanicEruptionMap() {
+  const { t } = useTranslation();
   // Villarrica Volcano coordinates
   const [volcanoLocation, setVolcanoLocation] = useState({ lat: -39.4200, lng: -71.9396, name: 'Volcán Villarrica' });
   const [windDirection, setWindDirection] = useState(45); // Degrees
@@ -70,10 +72,10 @@ export function VolcanicEruptionMap() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Mountain className="w-8 h-8 text-orange-500" />
-            Protocolo Volcánico
+            {t('volcanicEruptionMap.title', 'Protocolo Volcánico')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Mapeo de Dispersión de Cenizas y Evacuación
+            {t('volcanicEruptionMap.subtitle', 'Mapeo de Dispersión de Cenizas y Evacuación')}
           </p>
         </div>
         <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${getAlertColor(alertLevel)}`}>

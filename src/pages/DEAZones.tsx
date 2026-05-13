@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { HeartPulse, MapPin, Battery, AlertTriangle, CheckCircle2, Plus, Calendar, ShieldAlert, Activity, FileText } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 
@@ -48,6 +49,7 @@ const MOCK_DEAS: DEA[] = [
 ];
 
 export function DEAZones() {
+  const { t } = useTranslation();
   const [deas, setDeas] = useState<DEA[]>(MOCK_DEAS);
   const [selectedDEA, setSelectedDEA] = useState<DEA | null>(null);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
@@ -93,15 +95,15 @@ export function DEAZones() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <HeartPulse className="w-8 h-8 text-rose-500" />
-            Zonas DEA
+            {t('deaZones.title', 'Zonas DEA')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Ley 21.156 - Desfibriladores Externos Automáticos
+            {t('deaZones.subtitle', 'Ley 21.156 - Desfibriladores Externos Automáticos')}
           </p>
         </div>
         <Button className="shrink-0">
           <Plus className="w-4 h-4 mr-2" />
-          Registrar Nuevo DEA
+          {t('deaZones.registerNew', 'Registrar Nuevo DEA')}
         </Button>
       </div>
 

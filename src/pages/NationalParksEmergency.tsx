@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { TreePine, Map, ShieldAlert, AlertTriangle, Info, Droplet, CloudSnow, Sun, CloudLightning, ThermometerSnowflake, Wind, Cloud } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { fetchWeatherData } from '../services/orchestratorService';
 import { logger } from '../utils/logger';
 
 export function NationalParksEmergency() {
+  const { t } = useTranslation();
   const [incidentType, setIncidentType] = useState<'fire' | 'spill'>('spill');
   const [parkStatus, setParkStatus] = useState<'open' | 'restricted' | 'closed'>('restricted');
   const [weatherData, setWeatherData] = useState<any>(null);
@@ -64,10 +66,10 @@ export function NationalParksEmergency() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <TreePine className="w-8 h-8 text-emerald-500" />
-            Parques Nacionales
+            {t('nationalParks.title', 'Parques Nacionales')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Gestión de Emergencias y Clima Predictivo
+            {t('nationalParks.subtitle', 'Gestión de Emergencias y Clima Predictivo')}
           </p>
         </div>
         <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${parkStatus === 'closed' ? 'text-rose-500 bg-rose-500/10 border-rose-500/20' : 'text-amber-500 bg-amber-500/10 border-amber-500/20'}`}>

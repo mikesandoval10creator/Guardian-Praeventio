@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   MessageSquare, 
   Heart, 
@@ -36,6 +37,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function SafetyFeed() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
@@ -185,13 +187,13 @@ export function SafetyFeed() {
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
                 <Users className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <span className="text-[8px] sm:text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Comunidad Praeventio</span>
+              <span className="text-[8px] sm:text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">{t('safetyFeed.kicker', 'Comunidad Praeventio')}</span>
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-6xl font-black text-white uppercase tracking-tighter leading-[0.9]">
-              El Muro del <span className="text-emerald-500">Guardián</span>
+              {t('safetyFeed.titlePrefix', 'El Muro del')} <span className="text-emerald-500">{t('safetyFeed.titleAccent', 'Guardián')}</span>
             </h1>
             <p className="text-zinc-400 font-medium text-sm sm:text-lg max-w-md">
-              Conecta, comparte y aprende de los mejores expertos en prevención de riesgos.
+              {t('safetyFeed.subtitle', 'Conecta, comparte y aprende de los mejores expertos en prevención de riesgos.')}
             </p>
           </motion.div>
         </div>

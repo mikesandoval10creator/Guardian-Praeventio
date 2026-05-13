@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Loader2, AlertTriangle, LogIn, CheckCircle2, UserCheck } from 'lucide-react';
 import { useFirebase } from '../contexts/FirebaseContext';
 import { signInWithGoogle, auth } from '../services/firebase';
@@ -23,6 +24,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export function InviteAccept() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
   const navigate = useNavigate();
@@ -104,7 +106,7 @@ export function InviteAccept() {
               <ShieldCheck className="w-7 h-7 text-emerald-500" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">Praeventio Guard</p>
-            <h1 className="text-xl font-black text-white uppercase tracking-tight">Invitación de Equipo</h1>
+            <h1 className="text-xl font-black text-white uppercase tracking-tight">{t('inviteAccept.title', 'Invitación de Equipo')}</h1>
           </div>
 
           <div className="px-8 py-7 space-y-6">
@@ -119,7 +121,7 @@ export function InviteAccept() {
             {infoError && (
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <AlertTriangle className="w-10 h-10 text-rose-500" />
-                <p className="text-sm font-bold text-white">Invitación no disponible</p>
+                <p className="text-sm font-bold text-white">{t('inviteAccept.unavailable', 'Invitación no disponible')}</p>
                 <p className="text-xs text-zinc-400">{infoError}</p>
                 <button onClick={() => navigate('/')} className="mt-2 text-xs font-black uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition-colors">
                   Ir al Inicio

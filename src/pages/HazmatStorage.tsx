@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Info, Beaker } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 
@@ -33,6 +34,7 @@ const SEGREGATION_MATRIX: Record<string, Record<string, number>> = {
 };
 
 export function HazmatStorage() {
+  const { t } = useTranslation();
   const [selectedClass1, setSelectedClass1] = useState<string | null>(null);
   const [selectedClass2, setSelectedClass2] = useState<string | null>(null);
 
@@ -49,10 +51,10 @@ export function HazmatStorage() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Beaker className="w-8 h-8 text-emerald-500" />
-            Acopio HAZMAT
+            {t('hazmatStorage.title', 'Acopio HAZMAT')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Matriz de Segregación Química Offline
+            {t('hazmatStorage.subtitle', 'Matriz de Segregación Química Offline')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border text-emerald-500 bg-emerald-500/10 border-emerald-500/20 flex items-center gap-2">
