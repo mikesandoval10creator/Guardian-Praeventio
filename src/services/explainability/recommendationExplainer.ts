@@ -63,8 +63,10 @@ export interface ExplainedRecommendation {
   citations: string[];
   /** True si TODA la evidencia es determinística (sin LLM). */
   isFullyDeterministic: boolean;
-  /** Si hay LLM inferences, qué fracción del razonamiento es IA. */
+  /** LLM share redondeado para UI display (2 decimales). */
   llmInferenceShare: number;
+  /** LLM share exacto (sin redondeo) — usar para comparaciones de umbrales. */
+  llmInferenceShareExact: number;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -119,8 +121,14 @@ const KIND_LABEL: Record<EvidenceKind, string> = {
 
 export function explainRecommendation(input: ExplainInput): ExplainedRecommendation {
   const { recommendation, evidences } = input;
+  // Codex P2 PR #107: si caller proporciona weight, usar weighted share.
+  // Sin weights → fallback a count-based.
+  const totalWeight = evidences.reduce((s, e) => s + (e.weight ?? 1), 0);
+  const llmWeight = evidences
+    .filter((e) => e.kind === 'llm_inference')
+    .reduce((s, e) => s + (e.weight ?? 1), 0);
+  const llmShare = totalWeight > 0 ? llmWeight / totalWeight : 0;
   const llmCount = evidences.filter((e) => e.kind === 'llm_inference').length;
-  const llmShare = evidences.length > 0 ? llmCount / evidences.length : 0;
   const confidence = inferConfidence(evidences, llmShare);
 
   // Build markdown
@@ -166,7 +174,11 @@ export function explainRecommendation(input: ExplainInput): ExplainedRecommendat
     confidence,
     citations,
     isFullyDeterministic,
+    // Codex P2 PR #107: exponemos AMBOS — exact (sin redondeo, para
+    // comparaciones precisas en partitionByActionability) y display
+    // (redondeado, solo para UI).
     llmInferenceShare: Math.round(llmShare * 100) / 100,
+    llmInferenceShareExact: llmShare,
   };
 }
 
@@ -191,11 +203,24 @@ export function explainBatch(
  */
 export function partitionByActionability(
   explained: ExplainedRecommendation[],
+  options: { now?: Date } = {},
 ): { actionable: ExplainedRecommendation[]; needsReview: ExplainedRecommendation[] } {
   const actionable: ExplainedRecommendation[] = [];
   const needsReview: ExplainedRecommendation[] = [];
+  const nowMs = (options.now ?? new Date()).getTime();
   for (const e of explained) {
-    if (e.confidence === 'high' || (e.confidence === 'medium' && e.llmInferenceShare <= 0.3)) {
+    // Codex P2 PR #107: recomendaciones expiradas NUNCA son actionable.
+    const validUntil = e.recommendation.validUntil;
+    if (validUntil && Number.isFinite(Date.parse(validUntil)) && Date.parse(validUntil) < nowMs) {
+      needsReview.push(e);
+      continue;
+    }
+    // Codex P2 PR #107: usar llmInferenceShareExact (no redondeado) en el
+    // umbral 0.3 para no promover 0.3043 a actionable por redondeo.
+    if (
+      e.confidence === 'high' ||
+      (e.confidence === 'medium' && e.llmInferenceShareExact <= 0.3)
+    ) {
       actionable.push(e);
     } else {
       needsReview.push(e);
