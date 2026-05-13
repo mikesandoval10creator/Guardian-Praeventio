@@ -143,6 +143,20 @@ function slopeToDirection(slope: number, avgCount: number): TrendDirection {
   return 'stable';
 }
 
+function nextBucketStart(d: Date, granularity: Granularity): Date {
+  if (granularity === 'month') {
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+  }
+  if (granularity === 'week') {
+    const next = new Date(d);
+    next.setUTCDate(next.getUTCDate() + 7);
+    return next;
+  }
+  const next = new Date(d);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next;
+}
+
 export function buildTrendSeries(
   incidents: IncidentRecord[],
   granularity: Granularity = 'month',
@@ -162,7 +176,41 @@ export function buildTrendSeries(
     b.bySev[i.severity] += 1;
   }
 
-  const sortedKeys = [...buckets.keys()].sort();
+  // Codex P2 PR #102: rellenar buckets vacíos entre el primer y último
+  // ocurrido para que slope/moving-average no traten períodos no-adyacentes
+  // como adyacentes.
+  if (buckets.size > 0) {
+    const startsByKey = new Map<string, Date>();
+    for (const [k, v] of buckets) startsByKey.set(k, new Date(v.startIso));
+    const sortedStartIsoKeys = [...buckets.keys()].sort(
+      (a, b) => startsByKey.get(a)!.getTime() - startsByKey.get(b)!.getTime(),
+    );
+    const firstKey = sortedStartIsoKeys[0];
+    const lastKey = sortedStartIsoKeys[sortedStartIsoKeys.length - 1];
+    let cursor = new Date(buckets.get(firstKey)!.startIso);
+    const endStart = new Date(buckets.get(lastKey)!.startIso);
+    let safety = 0;
+    while (cursor.getTime() <= endStart.getTime() && safety < 5000) {
+      safety += 1;
+      const key = bucketKeyFor(cursor, granularity);
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          startIso: bucketStartIso(cursor, granularity),
+          count: 0,
+          bySev: emptySeverityCount(),
+        });
+      }
+      cursor = nextBucketStart(cursor, granularity);
+    }
+  }
+
+  // Sort by bucketStartIso parsed (no por string — más seguro con week 'YYYY-Www').
+  const allKeys = [...buckets.keys()];
+  const sortedKeys = allKeys.sort((a, b) => {
+    const ta = Date.parse(buckets.get(a)!.startIso);
+    const tb = Date.parse(buckets.get(b)!.startIso);
+    return ta - tb;
+  });
   const points: TrendPoint[] = sortedKeys.map((k) => {
     const b = buckets.get(k)!;
     return {
@@ -227,16 +275,36 @@ export interface OutlierPoint {
 export function detectOutliers(series: TrendSeries, sigmaThreshold = 3): OutlierPoint[] {
   const counts = series.points.map((p) => p.count);
   if (counts.length < 3) return [];
-  const mean = counts.reduce((s, n) => s + n, 0) / counts.length;
-  const variance =
-    counts.reduce((s, n) => s + (n - mean) ** 2, 0) / counts.length;
-  const stdev = Math.sqrt(variance);
-  if (stdev === 0) return [];
+
+  // Codex P2 PR #102: leave-one-out baseline. Para cada candidato p,
+  // recalcular mean/stdev SIN incluir p. Sin esto, en series cortas el
+  // máximo z-score posible es < 3 incluso ante spikes obvios.
+  const total = counts.reduce((s, n) => s + n, 0);
+  const totalSq = counts.reduce((s, n) => s + n * n, 0);
   const out: OutlierPoint[] = [];
-  for (const p of series.points) {
-    const z = (p.count - mean) / stdev;
+
+  for (let i = 0; i < counts.length; i++) {
+    const x = counts[i];
+    const otherCount = counts.length - 1;
+    if (otherCount < 2) continue;
+    const otherMean = (total - x) / otherCount;
+    const otherSqMean = (totalSq - x * x) / otherCount;
+    const otherVar = otherSqMean - otherMean * otherMean;
+    const otherStd = Math.sqrt(Math.max(0, otherVar));
+    if (otherStd === 0) {
+      // Todos los demás iguales — si el candidato difiere, ES el outlier.
+      if (Math.abs(x - otherMean) > 0) {
+        out.push({ bucket: series.points[i].bucket, count: x, zScore: Number.POSITIVE_INFINITY });
+      }
+      continue;
+    }
+    const z = (x - otherMean) / otherStd;
     if (Math.abs(z) >= sigmaThreshold) {
-      out.push({ bucket: p.bucket, count: p.count, zScore: Math.round(z * 100) / 100 });
+      out.push({
+        bucket: series.points[i].bucket,
+        count: x,
+        zScore: Math.round(z * 100) / 100,
+      });
     }
   }
   return out;

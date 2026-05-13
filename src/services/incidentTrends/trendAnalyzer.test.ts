@@ -116,6 +116,17 @@ describe('buildTrendSeries', () => {
     expect(r.movingAvg3.length).toBe(r.points.length);
   });
 
+  it('Codex P2 PR #102: rellena buckets vacíos entre primer y último', () => {
+    const incidents: IncidentRecord[] = [
+      inc({ id: '1', occurredAt: '2026-01-15T00:00:00Z' }),
+      inc({ id: '2', occurredAt: '2026-04-15T00:00:00Z' }), // gap Feb+Mar
+    ];
+    const r = buildTrendSeries(incidents, 'month');
+    expect(r.points.length).toBe(4); // Jan + Feb(0) + Mar(0) + Apr
+    expect(r.points[1].count).toBe(0);
+    expect(r.points[2].count).toBe(0);
+  });
+
   it('ignora timestamps inválidos', () => {
     const incidents: IncidentRecord[] = [
       inc({ id: '1', occurredAt: 'not-a-date' }),
@@ -175,8 +186,9 @@ describe('detectOutliers', () => {
       incidents.push(inc({ id: `6-${i}`, occurredAt: '2026-06-15T00:00:00Z' }));
     }
     const series = buildTrendSeries(incidents, 'month');
-    // Con [2,2,2,2,2,20] z-score del 20 ≈ 2.24σ, así que usamos 2σ threshold
-    const outliers = detectOutliers(series, 2);
+    // Codex P2 PR #102: con leave-one-out baseline, los 5 valores [2,2,2,2,2]
+    // tienen std=0 sin el candidato → el 20 es outlier automático (default 3σ).
+    const outliers = detectOutliers(series);
     expect(outliers.length).toBeGreaterThan(0);
     expect(outliers[0].bucket).toBe('2026-06');
   });
