@@ -1,8 +1,8 @@
-// Praeventio Guard — Sprint 28 Bucket B3.
+﻿// Praeventio Guard â€” Sprint 28 Bucket B3.
 //
 // Coverage for the transversal Zod validation middleware
 // (`src/server/middleware/validate.ts`). The middleware is the FIRST
-// barrier on every endpoint that opts in via Sprint 28 — these tests
+// barrier on every endpoint that opts in via Sprint 28 â€” these tests
 // pin the contract that broke in the audit (H17): one error envelope,
 // one log emission, validated data exposed to the next handler.
 
@@ -29,7 +29,7 @@ describe('validate() middleware', () => {
     const app = buildApp();
     const schema = z.object({ name: z.string().min(1), age: z.number().int() });
     app.post('/echo', validate(schema), (req, res) => {
-      res.json({ ok: true, validated: (req as any).validated });
+      res.json({ ok: true, validated: req.validated });
     });
 
     const res = await request(app).post('/echo').send({ name: 'Daho', age: 33 });
@@ -56,7 +56,7 @@ describe('validate() middleware', () => {
     const app = buildApp();
     const schema = z.object({ q: z.string().min(1) });
     app.get('/search', validate(schema, 'query'), (req, res) => {
-      res.json({ validated: (req as any).validated });
+      res.json({ validated: req.validated });
     });
 
     const ok = await request(app).get('/search').query({ q: 'foo' });
@@ -72,7 +72,7 @@ describe('validate() middleware', () => {
     const app = buildApp();
     const schema = z.object({ id: z.string().regex(/^[a-z0-9-]{3,}$/) });
     app.get('/item/:id', validate(schema, 'params'), (req, res) => {
-      res.json({ validated: (req as any).validated });
+      res.json({ validated: req.validated });
     });
 
     const ok = await request(app).get('/item/abc-123');
@@ -88,7 +88,7 @@ describe('validate() middleware', () => {
     const schema = z.object({ projectId: z.string().min(1) });
     let seen: unknown = null;
     app.post('/x', validate(schema), (req, _res, next) => {
-      seen = (req as any).validated;
+      seen = req.validated;
       next();
     }, (_req, res) => {
       res.json({ ok: true });
@@ -105,7 +105,7 @@ describe('validate() middleware', () => {
       tag: z.string().transform((s) => s.trim().toLowerCase()),
     });
     app.post('/x', validate(schema), (req, res) => {
-      res.json({ validated: (req as any).validated });
+      res.json({ validated: req.validated });
     });
 
     const res = await request(app).post('/x').send({ tag: '  ALPHA  ' });
@@ -120,7 +120,7 @@ describe('validate() middleware', () => {
       limit: z.number().int().min(1).max(100).default(20),
     });
     app.post('/x', validate(schema), (req, res) => {
-      res.json({ validated: (req as any).validated });
+      res.json({ validated: req.validated });
     });
 
     const res = await request(app).post('/x').send({});
@@ -154,7 +154,7 @@ describe('validate() middleware', () => {
     app.post(
       '/with-auth',
       (req, _res, next) => {
-        (req as any).user = { uid: 'uid-A' };
+        req.user = { uid: 'uid-A' };
         next();
       },
       validate(schema),

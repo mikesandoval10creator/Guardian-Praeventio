@@ -1,15 +1,15 @@
-// Praeventio Guard — Round 19 R2 Phase 4 split.
+﻿// Praeventio Guard â€” Round 19 R2 Phase 4 split.
 //
 // IoT telemetry ingestion + per-tenant secret rotation. Both endpoints
 // extracted from server.ts:
-//   • POST /api/telemetry/ingest          — gateway / device webhook.
+//   â€¢ POST /api/telemetry/ingest          â€” gateway / device webhook.
 //     Authenticates via per-tenant HMAC-SHA256 over the RFC 8785 canonical
 //     body (header `x-iot-signature: sha256=<hex>`) when a tenant scope is
 //     supplied (header `x-tenant-id` or body `tenantId`), falling back to
 //     the legacy shared `IOT_WEBHOOK_SECRET` env var when no per-tenant
 //     secret is registered. Auto-validates with the AI safety engine and
 //     stamps the row into `telemetry_events`.
-//   • POST /api/admin/iot/rotate-secret   — admin-only operator path that
+//   â€¢ POST /api/admin/iot/rotate-secret   â€” admin-only operator path that
 //     mints a fresh 32-byte hex secret, persists it on `tenants/{id}.iotSecret`
 //     with a `iotSecretRotatedAt` server timestamp, audits the rotation,
 //     and echoes the raw secret back EXACTLY ONCE in the response body.
@@ -51,8 +51,8 @@ const IOT_TYPE_ALLOWLIST = new Set([
 ]);
 
 /**
- * Round 17 R1 — Look up a tenant's per-tenant IoT secret. Returns null when
- * the tenant doc is missing, the field is absent, or anything throws —
+ * Round 17 R1 â€” Look up a tenant's per-tenant IoT secret. Returns null when
+ * the tenant doc is missing, the field is absent, or anything throws â€”
  * never crashes the request path. Caller falls back to env secret.
  */
 async function lookupTenantIotSecret(tenantId: string): Promise<string | null> {
@@ -99,11 +99,11 @@ router.post('/telemetry/ingest', async (req, res) => {
   // `x-iot-signature: sha256=<hex>`. Env fallback: legacy x-iot-secret
   // header (or deprecated body.secretKey).
   //
-  // Round 18 R6 (R6→R17 MEDIUM #2): the signing input is now the RFC 8785
+  // Round 18 R6 (R6â†’R17 MEDIUM #2): the signing input is now the RFC 8785
   // canonical-JSON form of the parsed body (sorted keys, no whitespace,
   // shortest numeric form). Producers in any language MUST canonicalise
   // before HMACing or signatures will diverge. This is the documented,
-  // intentional break of the prior `JSON.stringify(req.body)` contract —
+  // intentional break of the prior `JSON.stringify(req.body)` contract â€”
   // see src/server/middleware/canonicalBody.ts for the rationale and the
   // LEGACY_HMAC_FALLBACK flag is honored below for emergency rollback.
   let authenticated = false;
@@ -118,7 +118,7 @@ router.post('/telemetry/ingest', async (req, res) => {
     if (safeSecretEqual(sigHeader, expectedHeader)) {
       authenticated = true;
     } else if (process.env.LEGACY_HMAC_FALLBACK === '1') {
-      // DEPRECATED — emergency rollback path. Producer is still sending
+      // DEPRECATED â€” emergency rollback path. Producer is still sending
       // legacy `JSON.stringify(req.body)` HMACs. Verify under the old
       // contract; log every match so operators can see who is still on
       // the legacy path. Remove once telemetry shows zero hits.
@@ -206,11 +206,11 @@ router.post('/telemetry/ingest', async (req, res) => {
   }
 });
 
-// Round 17 R1 — IoT secret rotation. Admin-only. Generates a new 32-byte
+// Round 17 R1 â€” IoT secret rotation. Admin-only. Generates a new 32-byte
 // hex secret, stores it on `tenants/{tenantId}.iotSecret` along with a
 // `iotSecretRotatedAt` server timestamp, audits the rotation, and returns
 // the raw secret in the response body. THIS IS THE ONLY OPPORTUNITY for the
-// operator to see the raw secret — subsequent reads of the tenant doc never
+// operator to see the raw secret â€” subsequent reads of the tenant doc never
 // echo it back through any user-facing surface.
 //
 // Note: this endpoint is intentionally not under /api/admin (which is the
@@ -218,7 +218,7 @@ router.post('/telemetry/ingest', async (req, res) => {
 // /api/admin/iot/rotate-secret directly so that mounting order is
 // preserved and the body parser/limits already on /api/ apply.
 router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { tenantId } = req.body ?? {};
   if (typeof tenantId !== 'string' || tenantId.length === 0 || tenantId.length > 128) {
     return res.status(400).json({ error: 'Invalid tenantId' });
@@ -244,7 +244,7 @@ router.post('/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
       /* observability never breaks request path */
     }
     // ONLY response surface that ever exposes the raw secret. Caller MUST
-    // copy it now — it cannot be read back from Firestore via any non-admin
+    // copy it now â€” it cannot be read back from Firestore via any non-admin
     // path, and even admin reads should be discouraged.
     return res.json({ secret: newSecret });
   } catch (error: any) {

@@ -1,4 +1,4 @@
-// Praeventio Guard — Wire UI bridge: /api/sitebook routes.
+﻿// Praeventio Guard â€” Wire UI bridge: /api/sitebook routes.
 //
 // Server-side endpoints that wrap `SiteBookAdapter` for:
 //   GET    /api/sitebook/:projectId/entries?year=YYYY
@@ -72,7 +72,7 @@ async function resolveTenantId(
 }
 
 router.get('/:projectId/entries', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const yearParam = req.query.year;
   const year =
@@ -100,7 +100,7 @@ router.get('/:projectId/entries', verifyAuth, async (req, res) => {
 });
 
 router.get('/:projectId/entry/:folio', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId, folio } = req.params;
 
   try {
@@ -126,8 +126,8 @@ router.post(
   verifyAuth,
   validate(createEntrySchema),
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerRole = (req as any).user.role ?? 'worker';
+    const callerUid = req.user.uid;
+    const callerRole = req.user.role ?? 'worker';
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof createEntrySchema>;
 
@@ -147,7 +147,7 @@ router.post(
     const year = new Date(body.occurredAt).getUTCFullYear();
 
     try {
-      // createAndPersist orquesta counter atómico + createEntry + set().
+      // createAndPersist orquesta counter atÃ³mico + createEntry + set().
       // El servicio puro ya valida description >= 15 chars.
       const entry = await adapter.createAndPersist(
         {

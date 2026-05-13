@@ -1,4 +1,4 @@
-// Praeventio Guard — Wire UI bridge: /api/insights routes.
+﻿// Praeventio Guard â€” Wire UI bridge: /api/insights routes.
 //
 // Read-only endpoints that consume the PURE engines (no persistence
 // writes) and return shaped JSON for the dashboard widgets:
@@ -13,7 +13,7 @@
 //   3. invokes the deterministic engine (pure function)
 //   4. returns the result
 //
-// No Firestore writes — these are read paths. Mutations live in their
+// No Firestore writes â€” these are read paths. Mutations live in their
 // respective domain routes (sitebook.ts, etc.).
 
 import { Router } from 'express';
@@ -60,12 +60,12 @@ async function guardProjectAccess(
   }
 }
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GET /api/insights/:projectId/risk-ranking
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return;
 
@@ -91,12 +91,12 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GET /api/insights/:projectId/safety-talks
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return;
 
@@ -159,9 +159,9 @@ router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GET /api/insights/:projectId/role-view
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Aggregates the minimal counts that `buildRoleView` needs. The caller's
 // claims drive `userRole`; counts are scoped to (projectId, callerUid).
@@ -169,9 +169,9 @@ router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
 const VALID_ROLES: UserRole[] = ['worker', 'site_chief', 'prevention', 'management'];
 
 router.get('/:projectId/role-view', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail = (req as any).user.email ?? null;
-  const callerRole = (req as any).user.role ?? 'worker';
+  const callerUid = req.user.uid;
+  const callerEmail = req.user.email ?? null;
+  const callerRole = req.user.role ?? 'worker';
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return;
 

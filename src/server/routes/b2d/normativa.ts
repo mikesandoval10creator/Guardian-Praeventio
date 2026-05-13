@@ -1,12 +1,12 @@
-// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.5 — B2D Normativa API.
+﻿// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.5 â€” B2D Normativa API.
 //
 // Mounted via `app.use('/api/b2d/v1/normativa', normativaRouter)`.
 //
 // Endpoints:
-//   • GET  /api/b2d/v1/normativa/search        — full-text search
-//   • GET  /api/b2d/v1/normativa/by-id/:id     — fetch by id
-//   • POST /api/b2d/v1/normativa/validate      — compliance gap check
+//   â€¢ GET  /api/b2d/v1/normativa/search        â€” full-text search
+//   â€¢ GET  /api/b2d/v1/normativa/by-id/:id     â€” fetch by id
+//   â€¢ POST /api/b2d/v1/normativa/validate      â€” compliance gap check
 //
 // Reuse: `src/services/normativa/countryPacks.ts` (CL/PE/CO/MX/AR/BR/ISO).
 //
@@ -63,7 +63,7 @@ router.get('/search', b2dAuth('normativa.search'), async (req, res) => {
     matches = matches.filter((r) => r.title.toUpperCase().includes(type) || r.reference.toUpperCase().includes(type));
   }
 
-  const customerId = (req as any).b2dKey?.customerId as string;
+  const customerId = req.b2dKey?.customerId as string;
   await trackB2dUsage(customerId);
 
   return res.json({
@@ -84,7 +84,7 @@ router.get('/by-id/:id', b2dAuth('normativa.search'), async (req, res) => {
   const hit = all.find((entry) => entry.reg.id === id);
   if (!hit) return res.status(404).json({ error: 'not_found' });
 
-  const customerId = (req as any).b2dKey?.customerId as string;
+  const customerId = req.b2dKey?.customerId as string;
   await trackB2dUsage(customerId);
 
   return res.json({
@@ -118,7 +118,7 @@ router.post('/validate', b2dAuth('normativa.validate'), async (req, res) => {
     (regId) => !haveAsLower.some((m) => m.includes(regId.toLowerCase())),
   );
 
-  const customerId = (req as any).b2dKey?.customerId as string;
+  const customerId = req.b2dKey?.customerId as string;
   await trackB2dUsage(customerId);
 
   return res.json({
@@ -132,7 +132,7 @@ router.post('/validate', b2dAuth('normativa.validate'), async (req, res) => {
         regulationId: id,
         title: reg?.title ?? id,
         reference: reg?.reference ?? '',
-        suggestion: `Documentar la mitigación que cubre ${reg?.title ?? id}.`,
+        suggestion: `Documentar la mitigaciÃ³n que cubre ${reg?.title ?? id}.`,
       };
     }),
     citations: pack.regulations.slice(0, 5).map((r) => r.reference),

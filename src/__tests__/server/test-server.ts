@@ -1,9 +1,9 @@
-// Praeventio Guard — Round 15 (I3 / A6 audit) test server harness.
+﻿// Praeventio Guard â€” Round 15 (I3 / A6 audit) test server harness.
 //
 // `server.ts` is 3027 LOC, boots Vite middleware, calls `app.listen()`,
 // initializes Firebase Admin against a real GCP project, kicks off
 // background timers, and mounts 50 routes. We CANNOT just `await import
-// '../../server.ts'` from a test — it would block on Vite, spawn timers
+// '../../server.ts'` from a test â€” it would block on Vite, spawn timers
 // that survive the test run, and need a real GCP credential to even
 // pass `admin.initializeApp`.
 //
@@ -22,7 +22,7 @@
 //      imported and called directly, so behavior changes there ARE
 //      reflected here.
 //   3. Tests focus on wiring (auth, validation, status codes, audit
-//      emissions, tenant isolation) — exactly what server.ts adds on
+//      emissions, tenant isolation) â€” exactly what server.ts adds on
 //      top of the unit-tested pure functions.
 //
 // Future work: extract route handlers from server.ts into a registrar
@@ -53,9 +53,9 @@ import {
   type ClaimCategory,
 } from '../../services/curriculum/claims.js';
 
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Fake Firebase Admin
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FakeUserRecord {
   uid: string;
@@ -233,9 +233,9 @@ function applyMerge(target: any, patch: any) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Test app builder
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface TestServerDeps {
   auth: FakeAuth;
@@ -252,8 +252,8 @@ export interface TestServerDeps {
   webhookSecret?: string;
   webpayConfigured?: boolean;
   /**
-   * Sprint 10 — mock para `fetchEnvironmentContext` (orquestador). Permite
-   * a los tests verificar el flujo "Sentidos → Mente": clima + sismo se
+   * Sprint 10 â€” mock para `fetchEnvironmentContext` (orquestador). Permite
+   * a los tests verificar el flujo "Sentidos â†’ Mente": clima + sismo se
    * inyectan ANTES del RAG. Si no se provee, /api/ask-guardian se comporta
    * como antes (legacy RAG-only).
    */
@@ -294,7 +294,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   const firestore = overrides.firestore ?? new InMemoryFirestore();
   const auth: FakeAuth = overrides.auth ?? {
     async verifyIdToken(token: string) {
-      // Convention: token format "test:uid:email" → decoded.
+      // Convention: token format "test:uid:email" â†’ decoded.
       if (token === 'invalid') throw new Error('invalid token');
       const [, uid, email] = token.split(':');
       return { uid: uid ?? 'uid-default', email: email || `${uid}@test.com` };
@@ -332,7 +332,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   };
 
   const app = express();
-  // Per-route body parser for reports — production allows >64kb (full
+  // Per-route body parser for reports â€” production allows >64kb (full
   // incident narrative + AI summary), capped at 2MB. Mounted BEFORE the
   // global 64kb parser so the limit applies per request path.
   app.use('/api/reports/generate-pdf', express.json({ limit: '2mb' }));
@@ -347,14 +347,14 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     const token = authHeader.split('Bearer ')[1];
     try {
       const decoded = await deps.auth.verifyIdToken(token);
-      (req as any).user = decoded;
+      req.user = decoded;
       next();
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
   };
 
-  // ─── /api/health ─────────────────────────────────────────────────
+  // â”€â”€â”€ /api/health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get('/api/health', async (_req, res) => {
     const checks: Record<string, 'ok' | 'fail'> = {};
     let allOk = true;
@@ -373,10 +373,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     });
   });
 
-  // ─── /api/audit-log ───────────────────────────────────────────────
+  // â”€â”€â”€ /api/audit-log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/audit-log', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerEmail = (req as any).user.email ?? null;
+    const callerUid = req.user.uid;
+    const callerEmail = req.user.email ?? null;
     const { action, module: mod, details, projectId } = req.body ?? {};
 
     if (typeof action !== 'string' || action.length === 0 || action.length > 64) {
@@ -422,10 +422,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/admin/set-role ─────────────────────────────────────────
+  // â”€â”€â”€ /api/admin/set-role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/admin/set-role', verifyAuth, async (req, res) => {
     const { uid, role } = req.body ?? {};
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     if (typeof uid !== 'string' || !UID_REGEX.test(uid)) {
       return res.status(400).json({ error: 'Invalid uid' });
     }
@@ -458,10 +458,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/admin/revoke-access ────────────────────────────────────
+  // â”€â”€â”€ /api/admin/revoke-access â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/admin/revoke-access', verifyAuth, async (req, res) => {
     const { targetUid } = req.body ?? {};
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
       return res.status(400).json({ error: 'Invalid uid' });
     }
@@ -487,10 +487,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/billing/verify ─────────────────────────────────────────
+  // â”€â”€â”€ /api/billing/verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/billing/verify', verifyAuth, async (req, res) => {
     const { purchaseToken, productId, type } = req.body ?? {};
-    const uid = (req as any).user.uid;
+    const uid = req.user.uid;
     if (!deps.playVerify) {
       return res.status(500).json({ error: 'Google Play API not configured on server' });
     }
@@ -532,10 +532,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/billing/checkout ───────────────────────────────────────
+  // â”€â”€â”€ /api/billing/checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/billing/checkout', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerEmail = (req as any).user.email ?? null;
+    const callerUid = req.user.uid;
+    const callerEmail = req.user.email ?? null;
     const body = req.body ?? {};
     if (typeof body.tierId !== 'string' || body.tierId.length === 0 || body.tierId.length > 64) {
       return res.status(400).json({ error: 'Invalid tierId' });
@@ -631,9 +631,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     });
   });
 
-  // ─── /api/billing/invoice/:id ────────────────────────────────────
+  // â”€â”€â”€ /api/billing/invoice/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get('/api/billing/invoice/:id', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const invoiceId = req.params.id;
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
       return res.status(400).json({ error: 'Invalid invoice id' });
@@ -665,7 +665,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     res.json(safe);
   });
 
-  // ─── /api/billing/webhook ────────────────────────────────────────
+  // â”€â”€â”€ /api/billing/webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/billing/webhook', async (req, res) => {
     const expectedToken = deps.webhookSecret;
     if (!expectedToken) {
@@ -700,7 +700,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           .where('subscription.purchaseToken', '==', purchaseToken)
           .get();
         if (!usersQ.empty) {
-          // Just stamp activity — we don't re-call play API in tests.
+          // Just stamp activity â€” we don't re-call play API in tests.
           await usersQ.docs[0].ref.update({ 'subscription.status': 'active' });
         }
       }
@@ -711,7 +711,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/billing/webhook/apple ──────────────────────────────────
+  // â”€â”€â”€ /api/billing/webhook/apple â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Sprint 27 audit P0 H2. Mirrors src/server/routes/billing.ts:
   // verify the outer JWS, idempotent on `notificationUUID`, dispatch
   // through `applyAppleEntitlement` from services/billing/appleSsn.ts.
@@ -736,7 +736,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       }
       return res.status(500).json({ error: 'verify_failed' });
     }
-    // Idempotency — mirror the RTDN test harness pattern.
+    // Idempotency â€” mirror the RTDN test harness pattern.
     const lockRef = deps.firestore.collection('processed_apple_ssn').doc(payload.notificationUUID);
     const lockSnap = await lockRef.get();
     if (lockSnap.exists && lockSnap.data()?.status === 'done') {
@@ -755,7 +755,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /billing/webpay/return ──────────────────────────────────────
+  // â”€â”€â”€ /billing/webpay/return â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get('/billing/webpay/return', async (req, res) => {
     const tokenWs = typeof req.query.token_ws === 'string' ? req.query.token_ws : null;
     if (!tokenWs || !/^[A-Za-z0-9_-]{1,128}$/.test(tokenWs)) {
@@ -812,7 +812,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       } else if (commit.status === 'REJECTED') {
         outcome = 'rejected';
         await invoiceRef.set({ status: 'rejected' }, { merge: true });
-        // Sprint 20 18th-wave — TM-R02 closure. Mirror the production
+        // Sprint 20 18th-wave â€” TM-R02 closure. Mirror the production
         // billing.ts: rejected branch now emits an explicit audit row.
         await deps.firestore.collection('audit_logs').add({
           action: 'billing.webpay-return.rejected',
@@ -822,7 +822,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       } else {
         outcome = 'failed';
         await invoiceRef.set({ status: 'pending-payment' }, { merge: true });
-        // Sprint 20 18th-wave — TM-R02 closure. Mirror the production
+        // Sprint 20 18th-wave â€” TM-R02 closure. Mirror the production
         // billing.ts: failed branch now emits an explicit audit row.
         await deps.firestore.collection('audit_logs').add({
           action: 'billing.webpay-return.failed',
@@ -840,14 +840,14 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/curriculum/claim ──────────────────────────────────────
+  // â”€â”€â”€ /api/curriculum/claim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/curriculum/claim', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerEmail = (req as any).user.email ?? null;
+    const callerUid = req.user.uid;
+    const callerEmail = req.user.email ?? null;
     const { claim, category, referees, signedByWorker } = req.body ?? {};
 
     if (typeof claim !== 'string' || claim.trim().length === 0 || claim.trim().length > 500) {
-      return res.status(400).json({ error: 'claim text is required and must be ≤500 chars' });
+      return res.status(400).json({ error: 'claim text is required and must be â‰¤500 chars' });
     }
     const validCats: ClaimCategory[] = ['experience', 'certification', 'incident_record', 'other'];
     if (!validCats.includes(category)) {
@@ -884,7 +884,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
             await deps.resendSend({
               from: 'Praeventio Guard <noreply@praeventio.net>',
               to: referees[idx].email,
-              subject: `Te nombró referencia`,
+              subject: `Te nombrÃ³ referencia`,
               html: `<a href="/curriculum/referee/${rawToken}">Co-firmar</a>`,
             });
           } catch {}
@@ -900,7 +900,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/curriculum/referee/:token (POST) ──────────────────────
+  // â”€â”€â”€ /api/curriculum/referee/:token (POST) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/curriculum/referee/:token', async (req, res) => {
     const rawToken = req.params.token ?? '';
     const { action, method, signature } = req.body ?? {};
@@ -914,7 +914,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       return res.status(400).json({ error: 'method must be webauthn or standard' });
     }
     if (typeof signature !== 'string' || signature.length === 0 || signature.length > 1024) {
-      return res.status(400).json({ error: 'signature is required (≤1024 chars)' });
+      return res.status(400).json({ error: 'signature is required (â‰¤1024 chars)' });
     }
     try {
       const tokenHash = curriculumHashToken(rawToken);
@@ -982,10 +982,10 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/projects/:id/invite ───────────────────────────────────
+  // â”€â”€â”€ /api/projects/:id/invite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/projects/:id/invite', verifyAuth, async (req, res) => {
     const projectId = req.params.id;
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { invitedEmail, invitedRole } = req.body ?? {};
     if (!invitedEmail || !invitedRole) {
       return res.status(400).json({ error: 'invitedEmail and invitedRole are required' });
@@ -1049,7 +1049,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/invitations/info/:token (public) ──────────────────────
+  // â”€â”€â”€ /api/invitations/info/:token (public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get('/api/invitations/info/:token', async (req, res) => {
     const { token } = req.params;
     try {
@@ -1075,12 +1075,12 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/invitations/:token/accept ─────────────────────────────
+  // â”€â”€â”€ /api/invitations/:token/accept â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/invitations/:token/accept', verifyAuth, async (req, res) => {
     const { token } = req.params;
-    const callerUid = (req as any).user.uid;
-    const callerEmail = (req as any).user.email;
-    // Optional client-supplied projectId — when present, must match the
+    const callerUid = req.user.uid;
+    const callerEmail = req.user.email;
+    // Optional client-supplied projectId â€” when present, must match the
     // invitation's projectId. Blocks cross-tenant write attacks.
     const claimedProjectId: string | undefined =
       typeof req.body?.projectId === 'string' ? req.body.projectId : undefined;
@@ -1130,8 +1130,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     }
   });
 
-  // ─── /api/ask-guardian ──────────────────────────────────────────
-  // Sprint 10 — mirrors the production env-context injection. We don't
+  // â”€â”€â”€ /api/ask-guardian â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Sprint 10 â€” mirrors the production env-context injection. We don't
   // call Gemini in tests; instead we surface the intermediate state
   // (envContextUsed, envContextSnippet) so tests can assert that the
   // orchestrator was invoked, skipped, or timed out as expected.
@@ -1186,9 +1186,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     });
   });
 
-  // ─── /api/gemini ────────────────────────────────────────────────
+  // â”€â”€â”€ /api/gemini â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Mirrors the production allowlist gate. Only tests the security
-  // boundary (allowlist enforcement) — the actual backend dispatch is
+  // boundary (allowlist enforcement) â€” the actual backend dispatch is
   // not exercised here.
   const ALLOWED_GEMINI_ACTIONS = new Set([
     'generateEmbeddingsBatch',
@@ -1209,7 +1209,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     res.json({ result: { ok: true, action } });
   });
 
-  // ─── /api/reports/generate-pdf ──────────────────────────────────
+  // â”€â”€â”€ /api/reports/generate-pdf â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Body-size handler: the per-route express.json parser (mounted at
   // app-init above with '2mb' limit) emits a 413 entity.too.large for
   // bodies past 2MB. We add an error-handler middleware specific to
@@ -1233,7 +1233,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       if (typeof content !== 'string') {
         return res.status(400).json({ error: 'content is required' });
       }
-      // We don't actually render PDFKit in tests — assert that a
+      // We don't actually render PDFKit in tests â€” assert that a
       // legitimately large body (200kb+) is accepted and a small ACK
       // is returned. The 2MB ceiling is enforced by the body parser.
       res.setHeader('Content-Type', 'application/pdf');
@@ -1241,13 +1241,13 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     },
   );
 
-  // ─── /api/gamification/points ───────────────────────────────────
+  // â”€â”€â”€ /api/gamification/points â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Tenant isolation: when projectId is supplied, the caller must be
   // a member; awarding points cross-tenant is a 403. When no project
   // scope is supplied, points are awarded to the caller's own uid (the
   // production handler reads uid from the verified token, NOT body).
   app.post('/api/gamification/points', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { amount, reason, projectId, targetUid } = req.body ?? {};
     if (typeof amount !== 'number' || !Number.isFinite(amount)) {
       return res.status(400).json({ error: 'invalid amount' });
@@ -1276,7 +1276,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         }
       }
     } else if (typeof targetUid === 'string' && targetUid !== callerUid) {
-      // No project scope but trying to award to another user — block.
+      // No project scope but trying to award to another user â€” block.
       return res.status(403).json({ error: 'cross_tenant_forbidden' });
     }
     const beneficiary = typeof targetUid === 'string' && targetUid.length > 0 ? targetUid : callerUid;
@@ -1293,11 +1293,11 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     res.json({ success: true });
   });
 
-  // ─── /api/subscription/upgrade ──────────────────────────────────
+  // â”€â”€â”€ /api/subscription/upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Closes DT-01/DT-05: only callers with a paid invoice for the
   // requested plan may upgrade. Mirrors the production gate.
   app.post('/api/subscription/upgrade', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { planId } = req.body ?? {};
     if (!isSubscriptionPlan(planId)) {
       return res.status(400).json({ error: 'invalid_plan' });
@@ -1351,12 +1351,12 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     res.status(200).json({ success: true, planId: normalizedPlanId });
   });
 
-  // ─── /api/zettelkasten/nodes (Sprint 11) ───────────────────────────
+  // â”€â”€â”€ /api/zettelkasten/nodes (Sprint 11) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Mirrors src/server/routes/zettelkasten.ts. The production handler
-  // uses a per-uid express-rate-limit (30 req / 15 min); aquí lo
+  // uses a per-uid express-rate-limit (30 req / 15 min); aquÃ­ lo
   // emulamos con un Map<uid, count> para no introducir dependencias
   // de timers cross-test. Cada test instancia un buildTestServer nuevo
-  // ⇒ contador limpio.
+  // â‡’ contador limpio.
   const zkRateBuckets = new Map<string, number>();
   const ZK_LIMIT = 30;
   const VALID_ZK_TYPES = new Set([
@@ -1380,8 +1380,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   const ZK_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;
 
   app.post('/api/zettelkasten/nodes', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerEmail = (req as any).user.email ?? null;
+    const callerUid = req.user.uid;
+    const callerEmail = req.user.email ?? null;
 
     // Rate-limit por uid.
     const count = (zkRateBuckets.get(callerUid) ?? 0) + 1;
@@ -1395,7 +1395,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       return res.status(400).json({ error: 'Invalid projectId' });
     }
     if (!Array.isArray(nodes) || nodes.length === 0 || nodes.length > 32) {
-      return res.status(400).json({ error: 'nodes must be a non-empty array (≤32)' });
+      return res.status(400).json({ error: 'nodes must be a non-empty array (â‰¤32)' });
     }
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];

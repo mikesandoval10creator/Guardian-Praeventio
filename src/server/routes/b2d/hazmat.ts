@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.4 — B2D Hazmat / engineering calculations API.
+﻿// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.4 â€” B2D Hazmat / engineering calculations API.
 //
 // Mounted via `app.use('/api/b2d/v1/hazmat', hazmatRouter)`.
 //
 // Endpoints (all `hazmat.calculate` scope):
-//   • POST /api/b2d/v1/hazmat/pipe-pressure
-//   • POST /api/b2d/v1/hazmat/gas-dispersion
-//   • POST /api/b2d/v1/hazmat/scaffold-uplift
-//   • POST /api/b2d/v1/hazmat/extinguisher-coverage
+//   â€¢ POST /api/b2d/v1/hazmat/pipe-pressure
+//   â€¢ POST /api/b2d/v1/hazmat/gas-dispersion
+//   â€¢ POST /api/b2d/v1/hazmat/scaffold-uplift
+//   â€¢ POST /api/b2d/v1/hazmat/extinguisher-coverage
 //
 // Each endpoint:
 //   1. Validates input via zod.
@@ -34,9 +34,9 @@ import {
 
 const router = Router();
 
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Schemas
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PipePressureSchema = z.object({
   pipe: z.object({
@@ -111,22 +111,22 @@ const ExtinguisherCoverageSchema = z.object({
     .default([]),
 });
 
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Helpers
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function bad(res: import('express').Response, issue: unknown) {
   return res.status(400).json({ error: 'invalid_input', issue });
 }
 
 async function track(req: import('express').Request) {
-  const customerId = (req as any).b2dKey?.customerId as string;
+  const customerId = req.b2dKey?.customerId as string;
   if (customerId) await trackB2dUsage(customerId);
 }
 
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Routes
-// ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/pipe-pressure', b2dAuth('hazmat.calculate'), async (req, res) => {
   const parsed = PipePressureSchema.safeParse(req.body);
@@ -184,7 +184,7 @@ router.post('/extinguisher-coverage', b2dAuth('hazmat.calculate'), async (req, r
     kind: e.kind,
     position: e.position,
     lifecycle: e.lifecycle,
-    // Fields not used by the rule but required by PlacedObject — provide
+    // Fields not used by the rule but required by PlacedObject â€” provide
     // benign defaults so the type contract holds without leaking shape.
     rotationDeg: 0,
     placedAt: 0,

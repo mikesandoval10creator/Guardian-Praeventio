@@ -1,11 +1,11 @@
-// Praeventio Guard — Round 18 Phase 3 split.
+﻿// Praeventio Guard â€” Round 18 Phase 3 split.
 //
 // Google OAuth (Calendar/Fit/Drive) endpoints extracted from server.ts.
 // Closes the OAuth surface migration alongside curriculum + projects.
 //
 // Mount strategy (in server.ts):
-//   • app.use('/api', oauthGoogleApiRouter)        ← /api/* paths
-//   • app.use('/auth', oauthGoogleAuthRouter)      ← /auth/google/callback
+//   â€¢ app.use('/api', oauthGoogleApiRouter)        â† /api/* paths
+//   â€¢ app.use('/auth', oauthGoogleAuthRouter)      â† /auth/google/callback
 //
 // TWO routers because `/auth/google/callback` is the redirect URI registered
 // in the Google Cloud Console for the app's OAuth client. Changing the path
@@ -13,15 +13,15 @@
 // it root-mounted preserves the byte-identical URL while letting the rest
 // of the OAuth surface live cleanly under `/api/...`.
 //
-// Final paths preserved verbatim — DO NOT change:
-//   • POST /api/oauth/unlink
-//   • GET  /api/auth/google/url
-//   • GET  /auth/google/callback                  (root mount)
-//   • GET  /api/calendar/list
-//   • POST /api/calendar/sync
-//   • POST /api/fitness/sync                      (DEPRECATED, sunset 2026-12-31)
-//   • GET  /api/drive/auth/url
-//   • GET  /api/drive/auth/callback
+// Final paths preserved verbatim â€” DO NOT change:
+//   â€¢ POST /api/oauth/unlink
+//   â€¢ GET  /api/auth/google/url
+//   â€¢ GET  /auth/google/callback                  (root mount)
+//   â€¢ GET  /api/calendar/list
+//   â€¢ POST /api/calendar/sync
+//   â€¢ POST /api/fitness/sync                      (DEPRECATED, sunset 2026-12-31)
+//   â€¢ GET  /api/drive/auth/url
+//   â€¢ GET  /api/drive/auth/callback
 //
 // Why this lives in ONE module despite spanning 3 logical surfaces (Calendar,
 // Fit, Drive): all 8 endpoints share the same OAuth client configuration
@@ -57,13 +57,13 @@ function sentryCapture(
   }
 }
 
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // OAuth client configuration. Mirrors server.ts; resolved at module-load
 // from the same env vars. Empty-string fallback maintains the original
-// behavior — Google rejects the token-exchange call which surfaces as a
+// behavior â€” Google rejects the token-exchange call which surfaces as a
 // 5xx with the upstream error logged. We do NOT crash on missing creds at
 // boot because dev environments commonly run without OAuth set up.
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const SCOPES = [
@@ -73,26 +73,26 @@ const SCOPES = [
   'https://www.googleapis.com/auth/fitness.body.read',
 ].join(' ');
 
-// PORT mirrors server.ts — used to construct fallback APP_URL when env is
+// PORT mirrors server.ts â€” used to construct fallback APP_URL when env is
 // not set. Local dev defaults to 3000 (matches server.ts listen()).
 const PORT = 3000;
 
-// ───────────────────────────────────────────────────────────────────────────
-// Main /api/* router — covers unlink, URL issuance, list/sync proxies.
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Main /api/* router â€” covers unlink, URL issuance, list/sync proxies.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const oauthGoogleApiRouter = Router();
 
 // Server-side OAuth unlink: invoked by client logout flow before signOut.
-// Deletes stored tokens for both Google providers. Idempotent — safe to call
+// Deletes stored tokens for both Google providers. Idempotent â€” safe to call
 // when no tokens exist.
 oauthGoogleApiRouter.post('/oauth/unlink', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   try {
     await Promise.all([
       revokeTokens({ uid, provider: 'google' }),
       revokeTokens({ uid, provider: 'google-drive' }),
     ]);
-    // Round 17 R1 — audit row for revocation. Defensively wrapped so a
+    // Round 17 R1 â€” audit row for revocation. Defensively wrapped so a
     // stale Firestore handle can't 5xx an otherwise successful unlink.
     try {
       await auditServerEvent(req, 'oauth.unlink', 'oauth', {
@@ -123,7 +123,7 @@ oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
   // Bind this OAuth flow to the authenticated user. The callback runs in a
   // popup that shares the session cookie, so we recover the UID there
   // without ever exposing it (or the resulting tokens) to the browser.
-  sess.oauthInitiator = { uid: (req as any).user.uid, provider: 'google' as const };
+  sess.oauthInitiator = { uid: req.user.uid, provider: 'google' as const };
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || '',
@@ -146,14 +146,14 @@ oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
 // Used by useCalendarPredictions to detect already-scheduled CPHS meetings,
 // ODI trainings, etc. and suppress duplicate suggestions.
 oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   const accessToken = await getValidAccessToken(
     { uid, provider: 'google' },
     GOOGLE_CLIENT_ID || '',
     GOOGLE_CLIENT_SECRET || '',
   );
   if (!accessToken) {
-    // Caller treats empty list as "no calendar" — return 200 with [] so the
+    // Caller treats empty list as "no calendar" â€” return 200 with [] so the
     // predictions hook doesn't surface a noisy error to the user when they
     // haven't linked Google Calendar yet.
     return res.json({ items: [] });
@@ -187,7 +187,7 @@ oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
 
 oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
   const { challenges } = req.body;
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
 
   const accessToken = await getValidAccessToken(
     { uid, provider: 'google' },
@@ -202,7 +202,7 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
     const results = [];
     for (const challenge of challenges) {
       const event = {
-        summary: `Desafío Praeventio: ${challenge}`,
+        summary: `DesafÃ­o Praeventio: ${challenge}`,
         description:
           'Objetivo de seguridad y salud en el trabajo planificado desde Praeventio Guard.',
         start: {
@@ -231,8 +231,8 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
       results.push(data);
     }
 
-    // Round 17 R1 — audit the sync. Body shape: { challenges } (no PII
-    // beyond the challenge titles) — we record the count, not the raw text.
+    // Round 17 R1 â€” audit the sync. Body shape: { challenges } (no PII
+    // beyond the challenge titles) â€” we record the count, not the raw text.
     try {
       await auditServerEvent(req, 'calendar.sync', 'calendar', {
         count: Array.isArray(challenges) ? challenges.length : 0,
@@ -253,7 +253,7 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
 // Uses tokens stored server-side via /auth/google/callback; the client never
 // holds an OAuth access_token or refresh_token.
 //
-// DEPRECATED — Round 3 of HEALTH_CONNECT_MIGRATION.md.
+// DEPRECATED â€” Round 3 of HEALTH_CONNECT_MIGRATION.md.
 // Google Fit REST sunsets in 2026; the on-device replacements (Health
 // Connect on Android, HealthKit on iOS) are already wired through
 // `src/services/health/`. This endpoint stays alive as a web/legacy fallback
@@ -266,7 +266,7 @@ oauthGoogleApiRouter.post('/fitness/sync', verifyAuth, async (req, res) => {
   res.setHeader('Deprecation', 'Wed, 31 Dec 2026 23:59:59 GMT');
   res.setHeader('Link', '</api/health-data>; rel="successor-version"');
 
-  const uid = (req as any).user?.uid;
+  const uid = req.user?.uid;
 
   // Structured deprecation log so we can quantify residual usage of the
   // legacy endpoint and confirm Telemetry.tsx truly stopped calling it.
@@ -334,7 +334,7 @@ oauthGoogleApiRouter.get('/drive/auth/url', verifyAuth, (req, res) => {
   const sess = req.session as any;
   sess.driveOauthState = state;
   sess.driveOauthInitiator = {
-    uid: (req as any).user.uid,
+    uid: req.user.uid,
     provider: 'google-drive' as const,
   };
 
@@ -415,10 +415,10 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
   }
 });
 
-// ───────────────────────────────────────────────────────────────────────────
-// Root-mounted /auth/* router — single endpoint at /auth/google/callback.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Root-mounted /auth/* router â€” single endpoint at /auth/google/callback.
 // Path is fixed by Google Cloud Console configuration; cannot be moved.
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const oauthGoogleAuthRouter = Router();
 
 oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
@@ -457,7 +457,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
     // Store server-side; never reaches the browser.
     await saveTokens({ uid: initiator.uid, provider: 'google' }, tokens);
 
-    // Round 17 R1 — audit the link event. The endpoint is intentionally
+    // Round 17 R1 â€” audit the link event. The endpoint is intentionally
     // unauthed (verifyAuth never ran), so we recover the actor uid from the
     // session oauth-state initiator that /api/auth/google/url stamped before
     // the redirect. Wrapped so an audit failure can't break the popup
@@ -473,7 +473,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
     delete sess.oauthState;
     delete sess.oauthInitiator;
 
-    // Tell the popup that linking succeeded — payload contains NO tokens.
+    // Tell the popup that linking succeeded â€” payload contains NO tokens.
     res.send(`
       <html>
         <body>

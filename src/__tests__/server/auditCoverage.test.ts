@@ -1,9 +1,9 @@
-// Praeventio Guard — Round 17 R1: Audit-log coverage tests for the 6
+﻿// Praeventio Guard â€” Round 17 R1: Audit-log coverage tests for the 6
 // hardened endpoints (R6 R16 HIGH).
 //
 // Endpoints under test (each MUST emit `audit_logs` on success):
 //   1. POST /api/oauth/unlink
-//   2. GET  /auth/google/callback        (unauthed → uid recovered from session)
+//   2. GET  /auth/google/callback        (unauthed â†’ uid recovered from session)
 //   3. POST /api/calendar/sync
 //   4. POST /api/coach/chat
 //   5. POST /api/gamification/points
@@ -14,13 +14,13 @@
 // the handler shape in a parallel express app and verify each emits a row
 // into the in-memory `audit_logs` store. The shared `auditServerEvent`
 // helper from src/server/middleware/auditLog.ts is exercised indirectly
-// through these handlers — its failure modes are covered separately by
+// through these handlers â€” its failure modes are covered separately by
 // the per-endpoint 500-path branches in the production code (defensive
 // try/catch around every audit emit).
 //
 // The SAME `audit_logs` row schema we assert here is what hits Firestore
 // in production (see auditLog.ts). Drift between this harness and
-// production is intentional and tracked in test-server.ts §"Strategy".
+// production is intentional and tracked in test-server.ts Â§"Strategy".
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
@@ -29,11 +29,11 @@ import request from 'supertest';
 import crypto from 'crypto';
 import { InMemoryFirestore, type FakeAuth, fakeFieldValue } from './test-server.js';
 
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Mirror of `auditServerEvent` (src/server/middleware/auditLog.ts).
 // Identical contract; differs only in that we accept the in-memory
 // firestore directly rather than reaching for `admin.firestore()`.
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AuditOpts {
   projectId?: string | null;
@@ -48,7 +48,7 @@ async function auditServerEvent(
   details: Record<string, unknown> = {},
   options: AuditOpts = {},
 ): Promise<boolean> {
-  const reqUser = (req as any).user as { uid?: string; email?: string | null } | undefined;
+  const reqUser = req.user as { uid?: string; email?: string | null } | undefined;
   const actor = options.actorOverride ?? reqUser ?? { uid: 'anonymous', email: null };
   const userId = actor.uid ?? 'anonymous';
   const userEmail = actor.email ?? null;
@@ -70,9 +70,9 @@ async function auditServerEvent(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Harness
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Deps {
   fs: InMemoryFirestore;
@@ -118,7 +118,7 @@ function buildApp(deps: Deps): Express {
     const token = authHeader.split('Bearer ')[1];
     try {
       const decoded = await deps.auth.verifyIdToken(token);
-      (req as any).user = decoded;
+      req.user = decoded;
       next();
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
@@ -150,7 +150,7 @@ function buildApp(deps: Deps): Express {
     }
     const initiator = sess.oauthInitiator;
     if (!initiator?.uid) return res.status(403).send('No initiator');
-    // Skip token exchange — record audit row only.
+    // Skip token exchange â€” record audit row only.
     try {
       await auditServerEvent(req, deps.fs, 'oauth.link', 'oauth', { provider: 'google' }, {
         actorOverride: { uid: initiator.uid, email: null },
@@ -181,7 +181,7 @@ function buildApp(deps: Deps): Express {
     // Member check (mirrors assertProjectMemberFromBody behavior).
     const proj = deps.fs.store.get(`projects/${projectId}`);
     if (!proj) return res.status(403).json({ error: 'forbidden' });
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const ok = (proj.members ?? []).includes(callerUid) || proj.createdBy === callerUid;
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     try {
@@ -232,9 +232,9 @@ function buildApp(deps: Deps): Express {
   return app;
 }
 
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Tests
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 let fs: InMemoryFirestore;
 let app: Express;
@@ -244,7 +244,7 @@ beforeEach(() => {
   app = buildApp({ fs, auth: makeAuth() });
 });
 
-describe('Round 17 R1 — audit_logs coverage', () => {
+describe('Round 17 R1 â€” audit_logs coverage', () => {
   it('POST /api/oauth/unlink emits audit row with actor uid + providers', async () => {
     const res = await request(app)
       .post('/api/oauth/unlink')

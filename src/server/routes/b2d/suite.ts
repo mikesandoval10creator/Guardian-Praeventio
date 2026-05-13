@@ -1,20 +1,20 @@
-// SPDX-License-Identifier: MIT
-// Sprint 23 Bucket BB.6 — B2D Suite tier API.
+﻿// SPDX-License-Identifier: MIT
+// Sprint 23 Bucket BB.6 â€” B2D Suite tier API.
 //
 // Mounted via `app.use('/api/b2d/v1/suite', suiteRouter)`.
 //
 // Endpoint:
-//   • POST /api/b2d/v1/suite/coach   — AI safety coach (suite.all scope)
+//   â€¢ POST /api/b2d/v1/suite/coach   â€” AI safety coach (suite.all scope)
 //
-// CRITICAL — privacy boundary:
+// CRITICAL â€” privacy boundary:
 //   The coach NEVER reads the Praeventio Zettelkasten. It operates ONLY
 //   on the input the integrator passes in the request body. The coach is
-//   a pure function from `(industry, scenario, mitigations) → guidance`
+//   a pure function from `(industry, scenario, mitigations) â†’ guidance`
 //   with citations. No tenant-scoped data is ever loaded.
 //
 //   This isolation is non-negotiable: API key holders are NOT tenants;
 //   they are integrators. They have ZERO visibility into the Zettelkasten,
-//   per `PRICING.md §9.3` and `aiTier.ts` ZETTELKASTEN_BOUNDARY.
+//   per `PRICING.md Â§9.3` and `aiTier.ts` ZETTELKASTEN_BOUNDARY.
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -43,13 +43,13 @@ function buildCoachGuidance(input: z.infer<typeof CoachSchema>) {
   const { industry, scenario, riskCategory, mitigations, language } = input;
   const baseRecommendations = [
     'Asegurar que la matriz IPER cubra el escenario descrito.',
-    'Verificar disponibilidad de EPP específico para la industria.',
+    'Verificar disponibilidad de EPP especÃ­fico para la industria.',
     'Documentar la cadena de mando para escalamiento de emergencia.',
   ];
   const riskTrailer =
     riskCategory === 'critical' || riskCategory === 'high'
-      ? 'Activar plan de respuesta inmediata y notificar al Comité Paritario.'
-      : 'Programar revisión preventiva en próximo ciclo mensual.';
+      ? 'Activar plan de respuesta inmediata y notificar al ComitÃ© Paritario.'
+      : 'Programar revisiÃ³n preventiva en prÃ³ximo ciclo mensual.';
 
   return {
     industry,
@@ -72,7 +72,7 @@ router.post('/coach', b2dAuth('suite.all'), async (req, res) => {
   }
 
   const guidance = buildCoachGuidance(parsed.data);
-  const customerId = (req as any).b2dKey?.customerId as string;
+  const customerId = req.b2dKey?.customerId as string;
   await trackB2dUsage(customerId);
 
   return res.json({

@@ -1,16 +1,16 @@
-// Praeventio Guard — Round 19 R2 Phase 4 split.
+﻿// Praeventio Guard â€” Round 19 R2 Phase 4 split.
 //
 // Gamification + AI Safety Coach endpoints extracted from server.ts:
-//   • POST /api/gamification/points       — awards points to caller's uid.
-//   • GET  /api/gamification/leaderboard  — global leaderboard read.
-//   • POST /api/gamification/check-medals — re-evaluates medal eligibility.
-//   • POST /api/coach/chat                — RAG-backed safety coach. Tenant-
+//   â€¢ POST /api/gamification/points       â€” awards points to caller's uid.
+//   â€¢ GET  /api/gamification/leaderboard  â€” global leaderboard read.
+//   â€¢ POST /api/gamification/check-medals â€” re-evaluates medal eligibility.
+//   â€¢ POST /api/coach/chat                â€” RAG-backed safety coach. Tenant-
 //     scoped: requires `projectId` in the body and gates on
-//     `assertProjectMemberFromBody` (Round 17 R1 — closes the unverified-
+//     `assertProjectMemberFromBody` (Round 17 R1 â€” closes the unverified-
 //     projectId bug where tokens from tenant A could pull tenant B context).
 //
 // All four endpoints are auth'd via `verifyAuth`. Each writes an audit row
-// (Round 17 R1 — Ley 16.744 compliance trail: gamification tied to safety
+// (Round 17 R1 â€” Ley 16.744 compliance trail: gamification tied to safety
 // behaviors must be auditable, and coach chats are tagged with projectId
 // for the tenant trail).
 //
@@ -34,11 +34,11 @@ const router = Router();
 
 router.post('/gamification/points', verifyAuth, async (req, res) => {
   const { amount, reason } = req.body;
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   try {
     await awardPoints(uid, amount, reason);
-    // Round 17 R1 — audit row for awarded points (compliance trail per
-    // Ley 16.744 — gamification tied to safety behaviors must be auditable).
+    // Round 17 R1 â€” audit row for awarded points (compliance trail per
+    // Ley 16.744 â€” gamification tied to safety behaviors must be auditable).
     try {
       await auditServerEvent(req, 'gamification.points_awarded', 'gamification', {
         amount: typeof amount === 'number' ? amount : null,
@@ -49,7 +49,7 @@ router.post('/gamification/points', verifyAuth, async (req, res) => {
     }
     res.json({ success: true });
   } catch (error: any) {
-    captureRouteError(error, 'gamification.handler', { uid: (req as any).user?.uid });
+    captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
     res.status(500).json({ error: error.message });
   }
 });
@@ -59,16 +59,16 @@ router.get('/gamification/leaderboard', verifyAuth, async (req, res) => {
     const leaderboard = await getLeaderboard();
     res.json({ success: true, leaderboard });
   } catch (error: any) {
-    captureRouteError(error, 'gamification.handler', { uid: (req as any).user?.uid });
+    captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
     res.status(500).json({ error: error.message });
   }
 });
 
 router.post('/gamification/check-medals', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   try {
     const newMedals = await checkMedalEligibility(uid);
-    // Round 17 R1 — audit row for medal checks. Records the count of new
+    // Round 17 R1 â€” audit row for medal checks. Records the count of new
     // medals awarded; the medal IDs themselves are NOT secrets but live in
     // user_stats so we keep the audit row lightweight.
     try {
@@ -80,14 +80,14 @@ router.post('/gamification/check-medals', verifyAuth, async (req, res) => {
     }
     res.json({ success: true, newMedals });
   } catch (error: any) {
-    captureRouteError(error, 'gamification.handler', { uid: (req as any).user?.uid });
+    captureRouteError(error, 'gamification.handler', { uid: req.user?.uid });
     res.status(500).json({ error: error.message });
   }
 });
 
 // AI Safety Coach Endpoint
 //
-// Round 17 R1 — was unverified-projectId. Clients NOT sending projectId in
+// Round 17 R1 â€” was unverified-projectId. Clients NOT sending projectId in
 // body now get 400; clients sending wrong-tenant projectId now get 403.
 // The endpoint reads RAG context (incidents) scoped by projectId, so a
 // missing membership check would let a token from tenant A pull tenant B
@@ -101,7 +101,7 @@ router.post(
   assertProjectMemberFromBody(),
   async (req, res) => {
     const { message, projectId } = req.body ?? {};
-    const uid = (req as any).user.uid;
+    const uid = req.user.uid;
     if (typeof projectId !== 'string' || projectId.length === 0) {
       return res.status(400).json({ error: 'projectId is required' });
     }
@@ -120,7 +120,7 @@ router.post(
 
       const response = await getSafetyCoachResponse(uid, userStats, recentIncidents, message);
 
-      // Round 17 R1 — audit row tagged with projectId for tenant trail.
+      // Round 17 R1 â€” audit row tagged with projectId for tenant trail.
       try {
         await auditServerEvent(
           req,

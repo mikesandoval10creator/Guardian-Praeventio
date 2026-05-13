@@ -1,5 +1,5 @@
-/**
- * Tests for GuardianOfflineService — Sprint 26 Bucket ZZ.
+﻿/**
+ * Tests for GuardianOfflineService â€” Sprint 26 Bucket ZZ.
  *
  * Cobertura:
  *   1. fromEnv null cuando SLM_OFFLINE_ENABLED off
@@ -9,11 +9,11 @@
  *   5. ask() devuelve citations de chunks usados
  *   6. getFAQ retorna lista no vacia
  *   7. preload no-op si ya pre-cargado (idempotente)
- *   8. AbortSignal honored — pre-aborted cae a corpus-only
- *   9. Empty corpus → ask sigue funcionando con FAQ + adapter
+ *   8. AbortSignal honored â€” pre-aborted cae a corpus-only
+ *   9. Empty corpus â†’ ask sigue funcionando con FAQ + adapter
  *  10. Corpus chunks parseo correcto desde JSON
- *  11. FAQ exact match → source='faq'
- *  12. Sin adapter → corpus-only
+ *  11. FAQ exact match â†’ source='faq'
+ *  12. Sin adapter â†’ corpus-only
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,21 +26,21 @@ import {
   type GuardianCacheLike,
 } from './guardianOffline';
 
-// ─── helpers ────────────────────────────────────────────────────────────
+// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SAMPLE_CHUNKS: CorpusChunk[] = [
   {
     id: 'chunk-001',
     topic: 'primeros_auxilios.sangrado_abundante',
     keywords: ['sangrado', 'hemorragia', 'presion'],
-    text: 'Sangrado abundante: aplicar presión directa con tela limpia.',
+    text: 'Sangrado abundante: aplicar presiÃ³n directa con tela limpia.',
     citation: 'DS 109 + Cruz Roja Chile',
   },
   {
     id: 'chunk-002',
     topic: 'evacuacion.salida_bloqueada',
     keywords: ['evacuacion', 'salida', 'bloqueada'],
-    text: 'Si la salida principal está bloqueada, identificar segunda salida.',
+    text: 'Si la salida principal estÃ¡ bloqueada, identificar segunda salida.',
     citation: 'NCh 1410',
   },
   {
@@ -89,12 +89,12 @@ function makeAdapter(text = 'respuesta sintetica'): GuardianAdapterLike & { call
   return a;
 }
 
-// ─── tests ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 describe('GuardianOfflineService.fromEnv', () => {
   beforeEach(() => {
     delete process.env.SLM_OFFLINE_ENABLED;
-    delete (globalThis as any).__SLM_OFFLINE_ENABLED__;
+    delete globalThis.__SLM_OFFLINE_ENABLED__;
   });
 
   it('returns null when SLM_OFFLINE_ENABLED is off', () => {
@@ -113,7 +113,7 @@ describe('GuardianOfflineService.fromEnv', () => {
   });
 
   it('returns an instance when flag on (globalThis override)', () => {
-    (globalThis as any).__SLM_OFFLINE_ENABLED__ = '1';
+    globalThis.__SLM_OFFLINE_ENABLED__ = '1';
     const svc = GuardianOfflineService.fromEnv({
       fetchImpl: makeFakeFetch({ chunks: SAMPLE_CHUNKS }) as unknown as typeof fetch,
       adapter: makeAdapter(),
@@ -155,7 +155,7 @@ describe('GuardianOfflineService.ask', () => {
     expect(first.source).toBe('slm');
     expect(adapter.calls).toBe(1);
 
-    // Segundo ask con mismo prompt → cache hit
+    // Segundo ask con mismo prompt â†’ cache hit
     const second = await svc.ask({ prompt: 'pregunta sin match faq xyzplugh' });
     expect(second.source).toBe('cache');
     expect(adapter.calls).toBe(1); // no se regenero
@@ -172,7 +172,7 @@ describe('GuardianOfflineService.ask', () => {
     expect(r.citations).toContain('DS 109 + Cruz Roja Chile');
   });
 
-  it('matches FAQ exact-ish question → source=faq', async () => {
+  it('matches FAQ exact-ish question â†’ source=faq', async () => {
     const adapter = makeAdapter();
     const svc = new GuardianOfflineService({
       fetchImpl: makeFakeFetch({ chunks: SAMPLE_CHUNKS }) as unknown as typeof fetch,
@@ -180,7 +180,7 @@ describe('GuardianOfflineService.ask', () => {
       cacheImpl: new MemCache(),
     });
     const r = await svc.ask({
-      prompt: '¿Qué hago con un trabajador con sangrado abundante?',
+      prompt: 'Â¿QuÃ© hago con un trabajador con sangrado abundante?',
     });
     expect(r.source).toBe('faq');
     expect(r.citations.length).toBeGreaterThan(0);
@@ -206,7 +206,7 @@ describe('GuardianOfflineService.ask', () => {
     })();
     const r = await svcNoAdapter.ask({ prompt: 'sangrado herida abierta xpz' });
     expect(r.source).toBe('corpus-only');
-    expect(r.answer).toContain('presión directa');
+    expect(r.answer).toContain('presiÃ³n directa');
   });
 
   it('honors a pre-aborted AbortSignal (corpus-only fallback)', async () => {
@@ -232,7 +232,7 @@ describe('GuardianOfflineService.ask', () => {
     });
     // FAQ match should still return
     const faq = await svc.ask({
-      prompt: '¿Cómo evacuamos esta zona si la salida principal está bloqueada?',
+      prompt: 'Â¿CÃ³mo evacuamos esta zona si la salida principal estÃ¡ bloqueada?',
     });
     expect(faq.source).toBe('faq');
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertTriangle, Activity, Map, Users, Radio, ShieldAlert,
@@ -59,8 +59,8 @@ export function EmergenciaAvanzada() {
   });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const projectLat = (selectedProject as any)?.lat ?? (selectedProject as any)?.coordinates?.lat ?? -33.4489;
-  const projectLng = (selectedProject as any)?.lng ?? (selectedProject as any)?.coordinates?.lng ?? -70.6693;
+  const projectLat = selectedProject?.lat ?? selectedProject?.coordinates?.lat ?? -33.4489;
+  const projectLng = selectedProject?.lng ?? selectedProject?.coordinates?.lng ?? -70.6693;
 
   const { earthquakes, criticalAlert } = useSeismicMonitor(projectLat, projectLng);
 
@@ -125,7 +125,7 @@ export function EmergenciaAvanzada() {
     });
 
     await addDoc(collection(db, `projects/${selectedProject.id}/emergency_chat`), {
-      text: `🚨 EMERGENCIA ACTIVADA: ${type}.${quake ? ` Epicentro: ${quake.place}. Profundidad: ${quake.coordinates[2]}km.` : ''} Todos los trabajadores deben confirmar su estado de seguridad.`,
+      text: `ðŸš¨ EMERGENCIA ACTIVADA: ${type}.${quake ? ` Epicentro: ${quake.place}. Profundidad: ${quake.coordinates[2]}km.` : ''} Todos los trabajadores deben confirmar su estado de seguridad.`,
       sender: 'Sistema',
       senderRole: 'system',
       isSystem: true,
@@ -152,7 +152,7 @@ export function EmergenciaAvanzada() {
       resolvedAt: serverTimestamp(),
     });
     await addDoc(collection(db, `projects/${selectedProject.id}/emergency_chat`), {
-      text: '✅ Emergencia resuelta. Todos los sistemas vuelven a operación normal.',
+      text: 'âœ… Emergencia resuelta. Todos los sistemas vuelven a operaciÃ³n normal.',
       sender: 'Sistema',
       senderRole: 'system',
       isSystem: true,
@@ -202,7 +202,7 @@ export function EmergenciaAvanzada() {
             Emergencia Avanzada
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Orquestación del Caos Post-Evento Crítico
+            OrquestaciÃ³n del Caos Post-Evento CrÃ­tico
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -218,7 +218,7 @@ export function EmergenciaAvanzada() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => acousticSOS.isActive ? acousticSOS.stop() : acousticSOS.start()}
-                title={acousticSOS.isActive ? 'Desactivar SOS acústico (3 golpes)' : 'Activar SOS acústico — 3 golpes en el micrófono disparan emergencia'}
+                title={acousticSOS.isActive ? 'Desactivar SOS acÃºstico (3 golpes)' : 'Activar SOS acÃºstico â€” 3 golpes en el micrÃ³fono disparan emergencia'}
                 className={`p-2 rounded-xl text-xs font-black uppercase transition-all border flex items-center gap-1.5 min-w-[44px] min-h-[44px] justify-center ${
                   acousticSOS.isActive
                     ? 'bg-rose-500/20 border-rose-500/40 text-rose-400 animate-pulse'
@@ -253,12 +253,12 @@ export function EmergenciaAvanzada() {
             </div>
             <div className="flex-1">
               <h2 className="text-sm font-black text-red-500 uppercase tracking-wider">
-                {activeEmergency.type} — EN CURSO
+                {activeEmergency.type} â€” EN CURSO
               </h2>
               <p className="text-xs text-red-400/80 mt-1">
                 Activado por {activeEmergency.startedBy}
-                {activeEmergency.epicenter ? ` · Epicentro: ${activeEmergency.epicenter}` : ''}
-                {activeEmergency.magnitude ? ` · Magnitud: ${activeEmergency.magnitude}` : ''}
+                {activeEmergency.epicenter ? ` Â· Epicentro: ${activeEmergency.epicenter}` : ''}
+                {activeEmergency.magnitude ? ` Â· Magnitud: ${activeEmergency.magnitude}` : ''}
               </p>
             </div>
             <div className="flex gap-4 text-xs font-bold shrink-0">
@@ -282,7 +282,7 @@ export function EmergenciaAvanzada() {
             <Zap className="w-5 h-5 text-amber-400 shrink-0" />
             <div className="flex-1">
               <p className="text-xs font-bold text-amber-400">
-                ALERTA SÍSMICA CERCANA — M{criticalAlert.magnitude.toFixed(1)} · {criticalAlert.place}
+                ALERTA SÃSMICA CERCANA â€” M{criticalAlert.magnitude.toFixed(1)} Â· {criticalAlert.place}
               </p>
             </div>
             <button
@@ -330,7 +330,7 @@ export function EmergenciaAvanzada() {
               Estado de Zonas
             </h3>
             {[
-              { name: 'Área de Trabajo', status: activeEmergency ? 'BLOQUEADO' : 'OPERATIVO', color: activeEmergency ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' },
+              { name: 'Ãrea de Trabajo', status: activeEmergency ? 'BLOQUEADO' : 'OPERATIVO', color: activeEmergency ? 'text-red-400 bg-red-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Planta / Faena', status: activeEmergency ? 'EVACUANDO' : 'OPERATIVO', color: activeEmergency ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400 bg-emerald-500/10' },
               { name: 'Zona de Seguridad', status: 'ACTIVA', color: 'text-emerald-400 bg-emerald-500/10' },
             ].map(z => (
@@ -369,7 +369,7 @@ export function EmergenciaAvanzada() {
             <div className="flex-1 flex flex-col gap-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
-                  Actividad Sísmica — USGS (últimas 24h)
+                  Actividad SÃ­smica â€” USGS (Ãºltimas 24h)
                 </h3>
                 <span className="text-[10px] text-zinc-400 flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" /> Actualiza cada 2 min
@@ -378,7 +378,7 @@ export function EmergenciaAvanzada() {
               {recentQuakes.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-zinc-400">
                   <Activity className="w-10 h-10 mb-3 opacity-40" />
-                  <p className="text-sm">Cargando datos sísmicos...</p>
+                  <p className="text-sm">Cargando datos sÃ­smicos...</p>
                 </div>
               ) : (
                 <div className="space-y-2 overflow-y-auto flex-1">
@@ -415,14 +415,14 @@ export function EmergenciaAvanzada() {
             <div className="flex-1 flex flex-col gap-3 min-h-0">
               <h3 className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider shrink-0">
                 Canal de Emergencia
-                {activeEmergency && <span className="ml-2 text-[10px] text-red-400 animate-pulse">● EN VIVO</span>}
+                {activeEmergency && <span className="ml-2 text-[10px] text-red-400 animate-pulse">â— EN VIVO</span>}
               </h3>
               <div className="flex-1 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/5 p-3 flex flex-col gap-2 overflow-y-auto min-h-0">
                 {messages.length === 0 ? (
                   <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 my-auto">
                     <Radio className="w-10 h-10 mb-3 opacity-40" />
                     <p className="text-sm">Canal en silencio.</p>
-                    <p className="text-xs mt-1 opacity-60">Los mensajes aparecerán aquí en tiempo real.</p>
+                    <p className="text-xs mt-1 opacity-60">Los mensajes aparecerÃ¡n aquÃ­ en tiempo real.</p>
                   </div>
                 ) : (
                   messages.map(msg => (
@@ -433,7 +433,7 @@ export function EmergenciaAvanzada() {
                         </div>
                       ) : (
                         <div className={`max-w-[80%] px-3 py-2 rounded-xl ${msg.sender === (user?.displayName ?? user?.email) ? 'bg-blue-600/20 border border-blue-500/30 rounded-tr-none' : 'bg-zinc-200 dark:bg-zinc-800 rounded-tl-none'}`}>
-                          <p className="text-[10px] text-zinc-500 mb-1">{msg.sender} · {msg.senderRole}</p>
+                          <p className="text-[10px] text-zinc-500 mb-1">{msg.sender} Â· {msg.senderRole}</p>
                           <p className="text-xs text-zinc-900 dark:text-white">{msg.text}</p>
                         </div>
                       )}
@@ -490,7 +490,7 @@ export function EmergenciaAvanzada() {
                         <div className="flex items-center gap-2 shrink-0">
                           {activeEmergency ? (
                             <>
-                              {/* Sprint 20 19th-wave (Bucket C): native title= → Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
+                              {/* Sprint 20 19th-wave (Bucket C): native title= â†’ Tooltip primitive (WCAG 2.1 AA 1.4.13). aria-label provides SR semantic. */}
                               <Tooltip content="Marcar seguro">
                                 <button
                                   onClick={() => markWorker(w.id, 'safe')}
@@ -531,8 +531,8 @@ export function EmergenciaAvanzada() {
         isOpen={showTriggerConfirm}
         title={pendingQuake ? `Activar Protocolo para Sismo M${pendingQuake.magnitude.toFixed(1)}` : 'Activar Emergencia General'}
         message={pendingQuake
-          ? `Se activará protocolo de emergencia por sismo en: ${pendingQuake.place}. Todos los trabajadores serán notificados y deberán confirmar su estado.`
-          : 'Se activará un protocolo de emergencia general. Todos los trabajadores serán notificados y deberán confirmar su estado de seguridad.'}
+          ? `Se activarÃ¡ protocolo de emergencia por sismo en: ${pendingQuake.place}. Todos los trabajadores serÃ¡n notificados y deberÃ¡n confirmar su estado.`
+          : 'Se activarÃ¡ un protocolo de emergencia general. Todos los trabajadores serÃ¡n notificados y deberÃ¡n confirmar su estado de seguridad.'}
         confirmLabel="Activar Ahora"
         danger
         onConfirm={triggerEmergency}
@@ -542,8 +542,8 @@ export function EmergenciaAvanzada() {
       <ConfirmDialog
         isOpen={showResolveConfirm}
         title="Resolver Emergencia"
-        message="¿Confirmas que la emergencia ha sido controlada y todos los trabajadores están seguros?"
-        confirmLabel="Sí, resolver"
+        message="Â¿Confirmas que la emergencia ha sido controlada y todos los trabajadores estÃ¡n seguros?"
+        confirmLabel="SÃ­, resolver"
         onConfirm={resolveEmergency}
         onCancel={() => setShowResolveConfirm(false)}
       />

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Car, Phone, MapPin, Mic, ShieldAlert, MicOff, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -35,12 +35,12 @@ export function SafeDrivingMode() {
       setReportSaved(true);
       setTimeout(() => setReportSaved(false), 3000);
     } catch {
-      // silent — text remains visible so user can copy it manually
+      // silent â€” text remains visible so user can copy it manually
     }
   };
 
   const handleDictate = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     if (isListening) {
       recognitionRef.current?.stop();
@@ -144,7 +144,7 @@ export function SafeDrivingMode() {
             </a>
           ) : (
             <div
-              title="Configure el número de base en los ajustes del proyecto"
+              title="Configure el nÃºmero de base en los ajustes del proyecto"
               className="flex-1 bg-zinc-900 rounded-[3rem] border-4 border-zinc-800 flex flex-col items-center justify-center gap-4 opacity-40 cursor-not-allowed"
             >
               <Phone className="w-12 h-12 text-zinc-600" />
@@ -158,7 +158,7 @@ export function SafeDrivingMode() {
           onClick={handleEmergency}
           role="button"
           aria-pressed={isEmergency}
-          aria-label={isEmergency ? 'Emergencia activa — S.O.S. enviado' : 'Activar emergencia S.O.S.'}
+          aria-label={isEmergency ? 'Emergencia activa â€” S.O.S. enviado' : 'Activar emergencia S.O.S.'}
           aria-live="polite"
           className={`h-48 rounded-[3rem] border-4 flex flex-col items-center justify-center gap-4 transition-all active:scale-95 ${
             isEmergency

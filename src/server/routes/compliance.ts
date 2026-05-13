@@ -1,4 +1,4 @@
-// Praeventio Guard — Sprint 23 Bucket FF.
+﻿// Praeventio Guard â€” Sprint 23 Bucket FF.
 //
 // HTTP surface for Ley 19.628 compliance:
 //
@@ -11,7 +11,7 @@
 //   GET    /api/compliance/data-export/:requestId
 //
 // All write endpoints require `verifyAuth`. The processing-activities
-// catalog is intentionally public (no auth) — it is the published RAT and
+// catalog is intentionally public (no auth) â€” it is the published RAT and
 // has no PII, so a SERNAC inspector or any data subject can inspect it
 // without registering. The /api/ rate limiter in server.ts already gates
 // all of these paths.
@@ -20,7 +20,7 @@ import { Router } from 'express';
 import admin from 'firebase-admin';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
-// Sprint 28 Bucket B3 — Zod transversal middleware (audit hallazgo H17).
+// Sprint 28 Bucket B3 â€” Zod transversal middleware (audit hallazgo H17).
 import { validate } from '../middleware/validate.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
@@ -37,7 +37,7 @@ import {
   type LegalBasis,
   type MinimalComplianceDb,
 } from '../../services/compliance/ley19628.js';
-// Sprint 31 Bucket MM — multi-regime privacy compliance.
+// Sprint 31 Bucket MM â€” multi-regime privacy compliance.
 import {
   getActiveRegimes,
   getMostStrictRegime,
@@ -70,7 +70,7 @@ function getDb(): MinimalComplianceDb {
 const router = Router();
 
 // ---------------------------------------------------------------------------
-// Public RAT (Article 30 GDPR equivalent) — no auth
+// Public RAT (Article 30 GDPR equivalent) â€” no auth
 // ---------------------------------------------------------------------------
 
 router.get('/processing-activities', (_req, res) => {
@@ -82,7 +82,7 @@ router.get('/processing-activities', (_req, res) => {
 // ---------------------------------------------------------------------------
 
 router.post('/consent', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid as string;
+  const uid = req.user.uid as string;
   const { purpose, granted, legalBasis, textVersion } = req.body ?? {};
 
   if (!VALID_PURPOSES.includes(purpose)) {
@@ -122,7 +122,7 @@ router.post('/consent', verifyAuth, async (req, res) => {
 });
 
 router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid as string;
+  const uid = req.user.uid as string;
   const purpose = req.params.purpose as ConsentPurpose;
   if (!VALID_PURPOSES.includes(purpose)) {
     return res.status(400).json({ error: 'invalid_purpose' });
@@ -145,7 +145,7 @@ router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
 });
 
 router.get('/consent', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid as string;
+  const uid = req.user.uid as string;
   try {
     const status = await getConsentStatus(getDb(), uid);
     res.json({ uid, consents: status });
@@ -164,23 +164,23 @@ router.get('/consent', verifyAuth, async (req, res) => {
 // Data-subject requests
 // ---------------------------------------------------------------------------
 
-// Sprint 28 Bucket B3 — Zod schema for the data-subject request endpoint.
+// Sprint 28 Bucket B3 â€” Zod schema for the data-subject request endpoint.
 // The user-spec asked for `kind` + `targetUid` + `reason`; we map those to
 // the existing wire field names (`type` is the existing `kind` enum, and
 // `reason` lands in the rectificationPayload bag) so the contract stays
 // backward-compatible. Sprint 29 H17: legacy `VALID_REQUEST_TYPES.includes`
-// + `typeof rectificationPayload` guards removed — Zod enum + z.record are
+// + `typeof rectificationPayload` guards removed â€” Zod enum + z.record are
 // the single source of truth.
 const dataRequestSchema = z.object({
   type: z.enum(['access', 'rectification', 'erasure', 'portability']),
   // Optional structured payload for rectification requests.
   rectificationPayload: z.record(z.string(), z.unknown()).optional(),
-  // Optional human-readable reason — recorded in the audit row.
+  // Optional human-readable reason â€” recorded in the audit row.
   reason: z.string().max(1024).optional(),
   // Optional admin-on-behalf-of target uid. Most subjects act on themselves
   // (the auth uid), but DPO operations may target another uid.
   targetUid: z.string().min(1).max(128).optional(),
-  // Sprint 31 Bucket MM — country of the data subject (ISO 3166-1 alpha-2)
+  // Sprint 31 Bucket MM â€” country of the data subject (ISO 3166-1 alpha-2)
   // and optional data-residency override. Used to pick the strictest
   // privacy regime deadline.
   subjectCountry: z.string().min(2).max(8).optional(),
@@ -188,7 +188,7 @@ const dataRequestSchema = z.object({
 });
 
 router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
-  const uid = (req as any).user.uid as string;
+  const uid = req.user.uid as string;
   const { type, rectificationPayload, subjectCountry, dataResidency } =
     req.body as {
       type: 'access' | 'rectification' | 'erasure' | 'portability';
@@ -197,7 +197,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
       dataResidency?: string;
     };
 
-  // Sprint 31 Bucket MM — compute the strictest applicable deadline based
+  // Sprint 31 Bucket MM â€” compute the strictest applicable deadline based
   // on subject country + processing residency. Default to LGPD's 15-day
   // floor when nothing is provided so we never silently downgrade.
   const activeRegimes = getActiveRegimes({
@@ -224,7 +224,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
     res.status(201).json({
       ok: true,
       request,
-      // Surfaced so the client can render "responderemos en N días".
+      // Surfaced so the client can render "responderemos en N dÃ­as".
       deadlineDays: appliedDeadline,
       regimes: activeRegimes.map((r) => r.code),
     });
@@ -243,7 +243,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
 });
 
 router.get('/data-request/:id', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid as string;
+  const uid = req.user.uid as string;
   const requestId = req.params.id;
   if (!requestId || requestId.length > 128) {
     return res.status(400).json({ error: 'invalid_id' });
@@ -277,7 +277,7 @@ router.get('/data-request/:id', verifyAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid as string;
+  const uid = req.user.uid as string;
   const requestId = req.params.requestId;
   try {
     const request = await getDataAccessRequest(getDb(), requestId);

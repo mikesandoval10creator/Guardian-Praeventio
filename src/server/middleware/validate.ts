@@ -1,4 +1,4 @@
-// Praeventio Guard — Sprint 28 Bucket B3.
+﻿// Praeventio Guard â€” Sprint 28 Bucket B3.
 //
 // Transversal Zod request validation middleware. Closes audit hallazgo H17:
 // previously only `POST /api/erp/sync` (in `routes/misc.ts`) used Zod; the
@@ -6,11 +6,11 @@
 // `typeof` checks. The result was 376 `as any/unknown` casts in `src/` and
 // inconsistent error envelopes per route. This factory unifies both:
 //
-//   • One canonical 400 envelope (`{ error: 'invalid_payload', issues }`)
+//   â€¢ One canonical 400 envelope (`{ error: 'invalid_payload', issues }`)
 //     so clients can reliably switch on `error === 'invalid_payload'`.
-//   • Validated, typed payloads attached to `req.validated` (typed via the
+//   â€¢ Validated, typed payloads attached to `req.validated` (typed via the
 //     module augmentation at the bottom of this file).
-//   • `logger.warn('validation_failed', …)` on every reject so abuse
+//   â€¢ `logger.warn('validation_failed', â€¦)` on every reject so abuse
 //     patterns (uid spamming malformed bodies, scanners, etc.) show up
 //     in observability.
 //
@@ -19,10 +19,10 @@
 //   const schema = z.object({ projectId: z.string().min(1) });
 //   router.post('/foo', verifyAuth, validate(schema), (req, res) => {
 //     const { projectId } = req.validated as z.infer<typeof schema>;
-//     …
+//     â€¦
 //   });
 //
-// IMPORTANT — coexistence with legacy `typeof` checks. Sprint 28 only
+// IMPORTANT â€” coexistence with legacy `typeof` checks. Sprint 28 only
 // adds this middleware as a FIRST barrier. Existing handlers still keep
 // their hand-rolled checks (TODO: remove in Sprint 29) so a defect in the
 // schema can't regress runtime behavior. The middleware logs at warn but
@@ -52,13 +52,13 @@ export function validate<T extends z.ZodTypeAny>(
     const raw = (req as unknown as Record<ValidateSource, unknown>)[source];
     const parsed = schema.safeParse(raw);
     if (!parsed.success) {
-      const uid: string | undefined = (req as any).user?.uid;
+      const uid: string | undefined = req.user?.uid;
       logger.warn('validation_failed', {
         path: req.path,
         source,
         method: req.method,
         uid: uid ?? null,
-        // `issues` is intentionally short — we log the array (Zod tops
+        // `issues` is intentionally short â€” we log the array (Zod tops
         // out at ~kB for normal payloads) and rely on log aggregation
         // truncation rather than guessing a cutoff here.
         issues: parsed.error.issues,
@@ -69,16 +69,12 @@ export function validate<T extends z.ZodTypeAny>(
     // Stash the post-transform/post-default value so the handler doesn't
     // have to re-parse. We keep `req.body|query|params` untouched so any
     // legacy code that reads them still sees the original wire payload.
-    (req as any).validated = parsed.data;
+    req.validated = parsed.data;
     next();
   };
 }
 
-// Best-effort type augmentation for `req.validated`. We use `any` because
-// each route has a different schema; consumers should narrow with
+// Type augmentation for `req.validated` lives in
+// src/server/types/express.d.ts (PraeventioAuthUser, PraeventioB2dKey,
+// validated?: unknown). Consumers should narrow with
 // `req.validated as z.infer<typeof mySchema>`.
-declare module 'express-serve-static-core' {
-  interface Request {
-    validated?: unknown;
-  }
-}

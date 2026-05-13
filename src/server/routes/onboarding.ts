@@ -1,4 +1,4 @@
-// Sprint 24 Bucket KK.3 — Self-service onboarding completion endpoint.
+﻿// Sprint 24 Bucket KK.3 â€” Self-service onboarding completion endpoint.
 //
 // `POST /api/onboarding/complete` finalizes the wizard for a brand-new
 // tenant in a single transactional pass:
@@ -7,16 +7,16 @@
 //      `users/{uid}.tenantConfig` and mirror the tier into
 //      `users/{uid}.subscription.planId` so the rest of the SPA picks it
 //      up immediately. Note: this DOES NOT replace the
-//      payment-verified `/api/subscription/upgrade` flow — for paid
+//      payment-verified `/api/subscription/upgrade` flow â€” for paid
 //      tiers (anything above `gratis`) we leave a `pendingTier` flag
 //      so billing can require an invoice before the upgrade is
 //      considered active. The user can still use the app on `gratis`
 //      meanwhile, but write paths gate on `subscription.planId`.
 //   2. Create the first project under `tenants/{tenantId}/projects/{id}`
-//      (we use uid as tenantId — single-tenant-per-uid is the current
+//      (we use uid as tenantId â€” single-tenant-per-uid is the current
 //      data model; multi-tenant CSM is a separate Sprint).
 //   3. Fire off team invitations (email side-effects best-effort, never
-//      blocking the wizard response — same pattern as projects.ts).
+//      blocking the wizard response â€” same pattern as projects.ts).
 //   4. Stash the optional workers CSV into `tenants/{tenantId}/imports/
 //      onboarding-{ts}` for the JJ-bucket ETL worker to pick up
 //      asynchronously. We deliberately do NOT call the ETL inline:
@@ -25,7 +25,7 @@
 //      guard stops sending the user back to /onboarding.
 //
 // Failures in steps 3-4 are logged but do NOT fail the whole
-// onboarding — the user has done their part and shouldn't be punished
+// onboarding â€” the user has done their part and shouldn't be punished
 // for a flaky email provider. Failures in steps 1, 2 or 5 are fatal
 // because they leave the account in an unusable state.
 
@@ -105,7 +105,7 @@ function validatePayload(body: unknown): { ok: true; data: OnboardingPayload } |
 }
 
 onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), async (req, res) => {
-  const uid = (req as any).user?.uid;
+  const uid = req.user?.uid;
   if (!uid) return res.status(401).json({ error: 'no_uid' });
 
   const validation = validatePayload(req.body);
@@ -118,7 +118,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
   const tenantId = uid; // single-tenant-per-user (current data model)
   const isPaidTier = payload.tier !== 'gratis';
 
-  // ── 1. Persist tenant config + mirror tier ──────────────────────────
+  // â”€â”€ 1. Persist tenant config + mirror tier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     await db.collection('users').doc(uid).set(
       {
@@ -154,7 +154,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     return res.status(500).json({ error: 'persist_failed' });
   }
 
-  // ── 2. Create first project ─────────────────────────────────────────
+  // â”€â”€ 2. Create first project â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let projectId: string;
   try {
     const projectRef = db
@@ -178,12 +178,12 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     return res.status(500).json({ error: 'project_create_failed' });
   }
 
-  // ── 3. Team invitations (best-effort) ───────────────────────────────
+  // â”€â”€ 3. Team invitations (best-effort) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const invitedEmails: string[] = [];
   const invitationFailures: string[] = [];
   if (payload.inviteEmails.length > 0) {
     const emailService = EmailService.fromEnv();
-    const inviterEmail = (req as any).user?.email || 'tu equipo';
+    const inviterEmail = req.user?.email || 'tu equipo';
     for (const email of payload.inviteEmails) {
       try {
         const token = `onb-${projectId}-${Buffer.from(email).toString('base64url')}-${Date.now()}`;
@@ -217,7 +217,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
               html,
             });
           } catch (sendErr) {
-            // The invitation row is the source of truth — a bad email
+            // The invitation row is the source of truth â€” a bad email
             // delivery shouldn't ditch the invite. The recipient can
             // still accept via direct link.
             logger.warn('onboarding_email_failed', {
@@ -239,7 +239,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
     }
   }
 
-  // ── 4. Stash workers CSV for ETL pickup ─────────────────────────────
+  // â”€â”€ 4. Stash workers CSV for ETL pickup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (payload.workersCsv) {
     try {
       await db
@@ -256,7 +256,7 @@ onboardingRouter.post('/onboarding/complete', verifyAuth, idempotencyKey(), asyn
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
     } catch (csvErr) {
-      // CSV stash is best-effort — user can re-upload from the project
+      // CSV stash is best-effort â€” user can re-upload from the project
       // page.
       logger.warn('onboarding_csv_stash_failed', {
         uid,

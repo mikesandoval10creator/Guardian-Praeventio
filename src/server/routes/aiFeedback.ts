@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 //
-// Sprint 32 Bucket UU — RLHF feedback loop API.
+// Sprint 32 Bucket UU â€” RLHF feedback loop API.
 //
 // POST /api/ai/feedback
 //   Persists a thumbs up/down vote (+ optional rationale) from AsesorChat
@@ -13,7 +13,7 @@
 //   training set free of identifiable signal without losing the qualitative
 //   shape that makes the rationale useful.
 //
-// GET /api/ai/feedback/summary?tenantId=…
+// GET /api/ai/feedback/summary?tenantId=â€¦
 //   Returns the most recent weekly summary written by the
 //   `aggregateAiFeedback` cron (see `src/server/jobs/aggregateAiFeedback.ts`).
 //   Admin-gated via `verifyAuth` + req.user.admin custom claim.
@@ -32,16 +32,16 @@ import { getErrorTracker } from '../../services/observability/index.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PII redaction (pure, exported for tests).
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Chilean RUT: 7-8 digits, optional dot separators, dash, verifier digit.
 // Matches `12.345.678-9`, `12345678-9`, `1.234.567-K`, `1234567-k`.
 const RUT_RE = /\b\d{1,2}\.?\d{3}\.?\d{3}-[\dkK]\b/g;
-// Email — RFC-lite. Good enough for opportunistic redaction.
+// Email â€” RFC-lite. Good enough for opportunistic redaction.
 const EMAIL_RE = /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g;
-// Chilean phone — `+56 9 1234 5678`, `+56912345678`, `9 1234 5678`,
+// Chilean phone â€” `+56 9 1234 5678`, `+56912345678`, `9 1234 5678`,
 // `912345678`. Also matches a bare 8-digit fixed line. Conservative: we
 // require at least 8 digits to avoid eating arbitrary numbers.
 const PHONE_RE = /(\+?56[\s-]?)?(9[\s-]?)?\d{4}[\s-]?\d{4}\b/g;
@@ -76,9 +76,9 @@ export function containsPII(input: string): boolean {
   return redactPII(input).hadPII;
 }
 
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Aggregation helper (pure, exported for tests + cron consumer).
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FeedbackItem {
   messageId: string;
@@ -165,9 +165,9 @@ export function aggregateFeedbackItems(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Express router.
-// ─────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const feedbackBodySchema = z.object({
   messageId: z.string().min(1).max(128),
@@ -189,14 +189,14 @@ router.post(
   validate(feedbackBodySchema),
   async (req, res) => {
     const body = req.validated as z.infer<typeof feedbackBodySchema>;
-    const tenantId: string = (req as any).user?.uid ?? 'unknown';
-    const callerEmail: string | null = (req as any).user?.email ?? null;
-    // Sprint 33 — replay-attack guard. Without `force`, a duplicate POST on
+    const tenantId: string = req.user?.uid ?? 'unknown';
+    const callerEmail: string | null = req.user?.email ?? null;
+    // Sprint 33 â€” replay-attack guard. Without `force`, a duplicate POST on
     // the same (tenantId, messageId) tuple is rejected with 409. Why: the
     // pre-Sprint-33 handler used `set({ merge: true })` which silently
     // overwrites `vote`. An attacker holding a valid Bearer could flip a
     // genuine 'down' to 'up' (RLHF dataset poisoning) without ever needing
-    // high QPS — the rate limiter alone wouldn't catch it. The transaction
+    // high QPS â€” the rate limiter alone wouldn't catch it. The transaction
     // makes the read-then-write atomic so two concurrent first votes can't
     // race past the existence check.
     const force = String(req.query.force ?? '') === 'true';
@@ -229,7 +229,7 @@ router.post(
         if (previousVote && !force) {
           // Idempotency rationale: callers retrying the SAME vote (network
           // hiccup) get a 409, not a silent merge. Clients should not
-          // pretend the second call succeeded — they should drop it.
+          // pretend the second call succeeded â€” they should drop it.
           return { kind: 'conflict', existingVote: previousVote };
         }
         const doc = {
@@ -265,7 +265,7 @@ router.post(
         });
       }
 
-      // Audit row — every successful write (including overrides) gets one
+      // Audit row â€” every successful write (including overrides) gets one
       // so RLHF dataset auditors can reconstruct vote-flip history. We do
       // this OUTSIDE the transaction because audit_logs is append-only and
       // a failed audit append must not roll back a legitimate vote.
@@ -305,7 +305,7 @@ router.post(
 );
 
 router.get('/feedback/summary', verifyAuth, async (req, res) => {
-  const isAdmin = Boolean((req as any).user?.admin);
+  const isAdmin = Boolean(req.user?.admin);
   if (!isAdmin) {
     return res.status(403).json({ error: 'forbidden' });
   }
@@ -313,7 +313,7 @@ router.get('/feedback/summary', verifyAuth, async (req, res) => {
   const tenantId: string =
     typeof tenantQ === 'string' && tenantQ.length > 0
       ? tenantQ
-      : (req as any).user?.uid ?? 'unknown';
+      : req.user?.uid ?? 'unknown';
   const week = typeof req.query.week === 'string' ? req.query.week : isoWeek(new Date());
   try {
     const { getFirestore } = await import('firebase-admin/firestore');

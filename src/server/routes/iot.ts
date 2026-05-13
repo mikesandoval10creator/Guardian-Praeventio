@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 //
-// Sprint 32 Bucket TT — IoT device registration endpoint.
+// Sprint 32 Bucket TT â€” IoT device registration endpoint.
 //
 // Closes audit P0 W2: the MQTT adapter shipped without a wiring path; the
 // admin had no way to enrol a physical device into the tenant. This router
@@ -9,9 +9,9 @@
 //   POST /api/iot/devices/register
 //
 // Auth contract (mirrors emergency.ts pattern):
-//   • verifyAuth (Firebase ID token)
-//   • Zod schema validation (deviceId, projectId, type, optional secret)
-//   • Role gate: caller must hold an admin or supervisor-tier role
+//   â€¢ verifyAuth (Firebase ID token)
+//   â€¢ Zod schema validation (deviceId, projectId, type, optional secret)
+//   â€¢ Role gate: caller must hold an admin or supervisor-tier role
 //     (admin / gerente / supervisor / prevencionista). Worker-tier tokens
 //     cannot register devices.
 //
@@ -68,8 +68,8 @@ router.post(
   idempotencyKey(),
   validate(RegisterDeviceSchema),
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const { deviceId, projectId, type } = (req as any).validated as z.infer<
+    const callerUid = req.user.uid;
+    const { deviceId, projectId, type } = req.validated as z.infer<
       typeof RegisterDeviceSchema
     >;
 

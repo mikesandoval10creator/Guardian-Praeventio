@@ -1,17 +1,17 @@
-// Praeventio Guard — Sprint 35 Bucket (Audit P1 §1.3).
+﻿// Praeventio Guard â€” Sprint 35 Bucket (Audit P1 Â§1.3).
 //
 // Tests for `idempotencyKey()` middleware. Six branches mirror the
 // behavior contract pinned in idempotencyKey.ts:
 //
-//   1. Header absent           → handler runs, NO cache write.
-//   2. First request with key  → handler runs, response cached.
-//   3. Second request same key → cached response replayed, handler NOT called.
-//   4. scope='uid' isolation   → uid A's key does NOT serve uid B's request.
-//   5. TTL expired             → handler re-runs, cache row refreshed.
-//   6. Concurrent first calls  → only ONE write commits (transaction race).
+//   1. Header absent           â†’ handler runs, NO cache write.
+//   2. First request with key  â†’ handler runs, response cached.
+//   3. Second request same key â†’ cached response replayed, handler NOT called.
+//   4. scope='uid' isolation   â†’ uid A's key does NOT serve uid B's request.
+//   5. TTL expired             â†’ handler re-runs, cache row refreshed.
+//   6. Concurrent first calls  â†’ only ONE write commits (transaction race).
 //
-// We use vitest + an in-memory Firestore double — same pattern as
-// idempotency.test.ts — to keep the tests hermetic. The middleware accepts
+// We use vitest + an in-memory Firestore double â€” same pattern as
+// idempotency.test.ts â€” to keep the tests hermetic. The middleware accepts
 // `firestore: () => instance` injection precisely so tests don't need
 // firebase-admin running.
 
@@ -20,7 +20,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import { idempotencyKey, IDEMPOTENCY_CACHE_COLLECTION } from './idempotencyKey.js';
 
-// ── In-memory Firestore double ────────────────────────────────────────────
+// â”€â”€ In-memory Firestore double â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //
 // Mirrors the minimal surface used by idempotencyKey: collection().doc()
 // .get()/.set(), plus runTransaction() with tx.get()/tx.set(). We model
@@ -105,7 +105,7 @@ function buildApp(opts: {
     '/test',
     // Stand-in for verifyAuth: hard-wire the uid into req.user.
     (req, _res, next) => {
-      (req as any).user = { uid: opts.uid };
+      req.user = { uid: opts.uid };
       next();
     },
     idempotencyKey({
@@ -127,7 +127,7 @@ describe('idempotencyKey middleware', () => {
     vi.restoreAllMocks();
   });
 
-  // ── Test 1 ────────────────────────────────────────────────────────────
+  // â”€â”€ Test 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('passes through with no caching when Idempotency-Key header is absent', async () => {
     const { fs, collections } = makeFakeFirestore();
     const { app, calls } = buildApp({
@@ -143,13 +143,13 @@ describe('idempotencyKey middleware', () => {
     // No cache row written.
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size ?? 0).toBe(0);
 
-    // Second identical request still runs the handler — no idempotency.
+    // Second identical request still runs the handler â€” no idempotency.
     const r2 = await request(app).post('/test').send({ x: 1 });
     expect(r2.status).toBe(200);
     expect(calls.count).toBe(2);
   });
 
-  // ── Test 2 + 3 ────────────────────────────────────────────────────────
+  // â”€â”€ Test 2 + 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('first request with key runs handler+caches; second request replays without running handler', async () => {
     const { fs, collections } = makeFakeFirestore();
     const { app, calls } = buildApp({
@@ -177,15 +177,15 @@ describe('idempotencyKey middleware', () => {
     expect(r2.status).toBe(200);
     expect(r2.body).toEqual({ created: 'crew-42' });
     expect(r2.headers['idempotent-replayed']).toBe('true');
-    // Handler did NOT run again — that's the whole point.
+    // Handler did NOT run again â€” that's the whole point.
     expect(calls.count).toBe(1);
   });
 
-  // ── Test 4 ────────────────────────────────────────────────────────────
+  // â”€â”€ Test 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('scope=uid isolates: same key from a different uid does NOT replay', async () => {
     const { fs, collections } = makeFakeFirestore();
 
-    // First app — uid A.
+    // First app â€” uid A.
     const appA = buildApp({
       firestore: () => fs,
       uid: 'uid-A',
@@ -199,7 +199,7 @@ describe('idempotencyKey middleware', () => {
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size).toBe(1);
     expect(appA.calls.count).toBe(1);
 
-    // Second app — uid B, SAME idempotency key. Must NOT collide.
+    // Second app â€” uid B, SAME idempotency key. Must NOT collide.
     const appB = buildApp({
       firestore: () => fs,
       uid: 'uid-B',
@@ -216,7 +216,7 @@ describe('idempotencyKey middleware', () => {
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size).toBe(2);
   });
 
-  // ── Test 5 ────────────────────────────────────────────────────────────
+  // â”€â”€ Test 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('TTL-expired entry causes the handler to run again and cache to refresh', async () => {
     const { fs, collections } = makeFakeFirestore();
     let currentMs = 1_000_000;
@@ -257,7 +257,7 @@ describe('idempotencyKey middleware', () => {
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size).toBe(1);
   });
 
-  // ── Test 6 ────────────────────────────────────────────────────────────
+  // â”€â”€ Test 6 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('two near-concurrent requests with same key: only ONE cache write commits', async () => {
     const { fs, collections } = makeFakeFirestore();
 
@@ -290,7 +290,7 @@ describe('idempotencyKey middleware', () => {
     expect(collections.get(IDEMPOTENCY_CACHE_COLLECTION)?.size).toBe(1);
   });
 
-  // ── Bonus: fingerprint mismatch (Stripe-style 422) ────────────────────
+  // â”€â”€ Bonus: fingerprint mismatch (Stripe-style 422) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   it('returns 422 when same key is reused with different request body', async () => {
     const { fs } = makeFakeFirestore();
     const { app } = buildApp({

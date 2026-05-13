@@ -1,16 +1,16 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { RiskMatrix5x5, severityForCell, type RiskMatrixNode } from './RiskMatrix5x5.js';
 
-// Recharts depende de ResizeObserver — mock requerido en jsdom.
+// Recharts depende de ResizeObserver â€” mock requerido en jsdom.
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(globalThis as any).ResizeObserver = ResizeObserverMock;
+globalThis.ResizeObserver = ResizeObserverMock;
 
 function node(over: Partial<RiskMatrixNode> = {}): RiskMatrixNode {
   return {
@@ -23,15 +23,15 @@ function node(over: Partial<RiskMatrixNode> = {}): RiskMatrixNode {
   };
 }
 
-describe('severityForCell — ISO 31000 calibration', () => {
-  it('1×1=1 → low', () => expect(severityForCell(1, 1)).toBe('low'));
-  it('2×2=4 → low (límite)', () => expect(severityForCell(2, 2)).toBe('low'));
-  it('3×2=6 → medium', () => expect(severityForCell(3, 2)).toBe('medium'));
-  it('3×3=9 → medium (límite)', () => expect(severityForCell(3, 3)).toBe('medium'));
-  it('3×4=12 → high', () => expect(severityForCell(3, 4)).toBe('high'));
-  it('3×5=15 → high (límite)', () => expect(severityForCell(3, 5)).toBe('high'));
-  it('4×4=16 → extreme', () => expect(severityForCell(4, 4)).toBe('extreme'));
-  it('5×5=25 → extreme', () => expect(severityForCell(5, 5)).toBe('extreme'));
+describe('severityForCell â€” ISO 31000 calibration', () => {
+  it('1Ã—1=1 â†’ low', () => expect(severityForCell(1, 1)).toBe('low'));
+  it('2Ã—2=4 â†’ low (lÃ­mite)', () => expect(severityForCell(2, 2)).toBe('low'));
+  it('3Ã—2=6 â†’ medium', () => expect(severityForCell(3, 2)).toBe('medium'));
+  it('3Ã—3=9 â†’ medium (lÃ­mite)', () => expect(severityForCell(3, 3)).toBe('medium'));
+  it('3Ã—4=12 â†’ high', () => expect(severityForCell(3, 4)).toBe('high'));
+  it('3Ã—5=15 â†’ high (lÃ­mite)', () => expect(severityForCell(3, 5)).toBe('high'));
+  it('4Ã—4=16 â†’ extreme', () => expect(severityForCell(4, 4)).toBe('extreme'));
+  it('5Ã—5=25 â†’ extreme', () => expect(severityForCell(5, 5)).toBe('extreme'));
 });
 
 describe('RiskMatrix5x5 component', () => {
@@ -49,7 +49,7 @@ describe('RiskMatrix5x5 component', () => {
     expect(screen.getByTestId('risk-matrix.footer')).toBeInTheDocument();
   });
 
-  it('cuenta 0 elementos con lista vacía', () => {
+  it('cuenta 0 elementos con lista vacÃ­a', () => {
     render(<RiskMatrix5x5 nodes={[]} />);
     expect(screen.getByTestId('risk-matrix.count')).toHaveTextContent('0 elementos');
   });

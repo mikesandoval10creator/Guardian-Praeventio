@@ -1,4 +1,4 @@
-// Praeventio Guard — Round 17 R1: per-tenant IoT secret rotation.
+﻿// Praeventio Guard â€” Round 17 R1: per-tenant IoT secret rotation.
 //
 // The `/api/telemetry/ingest` endpoint historically authenticated all
 // callers against a single env-level shared secret (`IOT_WEBHOOK_SECRET`).
@@ -7,20 +7,20 @@
 // one tenant compromises every other tenant.
 //
 // R17 R1 layers per-tenant secrets on top of the existing path:
-//   • Each tenant doc may carry `iotSecret` (32-byte hex) and
+//   â€¢ Each tenant doc may carry `iotSecret` (32-byte hex) and
 //     `iotSecretRotatedAt` (server timestamp).
-//   • Clients declare `tenantId` via header (`x-tenant-id`) or body.
-//   • When per-tenant secret exists, request body MUST be HMAC-SHA256 signed
+//   â€¢ Clients declare `tenantId` via header (`x-tenant-id`) or body.
+//   â€¢ When per-tenant secret exists, request body MUST be HMAC-SHA256 signed
 //     using that secret; signature lands in `x-iot-signature` header as
 //     `sha256=<hex>`.
-//   • When per-tenant secret is missing, fall back to legacy env secret
+//   â€¢ When per-tenant secret is missing, fall back to legacy env secret
 //     (logged as `telemetry_no_per_tenant_secret`).
 //
 // Tests:
-//   1. per-tenant secret + valid HMAC signature → 200 + telemetry stored
-//   2. per-tenant secret present + WRONG signature → 401
-//   3. per-tenant secret missing → fall back to env secret (200)
-//   4. per-tenant secret missing + env secret missing → 500
+//   1. per-tenant secret + valid HMAC signature â†’ 200 + telemetry stored
+//   2. per-tenant secret present + WRONG signature â†’ 401
+//   3. per-tenant secret missing â†’ fall back to env secret (200)
+//   4. per-tenant secret missing + env secret missing â†’ 500
 //   5. POST /api/admin/iot/rotate-secret writes new secret and audits
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -87,14 +87,14 @@ function buildApp(deps: Deps): Express {
     const token = authHeader.split('Bearer ')[1];
     try {
       const decoded = await deps.auth.verifyIdToken(token);
-      (req as any).user = decoded;
+      req.user = decoded;
       next();
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
   };
 
-  // ─── /api/telemetry/ingest ──────────────────────────────────────
+  // â”€â”€â”€ /api/telemetry/ingest â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/telemetry/ingest', async (req, res) => {
     const headerTenantId = req.header('x-tenant-id');
     const bodyTenantId = (req.body ?? {}).tenantId;
@@ -157,9 +157,9 @@ function buildApp(deps: Deps): Express {
     res.json({ success: true });
   });
 
-  // ─── /api/admin/iot/rotate-secret ──────────────────────────────
+  // â”€â”€â”€ /api/admin/iot/rotate-secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/admin/iot/rotate-secret', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { tenantId } = req.body ?? {};
     if (typeof tenantId !== 'string' || tenantId.length === 0 || tenantId.length > 128) {
       return res.status(400).json({ error: 'Invalid tenantId' });
@@ -195,7 +195,7 @@ beforeEach(() => {
   fs = new InMemoryFirestore();
 });
 
-describe('POST /api/telemetry/ingest — per-tenant secret (R17 R1)', () => {
+describe('POST /api/telemetry/ingest â€” per-tenant secret (R17 R1)', () => {
   it('accepts request when per-tenant HMAC signature matches', async () => {
     fs.store.set('tenants/tenant-A', { iotSecret: 'tenant-A-secret' });
     const app = buildApp({ fs, auth: makeAuth(), envSecret: ENV_SECRET });
@@ -234,7 +234,7 @@ describe('POST /api/telemetry/ingest — per-tenant secret (R17 R1)', () => {
       .post('/api/telemetry/ingest')
       .set('x-iot-signature', 'sha256=deadbeef')
       .send(body);
-    // No env fallback, so wrong sig → 500 (server misconfig, no path home).
+    // No env fallback, so wrong sig â†’ 500 (server misconfig, no path home).
     // With env fallback present (next test) it's 401 because the legacy
     // header path also fails. We assert the 5xx-or-401 boundary rather
     // than coupling to one branch.

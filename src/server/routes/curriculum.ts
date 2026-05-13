@@ -1,4 +1,4 @@
-// Praeventio Guard — Round 18 Phase 3 split.
+﻿// Praeventio Guard â€” Round 18 Phase 3 split.
 //
 // Curriculum claims + portable referee co-signing endpoints + WebAuthn
 // challenge issuance, extracted from server.ts. Closes Phase 3 of the
@@ -10,18 +10,18 @@
 // because it shares the WebAuthn challenges-DB adapter and is part of the
 // same security surface (curriculum cosign uses the WebAuthn flow).
 //
-// Final paths preserved verbatim — DO NOT change:
-//   • POST /api/curriculum/claim
-//   • GET  /api/curriculum/claims
-//   • POST /api/curriculum/claim/:id/resend
-//   • GET  /api/curriculum/referee/:token        (refereeLimiter, public)
-//   • POST /api/curriculum/referee/:token        (refereeLimiter, public)
-//   • GET  /api/auth/webauthn/challenge          (verifyAuth)
+// Final paths preserved verbatim â€” DO NOT change:
+//   â€¢ POST /api/curriculum/claim
+//   â€¢ GET  /api/curriculum/claims
+//   â€¢ POST /api/curriculum/claim/:id/resend
+//   â€¢ GET  /api/curriculum/referee/:token        (refereeLimiter, public)
+//   â€¢ POST /api/curriculum/referee/:token        (refereeLimiter, public)
+//   â€¢ GET  /api/auth/webauthn/challenge          (verifyAuth)
 //
 // The /api/auth/webauthn/challenge endpoint is mounted via a SEPARATE
 // `webauthnChallengeRouter` export so the URL stays under `/api/auth/...`
 // rather than `/api/curriculum/auth/webauthn/...`. Keeping it adjacent in
-// this file is intentional — see PortableCurriculum cosign flow.
+// this file is intentional â€” see PortableCurriculum cosign flow.
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
@@ -66,26 +66,26 @@ import {
   verifyRegistrationResponse,
 } from '@simplewebauthn/server';
 
-// ───────────────────────────────────────────────────────────────────────────
-// Round 20 R6 MEDIUM #2 — expectedOrigin prod fail-fast guard.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Round 20 R6 MEDIUM #2 â€” expectedOrigin prod fail-fast guard.
 //
 // In production we MUST know where the WebAuthn ceremony originates so the
 // signature-verification step can reject assertions that came from a
 // different origin (origin-binding is the entire point of WebAuthn). If
 // neither APP_BASE_URL nor APP_URL is set at module-load time, refusing
 // to start is safer than silently falling back to `http://localhost:3000`
-// — that fallback would make every production verify call fail with
+// â€” that fallback would make every production verify call fail with
 // `signature_invalid` and burn through user trust before anyone notices.
 //
 // In development the localhost fallback is fine and is preserved.
 //
 // We run this once at module-load, NOT per-request:
-//   • Single source of truth — every /verify and /register handler reads
+//   â€¢ Single source of truth â€” every /verify and /register handler reads
 //     the SAME resolved origin.
-//   • Process-level fail-fast — Cloud Run / PM2 / systemd see a hard
+//   â€¢ Process-level fail-fast â€” Cloud Run / PM2 / systemd see a hard
 //     boot failure and surface the misconfig in the deploy log instead
 //     of silently shipping a broken auth surface.
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function resolveExpectedOriginAtBoot(): string {
   if (process.env.NODE_ENV === 'production') {
     const origin = process.env.APP_BASE_URL ?? process.env.APP_URL;
@@ -99,10 +99,10 @@ function resolveExpectedOriginAtBoot(): string {
       // Fail-fast: an http:// origin in production means signed referee
       // URLs (and the WebAuthn ceremony) would be transmitted unencrypted.
       // Refuse to boot rather than silently shipping a misconfigured
-      // server — Cloud Run / PM2 / systemd will surface the exit(1) in
+      // server â€” Cloud Run / PM2 / systemd will surface the exit(1) in
       // the deploy log instead of letting the bad config reach users.
       logger.error(
-        '[webauthn] FATAL: expectedOrigin is http:// in production — refusing to start. Set APP_BASE_URL/APP_URL to an https:// URL.',
+        '[webauthn] FATAL: expectedOrigin is http:// in production â€” refusing to start. Set APP_BASE_URL/APP_URL to an https:// URL.',
       );
       process.exit(1);
     }
@@ -117,18 +117,18 @@ const EXPECTED_ORIGIN = resolveExpectedOriginAtBoot();
 const EXPECTED_RP_ID = process.env.WEBAUTHN_RP_ID ?? 'localhost';
 const RP_NAME = process.env.WEBAUTHN_RP_NAME ?? 'Praeventio Guard';
 
-// Resend client — lazily reuses RESEND_API_KEY at module-load. The same
+// Resend client â€” lazily reuses RESEND_API_KEY at module-load. The same
 // key powers all transactional email surfaces; constructing one client per
 // router keeps each module self-contained without re-reading process.env
 // on the hot path.
-// Sprint 25 (CI fix) — Resend SDK throws "Missing API key" at construct
+// Sprint 25 (CI fix) â€” Resend SDK throws "Missing API key" at construct
 // time when the env var is unset. CI smoke runs without secrets, which
 // would crash the whole webserver before Playwright could probe it.
 const resend = new Resend(process.env.RESEND_API_KEY ?? 're_ci_placeholder');
 
 // In-memory per-token resend rate limit. The global /api/ limiter applies
 // too; this is the per-claim cooldown so a worker can't spam-resend a
-// magic-link to the same referee. Resets on server restart — fine for
+// magic-link to the same referee. Resets on server restart â€” fine for
 // MVP volumes (high-traffic abuse would still be caught upstream).
 const curriculumResendCooldown = new Map<string, number>();
 const CURRICULUM_RESEND_COOLDOWN_MS = 30_000;
@@ -136,9 +136,9 @@ const CURRICULUM_RESEND_COOLDOWN_MS = 30_000;
 /**
  * Server-side audit-log writer for curriculum events. Uses the same
  * audit_logs collection as /api/audit-log; differences:
- *   • userId is the server (we stamp 'system' if no caller uid is
- *     available — referee endpoint is unauthed).
- *   • timestamp is server-stamped via FieldValue.serverTimestamp().
+ *   â€¢ userId is the server (we stamp 'system' if no caller uid is
+ *     available â€” referee endpoint is unauthed).
+ *   â€¢ timestamp is server-stamped via FieldValue.serverTimestamp().
  * Failures are logged but never break the main flow.
  */
 export function buildCurriculumAuditor(
@@ -187,17 +187,17 @@ export function buildClaimEmailHtml({
     </td></tr>
     <tr><td style="padding:40px">
       <h2 style="margin:0 0 8px;font-size:20px;font-weight:900;color:#09090b">Te nombraron como referencia</h2>
-      <p style="margin:0 0 16px;font-size:14px;color:#71717a">Hola <strong style="color:#09090b">${refereeName}</strong>, <strong style="color:#09090b">${workerName}</strong> te nombró referencia en un claim verificable de su currículum profesional.</p>
+      <p style="margin:0 0 16px;font-size:14px;color:#71717a">Hola <strong style="color:#09090b">${refereeName}</strong>, <strong style="color:#09090b">${workerName}</strong> te nombrÃ³ referencia en un claim verificable de su currÃ­culum profesional.</p>
       <blockquote style="margin:16px 0;padding:14px 16px;background:#f4f4f5;border-left:4px solid #10b981;border-radius:8px;font-size:13px;color:#27272a;font-style:italic">"${claimText.replace(/"/g, '&quot;')}"</blockquote>
-      <p style="margin:0 0 24px;font-size:13px;color:#71717a">Si confirmas que es verídico, co-fírmalo para incorporarlo a su currículum portátil. Si no lo conoces o crees que es falso, puedes rechazarlo.</p>
+      <p style="margin:0 0 24px;font-size:13px;color:#71717a">Si confirmas que es verÃ­dico, co-fÃ­rmalo para incorporarlo a su currÃ­culum portÃ¡til. Si no lo conoces o crees que es falso, puedes rechazarlo.</p>
       <div style="text-align:center;margin:32px 0">
         <a href="${magicLink}" style="display:inline-block;background:#10b981;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.5px">Revisar y Co-firmar</a>
       </div>
-      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">El enlace expira en 14 días. Si no lo conoces a ${workerName}, ignora este email.</p>
+      <p style="margin:24px 0 0;font-size:12px;color:#a1a1aa;text-align:center">El enlace expira en 14 dÃ­as. Si no lo conoces a ${workerName}, ignora este email.</p>
       <p style="margin:8px 0 0;font-size:11px;color:#d4d4d8;text-align:center;word-break:break-all">O copia este enlace: ${magicLink}</p>
     </td></tr>
     <tr><td style="background:#f9fafb;padding:20px 40px;text-align:center">
-      <p style="margin:0;font-size:11px;color:#a1a1aa">© ${new Date().getFullYear()} Praeventio Guard · Plataforma de Prevención de Riesgos</p>
+      <p style="margin:0;font-size:11px;color:#a1a1aa">Â© ${new Date().getFullYear()} Praeventio Guard Â· Plataforma de PrevenciÃ³n de Riesgos</p>
     </td></tr>
   </table></td></tr></table>
 </body></html>`;
@@ -307,17 +307,17 @@ export function buildWebAuthnCredentialsDb(): MinimalCredentialsDb {
 
 const router = Router();
 
-// POST /api/curriculum/claim — worker creates a claim (signed) and the
+// POST /api/curriculum/claim â€” worker creates a claim (signed) and the
 // server fires off the 2 magic-link emails to the referees.
 router.post('/claim', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
+  const callerUid = req.user.uid;
+  const callerEmail: string | null = req.user.email ?? null;
   const ipMaybe = req.ip ?? undefined;
   const uaMaybe = req.header('user-agent') ?? undefined;
   const { claim, category, referees, signedByWorker } = req.body ?? {};
 
   if (typeof claim !== 'string' || claim.trim().length === 0 || claim.trim().length > 500) {
-    return res.status(400).json({ error: 'claim text is required and must be ≤500 chars' });
+    return res.status(400).json({ error: 'claim text is required and must be â‰¤500 chars' });
   }
   const validCategories: ClaimCategory[] = ['experience', 'certification', 'incident_record', 'other'];
   if (!validCategories.includes(category)) {
@@ -345,7 +345,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
     );
 
     // Send the 2 magic-link emails. We do NOT block the response on
-    // email delivery — failures are logged and the worker can use
+    // email delivery â€” failures are logged and the worker can use
     // /api/curriculum/claim/:id/resend to retry.
     const appUrl = process.env.APP_URL || 'https://app.praeventio.net';
     await Promise.all(
@@ -356,7 +356,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
           await resend.emails.send({
             from: 'Praeventio Guard <noreply@praeventio.net>',
             to: ref.email,
-            subject: `${workerName} te nombró referencia en un claim — Praeventio`,
+            subject: `${workerName} te nombrÃ³ referencia en un claim â€” Praeventio`,
             html: buildClaimEmailHtml({
               workerName,
               refereeName: ref.name,
@@ -393,9 +393,9 @@ router.post('/claim', verifyAuth, async (req, res) => {
   }
 });
 
-// GET /api/curriculum/claims — list claims for the authenticated worker.
+// GET /api/curriculum/claims â€” list claims for the authenticated worker.
 router.get('/claims', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   try {
     const claims = await curriculumGetByWorker(callerUid, admin.firestore() as any);
     res.json({ success: true, claims });
@@ -406,10 +406,10 @@ router.get('/claims', verifyAuth, async (req, res) => {
   }
 });
 
-// POST /api/curriculum/claim/:id/resend — re-email the magic link to one
+// POST /api/curriculum/claim/:id/resend â€” re-email the magic link to one
 // of the still-pending referees. Rate-limited per (claimId,refereeIndex).
 router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const claimId = req.params.id;
   const { refereeIndex } = req.body ?? {};
   if (refereeIndex !== 0 && refereeIndex !== 1) {
@@ -428,12 +428,12 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
     const now = Date.now();
     const last = curriculumResendCooldown.get(cdKey) ?? 0;
     if (now - last < CURRICULUM_RESEND_COOLDOWN_MS) {
-      return res.status(429).json({ error: 'too many resends — espera unos segundos' });
+      return res.status(429).json({ error: 'too many resends â€” espera unos segundos' });
     }
     curriculumResendCooldown.set(cdKey, now);
 
     // We cannot resend the original raw token (only its hash is stored).
-    // Resend semantics: rotate the token — issue a NEW raw token, replace
+    // Resend semantics: rotate the token â€” issue a NEW raw token, replace
     // the slot's hash, and email that. Old token in flight becomes a
     // no-op (no slot matches its hash).
     const newRaw = curriculumGenToken();
@@ -451,7 +451,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
       await resend.emails.send({
         from: 'Praeventio Guard <noreply@praeventio.net>',
         to: slot.email,
-        subject: `Recordatorio: ${workerName} necesita tu co-firma — Praeventio`,
+        subject: `Recordatorio: ${workerName} necesita tu co-firma â€” Praeventio`,
         html: buildClaimEmailHtml({
           workerName,
           refereeName: slot.name,
@@ -474,7 +474,7 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
   }
 });
 
-// GET /api/curriculum/referee/:token — public preview for the magic-link
+// GET /api/curriculum/referee/:token â€” public preview for the magic-link
 // landing page. Returns minimal claim metadata if the token matches.
 router.get('/referee/:token', refereeLimiter, async (req, res) => {
   const rawToken = req.params.token ?? '';
@@ -484,7 +484,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
   try {
     const tokenHash = curriculumHashToken(rawToken);
     // Token-hash lookup. We need a `where` query because the hash lives
-    // inside the `referees` array — we filter client-side after fetching
+    // inside the `referees` array â€” we filter client-side after fetching
     // by status. A scoped indexed approach (referees_index sub-collection)
     // would scale better; this is fine for MVP volumes.
     const all = await admin
@@ -542,7 +542,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
   }
 });
 
-// POST /api/curriculum/referee/:token — public co-sign / decline.
+// POST /api/curriculum/referee/:token â€” public co-sign / decline.
 // UNAUTHED: the security barrier is the 256-bit token. The server hashes
 // it and matches against the stored slot. Rate-limited via refereeLimiter.
 router.post('/referee/:token', refereeLimiter, async (req, res) => {
@@ -558,7 +558,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
     return res.status(400).json({ error: 'method must be webauthn or standard' });
   }
   if (typeof signature !== 'string' || signature.length === 0 || signature.length > 1024) {
-    return res.status(400).json({ error: 'signature is required (≤1024 chars)' });
+    return res.status(400).json({ error: 'signature is required (â‰¤1024 chars)' });
   }
   try {
     // Locate the claim id by scanning (same as preview).
@@ -638,22 +638,22 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
 
 export default router;
 
-// ───────────────────────────────────────────────────────────────────────────
-// WebAuthn challenge router — separate mount because the URL lives at
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// WebAuthn challenge router â€” separate mount because the URL lives at
 // /api/auth/webauthn/challenge (NOT /api/curriculum/...). Co-located here
 // because the curriculum cosign flow consumes the same challenge surface
 // and shares the buildWebAuthnDb adapter.
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const webauthnChallengeRouter = Router();
 
 webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   try {
     const { challengeId, challenge } = generateWebAuthnChallenge();
     await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
     res.json({
       challengeId,
-      // base64 — the client decodes via `Uint8Array.from(atob(...), c => c.charCodeAt(0))`
+      // base64 â€” the client decodes via `Uint8Array.from(atob(...), c => c.charCodeAt(0))`
       challenge: Buffer.from(challenge).toString('base64'),
       ttlSeconds: 300,
     });
@@ -667,23 +667,23 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
   }
 });
 
-// POST /api/auth/webauthn/verify — consume the server-issued challenge
+// POST /api/auth/webauthn/verify â€” consume the server-issued challenge
 // AND verify the WebAuthn assertion's signature against the user's
 // registered public key.
 //
 // History:
-//   • R17 R5  — server-issued challenge cache + consume helper.
-//   • R18 R6  — the /verify endpoint (consume-only, fail-closed).
-//   • R19 A5  — @simplewebauthn/server signature verification +
+//   â€¢ R17 R5  â€” server-issued challenge cache + consume helper.
+//   â€¢ R18 R6  â€” the /verify endpoint (consume-only, fail-closed).
+//   â€¢ R19 A5  â€” @simplewebauthn/server signature verification +
 //               replay-prevention via authenticator counter.
 //
 // Body shape:
-//   • Legacy MVP (R18 backwards-compat):
+//   â€¢ Legacy MVP (R18 backwards-compat):
 //       { challengeId, clientDataJSON, authenticatorData, signature }
 //     Consume-only path. Kept so already-deployed clients keep working
 //     during the rollout window. Will be removed once all clients send
 //     the credential id field.
-//   • R19 full WebAuthn path:
+//   â€¢ R19 full WebAuthn path:
 //       { challengeId, id, rawId?, clientDataJSON, authenticatorData,
 //         signature, type? }
 //     `id` is the WebAuthn credential id (base64url) the authenticator
@@ -694,8 +694,8 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
 //   1. The server-issued challenge is single-use (R17/R18). A captured
 //      assertion replays AT MOST ONCE before the challenge cache rejects
 //      it.
-//   2. The authenticator counter (R19) — every successful assertion
-//      includes a monotonic counter. If the new counter is ≤ stored, the
+//   2. The authenticator counter (R19) â€” every successful assertion
+//      includes a monotonic counter. If the new counter is â‰¤ stored, the
 //      assertion is treated as a clone/replay attempt and rejected.
 //
 // TODO Round 20+: implement POST /api/auth/webauthn/register which
@@ -707,11 +707,11 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
 //
 // R19 R6 hardening: `webauthnVerifyLimiter` (5/min/uid) is mounted AFTER
 // verifyAuth so its keyGenerator can read `req.user.uid`. Caps brute-force
-// churn even if a Bearer token is compromised — the single-use challenge
+// churn even if a Bearer token is compromised â€” the single-use challenge
 // + counter-replay layers stay the cryptographic line of defense, this is
 // just a request-rate ceiling.
 webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimiter, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const {
     challengeId,
     id: credentialId,
@@ -755,7 +755,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
   // Extract the challenge bytes from the WebAuthn clientDataJSON. The
   // browser embeds the original challenge (the one we issued at GET
   // /webauthn/challenge) as a base64url-encoded field inside this JSON
-  // blob. We round-trip through base64 → JSON → base64url-decode to
+  // blob. We round-trip through base64 â†’ JSON â†’ base64url-decode to
   // recover the raw bytes for the consume helper.
   let providedChallenge: Uint8Array;
   let challengeB64u: string;
@@ -785,7 +785,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
 
     const audit = buildCurriculumAuditor(
       callerUid,
-      (req as any).user.email ?? null,
+      req.user.email ?? null,
       req.ip ?? undefined,
       req.header('user-agent') ?? undefined,
     );
@@ -804,7 +804,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
       }
 
       // R20 R6 MEDIUM #2: read the boot-resolved values. Per-request
-      // env reads are a footgun — a midnight env rotation could leave
+      // env reads are a footgun â€” a midnight env rotation could leave
       // partial requests pointing at a stale origin.
       const expectedOrigin = EXPECTED_ORIGIN;
       const expectedRPID = EXPECTED_RP_ID;
@@ -853,14 +853,14 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
       // Replay-prevention: the authenticator counter MUST monotonically
       // increase. A non-increase indicates the assertion was cloned,
       // even if the signature checks out. (Counter==0 is allowed for
-      // authenticators that don't track it — we only enforce the rule
+      // authenticators that don't track it â€” we only enforce the rule
       // when the stored counter is > 0.)
       if (stored.credential.counter > 0 && newCounter <= stored.credential.counter) {
         return res.status(401).json({ verified: false, reason: 'counter_replay' });
       }
       await updateCredentialCounter(credentialId, newCounter, credsDb);
 
-      // Audit: uid + counter only. Never the assertion bytes —
+      // Audit: uid + counter only. Never the assertion bytes â€”
       // clientDataJSON, authenticatorData, and signature are credentials
       // and must not land in the append-only audit_logs collection.
       await audit('auth.webauthn.verified', {
@@ -880,8 +880,8 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
   }
 });
 
-// ───────────────────────────────────────────────────────────────────────────
-// Round 20 R5 — WebAuthn registration ceremony.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Round 20 R5 â€” WebAuthn registration ceremony.
 //
 // Closes the TODO left in R19 (`webauthnCredentialStore.ts`): until now
 // credentials had to be seeded manually via the Firebase Admin SDK. The
@@ -904,17 +904,17 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
 //     (matches the registerCredential contract).
 //
 // Audit shape (auth.webauthn.registered): uid + credentialId only. NEVER
-// the public-key bytes — they're public, but the audit collection is
+// the public-key bytes â€” they're public, but the audit collection is
 // append-only and we keep it minimal as a hygiene baseline.
-// ───────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 webauthnChallengeRouter.post(
   '/webauthn/register/options',
   verifyAuth,
   webauthnRegisterLimiter,
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerEmail: string | null = (req as any).user.email ?? null;
+    const callerUid = req.user.uid;
+    const callerEmail: string | null = req.user.email ?? null;
     try {
       const options = await generateRegistrationOptions({
         rpName: RP_NAME,
@@ -964,7 +964,7 @@ webauthnChallengeRouter.post(
   verifyAuth,
   webauthnRegisterLimiter,
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { challengeId, attestationResponse } = req.body ?? {};
 
     if (typeof challengeId !== 'string' || challengeId.length === 0 || challengeId.length > 1024) {
@@ -991,7 +991,7 @@ webauthnChallengeRouter.post(
     try {
       // Atomically consume the challenge BEFORE running the expensive
       // CBOR-decode. A captured /register/verify body cannot be replayed
-      // — the second submission will hit reason='consumed'.
+      // â€” the second submission will hit reason='consumed'.
       const consumeResult = await consumeWebAuthnChallenge(
         callerUid,
         challengeId,
@@ -1050,7 +1050,7 @@ webauthnChallengeRouter.post(
 
       const audit = buildCurriculumAuditor(
         callerUid,
-        (req as any).user.email ?? null,
+        req.user.email ?? null,
         req.ip ?? undefined,
         req.header('user-agent') ?? undefined,
       );

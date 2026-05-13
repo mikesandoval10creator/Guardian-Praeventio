@@ -1,23 +1,23 @@
-// Praeventio Guard — Google OAuth callback security suite.
+﻿// Praeventio Guard â€” Google OAuth callback security suite.
 //
 // Covers the dual-router design in src/server/routes/oauthGoogle.ts:
-//   • oauthGoogleAuthRouter mounted at `/auth`     → /auth/google/callback
-//   • oauthGoogleApiRouter  mounted at `/api`      → /api/drive/auth/callback
+//   â€¢ oauthGoogleAuthRouter mounted at `/auth`     â†’ /auth/google/callback
+//   â€¢ oauthGoogleApiRouter  mounted at `/api`      â†’ /api/drive/auth/callback
 //
 // Both callbacks consume a per-flow `state` (CSRF token) that was minted by
 // the matching URL-issuance endpoint and stamped on `req.session`. The
 // tests below exercise:
 //
-//   1. State tampering (missing/invalid `state` → 403).
+//   1. State tampering (missing/invalid `state` â†’ 403).
 //   2. Cross-router CSRF (state issued for `/auth/google/callback` cannot
 //      be redeemed at `/api/drive/auth/callback`, even with a real `code`).
-//   3. Happy path: valid state + valid `code` → token exchange runs and
+//   3. Happy path: valid state + valid `code` â†’ token exchange runs and
 //      tokens are persisted via saveTokens().
-//   4. Missing access_token in token-exchange response → 500 (error
+//   4. Missing access_token in token-exchange response â†’ 500 (error
 //      propagated, no tokens saved).
 //
 // The production handlers exchange the OAuth code by calling
-// `fetch('https://oauth2.googleapis.com/token', …)` directly — the
+// `fetch('https://oauth2.googleapis.com/token', â€¦)` directly â€” the
 // `googleapis` package is NOT used in this route (it's used elsewhere for
 // Calendar/Fit). We therefore stub `global.fetch` rather than `googleapis`.
 //
@@ -28,7 +28,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
 import request from 'supertest';
 
-// ─── Module mocks (must be hoisted via vi.mock before route import) ────
+// â”€â”€â”€ Module mocks (must be hoisted via vi.mock before route import) â”€â”€â”€â”€
 
 const saveTokensMock = vi.fn(async () => {});
 const getValidAccessTokenMock = vi.fn(async () => null);
@@ -47,7 +47,7 @@ vi.mock('../../server/middleware/verifyAuth.js', () => ({
     const auth = req.headers.authorization ?? '';
     const token = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
     const [, uid] = token.split(':');
-    (req as any).user = { uid: uid ?? 'uid-test', email: `${uid ?? 'uid-test'}@test.com` };
+    req.user = { uid: uid ?? 'uid-test', email: `${uid ?? 'uid-test'}@test.com` };
     next();
   },
 }));
@@ -60,7 +60,7 @@ vi.mock('../../utils/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-// Tiny in-memory session middleware — the production code does
+// Tiny in-memory session middleware â€” the production code does
 // `req.session as any` and writes properties; we just need a stable object
 // across requests in the same supertest agent.
 function makeSessionMiddleware() {
@@ -145,7 +145,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
   it('cross-router CSRF: state minted by /api/drive/auth/url cannot be redeemed at /auth/google/callback', async () => {
     const app = await buildApp();
     const agent = request.agent(app);
-    // Mint a Drive state — populates session.driveOauthState (NOT oauthState).
+    // Mint a Drive state â€” populates session.driveOauthState (NOT oauthState).
     const driveUrlRes = await agent
       .get('/api/drive/auth/url')
       .set('x-test-session', 'sess-C')
@@ -156,7 +156,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect(driveState).toBeTruthy();
 
     // Attempt to redeem the Drive state at the Calendar/Fit callback, which
-    // looks up `session.oauthState` — it is undefined, so the comparison
+    // looks up `session.oauthState` â€” it is undefined, so the comparison
     // must fail with 403 even though `state` IS the genuine session-bound
     // CSRF value for the *other* router.
     const res = await agent
@@ -167,7 +167,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect(saveTokensMock).not.toHaveBeenCalled();
   });
 
-  it('happy path: valid state + valid code → token exchange runs and tokens are saved', async () => {
+  it('happy path: valid state + valid code â†’ token exchange runs and tokens are saved', async () => {
     const app = await buildApp();
     const agent = request.agent(app);
     // Mock fetch so the token-exchange call returns a usable token bundle.
@@ -205,7 +205,7 @@ describe('Google OAuth callback security (oauthGoogle.ts)', () => {
     expect((callArgs[1] as any).access_token).toBe('ya29.test-access');
   });
 
-  it('missing access_token in token-exchange response → 500, tokens not saved (error propagated)', async () => {
+  it('missing access_token in token-exchange response â†’ 500, tokens not saved (error propagated)', async () => {
     const app = await buildApp();
     const agent = request.agent(app);
     // Token-exchange returns an error payload (e.g. invalid_grant, or a

@@ -1,10 +1,10 @@
-// Praeventio Guard — Sprint 11 (writeNode coverage).
+﻿// Praeventio Guard â€” Sprint 11 (writeNode coverage).
 //
 // Cubre:
-//   • happy path → POST con Bearer → 200
-//   • offline → enrola en saveForSync, no llama a fetch
-//   • idempotencia: mismos inputs ⇒ mismo id, distintos ⇒ distinto
-//   • debounce: rebotes <2s se colapsan en una sola escritura
+//   â€¢ happy path â†’ POST con Bearer â†’ 200
+//   â€¢ offline â†’ enrola en saveForSync, no llama a fetch
+//   â€¢ idempotencia: mismos inputs â‡’ mismo id, distintos â‡’ distinto
+//   â€¢ debounce: rebotes <2s se colapsan en una sola escritura
 //
 // Mockeamos `firebase` (auth.currentUser.getIdToken), `pwa-offline`
 // (saveForSync), y la global `fetch`. Usamos `vi.useFakeTimers()` para
@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { RiskNodePayload } from '../types';
 
-// ── Mocks ────────────────────────────────────────────────────────────
+// â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 vi.mock('../../firebase', () => ({
   auth: {
     currentUser: {
@@ -35,7 +35,7 @@ vi.mock('../../../utils/logger', () => ({
   },
 }));
 
-// Importes después de los mocks.
+// Importes despuÃ©s de los mocks.
 import {
   writeNodes,
   writeNodesDebounced,
@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   __resetDebounceForTests();
   // mock fetch global por test
-  (globalThis as any).fetch = vi.fn(async () => ({
+  globalThis.fetch = vi.fn(async () => ({
     ok: true,
     status: 200,
     text: async () => '',
@@ -108,7 +108,7 @@ describe('nodeIdFor', () => {
   });
 });
 
-describe('writeNodes — happy path', () => {
+describe('writeNodes â€” happy path', () => {
   it('POSTs with Bearer token and idempotencyKey on each node', async () => {
     const result = await writeNodes([basePayload()], { projectId: 'proj-A' });
     expect(result.ok).toBe(true);
@@ -116,7 +116,7 @@ describe('writeNodes — happy path', () => {
     expect(result.ids).toHaveLength(1);
     expect(result.ids![0]).toMatch(/^[0-9a-f]{16}$/);
 
-    const fetchMock = (globalThis as any).fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('/api/zettelkasten/nodes');
@@ -128,7 +128,7 @@ describe('writeNodes — happy path', () => {
   });
 
   it('returns ok:false on 4xx without queuing', async () => {
-    (globalThis as any).fetch = vi.fn(async () => ({
+    globalThis.fetch = vi.fn(async () => ({
       ok: false,
       status: 400,
       text: async () => 'bad',
@@ -140,7 +140,7 @@ describe('writeNodes — happy path', () => {
   });
 });
 
-describe('writeNodes — offline path', () => {
+describe('writeNodes â€” offline path', () => {
   it('queues via saveForSync when navigator.onLine is false', async () => {
     Object.defineProperty(globalThis, 'navigator', {
       value: { onLine: false },
@@ -151,7 +151,7 @@ describe('writeNodes — offline path', () => {
     expect(result.ok).toBe(true);
     expect(result.queued).toBe(true);
     expect(saveForSync).toHaveBeenCalledTimes(1);
-    expect((globalThis as any).fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
     const arg = (saveForSync as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(arg.collection).toBe('zettelkasten_nodes');
     expect(arg.data.projectId).toBe('proj-A');
@@ -159,7 +159,7 @@ describe('writeNodes — offline path', () => {
   });
 
   it('queues when fetch throws (network failure)', async () => {
-    (globalThis as any).fetch = vi.fn(async () => {
+    globalThis.fetch = vi.fn(async () => {
       throw new Error('net down');
     });
     const result = await writeNodes([basePayload()], { projectId: 'proj-A' });
@@ -169,12 +169,12 @@ describe('writeNodes — offline path', () => {
   });
 });
 
-describe('writeNodes — guards', () => {
+describe('writeNodes â€” guards', () => {
   it('returns ok with empty ids on empty input', async () => {
     const result = await writeNodes([], { projectId: 'proj-A' });
     expect(result.ok).toBe(true);
     expect(result.ids).toEqual([]);
-    expect((globalThis as any).fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('rejects missing projectId', async () => {
@@ -186,29 +186,29 @@ describe('writeNodes — guards', () => {
 describe('writeNodesDebounced', () => {
   it('coalesces N rapid calls into a single POST after 2 s', async () => {
     vi.useFakeTimers();
-    const fetchMock = (globalThis as any).fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     for (let i = 0; i < 10; i++) {
       writeNodesDebounced(
         [basePayload({ metadata: { forceN: 1000 + i, ratedN: 5000 } })],
         { projectId: 'proj-A' },
       );
-      vi.advanceTimersByTime(100); // <2s entre calls → siguen reseteando
+      vi.advanceTimersByTime(100); // <2s entre calls â†’ siguen reseteando
     }
     expect(fetchMock).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(2100); // ahora sí dispara el flush
+    vi.advanceTimersByTime(2100); // ahora sÃ­ dispara el flush
     // El flush dispara una promesa async; la dejamos correr.
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.nodes).toHaveLength(1);
-    // Solo el último estado (forceN 1009) debe estar.
+    // Solo el Ãºltimo estado (forceN 1009) debe estar.
     expect(body.nodes[0].metadata.forceN).toBe(1009);
   });
 
   it('separates types under the same projectId into distinct flushes', async () => {
     vi.useFakeTimers();
-    const fetchMock = (globalThis as any).fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     writeNodesDebounced([basePayload({ type: 'scaffold-uplift' })], {
       projectId: 'proj-A',
     });

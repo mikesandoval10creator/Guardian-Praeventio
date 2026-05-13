@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+﻿import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { RiskNode, EnvironmentContext } from '../types';
 import { db, collection, onSnapshot, query, orderBy, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
@@ -82,7 +82,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       return;
     }
 
-    // No project selected → don't subscribe yet. We surface an empty list
+    // No project selected â†’ don't subscribe yet. We surface an empty list
     // and `loading=false` so consumers can render their "select a project"
     // empty states. Without this guard we would issue a wide-open
     // collection query that the security rules would reject (and hammer
@@ -118,7 +118,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       // React so consumers always see the current shape. If any node was
       // upgraded, we asynchronously persist the upgraded form so the next
       // reader gets a fast path. The persist runs in `requestIdleCallback`
-      // (or a microtask fallback) — it MUST NOT block the UI.
+      // (or a microtask fallback) â€” it MUST NOT block the UI.
       const upgradesPending: { id: string; node: any }[] = [];
       const newNodes = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -159,7 +159,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
             });
           });
         };
-        const ric = (globalThis as any).requestIdleCallback;
+        const ric = globalThis.requestIdleCallback;
         if (typeof ric === 'function') {
           ric(persist, { timeout: 2000 });
         } else {
@@ -253,7 +253,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       if (node.projectId) projectIds.add(node.projectId);
 
       // Heuristic for high risk nodes (can be refined)
-      if (node.type === 'Riesgo' && (node.tags.includes('Crítico') || node.tags.includes('Alto'))) {
+      if (node.type === 'Riesgo' && (node.tags.includes('CrÃ­tico') || node.tags.includes('Alto'))) {
         highRiskNodes++;
       }
     });

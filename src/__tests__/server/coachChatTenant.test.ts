@@ -1,4 +1,4 @@
-// Praeventio Guard — Round 17 R1: cross-tenant guard for /api/coach/chat.
+﻿// Praeventio Guard â€” Round 17 R1: cross-tenant guard for /api/coach/chat.
 //
 // Regression: pre-R17 the coach endpoint accepted a projectId from the body
 // (formerly `projectContext.id`) and used it to retrieve RAG context
@@ -6,12 +6,12 @@
 // project. A token from tenant A could pull tenant B's incident history.
 // R17 R1 wires `assertProjectMemberFromBody` into the route and adds a
 // strict 400 when projectId is absent (the coach endpoint cannot operate
-// without a tenant scope — see comment in server.ts).
+// without a tenant scope â€” see comment in server.ts).
 //
 // Tests:
-//   • 400 when projectId missing
-//   • 403 when caller is not a member of the supplied projectId
-//   • 200 when caller IS a member; audit row tagged with projectId
+//   â€¢ 400 when projectId missing
+//   â€¢ 403 when caller is not a member of the supplied projectId
+//   â€¢ 200 when caller IS a member; audit row tagged with projectId
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import express, { type Express, type Request, type Response, type NextFunction } from 'express';
@@ -52,7 +52,7 @@ function buildApp(fs: InMemoryFirestore, auth: FakeAuth): Express {
     const token = authHeader.split('Bearer ')[1];
     try {
       const decoded = await auth.verifyIdToken(token);
-      (req as any).user = decoded;
+      req.user = decoded;
       next();
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
@@ -60,10 +60,10 @@ function buildApp(fs: InMemoryFirestore, auth: FakeAuth): Express {
   };
 
   // Mirror of `assertProjectMemberFromBody()` middleware. Identical contract
-  // — the fact we're using the SAME `assertProjectMember` pure helper means
+  // â€” the fact we're using the SAME `assertProjectMember` pure helper means
   // the production middleware and this test middleware reach 1:1 verdicts.
   const assertMember = async (req: Request, res: Response, next: NextFunction) => {
-    const callerUid = (req as any).user?.uid;
+    const callerUid = req.user?.uid;
     const projectId = (req.body ?? {}).projectId;
     if (typeof projectId !== 'string' || projectId.length === 0) {
       return next();
@@ -90,7 +90,7 @@ function buildApp(fs: InMemoryFirestore, auth: FakeAuth): Express {
       action: 'coach.chat',
       module: 'coach',
       details: { projectId, messageLength: typeof message === 'string' ? message.length : 0 },
-      userId: (req as any).user.uid,
+      userId: req.user.uid,
       projectId,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
@@ -108,7 +108,7 @@ beforeEach(() => {
   app = buildApp(fs, makeAuth());
 });
 
-describe('POST /api/coach/chat — cross-tenant guard (R17 R1)', () => {
+describe('POST /api/coach/chat â€” cross-tenant guard (R17 R1)', () => {
   it('returns 400 when projectId is missing from body', async () => {
     const res = await request(app)
       .post('/api/coach/chat')
@@ -132,7 +132,7 @@ describe('POST /api/coach/chat — cross-tenant guard (R17 R1)', () => {
       .send({ message: 'leak my data', projectId: 'proj-A' });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
-    // Critical: NO audit row should have been written — the endpoint denied
+    // Critical: NO audit row should have been written â€” the endpoint denied
     // before reaching the body of the handler.
     expect(fs.audit.find((e) => e.action === 'coach.chat')).toBeUndefined();
   });

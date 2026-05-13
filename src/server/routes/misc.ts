@@ -1,4 +1,4 @@
-// Praeventio Guard — Round 19 R2 Phase 4 split.
+﻿// Praeventio Guard â€” Round 19 R2 Phase 4 split.
 //
 // "Long-tail" handlers extracted from server.ts that didn't fit any of the
 // larger domain routers. Each is small enough that a dedicated file would
@@ -6,21 +6,21 @@
 // pure bootstrap surface.
 //
 // Endpoints:
-//   • GET  /api/legal/check-updates    — scans the BCN knowledge base for
+//   â€¢ GET  /api/legal/check-updates    â€” scans the BCN knowledge base for
 //     normative impact via geminiBackend.scanLegalUpdates and returns one
 //     analysis row per law. Auth-gated.
-//   • POST /api/erp/sync               — SAP/Defontana mock. Logs the sync
+//   â€¢ POST /api/erp/sync               â€” SAP/Defontana mock. Logs the sync
 //     attempt to `erp_sync_logs/` and returns a fake completion envelope
 //     after a 1.5s artificial latency. Auth-gated.
-//   • POST /api/seed-glossary          — gerente-only. Triggers
+//   â€¢ POST /api/seed-glossary          â€” gerente-only. Triggers
 //     `seedBackend.runSeed()`.
-//   • POST /api/seed-data              — gerente-only. Triggers
+//   â€¢ POST /api/seed-data              â€” gerente-only. Triggers
 //     `dataSeedService.seedInitialData()`.
-//   • GET  /api/environment/forecast   — climate forecast for the
+//   â€¢ GET  /api/environment/forecast   â€” climate forecast for the
 //     Zettelkasten climate-risk coupling. Falls back to `{ forecast: [] }`
 //     when upstream OpenWeather is unavailable so the calling
 //     useCalendarPredictions hook just skips climate-risk node generation
-//     instead of crashing. UNAUTHENTICATED — read-only public weather.
+//     instead of crashing. UNAUTHENTICATED â€” read-only public weather.
 //
 // Mounted via `app.use('/api', miscRouter)`. Each handler declares its full
 // path suffix so the final on-the-wire URLs are byte-identical.
@@ -48,7 +48,7 @@ function sentryCapture(
   }
 }
 
-// Round 22 — input validation for POST /api/erp/sync. The handler used
+// Round 22 â€” input validation for POST /api/erp/sync. The handler used
 // to splat `req.body` straight into Firestore + a log line, so a
 // malicious caller could pass arbitrary `erpType` strings (or non-string
 // values entirely) and bloat documents with arbitrary nested payloads.
@@ -65,7 +65,7 @@ const router = Router();
 // 3-day climate forecast endpoint for the Zettelkasten climate-risk coupling.
 // Reads from environmentBackend; returns shape: { forecast: ClimateForecastDay[] }.
 // Best-effort: if upstream OpenWeather is unavailable, returns empty forecast.
-// Sprint 27 (audit P0 H15) — gate behind verifyAuth + share the
+// Sprint 27 (audit P0 H15) â€” gate behind verifyAuth + share the
 // per-uid erpSyncLimiter so a logged-in attacker can't burn the
 // upstream OpenWeather quota in a tight loop.
 router.get('/environment/forecast', verifyAuth, erpSyncLimiter, async (req, res) => {
@@ -95,7 +95,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
     return res.status(400).json({ error: 'invalid_payload', issues: parsed.error.issues });
   }
   const { erpType, action, payload } = parsed.data;
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
 
   try {
     logger.info('erp_sync_started', { erpType, action, uid });
@@ -116,7 +116,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Sincronización con ${erpType} exitosa`,
+      message: `SincronizaciÃ³n con ${erpType} exitosa`,
       data: {
         syncId: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -126,14 +126,14 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   } catch (error) {
     logger.error('erp_sync_failed', error, { erpType, action, uid });
     sentryCapture(error, { endpoint: '/api/erp/sync', tags: { method: 'POST', erpType, action, uid } });
-    res.status(500).json({ error: 'Error de sincronización con ERP' });
+    res.status(500).json({ error: 'Error de sincronizaciÃ³n con ERP' });
   }
 });
 
-// Seed Glossary Endpoint (gerente-only — prevents public abuse)
+// Seed Glossary Endpoint (gerente-only â€” prevents public abuse)
 router.post('/seed-glossary', verifyAuth, async (req, res) => {
   try {
-    const callerRecord = await admin.auth().getUser((req as any).user.uid);
+    const callerRecord = await admin.auth().getUser(req.user.uid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: 'Forbidden: Requires gerente role' });
     }
@@ -152,10 +152,10 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
   }
 });
 
-// Seed Data Endpoint (gerente-only — prevents public abuse)
+// Seed Data Endpoint (gerente-only â€” prevents public abuse)
 router.post('/seed-data', verifyAuth, async (req, res) => {
   try {
-    const callerRecord = await admin.auth().getUser((req as any).user.uid);
+    const callerRecord = await admin.auth().getUser(req.user.uid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: 'Forbidden: Requires gerente role' });
     }
@@ -180,7 +180,7 @@ router.get('/legal/check-updates', verifyAuth, async (_req, res) => {
     const { bcnKnowledgeBase } = await import('../../data/bcnKnowledgeBase.js');
     const geminiBackend = await import('../../services/geminiBackend.js');
     const modulesSummary =
-      'Riesgos, Trabajadores, EPP, Hallazgos, Incidentes, Capacitación, Salud Ocupacional, Comité Paritario, Normativas, Proyectos, Emergencia';
+      'Riesgos, Trabajadores, EPP, Hallazgos, Incidentes, CapacitaciÃ³n, Salud Ocupacional, ComitÃ© Paritario, Normativas, Proyectos, Emergencia';
     const results = await Promise.all(
       bcnKnowledgeBase.map(async (law: any) => {
         const analysis = await (geminiBackend.scanLegalUpdates as Function)(
