@@ -102,6 +102,53 @@ describe('extractBestPractices', () => {
   });
 });
 
+describe('Codex P2 PR #103 fixes', () => {
+  it('closure rate null cuando 0 acciones', () => {
+    const r = compareProjects([
+      snap({ projectId: 'p1', projectName: 'A', openCorrectiveActions: 0, closedCorrectiveActions: 0 }),
+    ]);
+    expect(r.scores[0].correctiveActionClosureRate).toBeNull();
+  });
+
+  it('averages.closureRate excluye nulls', () => {
+    const r = compareProjects([
+      snap({ projectId: 'p1', projectName: 'A' }), // 7/(3+7)=0.7
+      snap({ projectId: 'p2', projectName: 'B', openCorrectiveActions: 0, closedCorrectiveActions: 0 }),
+    ]);
+    expect(r.averages.closureRate).toBe(0.7);
+  });
+
+  it('TRIR outliers leave-one-out (2 proyectos: peor sí flag)', () => {
+    const baseIncidents = snap({ projectId: 'x', projectName: 'x' }).incidents;
+    const r = compareProjects([
+      snap({ projectId: 'low', projectName: 'A', incidents: { ...baseIncidents, totalRecordable: 1 } }),
+      snap({ projectId: 'high', projectName: 'B', incidents: { ...baseIncidents, totalRecordable: 10 } }),
+    ]);
+    expect(r.trirOutliers).toContain('high');
+  });
+
+  it('SIF + fatality flag automáticamente con prioridad', () => {
+    const r = compareProjects([
+      snap({
+        projectId: 'sif',
+        projectName: 'SIF',
+        incidents: {
+          totalRecordable: 1,
+          lostTime: 0,
+          restrictedOrTransferred: 0,
+          seriousInjuriesAndFatalities: 1,
+          fatalities: 1,
+          totalLostDays: 0,
+        },
+      }),
+    ]);
+    const alerts = flagRiskProjects(r);
+    expect(alerts.length).toBeGreaterThan(0);
+    expect(alerts[0].reasons.some((x) => /Fatalidad/.test(x))).toBe(true);
+    expect(alerts[0].reasons.some((x) => /SIF events/.test(x))).toBe(true);
+  });
+});
+
 describe('flagRiskProjects', () => {
   it('flag proyectos en multiple riesgo', () => {
     const report = compareProjects([

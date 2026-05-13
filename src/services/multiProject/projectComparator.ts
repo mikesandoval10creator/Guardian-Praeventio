@@ -49,9 +49,13 @@ export interface ProjectMetricScore {
   complianceTrafficLightScore: number;
   trainingCoverage: number;
   eppCoverage: number;
-  /** Closure rate F.4 (closed / (open+closed)). */
-  correctiveActionClosureRate: number;
+  /** Closure rate F.4. null si no hay acciones (no premiar ausencia). */
+  correctiveActionClosureRate: number | null;
   daysSinceLastIncident: number;
+  /** Codex P2 PR #103: preservar SIF/fatality counts para risk flagging
+   *  (no se infieren de TRIR — pueden no aparecer en rate y aún ser críticos). */
+  seriousInjuriesAndFatalities: number;
+  fatalities: number;
   /** Score global 0-100 (más alto = mejor performance SST). */
   overallScore: number;
 }
@@ -70,6 +74,9 @@ export interface ComparisonReport {
     trainingCoverage: number;
     eppCoverage: number;
     overallScore: number;
+    /** Codex P2 PR #103: avg closure rate (excluyendo null) para
+     *  comparación en best-practice extraction. */
+    closureRate: number;
   };
   /** Proyectos cuyo TRIR está >2× el promedio = outliers. */
   trirOutliers: string[];
@@ -92,11 +99,26 @@ function computeOverallScore(score: Omit<ProjectMetricScore, 'overallScore'>): n
   const trirComponent = score.trir === 0 ? 100 : Math.max(0, 100 - score.trir * 20);
   const daysComponent = Math.min(100, (score.daysSinceLastIncident / 365) * 100);
 
+  // Codex P2 PR #103: si no hay closure rate, redistribuye el 15% del peso
+  // entre los componentes restantes proporcionalmente. No premia ausencia.
+  const closureRate = score.correctiveActionClosureRate;
+  if (closureRate === null) {
+    // Sin closure: pesos renormalizados a (30+20+15+10+10)=85 → divide por 0.85
+    const overall =
+      (0.30 * score.complianceTrafficLightScore +
+        0.20 * score.trainingCoverage +
+        0.15 * score.eppCoverage +
+        0.10 * trirComponent +
+        0.10 * daysComponent) /
+      0.85;
+    return Math.max(0, Math.min(100, Math.round(overall)));
+  }
+
   const overall =
     0.30 * score.complianceTrafficLightScore +
     0.20 * score.trainingCoverage +
     0.15 * score.eppCoverage +
-    0.15 * (score.correctiveActionClosureRate * 100) +
+    0.15 * (closureRate * 100) +
     0.10 * trirComponent +
     0.10 * daysComponent;
   return Math.max(0, Math.min(100, Math.round(overall)));
@@ -107,7 +129,10 @@ function scoreProject(snap: ProjectSnapshot): ProjectMetricScore {
   const trir = calculateTrir(snap.incidents, exposure);
   const ltifr = calculateLtifr(snap.incidents, exposure);
   const totalActions = snap.openCorrectiveActions + snap.closedCorrectiveActions;
-  const closureRate = totalActions > 0 ? snap.closedCorrectiveActions / totalActions : 1;
+  // Codex P2 PR #103: si no hay acciones, NO asignar 100% de closure rate
+  // (falsamente premia proyectos sin gestión de acciones).
+  // Marcamos undefined → componente excluido del overallScore.
+  const closureRate = totalActions > 0 ? snap.closedCorrectiveActions / totalActions : null;
 
   const partial: Omit<ProjectMetricScore, 'overallScore'> = {
     projectId: snap.projectId,
@@ -117,8 +142,12 @@ function scoreProject(snap: ProjectSnapshot): ProjectMetricScore {
     complianceTrafficLightScore: snap.complianceTrafficLightScore,
     trainingCoverage: snap.trainingCoverage,
     eppCoverage: snap.eppCoverage,
-    correctiveActionClosureRate: Math.round(closureRate * 100) / 100,
+    correctiveActionClosureRate:
+      closureRate === null ? null : Math.round(closureRate * 100) / 100,
     daysSinceLastIncident: snap.daysSinceLastIncident,
+    // Codex P2 PR #103: preservar SIF/fatalities para risk flagging
+    seriousInjuriesAndFatalities: snap.incidents.seriousInjuriesAndFatalities,
+    fatalities: snap.incidents.fatalities,
   };
   return { ...partial, overallScore: computeOverallScore(partial) };
 }
@@ -158,10 +187,28 @@ export function compareProjects(snapshots: ProjectSnapshot[]): ComparisonReport 
   const avgTraining = scores.reduce((s, x) => s + x.trainingCoverage, 0) / n;
   const avgEpp = scores.reduce((s, x) => s + x.eppCoverage, 0) / n;
   const avgOverall = scores.reduce((s, x) => s + x.overallScore, 0) / n;
+  // Codex P2 PR #103: avg closure excluding null para comparación correcta.
+  const closureRates = scores
+    .map((s) => s.correctiveActionClosureRate)
+    .filter((r): r is number => r !== null);
+  const avgClosureRate =
+    closureRates.length > 0
+      ? closureRates.reduce((s, r) => s + r, 0) / closureRates.length
+      : 0;
 
-  const trirOutliers = scores
-    .filter((s) => avgTrir > 0 && s.trir > avgTrir * 2)
-    .map((s) => s.projectId);
+  // Codex P2 PR #103: leave-one-out — comparar cada proyecto vs el
+  // promedio del RESTO. Con incluirse, dos proyectos jamás flag al peor:
+  // (high > 2 * (high+low)/2) → 0 > low (imposible).
+  const trirSum = scores.reduce((s, x) => s + x.trir, 0);
+  const trirOutliers: string[] = [];
+  for (const s of scores) {
+    const otherN = scores.length - 1;
+    if (otherN < 1) continue;
+    const otherAvg = (trirSum - s.trir) / otherN;
+    if (otherAvg > 0 && s.trir > otherAvg * 2) {
+      trirOutliers.push(s.projectId);
+    }
+  }
 
   return {
     scores,
@@ -174,6 +221,7 @@ export function compareProjects(snapshots: ProjectSnapshot[]): ComparisonReport 
       trainingCoverage: Math.round(avgTraining),
       eppCoverage: Math.round(avgEpp),
       overallScore: Math.round(avgOverall),
+      closureRate: Math.round(avgClosureRate * 100) / 100,
     },
     trirOutliers,
   };
@@ -220,12 +268,17 @@ export function extractBestPractices(report: ComparisonReport): BestPractice[] {
       recommendation: `${t.projectName} mantiene ${t.eppCoverage}% EPP vigente. Replicar proceso de renovación.`,
     });
   }
-  if (t.correctiveActionClosureRate >= 0.9 && t.correctiveActionClosureRate > a.overallScore / 100 + 0.2) {
+  // Codex P2 PR #103: comparar closure rate vs AVG closure rate, no vs overallScore.
+  if (
+    t.correctiveActionClosureRate !== null &&
+    t.correctiveActionClosureRate >= 0.9 &&
+    t.correctiveActionClosureRate > a.closureRate + 0.2
+  ) {
     practices.push({
       metric: 'closure_rate',
       topValue: Math.round(t.correctiveActionClosureRate * 100),
-      averageValue: Math.round((a.overallScore / 100) * 100),
-      recommendation: `${t.projectName} cierra ${Math.round(t.correctiveActionClosureRate * 100)}% acciones. Analizar liderazgo + asignación.`,
+      averageValue: Math.round(a.closureRate * 100),
+      recommendation: `${t.projectName} cierra ${Math.round(t.correctiveActionClosureRate * 100)}% acciones (vs promedio ${Math.round(a.closureRate * 100)}%). Analizar liderazgo + asignación.`,
     });
   }
 
@@ -246,11 +299,16 @@ export function flagRiskProjects(report: ComparisonReport): RiskProjectAlert[] {
   const alerts: RiskProjectAlert[] = [];
   for (const s of report.scores) {
     const reasons: string[] = [];
+    // Codex P2 PR #103: SIF/fatality automáticamente flag con prioridad
+    // máxima (independiente de cualquier otro umbral).
+    if (s.fatalities > 0) reasons.push(`Fatalidad(es) registrada(s): ${s.fatalities}`);
+    if (s.seriousInjuriesAndFatalities > 0)
+      reasons.push(`SIF events: ${s.seriousInjuriesAndFatalities}`);
     if (s.overallScore < 50) reasons.push(`Score global ${s.overallScore}/100`);
     if (s.complianceTrafficLightScore < 60) reasons.push(`Semáforo cumplimiento rojo (${s.complianceTrafficLightScore}/100)`);
     if (s.trainingCoverage < 50) reasons.push(`Cobertura training ${s.trainingCoverage}%`);
     if (s.eppCoverage < 50) reasons.push(`Cobertura EPP ${s.eppCoverage}%`);
-    if (report.trirOutliers.includes(s.projectId)) reasons.push(`TRIR ${s.trir} (>2× promedio)`);
+    if (report.trirOutliers.includes(s.projectId)) reasons.push(`TRIR ${s.trir} (>2× promedio resto)`);
     if (s.daysSinceLastIncident < 7) reasons.push(`Incidente reciente (${s.daysSinceLastIncident}d)`);
 
     if (reasons.length > 0) {
