@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { milestones } from '../data/milestones';
 import { Card } from '../components/shared/Card';
 import { History as HistoryIcon, Globe, MapPin, Filter, Pause, Play, FileText } from 'lucide-react';
@@ -45,6 +46,7 @@ function ReportRow({ index, style, reports }: { index: number; style: React.CSSP
 }
 
 export function History() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'Todos' | 'Global' | 'Chile' | 'Reportes'>('Todos');
   const [isPaused, setIsPaused] = useState(false);
   const [reports, setReports] = useState<Report[]>([]);
@@ -105,9 +107,9 @@ export function History() {
         <div className="bg-zinc-100 dark:bg-zinc-800/50 p-2.5 rounded-2xl mb-2 border border-white/5 shadow-lg backdrop-blur-sm">
           <HistoryIcon className="w-5 h-5 text-emerald-500" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tighter leading-tight text-zinc-900 dark:text-white">Historia de la Seguridad</h2>
+        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tighter leading-tight text-zinc-900 dark:text-white">{t('history.title', 'Historia de la Seguridad')}</h2>
         <p className="text-[10px] sm:text-xs text-zinc-500 dark:text-zinc-400 max-w-md mt-1">
-          Evolución de la prevención de riesgos a nivel global y en Chile.
+          {t('history.subtitle', 'Evolución de la prevención de riesgos a nivel global y en Chile.')}
         </p>
       </div>
 
@@ -146,7 +148,7 @@ export function History() {
           <button 
             onClick={() => setIsPaused(!isPaused)} 
             className="p-2 rounded-xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md border border-zinc-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all shadow-xl shrink-0"
-            title={isPaused ? "Reanudar línea de tiempo" : "Pausar línea de tiempo"}
+            title={isPaused ? t('history.resumeTimeline', 'Reanudar línea de tiempo') : t('history.pauseTimeline', 'Pausar línea de tiempo')}
           >
             {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
           </button>
@@ -168,8 +170,8 @@ export function History() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-zinc-500 p-8 text-center">
               <FileText className="w-12 h-12 mb-4 opacity-20" />
-              <p className="font-bold">No hay reportes disponibles</p>
-              <p className="text-xs">Sincroniza con el servidor para obtener los últimos registros.</p>
+              <p className="font-bold">{t('history.noReports', 'No hay reportes disponibles')}</p>
+              <p className="text-xs">{t('history.syncHint', 'Sincroniza con el servidor para obtener los últimos registros.')}</p>
             </div>
           )}
         </div>

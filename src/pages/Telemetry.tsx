@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
@@ -42,6 +43,7 @@ import { mapIoTEventsToTwinState } from '../components/telemetry/twinStateMapper
 import { buildWebhookCurlCommand } from '../components/telemetry/webhookCommand';
 
 export function Telemetry() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
@@ -544,8 +546,8 @@ export function Telemetry() {
             <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white leading-tight">Telemetría Ambiental</h1>
-            <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">Monitor Sísmico y Climático en Tiempo Real</p>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-white leading-tight">{t('telemetry.title', 'Telemetría Ambiental')}</h1>
+            <p className="text-zinc-500 text-[10px] sm:text-sm font-medium mt-1">{t('telemetry.subtitle', 'Monitor Sísmico y Climático en Tiempo Real')}</p>
           </div>
         </div>
 
@@ -599,7 +601,7 @@ export function Telemetry() {
             <ThermometerSun className="w-4 h-4 text-cyan-400" />
           </div>
           <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-white">Monitoreo de represas hidrostáticas</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-white">{t('telemetry.damMonitoring', 'Monitoreo de represas hidrostáticas')}</h3>
             <p className="text-[10px] text-zinc-500">DS 248/2007 — Resolución 1500 SERNAGEOMIN</p>
           </div>
         </div>
@@ -671,7 +673,7 @@ export function Telemetry() {
             <Wind className="w-4 h-4 text-teal-400" />
           </div>
           <div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-white">Generación micro-eólica</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-white">{t('telemetry.microWindGen', 'Generación micro-eólica')}</h3>
             <p className="text-[10px] text-zinc-500">NCh Elec.4/2003 · IEC 61400-2 · Límite Betz 0.593</p>
           </div>
         </div>

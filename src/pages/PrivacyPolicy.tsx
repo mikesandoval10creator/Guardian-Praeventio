@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 
 export function PrivacyPolicy() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -14,7 +16,7 @@ export function PrivacyPolicy() {
           className="flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-bold mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver
+          {t('common.back', 'Volver')}
         </button>
 
         {/* Header */}
@@ -23,19 +25,19 @@ export function PrivacyPolicy() {
             <ShieldCheck className="w-5 h-5 text-emerald-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight">Política de Privacidad</h1>
+            <h1 className="text-2xl font-black tracking-tight">{t('privacy.title', 'Política de Privacidad')}</h1>
             <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Guardian Praeventio · praeventio.net</p>
           </div>
         </div>
 
         <p className="text-zinc-400 text-sm mb-8">
-          Última actualización: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}
+          {t('privacy.lastUpdated', 'Última actualización')}: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
 
         <div className="space-y-8 text-zinc-300 text-sm leading-relaxed">
 
           <section>
-            <h2 className="text-white font-black text-lg mb-3">1. Responsable del Tratamiento</h2>
+            <h2 className="text-white font-black text-lg mb-3">{t('privacy.s1', '1. Responsable del Tratamiento')}</h2>
             <p>
               Guardian Praeventio ("nosotros", "la aplicación") es una plataforma de prevención de riesgos laborales
               desarrollada y operada a través del dominio <strong className="text-white">praeventio.net</strong>.
@@ -44,7 +46,7 @@ export function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-white font-black text-lg mb-3">2. Datos que Recopilamos</h2>
+            <h2 className="text-white font-black text-lg mb-3">{t('privacy.s2', '2. Datos que Recopilamos')}</h2>
             <ul className="space-y-2 list-disc list-inside">
               <li><strong className="text-white">Datos de cuenta:</strong> nombre, correo electrónico y foto de perfil obtenidos mediante Google Sign-In.</li>
               <li><strong className="text-white">Datos del proyecto:</strong> información sobre su empresa, trabajadores, incidentes, auditorías y capacitaciones que usted registra voluntariamente.</li>
@@ -57,7 +59,7 @@ export function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-white font-black text-lg mb-3">3. Finalidad del Tratamiento</h2>
+            <h2 className="text-white font-black text-lg mb-3">{t('privacy.s3', '3. Finalidad del Tratamiento')}</h2>
             <ul className="space-y-2 list-disc list-inside">
               <li>Proveer las funcionalidades de prevención de riesgos, emergencias y cumplimiento normativo.</li>
               <li>Gestionar la identidad y autenticación del usuario.</li>

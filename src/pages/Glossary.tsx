@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Book, Search, Filter, BookOpen } from 'lucide-react';
 import Fuse from 'fuse.js';
 import { SAFETY_GLOSSARY } from '../constants/glossary';
@@ -12,6 +13,7 @@ interface GlossaryItem {
 }
 
 export function Glossary() {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -89,9 +91,9 @@ export function Glossary() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Glosario Técnico</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('glossary.title', 'Glosario Técnico')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Diccionario Semántico de Prevención de Riesgos
+            {t('glossary.subtitle', 'Diccionario Semántico de Prevención de Riesgos')}
           </p>
         </div>
       </div>
@@ -102,7 +104,7 @@ export function Glossary() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
           <input
             type="text"
-            placeholder="Buscar término o definición..."
+            placeholder={t('glossary.searchPlaceholder', 'Buscar término o definición...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-zinc-900/50 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all font-medium"
@@ -117,7 +119,7 @@ export function Glossary() {
                 : 'bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-white/5'
             }`}
           >
-            Todos
+            {t('glossary.filterAll', 'Todos')}
           </button>
           {categories.map(category => (
             <button
@@ -162,7 +164,7 @@ export function Glossary() {
               </p>
               {details.relatedTerms && details.relatedTerms.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-white/5">
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Términos Relacionados</p>
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">{t('glossary.relatedTerms', 'Términos Relacionados')}</p>
                   <div className="flex flex-wrap gap-2">
                     {details.relatedTerms.map(related => (
                       <span key={related} className="text-xs text-emerald-500/70 font-medium bg-emerald-500/5 px-2 py-1 rounded-md border border-emerald-500/10">
@@ -180,9 +182,9 @@ export function Glossary() {
           <div className="w-20 h-20 bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6">
             <Book className="w-10 h-10 text-zinc-600" />
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">No se encontraron términos</h3>
+          <h3 className="text-xl font-bold text-white mb-2">{t('glossary.notFound', 'No se encontraron términos')}</h3>
           <p className="text-zinc-500 max-w-md mx-auto">
-            Intenta con otra búsqueda o selecciona una categoría diferente.
+            {t('glossary.notFoundHint', 'Intenta con otra búsqueda o selecciona una categoría diferente.')}
           </p>
         </div>
       )}

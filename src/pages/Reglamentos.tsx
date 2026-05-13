@@ -5,6 +5,7 @@
 // active session via FirebaseContext (mirrors SusesoReports).
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Ds67Builder } from '../components/compliance/Ds67Builder';
 import { Ds76Builder } from '../components/compliance/Ds76Builder';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -12,6 +13,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 type Tab = 'ds67' | 'ds76';
 
 export const Reglamentos: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const [tab, setTab] = useState<Tab>('ds67');
 
@@ -28,11 +30,9 @@ export const Reglamentos: React.FC = () => {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Reglamentos internos</h1>
+        <h1 className="text-2xl font-bold">{t('reglamentos.title', 'Reglamentos internos')}</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Genera PDFs firmables electrónicamente para DS 67/1999 (Higiene y
-          Seguridad) y DS 76/2007 (Subcontratación Mining). Cada PDF lleva
-          folio único, hash SHA-256 y firma simple Ley 19.799.
+          {t('reglamentos.subtitle', 'Genera PDFs firmables electrónicamente para DS 67/1999 (Higiene y Seguridad) y DS 76/2007 (Subcontratación Mining). Cada PDF lleva folio único, hash SHA-256 y firma simple Ley 19.799.')}
         </p>
       </header>
 
@@ -45,7 +45,7 @@ export const Reglamentos: React.FC = () => {
               : 'text-zinc-600'
           }`}
         >
-          DS 67 — Reglamento Interno
+          {t('reglamentos.tabDs67', 'DS 67 — Reglamento Interno')}
         </button>
         <button
           onClick={() => setTab('ds76')}
@@ -55,7 +55,7 @@ export const Reglamentos: React.FC = () => {
               : 'text-zinc-600'
           }`}
         >
-          DS 76 — Subcontratación
+          {t('reglamentos.tabDs76', 'DS 76 — Subcontratación')}
         </button>
       </nav>
 
