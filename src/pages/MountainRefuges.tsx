@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { Mountain, MapPin, Navigation, AlertTriangle, Wind, ThermometerSnowflake, ShieldAlert, Info } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 
 export function MountainRefuges() {
+  const { t } = useTranslation();
   const [userLocation, setUserLocation] = useState({ lat: -33.4, lng: -70.6 });
   const [weatherCondition, setWeatherCondition] = useState<'clear' | 'blizzard' | 'storm'>('blizzard');
   const [temperature, setTemperature] = useState(-15);
@@ -20,10 +22,10 @@ export function MountainRefuges() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Mountain className="w-8 h-8 text-blue-500" />
-            Refugios de Montaña
+            {t('mountainRefuges.title', 'Refugios de Montaña')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Gestión de Supervivencia en Alta Montaña
+            {t('mountainRefuges.subtitle', 'Gestión de Supervivencia en Alta Montaña')}
           </p>
         </div>
         <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 ${weatherCondition === 'blizzard' ? 'text-blue-400 bg-blue-500/10 border-blue-500/20' : 'text-zinc-400 bg-zinc-800 border-white/10'}`}>
@@ -39,7 +41,7 @@ export function MountainRefuges() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Navigation className="w-5 h-5 text-blue-500" />
-            Condiciones de Ruta
+            {t('mountainRefuges.routeConditions', 'Condiciones de Ruta')}
           </h2>
 
           <div className="space-y-4">

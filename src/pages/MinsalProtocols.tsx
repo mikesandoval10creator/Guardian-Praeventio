@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { 
   ShieldCheck, 
   Activity, 
@@ -70,6 +71,7 @@ const PROTOCOLS = [
 ];
 
 export function MinsalProtocols() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { nodes } = useRiskEngine();
   const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null);
@@ -109,9 +111,9 @@ export function MinsalProtocols() {
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
               <ShieldCheck className="w-8 h-8 text-emerald-500" />
-              Protocolos MINSAL
+              {t('minsalProtocols.title', 'Protocolos MINSAL')}
             </h1>
-            <p className="text-zinc-400 mt-1">Gestión de cumplimiento normativo de salud ocupacional en Chile</p>
+            <p className="text-zinc-400 mt-1">{t('minsalProtocols.subtitle', 'Gestión de cumplimiento normativo de salud ocupacional en Chile')}</p>
           </div>
         </div>
 

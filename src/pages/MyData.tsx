@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import {
   Download,
   Edit3,
@@ -44,6 +45,7 @@ async function authedFetch(input: string, init: RequestInit = {}) {
 }
 
 export function MyData() {
+  const { t } = useTranslation();
   const [consents, setConsents] = useState<ConsentMap>({});
   const [loadingConsents, setLoadingConsents] = useState(true);
   const [requests, setRequests] = useState<DataAccessRequest[]>([]);
@@ -141,7 +143,7 @@ export function MyData() {
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-7 w-7 text-[#4db6ac]" />
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Mis datos
+            {t('myData.title', 'Mis datos')}
           </h1>
         </div>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
@@ -166,7 +168,7 @@ export function MyData() {
       {/* Consents */}
       <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h2 className="mb-3 text-lg font-bold text-zinc-900 dark:text-zinc-100">
-          Mis consentimientos
+          {t('myData.consents', 'Mis consentimientos')}
         </h2>
         {loadingConsents ? (
           <p className="text-sm text-zinc-500">Cargando…</p>
