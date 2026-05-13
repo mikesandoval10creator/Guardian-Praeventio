@@ -166,6 +166,66 @@ describe('piiBucketFor (ADR 0012 separation)', () => {
   });
 });
 
+describe('Sprint 48 E.4 — retention rules por jurisdicción nueva', () => {
+  it('UK incidente reciente (1 año) → keep_active', () => {
+    const d = decideRetention(
+      rec({ category: 'incident', jurisdiction: 'UK', createdAt: '2025-05-12T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('keep_active');
+  });
+
+  it('UK medical_diagnosis 40 años (COSHH) — record 20 años aún archivado', () => {
+    const d = decideRetention(
+      rec({ category: 'medical_diagnosis', jurisdiction: 'UK', createdAt: '2006-01-01T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('archive_immutable');
+    expect(d.effectiveRetentionDays).toBe(14600);
+  });
+
+  it('AU incidente 6 años → archive_immutable (totalDays=2555 / 7y)', () => {
+    const d = decideRetention(
+      rec({ category: 'incident', jurisdiction: 'AU', createdAt: '2020-01-01T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('archive_immutable');
+  });
+
+  it('JP medical_diagnosis 30 años (carcinógenos) — record 10 años aún activo', () => {
+    const d = decideRetention(
+      rec({ category: 'medical_diagnosis', jurisdiction: 'JP', createdAt: '2016-05-01T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('archive_immutable');
+  });
+
+  it('IN incidente fresco → keep_active', () => {
+    const d = decideRetention(
+      rec({ category: 'incident', jurisdiction: 'IN', createdAt: '2026-01-01T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('keep_active');
+  });
+
+  it('KR audit_log 7 años → purge (totalDays=2555)', () => {
+    const d = decideRetention(
+      rec({ category: 'audit_log', jurisdiction: 'KR', createdAt: '2018-01-01T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('purge');
+  });
+
+  it('CA audit_log usa regla canadiense específica (no fallback CL)', () => {
+    const d = decideRetention(
+      rec({ category: 'audit_log', jurisdiction: 'CA', createdAt: '2024-01-01T00:00:00Z' }),
+      { now: NOW },
+    );
+    expect(d.action).toBe('keep_active');
+    expect(d.effectiveRetentionDays).toBe(3650);
+  });
+});
+
 describe('sensitivityForCategory', () => {
   it('medical_aptitude + medical_diagnosis → medical sensitivity', () => {
     expect(sensitivityForCategory('medical_aptitude')).toBe('medical');

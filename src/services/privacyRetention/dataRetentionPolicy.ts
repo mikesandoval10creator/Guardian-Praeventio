@@ -37,9 +37,12 @@ export type Jurisdiction =
   | 'BR' // LGPD
   | 'US' // mostly state-specific
   | 'EU' // GDPR
-  | 'UK'
-  | 'CA'
-  | 'AU';
+  | 'UK' // UK-DPA 2018 + UK GDPR
+  | 'CA' // PIPEDA
+  | 'AU' // APP / Privacy Act 1988
+  | 'JP' // PIPA-JP / APPI
+  | 'KR' // PIPA-KR
+  | 'IN'; // DPDP 2023
 
 export type RetentionAction = 'keep_active' | 'archive_immutable' | 'purge';
 
@@ -107,6 +110,47 @@ const DEFAULT_RULES: RetentionRule[] = [
   { category: 'communication_log', jurisdiction: 'CL', activeDays: 90, totalDays: 180 },
   // Versionado documentos: durante vigencia + 5 años (RIOHS, ODI).
   { category: 'document_version', jurisdiction: 'CL', activeDays: 1825, totalDays: 3650 },
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Sprint 48 E.4 — Reglas explícitas por jurisdicción nueva.
+  // Cobertura: incident + medical_diagnosis + audit_log (categorías
+  // críticas). El fallback CL cubre el resto.
+  // ──────────────────────────────────────────────────────────────────────
+
+  // UK — HSWA + RIDDOR: registros de incidente 3 años activo + 7 archivado.
+  { category: 'incident', jurisdiction: 'UK', activeDays: 1095, totalDays: 3650 },
+  // UK — health records (COSHH): hasta 40 años post exposure.
+  { category: 'medical_diagnosis', jurisdiction: 'UK', activeDays: 3650, totalDays: 14600 },
+  // UK — audit/inspection: 6 años (limitation period).
+  { category: 'audit_log', jurisdiction: 'UK', activeDays: 2190, totalDays: 2190 },
+
+  // Canadá — CLC + provincial: incidente 5 años (federal).
+  { category: 'incident', jurisdiction: 'CA', activeDays: 1825, totalDays: 3650 },
+  { category: 'medical_diagnosis', jurisdiction: 'CA', activeDays: 3650, totalDays: 10950 },
+  { category: 'audit_log', jurisdiction: 'CA', activeDays: 2555, totalDays: 3650 },
+
+  // Australia — WHS Act 2011 §38: notifiable incident records ≥5 años.
+  { category: 'incident', jurisdiction: 'AU', activeDays: 1825, totalDays: 2555 },
+  // AU — exposure / health monitoring records: 30 años (WHS Reg).
+  { category: 'medical_diagnosis', jurisdiction: 'AU', activeDays: 3650, totalDays: 10950 },
+  { category: 'audit_log', jurisdiction: 'AU', activeDays: 2555, totalDays: 2555 },
+
+  // Japón — ISHA art.103: incidente / health check 5 años.
+  { category: 'incident', jurisdiction: 'JP', activeDays: 1825, totalDays: 3650 },
+  // JP — medical record (health exam): 5 años activo; carcinógenos hasta 30 años.
+  { category: 'medical_diagnosis', jurisdiction: 'JP', activeDays: 1825, totalDays: 10950 },
+  { category: 'audit_log', jurisdiction: 'JP', activeDays: 2190, totalDays: 3650 },
+
+  // Corea — OSHA-K + Labor Standards Act: incidente 3 años activo + 5 archivado.
+  { category: 'incident', jurisdiction: 'KR', activeDays: 1095, totalDays: 1825 },
+  // KR — health check records: 5 años (algunos carcinógenos 30).
+  { category: 'medical_diagnosis', jurisdiction: 'KR', activeDays: 1825, totalDays: 10950 },
+  { category: 'audit_log', jurisdiction: 'KR', activeDays: 1825, totalDays: 2555 },
+
+  // India — Factories Act §88 + state rules: registro accidente 3 años; mines 5.
+  { category: 'incident', jurisdiction: 'IN', activeDays: 1095, totalDays: 1825 },
+  { category: 'medical_diagnosis', jurisdiction: 'IN', activeDays: 1825, totalDays: 10950 },
+  { category: 'audit_log', jurisdiction: 'IN', activeDays: 1825, totalDays: 2555 },
 ];
 
 function findRule(
