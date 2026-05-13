@@ -11,6 +11,7 @@
 // `getCphsRequirements(jurisdiction)`.
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShieldCheck, Users, Calendar as CalendarIcon, FileText, PenTool, AlertTriangle, Plus } from 'lucide-react';
 import {
   type CphsCommittee,
@@ -71,6 +72,7 @@ export interface CphsRegulatoryHeaderProps {
  * `getCphsRequirements(jurisdiction)`.
  */
 export function CphsRegulatoryHeader({ tenantCountry = 'CL' }: CphsRegulatoryHeaderProps = {}) {
+  const { t } = useTranslation();
   return (
     <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-2xl p-6 space-y-3">
       <div className="flex items-center gap-3">
@@ -79,10 +81,10 @@ export function CphsRegulatoryHeader({ tenantCountry = 'CL' }: CphsRegulatoryHea
         </div>
         <div>
           <h1 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
-            Comité Paritario de Higiene y Seguridad
+            {t('cphsModule.title', 'Comité Paritario de Higiene y Seguridad')}
           </h1>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">
-            Registro formal — actas firmadas + votación documentada
+            {t('cphsModule.subtitle', 'Registro formal — actas firmadas + votación documentada')}
           </p>
         </div>
       </div>
@@ -112,6 +114,7 @@ interface CommitteeDraftFormProps {
 }
 
 export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: CommitteeDraftFormProps) {
+  const { t } = useTranslation();
   const [members, setMembers] = useState<CphsMember[]>([]);
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
@@ -154,12 +157,12 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
   return (
     <form
       role="form"
-      aria-label="Constituir nuevo comité paritario"
+      aria-label={t('cphsModule.constituteAria', 'Constituir nuevo comité paritario')}
       onSubmit={(e) => { e.preventDefault(); void submit(); }}
       className="space-y-4 bg-white dark:bg-zinc-900/30 border border-zinc-200 dark:border-white/10 rounded-2xl p-6"
     >
       <h2 className="text-sm font-black uppercase tracking-widest text-zinc-900 dark:text-white">
-        Constituir Nuevo Comité
+        {t('cphsModule.constituteNew', 'Constituir Nuevo Comité')}
       </h2>
       <div className="grid grid-cols-2 gap-3">
         <label className="text-xs">
@@ -239,7 +242,7 @@ export function CommitteeDraftForm({ onSubmit, candidateMembers, busy }: Committ
         disabled={busy || !validation.ok}
         className="px-4 py-2 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-black uppercase tracking-widest disabled:opacity-50"
       >
-        {busy ? 'Constituyendo…' : 'Constituir Comité'}
+        {busy ? t('cphsModule.constituting', 'Constituyendo…') : t('cphsModule.constitute', 'Constituir Comité')}
       </button>
     </form>
   );

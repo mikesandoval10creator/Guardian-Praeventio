@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Shield, Wrench, AlertTriangle, CheckCircle2, Plus, Search, Filter, Box } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -24,6 +25,7 @@ interface Material {
 }
 
 export function ControlsAndMaterials() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'controls' | 'materials'>('controls');
   const [searchTerm, setSearchTerm] = useState('');
   const [controls, setControls] = useState<Control[]>([]);
@@ -77,18 +79,18 @@ export function ControlsAndMaterials() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Shield className="w-8 h-8 text-emerald-500" />
-            Controles y Materiales
+            {t('controlsAndMaterials.title', 'Controles y Materiales')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Gestión de Entidades Críticas
+            {t('controlsAndMaterials.subtitle', 'Gestión de Entidades Críticas')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => setActiveTab('controls')} variant={activeTab === 'controls' ? 'primary' : 'secondary'}>
-            <Wrench className="w-4 h-4 mr-2" /> Controles
+            <Wrench className="w-4 h-4 mr-2" /> {t('controlsAndMaterials.controls', 'Controles')}
           </Button>
           <Button onClick={() => setActiveTab('materials')} variant={activeTab === 'materials' ? 'primary' : 'secondary'}>
-            <Box className="w-4 h-4 mr-2" /> Materiales
+            <Box className="w-4 h-4 mr-2" /> {t('controlsAndMaterials.materials', 'Materiales')}
           </Button>
         </div>
       </div>
@@ -98,7 +100,7 @@ export function ControlsAndMaterials() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
           <input
             type="text"
-            placeholder={`Buscar ${activeTab === 'controls' ? 'controles' : 'materiales'}...`}
+            placeholder={activeTab === 'controls' ? t('controlsAndMaterials.searchControls', 'Buscar controles...') : t('controlsAndMaterials.searchMaterials', 'Buscar materiales...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-zinc-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
@@ -109,7 +111,7 @@ export function ControlsAndMaterials() {
         </Button>
         <Button className="shrink-0 bg-[#4db6ac] hover:bg-[#3a9e95]">
           <Plus className="w-4 h-4 mr-2" />
-          Nuevo
+          {t('controlsAndMaterials.new', 'Nuevo')}
         </Button>
       </div>
 
@@ -129,14 +131,14 @@ export function ControlsAndMaterials() {
                 <h3 className="text-lg font-bold text-white mb-2">{control.title}</h3>
                 <p className="text-sm text-zinc-400 mb-4">{control.description}</p>
                 <div className="text-xs text-zinc-500 border-t border-white/5 pt-4 flex justify-between items-center">
-                  <span>Eficiencia: <span className="text-white">{control.efficiency}%</span></span>
+                  <span>{t('controlsAndMaterials.efficiency', 'Eficiencia')}: <span className="text-white">{control.efficiency}%</span></span>
                 </div>
               </Card>
             </motion.div>
           ))}
           {filteredControls.length === 0 && (
             <div className="col-span-full py-12 text-center text-zinc-500">
-              No se encontraron controles.
+              {t('controlsAndMaterials.noControls', 'No se encontraron controles.')}
             </div>
           )}
         </div>
@@ -152,24 +154,24 @@ export function ControlsAndMaterials() {
                     <Box className="w-5 h-5" />
                   </div>
                   <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500 bg-zinc-800 px-2 py-1 rounded-md">
-                    Stock: {material.stock}
+                    {t('controlsAndMaterials.stock', 'Stock')}: {material.stock}
                   </span>
                 </div>
                 <h3 className="text-lg font-bold text-white mb-2">{material.name}</h3>
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Tipo:</span>
+                    <span className="text-zinc-500">{t('controlsAndMaterials.type', 'Tipo')}:</span>
                     <span className="text-zinc-300 font-mono">{material.type}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-zinc-500">Stock Mínimo:</span>
+                    <span className="text-zinc-500">{t('controlsAndMaterials.minStock', 'Stock Mínimo')}:</span>
                     <span className="text-zinc-300 font-mono">{material.minStock}</span>
                   </div>
                 </div>
                 <div className="text-xs text-zinc-500 border-t border-white/5 pt-4 flex justify-between items-center">
-                  <span>Estado:</span>
+                  <span>{t('controlsAndMaterials.status', 'Estado')}:</span>
                   <span className={`font-bold uppercase ${material.stock < material.minStock ? 'text-rose-500' : 'text-emerald-500'}`}>
-                    {material.stock < material.minStock ? 'Bajo Stock' : 'Suficiente'}
+                    {material.stock < material.minStock ? t('controlsAndMaterials.lowStock', 'Bajo Stock') : t('controlsAndMaterials.sufficient', 'Suficiente')}
                   </span>
                 </div>
               </Card>
@@ -177,7 +179,7 @@ export function ControlsAndMaterials() {
           ))}
           {filteredMaterials.length === 0 && (
             <div className="col-span-full py-12 text-center text-zinc-500">
-              No se encontraron materiales.
+              {t('controlsAndMaterials.noMaterials', 'No se encontraron materiales.')}
             </div>
           )}
         </div>

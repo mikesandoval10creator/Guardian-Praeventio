@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { ClipboardList, Building2, MapPin, Users, AlertTriangle, Zap, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -22,6 +23,7 @@ const diagnosticSchema = z.object({
 });
 
 export function Diagnostico() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
   const { bootstrapProjectKnowledge } = useIndustryIntegration();
@@ -175,9 +177,9 @@ export function Diagnostico() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Diagnóstico Inicial</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('diagnostico.title', 'Diagnóstico Inicial')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Evaluación de Línea Base y Pre-carga IPER
+            {t('diagnostico.subtitle', 'Evaluación de Línea Base y Pre-carga IPER')}
           </p>
         </div>
       </div>
@@ -199,12 +201,12 @@ export function Diagnostico() {
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Building2 className="w-5 h-5 text-emerald-500" />
-              Datos Generales de la Faena
+              {t('diagnostico.generalData', 'Datos Generales de la Faena')}
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Industria / Rubro SII</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('diagnostico.industry', 'Industria / Rubro SII')}</label>
                 <input
                   type="text"
                   value={formData.industry}
@@ -215,7 +217,7 @@ export function Diagnostico() {
                 {errors.industry && <p className="text-[10px] text-red-400">{errors.industry}</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Ubicación / Geografía</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('diagnostico.location', 'Ubicación / Geografía')}</label>
                 <input
                   type="text"
                   value={formData.location}
@@ -226,7 +228,7 @@ export function Diagnostico() {
                 {errors.location && <p className="text-[10px] text-red-400">{errors.location}</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Dotación Aproximada</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('diagnostico.workersCount', 'Dotación Aproximada')}</label>
                 <input
                   type="number"
                   value={formData.workersCount}
@@ -239,7 +241,7 @@ export function Diagnostico() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Instalaciones Presentes</label>
+              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('diagnostico.facilities', 'Instalaciones Presentes')}</label>
               <div className="flex flex-wrap gap-2">
                 {['Campamento', 'Casino', 'Talleres', 'Bodega Sustancias Peligrosas', 'Planta de Procesos', 'Oficinas', 'Polvorín'].map(fac => (
                   <button
@@ -260,7 +262,7 @@ export function Diagnostico() {
 
             <div className="flex justify-end pt-4">
               <Button onClick={handleNextStep}>
-                Siguiente Paso <ArrowRight className="w-4 h-4 ml-2" />
+                {t('diagnostico.nextStep', 'Siguiente Paso')} <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
           </motion.div>
@@ -270,12 +272,12 @@ export function Diagnostico() {
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Actividades y Peligros
+              {t('diagnostico.activitiesHazards', 'Actividades y Peligros')}
             </h2>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Actividades Principales</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('diagnostico.mainActivities', 'Actividades Principales')}</label>
                 <textarea
                   value={formData.mainActivities}
                   onChange={(e) => setFormData({...formData, mainActivities: e.target.value})}
@@ -285,7 +287,7 @@ export function Diagnostico() {
                 {errors.mainActivities && <p className="text-[10px] text-red-400">{errors.mainActivities}</p>}
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Peligros Críticos Conocidos (Opcional)</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">{t('diagnostico.knownHazards', 'Peligros Críticos Conocidos (Opcional)')}</label>
                 <textarea
                   value={formData.knownHazards}
                   onChange={(e) => setFormData({...formData, knownHazards: e.target.value})}
@@ -296,12 +298,12 @@ export function Diagnostico() {
             </div>
 
             <div className="flex justify-between pt-4">
-              <Button variant="secondary" onClick={() => setStep(1)}>Atrás</Button>
+              <Button variant="secondary" onClick={() => setStep(1)}>{t('diagnostico.back', 'Atrás')}</Button>
               <Button onClick={handleGenerateBaseMatrix} disabled={loading}>
                 {loading ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analizando...</>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('diagnostico.analyzing', 'Analizando...')}</>
                 ) : (
-                  <><Zap className="w-4 h-4 mr-2" /> Generar Semilla IPER</>
+                  <><Zap className="w-4 h-4 mr-2" /> {t('diagnostico.generateSeed', 'Generar Semilla IPER')}</>
                 )}
               </Button>
             </div>
@@ -314,14 +316,14 @@ export function Diagnostico() {
               <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
               </div>
-              <h2 className="text-xl font-bold text-white">Diagnóstico Completado</h2>
-              <p className="text-sm text-zinc-400">La IA ha generado una base para tu matriz IPER.</p>
+              <h2 className="text-xl font-bold text-white">{t('diagnostico.completed', 'Diagnóstico Completado')}</h2>
+              <p className="text-sm text-zinc-400">{t('diagnostico.completedDescription', 'La IA ha generado una base para tu matriz IPER.')}</p>
             </div>
 
             <div className="bg-zinc-900/50 border border-white/10 rounded-xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
                 <ClipboardList className="w-4 h-4" />
-                Resumen de Análisis Base
+                {t('diagnostico.summary', 'Resumen de Análisis Base')}
               </h3>
               
               <div className="space-y-3">
@@ -332,27 +334,27 @@ export function Diagnostico() {
                   /risks una vez creado el nodo.
                 */}
                 <div>
-                  <span className="text-xs text-zinc-500 uppercase font-bold block mb-1">Controles Críticos Sugeridos:</span>
+                  <span className="text-xs text-zinc-500 uppercase font-bold block mb-1">{t('diagnostico.controlsSuggested', 'Controles Críticos Sugeridos:')}</span>
                   <ul className="list-disc list-inside text-sm text-zinc-300 space-y-1">
                     {result.controles.slice(0, 3).map((c: string, i: number) => <li key={i}>{c}</li>)}
                   </ul>
                 </div>
                 <div>
-                  <span className="text-xs text-zinc-500 uppercase font-bold block mb-1">Normativa Principal:</span>
+                  <span className="text-xs text-zinc-500 uppercase font-bold block mb-1">{t('diagnostico.mainNormative', 'Normativa Principal:')}</span>
                   <p className="text-sm text-zinc-300">{result.normativa}</p>
                 </div>
               </div>
             </div>
 
             <div className="flex justify-between pt-4">
-              <Button variant="secondary" onClick={() => setStep(2)}>Revisar Datos</Button>
+              <Button variant="secondary" onClick={() => setStep(2)}>{t('diagnostico.reviewData', 'Revisar Datos')}</Button>
               <Button onClick={handleSaveToZettelkasten} disabled={loading || saved}>
                 {saved ? (
-                  <><CheckCircle2 className="w-4 h-4 mr-2" /> Guardado en Zettelkasten</>
+                  <><CheckCircle2 className="w-4 h-4 mr-2" /> {t('diagnostico.saved', 'Guardado en Zettelkasten')}</>
                 ) : loading ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Guardando...</>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('diagnostico.saving', 'Guardando...')}</>
                 ) : (
-                  'Confirmar y Crear Nodos'
+                  t('diagnostico.confirmCreate', 'Confirmar y Crear Nodos')
                 )}
               </Button>
             </div>

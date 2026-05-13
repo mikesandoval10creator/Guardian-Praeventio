@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAutoCalendarEvents } from '../hooks/useAutoCalendarEvents';
 import {
@@ -42,6 +43,7 @@ interface Acuerdo {
 }
 
 export function ComiteParitario() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [activeTab, setActiveTab] = useState<'actas' | 'acuerdos'>('actas');
   useAutoCalendarEvents();
@@ -220,10 +222,10 @@ export function ComiteParitario() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">
-            Comité Paritario
+            {t('comiteParitario.title', 'Comité Paritario')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Gestión DS 54 - Actas y Acuerdos
+            {t('comiteParitario.subtitle', 'Gestión DS 54 - Actas y Acuerdos')}
           </p>
         </div>
         <div className="flex gap-3">
@@ -232,7 +234,7 @@ export function ComiteParitario() {
             className="bg-zinc-900 dark:bg-white text-white dark:text-black px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-xl flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Nueva Acta</span>
+            <span>{t('comiteParitario.newActa', 'Nueva Acta')}</span>
           </button>
         </div>
       </div>

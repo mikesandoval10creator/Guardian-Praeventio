@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Activity, Camera, AlertTriangle, CheckCircle2, RefreshCw, Eye, User, Shield, Zap, Save, LineChart as LineChartIcon, HeartPulse, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -29,6 +30,7 @@ const ALTITUDE_THIN_AIR_MULTIPLIER = 1.3;
 const ALTITUDE_THRESHOLD_MASL = 3000;
 
 export function BioAnalysis() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const { addNode } = useRiskEngine();
@@ -497,7 +499,7 @@ export function BioAnalysis() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
-            Bio-Análisis
+            {t('bioAnalysis.title', 'Bio-Análisis')}
             {/* Sprint 17c — Bioicons respiratory + oximetry decoration. */}
             <span className="hidden sm:inline-flex items-center gap-1.5 text-cyan-300/80" aria-hidden="true">
               <MedicalIcon name="lung-pair" size={28} alt="Pulmones" />
@@ -506,7 +508,7 @@ export function BioAnalysis() {
             </span>
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Computer Vision & IA para Detección de Riesgos
+            {t('bioAnalysis.subtitle', 'Computer Vision & IA para Detección de Riesgos')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

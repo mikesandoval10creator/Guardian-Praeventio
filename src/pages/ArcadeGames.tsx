@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Gamepad2, Wrench, Route, Brain, Target, ShieldAlert, Zap } from 'lucide-react';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 import { Card } from '../components/shared/Card';
@@ -92,20 +93,21 @@ export function ArcadeGames() {
 }
 
 function ArcadeGamesInner() {
+  const { t } = useTranslation();
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
             <Gamepad2 className="w-8 h-8 text-fuchsia-500" />
-            Arcade de Seguridad
+            {t('arcadeGames.title', 'Arcade de Seguridad')}
           </h1>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em] mt-2">
-            Serious-Games Tier-Gated · Refuerzo Conductual
+            {t('arcadeGames.subtitle', 'Serious-Games Tier-Gated · Refuerzo Conductual')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 font-bold uppercase text-xs tracking-widest flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4" /> {GAMES_REGISTRY.length} juegos disponibles
+          <ShieldAlert className="w-4 h-4" /> {t('arcadeGames.gamesAvailable', '{{count}} juegos disponibles', { count: GAMES_REGISTRY.length })}
         </div>
       </div>
 
@@ -117,13 +119,10 @@ function ArcadeGamesInner() {
 
       <Card className="p-6 border-white/5 space-y-2">
         <h2 className="text-sm font-black text-zinc-300 uppercase tracking-widest">
-          Por qué jugar
+          {t('arcadeGames.whyPlay', 'Por qué jugar')}
         </h2>
         <p className="text-sm text-zinc-400 leading-relaxed">
-          Los serious-games refuerzan respuestas automáticas (memoria muscular) y reducen el
-          tiempo de reacción frente a incidentes reales. Cada partida persiste un puntaje a tu
-          historial gamificado y se registra en el audit log para evidencia de capacitación
-          continua (Ley 16.744 Art. 21, DS 40 Art. 3).
+          {t('arcadeGames.whyPlayDescription', 'Los serious-games refuerzan respuestas automáticas (memoria muscular) y reducen el tiempo de reacción frente a incidentes reales. Cada partida persiste un puntaje a tu historial gamificado y se registra en el audit log para evidencia de capacitación continua (Ley 16.744 Art. 21, DS 40 Art. 3).')}
         </p>
       </Card>
     </div>
@@ -131,9 +130,10 @@ function ArcadeGamesInner() {
 }
 
 function GameCard({ game }: { game: GameMeta }) {
+  const { t } = useTranslation();
   const { Icon, accent, path, title, objective, normativa, tier } = game;
   return (
-    <Link to={path} aria-label={`Jugar ${title}`}>
+    <Link to={path} aria-label={t('arcadeGames.playAria', 'Jugar {{title}}', { title })}>
       <Card className="p-5 border-white/5 h-full transition-transform hover:-translate-y-0.5 hover:border-zinc-700">
         <div className="flex items-start justify-between mb-3">
           <div className={`p-2 rounded-xl border ${accent}`}>
