@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { logger } from '../utils/logger';
 import { motion } from 'framer-motion';
 import { 
@@ -35,6 +36,7 @@ interface Normative {
 import { get, set } from 'idb-keyval';
 
 export function Normatives() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [isSeeding, setIsSeeding] = useState(false);
@@ -194,8 +196,8 @@ export function Normatives() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Normativas</h1>
-          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">Biblioteca de leyes, decretos y estándares de seguridad</p>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('normatives.title', 'Normativas')}</h1>
+          <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('normatives.subtitle', 'Biblioteca de leyes, decretos y estándares de seguridad')}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <button 
@@ -215,7 +217,7 @@ export function Normatives() {
             }`}
           >
             <Bookmark className={`w-4 h-4 ${showSavedOnly ? 'fill-current' : ''}`} />
-            <span>Mis Guardados</span>
+            <span>{t('normatives.savedTab', 'Mis Guardados')}</span>
           </button>
         </div>
       </div>
@@ -377,7 +379,7 @@ export function Normatives() {
                     onClick={(e) => e.stopPropagation()}
                     className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 text-sm font-bold transition-colors"
                   >
-                    <span>Ver Documento</span>
+                    <span>{t('normatives.viewDocument', 'Ver Documento')}</span>
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
@@ -390,7 +392,7 @@ export function Normatives() {
           <div className="w-20 h-20 bg-white dark:bg-zinc-800 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm">
             <Book className="w-10 h-10 text-zinc-400 dark:text-zinc-600" />
           </div>
-          <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No se encontraron normativas</h3>
+          <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">{t('normatives.notFound', 'No se encontraron normativas')}</h3>
           <p className="text-zinc-500 max-w-md mx-auto">
             Intenta con otros términos de búsqueda o revisa la biblioteca completa de estándares de seguridad.
           </p>

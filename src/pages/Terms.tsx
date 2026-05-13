@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, FileText } from 'lucide-react';
 import { TERMS_CONTENT_ES_CL } from '../services/legal/termsContent';
 
@@ -10,6 +11,7 @@ import { TERMS_CONTENT_ES_CL } from '../services/legal/termsContent';
  * dentro del flujo de listado público (Marketplace / Play Store / web).
  */
 export function Terms() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const content = TERMS_CONTENT_ES_CL;
 
@@ -29,7 +31,7 @@ export function Terms() {
           className="flex items-center gap-2 text-zinc-400 hover:text-white text-sm font-bold mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver
+          {t('common.back', 'Volver')}
         </button>
 
         {/* Header */}
@@ -44,7 +46,7 @@ export function Terms() {
         </div>
 
         <p className="text-zinc-400 text-sm mb-8">
-          Última actualización: {lastUpdatedFormatted}
+          {t('terms.lastUpdated', 'Última actualización')}: {lastUpdatedFormatted}
         </p>
 
         <div className="space-y-8 text-zinc-300 text-sm leading-relaxed">
@@ -83,7 +85,7 @@ export function Terms() {
 
           <section>
             <h2 className="text-white font-black text-lg mb-3">
-              {content.sections.length + 1}. Datos del proveedor
+              {content.sections.length + 1}. {t('terms.providerData', 'Datos del proveedor')}
             </h2>
             <p>
               {content.legalEntity} · RUT <strong className="text-white">{content.rut}</strong> ·
@@ -94,7 +96,7 @@ export function Terms() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-white/5 text-center text-xs text-zinc-600 font-bold uppercase tracking-widest">
-          © {new Date().getFullYear()} Guardian Praeventio · Chile · Todos los derechos reservados
+          © {new Date().getFullYear()} Guardian Praeventio · Chile · {t('common.allRightsReserved', 'Todos los derechos reservados')}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
@@ -58,6 +59,7 @@ const getYoutubeVideoId = (url: string) => {
 };
 
 export function Training() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
@@ -317,9 +319,9 @@ export function Training() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
             <BookOpen className="w-6 h-6 sm:w-8 sm:h-8 text-[#4db6ac] dark:text-[#d4af37]" />
-            Capacitaciones & Formación
+            {t('training.title', 'Capacitaciones & Formación')}
           </h1>
-          <p className="text-zinc-400 mt-1 font-medium italic text-xs sm:text-base">"El conocimiento es la primera línea de defensa"</p>
+          <p className="text-zinc-400 mt-1 font-medium italic text-xs sm:text-base">{t('training.tagline', '"El conocimiento es la primera línea de defensa"')}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <button 
@@ -345,7 +347,7 @@ export function Training() {
             className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-white"
           >
             <Plus className="w-4 h-4" />
-            <span>Nueva Sesión</span>
+            <span>{t('training.newSession', 'Nueva Sesión')}</span>
           </button>
         </div>
       </div>
@@ -424,7 +426,7 @@ export function Training() {
               className="bg-zinc-900 border border-white/10 rounded-[40px] w-full max-w-xl overflow-hidden flex flex-col shadow-2xl max-h-[90vh]"
             >
               <div className="p-8 border-b border-white/5 flex justify-between items-center shrink-0">
-                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Nueva Capacitación</h2>
+                <h2 className="text-xl font-black text-white uppercase tracking-tighter">{t('training.newTraining', 'Nueva Capacitación')}</h2>
                 <button
                   onClick={() => setIsCreatingSession(false)}
                   aria-label="Cerrar"

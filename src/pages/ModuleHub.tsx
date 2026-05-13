@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -283,6 +284,7 @@ const hubsData: Record<string, any> = {
 };
 
 export function ModuleHub() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -367,7 +369,7 @@ export function ModuleHub() {
           </div>
           
           <div className="flex flex-col items-start sm:items-end gap-1 shrink-0">
-            <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">Proyecto Activo</span>
+            <span className="text-[10px] font-bold text-muted-token uppercase tracking-widest">{t('moduleHub.activeProject', 'Proyecto Activo')}</span>
             <span className={`text-sm font-black ${hub.textColor} uppercase tracking-wider bg-canvas px-3 py-1.5 rounded-lg border border-default-token`}>
               {selectedProject?.name || 'Global'}
             </span>
@@ -502,14 +504,14 @@ export function ModuleHub() {
               <div className="bg-elevated p-4 rounded-xl border border-default-token">
                 <div className="flex items-center gap-2 mb-2">
                   <Briefcase className={`w-4 h-4 ${hub.textColor}`} />
-                  <h4 className="text-xs font-black text-primary-token uppercase tracking-widest">Contexto Industrial</h4>
+                  <h4 className="text-xs font-black text-primary-token uppercase tracking-widest">{t('moduleHub.industryContext', 'Contexto Industrial')}</h4>
                 </div>
                 <p className="text-sm text-secondary-token leading-relaxed">{aiRecommendations.industryRelation}</p>
               </div>
               <div className="bg-elevated p-4 rounded-xl border border-default-token">
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldCheck className={`w-4 h-4 ${hub.textColor}`} />
-                  <h4 className="text-xs font-black text-primary-token uppercase tracking-widest">Referencia Normativa</h4>
+                  <h4 className="text-xs font-black text-primary-token uppercase tracking-widest">{t('moduleHub.regulatoryReference', 'Referencia Normativa')}</h4>
                 </div>
                 <p className="text-sm text-secondary-token leading-relaxed">{aiRecommendations.isoReference}</p>
               </div>
@@ -520,7 +522,7 @@ export function ModuleHub() {
               <div className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                 <div>
-                  <h4 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-1">Alerta Predictiva</h4>
+                  <h4 className="text-xs font-black text-rose-500 uppercase tracking-widest mb-1">{t('moduleHub.predictiveAlert', 'Alerta Predictiva')}</h4>
                   <p className="text-sm text-rose-400/90 leading-relaxed">{aiRecommendations.predictiveAlert}</p>
                 </div>
               </div>
@@ -545,8 +547,8 @@ export function ModuleHub() {
         ) : !loadingAi ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-elevated rounded-xl border border-default-token border-dashed">
             <Brain className="w-8 h-8 text-muted-token mb-3" />
-            <p className="text-sm text-secondary-token">El asistente está listo para analizar.</p>
-            <p className="text-xs text-zinc-500 mt-1">Selecciona un proyecto para obtener recomendaciones personalizadas.</p>
+            <p className="text-sm text-secondary-token">{t('moduleHub.assistantReady', 'El asistente está listo para analizar.')}</p>
+            <p className="text-xs text-zinc-500 mt-1">{t('moduleHub.assistantHint', 'Selecciona un proyecto para obtener recomendaciones personalizadas.')}</p>
           </div>
         ) : null}
       </div>
