@@ -14,6 +14,7 @@
 // - Tier: canUseAdvancedAnalytics (Diamante+).
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Camera, AlertTriangle, CheckCircle2, X, Loader2, ShieldCheck, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -60,6 +61,7 @@ export default function WebXR() {
 }
 
 function WebXRInner() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -145,8 +147,8 @@ function WebXRInner() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Capacitación AR — Trabajo en Altura</h1>
-          <p className="text-sm text-gray-500">DS 594 Art. 53 · Marca cada elemento de EPP</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('webxr.title', 'Capacitación AR — Trabajo en Altura')}</h1>
+          <p className="text-sm text-gray-500">{t('webxr.subtitle', 'DS 594 Art. 53 · Marca cada elemento de EPP')}</p>
         </div>
         <button
           onClick={() => setIsScanning(!isScanning)}
@@ -155,7 +157,7 @@ function WebXRInner() {
           }`}
         >
           <Camera className="w-5 h-5" />
-          {isScanning ? 'Detener' : 'Iniciar AR'}
+          {isScanning ? t('webxr.stop', 'Detener') : t('webxr.startAR', 'Iniciar AR')}
         </button>
       </div>
 
@@ -164,7 +166,7 @@ function WebXRInner() {
           <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(verified.size / HEIGHT_WORK_CHECKLIST.length) * 100}%` }} />
         </div>
         <span className="font-bold text-zinc-600 dark:text-zinc-300">
-          {verified.size}/{HEIGHT_WORK_CHECKLIST.length} verificados
+          {verified.size}/{HEIGHT_WORK_CHECKLIST.length} {t('webxr.verified', 'verificados')}
         </span>
       </div>
 
@@ -178,7 +180,7 @@ function WebXRInner() {
         {!isScanning ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
             <Camera className="w-16 h-16 mb-4 opacity-50" />
-            <p>Inicie AR para activar marcadores</p>
+            <p>{t('webxr.startPrompt', 'Inicie AR para activar marcadores')}</p>
           </div>
         ) : (
           <>
@@ -219,7 +221,7 @@ function WebXRInner() {
             <p className="text-sm text-gray-600 dark:text-zinc-400 mb-4">{activeMarker.description}</p>
             <button onClick={() => verifyItem(activeMarker.id)}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Marcar como verificado
+              <CheckCircle2 className="w-4 h-4" /> {t('webxr.markVerified', 'Marcar como verificado')}
             </button>
           </motion.div>
         )}
@@ -230,16 +232,16 @@ function WebXRInner() {
           className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center gap-3">
           <Award className="w-6 h-6 text-emerald-500" />
           <div className="flex-1 min-w-[200px]">
-            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Checklist completa</p>
+            <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{t('webxr.checklistComplete', 'Checklist completa')}</p>
             <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
-              Registra esta capacitación en tu historial.
+              {t('webxr.registerPrompt', 'Registra esta capacitación en tu historial.')}
             </p>
           </div>
           <button onClick={completeTraining} disabled={savingState !== 'idle'}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50">
-            {savingState === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</> :
-             savingState === 'saved' ? <><CheckCircle2 className="w-4 h-4" /> Capacitación registrada</> :
-             'Registrar capacitación'}
+            {savingState === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('webxr.saving', 'Guardando…')}</> :
+             savingState === 'saved' ? <><CheckCircle2 className="w-4 h-4" /> {t('webxr.trainingRegistered', 'Capacitación registrada')}</> :
+             t('webxr.registerTraining', 'Registrar capacitación')}
           </button>
           {trainingId && (
             <p className="w-full text-[10px] text-emerald-600/70 dark:text-emerald-400/70 uppercase tracking-widest">

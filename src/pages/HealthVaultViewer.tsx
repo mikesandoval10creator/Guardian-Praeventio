@@ -10,6 +10,7 @@
 // Cumple Ley 20.584 + 21.719 + 16.744.
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import type { HealthRecord } from '../services/health/vaultRecord';
@@ -56,6 +57,7 @@ function formatDate(value: number | string | undefined): string {
 }
 
 export function HealthVaultViewer() {
+  const { t } = useTranslation();
   const params = useParams();
   const tokenId = params.tokenId ?? '';
   const secret = params.secret ?? '';
@@ -107,41 +109,41 @@ export function HealthVaultViewer() {
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {state.kind === 'loading' && (
           <p className="text-zinc-600 dark:text-zinc-400" role="status">
-            Cargando cartera médica…
+            {t('healthVaultViewer.loading', 'Cargando cartera médica…')}
           </p>
         )}
 
         {state.kind === 'expired' && (
           <ErrorCard
-            title="Este enlace expiró"
-            body="El paciente puede generar uno nuevo desde su aplicación."
+            title={t('healthVaultViewer.expiredTitle', 'Este enlace expiró')}
+            body={t('healthVaultViewer.expiredBody', 'El paciente puede generar uno nuevo desde su aplicación.')}
           />
         )}
         {state.kind === 'revoked' && (
           <ErrorCard
-            title="El paciente revocó este enlace"
-            body="Por seguridad, el acceso fue cancelado por el dueño de la información."
+            title={t('healthVaultViewer.revokedTitle', 'El paciente revocó este enlace')}
+            body={t('healthVaultViewer.revokedBody', 'Por seguridad, el acceso fue cancelado por el dueño de la información.')}
           />
         )}
         {state.kind === 'max_consumes' && (
           <ErrorCard
-            title="Este enlace alcanzó el límite de visualizaciones"
-            body="Pídele al paciente que genere uno nuevo si necesitas volver a verlo."
+            title={t('healthVaultViewer.maxConsumesTitle', 'Este enlace alcanzó el límite de visualizaciones')}
+            body={t('healthVaultViewer.maxConsumesBody', 'Pídele al paciente que genere uno nuevo si necesitas volver a verlo.')}
           />
         )}
         {state.kind === 'invalid' && (
-          <ErrorCard title="Enlace inválido" body="El enlace que escaneaste no es reconocible." />
+          <ErrorCard title={t('healthVaultViewer.invalidTitle', 'Enlace inválido')} body={t('healthVaultViewer.invalidBody', 'El enlace que escaneaste no es reconocible.')} />
         )}
         {state.kind === 'rate_limited' && (
           <ErrorCard
-            title="Demasiadas solicitudes"
-            body="Espera un momento e intenta de nuevo."
+            title={t('healthVaultViewer.rateLimitedTitle', 'Demasiadas solicitudes')}
+            body={t('healthVaultViewer.rateLimitedBody', 'Espera un momento e intenta de nuevo.')}
           />
         )}
         {state.kind === 'network_error' && (
           <ErrorCard
-            title="No se pudo conectar"
-            body="Revisa tu conexión e intenta de nuevo."
+            title={t('healthVaultViewer.networkErrorTitle', 'No se pudo conectar')}
+            body={t('healthVaultViewer.networkErrorBody', 'Revisa tu conexión e intenta de nuevo.')}
           />
         )}
 

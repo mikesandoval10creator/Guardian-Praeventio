@@ -18,6 +18,7 @@
 //   5. Show success / error / "ya firmado" states.
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Loader2, AlertTriangle, CheckCircle2, Fingerprint, X, UserCheck } from 'lucide-react';
@@ -36,6 +37,7 @@ interface RefereePreview {
 }
 
 export function RefereeAccept() {
+  const { t } = useTranslation();
   const { token = '' } = useParams<{ token: string }>();
   const { isSupported, authenticate } = useBiometricAuth();
 
@@ -117,8 +119,8 @@ export function RefereeAccept() {
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
               <ShieldCheck className="w-7 h-7 text-emerald-500" />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">Praeventio Guard</p>
-            <h1 className="text-xl font-black text-white uppercase tracking-tight">Co-firmar Claim</h1>
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-1">{t('refereeAccept.brand', 'Praeventio Guard')}</p>
+            <h1 className="text-xl font-black text-white uppercase tracking-tight">{t('refereeAccept.title', 'Co-firmar Claim')}</h1>
           </div>
 
           <div className="px-8 py-7 space-y-6">
@@ -133,7 +135,7 @@ export function RefereeAccept() {
             {loadError && (
               <div className="flex flex-col items-center gap-3 py-4 text-center">
                 <AlertTriangle className="w-10 h-10 text-rose-500" />
-                <p className="text-sm font-bold text-white">Enlace no disponible</p>
+                <p className="text-sm font-bold text-white">{t('refereeAccept.linkUnavailable', 'Enlace no disponible')}</p>
                 <p className="text-xs text-zinc-400">{loadError}</p>
               </div>
             )}
@@ -172,7 +174,7 @@ export function RefereeAccept() {
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-black uppercase tracking-widest text-sm transition-colors disabled:opacity-40"
                     >
                       {submitting === 'webauthn' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
-                      Co-firmar con huella
+                      {t('refereeAccept.cosignBiometric', 'Co-firmar con huella')}
                     </button>
                     <button
                       onClick={() => submit('standard')}
@@ -180,7 +182,7 @@ export function RefereeAccept() {
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-widest text-sm transition-colors disabled:opacity-40"
                     >
                       {submitting === 'standard' ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
-                      Co-firmar (estándar)
+                      {t('refereeAccept.cosignStandard', 'Co-firmar (estándar)')}
                     </button>
                     <button
                       onClick={() => submit('decline')}
@@ -188,7 +190,7 @@ export function RefereeAccept() {
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-black uppercase tracking-widest text-sm transition-colors disabled:opacity-40"
                     >
                       {submitting === 'decline' ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-                      Rechazar
+                      {t('refereeAccept.decline', 'Rechazar')}
                     </button>
                     {!isSupported && (
                       <p className="text-[10px] text-zinc-500 text-center">
@@ -220,8 +222,8 @@ export function RefereeAccept() {
                 className="flex flex-col items-center gap-3 py-6 text-center"
               >
                 <CheckCircle2 className="w-12 h-12 text-emerald-500" />
-                <p className="text-lg font-black text-white uppercase tracking-tight">Co-firma registrada</p>
-                <p className="text-sm text-zinc-400">Gracias por respaldar este claim.</p>
+                <p className="text-lg font-black text-white uppercase tracking-tight">{t('refereeAccept.signedTitle', 'Co-firma registrada')}</p>
+                <p className="text-sm text-zinc-400">{t('refereeAccept.signedBody', 'Gracias por respaldar este claim.')}</p>
               </motion.div>
             )}
             {submitted === 'declined' && (
@@ -231,8 +233,8 @@ export function RefereeAccept() {
                 className="flex flex-col items-center gap-3 py-6 text-center"
               >
                 <X className="w-12 h-12 text-rose-500" />
-                <p className="text-lg font-black text-white uppercase tracking-tight">Rechazo registrado</p>
-                <p className="text-sm text-zinc-400">El trabajador será notificado.</p>
+                <p className="text-lg font-black text-white uppercase tracking-tight">{t('refereeAccept.declinedTitle', 'Rechazo registrado')}</p>
+                <p className="text-sm text-zinc-400">{t('refereeAccept.declinedBody', 'El trabajador será notificado.')}</p>
               </motion.div>
             )}
           </div>

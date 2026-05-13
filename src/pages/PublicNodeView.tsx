@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -21,6 +22,7 @@ import { getNodeIcon, getNodeBadgeClass } from '../utils/nodeTypeUtils';
 import { logger } from '../utils/logger';
 
 export function PublicNodeView() {
+  const { t } = useTranslation();
   const { nodeId } = useParams<{ nodeId: string }>();
   const [node, setNode] = useState<RiskNode | null>(null);
   const [connections, setConnections] = useState<RiskNode[]>([]);
@@ -75,7 +77,7 @@ export function PublicNodeView() {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Validando Credenciales...</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('publicNode.validating', 'Validando Credenciales...')}</span>
         </div>
       </div>
     );
@@ -88,13 +90,13 @@ export function PublicNodeView() {
           <div className="w-20 h-20 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto">
             <AlertTriangle className="w-10 h-10 text-red-500" />
           </div>
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Acceso Denegado</h1>
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">{t('publicNode.accessDenied', 'Acceso Denegado')}</h1>
           <p className="text-zinc-500 text-sm leading-relaxed">
-            {error || 'El recurso solicitado no está disponible o ha sido restringido.'}
+            {error || t('publicNode.notAvailable', 'El recurso solicitado no está disponible o ha sido restringido.')}
           </p>
           <Link to="/" className="inline-flex items-center gap-2 text-emerald-500 font-black text-[10px] uppercase tracking-widest hover:text-emerald-400 transition-colors">
             <ArrowLeft className="w-4 h-4" />
-            Volver al Inicio
+            {t('publicNode.backHome', 'Volver al Inicio')}
           </Link>
         </div>
       </div>
@@ -111,13 +113,13 @@ export function PublicNodeView() {
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-white uppercase tracking-tighter">Praeventio Guard</h2>
-              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Verificación de Nodo</p>
+              <h2 className="text-sm font-black text-white uppercase tracking-tighter">{t('publicNode.brand', 'Praeventio Guard')}</h2>
+              <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{t('publicNode.subtitle', 'Verificación de Nodo')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
             <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Autenticado</span>
+            <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">{t('publicNode.authenticated', 'Autenticado')}</span>
           </div>
         </div>
       </div>
