@@ -99,6 +99,14 @@ import {
   verifyMercadoPagoIpnOidc,
   processMercadoPagoIpn,
 } from '../../services/billing/mercadoPagoIpn.js';
+// Sprint 49 D.8.b — DTE auto-issue orchestrator (pure decision). The wire
+// here only DECIDES + logs; queue persistence / PSE dispatch lands in
+// Sprint 50. NO push directo a SII — provider Bsale/PSE intermedio
+// (directiva 3 plan maestro). See dteAutoIssueOrchestrator.ts header.
+import {
+  decideDteIssue,
+  type DteIssueRequest,
+} from '../../services/dte/dteAutoIssueOrchestrator.js';
 import {
   verifyAndDecodeAppleSsn,
   applyAppleEntitlement,
@@ -663,6 +671,38 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
       userAgent: req.header('user-agent') ?? null,
     });
 
+    // Sprint 49 D.8.b — DTE auto-issue decision (placeholder).
+    // TODO Sprint 50 — connect to dteIssueQueue persister + PSE dispatch.
+    try {
+      const ownerUid: string | null = current?.createdBy ?? null;
+      const payerInfo = (current?.payerInfo ?? {}) as DteIssueRequest['payerInfo'];
+      const planCode: string =
+        current?.lineItems?.[0]?.tierId ?? current?.tierId ?? 'unknown';
+      if (ownerUid) {
+        const decision = decideDteIssue({
+          paymentId: `manual:${invoiceId}`,
+          tenantId: ownerUid,
+          payerInfo,
+          amountClp: typeof current?.totals?.total === 'number' ? current.totals.total : 0,
+          planCode,
+          paymentGateway: 'manual',
+          paidAt: new Date().toISOString(),
+        });
+        logger.info('dte_autoissue_decision', {
+          source: 'mark-paid',
+          invoiceId,
+          ownerUid,
+          shouldIssue: decision.shouldIssue,
+          documentKind: decision.documentKind,
+          reason: decision.reason,
+          idempotencyKey: decision.idempotencyKey,
+        });
+      }
+    } catch (dteErr) {
+      logger.error('dte_autoissue_decision_failed', dteErr as Error, { invoiceId });
+      sentryCapture(dteErr, { endpoint: 'billing.markPaid.dteAutoIssue', tags: { invoiceId } });
+    }
+
     res.json({ success: true });
   } catch (error: any) {
     logger.error('billing_mark_paid_failed', error, { uid: callerUid, invoiceId });
@@ -1019,6 +1059,54 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
         outcome: result.outcome,
         idempotencyKind: result.idempotencyKind,
       }).catch(() => {});
+
+      // Sprint 49 D.8.b — DTE auto-issue decision (placeholder).
+      // TODO Sprint 50 — connect to dteIssueQueue persister + PSE dispatch.
+      // Only run on 'paid' outcomes; refunds/rejected don't trigger DTE.
+      if (result.outcome === 'paid' && result.invoiceId) {
+        try {
+          const invoiceSnap = await admin
+            .firestore()
+            .collection('invoices')
+            .doc(result.invoiceId)
+            .get();
+          const invoiceData = invoiceSnap.data();
+          const ownerUid: string | null = invoiceData?.createdBy ?? null;
+          const payerInfo = (invoiceData?.payerInfo ?? {}) as DteIssueRequest['payerInfo'];
+          const planCode: string =
+            invoiceData?.lineItems?.[0]?.tierId ?? invoiceData?.tierId ?? 'unknown';
+          const amountClp =
+            typeof invoiceData?.totals?.total === 'number' ? invoiceData.totals.total : 0;
+          if (ownerUid) {
+            const decision = decideDteIssue({
+              paymentId: String(paymentId ?? result.invoiceId),
+              tenantId: ownerUid,
+              payerInfo,
+              amountClp,
+              planCode,
+              paymentGateway: 'mercadopago',
+              paidAt: new Date().toISOString(),
+            });
+            logger.info('dte_autoissue_decision', {
+              source: 'mercadopago-ipn',
+              invoiceId: result.invoiceId,
+              ownerUid,
+              shouldIssue: decision.shouldIssue,
+              documentKind: decision.documentKind,
+              reason: decision.reason,
+              idempotencyKey: decision.idempotencyKey,
+            });
+          }
+        } catch (dteErr) {
+          logger.error('dte_autoissue_decision_failed', dteErr as Error, {
+            invoiceId: result.invoiceId,
+          });
+          sentryCapture(dteErr, {
+            endpoint: 'billing.mp.dteAutoIssue',
+            tags: { invoiceId: result.invoiceId },
+          });
+        }
+      }
     }
     return res.status(200).json({ ok: true, ...result });
   } catch (err) {
@@ -1198,6 +1286,45 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
       });
+
+      // Sprint 49 D.8.b — DTE auto-issue decision (placeholder).
+      // TODO Sprint 50 — connect to dteIssueQueue persister + PSE dispatch.
+      // We deliberately only log the decision here so the wiring lands without
+      // creating server I/O risk before the queue store exists. The decision
+      // is fully pure; logging it lets ops see the funnel in advance.
+      try {
+        const invoiceSnap = await invoiceRef.get();
+        const invoiceData = invoiceSnap.data();
+        const ownerUid: string | null = invoiceData?.createdBy ?? null;
+        const payerInfo = (invoiceData?.payerInfo ?? {}) as DteIssueRequest['payerInfo'];
+        const planCode: string =
+          invoiceData?.lineItems?.[0]?.tierId ?? invoiceData?.tierId ?? 'unknown';
+        if (ownerUid) {
+          const decision = decideDteIssue({
+            paymentId: tokenWs,
+            tenantId: ownerUid,
+            payerInfo,
+            amountClp: typeof commit.amount === 'number' ? commit.amount : 0,
+            planCode,
+            paymentGateway: 'webpay',
+            paidAt: new Date().toISOString(),
+          });
+          logger.info('dte_autoissue_decision', {
+            source: 'webpay-return',
+            invoiceId,
+            ownerUid,
+            shouldIssue: decision.shouldIssue,
+            documentKind: decision.documentKind,
+            reason: decision.reason,
+            idempotencyKey: decision.idempotencyKey,
+          });
+        }
+      } catch (dteErr) {
+        // Never block the redirect on the DTE decision — it's advisory in
+        // this sprint. Capture so we can see the funnel health.
+        logger.error('dte_autoissue_decision_failed', dteErr as Error, { invoiceId });
+        sentryCapture(dteErr, { endpoint: 'billing.webpay.dteAutoIssue', tags: { invoiceId } });
+      }
     } else if (commit.status === 'REJECTED') {
       // Card-side decline. Invoice stays actionable — user may retry with a
       // different card. 'cancelled' is reserved for explicit user/admin
