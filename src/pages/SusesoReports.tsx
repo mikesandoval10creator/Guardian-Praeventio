@@ -23,6 +23,7 @@ import { handleFirestoreError, OperationType } from '../services/firebase';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { logger } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 import {
   SusesoApiClient,
   SusesoApiError,
@@ -36,6 +37,7 @@ import { useFirebase } from '../contexts/FirebaseContext';
 import { RegulatoryCitation } from '../components/shared/RegulatoryCitation';
 
 export function SusesoReports() {
+  const { t } = useTranslation();
   const { nodes } = useRiskEngine();
   const { selectedProject } = useProject();
   const [activeTab, setActiveTab] = useState<'DIAT' | 'DIEP' | 'ROI'>('DIAT');
@@ -241,8 +243,8 @@ export function SusesoReports() {
             <FileText className="w-6 h-6 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">Reportes SUSESO</h1>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Generación de DIAT y DIEP</p>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">{t('suseso.title', 'Reportes SUSESO')}</h1>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('suseso.subtitle', 'Generación de DIAT y DIEP')}</p>
           </div>
         </div>
         {/* Sprint 29 EE — citas normativas dinámicas. NONCONFORMITY_CORRECTIVE_ACTION
@@ -285,7 +287,7 @@ export function SusesoReports() {
         {activeTab === 'ROI' ? (
           <div className="lg:col-span-3 space-y-6">
             <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-              <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">Cálculo Financiero del Ahorro por Siniestralidad</h3>
+              <h3 className="text-lg font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">{t('suseso.roi.title', 'Cálculo Financiero del Ahorro por Siniestralidad')}</h3>
               <p className="text-sm text-zinc-500 mb-6">Estimación del Retorno de Inversión (ROI) basado en la prevención de incidentes y reducción de la tasa de siniestralidad.</p>
               
               {(() => {
@@ -338,7 +340,7 @@ export function SusesoReports() {
             {/* Selector Column */}
             <div className="lg:col-span-1 space-y-4">
           <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 shadow-sm">
-            <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">Seleccionar Incidente</h3>
+            <h3 className="text-xs font-black text-zinc-900 dark:text-white uppercase tracking-widest mb-4">{t('suseso.select.incident', 'Seleccionar Incidente')}</h3>
             
             <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
               {incidents.length === 0 ? (

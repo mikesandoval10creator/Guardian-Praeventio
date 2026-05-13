@@ -23,6 +23,7 @@ import {
   Brain
 } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
+import { useTranslation } from 'react-i18next';
 import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { useRiskEngine } from '../hooks/useRiskEngine';
 import { calculateDynamicEvacuationRoute, generateEmergencyPlan } from '../services/geminiService';
@@ -72,6 +73,7 @@ interface IoTEvent {
 }
 
 export function Evacuation() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { nodes, loading: nodesLoading } = useUniversalKnowledge();
   const { addNode } = useRiskEngine();
@@ -301,12 +303,12 @@ export function Evacuation() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-2 sm:gap-3 leading-tight">
             <MapIcon className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500" />
-            Mapa de Evacuación Dinámico
+            {t('evacuation.title', 'Mapa de Evacuación Dinámico')}
           </h1>
           <p className="text-[10px] sm:text-xs font-bold text-zinc-500 uppercase tracking-widest mt-1">
-            {selectedProject 
-              ? `Plan de evacuación inteligente para: ${selectedProject.name}`
-              : 'Gestión de rutas adaptativas basadas en el Grafo de Conocimiento'}
+            {selectedProject
+              ? t('evacuation.subtitle.project', { defaultValue: 'Plan de evacuación inteligente para: {{name}}', name: selectedProject.name })
+              : t('evacuation.subtitle.default', 'Gestión de rutas adaptativas basadas en el Grafo de Conocimiento')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
@@ -374,7 +376,7 @@ export function Evacuation() {
                     <Shield className="w-6 h-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">Plan de Emergencia (PE)</h2>
+                    <h2 className="text-xl font-black text-white uppercase tracking-tighter">{t('evacuation.plan.title', 'Plan de Emergencia (PE)')}</h2>
                     <p className="text-[10px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-2">
                       <span>Generado por El Guardián AI</span>
                       {/* Brecha B — badge SLM. Sólo aparece si el plan

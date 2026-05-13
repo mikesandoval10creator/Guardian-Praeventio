@@ -27,6 +27,7 @@ import {
   MonitorPlay
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useFirestoreCollection } from '../hooks/useFirestoreCollection';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -64,6 +65,7 @@ const getCriticalityTextColor = (criticidad?: string) => {
 };
 
 export function Matrix() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { isAdmin } = useFirebase();
   const { updateNode, addNode, deleteNode, nodes, loading } = useRiskEngine();
@@ -445,8 +447,8 @@ export function Matrix() {
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">Matriz IPERC IA</h1>
-          <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-[10px] sm:text-sm">Identificación de Peligros, Evaluación de Riesgos y Medidas de Control</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-white tracking-tight leading-tight">{t('matrix.title', 'Matriz IPERC IA')}</h1>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-[10px] sm:text-sm">{t('matrix.subtitle', 'Identificación de Peligros, Evaluación de Riesgos y Medidas de Control')}</p>
           {selectedProject?.industry && (
             <div className="mt-2 inline-flex items-center gap-2 px-2 py-1 rounded-md bg-blue-500/10 border border-blue-500/20">
               <Shield className="w-3 h-3 text-blue-600 dark:text-blue-400" />
@@ -476,14 +478,14 @@ export function Matrix() {
             className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all shadow-lg shadow-emerald-500/20 active:scale-95 text-[10px] sm:text-sm"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span>Manual</span>
+            <span>{t('matrix.action.manual', 'Manual')}</span>
           </button>
-          <button 
+          <button
             onClick={() => setIsPresenting(true)}
             className="flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white px-4 py-2.5 sm:py-2 rounded-xl font-medium transition-all border border-zinc-200 dark:border-white/10 active:scale-95 text-[10px] sm:text-sm"
           >
             <MonitorPlay className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden sm:inline">Modo Presentación</span>
+            <span className="hidden sm:inline">{t('matrix.action.presentation', 'Modo Presentación')}</span>
           </button>
         </div>
       </div>
@@ -495,7 +497,7 @@ export function Matrix() {
             <Shield className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
           </div>
           <div>
-            <h2 className="text-sm font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">Protocolos Dinámicos Activos</h2>
+            <h2 className="text-sm font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">{t('matrix.protocols.title', 'Protocolos Dinámicos Activos')}</h2>
             <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed">
               El sistema ha recalibrado automáticamente las exigencias de seguridad y parámetros de estrés para el sector <span className="font-bold text-zinc-900 dark:text-white">{selectedProject.industry || 'General'}</span>. Las matrices de riesgo y normativas aplicables se han ajustado al entorno operativo actual.
             </p>

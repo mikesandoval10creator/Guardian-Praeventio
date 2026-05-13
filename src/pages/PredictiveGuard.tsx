@@ -31,8 +31,10 @@ import { useUniversalKnowledge } from '../contexts/UniversalKnowledgeContext';
 import { generatePredictiveForecast } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { logger } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 export function PredictiveGuard() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const { nodes } = useRiskEngine();
   const { environment } = useUniversalKnowledge();
@@ -92,14 +94,14 @@ export function PredictiveGuard() {
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase tracking-widest mb-2">
             <Activity className="w-3 h-3" />
-            <span>Motor Predictivo Activo</span>
+            <span>{t('predictiveGuard.engineActive', 'Motor Predictivo Activo')}</span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
             <ShieldAlert className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-500" />
-            Guardián Predictivo
+            {t('predictiveGuard.title', 'Guardián Predictivo')}
           </h1>
           <p className="text-zinc-400 text-sm sm:text-base font-medium max-w-2xl">
-            Centro de control avanzado. Fusiona telemetría ambiental en tiempo real con análisis de riesgos mediante IA para anticipar incidentes antes de que ocurran.
+            {t('predictiveGuard.subtitle', 'Centro de control avanzado. Fusiona telemetría ambiental en tiempo real con análisis de riesgos mediante IA para anticipar incidentes antes de que ocurran.')}
           </p>
         </div>
         
@@ -133,7 +135,7 @@ export function PredictiveGuard() {
           <div className="w-24 h-24 rounded-full bg-zinc-800/50 flex items-center justify-center mb-6 shadow-inner">
             <MapPin className="w-10 h-10 text-zinc-500" />
           </div>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-3">Selecciona un Proyecto</h2>
+          <h2 className="text-2xl font-black text-white uppercase tracking-tighter mb-3">{t('predictiveGuard.selectProject.title', 'Selecciona un Proyecto')}</h2>
           <p className="text-zinc-400 text-base max-w-md">
             El motor predictivo requiere un contexto operativo. Selecciona un proyecto activo en el menú lateral para inicializar el análisis.
           </p>
@@ -155,7 +157,7 @@ export function PredictiveGuard() {
                   <Activity className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white uppercase tracking-widest">Telemetría Ambiental</h3>
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest">{t('predictiveGuard.telemetry.title', 'Telemetría Ambiental')}</h3>
                   <p className="text-[10px] text-zinc-400 font-medium tracking-wide">DATOS EN TIEMPO REAL</p>
                 </div>
               </div>

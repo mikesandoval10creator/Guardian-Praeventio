@@ -22,8 +22,10 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { logger } from '../utils/logger';
+import { useTranslation } from 'react-i18next';
 
 export function PTSGenerator() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const { selectedProject } = useProject();
   const { user } = useFirebase();
@@ -419,9 +421,9 @@ export function PTSGenerator() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">Generador de Documentos</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight">{t('pts.title', 'Generador de Documentos')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            PTS y Planes de Emergencia Asistidos por IA
+            {t('pts.subtitle', 'PTS y Planes de Emergencia Asistidos por IA')}
           </p>
         </div>
       </div>
@@ -439,7 +441,7 @@ export function PTSGenerator() {
                 <AlertTriangle className="w-6 h-6 text-rose-500 shrink-0 mt-1" />
                 <div>
                   <h3 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-2">
-                    Alerta Meteorológica
+                    {t('pts.weather.alert', 'Alerta Meteorológica')}
                   </h3>
                   <p className="text-xs text-rose-200 mb-4 leading-relaxed">
                     {dangerousWeather}

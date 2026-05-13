@@ -4,6 +4,7 @@ import { ShieldAlert, Wind, AlertTriangle, MapPin, Navigation, Info, Droplet, Lo
 import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polygon } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
+import { useTranslation } from 'react-i18next';
 
 const containerStyle = {
   width: '100%',
@@ -33,6 +34,7 @@ const getDestinationPoint = (lat: number, lng: number, distance: number, bearing
 };
 
 export function HazmatMap() {
+  const { t } = useTranslation();
   const [incidentLocation, setIncidentLocation] = useState({ lat: -33.4489, lng: -70.6693, name: 'Planta Química' });
   const [windDirection, setWindDirection] = useState(120); // Degrees (direction wind is blowing towards)
   const [windSpeed, setWindSpeed] = useState(15); // km/h
@@ -65,16 +67,16 @@ export function HazmatMap() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Droplet className="w-8 h-8 text-violet-500" />
-            Mapeo Hazmat
+            {t('hazmat.title', 'Mapeo Hazmat')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Radio de Exposición y Evacuación GRE
+            {t('hazmat.subtitle', 'Radio de Exposición y Evacuación GRE')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border text-violet-500 bg-violet-500/10 border-violet-500/20 flex items-center gap-2">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Protocolo Activo
+            {t('hazmat.status.active', 'Protocolo Activo')}
           </span>
         </div>
       </div>
@@ -84,7 +86,7 @@ export function HazmatMap() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Navigation className="w-5 h-5 text-blue-500" />
-            Parámetros del Incidente
+            {t('hazmat.params.title', 'Parámetros del Incidente')}
           </h2>
 
           <div className="space-y-4">
