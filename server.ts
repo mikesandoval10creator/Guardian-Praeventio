@@ -498,6 +498,11 @@ app.use('/api', reportsRouter);
 // `/api/suseso` so verify/:folio resolves cleanly from the QR codes embedded
 // in printed PDFs. Closes audit hallazgo H28 (P1).
 app.use('/api/suseso', susesoRouter);
+// Sprint 49 D.8.a — mirror the public verify endpoint under `/api/public/...`
+// so it can be allow-listed at the WAF/CDN tier without exposing the
+// admin-gated `/api/suseso/*` surface. The router lookup for the same path
+// is idempotent — GET /verify/:folio resolves identically from both mounts.
+app.use('/api/public/suseso', susesoRouter);
 
 // OAuth Configuration (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / SCOPES) and
 // the 8 Google OAuth endpoints (calendar, fitness, drive, unlink, /url +
