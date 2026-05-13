@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Cloud, HardDrive, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, FileText, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -11,6 +12,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function GoogleDriveIntegrationManager() {
+  const { t } = useTranslation();
   const [isLinked, setIsLinked] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -98,16 +100,16 @@ export function GoogleDriveIntegrationManager() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Cloud className="w-8 h-8 text-blue-500" />
-            Workspace Sync
+            {t('googleDrive.title', 'Workspace Sync')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Sincronización Bidireccional Segura
+            {t('googleDrive.subtitle', 'Sincronización Bidireccional Segura')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-blue-500 bg-blue-500/10 border-blue-500/20">
           <Lock className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            OAuth 2.0 Estricto
+            {t('googleDrive.oauthBadge', 'OAuth 2.0 Estricto')}
           </span>
         </div>
       </div>
@@ -117,7 +119,7 @@ export function GoogleDriveIntegrationManager() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <HardDrive className="w-5 h-5 text-blue-500" />
-            Estado de Conexión
+            {t('googleDrive.connectionStatus', 'Estado de Conexión')}
           </h2>
 
           <div className={`p-6 rounded-2xl border-2 transition-colors ${isLinked ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50'}`}>
@@ -126,9 +128,9 @@ export function GoogleDriveIntegrationManager() {
                 <Cloud className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-white">Google Drive Corporativo</h3>
+                <h3 className="text-lg font-bold text-white">{t('googleDrive.corporateDrive', 'Google Drive Corporativo')}</h3>
                 <p className="text-sm text-zinc-400">
-                  {isLinked ? 'Conectado y Autorizado' : 'No conectado'}
+                  {isLinked ? t('googleDrive.connected', 'Conectado y Autorizado') : t('googleDrive.notConnected', 'No conectado')}
                 </p>
               </div>
             </div>
@@ -143,12 +145,12 @@ export function GoogleDriveIntegrationManager() {
               {isSyncing ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                  Autorizando...
+                  {t('googleDrive.authorizing', 'Autorizando...')}
                 </>
               ) : (
                 <>
                   <Lock className="w-5 h-5 mr-2" />
-                  Vincular Cuenta (OAuth)
+                  {t('googleDrive.linkAccount', 'Vincular Cuenta (OAuth)')}
                 </>
               )}
             </Button>

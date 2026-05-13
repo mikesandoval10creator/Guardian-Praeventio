@@ -8,6 +8,7 @@
 // Si en futuro se agrega un asesor dinámico ("¿qué hago ante hipotermia
 // en altura?"), ahí va el wire `useSlmOffline`. Ver `docs/slm-offline.md`.
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Mountain, ThermometerSnowflake, Wind, Sun, CloudLightning, AlertTriangle, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card } from '../components/shared/Card';
@@ -20,6 +21,7 @@ interface GuideSection {
 }
 
 export function InhospitableGuide() {
+  const { t } = useTranslation();
   const [openSection, setOpenSection] = useState<string | null>('hipotermia');
 
   const toggleSection = (id: string) => {
@@ -127,22 +129,22 @@ export function InhospitableGuide() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Mountain className="w-8 h-8 text-zinc-400" />
-            Guía Inhóspita
+            {t('inhospitableGuide.title', 'Guía Inhóspita')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Protocolos de Supervivencia Offline
+            {t('inhospitableGuide.subtitle', 'Protocolos de Supervivencia Offline')}
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">Disponible Offline</span>
+          <span className="text-xs font-bold text-emerald-500 uppercase tracking-wider">{t('inhospitableGuide.offlineBadge', 'Disponible Offline')}</span>
         </div>
       </div>
 
       <div className="bg-zinc-800/50 border border-white/10 rounded-2xl p-4 flex items-start gap-3">
         <Info className="w-5 h-5 text-zinc-400 shrink-0 mt-0.5" />
         <p className="text-sm text-zinc-300">
-          Esta guía está diseñada para ser consultada sin conexión a internet. Contiene los protocolos críticos de supervivencia para entornos geográficos extremos.
+          {t('inhospitableGuide.intro', 'Esta guía está diseñada para ser consultada sin conexión a internet. Contiene los protocolos críticos de supervivencia para entornos geográficos extremos.')}
         </p>
       </div>
 

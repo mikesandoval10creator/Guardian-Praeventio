@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Database, ShieldAlert, CheckCircle2, AlertTriangle, RefreshCw, Server, ArrowRightLeft, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -8,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function ERPIntegration() {
+  const { t } = useTranslation();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const { toasts, show: showToast, dismiss } = useToast();
@@ -46,16 +48,16 @@ export function ERPIntegration() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Server className="w-8 h-8 text-blue-500" />
-            Integración ERP / RRHH
+            {t('erpIntegration.title', 'Integración ERP / RRHH')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            API-First: Sincronización con SAP, Buk, Talana
+            {t('erpIntegration.subtitle', 'API-First: Sincronización con SAP, Buk, Talana')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-blue-500 bg-blue-500/10 border-blue-500/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Nivel: Enterprise
+            {t('erpIntegration.tierBadge', 'Nivel: Enterprise')}
           </span>
         </div>
       </div>
@@ -65,7 +67,7 @@ export function ERPIntegration() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ArrowRightLeft className="w-5 h-5 text-blue-500" />
-            Sincronización de Datos
+            {t('erpIntegration.syncSection', 'Sincronización de Datos')}
           </h2>
 
           <div className="space-y-4">
@@ -127,7 +129,7 @@ export function ERPIntegration() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Lock className="w-5 h-5 text-blue-500" />
-            Configuración API REST
+            {t('erpIntegration.apiConfigSection', 'Configuración API REST')}
           </h2>
 
           <div className="space-y-4">

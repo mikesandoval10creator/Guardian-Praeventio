@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FileText, ArrowLeft, Download, Loader2, AlertTriangle } from 'lucide-react';
@@ -8,6 +9,7 @@ import { useProject } from '../contexts/ProjectContext';
 import { logger } from '../utils/logger';
 
 export function DocumentViewer() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { selectedProject } = useProject();
@@ -52,13 +54,13 @@ export function DocumentViewer() {
       <div className="p-6 max-w-7xl mx-auto">
         <div className="bg-red-500/10 border border-red-500/20 rounded-3xl p-8 text-center">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter mb-2">Error</h2>
-          <p className="text-zinc-600 dark:text-zinc-400">{error || 'Documento no encontrado'}</p>
-          <button 
+          <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter mb-2">{t('documentViewer.errorTitle', 'Error')}</h2>
+          <p className="text-zinc-600 dark:text-zinc-400">{error || t('documentViewer.notFound', 'Documento no encontrado')}</p>
+          <button
             onClick={() => navigate('/documents')}
             className="mt-6 px-6 py-3 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white rounded-xl text-sm font-bold transition-colors"
           >
-            Volver a Documentos
+            {t('documentViewer.backToDocuments', 'Volver a Documentos')}
           </button>
         </div>
       </div>
@@ -93,7 +95,7 @@ export function DocumentViewer() {
               className="w-full sm:w-auto justify-center px-4 py-2.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-colors"
             >
               <Download className="w-4 h-4" />
-              Descargar Original
+              {t('documentViewer.downloadOriginal', 'Descargar Original')}
             </a>
           )}
         </div>
@@ -145,7 +147,7 @@ export function DocumentViewer() {
             ) : (
               <div className="text-center py-10 sm:py-20">
                 <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-3 sm:mb-4" />
-                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium px-4">Este tipo de archivo no se puede previsualizar directamente.</p>
+                <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium px-4">{t('documentViewer.cannotPreview', 'Este tipo de archivo no se puede previsualizar directamente.')}</p>
                 <a 
                   href={document.url}
                   target="_blank"
@@ -153,7 +155,7 @@ export function DocumentViewer() {
                   className="inline-flex items-center gap-2 mt-4 text-emerald-600 hover:text-emerald-700 font-bold text-xs sm:text-sm"
                 >
                   <Download className="w-4 h-4" />
-                  Descargar Archivo
+                  {t('documentViewer.downloadFile', 'Descargar Archivo')}
                 </a>
               </div>
             )}
@@ -161,7 +163,7 @@ export function DocumentViewer() {
         ) : (
           <div className="text-center py-10 sm:py-20">
             <FileText className="w-12 h-12 sm:w-16 sm:h-16 text-zinc-300 dark:text-zinc-700 mx-auto mb-3 sm:mb-4" />
-            <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium px-4">Este documento no tiene contenido estructurado ni archivo para visualizar.</p>
+            <p className="text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-medium px-4">{t('documentViewer.noContent', 'Este documento no tiene contenido estructurado ni archivo para visualizar.')}</p>
           </div>
         )}
       </motion.div>

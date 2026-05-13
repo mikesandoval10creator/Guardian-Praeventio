@@ -7,6 +7,7 @@
 // R16 follow-up: append-only firestore.rules para gamification_scores.
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Wrench, Shield, AlertTriangle, CheckCircle2, Loader2, Trophy, Clock } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -77,6 +78,7 @@ export function ClawMachine() {
 }
 
 function ClawMachineInner() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const [scenario, setScenario] = useState<Scenario>(() => pickRandomScenario());
@@ -157,9 +159,9 @@ function ClawMachineInner() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <Wrench className="w-7 h-7 text-fuchsia-500" /> Drill de Respuesta — EPP
+            <Wrench className="w-7 h-7 text-fuchsia-500" /> {t('clawMachine.title', 'Drill de Respuesta — EPP')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">DS 594 · Ley 16.744</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('clawMachine.subtitle', 'DS 594 · Ley 16.744')}</p>
         </div>
         <div className="px-4 py-2 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-400 font-bold flex items-center gap-2">
           <Trophy className="w-4 h-4" /> {score} pts
@@ -195,15 +197,15 @@ function ClawMachineInner() {
         </div>
 
         {phase === 'playing' && (
-          <Button onClick={finish} className="w-full">Confirmar selección</Button>
+          <Button onClick={finish} className="w-full">{t('clawMachine.confirmSelection', 'Confirmar selección')}</Button>
         )}
 
         {(phase === 'review' || phase === 'saving' || phase === 'saved') && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
             <div className="grid grid-cols-3 gap-2 text-xs">
-              <Stat label="Correctos" value={correct.length} cls="text-emerald-400" />
-              <Stat label="Incorrectos" value={wrong.length} cls="text-rose-400" />
-              <Stat label="Faltantes" value={missed.length} cls="text-amber-400" />
+              <Stat label={t('clawMachine.correct', 'Correctos')} value={correct.length} cls="text-emerald-400" />
+              <Stat label={t('clawMachine.incorrect', 'Incorrectos')} value={wrong.length} cls="text-rose-400" />
+              <Stat label={t('clawMachine.missed', 'Faltantes')} value={missed.length} cls="text-amber-400" />
             </div>
             {missed.length > 0 && (
               <div className="text-xs text-amber-300 flex items-start gap-2">
@@ -212,11 +214,11 @@ function ClawMachineInner() {
               </div>
             )}
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button variant="secondary" onClick={next}>Siguiente escenario</Button>
+              <Button variant="secondary" onClick={next}>{t('clawMachine.nextScenario', 'Siguiente escenario')}</Button>
               <Button onClick={persist} disabled={phase !== 'review'}>
-                {phase === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando…</> :
-                 phase === 'saved' ? <><CheckCircle2 className="w-4 h-4 mr-2" />Guardado</> :
-                 'Guardar puntaje'}
+                {phase === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />{t('clawMachine.saving', 'Guardando…')}</> :
+                 phase === 'saved' ? <><CheckCircle2 className="w-4 h-4 mr-2" />{t('clawMachine.saved', 'Guardado')}</> :
+                 t('clawMachine.saveScore', 'Guardar puntaje')}
               </Button>
             </div>
             {savedDoc && (

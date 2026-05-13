@@ -15,6 +15,7 @@
 // mapas reales) queda como follow-up.
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Route, Loader2, CheckCircle2, Clock, Trophy, Target } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -80,6 +81,7 @@ export function PoolGame() {
 }
 
 function PoolGameInner() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -188,13 +190,13 @@ function PoolGameInner() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <Route className="w-7 h-7 text-violet-400" /> Drill de Evacuación
+            <Route className="w-7 h-7 text-violet-400" /> {t('poolGame.title', 'Drill de Evacuación')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">DS 594 · NCh 2189</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('poolGame.subtitle', 'DS 594 · NCh 2189')}</p>
         </div>
         {savedDoc && (
           <div className="px-4 py-2 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 font-bold flex items-center gap-2">
-            <Trophy className="w-4 h-4" /> Mejor: {savedDoc.bestScore}
+            <Trophy className="w-4 h-4" /> {t('poolGame.best', 'Mejor')}: {savedDoc.bestScore}
           </div>
         )}
       </div>
@@ -215,14 +217,14 @@ function PoolGameInner() {
         />
         <div className="flex flex-wrap gap-2">
           <Button onClick={verify} disabled={waypoints.length === 0 || phase !== 'planning'}>
-            <Target className="w-4 h-4 mr-2" /> Verificar ruta
+            <Target className="w-4 h-4 mr-2" /> {t('poolGame.verifyRoute', 'Verificar ruta')}
           </Button>
-          <Button variant="secondary" onClick={reset}>Reiniciar</Button>
+          <Button variant="secondary" onClick={reset}>{t('poolGame.reset', 'Reiniciar')}</Button>
           {verdict?.ok && (
             <Button onClick={persist} disabled={phase === 'saving' || phase === 'saved'}>
-              {phase === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Guardando…</> :
-               phase === 'saved' ? <><CheckCircle2 className="w-4 h-4 mr-2" />Guardado</> :
-               'Guardar tiempo'}
+              {phase === 'saving' ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />{t('poolGame.saving', 'Guardando…')}</> :
+               phase === 'saved' ? <><CheckCircle2 className="w-4 h-4 mr-2" />{t('poolGame.saved', 'Guardado')}</> :
+               t('poolGame.saveTime', 'Guardar tiempo')}
             </Button>
           )}
         </div>
@@ -231,12 +233,12 @@ function PoolGameInner() {
             className={`p-4 rounded-xl border text-sm ${verdict.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
             {verdict.ok ? (
               <div className="flex flex-wrap items-center gap-4">
-                <span className="font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Ruta válida</span>
+                <span className="font-bold flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> {t('poolGame.validRoute', 'Ruta válida')}</span>
                 <span className="text-xs flex items-center gap-1"><Clock className="w-3 h-3" /> {verdict.seconds}s</span>
-                <span className="text-xs">Distancia: {verdict.distance}u</span>
+                <span className="text-xs">{t('poolGame.distance', 'Distancia')}: {verdict.distance}u</span>
               </div>
             ) : (
-              <span>Ruta bloqueada — la trayectoria cruza un obstáculo o no termina en la salida.</span>
+              <span>{t('poolGame.blockedRoute', 'Ruta bloqueada — la trayectoria cruza un obstáculo o no termina en la salida.')}</span>
             )}
           </motion.div>
         )}

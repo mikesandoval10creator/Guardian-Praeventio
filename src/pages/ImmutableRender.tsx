@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Printer, ShieldAlert, FileText, Download, CheckCircle2, AlertTriangle, FileCheck, Lock } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function ImmutableRender() {
+  const { t } = useTranslation();
   const [isRendering, setIsRendering] = useState(false);
   const [renderComplete, setRenderComplete] = useState(false);
 
@@ -34,16 +36,16 @@ export function ImmutableRender() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Printer className="w-8 h-8 text-fuchsia-500" />
-            Renderizado Inmutable
+            {t('immutableRender.title', 'Renderizado Inmutable')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Generación de PDFs con Valor Legal (Puppeteer)
+            {t('immutableRender.subtitle', 'Generación de PDFs con Valor Legal (Puppeteer)')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20">
           <Lock className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Firma Digital
+            {t('immutableRender.digitalSignature', 'Firma Digital')}
           </span>
         </div>
       </div>
@@ -53,7 +55,7 @@ export function ImmutableRender() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <FileCheck className="w-5 h-5 text-fuchsia-500" />
-            Documentos Disponibles
+            {t('immutableRender.availableDocs', 'Documentos Disponibles')}
           </h2>
 
           <div className="space-y-3">
@@ -99,12 +101,12 @@ export function ImmutableRender() {
             {isRendering ? (
               <>
                 <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
-                Renderizando en Cloud...
+                {t('immutableRender.renderingCloud', 'Renderizando en Cloud...')}
               </>
             ) : (
               <>
                 <Printer className="w-5 h-5 mr-2" />
-                Generar PDF Inmutable
+                {t('immutableRender.generatePdf', 'Generar PDF Inmutable')}
               </>
             )}
           </Button>
@@ -114,7 +116,7 @@ export function ImmutableRender() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-fuchsia-500" />
-            Estado del Proceso
+            {t('immutableRender.processStatus', 'Estado del Proceso')}
           </h2>
 
           {!isRendering && !renderComplete && (

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Key, ShieldAlert, CheckCircle2, AlertTriangle, Building, Users, Lock, ChevronRight } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function SSOConfig() {
+  const { t } = useTranslation();
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
 
@@ -32,16 +34,16 @@ export function SSOConfig() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Key className="w-8 h-8 text-violet-500" />
-            Single Sign-On (SSO)
+            {t('ssoConfig.title', 'Single Sign-On (SSO)')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Autenticación Corporativa SAML / OIDC
+            {t('ssoConfig.subtitle', 'Autenticación Corporativa SAML / OIDC')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-violet-500 bg-violet-500/10 border-violet-500/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Nivel: Enterprise
+            {t('ssoConfig.tierBadge', 'Nivel: Enterprise')}
           </span>
         </div>
       </div>
@@ -51,7 +53,7 @@ export function SSOConfig() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Building className="w-5 h-5 text-violet-500" />
-            Proveedores de Identidad (IdP)
+            {t('ssoConfig.providersSection', 'Proveedores de Identidad (IdP)')}
           </h2>
 
           <div className="space-y-3">
@@ -70,7 +72,7 @@ export function SSOConfig() {
                   </div>
                 </div>
                 {isConfigured ? (
-                  <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">Activo</span>
+                  <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded">{t('ssoConfig.active', 'Activo')}</span>
                 ) : (
                   <ChevronRight className="w-5 h-5 text-zinc-500" />
                 )}
@@ -115,12 +117,12 @@ export function SSOConfig() {
               {isConfiguring ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
-                  Configurando Metadatos...
+                  {t('ssoConfig.configuringMetadata', 'Configurando Metadatos...')}
                 </>
               ) : (
                 <>
                   <Key className="w-5 h-5 mr-2" />
-                  Configurar Azure AD
+                  {t('ssoConfig.configureAzure', 'Configurar Azure AD')}
                 </>
               )}
             </Button>

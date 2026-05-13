@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Brain, Upload, FileText, CheckCircle2, Loader2, Sparkles, Database, AlertTriangle, WifiOff } from 'lucide-react';
 import { useRiskEngine } from '../hooks/useRiskEngine';
@@ -11,6 +12,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function KnowledgeIngestion() {
+  const { t } = useTranslation();
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -88,9 +90,9 @@ export function KnowledgeIngestion() {
             <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20 shrink-0">
               <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Entrenamiento IA</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('knowledgeIngestion.title', 'Entrenamiento IA')}</h1>
           </div>
-          <p className="text-zinc-500 font-medium text-[10px] sm:text-sm md:text-base">Ingesta de Conocimiento y Creación de Nodos Maestros</p>
+          <p className="text-zinc-500 font-medium text-[10px] sm:text-sm md:text-base">{t('knowledgeIngestion.subtitle', 'Ingesta de Conocimiento y Creación de Nodos Maestros')}</p>
         </div>
       </header>
 
@@ -100,7 +102,7 @@ export function KnowledgeIngestion() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                 <FileText className="w-5 h-5 text-emerald-500" />
-                Manual de Prevención / Normativa
+                {t('knowledgeIngestion.manualSection', 'Manual de Prevención / Normativa')}
               </h2>
               <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded">RAG System</span>
             </div>
@@ -123,7 +125,7 @@ export function KnowledgeIngestion() {
               <div className="flex items-center gap-3">
                 <label className="cursor-pointer flex items-center gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
                   {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                  {isUploading ? 'Cargando...' : 'Cargar Archivo (TXT)'}
+                  {isUploading ? t('knowledgeIngestion.uploading', 'Cargando...') : t('knowledgeIngestion.uploadFile', 'Cargar Archivo (TXT)')}
                   <input 
                     type="file" 
                     accept=".txt,.md,.json" 
@@ -144,17 +146,17 @@ export function KnowledgeIngestion() {
                   {!isOnline ? (
                     <>
                       <WifiOff className="w-4 h-4" />
-                      Requiere Conexión
+                      {t('knowledgeIngestion.requiresConnection', 'Requiere Conexión')}
                     </>
                   ) : isProcessing ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Procesando...
+                      {t('knowledgeIngestion.processing', 'Procesando...')}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      Asimilar Conocimiento
+                      {t('knowledgeIngestion.assimilate', 'Asimilar Conocimiento')}
                     </>
                   )}
                 </button>

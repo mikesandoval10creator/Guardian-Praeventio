@@ -33,6 +33,7 @@
 //   }
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Lightbulb, AlertTriangle, CheckCircle2, Plus, Loader2, FileCheck } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -80,6 +81,7 @@ export function LightPollutionAudit() {
 }
 
 function LightPollutionAuditInner() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const [area, setArea] = useState('');
@@ -148,29 +150,29 @@ function LightPollutionAuditInner() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white uppercase tracking-tighter flex items-center gap-3">
-            <Lightbulb className="w-7 h-7 text-amber-400" /> Auditoría de Iluminación
+            <Lightbulb className="w-7 h-7 text-amber-400" /> {t('lightAudit.title', 'Auditoría de Iluminación')}
           </h1>
-          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">DS 594 Art. 103</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mt-1">{t('lightAudit.subtitle', 'DS 594 Art. 103')}</p>
         </div>
         <div className={`px-4 py-2 rounded-xl border font-bold uppercase text-xs tracking-widest flex items-center gap-2 ${
           readings.length === 0 ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-400' :
           compliant ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
                       'bg-rose-500/10 border-rose-500/20 text-rose-400'
         }`}>
-          {readings.length === 0 ? 'Sin mediciones' : compliant ? 'Cumple' : 'No cumple'}
+          {readings.length === 0 ? t('lightAudit.noMeasurements', 'Sin mediciones') : compliant ? t('lightAudit.compliant', 'Cumple') : t('lightAudit.nonCompliant', 'No cumple')}
         </div>
       </div>
 
       <Card className="p-6 space-y-4 border-white/5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Área auditada</label>
+            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{t('lightAudit.areaLabel', 'Área auditada')}</label>
             <input value={area} onChange={e => setArea(e.target.value)}
               placeholder="Ej: Bodega A — pasillo central"
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Categoría de tarea</label>
+            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">{t('lightAudit.categoryLabel', 'Categoría de tarea')}</label>
             <select value={category} onChange={e => setCategory(e.target.value as TaskCat)}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500">
               {(Object.keys(TASK_THRESHOLDS) as TaskCat[]).map(k => (
@@ -186,7 +188,7 @@ function LightPollutionAuditInner() {
             placeholder="Lectura en lux (sensor o luxómetro)"
             className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-amber-500"
             onKeyDown={e => { if (e.key === 'Enter') addReading(); }} />
-          <Button onClick={addReading} disabled={!draft}><Plus className="w-4 h-4 mr-1" /> Agregar</Button>
+          <Button onClick={addReading} disabled={!draft}><Plus className="w-4 h-4 mr-1" /> {t('lightAudit.addReading', 'Agregar')}</Button>
         </div>
 
         {readings.length > 0 && (

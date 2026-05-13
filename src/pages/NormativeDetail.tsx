@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -35,6 +36,7 @@ interface Normative {
 }
 
 export function NormativeDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [normative, setNormative] = useState<Normative | null>(null);
@@ -103,12 +105,12 @@ export function NormativeDetail() {
   if (!normative) {
     return (
       <div className="p-6 max-w-7xl mx-auto text-center py-20">
-        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-4">Normativa no encontrada</h2>
-        <button 
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-4">{t('normativeDetail.notFound', 'Normativa no encontrada')}</h2>
+        <button
           onClick={() => navigate('/normatives')}
           className="text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 font-medium"
         >
-          Volver a la biblioteca
+          {t('normativeDetail.backToLibrary', 'Volver a la biblioteca')}
         </button>
       </div>
     );

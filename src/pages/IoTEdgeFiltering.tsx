@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Cpu, Activity, ShieldAlert, AlertTriangle, Wifi, WifiOff, Database, Server, Info } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
 
 export function IoTEdgeFiltering() {
+  const { t } = useTranslation();
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [telemetry, setTelemetry] = useState<any[]>([]);
@@ -53,16 +55,16 @@ export function IoTEdgeFiltering() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Cpu className="w-8 h-8 text-indigo-500" />
-            IoT Edge Filtering
+            {t('iotEdge.title', 'IoT Edge Filtering')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Telemetría de Alta Frecuencia (MQTT)
+            {t('iotEdge.subtitle', 'Telemetría de Alta Frecuencia (MQTT)')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-indigo-500 bg-indigo-500/10 border-indigo-500/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Nivel: Enterprise
+            {t('iotEdge.tierBadge', 'Nivel: Enterprise')}
           </span>
         </div>
       </div>
@@ -72,7 +74,7 @@ export function IoTEdgeFiltering() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Server className="w-5 h-5 text-indigo-500" />
-            Broker MQTT
+            {t('iotEdge.brokerSection', 'Broker MQTT')}
           </h2>
 
           <div className="space-y-4">
@@ -127,7 +129,7 @@ export function IoTEdgeFiltering() {
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-indigo-500" />
-              Stream de Datos (Tiempo Real)
+              {t('iotEdge.streamSection', 'Stream de Datos (Tiempo Real)')}
             </h2>
             {isConnected && (
               <span className="flex items-center gap-2 text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full">
@@ -141,7 +143,7 @@ export function IoTEdgeFiltering() {
             {!isConnected ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
                 <Database className="w-12 h-12 text-zinc-800 mb-4" />
-                <p className="text-sm text-zinc-500">Esperando conexión al broker MQTT...</p>
+                <p className="text-sm text-zinc-500">{t('iotEdge.waitingBroker', 'Esperando conexión al broker MQTT...')}</p>
               </div>
             ) : (
               <div className="p-4 font-mono text-xs space-y-2 overflow-y-auto h-full">
