@@ -156,6 +156,86 @@ describe('verifyEfficacy', () => {
   });
 });
 
+describe('Codex P2 fixes (PR #127)', () => {
+  it('window incompleto (now < windowEnd) sin reincidencias → NO ratify', () => {
+    // closedAt = 2 de mayo, window 30d → fin = 1 de junio. NOW = 12 de mayo.
+    const r = verifyEfficacy(
+      baseInput({
+        window: defaultPostActionWindow('2026-05-02T10:00:00Z', [], { controlVerificationsCount: 3 }),
+      }),
+      { now: NOW },
+    );
+    expect(r.verdict).not.toBe('effective');
+    expect(r.reopenTriggers).toContain('window_incomplete');
+  });
+
+  it('1 reincidencia sin sameLocation/sameCrew/severity → NO ratify (score sale de "effective")', () => {
+    const r = verifyEfficacy(
+      baseInput({
+        window: defaultPostActionWindow(
+          '2026-04-12T10:00:00Z',
+          [
+            {
+              incidentId: 'inc-x',
+              occurredAt: '2026-04-20T10:00:00Z',
+              sameLocation: false,
+              sameCrew: false,
+              severity: 'medium',
+            },
+          ],
+          { controlVerificationsCount: 3 },
+        ),
+      }),
+      { now: NOW },
+    );
+    expect(r.verdict).not.toBe('effective');
+    expect(r.recommendation).not.toBe('ratify_close');
+  });
+
+  it('partially_effective con severity escalated → investigate_root_cause_again (no extend)', () => {
+    const r = verifyEfficacy(
+      baseInput({
+        window: defaultPostActionWindow(
+          '2026-04-12T10:00:00Z',
+          [
+            {
+              incidentId: 'inc-x',
+              occurredAt: '2026-04-20T10:00:00Z',
+              sameLocation: false,
+              sameCrew: false,
+              severity: 'high',
+            },
+          ],
+          { controlVerificationsCount: 5 },
+        ),
+      }),
+      { now: NOW },
+    );
+    expect(r.reopenTriggers).toContain('severity_escalated');
+    expect(r.recommendation).toBe('investigate_root_cause_again');
+  });
+
+  it('exceptionsRaised >0 sin incidentes → score baja + reopen trigger', () => {
+    const r = verifyEfficacy(
+      baseInput({
+        window: defaultPostActionWindow('2026-04-12T10:00:00Z', [], {
+          controlVerificationsCount: 4,
+          exceptionsRaised: 3,
+        }),
+      }),
+      { now: NOW },
+    );
+    expect(r.score).toBeLessThan(100);
+    expect(r.reopenTriggers.some((x) => /^exceptions:/.test(x))).toBe(true);
+  });
+
+  it('no actions registradas → recomienda reopen, NO extend window', () => {
+    const r = verifyEfficacy(baseInput({ actions: [] }), { now: NOW });
+    expect(r.reopenTriggers).toContain('no_actions_recorded');
+    expect(r.recommendation).toBe('reopen_repeat_action');
+  });
+});
+
 describe('defaultPostActionWindow', () => {
   it('genera ventana de 30 días desde closedAt', () => {
     const w = defaultPostActionWindow('2026-04-12T10:00:00Z');

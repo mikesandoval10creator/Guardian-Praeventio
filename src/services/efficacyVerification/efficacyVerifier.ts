@@ -158,6 +158,12 @@ export function verifyEfficacy(
   const reasons: string[] = [];
   const reopenTriggers: string[] = [];
 
+  // Codex P2 PR #127: si `now < windowEnd`, la ventana de observación no
+  // ha terminado y NO debe retornar 'effective'. Forzamos veredicto
+  // 'inconclusive' + recomendación extend_observation_window.
+  const windowEndMs = Date.parse(input.window.windowEnd);
+  const windowComplete = now.getTime() >= windowEndMs;
+
   // 1. Recurrencia en la misma ubicación / crew
   const recurrences = input.window.recurrenceIncidents;
   const sameLocationCount = recurrences.filter((r) => r.sameLocation).length;
@@ -182,7 +188,10 @@ export function verifyEfficacy(
   // ── Score
   let score = 100;
   if (recurrences.length > 0) {
-    const penalty = Math.min(60, recurrences.length * 15);
+    // Codex P2 PR #127: cualquier reincidencia (aun sin location/crew/sev
+    // match) debe sacar el score de la zona 'effective' (≥80). Bumpeamos
+    // penalty a 25 por reincidencia para que 1 sola caída deje score=75.
+    const penalty = Math.min(75, recurrences.length * 25);
     score -= penalty;
     reasons.push(`${recurrences.length} reincidencia(s) del mismo riesgo en la ventana.`);
     reopenTriggers.push(`recurrence:${recurrences.length}`);
@@ -208,12 +217,35 @@ export function verifyEfficacy(
     score -= 5;
     reasons.push('Sin verificaciones periódicas del control registradas en la ventana.');
   }
+  // Codex P2 PR #127: exceptionsRaised es un negative leading indicator
+  // (desviaciones del control). Si hay >0 deben bajar el score aunque
+  // no haya incidentes todavía.
+  const exceptionsRaised = leading.exceptionsRaised ?? 0;
+  if (exceptionsRaised > 0) {
+    const exceptionsPenalty = Math.min(20, exceptionsRaised * 5);
+    score -= exceptionsPenalty;
+    reasons.push(`${exceptionsRaised} excepción(es)/desviación(es) al control en la ventana.`);
+    reopenTriggers.push(`exceptions:${exceptionsRaised}`);
+  }
   if (input.actions.length === 0) {
-    score = Math.min(score, 30);
+    // Codex P2 PR #127: sin acciones, extender la ventana no sirve —
+    // hay que pedir reopen/repeat. Bajamos score por debajo del umbral
+    // 'inconclusive' (30) para que la rama 'ineffective' se active.
+    score = Math.min(score, 25);
     reasons.push('No hay acciones correctivas asociadas — no se puede medir eficacia.');
     reopenTriggers.push('no_actions_recorded');
   }
   score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // Codex P2 PR #127: si la ventana de observación aún no ha terminado,
+  // forzamos 'inconclusive' independiente del score — un ratify
+  // prematuro sería un bug grave (cierra una acción antes de saber si
+  // funcionó). Aplica solo cuando NO hay señales tempranas malas.
+  if (!windowComplete && score >= 80 && recurrences.length === 0 && exceptionsRaised === 0) {
+    score = Math.min(score, 60);
+    reasons.push('Ventana de observación todavía no se completa — veredicto preliminar inconclusive.');
+    reopenTriggers.push('window_incomplete');
+  }
 
   // ── Verdict
   let verdict: EfficacyVerdict;
@@ -228,11 +260,25 @@ export function verifyEfficacy(
   if (verdict === 'effective') {
     recommendation = 'ratify_close';
   } else if (verdict === 'partially_effective') {
-    recommendation = hasOngoingVerifications
-      ? 'extend_observation_window'
-      : 'reopen_repeat_action';
+    // Codex P2 PR #127: si severity escaló, investigar root cause
+    // tiene prioridad sobre extender la ventana — el incidente empeoró
+    // así que el plan original no atacó la causa real.
+    if (escalatedSeverity) {
+      recommendation = 'investigate_root_cause_again';
+      reasons.push('Severidad escaló → causa raíz probablemente no era la real.');
+    } else {
+      recommendation = hasOngoingVerifications
+        ? 'extend_observation_window'
+        : 'reopen_repeat_action';
+    }
   } else if (verdict === 'inconclusive') {
-    recommendation = 'extend_observation_window';
+    // Codex P2 PR #127: sin acciones registradas, extender ventana no
+    // resuelve nada — recomendar reopen para crear acciones.
+    if (input.actions.length === 0) {
+      recommendation = 'reopen_repeat_action';
+    } else {
+      recommendation = 'extend_observation_window';
+    }
   } else {
     // ineffective
     if (best && LEVEL_RANK[best] < LEVEL_RANK.engineering) {
