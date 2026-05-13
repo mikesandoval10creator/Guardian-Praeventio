@@ -30,6 +30,57 @@ import {
   type MinimalFirestore as PostmortemMinimalStore,
 } from '../../services/zettelkasten/incidentPostmortem.js';
 
+// ── H23 Per-entity mutex (E.5 P2) ─────────────────────────────────────
+//
+// Background triggers may fire concurrently for the same doc id (e.g. two
+// rapid writes to the same node → two `onSnapshot` `change.type === 'added'`
+// or `'modified'` invocations in parallel). Without serialization, handlers
+// that touch shared external state (Firestore `update`, RAG status flips,
+// FCM sends, post-mortem Zettelkasten writes) race and can:
+//   • double-process a RAG embedding (waste tokens + duplicate writes)
+//   • emit two FCM bursts for the same critical incident
+//   • create two post-mortem nodes for the same incident close
+//
+// `serializeByKey(key, fn)` wraps `fn` so concurrent calls with the SAME
+// key run strictly sequentially (FIFO), while different keys run in
+// parallel without contention. The map self-cleans after the tail
+// promise settles to keep memory bounded under high churn.
+//
+// In-memory only — single Node process. Cross-instance contention is out
+// of scope (we don't run in true Cloud Functions; this is admin SDK
+// `onSnapshot` in our own server).
+const inFlight = new Map<string, Promise<unknown>>();
+
+export function serializeByKey<T>(
+  key: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = inFlight.get(key) ?? Promise.resolve();
+  // Chain the next call onto the previous tail. Use `.then(fn, fn)` so a
+  // rejection in the previous call doesn't poison the chain — the next
+  // call still runs.
+  const next: Promise<T> = prev.then(fn, fn);
+  inFlight.set(key, next);
+  // Self-clean: when this entry is the current tail and it has settled,
+  // drop it. Guarded so a later enqueue doesn't get dropped. We swallow
+  // rejections on the cleanup branch — the caller's own promise (`next`)
+  // remains the source of truth for error propagation.
+  next.then(
+    () => {
+      if (inFlight.get(key) === next) inFlight.delete(key);
+    },
+    () => {
+      if (inFlight.get(key) === next) inFlight.delete(key);
+    },
+  );
+  return next;
+}
+
+/** @internal — test helper to assert mutex releases cleanly. */
+export function _mutexInFlightSize(): number {
+  return inFlight.size;
+}
+
 function sentryCapture(
   err: unknown,
   context: { endpoint?: string; trigger?: string; tags?: Record<string, string | number | boolean | null | undefined> },
@@ -108,7 +159,7 @@ export function setupBackgroundTriggers(
             return;
           }
 
-          snapshot.docChanges().forEach(async (change) => {
+          snapshot.docChanges().forEach((change) => {
             if (change.type !== 'added') return;
             const data = change.doc.data();
             const isCritical =
@@ -116,7 +167,26 @@ export function setupBackgroundTriggers(
               data.metadata?.severity === 'Alta';
             if (!isCritical || !data.projectId) return;
 
+            void serializeByKey(`incident:${change.doc.id}`, async () => {
             try {
+              // Codex P2 PR #120: idempotency check INSIDE the mutex.
+              // Duplicate 'added' snapshots for the same node would both
+              // queue here and both fire FCM/email after the first finishes.
+              // Re-read the doc and skip if the alert marker is already
+              // present; otherwise stamp it before sending so a third
+              // queued callback short-circuits.
+              const fresh = await change.doc.ref.get();
+              if (fresh.data()?._criticalAlertSentAt) {
+                logger.info('incident_alert_skipped_idempotent', {
+                  nodeId: change.doc.id,
+                });
+                return;
+              }
+              await change.doc.ref.update({
+                _criticalAlertSentAt:
+                  firestoreNamespace.FieldValue.serverTimestamp(),
+              });
+
               const membersSnap = await db
                 .collection(`projects/${data.projectId}/members`)
                 .get();
@@ -195,6 +265,7 @@ export function setupBackgroundTriggers(
               logger.error('fcm_push_failed', err, { trigger: 'criticalIncidentNotify' });
               sentryCapture(err, { trigger: 'criticalIncidentNotify', tags: { phase: 'fcm-push' } });
             }
+            });
           });
         },
         (error) => {
@@ -230,7 +301,23 @@ export function setupBackgroundTriggers(
               docType: data.type,
             });
 
+            await serializeByKey(`rag:${change.doc.id}`, async () => {
             try {
+              // Codex P2 PR #120: re-check status INSIDE the mutex so the
+              // second concurrent snapshot (which passed the stale check
+              // before the first one wrote 'processing') doesn't embed
+              // again. Without this re-read, the mutex only serialises
+              // duplicate work — it doesn't prevent it.
+              const fresh = await change.doc.ref.get();
+              const freshStatus = fresh.data()?._ragProcessingStatus;
+              if (freshStatus === 'completed' || freshStatus === 'processing') {
+                logger.info('rag_pipeline_skipped_inside_mutex', {
+                  docId: change.doc.id,
+                  status: freshStatus,
+                });
+                return;
+              }
+
               await change.doc.ref.update({
                 _ragProcessingStatus: 'processing',
               });
@@ -241,7 +328,7 @@ export function setupBackgroundTriggers(
                 await change.doc.ref.update({
                   _ragProcessingStatus: 'skipped_too_short',
                 });
-                continue;
+                return;
               }
 
               const embedFn =
@@ -272,6 +359,7 @@ export function setupBackgroundTriggers(
                   error instanceof Error ? error.message : 'Unknown error',
               });
             }
+            });
           }
         },
         (error) => {
@@ -289,12 +377,14 @@ export function setupBackgroundTriggers(
           isInitialLoadIncidentClose = false;
           return;
         }
-        snapshot.docChanges().forEach(async (change) => {
+        snapshot.docChanges().forEach((change) => {
           if (change.type !== 'modified' && change.type !== 'added') return;
           const data = change.doc.data() as Record<string, unknown>;
           const status = String(data.status ?? '').toLowerCase();
           if (status !== 'closed' && status !== 'resolved') return;
           if (!data.rootCause || typeof data.rootCause !== 'string') return;
+
+          void serializeByKey(`incidentClose:${change.doc.id}`, async () => {
 
           const incident: PostmortemIncidentDoc = {
             id: change.doc.id,
@@ -336,6 +426,7 @@ export function setupBackgroundTriggers(
               tags: { phase: 'unexpected', incidentId: change.doc.id },
             });
           }
+          });
         });
       },
       (error) => {
