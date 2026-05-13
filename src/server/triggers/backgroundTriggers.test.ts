@@ -14,7 +14,11 @@
 // src/__tests__/server/ avoid booting Firebase Admin.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setupBackgroundTriggers } from './backgroundTriggers.js';
+import {
+  setupBackgroundTriggers,
+  serializeByKey,
+  _mutexInFlightSize,
+} from './backgroundTriggers.js';
 
 // ── fake firestore ──────────────────────────────────────────────────────
 interface CapturedListener {
@@ -337,5 +341,84 @@ describe('setupBackgroundTriggers', () => {
       ],
     });
     expect(generateEmbeddingsBatch).not.toHaveBeenCalled();
+  });
+});
+
+// ── H23 Per-entity mutex (E.5 P2) ──────────────────────────────────────
+//
+// `serializeByKey` is the seam used by every handler in this module so
+// that concurrent triggers on the SAME doc id run strictly sequentially,
+// while different ids stay parallel.
+describe('serializeByKey (H23 mutex)', () => {
+  it('serializes concurrent calls with the SAME key (no overlap)', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const order: number[] = [];
+
+    function task(id: number) {
+      return async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        // Yield several microtasks to give any concurrent task a chance
+        // to interleave — if the mutex is broken, `maxActive` will go > 1.
+        await new Promise((r) => setTimeout(r, 5));
+        order.push(id);
+        active--;
+      };
+    }
+
+    const p1 = serializeByKey('same-uid', task(1));
+    const p2 = serializeByKey('same-uid', task(2));
+    const p3 = serializeByKey('same-uid', task(3));
+
+    await Promise.all([p1, p2, p3]);
+
+    expect(maxActive).toBe(1); // strictly sequential
+    expect(order).toEqual([1, 2, 3]); // FIFO ordering preserved
+  });
+
+  it('runs DIFFERENT keys in parallel (no contention across entities)', async () => {
+    let active = 0;
+    let maxActive = 0;
+
+    function task() {
+      return async () => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((r) => setTimeout(r, 10));
+        active--;
+      };
+    }
+
+    await Promise.all([
+      serializeByKey('uid-A', task()),
+      serializeByKey('uid-B', task()),
+      serializeByKey('uid-C', task()),
+    ]);
+
+    expect(maxActive).toBeGreaterThanOrEqual(2); // parallel allowed
+  });
+
+  it('releases the slot after settle so a later call does not hang', async () => {
+    await serializeByKey('release-test', async () => 'first');
+    // A microtask hop for the self-clean .finally().
+    await new Promise((r) => setTimeout(r, 0));
+    expect(_mutexInFlightSize()).toBe(0);
+
+    const result = await serializeByKey('release-test', async () => 'second');
+    expect(result).toBe('second');
+  });
+
+  it('a rejection in one call does NOT poison the chain', async () => {
+    const p1 = serializeByKey('poison', async () => {
+      throw new Error('boom');
+    });
+    // Attach a catch handler synchronously so vitest does not flag the
+    // rejection as unhandled.
+    const p1Handled = p1.catch((e: Error) => e.message);
+    const p2 = serializeByKey('poison', async () => 'ok');
+
+    await expect(p1Handled).resolves.toBe('boom');
+    await expect(p2).resolves.toBe('ok');
   });
 });
