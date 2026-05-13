@@ -93,8 +93,13 @@ export interface ModelDescriptor {
    *
    * Formato: hex lowercase (64 chars), del SHA-256 del archivo
    * principal de pesos `.onnx` referenciado por `url`/repo.
+   *
+   * Sprint 47 C.9: el valor `null` significa explícitamente "pendiente
+   * de computar en primer download verificado" (el release pipeline lo
+   * persiste). `undefined` se mantiene por compat con código legacy
+   * que no distingue ausencia de pendiente.
    */
-  expectedSha256?: string;
+  expectedSha256?: string | null;
   /**
    * Filename principal de pesos dentro del repo HF (e.g.
    * `onnx/model_q4f16.onnx`). Cuando se publica un repo onnx-web, el
