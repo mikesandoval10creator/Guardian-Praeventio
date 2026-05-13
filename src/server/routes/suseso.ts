@@ -1,16 +1,27 @@
-// Praeventio Guard — Sprint 28 Bucket B6.
+// Praeventio Guard — Sprint 28 Bucket B6 + Sprint 49 D.8.a.
 //
 // Express router for SUSESO DIAT/DIEP form generation.
 //
-// Endpoints:
+// Endpoints (Sprint 28):
 //   POST /api/suseso/form                — create a form (auth required)
 //   POST /api/suseso/form/:id/sign       — attach signature (auth required)
 //   POST /api/suseso/form/:id/submit     — record mutualidad submission
 //   GET  /api/suseso/verify/:folio       — public folio verification (no auth)
 //
+// Endpoints (Sprint 49 D.8.a — split & admin-gated surface):
+//   POST /api/suseso/folio/generate      — allocate folio only (admin)
+//   POST /api/suseso/diat/render         — render DIAT PDF (admin + HMAC token)
+//   POST /api/suseso/diep/render         — render DIEP PDF (admin + HMAC token)
+//
 // Auth model: form-mutating endpoints require `verifyAuth` (Firebase ID
-// token). The verify endpoint is INTENTIONALLY public — that's what the
-// QR code on the printed PDF resolves to, and it returns no clinical data.
+// token) PLUS an admin/gerente role check via `isAdminRole`. The verify
+// endpoint is INTENTIONALLY public — that's what the QR code on the
+// printed PDF resolves to, and it returns no clinical data.
+//
+// Plan maestro directive 3: NO push automático a SUSESO API. We render
+// the signed PDF + emit the folio + provide a public verify URL; the
+// empresa downloads the PDF and uploads it to the mutualidad portal
+// manually. There is no outbound POST to any SUSESO/mutualidad endpoint.
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -18,7 +29,9 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import { logger } from '../../utils/logger.js';
+import { isAdminRole } from '../../types/roles.js';
 import {
   createSusesoForm,
   signForm,
@@ -27,7 +40,12 @@ import {
   folioToDocId,
   type MinimalFormStore,
 } from '../../services/suseso/susesoService.js';
-import type { MinimalFolioStore } from '../../services/suseso/folioGenerator.js';
+import {
+  nextFolio,
+  parseFolio,
+  type MinimalFolioStore,
+} from '../../services/suseso/folioGenerator.js';
+import { verifyEmployerSignature } from '../../services/suseso/susesoServerOnlyHelpers.js';
 import type { SusesoForm, SusesoSignature } from '../../services/suseso/types.js';
 
 const router = Router();
@@ -274,8 +292,236 @@ router.get('/verify/:folio', async (req, res) => {
     res.json(result);
   } catch (err) {
     logger.error('suseso_verify_failed', { err: String(err) });
+    captureRouteError(err, '/api/suseso/verify/:folio', {
+      folio: req.params.folio,
+    });
     res.status(500).json({ valid: false, reason: 'verify_internal_error' });
   }
 });
 
+// ─── Sprint 49 D.8.a — admin-gated split endpoints ─────────────────────────
+
+/**
+ * Express middleware: requires `req.user.role` (or `req.user.customClaims.role`)
+ * to be an admin tier (admin|gerente per `src/types/roles.ts`). MUST be
+ * mounted AFTER `verifyAuth`.
+ *
+ * Returns 403 with a stable error code so client UX can distinguish "you
+ * are signed in but not allowed" from "you are signed out".
+ */
+function verifyAdmin(req: any, res: any, next: any) {
+  const role: unknown = req.user?.role ?? req.user?.customClaims?.role;
+  if (!isAdminRole(role)) {
+    return res.status(403).json({ error: 'forbidden_role', reason: 'requires_admin' });
+  }
+  return next();
+}
+
+// Helper: Chile lat/lng bounding box for the `jurisdiction=CL` sanity
+// check. Continental + insular Chile only (Easter Island ~109°W to
+// Patagonia ~67°W; Visviri ~17.5°S to Cape Horn ~56°S). Antártica
+// Chilena is OUTSIDE this box and treated as a separate jurisdiction.
+const CL_BBOX = { latMin: -56.5, latMax: -17.4, lngMin: -109.5, lngMax: -66.5 };
+
+/** Reject ISO timestamps in the future (with a 5-minute clock-skew tolerance). */
+function isReasonableEventDate(iso: string, now: Date = new Date()): boolean {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return false;
+  return t <= now.getTime() + 5 * 60 * 1000;
+}
+
+const folioGenerateSchema = z.object({
+  tenantId: z.string().min(1).max(128),
+  kind: z.enum(['DIAT', 'DIEP']),
+  year: z.number().int().min(2020).max(2100).optional(),
+});
+
+router.post(
+  '/folio/generate',
+  verifyAuth,
+  verifyAdmin,
+  validate(folioGenerateSchema),
+  async (req, res) => {
+    const { tenantId, kind, year } = req.validated as z.infer<typeof folioGenerateSchema>;
+    try {
+      const resolvedYear = year ?? new Date().getUTCFullYear();
+      const folio = await nextFolio(
+        buildFolioStore(),
+        tenantId,
+        kind,
+        resolvedYear,
+      );
+      const parsed = parseFolio(folio);
+      try {
+        void auditServerEvent(req, 'suseso.folio_allocated', 'suseso', {
+          tenantId,
+          folio,
+          kind,
+        });
+      } catch {
+        /* observability never breaks the response */
+      }
+      return res.json({
+        folio,
+        kind,
+        year: resolvedYear,
+        sequenceNumber: parsed?.seq ?? null,
+      });
+    } catch (err) {
+      logger.error('suseso_folio_generate_failed', { err: String(err) });
+      captureRouteError(err, '/api/suseso/folio/generate', {
+        tenantId,
+        kind,
+      });
+      return res.status(500).json({ error: 'folio_generate_failed' });
+    }
+  },
+);
+
+// Common render schema for DIAT + DIEP. The plan maestro spec asks for a
+// flat body (folio, incidentSummary, victimUid, etc.) but our existing
+// `createSusesoForm` takes a richer nested input. We accept the spec
+// shape AND populate the richer fields with sane defaults so old clients
+// continue to work with `/form` while new clients hit `/diat/render`.
+const renderSchema = z.object({
+  tenantId: z.string().min(1).max(128),
+  folio: z.string().regex(/^(DIAT|DIEP)-\d{4}-[a-z0-9]{8}-\d{6}$/).optional(),
+  // Worker / victim
+  victimUid: z.string().min(1),
+  victimRut: z.string().regex(/^\d{1,2}\.?\d{3}\.?\d{3}-[0-9kK]$/, 'malformed_rut'),
+  victimFullName: z.string().min(1).max(256),
+  // Employer
+  companyRut: z.string().regex(/^\d{1,2}\.?\d{3}\.?\d{3}-[0-9kK]$/, 'malformed_company_rut'),
+  companyName: z.string().min(1).max(256),
+  mutualidad: z.enum(['achs', 'mutual_seguridad', 'ist', 'isl']),
+  // Incident
+  eventDate: z.string().refine(isReasonableEventDate, {
+    message: 'eventDate is in the future or unparseable',
+  }),
+  eventLocation: z.string().min(1).max(512),
+  eventDescription: z.string().min(1).max(4096),
+  eventLat: z.number().min(-90).max(90).optional(),
+  eventLng: z.number().min(-180).max(180).optional(),
+  jurisdiction: z.enum(['CL', 'INT']).default('CL'),
+  bodyPartsAffected: z.array(z.string().min(1).max(64)).max(20).default([]),
+  witnesses: z
+    .array(z.object({
+      fullName: z.string().min(1).max(256),
+      rut: z.string().regex(/^\d{1,2}\.?\d{3}\.?\d{3}-[0-9kK]$/),
+    }))
+    .max(10)
+    .default([]),
+  // Two-factor binding: HMAC of canonicalized payload, signed by empresa
+  // pre-shared key (see susesoServerOnlyHelpers.verifyEmployerSignature).
+  employerSignatureToken: z.string().regex(/^[0-9a-f]{64}$/i),
+});
+
+async function handleRender(
+  kind: 'DIAT' | 'DIEP',
+  req: any,
+  res: any,
+): Promise<void> {
+  const input = req.validated as z.infer<typeof renderSchema>;
+  // Jurisdiction-aware lat/lng sanity check.
+  if (input.jurisdiction === 'CL' && typeof input.eventLat === 'number' && typeof input.eventLng === 'number') {
+    if (
+      input.eventLat < CL_BBOX.latMin ||
+      input.eventLat > CL_BBOX.latMax ||
+      input.eventLng < CL_BBOX.lngMin ||
+      input.eventLng > CL_BBOX.lngMax
+    ) {
+      return void res.status(400).json({
+        error: 'invalid_payload',
+        reason: 'event_location_outside_chile',
+      });
+    }
+  }
+  // Two-factor binding: admin must hold the employer HMAC token.
+  // We canonicalize a stable subset (NOT including the token itself).
+  const hmacPayload: Record<string, unknown> = {
+    kind,
+    tenantId: input.tenantId,
+    victimRut: input.victimRut,
+    companyRut: input.companyRut,
+    eventDate: input.eventDate,
+    eventLocation: input.eventLocation,
+  };
+  if (!verifyEmployerSignature(input.employerSignatureToken, hmacPayload)) {
+    logger.warn('suseso_render_hmac_rejected', {
+      tenantId: input.tenantId,
+      kind,
+      uid: req.user?.uid,
+    });
+    return void res.status(403).json({
+      error: 'forbidden_employer_signature',
+      reason: 'hmac_mismatch_or_credentials_missing',
+    });
+  }
+  try {
+    const result = await createSusesoForm(
+      {
+        tenantId: input.tenantId,
+        kind,
+        workerRut: input.victimRut,
+        workerFullName: input.victimFullName,
+        companyRut: input.companyRut,
+        companyName: input.companyName,
+        mutualidad: input.mutualidad,
+        incidentDate: input.eventDate,
+        incidentDescription: input.eventDescription,
+        incidentLocation: input.eventLocation,
+        bodyPartsAffected: input.bodyPartsAffected,
+        incidentClassification: kind === 'DIAT' ? 'accidente_trabajo' : 'enfermedad_profesional',
+        witnesses: input.witnesses,
+        reportedBy: {
+          uid: req.user?.uid ?? input.victimUid,
+          rut: input.victimRut,
+          fullName: input.victimFullName,
+        },
+      },
+      { folioStore: buildFolioStore(), formStore: buildFormStore() },
+    );
+    try {
+      void auditServerEvent(req, `suseso.${kind.toLowerCase()}_rendered`, 'suseso', {
+        tenantId: input.tenantId,
+        folio: result.form.folio,
+      });
+    } catch {
+      /* observability never breaks the response */
+    }
+    res.json({
+      folio: result.form.folio,
+      pdfBase64: Buffer.from(result.pdfBytes).toString('base64'),
+      sha256: result.payloadHashHex,
+      signedAt: result.form.createdAt,
+      qrCodeUrl: result.qrCodeUrl,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'unknown';
+    logger.error(`suseso_${kind.toLowerCase()}_render_failed`, { err: msg });
+    captureRouteError(err, `/api/suseso/${kind.toLowerCase()}/render`, {
+      tenantId: input.tenantId,
+      kind,
+    });
+    res.status(500).json({ error: 'render_failed', detail: msg });
+  }
+}
+
+router.post(
+  '/diat/render',
+  verifyAuth,
+  verifyAdmin,
+  validate(renderSchema),
+  (req, res) => void handleRender('DIAT', req, res),
+);
+
+router.post(
+  '/diep/render',
+  verifyAuth,
+  verifyAdmin,
+  validate(renderSchema),
+  (req, res) => void handleRender('DIEP', req, res),
+);
+
+export { verifyAdmin, handleRender };
 export default router;
