@@ -19,10 +19,16 @@
  *
  * Sprint 39 STUB-3 cierre: URLs confirmadas + `weightFilename` específico
  * + campo `expectedSha256` opcional para integrity check post-download.
- * El SHA-256 queda `undefined` por ahora (modo staging) — para producción
- * se llena con el hash del peso publicado, validado por
- * `slmIntegrityCheck.ts`. Cuando upstream re-publique el modelo, debe
- * actualizarse el hash en el mismo PR (forzando re-validación).
+ * Cuando upstream re-publique el modelo, debe actualizarse el hash en
+ * el mismo PR (forzando re-validación).
+ *
+ * Sprint 47 C.9: distinción explícita entre `null` (pendiente — primer
+ * download verificado lo computa) y `undefined` (no aplica). Tres
+ * consumidores activos:
+ *   - `slmIntegrityCheck.ts` — política graceful (warn-in-staging)
+ *   - `slmIntegrityGuard.ts` — política estricta (throw on mismatch)
+ *   - `slmRuntime.ts`        — usa el guard antes de
+ *                              `ort.InferenceSession.create()`
  */
 
 import type { ModelDescriptor } from './types';
@@ -52,10 +58,11 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     license: 'MIT',
     preferredBackend: 'webgpu',
     quantization: 'int4',
-    // SHA-256: pendiente — llenar en PR de release después de descarga
-    // verificada por DevOps. Sin este valor, el loader pasará el modelo
-    // pero emite WARNING (válido en staging, no en prod).
-    expectedSha256: undefined,
+    // TODO compute on first download — release pipeline must populate.
+    // Upstream: https://huggingface.co/microsoft/Phi-3-mini-4k-instruct-onnx
+    // (web-int4 directory hosts `model_q4.onnx`). Hash is large-file LFS
+    // → estable entre re-publishes salvo bump explícito de Microsoft.
+    expectedSha256: null,
   },
   {
     id: 'qwen-2.5-0.5b',
@@ -73,7 +80,8 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     license: 'Apache-2.0',
     preferredBackend: 'wasm-simd',
     quantization: 'int4',
-    expectedSha256: undefined,
+    // TODO compute on first download — release pipeline must populate.
+    expectedSha256: null,
   },
   {
     id: 'gemma-2-2b',
@@ -83,15 +91,17 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     size: 1400 * MB,
     // URL confirmada: onnx-community es la fuente más estable para Gemma
     // ONNX. Google publica Gemma primario en Kaggle + HF original (no-ONNX);
-    // los exports ONNX viven en onnx-community/.
-    url: 'https://huggingface.co/onnx-community/gemma-2-2b-it',
+    // los exports ONNX viven en onnx-community/. Repo canónico C.9:
+    // https://huggingface.co/onnx-community/gemma-2-2b-it-ONNX
+    url: 'https://huggingface.co/onnx-community/gemma-2-2b-it-ONNX',
     weightFilename: 'onnx/model_q4f16.onnx',
-    tokenizerUrl: 'onnx-community/gemma-2-2b-it',
+    tokenizerUrl: 'onnx-community/gemma-2-2b-it-ONNX',
     format: 'onnx-int4',
     license: 'Gemma',
     preferredBackend: 'webgpu',
     quantization: 'int4',
-    expectedSha256: undefined,
+    // TODO compute on first download — release pipeline must populate.
+    expectedSha256: null,
   },
 ] as const;
 

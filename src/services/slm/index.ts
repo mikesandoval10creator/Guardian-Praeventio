@@ -92,3 +92,31 @@ export type {
 // dependency graph; the rest stays free of it.
 export { runReconciliation } from './reconciliationRunner';
 export type { RunReconciliationOptions } from './reconciliationRunner';
+
+// Sprint 47 C.9 — strict ONNX runtime surface (WebGPU primary, WASM
+// fallback) + integrity guard. Used by feature work that needs a
+// registry-aware lifecycle without the Comlink/Worker indirection of
+// `slmAdapter.ts`. Throws on SHA-256 mismatch (no graceful-degradation
+// policy — for that, prefer `verifyModelIntegrity` from
+// `slmIntegrityCheck.ts`).
+export {
+  createSlmRuntime,
+  resolveWeightUrl,
+  SlmIntegrityError,
+  computeSha256Hex,
+} from './slmRuntime';
+export type {
+  SlmRuntime,
+  LoadedModel,
+  LoadModelOptions,
+  InferOptions,
+  SlmTokenizerLike,
+  OnnxRuntimeLike,
+  OnnxInferenceSessionLike,
+  OnnxTensorLike,
+} from './slmRuntime';
+
+// The pure integrity-guard motor — useful for callers that want to
+// pre-validate already-downloaded bytes without going through the
+// runtime's fetch path.
+export { assertModelIntegrity } from './slmIntegrityGuard';
