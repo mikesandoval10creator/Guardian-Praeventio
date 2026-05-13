@@ -123,7 +123,7 @@ export function NormativeDetail() {
         className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        <span className="text-sm font-bold uppercase tracking-widest">Volver</span>
+        <span className="text-sm font-bold uppercase tracking-widest">{t('normativeDetail.back', 'Volver')}</span>
       </button>
 
       <motion.div 
@@ -146,7 +146,7 @@ export function NormativeDetail() {
                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest ${
                   normative.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-500' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-500'
                 }`}>
-                  {normative.status === 'active' ? 'Vigente' : 'Actualizada'}
+                  {normative.status === 'active' ? t('normativeDetail.active', 'Vigente') : t('normativeDetail.updated', 'Actualizada')}
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">
@@ -179,14 +179,14 @@ export function NormativeDetail() {
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
             <div className="flex items-center gap-2 text-zinc-500 mb-1">
               <Tag className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Categoría</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">{t('normativeDetail.category', 'Categoría')}</span>
             </div>
             <p className="text-zinc-900 dark:text-white font-medium">{normative.category}</p>
           </div>
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
             <div className="flex items-center gap-2 text-zinc-500 mb-1">
               <Calendar className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Última Revisión</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">{t('normativeDetail.lastReview', 'Última Revisión')}</span>
             </div>
             <p className="text-zinc-900 dark:text-white font-medium">
               {new Date(normative.lastReview).toLocaleDateString('es-CL')}
@@ -195,9 +195,9 @@ export function NormativeDetail() {
           <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl p-4 border border-zinc-200 dark:border-white/5">
             <div className="flex items-center gap-2 text-zinc-500 mb-1">
               <ShieldCheck className="w-4 h-4" />
-              <span className="text-[10px] font-bold uppercase tracking-widest">Estado Legal</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">{t('normativeDetail.legalStatus', 'Estado Legal')}</span>
             </div>
-            <p className="text-emerald-600 dark:text-emerald-500 font-bold">Obligatorio</p>
+            <p className="text-emerald-600 dark:text-emerald-500 font-bold">{t('normativeDetail.mandatory', 'Obligatorio')}</p>
           </div>
         </div>
 
@@ -226,7 +226,7 @@ export function NormativeDetail() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight flex items-center gap-2">
                 <Wand2 className="w-5 h-5 text-emerald-500" />
-                Tareas Operativas (IA)
+                {t('normativeDetail.tasksSection', 'Tareas Operativas (IA)')}
               </h2>
               <button
                 onClick={handleGenerateTasks}
