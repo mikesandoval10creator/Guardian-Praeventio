@@ -128,7 +128,27 @@ const COUNTRIES: readonly CountryRecord[] = [
     police: '190',
     bbox: [-33.7, 5.3, -73.9, -34.7],
   },
-  // Unión Europea (común a la mayoría)
+  // España — número específico de policía nacional + 112 universal.
+  {
+    regionCode: 'ES',
+    countryName: 'España',
+    medical: '061',
+    fire: '080',
+    police: '091',
+    universal: '112',
+    bbox: [27.6, 43.8, -18.2, 4.4],
+  },
+  // Reino Unido — 999 histórico + 112 europeo (ambos válidos).
+  {
+    regionCode: 'GB',
+    countryName: 'Reino Unido',
+    medical: '999',
+    fire: '999',
+    police: '999',
+    universal: '112',
+    bbox: [49.9, 60.9, -8.6, 1.8],
+  },
+  // Unión Europea (fallback para países sin entry específico).
   {
     regionCode: 'EU',
     countryName: 'Unión Europea',
