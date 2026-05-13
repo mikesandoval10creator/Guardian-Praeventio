@@ -28,8 +28,22 @@ describe('emergencyNumbers', () => {
       expect(e.medical).toBe('106');
     });
 
-    it('Madrid → EU (112)', () => {
+    it('Madrid → ES (061 médico, 112 universal)', () => {
       const e = getEmergencyNumbersByCoords({ lat: 40.4, lng: -3.7 });
+      expect(e.regionCode).toBe('ES');
+      expect(e.medical).toBe('061');
+      expect(e.universal).toBe('112');
+    });
+
+    it('Londres → GB (999/112)', () => {
+      const e = getEmergencyNumbersByCoords({ lat: 51.5, lng: -0.12 });
+      expect(e.regionCode).toBe('GB');
+      expect(e.medical).toBe('999');
+      expect(e.universal).toBe('112');
+    });
+
+    it('Berlín → EU (112)', () => {
+      const e = getEmergencyNumbersByCoords({ lat: 52.5, lng: 13.4 });
       expect(e.regionCode).toBe('EU');
       expect(e.medical).toBe('112');
     });
