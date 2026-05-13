@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { motion } from "framer-motion";
 import {
   Waves,
@@ -32,6 +33,7 @@ const facilityLocation = { lat: -33.045, lng: -71.620 }; // Near the coast
 const safeZoneLocation = { lat: -33.050, lng: -71.610 }; // Higher ground
 
 export function CoastalEmergencyMap() {
+  const { t } = useTranslation();
   const [isTsunamiWarning, setIsTsunamiWarning] = useState(false);
   const [evacuationProgress, setEvacuationProgress] = useState(0);
 
@@ -100,10 +102,10 @@ export function CoastalEmergencyMap() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Waves className="w-8 h-8 text-blue-500" />
-            Emergencia Costera y Tsunami
+            {t('coastalEmergency.title', 'Emergencia Costera y Tsunami')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Cálculo de Cotas de Inundación y Evacuación Vertical
+            {t('coastalEmergency.subtitle', 'Cálculo de Cotas de Inundación y Evacuación Vertical')}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -113,7 +115,7 @@ export function CoastalEmergencyMap() {
               onClick={handleCancelWarning}
               className="animate-pulse"
             >
-              Cancelar Alerta
+              {t('coastalEmergency.cancelAlert', 'Cancelar Alerta')}
             </Button>
           ) : (
             <Button variant="danger" onClick={handleTriggerWarning}>

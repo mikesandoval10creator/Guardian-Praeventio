@@ -13,6 +13,7 @@
 // here — it's pure orchestration over Firestore + the modal components.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Users, Plus, ListChecks, Trophy, Hammer, Eye, ShieldCheck, FileSpreadsheet } from 'lucide-react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -27,6 +28,7 @@ import { GanttProjectView } from '../components/projects/GanttProjectView';
 import { CsvImportExportModal } from '../components/etl/CsvImportExportModal';
 
 export function CuadrillasDashboard() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const projectId = selectedProject?.id ?? '';
 
@@ -99,10 +101,10 @@ export function CuadrillasDashboard() {
       <div className="p-6">
         <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-6">
           <h2 className="text-lg font-bold text-amber-700 dark:text-amber-300">
-            Selecciona un proyecto
+            {t('cuadrillas.selectProject', 'Selecciona un proyecto')}
           </h2>
           <p className="mt-1 text-sm text-amber-700/80 dark:text-amber-300/80">
-            Para gestionar cuadrillas debes tener un proyecto activo.
+            {t('cuadrillas.selectProjectHint', 'Para gestionar cuadrillas debes tener un proyecto activo.')}
           </p>
         </div>
       </div>
@@ -116,7 +118,7 @@ export function CuadrillasDashboard() {
         <div className="flex items-center gap-2">
           <Users className="w-6 h-6 text-[var(--accent-primary,#4db6ac)]" />
           <h1 className="text-xl lg:text-2xl font-black text-zinc-900 dark:text-white tracking-tight">
-            Cuadrillas
+            {t('cuadrillas.title', 'Cuadrillas')}
           </h1>
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             · {selectedProject?.name}
@@ -128,14 +130,14 @@ export function CuadrillasDashboard() {
             className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-700"
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            Import/Export CSV
+            {t('cuadrillas.importExportCsv', 'Import/Export CSV')}
           </button>
           <button
             onClick={() => setShowCreateCrew(true)}
             className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
           >
             <Plus className="w-3.5 h-3.5" />
-            Nueva cuadrilla
+            {t('cuadrillas.newCrew', 'Nueva cuadrilla')}
           </button>
         </div>
       </header>
@@ -152,11 +154,11 @@ export function CuadrillasDashboard() {
         {/* Left — crews list */}
         <aside className="lg:col-span-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 max-h-[70vh] overflow-y-auto">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
-            Lista de cuadrillas ({crews.length})
+            {t('cuadrillas.crewList', 'Lista de cuadrillas')} ({crews.length})
           </h3>
           {crews.length === 0 ? (
             <p className="text-xs text-zinc-500 dark:text-zinc-400 px-2 py-4">
-              No hay cuadrillas. Crea la primera con el botón superior.
+              {t('cuadrillas.noCrews', 'No hay cuadrillas. Crea la primera con el botón superior.')}
             </p>
           ) : (
             <ul className="space-y-1">
@@ -177,7 +179,7 @@ export function CuadrillasDashboard() {
                         {c.name}
                       </p>
                       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                        {c.memberUids.length} miembros · {c.xp} XP
+                        {t('cuadrillas.membersCount', '{{count}} miembros', { count: c.memberUids.length })} · {c.xp} XP
                       </p>
                     </button>
                   </li>
@@ -191,7 +193,7 @@ export function CuadrillasDashboard() {
         <section className="lg:col-span-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 max-h-[70vh] overflow-y-auto">
           {!selectedCrew ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 py-8 text-center">
-              Selecciona una cuadrilla para ver el detalle.
+              {t('cuadrillas.selectCrew', 'Selecciona una cuadrilla para ver el detalle.')}
             </p>
           ) : (
             <motion.div
@@ -206,7 +208,7 @@ export function CuadrillasDashboard() {
                     {selectedCrew.name}
                   </h2>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    {selectedCrew.memberUids.length} miembros · {selectedCrew.totalProcessesCompleted} procesos completados
+                    {t('cuadrillas.membersCount', '{{count}} miembros', { count: selectedCrew.memberUids.length })} · {t('cuadrillas.processesCompleted', '{{count}} procesos completados', { count: selectedCrew.totalProcessesCompleted })}
                   </p>
                 </div>
                 <button
@@ -214,7 +216,7 @@ export function CuadrillasDashboard() {
                   className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
                 >
                   <Hammer className="w-3.5 h-3.5" />
-                  Iniciar proceso
+                  {t('cuadrillas.startProcess', 'Iniciar proceso')}
                 </button>
               </div>
 
@@ -232,7 +234,7 @@ export function CuadrillasDashboard() {
                 <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
                   <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    <span className="text-[10px] uppercase tracking-wider font-bold">Sin incidente</span>
+                    <span className="text-[10px] uppercase tracking-wider font-bold">{t('cuadrillas.noIncident', 'Sin incidente')}</span>
                   </div>
                   <p className="mt-1 text-xl font-black text-blue-700 dark:text-blue-300">
                     {selectedCrew.daysWithoutIncident}d
@@ -241,7 +243,7 @@ export function CuadrillasDashboard() {
                 <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-700 p-3">
                   <div className="flex items-center gap-1.5 text-zinc-600 dark:text-zinc-400">
                     <ListChecks className="w-3.5 h-3.5" />
-                    <span className="text-[10px] uppercase tracking-wider font-bold">Procesos</span>
+                    <span className="text-[10px] uppercase tracking-wider font-bold">{t('cuadrillas.processes', 'Procesos')}</span>
                   </div>
                   <p className="mt-1 text-xl font-black text-zinc-700 dark:text-zinc-300">
                     {crewProcesses.length}
@@ -252,11 +254,11 @@ export function CuadrillasDashboard() {
               {/* Members */}
               <section>
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
-                  Miembros ({selectedCrew.memberUids.length})
+                  {t('cuadrillas.members', 'Miembros')} ({selectedCrew.memberUids.length})
                 </h4>
                 {selectedCrew.memberUids.length === 0 ? (
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Sin miembros aún. Asigna trabajadores desde el panel del proyecto.
+                    {t('cuadrillas.noMembers', 'Sin miembros aún. Asigna trabajadores desde el panel del proyecto.')}
                   </p>
                 ) : (
                   <ul className="flex flex-wrap gap-1.5">
@@ -275,11 +277,11 @@ export function CuadrillasDashboard() {
               {/* Active processes */}
               <section>
                 <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
-                  Procesos activos ({activeCrewProcesses.length})
+                  {t('cuadrillas.activeProcesses', 'Procesos activos')} ({activeCrewProcesses.length})
                 </h4>
                 {activeCrewProcesses.length === 0 ? (
                   <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Sin procesos abiertos. Inicia uno con el botón superior.
+                    {t('cuadrillas.noActiveProcesses', 'Sin procesos abiertos. Inicia uno con el botón superior.')}
                   </p>
                 ) : (
                   <ul className="space-y-2">
@@ -304,14 +306,14 @@ export function CuadrillasDashboard() {
                               className="inline-flex items-center gap-1 rounded-md bg-zinc-100 dark:bg-zinc-800 px-2 py-1 text-[11px] font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700"
                             >
                               <Eye className="w-3 h-3" />
-                              Ver detalle
+                              {t('cuadrillas.viewDetail', 'Ver detalle')}
                             </button>
                             <button
                               onClick={() => setCloseProcess(p)}
                               className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-700"
                             >
                               <ShieldCheck className="w-3 h-3" />
-                              Cerrar
+                              {t('cuadrillas.close', 'Cerrar')}
                             </button>
                           </div>
                         </div>
@@ -327,7 +329,7 @@ export function CuadrillasDashboard() {
         {/* Right — Gantt timeline */}
         <section className="lg:col-span-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 max-h-[70vh] overflow-hidden">
           <h3 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2 px-1">
-            Timeline · cuadrillas
+            {t('cuadrillas.timeline', 'Timeline · cuadrillas')}
           </h3>
           {selectedProject ? (
             <div className="overflow-auto max-h-[64vh]">
@@ -346,7 +348,7 @@ export function CuadrillasDashboard() {
               />
             </div>
           ) : (
-            <p className="text-xs text-zinc-500 px-2 py-4">Sin proyecto activo.</p>
+            <p className="text-xs text-zinc-500 px-2 py-4">{t('cuadrillas.noActiveProject', 'Sin proyecto activo.')}</p>
           )}
         </section>
       </div>

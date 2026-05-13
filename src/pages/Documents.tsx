@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Folder, 
@@ -44,6 +45,7 @@ import { useNavigate } from 'react-router-dom';
 import { logger } from '../utils/logger';
 
 export function Documents() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,9 +99,9 @@ export function Documents() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">Gestión Documental</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">{t('documents.title', 'Gestión Documental')}</h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Repositorio Central de Evidencia y Cumplimiento
+            {t('documents.subtitle', 'Repositorio Central de Evidencia y Cumplimiento')}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -108,7 +110,7 @@ export function Documents() {
             className="bg-white text-black px-6 py-3 sm:py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload className="w-4 h-4" />
-            <span>Subir Documento</span>
+            <span>{t('documents.upload', 'Subir Documento')}</span>
           </button>
         </div>
       </div>
@@ -116,9 +118,9 @@ export function Documents() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Vigentes', value: (documents || []).filter(d => d.status === 'Vigente').length, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-          { label: 'Por Vencer', value: (documents || []).filter(d => d.status === 'Pendiente').length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-          { label: 'Críticos', value: (documents || []).filter(d => d.status === 'Vencido').length, icon: Shield, color: 'text-red-500', bg: 'bg-red-500/10' },
+          { label: t('documents.statValid', 'Vigentes'), value: (documents || []).filter(d => d.status === 'Vigente').length, icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+          { label: t('documents.statExpiring', 'Por Vencer'), value: (documents || []).filter(d => d.status === 'Pendiente').length, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
+          { label: t('documents.statCritical', 'Críticos'), value: (documents || []).filter(d => d.status === 'Vencido').length, icon: Shield, color: 'text-red-500', bg: 'bg-red-500/10' },
         ].map((stat, i) => (
           <motion.div
             key={i}
@@ -144,7 +146,7 @@ export function Documents() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Buscar documentos..."
+            placeholder={t('documents.searchPlaceholder', 'Buscar documentos...')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/10 rounded-xl sm:rounded-2xl py-3 sm:py-4 pl-10 sm:pl-12 pr-4 text-xs sm:text-sm text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all shadow-sm"
@@ -173,12 +175,12 @@ export function Documents() {
           <table className="w-full text-left border-collapse min-w-[600px]">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-white/5">
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Nombre del Archivo</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Categoría</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Versión</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Estado</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Última Modificación</th>
-                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">Acciones</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.fileName', 'Nombre del Archivo')}</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.category', 'Categoría')}</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.version', 'Versión')}</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.status', 'Estado')}</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.lastModified', 'Última Modificación')}</th>
+                <th className="px-4 sm:px-6 py-3 sm:py-4 text-[8px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.actions', 'Acciones')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
@@ -186,7 +188,7 @@ export function Documents() {
                 <tr>
                   <td colSpan={6} className="px-4 sm:px-6 py-10 sm:py-20 text-center">
                     <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500 animate-spin mx-auto mb-3 sm:mb-4" />
-                    <p className="text-[8px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest">Sincronizando Archivos...</p>
+                    <p className="text-[8px] sm:text-[10px] font-black text-zinc-500 uppercase tracking-widest">{t('documents.syncing', 'Sincronizando Archivos...')}</p>
                   </td>
                 </tr>
               ) : filteredDocs.length > 0 ? (
@@ -295,9 +297,9 @@ export function Documents() {
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors"
                                 >
-                                  Editar
+                                  {t('documents.edit', 'Editar')}
                                 </button>
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDelete(doc.id);
@@ -305,7 +307,7 @@ export function Documents() {
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-xs text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
                                 >
-                                  Eliminar
+                                  {t('documents.delete', 'Eliminar')}
                                 </button>
                               </motion.div>
                             )}
@@ -319,7 +321,7 @@ export function Documents() {
                 <tr>
                   <td colSpan={6} className="px-4 sm:px-6 py-10 sm:py-20 text-center">
                     <Folder className="w-8 h-8 sm:w-12 sm:h-12 text-zinc-300 dark:text-zinc-800 mx-auto mb-3 sm:mb-4" />
-                    <p className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest">No se encontraron documentos</p>
+                    <p className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest">{t('documents.noResults', 'No se encontraron documentos')}</p>
                   </td>
                 </tr>
               )}
@@ -348,9 +350,9 @@ export function Documents() {
       )}
       <ConfirmDialog
         isOpen={!!deleteDocId}
-        title="Eliminar documento"
-        message="¿Estás seguro? El documento se eliminará permanentemente."
-        confirmLabel="Eliminar"
+        title={t('documents.deleteTitle', 'Eliminar documento')}
+        message={t('documents.deleteConfirm', '¿Estás seguro? El documento se eliminará permanentemente.')}
+        confirmLabel={t('documents.delete', 'Eliminar')}
         danger
         onConfirm={doDeleteDoc}
         onCancel={() => setDeleteDocId(null)}
