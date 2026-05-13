@@ -108,6 +108,30 @@ export interface ModelDescriptor {
    * primer .onnx en la carpeta `onnx/`).
    */
   weightFilename?: string;
+  /**
+   * Sprint 54 SLM real: companion files con sus propios hashes.
+   * Algunos modelos ONNX-web grandes (Phi-3) están split en `.onnx` +
+   * `.onnx_data` (external data). Cada archivo necesita su propio
+   * SHA-256 expected.
+   */
+  companionFiles?: Array<{
+    filename: string;
+    /** Tamaño en bytes. */
+    size: number;
+    /** SHA-256 hex lowercase del contenido. */
+    expectedSha256: string;
+  }>;
+  /**
+   * Sprint 54: si el repo HF es gated (requiere aceptar términos).
+   * El loader debe pedir HF token + verificar acceso antes de download.
+   * Default false.
+   */
+  gated?: boolean;
+  /**
+   * Sprint 54: cuándo se computó el hash actual (audit trail).
+   * Formato ISO-8601. Útil para detectar hashes obsoletos.
+   */
+  hashComputedAt?: string;
 }
 
 /**
