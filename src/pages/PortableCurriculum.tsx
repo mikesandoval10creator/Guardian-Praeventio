@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { ShieldCheck, Award, Star, Clock, FileText, Briefcase, AlertTriangle, FolderOpen, Target, Plus, BadgeCheck } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -89,6 +90,7 @@ const SKILL_ICONS: Record<string, typeof ShieldCheck> = {
 };
 
 export function PortableCurriculum() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
 
   // ── Round 14 (R5): worker's verifiable claims (anti-fraud experience). ──
@@ -263,15 +265,15 @@ export function PortableCurriculum() {
 
         <div className="flex-1 text-center md:text-left space-y-2">
           <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">
-            {user?.displayName || 'Usuario Guardián'}
+            {user?.displayName || t('curriculum.defaultUser', 'Usuario Guardián')}
           </h1>
           <p className="text-sm font-medium text-zinc-500 uppercase tracking-widest flex items-center justify-center md:justify-start gap-2">
-            <Briefcase className="w-4 h-4" /> Especialista en Prevención
+            <Briefcase className="w-4 h-4" /> {t('curriculum.role', 'Especialista en Prevención')}
           </p>
 
           <div className="mt-4 max-w-md">
             <div className="flex justify-between text-xs font-bold text-zinc-500 mb-1">
-              <span>PROGRESO XP</span>
+              <span>{t('curriculum.xpProgress', 'PROGRESO XP')}</span>
               <span>{stats.xp} / {stats.nextLevelXp}</span>
             </div>
             <div className="w-full h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
@@ -286,7 +288,7 @@ export function PortableCurriculum() {
         <div className="flex flex-row md:flex-col gap-4">
           <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
             <p className="text-2xl font-black text-emerald-500">{stats.safeHours}</p>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Horas Seguras</p>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{t('curriculum.safeHours', 'Horas Seguras')}</p>
           </div>
           <div className="text-center p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-200 dark:border-white/5">
             <p className="text-2xl font-black text-blue-500">{stats.perfectChecks}</p>
@@ -301,7 +303,7 @@ export function PortableCurriculum() {
           <Card className="p-6 space-y-4">
             <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
               <Target className="w-5 h-5 text-indigo-500" />
-              Árbol de Habilidades
+              {t('curriculum.skillTree', 'Árbol de Habilidades')}
             </h2>
             <div className="space-y-4">
               {skills.length === 0 ? (
@@ -337,7 +339,7 @@ export function PortableCurriculum() {
           <Card className="p-6 space-y-4">
             <h2 className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
               <Award className="w-5 h-5 text-amber-500" />
-              Medallas Obtenidas
+              {t('curriculum.badges', 'Medallas Obtenidas')}
             </h2>
             {badges.length === 0 ? (
               <p className="text-[11px] text-zinc-500 leading-relaxed">

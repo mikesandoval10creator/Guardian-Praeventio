@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { FileText, Upload, Scan, FileSearch, ShieldAlert, CheckCircle2, AlertTriangle, Loader2, WifiOff, Save } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -17,6 +18,7 @@ import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
 
 export function DocumentOCRManager() {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -149,16 +151,16 @@ export function DocumentOCRManager() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Scan className="w-8 h-8 text-emerald-500" />
-            Escáner OCR Local
+            {t('ocr.title', 'Escáner OCR Local')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Digitalización de Permisos y Tarjetas de Seguridad (Offline)
+            {t('ocr.subtitle', 'Digitalización de Permisos y Tarjetas de Seguridad (Offline)')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-emerald-500 bg-emerald-500/10 border-emerald-500/20">
           {!isOnline ? <WifiOff className="w-5 h-5" /> : <ShieldAlert className="w-5 h-5" />}
           <span className="font-bold uppercase tracking-wider text-sm">
-            Procesamiento en Dispositivo (Edge)
+            {t('ocr.edgeBadge', 'Procesamiento en Dispositivo (Edge)')}
           </span>
         </div>
       </div>
@@ -168,7 +170,7 @@ export function DocumentOCRManager() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Upload className="w-5 h-5 text-emerald-500" />
-            Cargar Documento Físico
+            {t('ocr.uploadHeading', 'Cargar Documento Físico')}
           </h2>
 
           <div 
@@ -195,8 +197,8 @@ export function DocumentOCRManager() {
               <div className="flex flex-col items-center gap-3">
                 <Scan className="w-12 h-12 text-zinc-600" />
                 <div>
-                  <p className="text-sm font-bold text-zinc-300">Toma una foto o sube una imagen</p>
-                  <p className="text-xs text-zinc-500">Permisos de Trabajo, Tarjetas de Observación, ODI</p>
+                  <p className="text-sm font-bold text-zinc-300">{t('ocr.takePhoto', 'Toma una foto o sube una imagen')}</p>
+                  <p className="text-xs text-zinc-500">{t('ocr.acceptedDocs', 'Permisos de Trabajo, Tarjetas de Observación, ODI')}</p>
                 </div>
               </div>
             )}
@@ -211,7 +213,7 @@ export function DocumentOCRManager() {
               <div className="flex flex-col items-center w-full">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Procesando OCR...</span>
+                  <span>{t('ocr.processing', 'Procesando OCR...')}</span>
                 </div>
                 <div className="w-full bg-zinc-800 rounded-full h-1.5 mt-2">
                   <div className="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${ocrProgress}%` }}></div>
@@ -220,7 +222,7 @@ export function DocumentOCRManager() {
             ) : (
               <>
                 <Scan className="w-5 h-5 mr-2" />
-                Escanear y Extraer Texto
+                {t('ocr.scanCta', 'Escanear y Extraer Texto')}
               </>
             )}
           </Button>
@@ -233,13 +235,13 @@ export function DocumentOCRManager() {
 
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <FileSearch className="w-5 h-5 text-emerald-500" />
-            Resultados de Extracción
+            {t('ocr.resultsHeading', 'Resultados de Extracción')}
           </h2>
 
           {!scanResult && !isScanning && (
             <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-zinc-800 rounded-xl bg-zinc-900/30">
               <FileSearch className="w-10 h-10 text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-500">Sube una imagen para extraer el texto mediante IA local.</p>
+              <p className="text-sm text-zinc-500">{t('ocr.emptyHint', 'Sube una imagen para extraer el texto mediante IA local.')}</p>
             </div>
           )}
 
@@ -312,7 +314,7 @@ export function DocumentOCRManager() {
                 disabled={isSaving}
               >
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-                Guardar en Zettelkasten
+                {t('ocr.save', 'Guardar en Zettelkasten')}
               </Button>
             </motion.div>
           )}

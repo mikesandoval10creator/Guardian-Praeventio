@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import {
   TrendingUp,
@@ -108,6 +109,7 @@ function UpgradeBlock() {
 const CHART_COLORS = ['#EF4444', '#F97316', '#EAB308', '#22C55E', '#3B82F6', '#8B5CF6', '#F43F5E', '#06B6D4'];
 
 export function ExecutiveDashboard() {
+  const { t } = useTranslation();
   const { nodes, loading } = useUniversalKnowledge();
   const { projects } = useProject();
   // Tightened: `canAccessExecutiveDashboard` previously aliased `isPremium`
@@ -243,8 +245,8 @@ export function ExecutiveDashboard() {
             <BarChart3 className="w-6 h-6 text-violet-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">Dashboard Ejecutivo</h1>
-            <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">KPIs Cross-Proyecto · Plan {plan.charAt(0).toUpperCase() + plan.slice(1)}</p>
+            <h1 className="text-2xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">{t('executive.title', 'Dashboard Ejecutivo')}</h1>
+            <p className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">{t('executive.subtitle', 'KPIs Cross-Proyecto')} · {t('executive.plan', 'Plan')} {plan.charAt(0).toUpperCase() + plan.slice(1)}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -254,7 +256,7 @@ export function ExecutiveDashboard() {
             className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
           >
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <BrainCircuit className="w-4 h-4 text-emerald-400 dark:text-emerald-600" />}
-            {isOnline ? 'Resumen IA' : 'Cargar Resumen'}
+            {isOnline ? t('executive.aiSummary', 'Resumen IA') : t('executive.loadSummary', 'Cargar Resumen')}
           </button>
           <button
             onClick={handleExportPDF}
@@ -262,7 +264,7 @@ export function ExecutiveDashboard() {
             className="flex items-center gap-2 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50"
           >
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Exportar PDF
+            {t('executive.exportPdf', 'Exportar PDF')}
           </button>
         </div>
       </div>
@@ -274,7 +276,7 @@ export function ExecutiveDashboard() {
         {executiveSummary && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-violet-500/5 to-blue-500/5 border border-violet-500/20 rounded-2xl p-6">
             <h3 className="text-[10px] font-black uppercase tracking-widest text-violet-500 mb-3 flex items-center gap-2">
-              <BrainCircuit className="w-3 h-3" /> Resumen Ejecutivo IA
+              <BrainCircuit className="w-3 h-3" /> {t('executive.aiExecSummary', 'Resumen Ejecutivo IA')}
             </h3>
             <div className="text-sm text-zinc-700 dark:text-zinc-300 space-y-2">
               {typeof executiveSummary === 'string'
@@ -316,7 +318,7 @@ export function ExecutiveDashboard() {
           {/* Incident trend */}
           <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-2xl p-5">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-4 flex items-center gap-2">
-              <Activity className="w-3 h-3" /> Tendencia de Incidentes (6 meses)
+              <Activity className="w-3 h-3" /> {t('executive.incidentTrend', 'Tendencia de Incidentes (6 meses)')}
             </p>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={incidentTrend}>

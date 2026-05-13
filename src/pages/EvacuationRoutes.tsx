@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Route, Map, AlertTriangle, Navigation, ShieldAlert, Users, Footprints, Info, Activity, Loader2 } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
@@ -23,6 +24,7 @@ interface Earthquake {
 }
 
 export function EvacuationRoutes() {
+  const { t } = useTranslation();
   const [isCalculating, setIsCalculating] = useState(false);
   const [routeCalculated, setRouteCalculated] = useState(false);
   const [grid, setGrid] = useState<number[][]>([]);
@@ -147,16 +149,16 @@ export function EvacuationRoutes() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Route className="w-8 h-8 text-emerald-500" />
-            Rutas de Evacuación IA
+            {t('evacuationRoutes.title', 'Rutas de Evacuación IA')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Algoritmo A* sobre Grillas Dinámicas
+            {t('evacuationRoutes.subtitle', 'Algoritmo A* sobre Grillas Dinámicas')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-emerald-500 bg-emerald-500/10 border-emerald-500/20">
           <ShieldAlert className="w-5 h-5" />
           <span className="font-bold uppercase tracking-wider text-sm">
-            Emergencia Activa
+            {t('evacuationRoutes.activeEmergency', 'Emergencia Activa')}
           </span>
         </div>
       </div>
@@ -167,7 +169,7 @@ export function EvacuationRoutes() {
           {isCheckingSeismic ? (
             <div className="flex items-center justify-center p-4 bg-zinc-900/50 rounded-xl border border-white/5">
               <Loader2 className="w-5 h-5 text-emerald-500 animate-spin mr-3" />
-              <span className="text-sm text-zinc-400">Conectando con Red Sismológica...</span>
+              <span className="text-sm text-zinc-400">{t('evacuationRoutes.connectingSeismic', 'Conectando con Red Sismológica...')}</span>
             </div>
           ) : recentEarthquake ? (
             <motion.div 
@@ -208,7 +210,7 @@ export function EvacuationRoutes() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Map className="w-5 h-5 text-emerald-500" />
-              Plano de Faena (Grilla Dinámica)
+              {t('evacuationRoutes.mapTitle', 'Plano de Faena (Grilla Dinámica)')}
             </h2>
             <div className="flex items-center gap-4 text-xs font-bold text-zinc-400">
               <span className="flex items-center gap-1"><div className="w-3 h-3 bg-zinc-800 rounded" /> Libre</span>
@@ -261,7 +263,7 @@ export function EvacuationRoutes() {
               ) : (
                 <span className="flex items-center gap-2">
                   <Navigation className="w-4 h-4" />
-                  Generar Ruta de Evacuación
+                  {t('evacuationRoutes.generateRoute', 'Generar Ruta de Evacuación')}
                 </span>
               )}
             </Button>
@@ -272,7 +274,7 @@ export function EvacuationRoutes() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-emerald-500" />
-            Estado de Evacuación
+            {t('evacuationRoutes.evacStatus', 'Estado de Evacuación')}
           </h2>
 
           {routeCalculated ? (

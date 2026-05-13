@@ -7,6 +7,7 @@
 // QR es sólo el canal de transporte. Cumple Ley 20.584 + 21.719 + 16.744.
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import QRCode from 'react-qr-code';
 import { MedicalDisclaimer } from '../components/health/MedicalDisclaimer';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -37,6 +38,7 @@ const SCOPE_LABELS: Record<VaultShareScope, string> = {
 };
 
 export function HealthVaultShare() {
+  const { t } = useTranslation();
   const { user, db } = useFirebase() as any;
 
   const [scope, setScope] = useState<VaultShareScope>('full');
@@ -142,11 +144,10 @@ export function HealthVaultShare() {
 
         <header>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-            Compartir cartera médica
+            {t('healthVaultShare.title', 'Compartir cartera médica')}
           </h1>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-            Genera un QR temporal para que tu médico tratante lo escanee. Tú
-            decides el alcance, la duración y puedes revocarlo cuando quieras.
+            {t('healthVaultShare.subtitle', 'Genera un QR temporal para que tu médico tratante lo escanee. Tú decides el alcance, la duración y puedes revocarlo cuando quieras.')}
           </p>
         </header>
 
@@ -157,7 +158,7 @@ export function HealthVaultShare() {
           >
             <label className="block">
               <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Alcance
+                {t('healthVaultShare.scope', 'Alcance')}
               </span>
               <select
                 value={scope}
@@ -173,13 +174,13 @@ export function HealthVaultShare() {
             {scope === 'topic' && (
               <label className="block">
                 <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                  Tema
+                  {t('healthVaultShare.topic', 'Tema')}
                 </span>
                 <input
                   type="text"
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  placeholder="ej. lumbalgia"
+                  placeholder={t('healthVaultShare.topicPlaceholder', 'ej. lumbalgia')}
                   className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2 text-sm"
                 />
               </label>
@@ -212,7 +213,7 @@ export function HealthVaultShare() {
               disabled={submitting || (scope === 'topic' && !topic)}
               className="w-full rounded-md bg-teal-600 hover:bg-teal-700 disabled:bg-zinc-400 px-4 py-2 text-sm font-semibold text-white"
             >
-              {submitting ? 'Generando…' : 'Generar QR'}
+              {submitting ? t('healthVaultShare.generating', 'Generando…') : t('healthVaultShare.generateQr', 'Generar QR')}
             </button>
           </form>
         )}
@@ -220,7 +221,7 @@ export function HealthVaultShare() {
         {createdShare && (
           <section className="space-y-4 rounded-xl border border-teal-200 dark:border-teal-800/50 bg-white dark:bg-zinc-900 p-5">
             <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-              QR listo para tu médico
+              {t('healthVaultShare.qrReady', 'QR listo para tu médico')}
             </h2>
             <div className="bg-white p-4 rounded-md flex items-center justify-center">
               <QRCode value={createdShare.qrPayload} size={220} />
@@ -234,14 +235,14 @@ export function HealthVaultShare() {
                 onClick={copyLink}
                 className="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm"
               >
-                Copiar link
+                {t('healthVaultShare.copyLink', 'Copiar link')}
               </button>
               <button
                 type="button"
                 onClick={() => setCreatedShare(null)}
                 className="flex-1 rounded-md bg-teal-600 hover:bg-teal-700 px-3 py-2 text-sm text-white"
               >
-                Generar otro
+                {t('healthVaultShare.generateAnother', 'Generar otro')}
               </button>
             </div>
           </section>
@@ -249,7 +250,7 @@ export function HealthVaultShare() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-            Tus enlaces compartidos
+            {t('healthVaultShare.yourShares', 'Tus enlaces compartidos')}
           </h2>
           {active.length === 0 && (
             <p className="text-xs italic text-zinc-500">Aún no has generado ninguno.</p>

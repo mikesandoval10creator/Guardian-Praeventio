@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Box, Upload, ShieldAlert, Layers, ZoomIn, ZoomOut, Maximize, AlertTriangle, FileCode2, X, Info } from 'lucide-react';
 import DxfParser from 'dxf-parser';
@@ -35,6 +36,7 @@ function colorFor(colorIdx?: number, fallback = '#4db6ac'): string {
 }
 
 export function AutoCADViewer() {
+  const { t } = useTranslation();
   const [parsed, setParsed] = useState<ParsedDxf | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -214,15 +216,15 @@ export function AutoCADViewer() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Box className="w-8 h-8 text-[#4db6ac] dark:text-[#d4af37]" />
-            Visor de Planos CAD
+            {t('autocad.title', 'Visor de Planos CAD')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Integración de Planos Estructurales · Parser DXF · MIT-only stack
+            {t('autocad.subtitle', 'Integración de Planos Estructurales · Parser DXF · MIT-only stack')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-[#4db6ac] dark:text-[#d4af37] bg-[#4db6ac]/10 dark:bg-[#d4af37]/10 border-[#4db6ac]/20 dark:border-[#d4af37]/20">
           <ShieldAlert className="w-5 h-5" />
-          <span className="font-bold uppercase tracking-wider text-sm">Nivel: Enterprise</span>
+          <span className="font-bold uppercase tracking-wider text-sm">{t('autocad.tier', 'Nivel: Enterprise')}</span>
         </div>
       </div>
 
@@ -242,7 +244,7 @@ export function AutoCADViewer() {
           {!parsed && !isParsing && !parseError && (
             <div className="flex flex-col items-center justify-center text-center p-8">
               <FileCode2 className="w-16 h-16 text-zinc-300 dark:text-zinc-700 mb-4" />
-              <h3 className="text-lg font-bold text-zinc-700 dark:text-white mb-2">Sube un archivo .DXF</h3>
+              <h3 className="text-lg font-bold text-zinc-700 dark:text-white mb-2">{t('autocad.uploadPrompt', 'Sube un archivo .DXF')}</h3>
               <p className="text-sm text-zinc-500 max-w-md">
                 Parser real client-side: las entidades CAD (LINE, POLYLINE, CIRCLE, ARC, TEXT) se renderizan vectorialmente. Sin uploads al servidor.
               </p>
@@ -254,7 +256,7 @@ export function AutoCADViewer() {
               <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}>
                 <Layers className="w-16 h-16 text-[#4db6ac] mb-4" />
               </motion.div>
-              <p className="text-sm font-bold text-[#4db6ac] dark:text-[#d4af37] animate-pulse">Parseando vectores DXF...</p>
+              <p className="text-sm font-bold text-[#4db6ac] dark:text-[#d4af37] animate-pulse">{t('autocad.parsing', 'Parseando vectores DXF...')}</p>
               <p className="text-xs text-zinc-500 mt-2">{fileName}</p>
             </div>
           )}
@@ -262,10 +264,10 @@ export function AutoCADViewer() {
           {parseError && (
             <div className="flex flex-col items-center justify-center text-center p-8">
               <AlertTriangle className="w-16 h-16 text-rose-500 mb-4" />
-              <h3 className="text-lg font-bold text-rose-500 mb-2">Error al procesar</h3>
+              <h3 className="text-lg font-bold text-rose-500 mb-2">{t('autocad.errorTitle', 'Error al procesar')}</h3>
               <p className="text-sm text-zinc-500 max-w-md">{parseError}</p>
               <button onClick={reset} className="mt-4 px-4 py-2 rounded-xl bg-zinc-800 text-white text-xs font-bold uppercase tracking-widest hover:bg-zinc-700">
-                Reintentar
+                {t('autocad.retry', 'Reintentar')}
               </button>
             </div>
           )}
@@ -302,7 +304,7 @@ export function AutoCADViewer() {
         <Card className="p-6 border-white/5 space-y-6">
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
             <Upload className="w-5 h-5 text-[#4db6ac] dark:text-[#d4af37]" />
-            Cargar Plano
+            {t('autocad.loadPlan', 'Cargar Plano')}
           </h2>
 
           <input ref={fileInputRef} type="file" accept=".dxf" onChange={onInputChange} className="hidden" />
@@ -313,8 +315,8 @@ export function AutoCADViewer() {
             className="w-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-[#4db6ac] dark:hover:border-[#d4af37] bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-8 text-center transition-colors cursor-pointer disabled:opacity-50"
           >
             <Upload className="w-10 h-10 text-zinc-400 dark:text-zinc-600 mx-auto mb-3" />
-            <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">Haz clic para subir archivo</p>
-            <p className="text-xs text-zinc-500 mt-1">Solo .DXF (Max 50MB)</p>
+            <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">{t('autocad.clickToUpload', 'Haz clic para subir archivo')}</p>
+            <p className="text-xs text-zinc-500 mt-1">{t('autocad.dxfOnly', 'Solo .DXF (Max 50MB)')}</p>
           </button>
 
           {fileName && (
