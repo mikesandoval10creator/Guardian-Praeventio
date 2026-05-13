@@ -81,6 +81,12 @@ const CONNECT_SRC_ORIGINS = [
   'https://maps.googleapis.com',
   'https://*.sentry.io',
   'wss://*.firebaseio.com',
+  // Sprint 48 D.13.b: SLM offline models (Sprint 47 C.9). Phi-3 mini +
+  // Gemma se descargan desde Hugging Face CDN (cdn-lfs.huggingface.co
+  // resuelve a las URLs reales del LFS). Cap a esos dos hosts — no abrir
+  // toda la HF org porque expone exfiltration surface.
+  'https://huggingface.co',
+  'https://cdn-lfs.huggingface.co',
 ] as const;
 
 /*
@@ -111,6 +117,8 @@ const CSP_STATIC_DIRECTIVES: Record<string, string> = {
   'default-src': "'self'",
   'style-src': "'self' 'unsafe-inline' https://fonts.googleapis.com",
   'font-src': "'self' https://fonts.gstatic.com data:",
+  // Sprint 48 D.13.b: blob: img-src para object URLs de fotos cámara
+  // (F.19 photo evidence) + thumbnails generados client-side.
   'img-src': "'self' data: blob: https:",
   'connect-src': CONNECT_SRC_ORIGINS.join(' '),
   'frame-src': "'self' https://accounts.google.com",
@@ -118,6 +126,16 @@ const CSP_STATIC_DIRECTIVES: Record<string, string> = {
   'object-src': "'none'",
   'base-uri': "'self'",
   'form-action': "'self'",
+  // Sprint 48 D.13.b: Web Workers (Comlink SLM, Workbox SW, MediaPipe).
+  // 'self' permite todos los workers servidos desde nuestro origin;
+  // blob: necesario para workers creados con Blob URLs en runtime.
+  'worker-src': "'self' blob:",
+  // Sprint 48 D.13.b: ONNX Runtime Web instanciaba el módulo WASM con
+  // WebAssembly.instantiate() — modernos browsers requieren
+  // 'wasm-unsafe-eval' explícito post-CSP Level 3. Esta directiva habilita
+  // solo WASM (no JS eval) y es estrictamente más segura que mantener
+  // 'unsafe-eval'. Sin ella, MediaPipe Pose + ONNX SLM fallan en prod.
+  'script-src-elem': "'self' 'wasm-unsafe-eval' https://www.gstatic.com https://apis.google.com",
   'upgrade-insecure-requests': '',
   // TM-I05 mitigation: violations POST here, the route hands them to
   // Sentry as a breadcrumb so we notice if we accidentally clipped a
@@ -140,7 +158,14 @@ function generateNonce(): string {
 
 function buildCspString(nonce: string): string {
   const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
-  const devDirectives = isDev ? "'unsafe-inline' 'unsafe-eval'" : `'nonce-${nonce}' 'strict-dynamic'`;
+  // Sprint 48 D.13.b: 'wasm-unsafe-eval' agregado en prod para que ONNX
+  // Runtime Web (SLM Phi-3 / Gemma) + MediaPipe Pose puedan instanciar
+  // sus módulos WASM con WebAssembly.instantiate(). Esta directiva es
+  // estrictamente más segura que 'unsafe-eval' — habilita solo WASM,
+  // no JS eval.
+  const devDirectives = isDev
+    ? "'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'"
+    : `'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'`;
   const scriptSrc = `script-src 'self' ${devDirectives} ${SCRIPT_SRC_FALLBACK_ORIGINS.join(' ')}`;
 
   const directives = { ...CSP_STATIC_DIRECTIVES };

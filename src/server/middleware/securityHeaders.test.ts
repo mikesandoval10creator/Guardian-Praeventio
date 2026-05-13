@@ -256,3 +256,61 @@ describe('securityHeaders middleware', () => {
     expect((locals.cspNonce as string).length).toBeGreaterThan(0);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint 48 D.13.b — wasm + workers + HF tests
+// ────────────────────────────────────────────────────────────────────────
+
+describe('CSP D.13.b — WASM + workers + Hugging Face SLM', () => {
+  function getCspForEnv(env: string): string {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = env;
+    try {
+      return __buildCspStringForTests('TEST_NONCE');
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  }
+
+  it("prod tiene 'wasm-unsafe-eval' (ONNX SLM + MediaPipe Pose lo requieren)", () => {
+    const csp = getCspForEnv('production');
+    expect(csp).toContain("'wasm-unsafe-eval'");
+  });
+
+  it("prod NO tiene 'unsafe-eval' (estrictamente más seguro que wasm-unsafe-eval)", () => {
+    const csp = getCspForEnv('production');
+    expect(csp).not.toMatch(/'unsafe-eval'(?!-)/); // 'unsafe-eval' a secas no debe aparecer
+  });
+
+  it("prod tiene 'strict-dynamic' + nonce", () => {
+    const csp = getCspForEnv('production');
+    expect(csp).toContain("'strict-dynamic'");
+    expect(csp).toContain("'nonce-TEST_NONCE'");
+  });
+
+  it("dev tiene 'unsafe-eval' (HMR/Vite necesita)", () => {
+    const csp = getCspForEnv('development');
+    expect(csp).toContain("'unsafe-eval'");
+    expect(csp).toContain("'unsafe-inline'");
+  });
+
+  it("worker-src 'self' blob: para Comlink/Workbox/MediaPipe workers", () => {
+    const csp = getCspForEnv('production');
+    expect(csp).toMatch(/worker-src 'self' blob:/);
+  });
+
+  it('connect-src incluye Hugging Face para SLM model fetch (C.9)', () => {
+    expect(__connectSrcOriginsForTests).toContain('https://huggingface.co');
+    expect(__connectSrcOriginsForTests).toContain('https://cdn-lfs.huggingface.co');
+  });
+
+  it('connect-src NO incluye wildcard *.huggingface.co (anti-exfil)', () => {
+    const hasWildcard = __connectSrcOriginsForTests.some((o) => o.includes('*.huggingface.co'));
+    expect(hasWildcard).toBe(false);
+  });
+
+  it("script-src-elem incluido para WASM module loading", () => {
+    const csp = getCspForEnv('production');
+    expect(csp).toMatch(/script-src-elem/);
+  });
+});
