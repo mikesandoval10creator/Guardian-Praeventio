@@ -12,9 +12,9 @@
 <plist version="1.0">
 <dict>
     <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>Praeventio uses Bluetooth to relay safety information between workers when there is no internet connection (mesh mode).</string>
+    <string>Guardian Praeventio usa Bluetooth para malla de comunicación de emergencia offline entre trabajadores en faena.</string>
     <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>Praeventio advertises over Bluetooth so other workers nearby can receive emergency alerts when the network is down.</string>
+    <string>Guardian Praeventio usa Bluetooth para malla de comunicación de emergencia offline entre trabajadores en faena.</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Praeventio uses the local network for Wi-Fi Direct fallback during emergencies.</string>
     <key>UIBackgroundModes</key>
