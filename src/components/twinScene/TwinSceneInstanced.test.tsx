@@ -1,14 +1,36 @@
 // @vitest-environment jsdom
+//
+// Sprint 48 E.2 — Migración parcial a @react-three/test-renderer real.
+//
+// Este archivo verifica el WRAPPER DOM (HUD, data-objects, className,
+// border de appearance) que es plain React. El scene-graph 3D
+// (InstancedMesh, LOD, Instances grouping) se prueba con el renderer
+// r3f real en `__tests__/sceneGraph.r3f.test.tsx`.
+//
+// Mocks que SE MANTIENEN:
+//   - @react-three/fiber Canvas: el componente envuelve TODO en Canvas y
+//     éste requiere WebGL no presente en jsdom. Para validar el HUD DOM
+//     basta un stub. Para validar scene-graph: usar test-renderer (cubierto
+//     en sceneGraph.r3f.test.tsx que importa sub-componentes directos).
+//   - @react-three/rapier: Physics inicializa el solver WASM que no carga
+//     en jsdom (incluso con test-renderer). Mock necesario.
+//   - @react-three/drei: se mockea solo para los testids del HUD-wrapper.
+//     Para asserts en LOD/Instances reales → ver sceneGraph.r3f.test.tsx.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-// Mock r3f stack — jsdom no tiene WebGL
+// Canvas mock — jsdom no tiene WebGL. Stub solo emite los children al DOM
+// para que los testids `data-testid="lod"` / `instances"` sean accesibles
+// para los asserts de presencia. Las verificaciones de scene graph real
+// están en sceneGraph.r3f.test.tsx (sin este mock).
 vi.mock('@react-three/fiber', () => ({
   Canvas: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="r3f-canvas">{children}</div>
   ),
 }));
 
+// Rapier mock — Physics solver requiere WASM (no inicializa en jsdom).
+// Justificado: cubrir el flag physicsEnabled sin levantar el motor real.
 vi.mock('@react-three/rapier', () => ({
   Physics: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="rapier-physics">{children}</div>
@@ -16,6 +38,8 @@ vi.mock('@react-three/rapier', () => ({
   RigidBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+// Drei mock — proxy con testids para verificar presencia agrupada.
+// Para count exacto de InstancedMesh / niveles LOD → sceneGraph.r3f.test.tsx.
 vi.mock('@react-three/drei', () => ({
   Detailed: ({ children }: { children: React.ReactNode }) => <div data-testid="lod">{children}</div>,
   Instances: ({ children }: { children: React.ReactNode }) => (

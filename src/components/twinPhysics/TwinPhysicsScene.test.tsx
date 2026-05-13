@@ -1,4 +1,18 @@
 // @vitest-environment jsdom
+//
+// Sprint 48 E.2 — partial migration. Este test mantiene mocks por dos
+// razones combinadas:
+//   1) Rapier Physics inicializa el solver WASM al instanciarse; en jsdom
+//      el módulo @dimforge/rapier3d-compat no carga (requiere WebAssembly
+//      compatible + ENV específico). Mock es la única opción razonable.
+//   2) El componente envuelve TODO su contenido en <Canvas> sin exportar
+//      sub-componentes; migrar al test-renderer real requeriría refactor
+//      extrayendo el árbol r3f (PhysicsLayer / StaticLayer), lo cual es
+//      out-of-scope para E.2.
+//
+// E.2 partial — full r3f renderer requires extracting <Canvas>-internal
+// scene as exported sub-components (PhysicsLayer / StaticLayer). Pattern
+// validado en TwinSceneInstanced (sceneGraph.r3f.test.tsx).
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
