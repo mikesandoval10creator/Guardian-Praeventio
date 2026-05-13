@@ -19,7 +19,7 @@ import { Router } from 'express';
 import { logger } from '../../utils/logger.js';
 import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 import { aggregateAiFeedback } from '../jobs/aggregateAiFeedback.js';
-import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
@@ -47,14 +47,7 @@ router.post('/aggregate-ai-feedback', verifySchedulerToken, async (_req, res) =>
       '[adminJobs] aggregate-ai-feedback failed',
       err instanceof Error ? err : new Error(String(err)),
     );
-    try {
-      getErrorTracker().captureException(
-        err instanceof Error ? err : new Error(String(err)),
-        { trigger: 'aggregateAiFeedbackJob', tags: { phase: 'http' } } as any,
-      );
-    } catch {
-      /* swallow — observability MUST NOT break the response */
-    }
+    captureRouteError(err, 'adminJobs.aggregate_ai_feedback', { phase: 'http' });
     return res.status(500).json({ ok: false, error: 'job_failed' });
   }
 });

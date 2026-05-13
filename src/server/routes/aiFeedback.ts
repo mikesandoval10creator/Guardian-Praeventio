@@ -29,6 +29,7 @@ import { validate } from '../middleware/validate.js';
 import { aiFeedbackLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 import { tracedAsync } from '../../services/observability/tracing.js';
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -297,14 +298,7 @@ router.post(
       });
     } catch (err) {
       logger.error('ai_feedback_persist_failed', { err: String(err) });
-      try {
-        getErrorTracker().captureException(
-          err instanceof Error ? err : new Error(String(err)),
-          { endpoint: '/api/ai/feedback', tags: { uid: tenantId } } as any,
-        );
-      } catch {
-        /* observability never blocks the response */
-      }
+      captureRouteError(err, 'ai.feedback.persist', { tenantId });
       res.status(500).json({ error: 'feedback_persist_failed' });
     }
   },
@@ -336,6 +330,7 @@ router.get('/feedback/summary', verifyAuth, async (req, res) => {
     res.json({ ok: true, summary: snap.data(), week, tenantId });
   } catch (err) {
     logger.error('ai_feedback_summary_read_failed', { err: String(err) });
+    captureRouteError(err, 'ai.feedback.summary_read', { tenantId, week });
     res.status(500).json({ error: 'summary_read_failed' });
   }
 });

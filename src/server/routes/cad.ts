@@ -36,6 +36,7 @@
 
 import { Router } from 'express';
 import { verifyAuth } from '../middleware/verifyAuth.js';
+import { captureRouteError } from '../middleware/captureRouteError.js';
 
 const router = Router();
 
@@ -90,6 +91,7 @@ router.post('/convert-dwg', verifyAuth, async (req, res) => {
       body: JSON.stringify({ inputUri, outputBucket }),
     });
   } catch (err) {
+    captureRouteError(err, 'cad.converter_unreachable', { inputUri });
     return res
       .status(502)
       .json({ error: 'converter_unreachable', message: (err as Error).message });
