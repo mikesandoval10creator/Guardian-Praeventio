@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
@@ -37,6 +38,7 @@ const defaultCenter = {
 };
 
 export function SafeDriving() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'route' | 'report'>('route');
   const [description, setDescription] = useState('');
   const [incidentType, setIncidentType] = useState<'Accidente' | 'Falla Mecánica' | null>(null);
@@ -139,8 +141,8 @@ export function SafeDriving() {
             <Truck className="w-8 h-8 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">Conducción Segura</h1>
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Gestión de Rutas y Logística</p>
+            <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">{t('safeDriving.title', 'Conducción Segura')}</h1>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('safeDriving.subtitle', 'Gestión de Rutas y Logística')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl">
@@ -150,7 +152,7 @@ export function SafeDriving() {
               activeTab === 'route' ? 'bg-white dark:bg-zinc-800 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
-            Ruta Activa
+            {t('safeDriving.tabs.route', 'Ruta Activa')}
           </button>
           <button
             onClick={() => setActiveTab('report')}
@@ -158,7 +160,7 @@ export function SafeDriving() {
               activeTab === 'report' ? 'bg-red-500 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
             }`}
           >
-            Reportar Incidente
+            {t('safeDriving.tabs.report', 'Reportar Incidente')}
           </button>
         </div>
       </div>
@@ -173,8 +175,8 @@ export function SafeDriving() {
                   <Navigation className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Destino Actual</p>
-                  <p className="text-sm font-bold text-zinc-900 dark:text-white">Planta Industrial Norte</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">{t('safeDriving.destination.label', 'Destino Actual')}</p>
+                  <p className="text-sm font-bold text-zinc-900 dark:text-white">{t('safeDriving.destination.value', 'Planta Industrial Norte')}</p>
                 </div>
               </div>
             </div>
@@ -268,7 +270,7 @@ export function SafeDriving() {
               ) : (
                 <div className="flex flex-col items-center justify-center text-zinc-500">
                   <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                  <span className="text-xs font-bold uppercase tracking-widest">Cargando Mapa...</span>
+                  <span className="text-xs font-bold uppercase tracking-widest">{t('safeDriving.map.loading', 'Cargando Mapa...')}</span>
                 </div>
               )}
             </div>
@@ -277,7 +279,7 @@ export function SafeDriving() {
           {/* Logistics Panel */}
           <div className="space-y-4">
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 shadow-sm">
-              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4">Estado del Viaje</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4">{t('safeDriving.trip.status', 'Estado del Viaje')}</h3>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800">
@@ -317,7 +319,7 @@ export function SafeDriving() {
               </div>
 
               <button className="w-full mt-6 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors">
-                Finalizar Ruta
+                {t('safeDriving.trip.finish', 'Finalizar Ruta')}
               </button>
             </div>
 
@@ -325,7 +327,7 @@ export function SafeDriving() {
               <div className="flex items-start gap-3">
                 <AlertTriangle className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0" />
                 <div>
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-300 mb-1">Alerta de Ruta</h4>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-800 dark:text-blue-300 mb-1">{t('safeDriving.alert.title', 'Alerta de Ruta')}</h4>
                   <p className="text-xs text-blue-600 dark:text-blue-400/80 font-medium leading-relaxed">
                     Condiciones de lluvia ligera en el km 45. Reduzca la velocidad y mantenga distancia de seguridad.
                   </p>
@@ -345,8 +347,8 @@ export function SafeDriving() {
               <ShieldAlert className="w-8 h-8" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">Reporte de Incidente en Ruta</h2>
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Protocolo de Emergencia Inmediato</p>
+              <h2 className="text-xl font-black text-zinc-900 dark:text-white uppercase tracking-tight">{t('safeDriving.incident.title', 'Reporte de Incidente en Ruta')}</h2>
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{t('safeDriving.incident.subtitle', 'Protocolo de Emergencia Inmediato')}</p>
             </div>
           </div>
 

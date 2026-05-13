@@ -16,6 +16,7 @@
 // Cloud Function that proxies Sentry's events-stats endpoint.
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle2, Activity, Loader2 } from 'lucide-react';
 import {
@@ -141,6 +142,7 @@ interface CardProps {
 }
 
 function SloCard({ slo, data, loading }: CardProps) {
+  const { t } = useTranslation();
   const burn = useMemo(() => {
     if (!data) return null;
     return computeBurn(slo, {
@@ -174,21 +176,21 @@ function SloCard({ slo, data, loading }: CardProps) {
       {loading ? (
         <div className="mt-6 flex items-center gap-2 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">Loading…</span>
+          <span className="text-sm">{t('sloErrorBudget.loading', 'Loading…')}</span>
         </div>
       ) : (
         <>
           <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
             <div>
-              <div className="text-slate-500">Observed</div>
+              <div className="text-slate-500">{t('sloErrorBudget.card.observed', 'Observed')}</div>
               <div className="font-semibold text-slate-900">{data ? formatObserved(slo, data.observed) : '—'}</div>
             </div>
             <div>
-              <div className="text-slate-500">Target</div>
+              <div className="text-slate-500">{t('sloErrorBudget.card.target', 'Target')}</div>
               <div className="font-semibold text-slate-900">{formatTarget(slo)}</div>
             </div>
             <div>
-              <div className="text-slate-500">Burn rate</div>
+              <div className="text-slate-500">{t('sloErrorBudget.card.burnRate', 'Burn rate')}</div>
               <div className="font-semibold text-slate-900">{burn ? `${burn.burnRate.toFixed(2)}×` : '—'}</div>
             </div>
           </div>
@@ -219,8 +221,7 @@ function SloCard({ slo, data, loading }: CardProps) {
 
           {burn && burn.alerting && (
             <div className="mt-3 rounded-md bg-rose-100 px-3 py-2 text-xs text-rose-800">
-              Burning {burn.burnRate.toFixed(1)}× faster than the {slo.windowDays}-day budget allows.
-              Investigate before the budget is exhausted.
+              {t('sloErrorBudget.card.alert', 'Burning {{rate}}× faster than the {{days}}-day budget allows. Investigate before the budget is exhausted.', { rate: burn.burnRate.toFixed(1), days: slo.windowDays })}
             </div>
           )}
         </>
@@ -230,6 +231,7 @@ function SloCard({ slo, data, loading }: CardProps) {
 }
 
 export default function SloErrorBudget() {
+  const { t } = useTranslation();
   const [datasets, setDatasets] = useState<Record<string, SloDataset>>({});
   const [loading, setLoading] = useState(true);
 
@@ -266,15 +268,14 @@ export default function SloErrorBudget() {
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">SLO Error Budget</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('sloErrorBudget.title', 'SLO Error Budget')}</h1>
           <p className="text-sm text-slate-600">
-            Service Level Objectives across API, frontend, and Gemini orchestration.
-            Burn rate &gt; 1× means we are spending budget faster than ideal.
+            {t('sloErrorBudget.subtitle', 'Service Level Objectives across API, frontend, and Gemini orchestration. Burn rate > 1× means we are spending budget faster than ideal.')}
           </p>
         </div>
         <div className="rounded-md bg-slate-50 px-3 py-2 text-sm">
           <span className="font-medium text-slate-700">{totalAlerting}</span>{' '}
-          <span className="text-slate-500">SLO{totalAlerting === 1 ? '' : 's'} alerting</span>
+          <span className="text-slate-500">{t('sloErrorBudget.alertingCount', '{{count}} SLO alerting', { count: totalAlerting })}</span>
         </div>
       </header>
 

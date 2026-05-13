@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -77,20 +78,20 @@ function Bucket2DSvg() {
 }
 
 function TransparenciaInner() {
+  const { t } = useTranslation();
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-12">
       {/* Hero */}
       <header className="text-center space-y-4">
         <div className="inline-flex items-center gap-2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider">
           <ShieldCheck className="w-3.5 h-3.5" />
-          Transparencia radical
+          {t('transparencia.badge', 'Transparencia radical')}
         </div>
         <h1 className="text-3xl sm:text-5xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter leading-tight">
-          Cómo cobramos y por qué
+          {t('transparencia.title', 'Cómo cobramos y por qué')}
         </h1>
         <p className="text-zinc-600 dark:text-zinc-400 text-base sm:text-lg max-w-2xl mx-auto">
-          La prevención de salvaguarda de vida no debe ser opaca. Acá explicamos cada peso, cada
-          umbral, y cuándo realmente te conviene upgradear (y cuándo NO).
+          {t('transparencia.lead', 'La prevención de salvaguarda de vida no debe ser opaca. Acá explicamos cada peso, cada umbral, y cuándo realmente te conviene upgradear (y cuándo NO).')}
         </p>
         <div className="flex items-center justify-center gap-3 pt-2">
           <CurrencyToggle />
@@ -98,7 +99,7 @@ function TransparenciaInner() {
             to="/pricing"
             className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
           >
-            Ver planes <ArrowRight className="w-3.5 h-3.5" />
+            {t('transparencia.viewPlans', 'Ver planes')} <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </header>
@@ -106,7 +107,7 @@ function TransparenciaInner() {
       {/* El bucket 2D */}
       <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
         <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
-          El bucket 2D
+          {t('transparencia.bucket.title', 'El bucket 2D')}
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
           Cobramos en dos dimensiones: <strong>trabajadores</strong> totales y{' '}
@@ -136,7 +137,7 @@ function TransparenciaInner() {
       {/* Tabla de overage */}
       <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
         <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
-          Tabla de overage (tiers básicos)
+          {t('transparencia.overage.title', 'Tabla de overage (tiers básicos)')}
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
           Si pasas de la capacidad por uno o dos trabajadores, no te bloqueamos: simplemente cobramos
@@ -175,7 +176,7 @@ function TransparenciaInner() {
       {/* Cuándo conviene */}
       <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
         <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
-          Cuándo te conviene upgradear (y cuándo NO)
+          {t('transparencia.upgrade.title', 'Cuándo te conviene upgradear (y cuándo NO)')}
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
           La regla: si tu overage mensual supera el delta al siguiente tier, sube. Si no, pagas overage.
@@ -223,7 +224,7 @@ function TransparenciaInner() {
       {/* Comparación con alternativas */}
       <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
         <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-2">
-          Comparación con alternativas reales
+          {t('transparencia.compare.title', 'Comparación con alternativas reales')}
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6">
           Costo mensual real de una empresa chilena promedio que necesita prevención.
@@ -283,7 +284,7 @@ function TransparenciaInner() {
       {/* Calculator */}
       <section className="space-y-3">
         <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white">
-          Calcula tu plan
+          {t('transparencia.calculator.title', 'Calcula tu plan')}
         </h2>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
           Mueve los controles. La fuente única es <code className="text-xs">tiers.ts</code> — los
@@ -295,7 +296,7 @@ function TransparenciaInner() {
       {/* Tier ladder */}
       <section className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/10 rounded-3xl p-6 sm:p-8">
         <h2 className="text-2xl font-black uppercase tracking-tight text-zinc-900 dark:text-white mb-4">
-          Los 10 tiers de un vistazo
+          {t('transparencia.ladder.title', 'Los 10 tiers de un vistazo')}
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -332,8 +333,8 @@ function TransparenciaInner() {
           className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl p-6 flex items-center justify-between gap-4 transition-colors"
         >
           <div>
-            <p className="text-xs uppercase tracking-widest opacity-90">Empieza gratis</p>
-            <p className="text-xl font-black">Plan Gratuito · 10 trabajadores</p>
+            <p className="text-xs uppercase tracking-widest opacity-90">{t('transparencia.cta.startFree', 'Empieza gratis')}</p>
+            <p className="text-xl font-black">{t('transparencia.cta.startFreeDesc', 'Plan Gratuito · 10 trabajadores')}</p>
           </div>
           <Sparkles className="w-6 h-6" />
         </Link>
@@ -342,8 +343,8 @@ function TransparenciaInner() {
           className="bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-100 text-white dark:text-zinc-900 rounded-2xl p-6 flex items-center justify-between gap-4 transition-colors"
         >
           <div>
-            <p className="text-xs uppercase tracking-widest opacity-90">Ver todos los planes</p>
-            <p className="text-xl font-black">Pricing completo</p>
+            <p className="text-xs uppercase tracking-widest opacity-90">{t('transparencia.cta.allPlans', 'Ver todos los planes')}</p>
+            <p className="text-xl font-black">{t('transparencia.cta.allPlansDesc', 'Pricing completo')}</p>
           </div>
           <Building2 className="w-6 h-6" />
         </Link>

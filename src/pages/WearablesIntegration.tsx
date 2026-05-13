@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Watch, HeartPulse, Activity, ShieldAlert, AlertTriangle, CheckCircle2, RefreshCw, Smartphone, Brain, Sun, Download, X } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 export function WearablesIntegration() {
+  const { t } = useTranslation();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [vitals, setVitals] = useState<{ heartRate: number, spo2: number, stress: number, hrv: number } | null>(null);
@@ -55,17 +57,17 @@ export function WearablesIntegration() {
         <div>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
             <Watch className="w-8 h-8 text-rose-500" />
-            Optimización Biológica
+            {t('wearables.title', 'Optimización Biológica')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            Telemetría Wearable & Estado de Alerta
+            {t('wearables.subtitle', 'Telemetría Wearable & Estado de Alerta')}
           </p>
         </div>
         <div className="flex gap-3">
           {isConnected && (
             <Button onClick={() => setShowReport(true)} className="bg-indigo-600 hover:bg-indigo-700 border-none text-white flex items-center gap-2">
               <Download className="w-4 h-4" />
-              Reporte de Estrés
+              {t('wearables.report.button', 'Reporte de Estrés')}
             </Button>
           )}
           <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-rose-500 bg-rose-500/10 border-rose-500/20">
@@ -82,7 +84,7 @@ export function WearablesIntegration() {
         <Card className="p-6 border-white/5 space-y-6 lg:col-span-1">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Smartphone className="w-5 h-5 text-rose-500" />
-            Dispositivos Soportados
+            {t('wearables.devices.title', 'Dispositivos Soportados')}
           </h2>
 
           <div className="space-y-3">
@@ -94,7 +96,7 @@ export function WearablesIntegration() {
                 <div>
                   <h3 className="text-sm font-bold text-white">Apple Watch / Garmin</h3>
                   <p className="text-xs text-zinc-400">
-                    {isConnected ? 'Conectado (Sync Activa)' : 'No conectado'}
+                    {isConnected ? t('wearables.devices.connected', 'Conectado (Sync Activa)') : t('wearables.devices.notConnected', 'No conectado')}
                   </p>
                 </div>
               </div>
@@ -123,18 +125,18 @@ export function WearablesIntegration() {
               {isSyncing ? (
                 <>
                   <RefreshCw className="w-5 h-5 animate-spin mr-2" />
-                  Sincronizando...
+                  {t('wearables.devices.syncing', 'Sincronizando...')}
                 </>
               ) : (
                 <>
                   <Watch className="w-5 h-5 mr-2" />
-                  Vincular Dispositivo (BLE/OAuth)
+                  {t('wearables.devices.pair', 'Vincular Dispositivo (BLE/OAuth)')}
                 </>
               )}
             </Button>
           ) : (
             <Button variant="danger" className="w-full" onClick={() => setIsConnected(false)}>
-              Desvincular Dispositivo
+              {t('wearables.devices.unpair', 'Desvincular Dispositivo')}
             </Button>
           )}
         </Card>
@@ -291,8 +293,8 @@ export function WearablesIntegration() {
             >
               <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Reporte de Estrés Biológico</h2>
-                  <p className="text-zinc-400 text-sm mt-1">Análisis predictivo de fatiga y recuperación</p>
+                  <h2 className="text-2xl font-bold text-white">{t('wearables.report.title', 'Reporte de Estrés Biológico')}</h2>
+                  <p className="text-zinc-400 text-sm mt-1">{t('wearables.report.subtitle', 'Análisis predictivo de fatiga y recuperación')}</p>
                 </div>
                 <button onClick={() => setShowReport(false)} className="text-zinc-500 hover:text-white">
                   <X className="w-6 h-6" />
