@@ -130,7 +130,8 @@ interface WorkersByStatusProps {
   workers: ReadonlyArray<WorkerMarker>;
 }
 
-function WorkersByStatus({ workers }: WorkersByStatusProps) {
+// Exported para test r3f con test-renderer real (Sprint 48 E.2).
+export function WorkersByStatus({ workers }: WorkersByStatusProps) {
   const grouped = useMemo(() => {
     const map = new Map<WorkerStatus, WorkerMarker[]>();
     for (const w of workers) {
@@ -164,7 +165,8 @@ interface EquipmentRendererProps {
   equipment: ReadonlyArray<EquipmentInstance>;
 }
 
-function EquipmentRenderer({ equipment }: EquipmentRendererProps) {
+// Exported para test r3f con test-renderer real (Sprint 48 E.2).
+export function EquipmentRenderer({ equipment }: EquipmentRendererProps) {
   // Separar por kind para usar la técnica óptima por categoría
   const palas = useMemo(() => equipment.filter((e) => e.kind === 'pala'), [equipment]);
   const camiones = useMemo(() => equipment.filter((e) => e.kind === 'camion'), [equipment]);
