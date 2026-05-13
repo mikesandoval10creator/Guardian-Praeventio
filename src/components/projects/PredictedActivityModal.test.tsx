@@ -1,5 +1,5 @@
-/**
- * PredictedActivityModal — accessibility tests.
+﻿/**
+ * PredictedActivityModal â€” accessibility tests.
  *
  * Why no DOM render? The repo intentionally does NOT ship `jsdom`,
  * `happy-dom`, or `@testing-library/react` (see vitest.config.ts and
@@ -23,7 +23,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachEscapeHandler } from './PredictedActivityModal';
 
-describe('PredictedActivityModal — Escape key handler (attachEscapeHandler)', () => {
+describe('PredictedActivityModal â€” Escape key handler (attachEscapeHandler)', () => {
   let win: EventTarget;
 
   beforeEach(() => {
@@ -39,12 +39,12 @@ describe('PredictedActivityModal — Escape key handler (attachEscapeHandler)', 
     attachEscapeHandler(win, true, onClose);
 
     win.dispatchEvent(
-      new (globalThis as any).Event('keydown'),
+      new globalThis.Event('keydown'),
     );
     // The above dispatched a generic Event without a `key`. Now dispatch a
     // proper keydown with key=Escape using a plain object that mimics
-    // KeyboardEvent — EventTarget-based windows just need `.key`.
-    const escEvent = new (globalThis as any).Event('keydown') as Event & { key: string };
+    // KeyboardEvent â€” EventTarget-based windows just need `.key`.
+    const escEvent = new globalThis.Event('keydown') as Event & { key: string };
     (escEvent as any).key = 'Escape';
     win.dispatchEvent(escEvent);
 
@@ -55,7 +55,7 @@ describe('PredictedActivityModal — Escape key handler (attachEscapeHandler)', 
     const onClose = vi.fn();
     attachEscapeHandler(win, false, onClose);
 
-    const escEvent = new (globalThis as any).Event('keydown') as Event & { key: string };
+    const escEvent = new globalThis.Event('keydown') as Event & { key: string };
     (escEvent as any).key = 'Escape';
     win.dispatchEvent(escEvent);
 
@@ -67,7 +67,7 @@ describe('PredictedActivityModal — Escape key handler (attachEscapeHandler)', 
     attachEscapeHandler(win, true, onClose);
 
     for (const key of ['Enter', 'a', ' ', 'Tab', 'Esc' /* not "Escape" */]) {
-      const ev = new (globalThis as any).Event('keydown') as Event & { key: string };
+      const ev = new globalThis.Event('keydown') as Event & { key: string };
       (ev as any).key = key;
       win.dispatchEvent(ev);
     }
@@ -81,7 +81,7 @@ describe('PredictedActivityModal — Escape key handler (attachEscapeHandler)', 
 
     cleanup();
 
-    const escEvent = new (globalThis as any).Event('keydown') as Event & { key: string };
+    const escEvent = new globalThis.Event('keydown') as Event & { key: string };
     (escEvent as any).key = 'Escape';
     win.dispatchEvent(escEvent);
 

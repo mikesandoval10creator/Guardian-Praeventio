@@ -1,13 +1,13 @@
-// SPDX-License-Identifier: MIT
-// Sprint 15 — Wisdom Capsule daily endpoint.
-// Sprint 16 — Gemini summary integration + Firestore cache + ack endpoint.
+﻿// SPDX-License-Identifier: MIT
+// Sprint 15 â€” Wisdom Capsule daily endpoint.
+// Sprint 16 â€” Gemini summary integration + Firestore cache + ack endpoint.
 //
 // GET  /api/wisdom-capsule/today?projectId=...&date=YYYY-MM-DD
 // POST /api/wisdom-capsule/ack   { projectId, date }
 //
 // Reads:
-//   1. Hallazgos del día anterior del project.
-//   2. Alertas predictivas atendidas en las últimas 24h.
+//   1. Hallazgos del dÃ­a anterior del project.
+//   2. Alertas predictivas atendidas en las Ãºltimas 24h.
 // Returns a 30-60s summary anonymized at the cuadrilla level (never
 // individual uids). Calls Gemini (gemini-1.5-flash) when GEMINI_API_KEY
 // is set; falls back to a deterministic local summary if absent OR if
@@ -17,7 +17,7 @@
 // triggers Gemini + caches; subsequent reads in the same day are served
 // from cache so we never hit the LLM twice for the same context.
 //
-// Side-effect: tras generar la cápsula, emite un nodo
+// Side-effect: tras generar la cÃ¡psula, emite un nodo
 // `safety-learning` al pipeline Zettelkasten via Admin SDK (mismo
 // schema que /api/zettelkasten/nodes pero escribiendo directamente
 // porque ya estamos server-side y autenticados).
@@ -56,19 +56,19 @@ export function buildLocalSummary(args: {
   const partes: string[] = [];
   if (alertasAtendidas > 0) {
     partes.push(
-      `Ayer ${cuadrillas} respondió a ${alertasAtendidas} alerta${alertasAtendidas === 1 ? '' : 's'} predictiva${alertasAtendidas === 1 ? '' : 's'}, evitando que el riesgo se materializara.`
+      `Ayer ${cuadrillas} respondiÃ³ a ${alertasAtendidas} alerta${alertasAtendidas === 1 ? '' : 's'} predictiva${alertasAtendidas === 1 ? '' : 's'}, evitando que el riesgo se materializara.`
     );
   }
   if (hallazgosCount > 0) {
     partes.push(
-      `Se registraron ${hallazgosCount} hallazgo${hallazgosCount === 1 ? '' : 's'} de seguridad — material para la cápsula de hoy.`
+      `Se registraron ${hallazgosCount} hallazgo${hallazgosCount === 1 ? '' : 's'} de seguridad â€” material para la cÃ¡psula de hoy.`
     );
   }
   if (partes.length === 0) {
-    partes.push('Día tranquilo en obra. Aprovechemos para reforzar la postura biomecánica antes de empezar.');
+    partes.push('DÃ­a tranquilo en obra. Aprovechemos para reforzar la postura biomecÃ¡nica antes de empezar.');
   }
   return {
-    title: `Cápsula de Sabiduría — ${date}`,
+    title: `CÃ¡psula de SabidurÃ­a â€” ${date}`,
     body: partes.join(' '),
     durationSeconds: Math.max(30, Math.min(60, partes.join(' ').length / 12)),
     sourceNodes: [],
@@ -77,10 +77,10 @@ export function buildLocalSummary(args: {
 }
 
 /**
- * Sprint 16 — Gemini-first summary. 3s timeout, graceful fallback to the
+ * Sprint 16 â€” Gemini-first summary. 3s timeout, graceful fallback to the
  * deterministic local summary. Never throws to caller.
  *
- * Intentionally Gemini (not Anthropic) — see ADR D1: productive AI
+ * Intentionally Gemini (not Anthropic) â€” see ADR D1: productive AI
  * runtime is @google/genai.
  */
 export async function summarizeWithGemini(args: {
@@ -96,10 +96,10 @@ export async function summarizeWithGemini(args: {
 
   const crewLabel = args.crewNames.length > 0 ? args.crewNames.join(', ') : 'el equipo';
   const prompt = [
-    'Eres un asesor de prevención de riesgos en construcción. Resume en 30-60s de lectura',
-    `los hallazgos del día anterior para la cuadrilla ${crewLabel}.`,
+    'Eres un asesor de prevenciÃ³n de riesgos en construcciÃ³n. Resume en 30-60s de lectura',
+    `los hallazgos del dÃ­a anterior para la cuadrilla ${crewLabel}.`,
     'Anonimiza individuos: nombra solo la cuadrilla o el rol, nunca nombres propios.',
-    'Tono asesor amistoso, en español de Chile, 80-120 palabras.',
+    'Tono asesor amistoso, en espaÃ±ol de Chile, 80-120 palabras.',
     '',
     `Fecha: ${args.date}`,
     `Hallazgos: ${JSON.stringify(args.prevDayFindings).slice(0, 4000)}`,
@@ -131,7 +131,7 @@ export async function summarizeWithGemini(args: {
 }
 
 /**
- * Sprint 16 — emit a `safety-learning` Zettelkasten node from the wisdom
+ * Sprint 16 â€” emit a `safety-learning` Zettelkasten node from the wisdom
  * capsule we just summarized. Idempotent via deterministic id
  * (projectId + date). Best-effort: never blocks the response.
  */
@@ -229,7 +229,7 @@ export function aggregateCapsuleStats(
 }
 
 // In-memory TTL cache (1h) keyed on `${projectId}|${dateFrom}|${dateTo}`.
-// Process-local — fine for the engagement dashboard since it is bound by
+// Process-local â€” fine for the engagement dashboard since it is bound by
 // the Cloud Run instance lifetime and the data is not authoritative
 // (Firestore remains the source of truth).
 const STATS_CACHE_TTL_MS = 60 * 60 * 1000;
@@ -240,7 +240,7 @@ export function _clearCapsuleStatsCacheForTests() {
 }
 
 router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
   const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : '';
   const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : '';
@@ -300,7 +300,7 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
 });
 
 router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
   const date = typeof req.query.date === 'string' ? req.query.date : new Date().toISOString().slice(0, 10);
   if (!projectId) return res.status(400).json({ error: 'projectId required' });
@@ -391,7 +391,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
 });
 
 /**
- * Sprint 16 — POST /api/wisdom-capsule/ack
+ * Sprint 16 â€” POST /api/wisdom-capsule/ack
  *   body: { projectId, date }
  *
  * Marks the capsule as acknowledged by the calling uid and awards the
@@ -400,7 +400,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
  * award (we use `arrayUnion` + a transaction guard).
  */
 router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
-  const uid = (req as any).user.uid;
+  const uid = req.user.uid;
   const { projectId, date } = req.body ?? {};
   if (typeof projectId !== 'string' || !projectId) {
     return res.status(400).json({ error: 'projectId required' });

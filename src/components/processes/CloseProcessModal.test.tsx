@@ -1,13 +1,13 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 //
-// Sprint 20 — Bucket D — CloseProcessModal integration tests.
+// Sprint 20 â€” Bucket D â€” CloseProcessModal integration tests.
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { Process } from '../../types/organic';
 
-// ─── Mocks ─────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Mocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_k: string, fb?: string) => fb ?? _k }),
@@ -58,7 +58,7 @@ afterEach(() => {
 
 describe('CloseProcessModal', () => {
   beforeEach(() => {
-    (globalThis as any).fetch = vi.fn(async () =>
+    globalThis.fetch = vi.fn(async () =>
       ({ ok: true, json: async () => ({ xpAwarded: 110 }) }) as any
     );
   });
@@ -88,14 +88,14 @@ describe('CloseProcessModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /cerrar y celebrar/i }));
     await waitFor(() => expect(onClosed).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
-    expect((globalThis as any).fetch).toHaveBeenCalledWith(
+    expect(globalThis.fetch).toHaveBeenCalledWith(
       '/api/processes/proc-1/close',
       expect.objectContaining({ method: 'POST' })
     );
   });
 
   it('surfaces server error and stays open', async () => {
-    (globalThis as any).fetch = vi.fn(async () =>
+    globalThis.fetch = vi.fn(async () =>
       ({ ok: false, status: 409, json: async () => ({ error: 'already terminal' }) }) as any
     );
     const onClose = vi.fn();

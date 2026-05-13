@@ -1,4 +1,4 @@
-// Praeventio Guard — Bucket CC: B2D admin endpoints (Sprint 23).
+﻿// Praeventio Guard â€” Bucket CC: B2D admin endpoints (Sprint 23).
 //
 // Admin-gated CRUD over Bucket BB's `b2d_api_keys` collection plus
 // the revenue-metrics + audit-event reads that back the admin panel
@@ -7,12 +7,12 @@
 // Mounted at `/api/admin/b2d` from `server.ts` after `/api/admin`
 // (admin.ts) so the same admin-role gate semantics apply. The
 // `assertAdmin` helper duplicates the pattern used in `admin.ts`
-// (`assertAdminCaller`) — kept local to avoid coupling the two
+// (`assertAdminCaller`) â€” kept local to avoid coupling the two
 // files; if the predicate diverges we want it to diverge per route.
 //
 // PATHS:
 //   GET  /api/admin/b2d/keys[?customerId=X]   list (masked)
-//   POST /api/admin/b2d/keys                  create — returns rawKey ONCE
+//   POST /api/admin/b2d/keys                  create â€” returns rawKey ONCE
 //   POST /api/admin/b2d/keys/:id/revoke       revoke
 //   GET  /api/admin/b2d/metrics               { mrr, arr, ... }
 //   GET  /api/admin/b2d/events?from=&to=      audit-style event log
@@ -29,7 +29,7 @@ import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier.js';
-// Bucket BB shipped — we depend on the canonical key service directly.
+// Bucket BB shipped â€” we depend on the canonical key service directly.
 import {
   createApiKey,
   revokeApiKey,
@@ -95,7 +95,7 @@ router.get('/keys', verifyAuth, async (req, res) => {
       // Synthesize a display string here so the panel doesn't have to
       // care which writer landed the doc.
       const keyPrefix = typeof d.keyPrefix === 'string' ? d.keyPrefix : null;
-      const maskedKey = keyPrefix ? `${keyPrefix}…` : (typeof d.maskedKey === 'string' ? d.maskedKey : null);
+      const maskedKey = keyPrefix ? `${keyPrefix}â€¦` : (typeof d.maskedKey === 'string' ? d.maskedKey : null);
       keys.push({
         id: doc.id,
         customerId: d.customerId,
@@ -119,11 +119,11 @@ router.get('/keys', verifyAuth, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/b2d/keys     { customerId, tier, scopes, expiresInDays? }
-// Returns rawKey EXACTLY ONCE — caller must store/show it then.
+// Returns rawKey EXACTLY ONCE â€” caller must store/show it then.
 // ---------------------------------------------------------------------------
 router.post('/keys', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return;
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const customerId = typeof body.customerId === 'string' ? body.customerId : '';
   const tier = typeof body.tier === 'string' ? body.tier : '';
@@ -157,7 +157,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
       expiresInDays,
     });
     const id = record.id;
-    const maskedKey = `${record.keyPrefix}…`;
+    const maskedKey = `${record.keyPrefix}â€¦`;
 
     // Audit log + event log (the admin panel reads `b2d_events`).
     await admin.firestore().collection('audit_logs').add({
@@ -192,7 +192,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return;
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const id = req.params.id;
   if (!KEY_DOC_ID_REGEX.test(id)) {
     return res.status(400).json({ error: 'Invalid key id' });

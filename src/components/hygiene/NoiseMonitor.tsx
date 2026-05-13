@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Volume2, AlertTriangle, Mic, MicOff, Activity } from 'lucide-react';
 import { Card } from '../shared/Card';
 import { motion } from 'framer-motion';
@@ -16,7 +16,7 @@ export function NoiseMonitor() {
   const startListening = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       audioContextRef.current = new AudioContextClass();
       analyserRef.current = audioContextRef.current.createAnalyser();
       microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
@@ -50,7 +50,7 @@ export function NoiseMonitor() {
       setError(null);
     } catch (err) {
       logger.error("Error accessing microphone:", err);
-      setError("No se pudo acceder al micrófono. Verifique los permisos.");
+      setError("No se pudo acceder al micrÃ³fono. Verifique los permisos.");
     }
   };
 
@@ -76,9 +76,9 @@ export function NoiseMonitor() {
 
   const getRiskLevel = (db: number) => {
     if (db < 60) return { level: 'Seguro', color: 'text-emerald-500', bg: 'bg-emerald-500', alert: null };
-    if (db < 80) return { level: 'Precaución', color: 'text-yellow-500', bg: 'bg-yellow-500', alert: null };
-    if (db < 85) return { level: 'Alerta', color: 'text-orange-500', bg: 'bg-orange-500', alert: 'Límite de exposición cercano.' };
-    return { level: 'Peligro', color: 'text-rose-500', bg: 'bg-rose-500', alert: '¡Uso obligatorio de protección auditiva!' };
+    if (db < 80) return { level: 'PrecauciÃ³n', color: 'text-yellow-500', bg: 'bg-yellow-500', alert: null };
+    if (db < 85) return { level: 'Alerta', color: 'text-orange-500', bg: 'bg-orange-500', alert: 'LÃ­mite de exposiciÃ³n cercano.' };
+    return { level: 'Peligro', color: 'text-rose-500', bg: 'bg-rose-500', alert: 'Â¡Uso obligatorio de protecciÃ³n auditiva!' };
   };
 
   const risk = getRiskLevel(decibels);
@@ -89,7 +89,7 @@ export function NoiseMonitor() {
         <div>
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Volume2 className="w-5 h-5 text-indigo-500" />
-            Dosimetría Aproximada
+            DosimetrÃ­a Aproximada
           </h3>
           <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
             Control de Ruido Ambiental
@@ -154,7 +154,7 @@ export function NoiseMonitor() {
         <div className="flex items-center gap-2 text-[10px] text-zinc-500">
           <Activity className="w-3 h-3" />
           <p>
-            <strong>Privacidad:</strong> Este módulo mide niveles de presión sonora localmente. No se graba ni transmite audio.
+            <strong>Privacidad:</strong> Este mÃ³dulo mide niveles de presiÃ³n sonora localmente. No se graba ni transmite audio.
           </p>
         </div>
       </div>

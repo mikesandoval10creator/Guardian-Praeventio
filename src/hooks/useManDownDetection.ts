@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useRiskEngine } from './useRiskEngine';
 import { useProject } from '../contexts/ProjectContext';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -41,11 +41,11 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   // Dynamic thresholds from project settings or defaults
   const INACTIVITY_THRESHOLD = selectedProject?.settings?.manDownInactivityThreshold || 30000;
   const MOVEMENT_THRESHOLD = selectedProject?.settings?.manDownMovementThreshold || 0.5;
-  // Jerk threshold for movement detection. Empirical — tune with field data from real
-  // miners/construction workers (PPE, gait, vehicle vibration). 1.5 m/s² roughly
+  // Jerk threshold for movement detection. Empirical â€” tune with field data from real
+  // miners/construction workers (PPE, gait, vehicle vibration). 1.5 m/sÂ² roughly
   // separates resting hand tremor / vehicle idle from intentional limb motion.
   const JERK_THRESHOLD = 1.5;
-  // ~5 samples ≈ 100–200ms at typical DeviceMotion rates (30–60Hz).
+  // ~5 samples â‰ˆ 100â€“200ms at typical DeviceMotion rates (30â€“60Hz).
   const JERK_WINDOW = 5;
 
   // Sustained alarm parameters (B9).
@@ -66,14 +66,14 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   };
 
   const playOneAlarmPulse = () => {
-    // Vibration: pulse pattern. Best-effort — iOS Safari has no vibrate API.
+    // Vibration: pulse pattern. Best-effort â€” iOS Safari has no vibrate API.
     try { navigator.vibrate?.([1000, 200, 1000, 200]); } catch {}
     // Audio: reuse the pre-warmed AudioContext (B-related fix). Fallback to a fresh
     // one if it was never primed (best-effort; mobile may keep it suspended).
     try {
       let ctx = audioCtxRef.current;
       if (!ctx) {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
         if (!AudioCtxClass) return;
         ctx = new AudioCtxClass() as AudioContext;
         audioCtxRef.current = ctx;
@@ -127,7 +127,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
         acknowledgedAt: serverTimestamp(),
       });
     } catch (err) {
-      console.error('[ManDown] acknowledgeAlert Firestore write failed — queuing retry:', err);
+      console.error('[ManDown] acknowledgeAlert Firestore write failed â€” queuing retry:', err);
       logger.error('useManDownDetection: failed to acknowledge event', { err });
       // Re-arm the alarm so the acknowledgment doesn't silently disappear
       acknowledgedRef.current = false;
@@ -142,7 +142,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
     // alarm later has an unblocked context (Chrome/Safari autoplay policy).
     try {
       if (!audioCtxRef.current) {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
         if (AudioCtxClass) {
           audioCtxRef.current = new AudioCtxClass() as AudioContext;
         }
@@ -177,7 +177,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   };
 
   const triggerAlert = async () => {
-    // ── Offline-first alarm: fire immediately, no network required ──
+    // â”€â”€ Offline-first alarm: fire immediately, no network required â”€â”€
     // B9: sustained loop instead of single 3s burst.
     startAlarmLoop();
 
@@ -193,12 +193,12 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       acceleration: sensorData.acceleration,
       inactivityMs: INACTIVITY_THRESHOLD,
       timestamp: impactTimestamp,
-    }).catch(() => {}); // silently fail — safety data has priority
+    }).catch(() => {}); // silently fail â€” safety data has priority
 
     try {
       const location = await new Promise<string>((resolve) => {
         if (!navigator.geolocation) {
-          resolve('Ubicación GPS no soportada por el navegador');
+          resolve('UbicaciÃ³n GPS no soportada por el navegador');
           return;
         }
         navigator.geolocation.getCurrentPosition(
@@ -207,7 +207,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
           },
           (error) => {
             logger.warn('Error fetching geolocation:', { code: error.code, message: error.message });
-            resolve('Error al obtener ubicación GPS');
+            resolve('Error al obtener ubicaciÃ³n GPS');
           },
           { timeout: 5000 }
         );
@@ -216,9 +216,9 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       // 1. Add Risk Node
       await addNode({
         type: NodeType.EMERGENCY,
-        title: `ALERTA: Hombre Caído - ${user.displayName || 'Trabajador'}`,
-        description: `Se ha detectado una posible caída o inmovilidad prolongada del trabajador en el proyecto ${selectedProject.name}.`,
-        tags: ['Emergencia', 'Hombre Caído', 'Crítico'],
+        title: `ALERTA: Hombre CaÃ­do - ${user.displayName || 'Trabajador'}`,
+        description: `Se ha detectado una posible caÃ­da o inmovilidad prolongada del trabajador en el proyecto ${selectedProject.name}.`,
+        tags: ['Emergencia', 'Hombre CaÃ­do', 'CrÃ­tico'],
         projectId: selectedProject.id,
         connections: [],
         metadata: {
@@ -236,16 +236,16 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       await addDoc(messagesRef, {
         projectId: selectedProject.id,
         senderId: user.uid,
-        senderName: 'SISTEMA AUTOMÁTICO',
+        senderName: 'SISTEMA AUTOMÃTICO',
         senderRole: 'ALERTA MAN DOWN',
-        text: `🚨 ALERTA CRÍTICA: Se ha detectado una posible caída o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. Ubicación: ${location}`,
+        text: `ðŸš¨ ALERTA CRÃTICA: Se ha detectado una posible caÃ­da o inmovilidad prolongada del trabajador ${user.displayName || 'Desconocido'}. UbicaciÃ³n: ${location}`,
         type: 'emergency',
         timestamp: serverTimestamp()
       });
 
       // 3. Create auditable mandown_event for supervisor acknowledgment tracking.
       //
-      // Sprint 12 — when an `accidente de trayecto` commute session is active
+      // Sprint 12 â€” when an `accidente de trayecto` commute session is active
       // for this project, decorate the event with `tipo: 'trayecto'` so
       // SUSESO reporting (Ley 16.744) can classify it without a follow-up
       // form. The tag is informational; the lifecycle remains the same.
@@ -269,7 +269,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
       );
       mandownEventRef.current = { projectId: selectedProject.id, docId: eventRef.id };
 
-      // NOTE: do NOT clear isAlerting here — the supervisor must explicitly
+      // NOTE: do NOT clear isAlerting here â€” the supervisor must explicitly
       // acknowledge via acknowledgeAlert() to silence the local alarm. This
       // prevents the alarm from going quiet just because the network call
       // succeeded, which would defeat the "attract nearby rescuers" purpose.
@@ -299,8 +299,8 @@ export function useManDownDetection(options: ManDownOptions = {}) {
 
       // H-mandown fix: jerk-based movement detection. The previous
       // |totalAcc - 9.8| heuristic broke when the device rested at an angle
-      // (gravity vector rotated, magnitude still ≈ 9.8 but per-axis components
-      // differ from the assumed orientation). Jerk = |Δacc| over a short window
+      // (gravity vector rotated, magnitude still â‰ˆ 9.8 but per-axis components
+      // differ from the assumed orientation). Jerk = |Î”acc| over a short window
       // is orientation-invariant.
       const history = accHistoryRef.current;
       history.push(totalAcc);

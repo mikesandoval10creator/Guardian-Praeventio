@@ -1,8 +1,8 @@
-// Praeventio Guard — Sprint 12.
+﻿// Praeventio Guard â€” Sprint 12.
 //
 // HTTP tests for /api/commute/{start,sample,end}. The production handlers
 // live in src/server/routes/commute.ts and call admin.firestore() directly
-// — same as zettelkasten.ts. To avoid pulling firebase-admin into the test
+// â€” same as zettelkasten.ts. To avoid pulling firebase-admin into the test
 // surface we build a minimal Express app here whose handlers mirror the
 // production logic (validation, member guard, ownership check, audit
 // emissions) using the InMemoryFirestore fake from test-server.ts. Drift
@@ -44,7 +44,7 @@ function build(): Handle {
     const token = authHeader.split('Bearer ')[1];
     if (token === 'invalid') return res.status(401).json({ error: 'Unauthorized' });
     const [, uid, email] = token.split(':');
-    (req as any).user = { uid: uid ?? 'uid-default', email: email ?? `${uid}@test.com` };
+    req.user = { uid: uid ?? 'uid-default', email: email ?? `${uid}@test.com` };
     next();
   };
 
@@ -57,7 +57,7 @@ function build(): Handle {
   }
 
   app.post('/api/commute/start', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { type, projectId } = req.body ?? {};
     if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
       return res.status(400).json({ error: 'Invalid projectId' });
@@ -111,7 +111,7 @@ function build(): Handle {
   }
 
   app.post('/api/commute/sample', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { sessionId, lat, lng, speedKmh, accuracyM, timestamp } = req.body ?? {};
     if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid sessionId' });
@@ -144,7 +144,7 @@ function build(): Handle {
   });
 
   app.post('/api/commute/end', verifyAuth, async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { sessionId } = req.body ?? {};
     if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
       return res.status(400).json({ error: 'Invalid sessionId' });

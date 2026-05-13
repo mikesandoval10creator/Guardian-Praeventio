@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HeartPulse, Activity, ChevronRight, X, Play, Square, Vibrate, AlertTriangle } from 'lucide-react';
 import { useAccelerometer } from '../../hooks/useAccelerometer';
@@ -6,7 +6,7 @@ import { useAccelerometer } from '../../hooks/useAccelerometer';
 const guides = [
   {
     id: 'rcp',
-    title: 'RCP (Reanimación Cardiopulmonar)',
+    title: 'RCP (ReanimaciÃ³n Cardiopulmonar)',
     icon: HeartPulse,
     color: 'text-rose-500',
     bgColor: 'bg-rose-500/10',
@@ -14,10 +14,10 @@ const guides = [
     steps: [
       'Asegure la zona. Verifique si la persona responde.',
       'Llame a emergencias (131) y pida un DEA.',
-      'Coloque el talón de una mano en el centro del pecho.',
+      'Coloque el talÃ³n de una mano en el centro del pecho.',
       'Coloque la otra mano encima y entrelace los dedos.',
-      'Comprima fuerte y rápido (5-6 cm de profundidad).',
-      'Siga el ritmo del metrónomo (100-120 compresiones por minuto).'
+      'Comprima fuerte y rÃ¡pido (5-6 cm de profundidad).',
+      'Siga el ritmo del metrÃ³nomo (100-120 compresiones por minuto).'
     ],
     hasMetronome: true
   },
@@ -30,10 +30,10 @@ const guides = [
     borderColor: 'border-red-500/30',
     steps: [
       'Identifique el origen del sangrado masivo.',
-      'Aplique presión directa inmediata con un paño limpio.',
-      'Si no se detiene, coloque el torniquete 5-8 cm por encima de la herida (nunca en una articulación).',
+      'Aplique presiÃ³n directa inmediata con un paÃ±o limpio.',
+      'Si no se detiene, coloque el torniquete 5-8 cm por encima de la herida (nunca en una articulaciÃ³n).',
       'Apriete hasta que el sangrado se detenga por completo.',
-      'Asegure el torniquete y anote la hora exacta de colocación.',
+      'Asegure el torniquete y anote la hora exacta de colocaciÃ³n.',
       'No afloje el torniquete bajo ninguna circunstancia.'
     ],
     hasMetronome: false
@@ -53,7 +53,7 @@ export function FirstAidCards() {
     onFallDetected: undefined,
   });
 
-  // CPR depth feedback — uses accelerometer while metronome is active
+  // CPR depth feedback â€” uses accelerometer while metronome is active
   useEffect(() => {
     if (!depthCheckActive || !accelData) return;
 
@@ -99,7 +99,7 @@ export function FirstAidCards() {
     let audioCtx: AudioContext | null = null;
 
     if (metronomeActive) {
-      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       
       const playClick = () => {
         if (!audioCtx) return;
@@ -185,7 +185,7 @@ export function FirstAidCards() {
                         setDepthFeedback(null);
                         stopAccel();
                       }}
-                      // Audit P0 §1.1 — WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
+                      // Audit P0 Â§1.1 â€” WCAG 2.5.5 + Apple HIG 44pt + Material 48dp: min 44x44 touch target.
                       className="min-h-11 min-w-11 inline-flex items-center justify-center p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
                       <X className="w-6 h-6 text-zinc-500" />
@@ -208,13 +208,13 @@ export function FirstAidCards() {
 
                     {guide.hasMetronome && (
                       <div className="mt-8 rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                        {/* Emergency metronome — use during real CPR, hands always on victim */}
+                        {/* Emergency metronome â€” use during real CPR, hands always on victim */}
                         <div className="p-6 bg-zinc-100 dark:bg-zinc-800/50 flex flex-col items-center gap-4">
                           <div className="text-center">
-                            <h4 className="font-black uppercase tracking-widest text-zinc-900 dark:text-white">Metrónomo RCP</h4>
+                            <h4 className="font-black uppercase tracking-widest text-zinc-900 dark:text-white">MetrÃ³nomo RCP</h4>
                             <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">100 BPM</p>
                             <p className="text-[10px] text-zinc-500 mt-1">
-                              Usa solo el audio y la vibración. Mantén ambas manos sobre la víctima en todo momento.
+                              Usa solo el audio y la vibraciÃ³n. MantÃ©n ambas manos sobre la vÃ­ctima en todo momento.
                             </p>
                           </div>
                           <button
@@ -224,7 +224,7 @@ export function FirstAidCards() {
                               if (next) {
                                 try { navigator.vibrate(200); } catch {}
                                 try {
-                                  const u = new SpeechSynthesisUtterance('Metrónomo iniciado');
+                                  const u = new SpeechSynthesisUtterance('MetrÃ³nomo iniciado');
                                   u.lang = 'es-ES';
                                   u.volume = 1;
                                   speechSynthesis.speak(u);
@@ -240,12 +240,12 @@ export function FirstAidCards() {
                             {metronomeActive ? (
                               <>
                                 <Square className="w-5 h-5 fill-current" />
-                                Detener Metrónomo
+                                Detener MetrÃ³nomo
                               </>
                             ) : (
                               <>
                                 <Play className="w-5 h-5 fill-current" />
-                                Iniciar Metrónomo
+                                Iniciar MetrÃ³nomo
                               </>
                             )}
                           </button>
@@ -255,15 +255,15 @@ export function FirstAidCards() {
                         <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-t border-amber-500/30">
                           <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                           <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
-                            Solo Entrenamiento — Requiere Maniquí CPR
+                            Solo Entrenamiento â€” Requiere ManiquÃ­ CPR
                           </p>
                         </div>
 
-                        {/* Depth guide — training only, shown only when metronome active */}
+                        {/* Depth guide â€” training only, shown only when metronome active */}
                         {metronomeActive && (
                           <div className="p-4 bg-zinc-50 dark:bg-zinc-900/60 space-y-3">
                             <p className="text-[10px] text-zinc-500 dark:text-zinc-400 text-center leading-relaxed">
-                              Guía de profundidad de compresión. Coloca el celular sobre el maniquí — <strong>nunca sobre una víctima real.</strong>
+                              GuÃ­a de profundidad de compresiÃ³n. Coloca el celular sobre el maniquÃ­ â€” <strong>nunca sobre una vÃ­ctima real.</strong>
                             </p>
                             <button
                               onClick={toggleDepthCheck}
@@ -274,7 +274,7 @@ export function FirstAidCards() {
                               }`}
                             >
                               <Vibrate className="w-4 h-4" />
-                              {depthCheckActive ? 'Desactivar Guía (Maniquí)' : 'Activar Guía de Profundidad (Maniquí)'}
+                              {depthCheckActive ? 'Desactivar GuÃ­a (ManiquÃ­)' : 'Activar GuÃ­a de Profundidad (ManiquÃ­)'}
                             </button>
 
                             {depthCheckActive && depthFeedback && (
@@ -288,9 +288,9 @@ export function FirstAidCards() {
                                     : 'bg-rose-500/20 text-rose-400 animate-pulse'
                                 }`}
                               >
-                                {depthFeedback === 'OK' && '✓ Profundidad correcta'}
-                                {depthFeedback === 'DEEPER' && '↓ Más fuerte'}
-                                {depthFeedback === 'FASTER' && '↑ Más rápido'}
+                                {depthFeedback === 'OK' && 'âœ“ Profundidad correcta'}
+                                {depthFeedback === 'DEEPER' && 'â†“ MÃ¡s fuerte'}
+                                {depthFeedback === 'FASTER' && 'â†‘ MÃ¡s rÃ¡pido'}
                               </motion.div>
                             )}
                           </div>

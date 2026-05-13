@@ -1,15 +1,15 @@
-// Praeventio Guard — Sprint 35 Bucket — Medical Aptitude Certificate router.
+﻿// Praeventio Guard â€” Sprint 35 Bucket â€” Medical Aptitude Certificate router.
 //
 // CRITICAL POLICY (read before editing):
 //   * Praeventio NO push a MUTUAL/SUSESO/IST. Empresa cliente entrega por su canal.
-//   * Endpoints below SOLO generan + firman biométricamente. No hay HTTP egress
-//     a mutualidades, no hay validación contra base externa, no se bloquea
+//   * Endpoints below SOLO generan + firman biomÃ©tricamente. No hay HTTP egress
+//     a mutualidades, no hay validaciÃ³n contra base externa, no se bloquea
 //     maquinaria.
 //
 // Surface (mounted at /api/medical):
-//   POST /aptitude-cert/generate         — generate PDF + JSON + hash
-//   POST /aptitude-cert/sign-challenge   — request server-bound challenge
-//   POST /aptitude-cert/sign             — embed WebAuthn signature in JSON
+//   POST /aptitude-cert/generate         â€” generate PDF + JSON + hash
+//   POST /aptitude-cert/sign-challenge   â€” request server-bound challenge
+//   POST /aptitude-cert/sign             â€” embed WebAuthn signature in JSON
 //
 // Role gate: doctor (medico_ocupacional) or admin/gerente.
 // Audit rows:
@@ -63,13 +63,13 @@ function isAllowedSignerRole(role: string | undefined): boolean {
   return isAdminRole(role) || isDoctorRole(role);
 }
 
-// ─── POST /aptitude-cert/generate ───────────────────────────────────────────
+// â”€â”€â”€ POST /aptitude-cert/generate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 medicalAptitudeRouter.post(
   '/aptitude-cert/generate',
   verifyAuth,
   async (req: Request, res: Response) => {
-    const callerUid = (req as any).user?.uid as string | undefined;
+    const callerUid = req.user?.uid as string | undefined;
     if (!callerUid) return res.status(401).json({ error: 'no_uid' });
 
     const role = await resolveCallerRole(callerUid);
@@ -77,7 +77,7 @@ medicalAptitudeRouter.post(
       return res.status(403).json({ error: 'doctor_or_admin_required' });
     }
 
-    // Zod validation surface — explicit so the route returns 400 with detail.
+    // Zod validation surface â€” explicit so the route returns 400 with detail.
     const parsed = aptitudeCertInputSchema.safeParse(req.body);
     if (!parsed.success) {
       return res
@@ -113,7 +113,7 @@ medicalAptitudeRouter.post(
   },
 );
 
-// ─── POST /aptitude-cert/sign-challenge ─────────────────────────────────────
+// â”€â”€â”€ POST /aptitude-cert/sign-challenge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const challengeSchema = z.object({
   certHash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -123,7 +123,7 @@ medicalAptitudeRouter.post(
   '/aptitude-cert/sign-challenge',
   verifyAuth,
   async (req: Request, res: Response) => {
-    const callerUid = (req as any).user?.uid as string | undefined;
+    const callerUid = req.user?.uid as string | undefined;
     if (!callerUid) return res.status(401).json({ error: 'no_uid' });
 
     const role = await resolveCallerRole(callerUid);
@@ -139,7 +139,7 @@ medicalAptitudeRouter.post(
   },
 );
 
-// ─── POST /aptitude-cert/sign ───────────────────────────────────────────────
+// â”€â”€â”€ POST /aptitude-cert/sign â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const signRequestSchema = z.object({
   cert: z
@@ -199,7 +199,7 @@ medicalAptitudeRouter.post(
   '/aptitude-cert/sign',
   verifyAuth,
   async (req: Request, res: Response) => {
-    const callerUid = (req as any).user?.uid as string | undefined;
+    const callerUid = req.user?.uid as string | undefined;
     if (!callerUid) return res.status(401).json({ error: 'no_uid' });
 
     const role = await resolveCallerRole(callerUid);

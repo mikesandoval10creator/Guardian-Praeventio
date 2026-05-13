@@ -1,16 +1,16 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SafetyTrendChart, type SafetyTrendPoint } from './SafetyTrendChart.js';
 
-// Recharts depende de ResizeObserver — mock para jsdom.
+// Recharts depende de ResizeObserver â€” mock para jsdom.
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(globalThis as any).ResizeObserver = ResizeObserverMock;
+globalThis.ResizeObserver = ResizeObserverMock;
 
 const SAMPLE: SafetyTrendPoint[] = [
   { period: '2026-01', trir: 3.2, ltifr: 1.1, dart: 2.0, sifr: 0.1 },
@@ -22,13 +22,13 @@ describe('SafetyTrendChart', () => {
   it('renderiza header, count y footer', () => {
     render(<SafetyTrendChart data={SAMPLE} />);
     expect(screen.getByTestId('safety-trend.title')).toHaveTextContent(/OSHA/i);
-    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('3 períodos');
+    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('3 perÃ­odos');
     expect(screen.getByTestId('safety-trend.footer')).toBeInTheDocument();
   });
 
-  it('lista vacía no rompe', () => {
+  it('lista vacÃ­a no rompe', () => {
     render(<SafetyTrendChart data={[]} />);
-    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('0 períodos');
+    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('0 perÃ­odos');
   });
 
   it('appearance dark cambia className', () => {

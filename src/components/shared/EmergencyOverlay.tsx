@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
 import { useEmergency } from '../../contexts/EmergencyContext';
@@ -7,20 +7,20 @@ import { db, serverTimestamp } from '../../services/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
 
-// Sprint 14 — climate sub-type copy (Spanish UI). Centralized so future
+// Sprint 14 â€” climate sub-type copy (Spanish UI). Centralized so future
 // sub-types (e.g., visibility, lightning) are added in one place.
 const CLIMATE_COPY: Record<'storm' | 'extreme_heat' | 'extreme_cold', { title: string; body: string }> = {
   storm: {
-    title: '🌪️ TORMENTA DETECTADA',
+    title: 'ðŸŒªï¸ TORMENTA DETECTADA',
     body: 'Suspende trabajos en altura',
   },
   extreme_heat: {
-    title: '🥵 CALOR EXTREMO',
-    body: 'Hidratación obligatoria · pausas cada 20 min',
+    title: 'ðŸ¥µ CALOR EXTREMO',
+    body: 'HidrataciÃ³n obligatoria Â· pausas cada 20 min',
   },
   extreme_cold: {
-    title: '🥶 FRÍO EXTREMO',
-    body: 'Verifica EPP térmico',
+    title: 'ðŸ¥¶ FRÃO EXTREMO',
+    body: 'Verifica EPP tÃ©rmico',
   },
 };
 
@@ -35,8 +35,8 @@ interface SeismicLogPayload {
 }
 
 /**
- * Sprint 14 — Sismic overlay. Full-screen black takeover with the
- * "Agáchate · Cúbrete · Sujétate" trio, optional Triángulo de la Vida tip
+ * Sprint 14 â€” Sismic overlay. Full-screen black takeover with the
+ * "AgÃ¡chate Â· CÃºbrete Â· SujÃ©tate" trio, optional TriÃ¡ngulo de la Vida tip
  * (afternoon + indoor heuristic), and a 30s auto-dismiss / tap-to-dismiss.
  *
  * Persists one row to `tenants/{tenantId}/seismic_events/{id}` per trigger.
@@ -90,9 +90,9 @@ function SismicAutoOverlay({
     );
   }, [logged, peakG, location, tenantId]);
 
-  // Indoor heuristic: afternoon (12:00–20:00) + GPS at coarse fix is a weak
+  // Indoor heuristic: afternoon (12:00â€“20:00) + GPS at coarse fix is a weak
   // proxy for "user is inside a building". Without a known-buildings index
-  // we surface the Triángulo de la Vida tip whenever both conditions hold.
+  // we surface the TriÃ¡ngulo de la Vida tip whenever both conditions hold.
   const hour = new Date().getHours();
   const isAfternoon = hour >= 12 && hour < 20;
   const indoorLikely = isAfternoon && location !== null;
@@ -102,15 +102,15 @@ function SismicAutoOverlay({
       type="button"
       onClick={onDismiss}
       className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center cursor-pointer"
-      aria-label="Cerrar alerta sísmica"
+      aria-label="Cerrar alerta sÃ­smica"
     >
-      <div className="text-6xl md:text-8xl font-black mb-6">🟥 SISMO DETECTADO</div>
+      <div className="text-6xl md:text-8xl font-black mb-6">ðŸŸ¥ SISMO DETECTADO</div>
       <div className="text-3xl md:text-5xl font-bold mb-4 text-red-400 uppercase tracking-widest">
-        Agáchate · Cúbrete · Sujétate
+        AgÃ¡chate Â· CÃºbrete Â· SujÃ©tate
       </div>
       {indoorLikely && (
         <div className="mt-6 max-w-2xl text-base md:text-xl text-amber-300 border-2 border-amber-500 rounded-2xl p-4">
-          Triángulo de la Vida: junto a un mueble sólido, NUNCA debajo. Cuello protegido.
+          TriÃ¡ngulo de la Vida: junto a un mueble sÃ³lido, NUNCA debajo. Cuello protegido.
         </div>
       )}
       <div className="mt-8 text-sm text-zinc-500">Toca la pantalla para descartar</div>
@@ -119,7 +119,7 @@ function SismicAutoOverlay({
 }
 
 /**
- * Sprint 14 — Climate overlay. Routes by sub-type to the relevant copy,
+ * Sprint 14 â€” Climate overlay. Routes by sub-type to the relevant copy,
  * auto-dismisses after 60s OR when the user acknowledges with "Entendido".
  */
 function ClimateAutoOverlay({
@@ -138,7 +138,7 @@ function ClimateAutoOverlay({
     <div
       className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center"
       role="alertdialog"
-      aria-label="Alerta climática"
+      aria-label="Alerta climÃ¡tica"
     >
       <div className="text-5xl md:text-7xl font-black mb-6">{copy.title}</div>
       <div className="text-2xl md:text-4xl font-bold mb-8 text-amber-300 max-w-3xl">
@@ -159,14 +159,14 @@ export function EmergencyOverlay() {
   const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
   const { emergencyAutoEvent, dismissEmergency } = useAppMode();
 
-  // Sprint 14 — auto-monitor variants take precedence when their reason is
+  // Sprint 14 â€” auto-monitor variants take precedence when their reason is
   // present. The legacy `useEmergency` flow continues to drive the overlay
   // when triggered manually or via the IoT critical path. Rendering happens
   // BEFORE the early-returnless legacy branch so we can short-circuit.
   if (emergencyAutoEvent) {
     if (emergencyAutoEvent.reason === 'sismo') {
       const tenantId =
-        (typeof window !== 'undefined' && (window as any).__GP_TENANT_ID__) || 'default';
+        (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
       return (
         <SismicAutoOverlay
           peakG={emergencyAutoEvent.peakG}
@@ -190,7 +190,7 @@ export function EmergencyOverlay() {
   const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
   const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);
 
-  // Kill-Switch de Animaciones (Modo Táctico) y Síntesis de Voz
+  // Kill-Switch de Animaciones (Modo TÃ¡ctico) y SÃ­ntesis de Voz
   useEffect(() => {
     let utterance: SpeechSynthesisUtterance | null = null;
 
@@ -208,20 +208,20 @@ export function EmergencyOverlay() {
               lng: Number(pos.coords.longitude.toFixed(5))
             });
           },
-          (err) => logger.warn("No se pudo obtener ubicación para emergencia:", { code: err.code, message: err.message }),
+          (err) => logger.warn("No se pudo obtener ubicaciÃ³n para emergencia:", { code: err.code, message: err.message }),
           { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
       }
 
-      // Síntesis de Voz Nativa
+      // SÃ­ntesis de Voz Nativa
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel(); // Clear any ongoing speech
 
-        let textToSpeak = 'Alerta de emergencia. Evacuación inmediata.';
+        let textToSpeak = 'Alerta de emergencia. EvacuaciÃ³n inmediata.';
         if (emergencyType === 'sismo') {
-          textToSpeak = 'Alerta de sismo. Mantenga la calma y diríjase a la salida más cercana. Siga las señales luminosas hacia la Zona de Seguridad. No use ascensores.';
+          textToSpeak = 'Alerta de sismo. Mantenga la calma y dirÃ­jase a la salida mÃ¡s cercana. Siga las seÃ±ales luminosas hacia la Zona de Seguridad. No use ascensores.';
         } else if (emergencyType === 'iot_critical') {
-          textToSpeak = 'Alerta crítica de telemetría. Localice al trabajador afectado inmediatamente. Despache al equipo de primeros auxilios. Asegure el área.';
+          textToSpeak = 'Alerta crÃ­tica de telemetrÃ­a. Localice al trabajador afectado inmediatamente. Despache al equipo de primeros auxilios. Asegure el Ã¡rea.';
         }
 
         utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -312,9 +312,9 @@ export function EmergencyOverlay() {
             </h1>
 
             <p className="text-2xl md:text-3xl font-bold text-white mb-8 bg-red-600 px-6 py-2 rounded-lg uppercase tracking-widest">
-              {emergencyType === 'sismo' ? 'SISMO DETECTADO - EVACUACIÓN INMEDIATA' : 
-               emergencyType === 'iot_critical' ? 'ALERTA CRÍTICA DE TELEMETRÍA - REVISAR PERSONAL' :
-               'EVACUACIÓN INMEDIATA'}
+              {emergencyType === 'sismo' ? 'SISMO DETECTADO - EVACUACIÃ“N INMEDIATA' : 
+               emergencyType === 'iot_critical' ? 'ALERTA CRÃTICA DE TELEMETRÃA - REVISAR PERSONAL' :
+               'EVACUACIÃ“N INMEDIATA'}
             </p>
 
             {location && (
@@ -333,7 +333,7 @@ export function EmergencyOverlay() {
               <div className="bg-black/80 p-6 rounded-2xl border-2 border-[#00ff00] text-left shadow-[0_0_15px_rgba(0,255,0,0.2)]">
                 <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-[#00ff00]">
                   <MapPin className="w-6 h-6" />
-                  {emergencyType === 'iot_critical' ? 'Protocolo de Rescate' : 'Ruta de Evacuación'}
+                  {emergencyType === 'iot_critical' ? 'Protocolo de Rescate' : 'Ruta de EvacuaciÃ³n'}
                 </h3>
                 <ul className="space-y-4">
                   {emergencyType === 'iot_critical' ? (
@@ -348,18 +348,18 @@ export function EmergencyOverlay() {
                       </li>
                       <li className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">3</div>
-                        <p className="text-lg text-white">Asegure el área y detenga la maquinaria cercana.</p>
+                        <p className="text-lg text-white">Asegure el Ã¡rea y detenga la maquinaria cercana.</p>
                       </li>
                     </>
                   ) : (
                     <>
                       <li className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">1</div>
-                        <p className="text-lg text-white">Mantenga la calma y diríjase a la salida más cercana.</p>
+                        <p className="text-lg text-white">Mantenga la calma y dirÃ­jase a la salida mÃ¡s cercana.</p>
                       </li>
                       <li className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">2</div>
-                        <p className="text-lg text-white">Siga las señales luminosas hacia la Zona de Seguridad.</p>
+                        <p className="text-lg text-white">Siga las seÃ±ales luminosas hacia la Zona de Seguridad.</p>
                       </li>
                       <li className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">3</div>
@@ -394,7 +394,7 @@ export function EmergencyOverlay() {
               </div>
             </div>
 
-            {/* Botón "Estoy a Salvo" Unificado */}
+            {/* BotÃ³n "Estoy a Salvo" Unificado */}
             {!isSafe ? (
               <div className="w-full flex flex-col items-center gap-8">
                 <button 
@@ -405,9 +405,9 @@ export function EmergencyOverlay() {
                   <span>ESTOY A SALVO</span>
                 </button>
 
-                {/* Protocolo Triage Rápido */}
+                {/* Protocolo Triage RÃ¡pido */}
                 <div className="w-full max-w-2xl bg-black/80 border-2 border-zinc-800 p-6 rounded-2xl">
-                  <h3 className="text-white font-bold uppercase tracking-widest mb-4">Reporte Rápido de Heridos (Triage)</h3>
+                  <h3 className="text-white font-bold uppercase tracking-widest mb-4">Reporte RÃ¡pido de Heridos (Triage)</h3>
                   {!triageReported ? (
                     <div className="grid grid-cols-3 gap-4">
                       <button 
@@ -426,7 +426,7 @@ export function EmergencyOverlay() {
                         onClick={() => handleTriage('rojo')}
                         className="bg-red-600 hover:bg-red-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all"
                       >
-                        Crítico
+                        CrÃ­tico
                       </button>
                     </div>
                   ) : (

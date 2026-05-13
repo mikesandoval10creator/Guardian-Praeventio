@@ -1,11 +1,11 @@
-// Praeventio Guard — Sprint 14.
+﻿// Praeventio Guard â€” Sprint 14.
 //
-// POST /api/emergency/sos — worker-initiated SOS alert. The mobile client
+// POST /api/emergency/sos â€” worker-initiated SOS alert. The mobile client
 // (SOSButton with 3s long-press confirmation) calls this endpoint with an
 // optional GPS fix and the active project. The server:
 //
 //   1. Authenticates via verifyAuth.
-//   2. Asserts project membership (cross-tenant SOS would be a privacy leak —
+//   2. Asserts project membership (cross-tenant SOS would be a privacy leak â€”
 //      a worker on project A could spam supervisors of project B otherwise).
 //   3. Writes the alert to `tenants/{tenantId}/emergency_alerts/{alertId}`
 //      with `{type, uid, projectId, geo, createdAt}`.
@@ -37,11 +37,11 @@ import {
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
-// Sprint 22 Bucket AA — request-scoped tracing on the SOS path. Emergency
+// Sprint 22 Bucket AA â€” request-scoped tracing on the SOS path. Emergency
 // notifications are CRITICAL to correlate end-to-end (push fan-out
 // failures, missing tokens, Firestore lag).
 import { tracedAsync } from '../../services/observability/tracing.js';
-// Sprint 22 Bucket Y — email fallback when FCM push fails or no
+// Sprint 22 Bucket Y â€” email fallback when FCM push fails or no
 // supervisor has a registered token. Resend service is constructed
 // lazily from env so dev environments without RESEND_API_KEY still
 // boot; `EmailService.fromEnv()` returns null in that case and we
@@ -53,7 +53,7 @@ export const sosLimiter = rateLimit({
   windowMs: 60_000,
   max: 10,
   keyGenerator: (req: Request) =>
-    (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+    req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas alertas SOS. Espera un momento.' },
@@ -61,13 +61,13 @@ export const sosLimiter = rateLimit({
 
 const SUPERVISOR_ROLES = new Set(['supervisor', 'gerente', 'prevencionista', 'admin']);
 
-// ────────────────────────────────────────────────────────────────────────
-// Sprint 27 P0 H7 — cross-collection FCM token cache.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Sprint 27 P0 H7 â€” cross-collection FCM token cache.
 //
 // Background: `push.ts` writes registered tokens to `users/{uid}.fcmTokens`
 // (an array, via arrayUnion). The legacy SOS fan-out path read
 // `projects/{id}/members/{uid}.fcmToken` (singular). Nobody synchronized
-// the two, so `notified` was always 0 — the brigade's phones never rang.
+// the two, so `notified` was always 0 â€” the brigade's phones never rang.
 //
 // Fix (option 1 / single source of truth): for each project member,
 // resolve their tokens cross-collection from `users/{memberUid}.fcmTokens`
@@ -76,9 +76,9 @@ const SUPERVISOR_ROLES = new Set(['supervisor', 'gerente', 'prevencionista', 'ad
 //
 // Cache: TTL 5 min keyed by uid. SOS bursts (e.g. a brigade leader hitting
 // the button repeatedly during an active incident) shouldn't hammer
-// `users/*` reads. The cache is process-local — no Redis needed; pods
+// `users/*` reads. The cache is process-local â€” no Redis needed; pods
 // rotate often enough that staleness is bounded.
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const USER_TOKEN_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
 const userTokenCache = new Map<string, { tokens: string[]; expiresAt: number }>();
@@ -92,7 +92,7 @@ export function __clearUserTokenCache(): void {
 /**
  * Read `users/{uid}.fcmTokens` (array) with a TTL cache. Returns `[]` when
  * the doc doesn't exist or the field is missing/empty. Errors are swallowed
- * to a `[]` return — a single user-doc read failing must never block the
+ * to a `[]` return â€” a single user-doc read failing must never block the
  * SOS fan-out.
  */
 async function getUserTokensCached(
@@ -158,7 +158,7 @@ export async function sendToProjectSupervisors(
   const tokenSet = new Set<string>();
   const supervisorEmails: string[] = [];
 
-  // Sprint 27 P0 H7 — cross-collection lookup. The canonical token store
+  // Sprint 27 P0 H7 â€” cross-collection lookup. The canonical token store
   // is `users/{uid}.fcmTokens` (array, written by /api/push/register-token
   // via arrayUnion). For each supervisor member of the project we union
   // those tokens with any legacy `members/{uid}.fcmToken` (singular) that
@@ -169,7 +169,7 @@ export async function sendToProjectSupervisors(
     const data = memberDoc.data();
     if (!SUPERVISOR_ROLES.has(data?.role)) continue;
 
-    // Legacy fallback first — keeps installations that haven't migrated
+    // Legacy fallback first â€” keeps installations that haven't migrated
     // working until they do. The cache lookup below adds the canonical
     // tokens on top.
     if (typeof data?.fcmToken === 'string' && data.fcmToken) {
@@ -209,8 +209,8 @@ export async function sendToProjectSupervisors(
 const router = Router();
 
 router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
+  const callerUid = req.user.uid;
+  const callerEmail: string | null = req.user.email ?? null;
   const { type, projectId, geo, timestamp } = req.body ?? {};
 
   if (type !== 'sos') {
@@ -276,7 +276,7 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
         () => sendToProjectSupervisors(
           projectId,
           {
-            title: '🆘 SOS recibido',
+            title: 'ðŸ†˜ SOS recibido',
             body: `Trabajador solicita ayuda en proyecto ${projectId}`,
             data: {
               projectId,
@@ -293,7 +293,7 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
       pushFailed = result.failed;
       supervisorEmails = result.supervisorEmails;
     } catch (fcmErr: any) {
-      // FCM fan-out failure must NOT fail the SOS write — the worker still
+      // FCM fan-out failure must NOT fail the SOS write â€” the worker still
       // needs the audit row + alert doc so a human dispatcher can pick up.
       logger.error('sos_fcm_fanout_failed', {
         uid: callerUid,
@@ -302,7 +302,7 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
       });
     }
 
-    // Sprint 22 Bucket Y — email fallback when push delivery is partial
+    // Sprint 22 Bucket Y â€” email fallback when push delivery is partial
     // (some tokens failed) OR zero (no registered devices). Best-effort:
     // failure to email never bubbles up; the SOS Firestore row is the
     // authoritative artifact.
@@ -316,7 +316,7 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
           const projectName: string =
             (projectSnap.exists && (projectSnap.data() as any)?.name) || projectId;
           const workerName: string =
-            ((req as any).user?.name as string | undefined) ||
+            (req.user?.name as string | undefined) ||
             callerEmail ||
             callerUid;
           const html = sosBackupTemplate({
@@ -329,7 +329,7 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
           const batch = await emailService.sendBatch(
             supervisorEmails.map((email) => ({
               to: email,
-              subject: `🚨 SOS — ${workerName} en ${projectName}`,
+              subject: `ðŸš¨ SOS â€” ${workerName} en ${projectName}`,
               html,
               tag: 'sos-backup',
             })),
@@ -371,15 +371,15 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
-// POST /api/emergency/notify-brigada — supervisor-initiated brigade
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// POST /api/emergency/notify-brigada â€” supervisor-initiated brigade
 // activation. Sprint 32 audit P0: previously inlined in server.ts:691 with
 // a bug regression of H7 (only read `members/{uid}.fcmToken` singular,
 // missing the canonical `users/{uid}.fcmTokens` array). Migrated here so
 // it reuses `sendToProjectSupervisors` (cross-collection lookup + cache).
 // Distinct from /sos: callable by supervisor/admin to notify the BRIGADE
 // of a project-wide event, regardless of who dispatched it.
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const NotifyBrigadaSchema = z.object({
   projectId: z.string().min(1).max(128),
   emergencyType: z.enum(['fall', 'sos', 'medical', 'fire', 'gas', 'collapse', 'other']),
@@ -395,8 +395,8 @@ router.post(
     const { projectId, emergencyType, message } = req.body as z.infer<
       typeof NotifyBrigadaSchema
     >;
-    const callerUid = (req as any).user.uid;
-    const callerEmail: string | null = (req as any).user.email ?? null;
+    const callerUid = req.user.uid;
+    const callerEmail: string | null = req.user.email ?? null;
     const db = admin.firestore();
 
     try {
@@ -417,8 +417,8 @@ router.post(
         () => sendToProjectSupervisors(
           projectId,
           {
-            title: `🚨 Emergencia: ${emergencyType}`,
-            body: message ?? `Activación de brigada requerida en proyecto ${projectId}`,
+            title: `ðŸš¨ Emergencia: ${emergencyType}`,
+            body: message ?? `ActivaciÃ³n de brigada requerida en proyecto ${projectId}`,
             data: {
               projectId,
               emergencyType,
@@ -430,7 +430,7 @@ router.post(
         ),
       );
 
-      // Audit trail — same shape as /sos so dashboards can union the streams.
+      // Audit trail â€” same shape as /sos so dashboards can union the streams.
       await db.collection('audit_logs').add({
         action: 'emergency.notify_brigada',
         module: 'emergency',

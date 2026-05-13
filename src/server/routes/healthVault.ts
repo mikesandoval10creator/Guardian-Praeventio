@@ -1,23 +1,23 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 //
-// Sprint 26 Bucket VV — HealthVault QR sharing endpoints.
+// Sprint 26 Bucket VV â€” HealthVault QR sharing endpoints.
 //
-// El trabajador es DUEÑO ABSOLUTO de su cartera médica. Estos endpoints
-// generan / consumen / revocan share tokens que un médico tratante usa
+// El trabajador es DUEÃ‘O ABSOLUTO de su cartera mÃ©dica. Estos endpoints
+// generan / consumen / revocan share tokens que un mÃ©dico tratante usa
 // (al escanear el QR) para ver lectura por un tiempo acotado. Praeventio
-// NUNCA diagnostica — sólo organiza la información para que el médico
-// tome la mejor decisión clínica.
+// NUNCA diagnostica â€” sÃ³lo organiza la informaciÃ³n para que el mÃ©dico
+// tome la mejor decisiÃ³n clÃ­nica.
 //
-// Cumple Ley 20.584 (paciente controla quién accede), Ley 21.719 (datos
-// personales), Ley 16.744 (registro de exámenes ocupacionales).
+// Cumple Ley 20.584 (paciente controla quiÃ©n accede), Ley 21.719 (datos
+// personales), Ley 16.744 (registro de exÃ¡menes ocupacionales).
 //
 // Endpoints:
-//   POST   /api/health-vault/share              (auth required — worker)
-//   GET    /api/health-vault/view/:id/:secret   (PUBLIC — médico que escanea)
-//   POST   /api/health-vault/share/:id/revoke   (auth required — worker dueño)
+//   POST   /api/health-vault/share              (auth required â€” worker)
+//   GET    /api/health-vault/view/:id/:secret   (PUBLIC â€” mÃ©dico que escanea)
+//   POST   /api/health-vault/share/:id/revoke   (auth required â€” worker dueÃ±o)
 //
 // Mounted en server.ts AFTER helmet, BEFORE /api/* global rate-limit
-// para que el view público use su propio limiter.
+// para que el view pÃºblico use su propio limiter.
 
 import { Router } from 'express';
 import { createHash } from 'node:crypto';
@@ -59,13 +59,13 @@ function sentryCapture(
 
 const router = Router();
 
-// ─────────────────────────────────────────────────────────────────────
-// Rate limiter para el endpoint público /view/:id/:secret.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Rate limiter para el endpoint pÃºblico /view/:id/:secret.
 //
 // Defiende contra brute-force de secrets (aunque cada secret tiene ~24
-// bytes URL-safe, ~144 bits de entropía — el limiter sólo es defensa
-// secundaria). 30 req/min/IP siguiendo el patrón de refereeLimiter.
-// ─────────────────────────────────────────────────────────────────────
+// bytes URL-safe, ~144 bits de entropÃ­a â€” el limiter sÃ³lo es defensa
+// secundaria). 30 req/min/IP siguiendo el patrÃ³n de refereeLimiter.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const healthVaultViewLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -101,8 +101,8 @@ async function loadShareDoc(
 
 /**
  * El record en /view/:id/:secret no conoce de antemano el workerUid;
- * para no exponer un índice global escaneamos via collectionGroup.
- * Firestore indexa collectionGroup automáticamente para queries de
+ * para no exponer un Ã­ndice global escaneamos via collectionGroup.
+ * Firestore indexa collectionGroup automÃ¡ticamente para queries de
  * igualdad sobre IDs simples cuando lo registramos en firestore.indexes.json.
  */
 async function findShareById(tokenId: string): Promise<VaultShareToken | null> {
@@ -116,11 +116,11 @@ async function findShareById(tokenId: string): Promise<VaultShareToken | null> {
   return snap.docs[0].data() as VaultShareToken;
 }
 
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/health-vault/share — el worker genera un share token.
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// POST /api/health-vault/share â€” el worker genera un share token.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/share', verifyAuth, async (req, res) => {
-  const callerUid: string = (req as any).user?.uid;
+  const callerUid: string = req.user?.uid;
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
   const { scope, topic, recordIds, ttlHours } = req.body ?? {};
@@ -184,12 +184,12 @@ router.post('/share', verifyAuth, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────
-// GET /api/health-vault/view/:tokenId/:secret — médico escanea QR.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// GET /api/health-vault/view/:tokenId/:secret â€” mÃ©dico escanea QR.
 //
-// PÚBLICO (sin verifyAuth). Sólo el secret + tokenId dan acceso. El
+// PÃšBLICO (sin verifyAuth). SÃ³lo el secret + tokenId dan acceso. El
 // limiter por IP cubre brute-force.
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get(
   '/view/:tokenId/:secret',
   healthVaultViewLimiter,
@@ -207,12 +207,12 @@ router.get(
       let result;
       try {
         result = consumeShareToken(record, secret, {
-          name: 'Anónimo (vía QR)',
+          name: 'AnÃ³nimo (vÃ­a QR)',
           ipHash: hashIp(req.ip),
         });
       } catch (err) {
         if (err instanceof VaultShareError) {
-          // 410 Gone para expired/revoked/max — el link existió pero
+          // 410 Gone para expired/revoked/max â€” el link existiÃ³ pero
           // ya no sirve.
           const httpStatus =
             err.code === 'invalid_token' ? 401 : err.code === 'malformed' ? 400 : 410;
@@ -238,7 +238,7 @@ router.get(
         userId: record.workerUid,
       });
 
-      // Cargar records visibles según scope
+      // Cargar records visibles segÃºn scope
       let records: HealthRecord[] = [];
       if (result.recordIdsToReveal === 'all') {
         if (record.scope === 'recent') {
@@ -266,7 +266,7 @@ router.get(
           workerName = data.displayName;
         }
       } catch {
-        // soft-fail: si no hay perfil, mantenemos genérico
+        // soft-fail: si no hay perfil, mantenemos genÃ©rico
       }
 
       // Orden uploadedAt desc para el viewer
@@ -286,11 +286,11 @@ router.get(
   },
 );
 
-// ─────────────────────────────────────────────────────────────────────
-// POST /api/health-vault/share/:tokenId/revoke — el worker revoca.
-// ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// POST /api/health-vault/share/:tokenId/revoke â€” el worker revoca.
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/share/:tokenId/revoke', verifyAuth, async (req, res) => {
-  const callerUid: string = (req as any).user?.uid;
+  const callerUid: string = req.user?.uid;
   if (!callerUid) return res.status(401).json({ error: 'unauthorized' });
 
   const { tokenId } = req.params;

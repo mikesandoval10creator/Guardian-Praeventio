@@ -1,4 +1,4 @@
-// Praeventio Guard — Round 16 R5 Phase 1 split.
+﻿// Praeventio Guard â€” Round 16 R5 Phase 1 split.
 //
 // Generic /api/audit-log write endpoint used by the SPA to record
 // user-initiated actions (sign-ins, downloads, role probes, etc.) with a
@@ -11,7 +11,7 @@
 // validated; `details` is opaque (callers responsible for not putting secrets
 // in there).
 //
-// Round 14 (A5 audit) — projectId-from-body is membership-checked so a
+// Round 14 (A5 audit) â€” projectId-from-body is membership-checked so a
 // caller on project A cannot pollute project B's compliance trail. The check
 // reuses the pure `assertProjectMember(uid, projectId, db)` helper from
 // `src/services/auth/projectMembership.ts`. We keep the inline check here
@@ -20,7 +20,7 @@
 // downstream Firestore write needs the validated `projectId ?? null`.
 //
 // Mounted at `/api` in server.ts. Final path preserved:
-//   • POST /api/audit-log
+//   â€¢ POST /api/audit-log
 //
 // Phase 2 (billing) and Phase 3 (curriculum/projects) and Phase 4
 // (oauth/gemini) deferred to Round 17/18.
@@ -38,8 +38,8 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 const router = Router();
 
 router.post('/audit-log', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
+  const callerUid = req.user.uid;
+  const callerEmail: string | null = req.user.email ?? null;
   const { action, module: mod, details, projectId } = req.body ?? {};
 
   if (typeof action !== 'string' || action.length === 0 || action.length > 64) {
@@ -56,7 +56,7 @@ router.post('/audit-log', verifyAuth, async (req, res) => {
     return res.status(400).json({ error: 'Invalid projectId' });
   }
 
-  // Round 14 — A5 audit found projectId-from-body without membership check.
+  // Round 14 â€” A5 audit found projectId-from-body without membership check.
   // Without this guard a worker on project A could write an audit entry
   // tagged to project B, polluting B's compliance trail. assertProjectMember
   // throws ProjectMembershipError(403) when uid is neither in members[] nor

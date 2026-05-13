@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { point, polygon } from '@turf/helpers';
 import { logger } from '../utils/logger';
@@ -10,7 +10,7 @@ export interface GeofenceZone {
   coordinates: number[][][]; // GeoJSON Polygon coordinates
 }
 
-// Module-level shared AudioContext — mobile browsers (iOS Safari, Chrome Android)
+// Module-level shared AudioContext â€” mobile browsers (iOS Safari, Chrome Android)
 // reject `new AudioContext()` outside a user-gesture stack frame. We instantiate
 // lazily on the first user pointerdown anywhere in the document, so by the time
 // a worker enters a hazardous zone we already have a resumed context.
@@ -19,7 +19,7 @@ let pointerListenerInstalled = false;
 
 function getAudioCtxClass(): typeof AudioContext | null {
   if (typeof window === 'undefined') return null;
-  return (window.AudioContext || (window as any).webkitAudioContext) ?? null;
+  return (window.AudioContext || window.webkitAudioContext) ?? null;
 }
 
 function ensureAudioContextOnUserGesture() {
@@ -32,7 +32,7 @@ function ensureAudioContextOnUserGesture() {
       const Ctor = getAudioCtxClass();
       if (!Ctor) return;
       if (!sharedAudioCtx) sharedAudioCtx = new Ctor();
-      // resume() is a no-op if 'running' — safe to call.
+      // resume() is a no-op if 'running' â€” safe to call.
       if (sharedAudioCtx.state === 'suspended') {
         void sharedAudioCtx.resume().catch(() => {});
       }
@@ -56,7 +56,7 @@ async function playZoneAlarm() {
   if (!Ctor) return;
 
   // Use the shared, gesture-primed context. If somehow it wasn't created yet
-  // (e.g. zone entry before any user interaction — unlikely in a real PWA flow),
+  // (e.g. zone entry before any user interaction â€” unlikely in a real PWA flow),
   // we still try to instantiate; mobile browsers may silently no-op, but desktop
   // will play.
   if (!sharedAudioCtx) {
@@ -72,7 +72,7 @@ async function playZoneAlarm() {
     try {
       await sharedAudioCtx.resume();
     } catch (err) {
-      logger.warn('[useGeofence] AudioContext.resume() rejected — vibration only', err);
+      logger.warn('[useGeofence] AudioContext.resume() rejected â€” vibration only', err);
       return;
     }
   }
@@ -96,7 +96,7 @@ async function playZoneAlarm() {
 }
 
 /**
- * Sprint 44 P2 (audit H11) — exported for unit-testing. Produces a stable
+ * Sprint 44 P2 (audit H11) â€” exported for unit-testing. Produces a stable
  * dependency hash that changes when a zone's id OR coordinates mutate, but
  * is invariant to mere array-reference flips. Order of zones in the input
  * array does not affect the hash.
@@ -131,7 +131,7 @@ export function useGeofence(
 
   // Trade-off: callers may pass a fresh `zones` array reference each render
   // (e.g. computed via `.filter(...)` without `useMemo`). If we used `[zones]`
-  // directly, watchPosition would tear down and resubscribe on every render —
+  // directly, watchPosition would tear down and resubscribe on every render â€”
   // wasteful, and on resub the very first geolocation callback would treat
   // every currently-occupied zone as a "just entered" event because
   // insideZoneIdsRef still holds the previous set BUT the user expects no
@@ -140,17 +140,17 @@ export function useGeofence(
   // changes membership.
   //
   // Simpler: derive a stable dep from zone IDs only. Polygon geometry mutations
-  // for the SAME id won't restart watchPosition (acceptable — geofence zones
+  // for the SAME id won't restart watchPosition (acceptable â€” geofence zones
   // are effectively immutable per id in this app), but adding/removing zones
   // does. Geometry is read fresh from `zonesRef.current` inside the callback.
-  // Sprint 29 (audit H11) — include geometry in the dep hash, not just
+  // Sprint 29 (audit H11) â€” include geometry in the dep hash, not just
   // ids. Editing a polygon in-place (same id, distinct vertices) used to
   // leave the watcher bound to the OLD polygon, a silent geofence
   // bypass. We sort by id then serialize the polygon coordinates so the
   // hash is stable across array-reference flips but changes when the
   // shape genuinely mutates.
   //
-  // Sprint 44 P2 (audit H11 re-fix) — the previous implementation hashed
+  // Sprint 44 P2 (audit H11 re-fix) â€” the previous implementation hashed
   // `(z as any).polygon ?? (z as any).points` which neither field exists
   // on `GeofenceZone` (the real geometry lives in `coordinates`). The
   // hash therefore degenerated to `null` for every zone and in-place
@@ -180,7 +180,7 @@ export function useGeofence(
 
         setActiveZones(insideZones);
 
-        // Fire alarm only on zone ENTRY (transition from outside → inside)
+        // Fire alarm only on zone ENTRY (transition from outside â†’ inside)
         const prevIds = insideZoneIdsRef.current;
         const newIds = new Set(insideZones.map((z) => z.id));
         const justEntered = insideZones.filter((z) => !prevIds.has(z.id));
@@ -192,12 +192,12 @@ export function useGeofence(
         }
       },
       (err) => {
-        // Sprint 29 (audit H27) — surface PERMISSION_DENIED so the
+        // Sprint 29 (audit H27) â€” surface PERMISSION_DENIED so the
         // worker doesn't believe protection is active when it isn't.
         // Use console.warn (no NotificationContext dep to keep the
         // hook decoupled); UI consumers can subscribe via setError.
         if (err && typeof err === 'object' && 'code' in err && err.code === 1) {
-          console.warn('[useGeofence] Geolocalización denegada — protección desactivada.');
+          console.warn('[useGeofence] GeolocalizaciÃ³n denegada â€” protecciÃ³n desactivada.');
         }
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 },

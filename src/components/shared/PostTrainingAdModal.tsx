@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -61,8 +61,8 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
       ins.setAttribute('data-ad-format', 'auto');
       ins.setAttribute('data-full-width-responsive', 'true');
       adRef.current?.appendChild(ins);
-      (window as any).adsbygoogle = (window as any).adsbygoogle || [];
-      (window as any).adsbygoogle.push({});
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adsbygoogle.push({});
     } catch {
       // silently ignore
     }
@@ -86,12 +86,12 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
           <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-5 flex items-center gap-3">
             <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Capacitación completada</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500">CapacitaciÃ³n completada</p>
               <p className="text-sm font-bold text-white truncate mt-0.5">{trainingTitle}</p>
             </div>
           </div>
 
-          {/* Ad area — only shown on web */}
+          {/* Ad area â€” only shown on web */}
           {!isNative() && (
             <div className="px-4 pt-4">
               <p className="text-[8px] font-bold uppercase tracking-widest text-zinc-600 text-center mb-2">Publicidad</p>
@@ -138,7 +138,7 @@ export function PostTrainingAdModal({ trainingTitle, onClose }: PostTrainingAdMo
                 onClick={() => { onClose(); navigate('/pricing'); }}
                 className="text-[9px] text-zinc-600 hover:text-zinc-400 underline underline-offset-2 transition-colors"
               >
-                Eliminar anuncios · Plan Profesional desde $10/mes
+                Eliminar anuncios Â· Plan Profesional desde $10/mes
               </button>
             </div>
           </div>

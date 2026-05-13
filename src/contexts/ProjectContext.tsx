@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+﻿import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { db, collection, onSnapshot, query, where, handleFirestoreError, OperationType } from '../services/firebase';
 import { useFirebase } from './FirebaseContext';
 import { usePendingActions } from '../hooks/usePendingActions';
@@ -19,15 +19,19 @@ interface Project {
   startDate: string;
   endDate?: string;
   clientName?: string;
-  riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'Crítico';
+  riskLevel: 'Bajo' | 'Medio' | 'Alto' | 'CrÃ­tico';
   workersCount?: number;
   updatedAt?: string;
   isPendingSync?: boolean;
   // Legal / SUSESO fields
-  companyName?: string;   // Razón social del empleador
+  companyName?: string;   // RazÃ³n social del empleador
   companyRut?: string;    // RUT empresa (ej: 76.123.456-7)
   companyAddress?: string;
   mutualidad?: 'ACHS' | 'IST' | 'Mutual de Seguridad' | 'SUSESO' | 'Otra';
+  // ISO 3166-1 alpha-2 country code (CL default). Used by SusesoReports to
+  // route to the matching country regulator client. Sprint 49 E.5 P2 H19:
+  // declared so call-sites stop reaching through `selectedProject.country`.
+  country?: string;
   // Emergency contact for SafeDrivingMode "Base" button
   phone?: string;
   // Tracking & Shifts
@@ -39,12 +43,12 @@ interface Project {
     manDownInactivityThreshold?: number;
     manDownMovementThreshold?: number;
   };
-  // Sprint 25 Bucket TT — daily climate-risk scan. The orchestrator only
+  // Sprint 25 Bucket TT â€” daily climate-risk scan. The orchestrator only
   // touches projects with status='active' AND outdoor=true; `geo` is
   // forwarded to OpenWeather; `supervisorUids` receives the FCM blast
   // when severity >= medium; `workTypes` drives the Bernoulli generators
   // (tunnel keywords trigger Venturi, scaffold/crane keywords trigger
-  // Windload). All optional — legacy projects scan with `outdoor=false`
+  // Windload). All optional â€” legacy projects scan with `outdoor=false`
   // by default and are skipped, matching the runbook contract.
   outdoor?: boolean;
   workTypes?: string[];
@@ -66,7 +70,7 @@ interface ProjectContextType {
 }
 
 /**
- * Map free-text industry names (Spanish UI) → catalog `IndustryCode`
+ * Map free-text industry names (Spanish UI) â†’ catalog `IndustryCode`
  * enum (TRACKING_PLAN property-glossary). The product UI offers Spanish
  * labels; analytics dashboards key off the closed-set English codes so
  * cardinality stays bounded. Unknown labels collapse to `other`.
@@ -85,7 +89,7 @@ function mapIndustryToCode(industry: string | undefined): IndustryCode {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-// Sprint 32 audit W1 — mirror the selected project id to localStorage so
+// Sprint 32 audit W1 â€” mirror the selected project id to localStorage so
 // non-React subscribers (e.g. EmergencyAutoBridge listening to a window
 // CustomEvent) can resolve "the worker's current project" without dragging
 // in the React context. The mirror is one-way: ProjectContext is the source
@@ -109,7 +113,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem(ACTIVE_PROJECT_STORAGE_KEY);
       }
     } catch {
-      /* private mode / quota — no-op; bridge degrades gracefully */
+      /* private mode / quota â€” no-op; bridge degrades gracefully */
     }
   }, [selectedProject?.id]);
   const { isAuthReady, user, isAdmin } = useFirebase();
@@ -159,7 +163,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
             members: [user?.uid]
           }
         });
-        showToast('Proyecto guardado para sincronización cuando haya conexión.', 'info');
+        showToast('Proyecto guardado para sincronizaciÃ³n cuando haya conexiÃ³n.', 'info');
         return 'offline-id-' + Date.now();
       }
 

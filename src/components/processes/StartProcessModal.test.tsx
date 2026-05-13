@@ -1,12 +1,12 @@
-// @vitest-environment jsdom
+﻿// @vitest-environment jsdom
 //
-// Sprint 20 — Bucket D — StartProcessModal integration tests.
+// Sprint 20 â€” Bucket D â€” StartProcessModal integration tests.
 
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, screen, fireEvent, waitFor } from '@testing-library/react';
 
-// ─── Mocks (must precede the component import) ─────────────────────────────
+// â”€â”€â”€ Mocks (must precede the component import) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (_k: string, fb?: string) => fb ?? _k }),
@@ -21,7 +21,7 @@ vi.mock('../../services/analytics', () => ({
   analytics: { track: vi.fn() },
 }));
 
-// framer-motion — render direct DOM without animations to keep tests sync.
+// framer-motion â€” render direct DOM without animations to keep tests sync.
 vi.mock('framer-motion', () => {
   const Pass = ({ children, ...rest }: any) =>
     React.createElement('div', rest, children);
@@ -40,8 +40,8 @@ afterEach(() => {
 
 describe('StartProcessModal', () => {
   beforeEach(() => {
-    // Default fetch — happy path. Override per test as needed.
-    (globalThis as any).fetch = vi.fn(async () =>
+    // Default fetch â€” happy path. Override per test as needed.
+    globalThis.fetch = vi.fn(async () =>
       ({ ok: true, json: async () => ({ id: 'proc-123' }) }) as any
     );
   });
@@ -74,7 +74,7 @@ describe('StartProcessModal', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/nombre/i);
     });
-    expect((globalThis as any).fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('happy-path: POSTs /api/processes and calls onCreated + onClose', async () => {
@@ -96,7 +96,7 @@ describe('StartProcessModal', () => {
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('proc-123'));
     expect(onClose).toHaveBeenCalled();
-    const fetchMock = (globalThis as any).fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/processes',
       expect.objectContaining({ method: 'POST' })
@@ -110,7 +110,7 @@ describe('StartProcessModal', () => {
   });
 
   it('shows server error message on non-ok response', async () => {
-    (globalThis as any).fetch = vi.fn(async () =>
+    globalThis.fetch = vi.fn(async () =>
       ({ ok: false, status: 500, json: async () => ({ error: 'kaboom' }) }) as any
     );
     render(

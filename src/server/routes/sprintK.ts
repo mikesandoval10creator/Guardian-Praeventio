@@ -1,7 +1,7 @@
-// Praeventio Guard — Sprint K endpoints bridge.
+﻿// Praeventio Guard â€” Sprint K endpoints bridge.
 //
 // Endpoints HTTP que exponen los servicios Sprint L/K al frontend.
-// Patrón consistente con insights.ts: verifyAuth + projectMember +
+// PatrÃ³n consistente con insights.ts: verifyAuth + projectMember +
 // adapter por demand.
 //
 //   GET  /api/sprint-k/:projectId/vulnerability/latest
@@ -74,12 +74,12 @@ async function guard(
   return { tenantId };
 }
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Vulnerability map
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/vulnerability/latest', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -94,12 +94,12 @@ router.get('/:projectId/vulnerability/latest', verifyAuth, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SIF precursors
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/sif/pending-review', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -125,7 +125,7 @@ router.post(
   verifyAuth,
   validate(sifReviewSchema),
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { projectId, id } = req.params;
     const body = req.body as z.infer<typeof sifReviewSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -147,15 +147,15 @@ router.post(
   },
 );
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Positive observations
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get(
   '/:projectId/positive-observations/worker/:workerUid',
   verifyAuth,
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { projectId, workerUid } = req.params;
     const g = await guard(callerUid, projectId, res);
     if (!g) return;
@@ -196,8 +196,8 @@ router.post(
   verifyAuth,
   validate(positiveObsSchema),
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
-    const callerRole = (req as any).user.role ?? 'worker';
+    const callerUid = req.user.uid;
+    const callerRole = req.user.role ?? 'worker';
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof positiveObsSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -223,12 +223,12 @@ router.post(
   },
 );
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Waste inventory
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/waste/inventory', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -247,12 +247,12 @@ router.get('/:projectId/waste/inventory', verifyAuth, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Visitors
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/visitors/active', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -267,12 +267,12 @@ router.get('/:projectId/visitors/active', verifyAuth, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Lessons learned (tenant-scoped, but still gated by project membership)
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -320,7 +320,7 @@ router.post(
   verifyAuth,
   validate(lessonSchema),
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof lessonSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -337,12 +337,12 @@ router.post(
   },
 );
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Corrective actions
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/corrective-actions', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -393,7 +393,7 @@ router.post(
   verifyAuth,
   validate(correctiveActionSchema),
   async (req, res) => {
-    const callerUid = (req as any).user.uid;
+    const callerUid = req.user.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof correctiveActionSchema>;
     const g = await guard(callerUid, projectId, res);
@@ -414,12 +414,12 @@ router.post(
   },
 );
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // LOTO digital
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/loto', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;
@@ -438,12 +438,12 @@ router.get('/:projectId/loto', verifyAuth, async (req, res) => {
   }
 });
 
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Equipment
-// ────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
   if (!g) return;

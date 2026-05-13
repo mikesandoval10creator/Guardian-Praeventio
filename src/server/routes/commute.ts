@@ -1,21 +1,21 @@
-// Praeventio Guard — Sprint 12.
+﻿// Praeventio Guard â€” Sprint 12.
 //
-// /api/commute/{start,sample,end} — server-side persistence for the
+// /api/commute/{start,sample,end} â€” server-side persistence for the
 // "accidente de trayecto" workflow (Ley 16.744 SUSESO). The client hook
 // `useCommuteSession` writes directly to Firestore for low-latency local
 // state, but the SAME writes also flow through these endpoints so that:
 //
-//   • Server can apply uniform validation (member guard + body schema)
+//   â€¢ Server can apply uniform validation (member guard + body schema)
 //     even when an offline client replays a queue.
-//   • Audit logs are stamped server-side with the SDK uid (never the
+//   â€¢ Audit logs are stamped server-side with the SDK uid (never the
 //     body) for SUSESO-grade traceability.
-//   • Rate limits cap a misbehaving client / repeat-replayed offline
+//   â€¢ Rate limits cap a misbehaving client / repeat-replayed offline
 //     queue from blowing through Firestore writes.
 //
 // Membership pattern reuses verifyAuth + assertProjectMember and the
 // rate limiter mirrors `geminiLimiter` (30 req / 15 min, keyed on uid).
 //
-// Storage path: `tenants/{tenantId}/commute_sessions/{sessionId}` —
+// Storage path: `tenants/{tenantId}/commute_sessions/{sessionId}` â€”
 // tenantId is sourced from the project doc (NOT the body) so a malicious
 // client cannot redirect writes into a different tenant.
 
@@ -36,13 +36,13 @@ const router = Router();
 const SESSION_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,128}$/;
 const VALID_TYPES = new Set(['home-to-site', 'site-to-home', 'between-sites']);
 
-// Per-uid rate limiter — same shape as geminiLimiter (30 req / 15 min).
+// Per-uid rate limiter â€” same shape as geminiLimiter (30 req / 15 min).
 // Mounted AFTER verifyAuth so the keyGenerator can read req.user.uid.
 export const commuteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
   keyGenerator: (req: Request) =>
-    (req as any).user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
+    req.user?.uid || ipKeyGenerator(req.ip ?? '') || 'anonymous',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes de commute. Intenta de nuevo en 15 minutos.' },
@@ -59,8 +59,8 @@ async function tenantIdFor(projectId: string): Promise<string | null> {
 }
 
 router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
+  const callerUid = req.user.uid;
+  const callerEmail: string | null = req.user.email ?? null;
   const { type, projectId } = req.body ?? {};
 
   if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
@@ -123,7 +123,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
 });
 
 router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
-  const callerUid = (req as any).user.uid;
+  const callerUid = req.user.uid;
   const { sessionId, lat, lng, speedKmh, accuracyM, timestamp } = req.body ?? {};
 
   if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
@@ -153,7 +153,7 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
   const db = admin.firestore();
   // Look up session to validate ownership. The session lives under
   // `tenants/{tenantId}/commute_sessions/{id}`, but the body doesn't
-  // carry tenantId — we resolve it via the session's `projectId` field.
+  // carry tenantId â€” we resolve it via the session's `projectId` field.
   // Use a collection-group query so we don't have to scan all tenants.
   let sessionDoc: FirebaseFirestore.DocumentSnapshot | null = null;
   try {
@@ -202,8 +202,8 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
 });
 
 router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
-  const callerUid = (req as any).user.uid;
-  const callerEmail: string | null = (req as any).user.email ?? null;
+  const callerUid = req.user.uid;
+  const callerEmail: string | null = req.user.email ?? null;
   const { sessionId } = req.body ?? {};
 
   if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
