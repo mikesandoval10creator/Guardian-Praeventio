@@ -200,6 +200,23 @@ describe('diffVersions', () => {
     const b = v({ versionId: '1.1.0', content: 'x', contentHash: 'h' });
     expect(diffVersions(a, b).contentChanged).toBe(false);
   });
+
+  it('Codex P2 PR #104: detecta duplicate-line añadida (A\\nB → A\\nB\\nB)', () => {
+    const a = v({ versionId: '1.0.0', content: 'A\nB', contentHash: 'h1' });
+    const b = v({ versionId: '1.1.0', content: 'A\nB\nB', contentHash: 'h2' });
+    const d = diffVersions(a, b);
+    expect(d.addedLines).toEqual(['B']);
+    expect(d.removedLines).toEqual([]);
+    expect(d.charsAdded).toBe(1);
+  });
+
+  it('Codex P2 PR #104: detecta duplicate-line removida (A\\nB\\nB → A\\nB)', () => {
+    const a = v({ versionId: '1.0.0', content: 'A\nB\nB', contentHash: 'h1' });
+    const b = v({ versionId: '1.1.0', content: 'A\nB', contentHash: 'h2' });
+    const d = diffVersions(a, b);
+    expect(d.removedLines).toEqual(['B']);
+    expect(d.addedLines).toEqual([]);
+  });
 });
 
 describe('buildChangelog', () => {

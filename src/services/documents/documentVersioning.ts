@@ -217,11 +217,30 @@ export interface VersionDiff {
 export function diffVersions(a: DocumentVersion, b: DocumentVersion): VersionDiff {
   const aLines = a.content.split('\n');
   const bLines = b.content.split('\n');
-  const aSet = new Set(aLines);
-  const bSet = new Set(bLines);
 
-  const addedLines = bLines.filter((l) => !aSet.has(l));
-  const removedLines = aLines.filter((l) => !bSet.has(l));
+  // Codex P2 PR #104: multiset-aware diff. La versión Set-based colapsa
+  // duplicados: 'A\nB' → 'A\nB\nB' reportaba 0 added lines aunque
+  // contentChanged=true. Usamos Map<line, count> y restamos.
+  function countLines(lines: string[]): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const l of lines) m.set(l, (m.get(l) ?? 0) + 1);
+    return m;
+  }
+  const aRemaining = countLines(aLines);
+  const addedLines: string[] = [];
+  for (const l of bLines) {
+    const r = aRemaining.get(l) ?? 0;
+    if (r > 0) aRemaining.set(l, r - 1);
+    else addedLines.push(l);
+  }
+  const bRemaining = countLines(bLines);
+  const removedLines: string[] = [];
+  for (const l of aLines) {
+    const r = bRemaining.get(l) ?? 0;
+    if (r > 0) bRemaining.set(l, r - 1);
+    else removedLines.push(l);
+  }
+
   const charsAdded = addedLines.reduce((s, l) => s + l.length, 0);
   const charsRemoved = removedLines.reduce((s, l) => s + l.length, 0);
 
