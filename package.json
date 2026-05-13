@@ -74,6 +74,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.0.3",
     "@capawesome-team/capacitor-android-foreground-service": "^8.1.0",
+    "@capgo/capacitor-proximity": "^8.1.2",
     "@google-cloud/kms": "^5.4.0",
     "@google-cloud/vertexai": "^1.12.0",
     "@google/genai": "^1.46.0",
