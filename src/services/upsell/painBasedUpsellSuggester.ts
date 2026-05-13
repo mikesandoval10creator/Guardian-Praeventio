@@ -62,10 +62,13 @@ function detectPains(s: UsagePainSignals): Set<PainSignal> {
   if (s.manualReportsPerWeek >= THRESHOLDS.manualReportsPerWeek) out.add('high_manual_reports');
   if (s.exceptionsRaisedLast30d >= THRESHOLDS.exceptionsLast30d) out.add('frequent_exceptions');
   if (s.dataConfidenceScore < THRESHOLDS.dataConfidence) out.add('low_data_confidence');
+  // Codex P2 PR #129: incluir Pro en scale detection. Pro tenant con
+  // muchos proyectos también debe ser ruteado a Enterprise. Solo se
+  // excluye el tier actual ya-Enterprise.
   if (
     typeof s.activeProjectCount === 'number' &&
     s.activeProjectCount >= THRESHOLDS.scaleProjects &&
-    (s.currentTier === 'free' || s.currentTier === 'starter')
+    s.currentTier !== 'enterprise'
   ) {
     out.add('scale_outgrew_tier');
   }

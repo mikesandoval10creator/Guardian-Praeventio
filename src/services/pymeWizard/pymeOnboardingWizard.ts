@@ -61,7 +61,10 @@ export interface OnboardingStep {
 
 export interface OnboardingPlan {
   steps: OnboardingStep[];
+  /** Minutos del quick-path required (objetivo <30 min). Codex P2 PR #129. */
   totalEstimatedMinutes: number;
+  /** Minutos adicionales si la PYME decide setupear módulos opcionales. */
+  optionalSetupMinutes: number;
   /** IDs en orden de los pasos que NO pueden saltarse para legalidad/seguridad mínima. */
   criticalPath: string[];
   /** Módulos recomendados a activar tras el onboarding. */
@@ -202,9 +205,12 @@ export function buildOnboardingPlan(input: PymeOnboardingInput): OnboardingPlan 
 
   steps.push(inductionStep());
 
-  // Training específico por riesgo clave, ordenado alfabéticamente para determinismo.
-  const sortedRisks = [...input.keyRisks].sort();
-  for (const risk of sortedRisks) {
+  // Training específico por riesgo clave, ordenado alfabéticamente para
+  // determinismo. Codex P2 PR #129: dedupe upstream input — duplicados
+  // como `['noise','noise']` generarían dos pasos con el mismo id que
+  // colisionan en cualquier UI keyed por step.id.
+  const uniqueRisks = Array.from(new Set(input.keyRisks)).sort();
+  for (const risk of uniqueRisks) {
     steps.push(riskTrainingStep(risk));
   }
 
@@ -227,12 +233,22 @@ export function buildOnboardingPlan(input: PymeOnboardingInput): OnboardingPlan 
     notes.push('reg.sernageomin.applicable');
   }
 
-  const totalEstimatedMinutes = steps.reduce((acc, s) => acc + s.estimatedMinutes, 0);
+  // Codex P2 PR #129: `totalEstimatedMinutes` debe representar el "quick
+  // onboarding <30 min" — solo cuenta los pasos required/critical-path,
+  // NO los module_setup opcionales. Los optionales se exponen aparte vía
+  // `optionalSetupMinutes` para que la UI muestre ambos.
+  const totalEstimatedMinutes = steps
+    .filter((s) => s.required)
+    .reduce((acc, s) => acc + s.estimatedMinutes, 0);
+  const optionalSetupMinutes = steps
+    .filter((s) => !s.required)
+    .reduce((acc, s) => acc + s.estimatedMinutes, 0);
   const criticalPath = steps.filter((s) => s.required).map((s) => s.id);
 
   return {
     steps,
     totalEstimatedMinutes,
+    optionalSetupMinutes,
     criticalPath,
     recommendedModules: modules,
     regulatoryNotes: notes,

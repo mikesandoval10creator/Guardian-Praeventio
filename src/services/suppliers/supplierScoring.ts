@@ -93,6 +93,21 @@ function scoreReputation(k: SupplierKpis): number {
 
 function validate(s: SupplierRecord): void {
   const k = s.kpis;
+  // Codex P2 PR #129: rechazar valores no-finitos antes de scoring.
+  // NaN/Infinity desde parsing de spreadsheet propagaría NaN al score
+  // total y rompería el orden determinístico de rankSuppliersByScore.
+  const finiteChecks: Array<[string, number]> = [
+    ['incidents', k.incidents],
+    ['nearMisses', k.nearMisses],
+    ['avgResponseHours', k.avgResponseHours],
+    ['documentComplianceRatio', k.documentComplianceRatio],
+    ['reputationScore', k.reputationScore],
+  ];
+  for (const [name, val] of finiteChecks) {
+    if (!Number.isFinite(val)) {
+      throw new Error(`supplier ${s.id}: KPI ${name} must be a finite number (got ${val})`);
+    }
+  }
   if (k.incidents < 0 || k.nearMisses < 0 || k.avgResponseHours < 0) {
     throw new Error(`supplier ${s.id}: counts/hours must be >= 0`);
   }
