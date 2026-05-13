@@ -201,12 +201,17 @@ describe('setupBackgroundTriggers', () => {
     // First call = initial load (ignored)
     incidents.next({ docChanges: () => [] });
     // Second call = real change
+    const n42Update = vi.fn().mockResolvedValue(undefined);
+    const n42Get = vi.fn().mockResolvedValue({
+      data: () => ({}),
+    });
     incidents.next({
       docChanges: () => [
         {
           type: 'added',
           doc: {
             id: 'n42',
+            ref: { update: n42Update, get: n42Get },
             data: () => ({
               title: 'Caída desde altura',
               metadata: { severity: 'Crítica', location: 'Andamio 3' },
@@ -279,13 +284,16 @@ describe('setupBackgroundTriggers', () => {
 
     const rag = captured.find((c) => c.type === 'rag')!;
     await rag.next({ docChanges: () => [] }); // initial load
+    const getMock = vi.fn().mockResolvedValue({
+      data: () => ({ _ragProcessingStatus: undefined }),
+    });
     await rag.next({
       docChanges: () => [
         {
           type: 'added',
           doc: {
             id: 'doc1',
-            ref: { update: updateMock },
+            ref: { update: updateMock, get: getMock },
             data: () => ({
               type: 'normative',
               title: 'DS 54',

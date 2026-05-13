@@ -169,6 +169,24 @@ export function setupBackgroundTriggers(
 
             void serializeByKey(`incident:${change.doc.id}`, async () => {
             try {
+              // Codex P2 PR #120: idempotency check INSIDE the mutex.
+              // Duplicate 'added' snapshots for the same node would both
+              // queue here and both fire FCM/email after the first finishes.
+              // Re-read the doc and skip if the alert marker is already
+              // present; otherwise stamp it before sending so a third
+              // queued callback short-circuits.
+              const fresh = await change.doc.ref.get();
+              if (fresh.data()?._criticalAlertSentAt) {
+                logger.info('incident_alert_skipped_idempotent', {
+                  nodeId: change.doc.id,
+                });
+                return;
+              }
+              await change.doc.ref.update({
+                _criticalAlertSentAt:
+                  firestoreNamespace.FieldValue.serverTimestamp(),
+              });
+
               const membersSnap = await db
                 .collection(`projects/${data.projectId}/members`)
                 .get();
@@ -285,6 +303,21 @@ export function setupBackgroundTriggers(
 
             await serializeByKey(`rag:${change.doc.id}`, async () => {
             try {
+              // Codex P2 PR #120: re-check status INSIDE the mutex so the
+              // second concurrent snapshot (which passed the stale check
+              // before the first one wrote 'processing') doesn't embed
+              // again. Without this re-read, the mutex only serialises
+              // duplicate work — it doesn't prevent it.
+              const fresh = await change.doc.ref.get();
+              const freshStatus = fresh.data()?._ragProcessingStatus;
+              if (freshStatus === 'completed' || freshStatus === 'processing') {
+                logger.info('rag_pipeline_skipped_inside_mutex', {
+                  docId: change.doc.id,
+                  status: freshStatus,
+                });
+                return;
+              }
+
               await change.doc.ref.update({
                 _ragProcessingStatus: 'processing',
               });
