@@ -95,6 +95,20 @@ async function playZoneAlarm() {
   }
 }
 
+/**
+ * Sprint 44 P2 (audit H11) — exported for unit-testing. Produces a stable
+ * dependency hash that changes when a zone's id OR coordinates mutate, but
+ * is invariant to mere array-reference flips. Order of zones in the input
+ * array does not affect the hash.
+ */
+export function buildZonesGeometryHash(zones: GeofenceZone[]): string {
+  return JSON.stringify(
+    zones
+      .map((z) => ({ id: z.id, c: z.coordinates ?? null }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  );
+}
+
 export function useGeofence(
   zones: GeofenceZone[],
   onZoneEntry?: (zones: GeofenceZone[]) => void,
@@ -132,18 +146,17 @@ export function useGeofence(
   // Sprint 29 (audit H11) — include geometry in the dep hash, not just
   // ids. Editing a polygon in-place (same id, distinct vertices) used to
   // leave the watcher bound to the OLD polygon, a silent geofence
-  // bypass. We sort by id then serialize the polygon points so the
+  // bypass. We sort by id then serialize the polygon coordinates so the
   // hash is stable across array-reference flips but changes when the
   // shape genuinely mutates.
-  const zonesIdHash = useMemo(
-    () =>
-      JSON.stringify(
-        zones
-          .map((z) => ({ id: z.id, p: (z as any).polygon ?? (z as any).points ?? null }))
-          .sort((a, b) => a.id.localeCompare(b.id)),
-      ),
-    [zones],
-  );
+  //
+  // Sprint 44 P2 (audit H11 re-fix) — the previous implementation hashed
+  // `(z as any).polygon ?? (z as any).points` which neither field exists
+  // on `GeofenceZone` (the real geometry lives in `coordinates`). The
+  // hash therefore degenerated to `null` for every zone and in-place
+  // polygon edits were still silently bypassed. We now hash by
+  // `coordinates` directly, matching the field the watcher reads.
+  const zonesIdHash = useMemo(() => buildZonesGeometryHash(zones), [zones]);
 
   useEffect(() => {
     if (!('geolocation' in navigator)) return;
