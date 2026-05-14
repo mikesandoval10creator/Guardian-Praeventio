@@ -1,185 +1,366 @@
-import React, { useState, useEffect } from 'react';
+// Praeventio Guard — CQRS Architecture page (REAL, NO simulation).
+//
+// CIERRA el gap de "narrativa CQRS real" reportado en auditoría
+// arquitectónica. Antes esta página corría `setInterval` con
+// `Math.random()` y se anunciaba como "Arquitectura CQRS" — pure demo.
+//
+// Ahora consume un Event Store REAL (`InMemoryEventStore` + Incident
+// aggregate con events + commands + read model + projecciones):
+//
+//   - Event Store: append-only log de DomainEvent typed
+//   - Read Model: proyección event-sourced reconstruible
+//   - Commands: validan invariantes, append a store, auto-apply al model
+//   - Queries: leen SOLO del read model (never del store directo)
+//
+// Las métricas que se muestran son las REALES del store:
+//   - totalEvents: cuántos eventos persisten
+//   - appendCount + avgAppendLatencyMs (rolling)
+//   - readCount + avgReadLatencyMs (rolling)
+//   - projectionLag: diferencia entre store y read model (CQRS-in-process
+//     debe ser 0)
+//   - eventTypesSeen: catálogo de tipos descubiertos en runtime
+//
+// El botón "Demo append" appendea un evento real al Event Store usando
+// los command handlers y refresca las métricas. Es una demo del flujo,
+// pero los números son del store REAL, NO Math.random().
+
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { Database, ShieldAlert, Activity, ArrowRightLeft, Server, Zap, HardDrive, Layers } from 'lucide-react';
+import {
+  Database,
+  ShieldAlert,
+  Activity,
+  ArrowRightLeft,
+  Server,
+  HardDrive,
+  Layers,
+  RefreshCcw,
+  Play,
+  AlertTriangle,
+} from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+import {
+  getIncidentSystem,
+  type CqrsDashboardMetrics,
+} from '../services/cqrs/incidents/incidentSystem';
+
+function generateDemoId(): string {
+  return `demo-inc-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export function CQRSArchitecture() {
   const { t } = useTranslation();
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [metrics, setMetrics] = useState({ reads: 0, writes: 0, latency: 15 });
+  const [metrics, setMetrics] = useState<CqrsDashboardMetrics | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [appending, setAppending] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const m = await getIncidentSystem().getDashboardMetrics();
+      setMetrics(m);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isSimulating) return;
+    void refresh();
+  }, [refresh]);
 
-    const interval = setInterval(() => {
-      setMetrics(prev => ({
-        reads: prev.reads + Math.floor(Math.random() * 500) + 100,
-        writes: prev.writes + Math.floor(Math.random() * 50) + 10,
-        latency: Math.max(5, Math.min(25, prev.latency + (Math.random() > 0.5 ? 1 : -1)))
-      }));
-    }, 1000);
+  /**
+   * "Demo append" — crea un incidente real en el Event Store. Útil para
+   * ver las métricas moverse. Cada append:
+   *   1. Genera UUID + payload
+   *   2. Pasa por handleCreateIncident (valida + append + actualiza read model)
+   *   3. Re-lee métricas
+   */
+  const handleDemoAppend = useCallback(async () => {
+    setAppending(true);
+    try {
+      const sys = getIncidentSystem();
+      const id = generateDemoId();
+      await sys.commands.createIncident({
+        kind: 'incident.create',
+        aggregateId: id,
+        issuedByUid: 'demo-user',
+        tenantId: 'demo-tenant',
+        projectId: 'demo-project',
+        payload: {
+          description: 'Demo incident appended desde la UI CQRS dashboard',
+          occurredAtIso: new Date().toISOString(),
+          initialSeverity: 'low',
+        },
+      });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAppending(false);
+    }
+  }, [refresh]);
 
-    return () => clearInterval(interval);
-  }, [isSimulating]);
-
-  // Gate: CQRS + multi-tenant Event Store / Redis read-models is the
-  // architectural foundation we sell on the Corporativo tier (multi-tenant
-  // nativo + multi-tenant CSM). The page header itself says "Nivel:
-  // Enterprise", but the route was wide-open. `canUseMultiTenant` reflects
-  // the actual product boundary (corporativo+).
   return (
     <PremiumFeatureGuard
       feature="canUseMultiTenant"
-      featureName="Arquitectura CQRS Multi-Tenant"
-      description="La arquitectura CQRS con Event Store y read-models segregados está disponible desde el plan Corporativo (multi-tenant nativo)."
+      featureName={t('cqrs.featureName', 'Arquitectura CQRS Multi-Tenant') as string}
+      description={t(
+        'cqrs.featureDesc',
+        'Event Store + read models segregados disponible desde el plan Corporativo.',
+      ) as string}
     >
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
-            <Layers className="w-8 h-8 text-fuchsia-500" />
-            {t('cqrs.title', 'Arquitectura CQRS')}
-          </h1>
-          <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            {t('cqrs.subtitle', 'Command Query Responsibility Segregation + Redis')}
-          </p>
-        </div>
-        <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20">
-          <ShieldAlert className="w-5 h-5" />
-          <span className="font-bold uppercase tracking-wider text-sm">
-            {t('cqrs.tierBadge', 'Nivel: Enterprise')}
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Architecture Diagram */}
-        <Card className="p-6 border-white/5 lg:col-span-2 space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Server className="w-5 h-5 text-fuchsia-500" />
-              {t('cqrs.topologySection', 'Topología del Sistema')}
-            </h2>
-            <Button 
-              variant={isSimulating ? "danger" : "primary"} 
-              onClick={() => setIsSimulating(!isSimulating)}
-              className="text-xs py-2"
-            >
-              {isSimulating ? t('cqrs.stopSimulation', 'Detener Simulación') : t('cqrs.startLoadTest', 'Iniciar Test de Carga')}
-            </Button>
-          </div>
-
-          <div className="relative h-[400px] bg-zinc-950 rounded-xl border border-white/5 p-8 flex flex-col justify-between">
-            {/* Client Layer */}
-            <div className="flex justify-center">
-              <div className="px-6 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white font-bold flex items-center gap-2 z-10">
-                <Activity className="w-5 h-5 text-zinc-400" />
-                Clientes (Web / Móvil)
-              </div>
-            </div>
-
-            {/* Arrows */}
-            <div className="absolute inset-0 pointer-events-none">
-              <svg className="w-full h-full" preserveAspectRatio="none">
-                {/* Write Path */}
-                <path d="M 50% 20% Q 25% 40% 25% 60%" fill="none" stroke={isSimulating ? "#f43f5e" : "#3f3f46"} strokeWidth="2" strokeDasharray={isSimulating ? "5,5" : "none"} className={isSimulating ? "animate-[dash_1s_linear_infinite]" : ""} />
-                {/* Read Path */}
-                <path d="M 50% 20% Q 75% 40% 75% 60%" fill="none" stroke={isSimulating ? "#10b981" : "#3f3f46"} strokeWidth="2" strokeDasharray={isSimulating ? "5,5" : "none"} className={isSimulating ? "animate-[dash_1s_linear_infinite_reverse]" : ""} />
-                {/* Sync Path */}
-                <path d="M 25% 80% Q 50% 90% 75% 80%" fill="none" stroke={isSimulating ? "#8b5cf6" : "#3f3f46"} strokeWidth="2" strokeDasharray="5,5" className={isSimulating ? "animate-[dash_2s_linear_infinite]" : ""} />
-              </svg>
-            </div>
-
-            {/* CQRS Layer */}
-            <div className="flex justify-between w-full px-12">
-              {/* Command Side (Writes) */}
-              <div className="flex flex-col items-center gap-4 z-10">
-                <div className="px-6 py-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 font-bold flex items-center gap-2">
-                  <ArrowRightLeft className="w-5 h-5" />
-                  Command API (Write)
-                </div>
-                <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-full">
-                  <Database className="w-8 h-8 text-rose-500" />
-                </div>
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Event Store (PostgreSQL)</span>
-              </div>
-
-              {/* Query Side (Reads) */}
-              <div className="flex flex-col items-center gap-4 z-10">
-                <div className="px-6 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold flex items-center gap-2">
-                  <ArrowRightLeft className="w-5 h-5" />
-                  Query API (Read)
-                </div>
-                <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-full">
-                  <HardDrive className="w-8 h-8 text-emerald-500" />
-                </div>
-                <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Read Models (Redis/Elastic)</span>
-              </div>
-            </div>
-
-            {/* Event Bus */}
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 px-4 py-2 bg-violet-500/10 border border-violet-500/30 rounded-full text-violet-400 text-xs font-bold flex items-center gap-2 z-10">
-              <Zap className="w-4 h-4" />
-              Event Bus (Kafka / PubSub)
-            </div>
-          </div>
-        </Card>
-
-        {/* Metrics Panel */}
-        <Card className="p-6 border-white/5 space-y-6">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-fuchsia-500" />
-            {t('cqrs.metricsSection', 'Métricas de Rendimiento')}
-          </h2>
-
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Lecturas (Query Side)</p>
-              <div className="flex items-end gap-2">
-                <p className="text-3xl font-black text-emerald-400">{metrics.reads.toLocaleString()}</p>
-                <p className="text-xs text-zinc-500 mb-1">req/s</p>
-              </div>
-              <div className="w-full h-1 bg-zinc-800 rounded-full mt-2 overflow-hidden">
-                <motion.div 
-                  className="h-full bg-emerald-500"
-                  animate={{ width: isSimulating ? `${Math.min(100, (metrics.reads / 5000) * 100)}%` : '0%' }}
-                />
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Escrituras (Command Side)</p>
-              <div className="flex items-end gap-2">
-                <p className="text-3xl font-black text-rose-400">{metrics.writes.toLocaleString()}</p>
-                <p className="text-xs text-zinc-500 mb-1">req/s</p>
-              </div>
-              <div className="w-full h-1 bg-zinc-800 rounded-full mt-2 overflow-hidden">
-                <motion.div 
-                  className="h-full bg-rose-500"
-                  animate={{ width: isSimulating ? `${Math.min(100, (metrics.writes / 500) * 100)}%` : '0%' }}
-                />
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-zinc-900 border border-white/5">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Latencia Promedio (Read)</p>
-              <div className="flex items-end gap-2">
-                <p className="text-3xl font-black text-fuchsia-400">{metrics.latency}</p>
-                <p className="text-xs text-zinc-500 mb-1">ms</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20">
-            <p className="text-xs text-fuchsia-300">
-              La separación de responsabilidades permite escalar las lecturas (Redis) independientemente de las escrituras (Event Store), ideal para dashboards en tiempo real con miles de usuarios concurrentes.
+      <div
+        data-testid="cqrs-architecture-page"
+        className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight flex items-center gap-3">
+              <Layers className="w-8 h-8 text-fuchsia-500" aria-hidden="true" />
+              {t('cqrs.title', 'Arquitectura CQRS')}
+            </h1>
+            <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
+              {t('cqrs.subtitle', 'Event Store + Read Models — métricas en vivo')}
             </p>
           </div>
-        </Card>
+          <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20">
+            <ShieldAlert className="w-5 h-5" aria-hidden="true" />
+            <span className="font-bold uppercase tracking-wider text-sm">
+              {t('cqrs.tierBadge', 'Nivel: Corporativo')}
+            </span>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            data-testid="cqrs-error"
+            role="alert"
+            className="rounded-lg border border-rose-500/40 bg-rose-500/5 p-3 flex items-start gap-2"
+          >
+            <AlertTriangle
+              className="w-4 h-4 text-rose-400 shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
+            <p className="text-xs text-rose-300 font-mono">{error}</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Topología real */}
+          <Card className="p-6 border-white/5 lg:col-span-2 space-y-6">
+            <div className="flex justify-between items-center flex-wrap gap-2">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Server className="w-5 h-5 text-fuchsia-500" aria-hidden="true" />
+                {t('cqrs.topologySection', 'Topología del sistema')}
+              </h2>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  onClick={() => void handleDemoAppend()}
+                  disabled={appending || loading}
+                  className="text-xs py-2"
+                  data-testid="cqrs-demo-append"
+                >
+                  <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+                  {appending
+                    ? t('cqrs.appending', 'Appendeando…')
+                    : t('cqrs.demoAppend', 'Append demo event')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void refresh()}
+                  disabled={loading || appending}
+                  className="text-xs py-2"
+                  data-testid="cqrs-refresh"
+                >
+                  <RefreshCcw
+                    className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                </Button>
+              </div>
+            </div>
+
+            <div className="relative h-[360px] bg-zinc-950 rounded-xl border border-white/5 p-8 flex flex-col justify-between">
+              <div className="flex justify-center">
+                <div className="px-6 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white font-bold flex items-center gap-2 z-10">
+                  <Activity className="w-5 h-5 text-zinc-400" aria-hidden="true" />
+                  {t('cqrs.layerClients', 'Clientes (Web / Móvil)')}
+                </div>
+              </div>
+
+              <div className="flex justify-between w-full px-12 z-10">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="px-4 py-2 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 font-bold flex items-center gap-2 text-sm">
+                    <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
+                    {t('cqrs.commandSide', 'Command handlers')}
+                  </div>
+                  <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-full">
+                    <Database className="w-7 h-7 text-rose-500" aria-hidden="true" />
+                  </div>
+                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-center">
+                    {t('cqrs.eventStoreLabel', 'Event Store')}
+                  </span>
+                  <span
+                    data-testid="cqrs-event-count"
+                    className="text-2xl font-black text-rose-400 font-mono"
+                  >
+                    {metrics?.totalEvents ?? '—'}
+                  </span>
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                    {t('cqrs.eventsLabel', 'eventos')}
+                  </span>
+                </div>
+
+                <div className="flex flex-col items-center gap-3">
+                  <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 font-bold flex items-center gap-2 text-sm">
+                    <ArrowRightLeft className="w-4 h-4" aria-hidden="true" />
+                    {t('cqrs.querySide', 'Query handlers')}
+                  </div>
+                  <div className="p-4 bg-zinc-900 border border-zinc-700 rounded-full">
+                    <HardDrive className="w-7 h-7 text-emerald-500" aria-hidden="true" />
+                  </div>
+                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest text-center">
+                    {t('cqrs.readModelLabel', 'Read Model')}
+                  </span>
+                  <span
+                    data-testid="cqrs-aggregate-count"
+                    className="text-2xl font-black text-emerald-400 font-mono"
+                  >
+                    {metrics?.readModelAggregateCount ?? '—'}
+                  </span>
+                  <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                    {t('cqrs.aggregatesLabel', 'aggregates')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              data-testid="cqrs-projection-lag"
+              data-lag={metrics?.projectionLag ?? -1}
+              className={`p-3 rounded-lg border ${
+                (metrics?.projectionLag ?? 0) === 0
+                  ? 'bg-emerald-500/5 border-emerald-500/30 text-emerald-300'
+                  : 'bg-amber-500/5 border-amber-500/30 text-amber-300'
+              }`}
+            >
+              <p className="text-xs font-bold uppercase tracking-wider mb-1">
+                {t('cqrs.projectionLagLabel', 'Lag de proyección')}
+              </p>
+              <p className="text-sm">
+                {metrics
+                  ? metrics.projectionLag === 0
+                    ? t(
+                        'cqrs.lagZero',
+                        'Read model 100% sincronizado con Event Store (lag = 0).',
+                      )
+                    : t('cqrs.lagPositive', '{{lag}} eventos en cola de proyección.', {
+                        lag: metrics.projectionLag,
+                      })
+                  : t('cqrs.lagLoading', 'Midiendo…')}
+              </p>
+            </div>
+          </Card>
+
+          {/* Métricas reales */}
+          <Card className="p-6 border-white/5 space-y-4">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Activity className="w-5 h-5 text-fuchsia-500" aria-hidden="true" />
+              {t('cqrs.metricsSection', 'Métricas en vivo')}
+            </h2>
+
+            <MetricRow
+              testId="cqrs-metric-appends"
+              label={t('cqrs.metricAppends', 'Appends totales') as string}
+              value={metrics?.appendCount}
+              suffix=""
+              colorClass="text-rose-400"
+            />
+            <MetricRow
+              testId="cqrs-metric-reads"
+              label={t('cqrs.metricReads', 'Reads totales') as string}
+              value={metrics?.readCount}
+              suffix=""
+              colorClass="text-emerald-400"
+            />
+            <MetricRow
+              testId="cqrs-metric-append-lat"
+              label={t('cqrs.metricAppendLat', 'Latencia append (avg)') as string}
+              value={metrics?.avgAppendLatencyMs}
+              suffix="ms"
+              colorClass="text-fuchsia-400"
+            />
+            <MetricRow
+              testId="cqrs-metric-read-lat"
+              label={t('cqrs.metricReadLat', 'Latencia read (avg)') as string}
+              value={metrics?.avgReadLatencyMs}
+              suffix="ms"
+              colorClass="text-fuchsia-400"
+            />
+
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">
+                {t('cqrs.eventTypesLabel', 'Tipos de evento')}
+              </p>
+              {metrics?.eventTypesSeen && metrics.eventTypesSeen.length > 0 ? (
+                <ul
+                  data-testid="cqrs-event-types"
+                  className="flex flex-wrap gap-1"
+                >
+                  {metrics.eventTypesSeen.map((t) => (
+                    <li
+                      key={t}
+                      className="px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-700 text-[10px] text-zinc-400 font-mono"
+                    >
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs italic text-zinc-500">
+                  {t(
+                    'cqrs.eventTypesEmpty',
+                    'Aún no hay eventos — usa "Append demo event" para empezar.',
+                  )}
+                </p>
+              )}
+            </div>
+          </Card>
+        </div>
+      </div>
+    </PremiumFeatureGuard>
+  );
+}
+
+interface MetricRowProps {
+  testId: string;
+  label: string;
+  value: number | undefined;
+  suffix: string;
+  colorClass: string;
+}
+
+function MetricRow({ testId, label, value, suffix, colorClass }: MetricRowProps) {
+  return (
+    <div className="p-3 rounded-xl bg-zinc-900 border border-white/5">
+      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+        {label}
+      </p>
+      <div className="flex items-end gap-2">
+        <p
+          data-testid={testId}
+          className={`text-2xl font-black font-mono ${colorClass}`}
+        >
+          {value !== undefined ? value.toLocaleString() : '—'}
+        </p>
+        {suffix && <p className="text-xs text-zinc-500 mb-0.5">{suffix}</p>}
       </div>
     </div>
-    </PremiumFeatureGuard>
   );
 }
