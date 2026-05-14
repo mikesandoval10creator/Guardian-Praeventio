@@ -36,6 +36,18 @@ const SlmAcquisitionPromptHostLazy = lazy(() =>
   })),
 );
 
+// Sprint 56 — floating banner persistente que sigue al usuario mientras
+// el SLM descarga (#237). Diferente del prompt: el prompt es modal y
+// solo aparece en el primer launch o cuando el cooldown expira; el
+// floating banner queda visible TODO el tiempo que dure la descarga,
+// permitiendo al usuario seguir usando la app sin perder de vista el
+// progreso. Lazy porque el 99% de los launches NO está descargando.
+const SlmDownloadFloatingBannerLazy = lazy(() =>
+  import('../components/slm/SlmDownloadFloatingBanner').then((m) => ({
+    default: m.SlmDownloadFloatingBanner,
+  })),
+);
+
 interface AppProvidersProps {
   children: ReactNode;
 }
@@ -75,6 +87,13 @@ export function AppProviders({ children }: AppProvidersProps) {
                         </Suspense>
                         <Suspense fallback={null}>
                           <SlmAcquisitionPromptHostLazy />
+                        </Suspense>
+                        {/* Sprint 56 — floating banner que sigue al
+                            usuario mientras la descarga del SLM corre
+                            en background. Cero costo cuando state ===
+                            'ready' (el banner devuelve null). */}
+                        <Suspense fallback={null}>
+                          <SlmDownloadFloatingBannerLazy />
                         </Suspense>
                         {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
                             Mounted inside ProjectProvider + FirebaseProvider so
