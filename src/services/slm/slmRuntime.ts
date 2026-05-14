@@ -27,9 +27,13 @@
  *
  * What this module deliberately does NOT do:
  *   - It does NOT pick the model — the caller passes a registry id.
- *   - It does NOT cache to IndexedDB — that's `cache/modelCache.ts`
- *     (the C.9 plan asked for a runtime, not a download manager;
- *     bundle size is handled by lazy import + the D.7 perf pass).
+ *   - Sprint 54: it DOES read the IndexedDB cache (`cache/modelCache.ts`)
+ *     before any network fetch. First-run downloads from HuggingFace +
+ *     persists to cache; every subsequent load hits the cache and goes
+ *     fully offline (the emergency-without-internet contract). The
+ *     cache lookup runs the same integrity guard against the cached
+ *     bytes as the network path, so a tampered/corrupted cache
+ *     produces SlmIntegrityError, never a silent bad load.
  *   - It does NOT manage tokenizers — `infer()` uses a byte-level
  *     fallback when no tokenizer is provided so the runtime can be
  *     exercised end-to-end without `@huggingface/transformers`. Real
@@ -41,6 +45,12 @@
  * route-split chunk.
  */
 
+import {
+  cacheBundle,
+  cacheModel,
+  loadCachedBundle,
+  loadCachedModel,
+} from './cache/modelCache';
 import { getModelById, listDownloadableFiles } from './registry';
 import {
   SlmIntegrityError,
@@ -90,6 +100,20 @@ export interface LoadModelOptions {
    * model whose hash hasn't been written into the registry yet.
    */
   expectedSha256Override?: string | null;
+  /**
+   * Sprint 54: skip the IndexedDB cache entirely and re-fetch from
+   * network. Defaults to `false` (cache-first read-through). Set true
+   * to force a fresh download — useful for the release pipeline that
+   * needs to recompute hashes against the live HF artifact, or when
+   * the user explicitly hits "redownload" in the model-management UI.
+   */
+  bypassCache?: boolean;
+  /**
+   * Sprint 54: skip persisting the freshly downloaded bytes to the
+   * cache. Defaults to `false` (every successful download is cached).
+   * Set true for ephemeral pipeline runs.
+   */
+  skipCachePersist?: boolean;
 }
 
 /** Optional inputs for `infer`. */
@@ -217,8 +241,27 @@ export function createSlmRuntime(): SlmRuntime {
         return loadBundledModel(descriptor, opts);
       }
 
-      const url = resolveWeightUrl(descriptor);
-      const bytes = await fetchWithTimeout(url, opts);
+      // Sprint 54 — cache-first read-through. If the cache has bytes,
+      // use them; integrity is re-verified against the cached payload
+      // so a tampered/corrupted cache fails closed exactly like a
+      // network mismatch would. Only on miss do we hit HuggingFace.
+      let bytes: Uint8Array;
+      let cacheHit = false;
+      if (!opts.bypassCache) {
+        const cached = await loadCachedModel(descriptor.id).catch(
+          () => null,
+        );
+        if (cached) {
+          bytes = new Uint8Array(cached);
+          cacheHit = true;
+        } else {
+          const url = resolveWeightUrl(descriptor);
+          bytes = await fetchWithTimeout(url, opts);
+        }
+      } else {
+        const url = resolveWeightUrl(descriptor);
+        bytes = await fetchWithTimeout(url, opts);
+      }
 
       // Strict integrity check: if the descriptor declares an expected
       // hash (or the caller overrode it), we MUST match it. A `null`
@@ -234,6 +277,21 @@ export function createSlmRuntime(): SlmRuntime {
         expected,
         descriptor.id,
       );
+
+      // Persist fresh downloads (post-integrity) so the next launch is
+      // fully offline. Cache hits skip this — they're already there.
+      if (!cacheHit && !opts.skipCachePersist) {
+        await cacheModel(
+          descriptor.id,
+          bytes.buffer.slice(
+            bytes.byteOffset,
+            bytes.byteOffset + bytes.byteLength,
+          ) as ArrayBuffer,
+        ).catch(() => {
+          // Cache persistence failure is non-fatal — the model still
+          // loads this session; next launch will just have to re-fetch.
+        });
+      }
 
       const ort = await (opts.ortFactory ?? defaultOrtFactory)();
       const session = await ort.InferenceSession.create(bytes, {
@@ -411,12 +469,35 @@ async function loadBundledModel(
   opts: LoadModelOptions,
 ): Promise<LoadedModel> {
   const files = listDownloadableFiles(descriptor);
+  const principalFilename = files[0]!.filename;
+  const companionFilenames = files.slice(1).map((f) => f.filename);
 
-  // Parallel fetch with shared abort signal. If any companion 404s or
-  // times out, we abort the rest — partial bundles can't be loaded.
-  const payloads = await Promise.all(
-    files.map((f) => fetchWithTimeout(f.url, opts)),
-  );
+  // Sprint 54 — cache-first read-through for the whole bundle. If ANY
+  // companion is missing from the cache, `loadCachedBundle` returns
+  // null and we fall through to the network path: partial bundles
+  // can't be loaded because the principal `.onnx` graph references
+  // the companion `.onnx_data` by relative path.
+  let payloads: Uint8Array[];
+  let cacheHit = false;
+  if (!opts.bypassCache) {
+    const cached = await loadCachedBundle(
+      descriptor.id,
+      principalFilename,
+      companionFilenames,
+    ).catch(() => null);
+    if (cached) {
+      payloads = cached.map((f) => f.payload);
+      cacheHit = true;
+    } else {
+      payloads = await Promise.all(
+        files.map((f) => fetchWithTimeout(f.url, opts)),
+      );
+    }
+  } else {
+    payloads = await Promise.all(
+      files.map((f) => fetchWithTimeout(f.url, opts)),
+    );
+  }
 
   // Run bundle-wide integrity check. If the descriptor declares
   // expected hashes (verified at release time), every file MUST match
@@ -435,6 +516,20 @@ async function loadBundledModel(
     descriptor.id,
     filesToVerify,
   );
+
+  // Persist freshly-downloaded bundle (post-integrity) so subsequent
+  // launches are fully offline. Cache hits skip this.
+  if (!cacheHit && !opts.skipCachePersist) {
+    await cacheBundle(
+      descriptor.id,
+      files.map((f, idx) => ({
+        filename: f.filename,
+        payload: payloads[idx]!,
+      })),
+    ).catch(() => {
+      // Best-effort: cache write failure is non-fatal.
+    });
+  }
 
   // The principal file is always at index 0 (registry contract).
   const principalBytes = payloads[0]!;
