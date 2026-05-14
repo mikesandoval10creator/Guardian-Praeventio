@@ -14,6 +14,8 @@
     "prepackage:slm": "node scripts/prepackage-slm-models.mjs",
     "prepackage:slm:dry": "node scripts/prepackage-slm-models.mjs --dry-run",
     "prepackage:slm:force": "node scripts/prepackage-slm-models.mjs --force",
+    "mcp:dev": "tsx bin/mcp-server.mjs",
+    "mcp:start": "node bin/mcp-server.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
