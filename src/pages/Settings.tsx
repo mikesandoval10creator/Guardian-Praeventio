@@ -34,6 +34,10 @@ import { PrivacyComplianceMatrix } from '../components/compliance/PrivacyComplia
 import { LocalePicker } from '../components/LocalePicker';
 import { get, set } from 'idb-keyval';
 import { logger } from '../utils/logger';
+// Sprint 56 (stream-slm-shell) — Asistente IA manager dentro de la app.
+// Renderiza el panel completo de adquisición/descarga/cambio de modelo
+// SLM sin enlaces externos.
+import { SlmManagerScreen } from '../components/slm/SlmManagerScreen';
 
 /**
  * Sprint 34 D4 — IDs estables para el switch del render (audit P0 §1.4).
@@ -436,6 +440,10 @@ export function Settings() {
               >
                 <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-transform ${aiProactive ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
+            </div>
+            {/* Sprint 56 (stream-slm-shell) — manager dentro de la app. */}
+            <div className="rounded-xl bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5">
+              <SlmManagerScreen />
             </div>
           </div>
         );
