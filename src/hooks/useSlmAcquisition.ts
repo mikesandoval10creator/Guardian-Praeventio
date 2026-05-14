@@ -144,35 +144,49 @@ export function useSlmAcquisition(
       const { createSlmRuntime } = await getRuntime();
       const runtime = createSlmRuntime();
 
-      // The current slmRuntime API doesn't expose a streaming progress
-      // callback yet — it does cache-first read-through + integrity.
-      // We mark a discrete "started → 1.0" progress so the user sees
-      // SOMETHING happening; per-byte progress arrives in a follow-up
-      // when the streaming fetcher lands. Below the loadModel call we
-      // fire-and-forget a tick to show the bar advancing during the
-      // fetch+verify+cache sequence.
-      const tickerInterval = window.setInterval(() => {
-        if (!mountedRef.current) return;
-        setDownloadProgress((p) => Math.min(0.9, p + 0.07));
-      }, 800);
+      // Sprint 54+: streaming progress real. El runtime invoca el
+      // callback en cada chunk con `{loaded, total, filename,
+      // fileIndex, fileCount}`. Para bundles (Phi-3) `total` puede
+      // ser null en algunas mirrors HF — en ese caso reportamos
+      // bytes acumulados sin %.
+      //
+      // Para modelos split (fileCount > 1) acumulamos loaded across
+      // todos los files: cuando `fileIndex=1` empieza, sumamos el
+      // total del fileIndex=0 (que ya completó).
+      const completedFileBytes: number[] = [];
+      const handle = await runtime.loadModel(status.modelId, {
+        onProgress: (e) => {
+          if (!mountedRef.current) return;
+          // Snapshot del bytes-already-completed para files anteriores.
+          let totalLoaded = e.loaded;
+          for (let i = 0; i < e.fileIndex; i++) {
+            totalLoaded += completedFileBytes[i] ?? 0;
+          }
+          setDownloadedBytes(totalLoaded);
+          if (status.totalBytes > 0) {
+            setDownloadProgress(
+              Math.min(1, totalLoaded / status.totalBytes),
+            );
+          }
+          // Si esta es la última event del file (loaded === total)
+          // memorizamos su tamaño para que el siguiente file lo sume
+          // como base.
+          if (e.total != null && e.loaded === e.total) {
+            completedFileBytes[e.fileIndex] = e.total;
+          }
+        },
+      });
 
-      try {
-        const handle = await runtime.loadModel(status.modelId);
-        window.clearInterval(tickerInterval);
-        if (!mountedRef.current) return;
-        setDownloadProgress(1);
-        setDownloadedBytes(status.totalBytes);
-        recordAccepted(status.modelId);
-        // Release the handle — the bytes stay in cache, the session
-        // gets re-instantiated when the user actually invokes the AI.
-        await runtime.release(handle).catch(() => {
-          /* best-effort */
-        });
-        await refresh();
-      } catch (err) {
-        window.clearInterval(tickerInterval);
-        throw err;
-      }
+      if (!mountedRef.current) return;
+      setDownloadProgress(1);
+      setDownloadedBytes(status.totalBytes);
+      recordAccepted(status.modelId);
+      // Release the handle — the bytes stay in cache, the session
+      // gets re-instantiated when the user actually invokes the AI.
+      await runtime.release(handle).catch(() => {
+        /* best-effort */
+      });
+      await refresh();
     } catch (err) {
       if (!mountedRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
