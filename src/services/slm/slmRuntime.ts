@@ -221,11 +221,14 @@ export interface OnnxTensorLike {
 }
 
 /**
- * Public runtime surface. Three methods, all async-safe:
+ * Public runtime surface.
  *   - `loadModel(id)` — resolve registry entry → fetch → integrity →
  *     ONNX session. Throws `SlmIntegrityError` on hash mismatch.
  *   - `infer(model, prompt)` — single forward pass with greedy
- *     argmax. Returns the decoded text.
+ *     argmax. Returns the decoded text completo.
+ *   - `inferStream(model, prompt, opts)` — mismo loop greedy pero
+ *     emite cada token via `onToken` callback + respeta `AbortSignal`.
+ *     El worker (`slmRuntimeWorkerCore`) lo usa para streaming.
  *   - `release(model)` — free the ONNX session. iOS Safari is
  *     particularly sensitive to leaked WASM memory; we always call
  *     `session.release()` if available.
@@ -233,7 +236,22 @@ export interface OnnxTensorLike {
 export interface SlmRuntime {
   loadModel(id: string, opts?: LoadModelOptions): Promise<LoadedModel>;
   infer(model: LoadedModel, prompt: string, opts?: InferOptions): Promise<string>;
+  inferStream(
+    model: LoadedModel,
+    prompt: string,
+    opts?: InferStreamOptions,
+  ): Promise<string>;
   release(model: LoadedModel): Promise<void>;
+}
+
+/**
+ * Opciones para inferencia streaming.
+ */
+export interface InferStreamOptions extends InferOptions {
+  /** Callback invocado por cada token decodificado. */
+  onToken?: (token: string) => void;
+  /** AbortSignal para cortar el loop. */
+  signal?: AbortSignal;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -435,6 +453,105 @@ export function createSlmRuntime(): SlmRuntime {
         if (bestId === 2) break;
         generated.push(bestId);
         currentIds.push(bestId);
+      }
+
+      try {
+        return tokenizer.decode(generated, { skip_special_tokens: true });
+      } catch {
+        return tokenizer.decode(generated);
+      }
+    },
+
+    async inferStream(model, prompt, opts = {}) {
+      // Greedy loop idéntico a `infer` pero con onToken + signal.
+      // Re-implementación in-place para evitar el overhead de
+      // refactorizar `infer` y para mantener el contrato de tests
+      // existentes intacto.
+      if (!model.session.run || typeof model.session.run !== 'function') {
+        throw new Error(
+          `SlmRuntime.inferStream: session for '${model.modelId}' has no run() method.`,
+        );
+      }
+      if (opts.signal?.aborted) {
+        // Ya abortado antes de empezar — devolvemos cadena vacía sin
+        // ejecutar nada.
+        return '';
+      }
+
+      const maxTokens = Math.max(1, Math.floor(opts.maxTokens ?? 64));
+      const tokenizer = opts.tokenizer ?? createByteLevelTokenizer();
+      const encoded = tokenizer.encode(prompt);
+      const promptIds = Array.isArray(encoded)
+        ? encoded.map(Number)
+        : encoded.input_ids.map(Number);
+      if (promptIds.length === 0) {
+        return '';
+      }
+
+      const inputName = model.session.inputNames?.[0] ?? 'input_ids';
+      const outputName = model.session.outputNames?.[0] ?? 'logits';
+
+      const ortLike = await defaultOrtFactory().catch(() => null);
+      const TensorCtor = ortLike?.Tensor;
+      if (!TensorCtor) {
+        throw new Error(
+          'SlmRuntime.inferStream: onnxruntime-web Tensor constructor unavailable.',
+        );
+      }
+
+      const currentIds = promptIds.slice();
+      const generated: number[] = [];
+
+      for (let step = 0; step < maxTokens; step++) {
+        // Check signal antes de cada iteration — cortamos en cualquier
+        // boundary entre tokens, no en medio de una forward pass.
+        if (opts.signal?.aborted) break;
+
+        const data = BigInt64Array.from(currentIds.map((n) => BigInt(n)));
+        const tensor = new TensorCtor('int64', data, [1, currentIds.length]);
+
+        // eslint-disable-next-line no-await-in-loop
+        const out = await model.session.run({ [inputName]: tensor });
+        const logits = out[outputName];
+        if (!logits) break;
+
+        const dims = logits.dims;
+        const flat = logits.data as ArrayLike<number>;
+        if (!flat || dims.length < 2) break;
+
+        const vocabSize = dims[dims.length - 1];
+        const seqLen = dims.length === 3 ? dims[1] : 1;
+        const offset = (seqLen - 1) * vocabSize;
+
+        let bestId = 0;
+        let bestScore = Number(flat[offset]);
+        for (let v = 1; v < vocabSize; v++) {
+          const s = Number(flat[offset + v]);
+          if (s > bestScore) {
+            bestScore = s;
+            bestId = v;
+          }
+        }
+
+        if (bestId === 2) break; // EOS
+        generated.push(bestId);
+        currentIds.push(bestId);
+
+        // Decodificar SOLO el último token para el callback. Decodear
+        // el `generated` entero cada vez sería O(n²) y útil solo para
+        // el cumulative en el caller (que el worker maneja).
+        if (opts.onToken) {
+          try {
+            const tokenText = tokenizer.decode([bestId], {
+              skip_special_tokens: true,
+            });
+            if (tokenText.length > 0) opts.onToken(tokenText);
+          } catch {
+            // Si el decoder falla en un token específico (BPE edge case),
+            // saltamos el callback de ese token pero seguimos con el
+            // loop — la concatenación final usa `generated` completo.
+          }
+        }
       }
 
       try {

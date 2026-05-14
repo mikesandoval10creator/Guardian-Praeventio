@@ -243,6 +243,191 @@ describe('slmRuntime.release', () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────
+// inferStream — Sprint 54+ streaming greedy loop con AbortSignal
+// ────────────────────────────────────────────────────────────────────────
+
+describe('slmRuntime.inferStream', () => {
+  // Construye un fake session que emite N tokens fijos y luego EOS=2.
+  function makeStreamingSession(tokens: number[]) {
+    let step = 0;
+    return {
+      inputNames: ['input_ids'],
+      outputNames: ['logits'],
+      handler: { _executionProviders: ['webgpu'] },
+      run: vi.fn(async () => {
+        const vocabSize = 256;
+        const flat = new Float32Array(vocabSize);
+        // Si ya emitimos todos los tokens del plan, devolvemos EOS=2.
+        const nextId = step < tokens.length ? tokens[step]! : 2;
+        flat[nextId] = 100;
+        step++;
+        return {
+          logits: {
+            data: flat,
+            dims: [1, 1, vocabSize],
+          },
+        };
+      }),
+      release: vi.fn(async () => undefined),
+    };
+  }
+
+  it('emite onToken por cada token + retorna texto completo', async () => {
+    // ids 65='A', 66='B', 67='C' en byte-level tokenizer (charCode).
+    const fakeSession = makeStreamingSession([65, 66, 67]);
+    const loaded = {
+      modelId: 'test',
+      descriptor: {} as never,
+      observedSha256: 'a'.repeat(64),
+      backend: 'webgpu' as const,
+      session: fakeSession as unknown as OnnxInferenceSessionLike,
+    };
+    // Cargar ORT global stub para que el runtime pueda construir tensors.
+    const ortStub = {
+      InferenceSession: { create: vi.fn(async () => fakeSession) },
+      Tensor: class FakeTensor {
+        constructor(
+          public type: string,
+          public data: unknown,
+          public dims: number[],
+        ) {}
+      },
+    } as unknown as OnnxRuntimeLike;
+    // Inject vía global window — el runtime hace dynamic import.
+    // En tests vitest, mockeamos el import directamente.
+    vi.doMock('onnxruntime-web', () => ortStub);
+
+    const runtime = createSlmRuntime();
+    const tokens: string[] = [];
+    const text = await runtime.inferStream(loaded, 'hola', {
+      onToken: (t) => tokens.push(t),
+      maxTokens: 10,
+    });
+
+    // El byte-level tokenizer convierte 65→'A', 66→'B', 67→'C'
+    expect(tokens).toEqual(['A', 'B', 'C']);
+    expect(text).toBe('ABC');
+
+    vi.doUnmock('onnxruntime-web');
+  });
+
+  it('AbortSignal ya abortado antes de empezar → retorna cadena vacía sin invocar run', async () => {
+    const fakeSession = makeStreamingSession([65, 66]);
+    const runSpy = fakeSession.run;
+    const loaded = {
+      modelId: 'test',
+      descriptor: {} as never,
+      observedSha256: 'a'.repeat(64),
+      backend: 'webgpu' as const,
+      session: fakeSession as unknown as OnnxInferenceSessionLike,
+    };
+    const runtime = createSlmRuntime();
+    const controller = new AbortController();
+    controller.abort();
+    const result = await runtime.inferStream(loaded, 'hola', {
+      signal: controller.signal,
+    });
+    expect(result).toBe('');
+    expect(runSpy).not.toHaveBeenCalled();
+  });
+
+  it('prompt vacío → retorna cadena vacía sin invocar run', async () => {
+    const fakeSession = makeStreamingSession([]);
+    const loaded = {
+      modelId: 'test',
+      descriptor: {} as never,
+      observedSha256: 'a'.repeat(64),
+      backend: 'webgpu' as const,
+      session: fakeSession as unknown as OnnxInferenceSessionLike,
+    };
+    const runtime = createSlmRuntime();
+    const result = await runtime.inferStream(loaded, '');
+    expect(result).toBe('');
+  });
+
+  it('EOS (id=2) corta el loop temprano', async () => {
+    // Solo 1 token antes del EOS implícito (después de tokens=[65], step=1
+    // → nextId=2 EOS).
+    const fakeSession = makeStreamingSession([65]);
+    const ortStub = {
+      InferenceSession: { create: vi.fn(async () => fakeSession) },
+      Tensor: class FakeTensor {
+        constructor(
+          public type: string,
+          public data: unknown,
+          public dims: number[],
+        ) {}
+      },
+    } as unknown as OnnxRuntimeLike;
+    vi.doMock('onnxruntime-web', () => ortStub);
+
+    const loaded = {
+      modelId: 'test',
+      descriptor: {} as never,
+      observedSha256: 'a'.repeat(64),
+      backend: 'webgpu' as const,
+      session: fakeSession as unknown as OnnxInferenceSessionLike,
+    };
+    const runtime = createSlmRuntime();
+    const tokens: string[] = [];
+    const text = await runtime.inferStream(loaded, 'p', {
+      onToken: (t) => tokens.push(t),
+      maxTokens: 100,
+    });
+    expect(tokens).toEqual(['A']);
+    expect(text).toBe('A');
+
+    vi.doUnmock('onnxruntime-web');
+  });
+
+  it('maxTokens cap respetado (corta antes de EOS si maxTokens es bajo)', async () => {
+    // Stream infinito de 65='A'; sin maxTokens correría forever.
+    const fakeSession = {
+      inputNames: ['input_ids'],
+      outputNames: ['logits'],
+      handler: { _executionProviders: ['webgpu'] },
+      run: vi.fn(async () => {
+        const vocabSize = 256;
+        const flat = new Float32Array(vocabSize);
+        flat[65] = 100;
+        return {
+          logits: { data: flat, dims: [1, 1, vocabSize] },
+        };
+      }),
+      release: vi.fn(async () => undefined),
+    };
+    const ortStub = {
+      InferenceSession: { create: vi.fn(async () => fakeSession) },
+      Tensor: class FakeTensor {
+        constructor(
+          public type: string,
+          public data: unknown,
+          public dims: number[],
+        ) {}
+      },
+    } as unknown as OnnxRuntimeLike;
+    vi.doMock('onnxruntime-web', () => ortStub);
+
+    const loaded = {
+      modelId: 'test',
+      descriptor: {} as never,
+      observedSha256: 'a'.repeat(64),
+      backend: 'webgpu' as const,
+      session: fakeSession as unknown as OnnxInferenceSessionLike,
+    };
+    const runtime = createSlmRuntime();
+    const tokens: string[] = [];
+    await runtime.inferStream(loaded, 'p', {
+      onToken: (t) => tokens.push(t),
+      maxTokens: 5,
+    });
+    expect(tokens).toHaveLength(5);
+
+    vi.doUnmock('onnxruntime-web');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
 // Sprint 54: split-model load path (Phi-3 ONNX-web with .onnx_data)
 // ────────────────────────────────────────────────────────────────────────
 
