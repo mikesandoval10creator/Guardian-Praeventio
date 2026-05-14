@@ -1,0 +1,125 @@
+name: Check Mobile Signing Placeholders
+
+# Fails the build if `public/.well-known/assetlinks.json` or
+# `public/.well-known/apple-app-site-association` still contain placeholder
+# values when a release tag is pushed. Acts as a last-line guardrail so we
+# can never ship deep-link metadata pointing at the wrong signing key.
+#
+# Triggers:
+#   - push tag `v*`           — semver release (web bundle)
+#   - push tag `mobile-v*`    — mobile-only release (AAB / IPA)
+#   - workflow_dispatch       — manual sanity check
+#
+# Companion to `.github/workflows/mobile-release.yml`, which performs the
+# actual signing. This workflow runs BEFORE the release pipeline does its
+# upload, so a failing run keeps a bad build off the Play Store / TestFlight.
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'mobile-v*'
+  workflow_dispatch:
+  # Also run on PRs that touch the .well-known files or the signing scripts,
+  # so a placeholder slipping back in is caught at review time.
+  pull_request:
+    paths:
+      - 'public/.well-known/assetlinks.json'
+      - 'public/.well-known/apple-app-site-association'
+      - 'scripts/fill-android-assetlinks.mjs'
+      - 'scripts/fill-ios-aasa.mjs'
+      - '.github/workflows/check-mobile-signing.yml'
+
+jobs:
+  check-placeholders:
+    name: Verify no signing placeholders remain
+    runs-on: ubuntu-latest
+    # On PRs we just warn (the placeholders are expected pre-launch). On tag
+    # pushes we hard-fail. The `IS_RELEASE` env switches behaviour.
+    env:
+      IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/mobile-v') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect assetlinks.json
+        id: android
+        run: |
+          FILE="public/.well-known/assetlinks.json"
+          if [ ! -f "$FILE" ]; then
+            echo "::error file=$FILE::file missing"
+            exit 1
+          fi
+          # `node --check` would only validate syntax; we want JSON. `jq` is
+          # preinstalled on ubuntu-latest runners.
+          if ! jq empty "$FILE" >/dev/null 2>&1; then
+            echo "::error file=$FILE::not valid JSON"
+            exit 1
+          fi
+          if grep -q "REPLACE_WITH" "$FILE"; then
+            echo "found_placeholder=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found_placeholder=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Inspect apple-app-site-association
+        id: ios
+        run: |
+          FILE="public/.well-known/apple-app-site-association"
+          if [ ! -f "$FILE" ]; then
+            echo "::error file=$FILE::file missing"
+            exit 1
+          fi
+          if ! jq empty "$FILE" >/dev/null 2>&1; then
+            echo "::error file=$FILE::not valid JSON"
+            exit 1
+          fi
+          # A literal "TEAMID." prefix is the placeholder. We grep for the
+          # exact token-with-dot rather than the bare word "TEAMID" to avoid
+          # false positives on documentation copy.
+          if grep -q 'TEAMID\.' "$FILE"; then
+            echo "found_placeholder=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found_placeholder=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decide pass/fail
+        run: |
+          ANDROID="${{ steps.android.outputs.found_placeholder }}"
+          IOS="${{ steps.ios.outputs.found_placeholder }}"
+          echo "release=$IS_RELEASE  android_placeholder=$ANDROID  ios_placeholder=$IOS"
+
+          if [ "$IS_RELEASE" = "true" ]; then
+            FAIL=0
+            if [ "$ANDROID" = "true" ]; then
+              echo "::error file=public/.well-known/assetlinks.json::assetlinks.json still contains REPLACE_WITH_* placeholder — refusing to release. Run scripts/fill-android-assetlinks.mjs first."
+              FAIL=1
+            fi
+            if [ "$IOS" = "true" ]; then
+              echo "::error file=public/.well-known/apple-app-site-association::apple-app-site-association still contains TEAMID. placeholder — refusing to release. Run scripts/fill-ios-aasa.mjs first."
+              FAIL=1
+            fi
+            exit $FAIL
+          fi
+
+          # Non-release contexts (PR / manual dispatch): downgrade to warnings
+          # so the placeholder period before launch does not block routine PRs.
+          if [ "$ANDROID" = "true" ]; then
+            echo "::warning file=public/.well-known/assetlinks.json::placeholder still present (expected pre-launch)"
+          fi
+          if [ "$IOS" = "true" ]; then
+            echo "::warning file=public/.well-known/apple-app-site-association::placeholder still present (expected pre-launch)"
+          fi
+
+      # When the scripts themselves change, re-run their unit tests so a
+      # broken refactor cannot silently land.
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request'
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install JS deps (PR only)
+        if: github.event_name == 'pull_request'
+        run: npm ci
+      - name: Run signing-script unit tests (PR only)
+        if: github.event_name == 'pull_request'
+        run: npx vitest run src/__tests__/scripts/fillAndroidAssetlinks.test.ts src/__tests__/scripts/fillIosAasa.test.ts
