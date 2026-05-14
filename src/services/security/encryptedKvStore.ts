@@ -160,3 +160,41 @@ export async function getEncryptedMeta(
     ciphertextLength: record.envelope.ciphertext.length,
   };
 }
+
+/**
+ * Lee el envelope crudo SIN intentar descifrar. Útil para flujos de
+ * rotación de KEK donde el caller necesita acceder al ciphertext +
+ * wrappedDek bajo la KEK vieja (que el store por default no usa más).
+ *
+ * Devuelve `null` si no existe el record.
+ */
+export async function getRawEnvelope(
+  key: string,
+): Promise<BrowserEnvelope | null> {
+  const db = await getDb();
+  const record = (await db.get(STORE, key)) as EncryptedRecord | undefined;
+  if (!record) return null;
+  return record.envelope;
+}
+
+/**
+ * Escribe un envelope crudo bajo `key`. NO encripta ni envuelve —
+ * asume que el caller ya tiene un envelope válido (típicamente
+ * resultado de `rewrapEnvelope` durante rotación de KEK).
+ *
+ * El `updatedAt` se setea a `now()` para que la metadata refleje
+ * la rotación.
+ */
+export async function setRawEnvelope(
+  key: string,
+  envelope: BrowserEnvelope,
+): Promise<void> {
+  validateEnvelope(envelope);
+  const record: EncryptedRecord = {
+    id: key,
+    envelope,
+    updatedAt: new Date().toISOString(),
+  };
+  const db = await getDb();
+  await db.put(STORE, record);
+}
