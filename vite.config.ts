@@ -122,6 +122,30 @@ export default defineConfig(({mode}) => {
                    maxAgeSeconds: 60 * 60 * 24 * 30
                  }
                }
+            },
+            // Sprint 54 ext — pre-packaged SLM weights. CacheFirst so
+            // a model loaded once stays cached forever; the only way
+            // to evict is via app reinstall (or `bypassCache` runtime
+            // option which fetches direct). Files are 100s of MB so
+            // we explicitly opt them out of the size cap below.
+            {
+              urlPattern: /\/models\/.*\.(?:onnx|onnx_data|bin)(?:\?.*)?$/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'slm-models',
+                cacheableResponse: { statuses: [0, 200] },
+                expiration: {
+                  // 5 entries × ~500 MB = enough for current registry
+                  // (Qwen 483 MB + Phi-3 split 2.7 GB if ever cached).
+                  maxEntries: 8,
+                  // 1-year TTL; effectively permanent for the install
+                  // because IndexedDB cache also tracks the same bytes.
+                  maxAgeSeconds: 60 * 60 * 24 * 365,
+                },
+                // Models legitimately weigh hundreds of MB — bypass the
+                // workbox 100MB default size guard for this route only.
+                matchOptions: { ignoreVary: true },
+              },
             }
           ]
         }

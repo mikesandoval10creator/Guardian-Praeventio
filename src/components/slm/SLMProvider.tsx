@@ -48,11 +48,31 @@ import React, {
   type ReactNode,
 } from 'react';
 
-import {
-  ensureSlmReady,
-  getActiveModelId,
-} from '../../services/slm/slmAdapter';
-import { listPending } from '../../services/slm/offlineQueue';
+// Sprint 54 perf — dynamic imports for the SLM adapter + offlineQueue.
+// These modules pull in `loader.ts` + `workerProxy.ts` (Comlink boot,
+// ONNX Runtime Web glue) and previously dragged ~200 KB of dependency
+// graph into the cold-start chunk even on /login and /landing where
+// the user hasn't even consented to AI features. Loading them on
+// demand defers the cost until the first AI feature is actually used.
+type SlmAdapterModule = typeof import('../../services/slm/slmAdapter');
+type OfflineQueueModule = typeof import('../../services/slm/offlineQueue');
+
+let slmAdapterPromise: Promise<SlmAdapterModule> | null = null;
+let offlineQueuePromise: Promise<OfflineQueueModule> | null = null;
+
+async function getSlmAdapter(): Promise<SlmAdapterModule> {
+  if (!slmAdapterPromise) {
+    slmAdapterPromise = import('../../services/slm/slmAdapter');
+  }
+  return slmAdapterPromise;
+}
+
+async function getOfflineQueue(): Promise<OfflineQueueModule> {
+  if (!offlineQueuePromise) {
+    offlineQueuePromise = import('../../services/slm/offlineQueue');
+  }
+  return offlineQueuePromise;
+}
 
 /**
  * Window-level event that signals a new offline session has just been
@@ -116,9 +136,10 @@ export interface SLMProviderProps {
 export function SLMProvider({ children }: SLMProviderProps): React.ReactElement {
   const [isOnline, setIsOnline] = useState<boolean>(() => readOnline());
   const [pendingCount, setPendingCount] = useState<number>(0);
-  const [activeModelId, setActiveModelId] = useState<string | null>(() =>
-    getActiveModelId(),
-  );
+  // Sprint 54 perf: defer reading the active model id until the adapter
+  // module is dynamically imported. Initial render gets `null` so the
+  // critical path never touches the worker proxy.
+  const [activeModelId, setActiveModelId] = useState<string | null>(null);
 
   // Track mounted state so we don't `setState` after an unmount when the
   // 30s poll resolves. Critical because `listPending()` opens an
@@ -130,6 +151,7 @@ export function SLMProvider({ children }: SLMProviderProps): React.ReactElement 
    *  at its previous value rather than crashing the shell. */
   const refreshPending = useCallback(async (): Promise<void> => {
     try {
+      const { listPending } = await getOfflineQueue();
       const pending = await listPending();
       if (!mountedRef.current) return;
       setPendingCount(pending.length);
@@ -140,9 +162,10 @@ export function SLMProvider({ children }: SLMProviderProps): React.ReactElement 
 
   /** Wraps `ensureSlmReady` and syncs the cached active model id. */
   const ensureReady = useCallback(async (): Promise<void> => {
-    await ensureSlmReady();
+    const adapter = await getSlmAdapter();
+    await adapter.ensureSlmReady();
     if (!mountedRef.current) return;
-    setActiveModelId(getActiveModelId());
+    setActiveModelId(adapter.getActiveModelId());
   }, []);
 
   // online/offline tracking. Fires synchronously on browser events.

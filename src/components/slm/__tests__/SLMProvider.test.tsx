@@ -138,9 +138,11 @@ describe('SLMProvider', () => {
   });
 
   it('ensureReady delegates to slmAdapter and refreshes active model id', async () => {
-    getActiveModelIdMock
-      .mockReturnValueOnce(null) // initial render
-      .mockReturnValue('phi-3-mini'); // post-ensureReady reads
+    // Sprint 54 perf — SLMProvider initial state is unconditionally null
+    // (no eager `getActiveModelId()` call); `ensureReady` does the first
+    // read after the dynamic import resolves. Mock returns the loaded
+    // id consistently.
+    getActiveModelIdMock.mockReturnValue('phi-3-mini');
 
     render(
       <SLMProvider>
