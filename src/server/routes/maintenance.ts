@@ -34,6 +34,9 @@ import { verifySchedulerToken } from '../middleware/verifySchedulerToken.js';
 // projects/tasks collection is not seeded yet, so the cron is safe to
 // run from day one.
 import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendarPreWarn.js';
+// Sprint 56 follow-up — resilience health alert cron.
+import { runResilienceHealthAlertCron } from '../jobs/runResilienceHealthAlert.js';
+import { fcmAdapter } from '../../services/notifications/fcmAdapter.js';
 
 const router = Router();
 
@@ -94,17 +97,127 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
       logger.error('[maintenance] calendar-prewarn failed', preWarnErr);
       captureRouteError(preWarnErr, 'maintenance.calendar-prewarn');
     }
+    // Sprint 56 follow-up — fifth step: resilience health alert.
+    // Server-side check del firestore reachability + alert FCM a admins
+    // si flips a critical. Política `strict` para no spammear con
+    // subsystems no-medibles desde server (slm/zk/device_kek son
+    // client-only y devuelven 'unknown' → degraded bajo slm_priority).
+    let resilienceHealth: {
+      status: string;
+      alertFired: boolean;
+      reportPersisted: boolean;
+    } = {
+      status: 'unknown',
+      alertFired: false,
+      reportPersisted: false,
+    };
+    try {
+      const db = admin.firestore();
+      const healthResult = await runResilienceHealthAlertCron({
+        db,
+        checkers: {
+          firestore: async () => {
+            // Ping a un doc canónico — si la lectura falla, Firestore está down.
+            try {
+              await db.collection('_health').doc('ping').get();
+              return {
+                id: 'firestore',
+                status: 'healthy',
+                detail: 'Firestore reachable (ping doc OK).',
+              };
+            } catch (err) {
+              return {
+                id: 'firestore',
+                status: 'critical',
+                detail: 'Firestore read failed.',
+                error: err instanceof Error ? err.message : String(err),
+              };
+            }
+          },
+          // Network siempre healthy server-side — si el cron corre, hay red.
+          network: async () => ({
+            id: 'network',
+            status: 'healthy',
+            detail: 'Server-side cron running → network up.',
+          }),
+        },
+        checkerTimeoutMs: 4_000,
+        notifyOps: async (report) => {
+          // Recolectar FCM tokens de admins globales (claim role='admin').
+          // Estrategia: query users where customClaims.role='admin' usaria
+          // Auth Admin SDK; aquí seguimos el patrón existing y leemos los
+          // tokens desde `users/{uid}.fcmTokens[]` para usuarios cuyo
+          // `role === 'admin'` en el doc.
+          let adminTokens: string[] = [];
+          try {
+            const snap = await db
+              .collection('users')
+              .where('role', '==', 'admin')
+              .limit(100)
+              .get();
+            for (const doc of snap.docs) {
+              const data = doc.data() as { fcmTokens?: string[] };
+              if (Array.isArray(data.fcmTokens)) {
+                adminTokens.push(...data.fcmTokens.filter((t) => typeof t === 'string' && t));
+              }
+            }
+            adminTokens = Array.from(new Set(adminTokens)); // dedup
+          } catch (e) {
+            logger.warn('[maintenance] resilience-health admin token query failed', {
+              err: String(e),
+            });
+          }
+          if (adminTokens.length === 0) {
+            logger.warn(
+              '[maintenance] resilience-health: critical pero NO hay admin tokens — alert no se envía',
+            );
+            return;
+          }
+          const criticalSubsystems = report.subsystems
+            .filter((s) => s.status === 'critical')
+            .map((s) => s.id)
+            .join(', ');
+          await fcmAdapter.sendToTokens(adminTokens, {
+            title: '⚠️ Praeventio: subsistema crítico',
+            body: `Estado: critical. Subsistemas: ${criticalSubsystems || 'n/a'}`,
+            data: {
+              kind: 'resilience_health_alert',
+              overallStatus: report.overallStatus,
+              criticalSubsystems: criticalSubsystems,
+              generatedAt: report.generatedAt,
+            },
+          });
+        },
+      });
+      resilienceHealth = {
+        status: healthResult.overallStatus,
+        alertFired: healthResult.alertFired,
+        reportPersisted: healthResult.reportPersisted,
+      };
+    } catch (healthErr) {
+      logger.error('[maintenance] resilience-health failed', healthErr);
+      captureRouteError(healthErr, 'maintenance.resilience-health');
+    }
     const tookMs = Date.now() - start;
     logger.info('[maintenance] check-overdue done', {
       ...maintenance,
       ppe,
       susesoReminders,
       calendarPreWarn,
+      resilienceHealth,
       tookMs,
     });
     return res
       .status(200)
-      .json({ ok: true, ...maintenance, ppe, susesoReminders, calendarPreWarn, tookMs });
+      .json({
+        ok: true,
+        ...maintenance,
+        ppe,
+        susesoReminders,
+        calendarPreWarn,
+        resilienceHealth,
+        tookMs,
+      });
   } catch (err) {
     logger.error('[maintenance] check-overdue failed', err);
     captureRouteError(err, 'maintenance.check-overdue');
