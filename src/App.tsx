@@ -55,6 +55,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ d
 const History = lazy(() => import('./pages/History').then(module => ({ default: module.History })));
 const Notifications = lazy(() => import('./pages/Notifications').then(module => ({ default: module.Notifications })));
 const Settings = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
+const SystemHealth = lazy(() => import('./pages/SystemHealth').then(module => ({ default: module.SystemHealth })));
 const Help = lazy(() => import('./pages/Help').then(module => ({ default: module.Help })));
 const PublicNodeView = lazy(() => import('./pages/PublicNodeView').then(module => ({ default: module.PublicNodeView })));
 const Profile = lazy(() => import('./pages/Profile').then(module => ({ default: module.Profile })));
@@ -126,6 +127,7 @@ function AppRoutes() {
               <Route path="safe-driving" element={<SafeDrivingMode />} />
               <Route path="driving" element={<Driving />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="settings/system-health" element={<SystemHealth />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
@@ -246,6 +248,7 @@ function AppRoutes() {
                     <Route path="cqrs-architecture" element={<CQRSArchitecture />} />
                     <Route path="notifications" element={<Notifications />} />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="settings/system-health" element={<SystemHealth />} />
                     <Route path="help" element={<Help />} />
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
