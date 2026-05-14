@@ -245,6 +245,14 @@ export function createSlmRuntime(): SlmRuntime {
       // use them; integrity is re-verified against the cached payload
       // so a tampered/corrupted cache fails closed exactly like a
       // network mismatch would. Only on miss do we hit HuggingFace.
+      //
+      // Sprint 54 ext: pre-packaged path takes precedence even over
+      // the cache because it's known-good bytes shipped with the app
+      // bundle. Same-origin fetch → no CORS, instant on subsequent
+      // launches via service worker precache. If pre-packaged is set
+      // and the cache is cold, we fetch from `/models/...` (NOT from
+      // HuggingFace) and treat it as a "downloaded" payload that's
+      // then persisted to IndexedDB. Failures fall back to network.
       let bytes: Uint8Array;
       let cacheHit = false;
       if (!opts.bypassCache) {
@@ -254,6 +262,19 @@ export function createSlmRuntime(): SlmRuntime {
         if (cached) {
           bytes = new Uint8Array(cached);
           cacheHit = true;
+        } else if (descriptor.prePackagedPath) {
+          // Try pre-packaged first. If the asset is missing (e.g. dev
+          // build without the model bundled) fall through to HF.
+          const prePacked = await tryFetchPrePackaged(
+            descriptor.prePackagedPath,
+            opts,
+          );
+          if (prePacked) {
+            bytes = prePacked;
+          } else {
+            const url = resolveWeightUrl(descriptor);
+            bytes = await fetchWithTimeout(url, opts);
+          }
         } else {
           const url = resolveWeightUrl(descriptor);
           bytes = await fetchWithTimeout(url, opts);
@@ -419,6 +440,58 @@ export function resolveWeightUrl(descriptor: ModelDescriptor): string {
   return `${base}/resolve/main/${descriptor.weightFilename}`;
 }
 
+/**
+ * Sprint 54 ext: try the pre-packaged asset path. Returns `null` if
+ * the asset is not present (404 / network error), letting the caller
+ * fall back to HuggingFace. This is the "shipped inside the app
+ * bundle" path — same-origin, no CORS, eligible for Workbox precache.
+ */
+async function tryFetchPrePackaged(
+  path: string,
+  opts: LoadModelOptions,
+): Promise<Uint8Array | null> {
+  try {
+    return await fetchWithTimeout(path, opts);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sprint 54 ext: try the pre-packaged bundle (principal + companions).
+ * The principal lives at `principalPath`; companions live in the same
+ * directory and are addressed by their relative filenames. Returns
+ * `null` if ANY file is missing — partial pre-packaged bundles are
+ * NOT loadable (the ONNX graph references companions by exact path).
+ */
+async function tryFetchPrePackagedBundle(
+  principalPath: string,
+  companionFilenames: ReadonlyArray<string>,
+  opts: LoadModelOptions,
+): Promise<Uint8Array[] | null> {
+  const principal = await tryFetchPrePackaged(principalPath, opts);
+  if (!principal) return null;
+  // Derive the base directory from the principal path so companions
+  // resolve to siblings (e.g. `/models/phi/model.onnx` →
+  // `/models/phi/model.onnx_data`).
+  const lastSlash = principalPath.lastIndexOf('/');
+  const baseDir =
+    lastSlash >= 0 ? principalPath.slice(0, lastSlash + 1) : '/';
+  const companions: Uint8Array[] = [];
+  for (const filename of companionFilenames) {
+    // Companion filenames may already contain a path prefix (e.g.
+    // `onnx/model_q4.onnx_data`); take only the basename so it sits
+    // next to the principal in the pre-packaged directory.
+    const basename = filename.includes('/')
+      ? filename.slice(filename.lastIndexOf('/') + 1)
+      : filename;
+    const c = await tryFetchPrePackaged(`${baseDir}${basename}`, opts);
+    if (!c) return null;
+    companions.push(c);
+  }
+  return [principal, ...companions];
+}
+
 async function fetchWithTimeout(
   url: string,
   opts: LoadModelOptions,
@@ -477,6 +550,11 @@ async function loadBundledModel(
   // null and we fall through to the network path: partial bundles
   // can't be loaded because the principal `.onnx` graph references
   // the companion `.onnx_data` by relative path.
+  //
+  // Sprint 54 ext: pre-packaged bundle. If the descriptor declares a
+  // `prePackagedPath`, the principal lives at that path and companions
+  // live alongside (same directory, by filename). When ALL files are
+  // present locally we skip HuggingFace entirely; otherwise fall back.
   let payloads: Uint8Array[];
   let cacheHit = false;
   if (!opts.bypassCache) {
@@ -488,6 +566,19 @@ async function loadBundledModel(
     if (cached) {
       payloads = cached.map((f) => f.payload);
       cacheHit = true;
+    } else if (descriptor.prePackagedPath) {
+      const prePackedBundle = await tryFetchPrePackagedBundle(
+        descriptor.prePackagedPath,
+        companionFilenames,
+        opts,
+      );
+      if (prePackedBundle) {
+        payloads = prePackedBundle;
+      } else {
+        payloads = await Promise.all(
+          files.map((f) => fetchWithTimeout(f.url, opts)),
+        );
+      }
     } else {
       payloads = await Promise.all(
         files.map((f) => fetchWithTimeout(f.url, opts)),
