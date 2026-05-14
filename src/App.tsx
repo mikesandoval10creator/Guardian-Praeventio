@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { initAdMob } from './services/adService';
 import { preWarmHealthConnect } from './services/health/healthConnectAdapter';
-import { Dashboard } from './pages/Dashboard';
 import { RootLayout } from "./components/layout/RootLayout";
 import { FirebaseProvider, useFirebase } from "./contexts/FirebaseContext";
 import { LanguageProvider } from "./contexts/LanguageProvider";
@@ -42,6 +41,13 @@ import { RiskRoutes } from "./routes/RiskRoutes";
 import { HealthRoutes } from "./routes/HealthRoutes";
 import { ComplianceRoutes } from "./routes/ComplianceRoutes";
 import { AIRoutes } from "./routes/AIRoutes";
+
+// Sprint 54 — perf: Dashboard was the last eager page import, dragging
+// idb-keyval + AIInsightsModal + ComplianceModal + 22 sibling components
+// into the cold-start chunk even on /login and /landing. Lazy-load it
+// so the shell (root layout + providers) renders in <1s; the dashboard
+// chunk only downloads when the authenticated user lands on `/`.
+const Dashboard = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
 
 const LandingPage = lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
 
