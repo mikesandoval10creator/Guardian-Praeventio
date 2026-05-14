@@ -452,6 +452,184 @@ describe('slmRuntime — pre-packaged asset (zero-network first launch)', () => 
     digestSpy.mockRestore();
   });
 
+  it('onProgress: stream-aware fetch emite eventos por chunk con filename + fileIndex', async () => {
+    const digestSpy = installFakeDigest({ chunked: QWEN_SHA });
+
+    // Build a body that exposes ReadableStream.getReader() with multiple chunks.
+    const chunks = [
+      new TextEncoder().encode('chu'),
+      new TextEncoder().encode('nked'),
+    ];
+    const fakeFetch = (vi.fn(async () => {
+      let i = 0;
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (k: string) => (k.toLowerCase() === 'content-length' ? '7' : null),
+        },
+        body: {
+          getReader: () => ({
+            read: async () => {
+              if (i < chunks.length) {
+                return { value: chunks[i++], done: false };
+              }
+              return { value: undefined, done: true };
+            },
+          }),
+        },
+        arrayBuffer: async () =>
+          new TextEncoder().encode('chunked').buffer as ArrayBuffer,
+      };
+    }) as unknown) as typeof fetch;
+
+    const events: Array<{ loaded: number; total: number | null; filename: string; fileIndex: number; fileCount: number }> = [];
+    const runtime = createSlmRuntime();
+    await runtime.loadModel(QWEN_ID, {
+      fetchImpl: fakeFetch,
+      ortFactory: async () => fakeOrt(),
+      onProgress: (e) => {
+        events.push(e);
+      },
+    });
+
+    // Esperamos eventos: started (0/7), después de chunk 1 (3/7), después de chunk 2 (7/7).
+    expect(events.length).toBeGreaterThanOrEqual(3);
+    expect(events[0]!.loaded).toBe(0);
+    expect(events[0]!.total).toBe(7);
+    expect(events[0]!.filename).toBe('onnx/model_q4f16.onnx');
+    expect(events[0]!.fileIndex).toBe(0);
+    expect(events[0]!.fileCount).toBe(1);
+
+    const last = events[events.length - 1]!;
+    expect(last.loaded).toBe(7);
+
+    digestSpy.mockRestore();
+  });
+
+  it('onProgress en bundle split: ambos files reportan fileIndex 0 y 1', async () => {
+    const digestSpy = installFakeDigest({
+      principal: PHI_PRINCIPAL_SHA,
+      companion: PHI_COMPANION_SHA,
+    });
+
+    const makeStreamingFakeResponse = (body: string) => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: {
+        get: (k: string) =>
+          k.toLowerCase() === 'content-length'
+            ? String(body.length)
+            : null,
+      },
+      body: {
+        getReader: () => {
+          let done = false;
+          return {
+            read: async () => {
+              if (done) return { value: undefined, done: true };
+              done = true;
+              return { value: new TextEncoder().encode(body), done: false };
+            },
+          };
+        },
+      },
+      arrayBuffer: async () => new TextEncoder().encode(body).buffer,
+    });
+
+    const fakeFetch = (vi.fn(async (url: string) => {
+      return url.includes('_data')
+        ? makeStreamingFakeResponse('companion')
+        : makeStreamingFakeResponse('principal');
+    }) as unknown) as typeof fetch;
+
+    const events: Array<{ filename: string; fileIndex: number; fileCount: number }> = [];
+    const runtime = createSlmRuntime();
+    await runtime.loadModel(PHI_ID, {
+      fetchImpl: fakeFetch,
+      ortFactory: async () => fakeOrt(),
+      onProgress: (e) =>
+        events.push({
+          filename: e.filename,
+          fileIndex: e.fileIndex,
+          fileCount: e.fileCount,
+        }),
+    });
+
+    // Esperamos al menos: principal "started" (idx 0), principal "done"
+    // (idx 0), companion "started" (idx 1), companion "done" (idx 1).
+    const principalEvents = events.filter((e) => e.fileIndex === 0);
+    const companionEvents = events.filter((e) => e.fileIndex === 1);
+    expect(principalEvents.length).toBeGreaterThan(0);
+    expect(companionEvents.length).toBeGreaterThan(0);
+    expect(principalEvents[0]!.filename).toBe('onnx/model_q4.onnx');
+    expect(companionEvents[0]!.filename).toBe('onnx/model_q4.onnx_data');
+    expect(principalEvents[0]!.fileCount).toBe(2);
+    expect(companionEvents[0]!.fileCount).toBe(2);
+
+    digestSpy.mockRestore();
+  });
+
+  it('onProgress NO se invoca en cache hit', async () => {
+    // Pre-cargar cache.
+    await cacheModel(QWEN_ID, new TextEncoder().encode('cached').buffer);
+    const digestSpy = installFakeDigest({ cached: QWEN_SHA });
+
+    const events: unknown[] = [];
+    const runtime = createSlmRuntime();
+    await runtime.loadModel(QWEN_ID, {
+      fetchImpl: (() => {
+        throw new Error('NO fetch en cache hit');
+      }) as unknown as typeof fetch,
+      ortFactory: async () => fakeOrt(),
+      onProgress: (e) => events.push(e),
+    });
+
+    expect(events).toHaveLength(0);
+    digestSpy.mockRestore();
+  });
+
+  it('content-length ausente → total=null en evento', async () => {
+    const digestSpy = installFakeDigest({ noheader: QWEN_SHA });
+
+    const fakeFetch = (vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: () => null }, // sin content-length
+      body: {
+        getReader: () => {
+          let done = false;
+          return {
+            read: async () => {
+              if (done) return { value: undefined, done: true };
+              done = true;
+              return {
+                value: new TextEncoder().encode('noheader'),
+                done: false,
+              };
+            },
+          };
+        },
+      },
+      arrayBuffer: async () =>
+        new TextEncoder().encode('noheader').buffer as ArrayBuffer,
+    })) as unknown) as typeof fetch;
+
+    const events: Array<{ total: number | null }> = [];
+    const runtime = createSlmRuntime();
+    await runtime.loadModel(QWEN_ID, {
+      fetchImpl: fakeFetch,
+      ortFactory: async () => fakeOrt(),
+      onProgress: (e) => events.push({ total: e.total }),
+    });
+
+    expect(events.every((e) => e.total === null)).toBe(true);
+    digestSpy.mockRestore();
+  });
+
   it('PrePackaged → persiste al cache para 2do load instantáneo', async () => {
     const digestSpy = installFakeDigest({ prepacked: QWEN_SHA });
 

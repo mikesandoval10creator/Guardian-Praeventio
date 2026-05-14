@@ -114,6 +114,29 @@ export interface LoadModelOptions {
    * Set true for ephemeral pipeline runs.
    */
   skipCachePersist?: boolean;
+  /**
+   * Sprint 54+: streaming progress callback. Fired on every chunk
+   * during the network download (NOT on cache-hit). `loaded` is
+   * monotonically increasing in bytes; `total` is the Content-Length
+   * if the server advertised one, else `null` (some HF mirrors omit
+   * it for gated models). For bundle models, `filename` identifies
+   * which file is being downloaded; for single-file models, it's
+   * the principal filename.
+   */
+  onProgress?: (event: DownloadProgressEvent) => void;
+}
+
+export interface DownloadProgressEvent {
+  /** Bytes received so far for this file. */
+  loaded: number;
+  /** Content-Length header value, or `null` if unknown. */
+  total: number | null;
+  /** Which file is in flight (helpful for split models). */
+  filename: string;
+  /** For bundle downloads, the index of the file (0 = principal). */
+  fileIndex: number;
+  /** For bundle downloads, the total number of files. */
+  fileCount: number;
 }
 
 /** Optional inputs for `infer`. */
@@ -268,20 +291,37 @@ export function createSlmRuntime(): SlmRuntime {
           const prePacked = await tryFetchPrePackaged(
             descriptor.prePackagedPath,
             opts,
+            {
+              filename: descriptor.weightFilename ?? 'model.onnx',
+              fileIndex: 0,
+              fileCount: 1,
+            },
           );
           if (prePacked) {
             bytes = prePacked;
           } else {
             const url = resolveWeightUrl(descriptor);
-            bytes = await fetchWithTimeout(url, opts);
+            bytes = await fetchWithTimeout(url, opts, {
+              filename: descriptor.weightFilename ?? 'model.onnx',
+              fileIndex: 0,
+              fileCount: 1,
+            });
           }
         } else {
           const url = resolveWeightUrl(descriptor);
-          bytes = await fetchWithTimeout(url, opts);
+          bytes = await fetchWithTimeout(url, opts, {
+            filename: descriptor.weightFilename ?? 'model.onnx',
+            fileIndex: 0,
+            fileCount: 1,
+          });
         }
       } else {
         const url = resolveWeightUrl(descriptor);
-        bytes = await fetchWithTimeout(url, opts);
+        bytes = await fetchWithTimeout(url, opts, {
+          filename: descriptor.weightFilename ?? 'model.onnx',
+          fileIndex: 0,
+          fileCount: 1,
+        });
       }
 
       // Strict integrity check: if the descriptor declares an expected
@@ -449,9 +489,10 @@ export function resolveWeightUrl(descriptor: ModelDescriptor): string {
 async function tryFetchPrePackaged(
   path: string,
   opts: LoadModelOptions,
+  progressCtx?: FetchProgressContext,
 ): Promise<Uint8Array | null> {
   try {
-    return await fetchWithTimeout(path, opts);
+    return await fetchWithTimeout(path, opts, progressCtx);
   } catch {
     return null;
   }
@@ -468,8 +509,14 @@ async function tryFetchPrePackagedBundle(
   principalPath: string,
   companionFilenames: ReadonlyArray<string>,
   opts: LoadModelOptions,
+  principalFilename?: string,
 ): Promise<Uint8Array[] | null> {
-  const principal = await tryFetchPrePackaged(principalPath, opts);
+  const fileCount = 1 + companionFilenames.length;
+  const principal = await tryFetchPrePackaged(principalPath, opts, {
+    filename: principalFilename ?? 'model.onnx',
+    fileIndex: 0,
+    fileCount,
+  });
   if (!principal) return null;
   // Derive the base directory from the principal path so companions
   // resolve to siblings (e.g. `/models/phi/model.onnx` →
@@ -478,23 +525,38 @@ async function tryFetchPrePackagedBundle(
   const baseDir =
     lastSlash >= 0 ? principalPath.slice(0, lastSlash + 1) : '/';
   const companions: Uint8Array[] = [];
-  for (const filename of companionFilenames) {
+  for (let i = 0; i < companionFilenames.length; i++) {
+    const filename = companionFilenames[i]!;
     // Companion filenames may already contain a path prefix (e.g.
     // `onnx/model_q4.onnx_data`); take only the basename so it sits
     // next to the principal in the pre-packaged directory.
     const basename = filename.includes('/')
       ? filename.slice(filename.lastIndexOf('/') + 1)
       : filename;
-    const c = await tryFetchPrePackaged(`${baseDir}${basename}`, opts);
+    const c = await tryFetchPrePackaged(`${baseDir}${basename}`, opts, {
+      filename,
+      fileIndex: i + 1,
+      fileCount,
+    });
     if (!c) return null;
     companions.push(c);
   }
   return [principal, ...companions];
 }
 
+interface FetchProgressContext {
+  /** Filename para el callback de progreso. */
+  filename: string;
+  /** Index del file (0 = principal). */
+  fileIndex: number;
+  /** Total files en el bundle. */
+  fileCount: number;
+}
+
 async function fetchWithTimeout(
   url: string,
   opts: LoadModelOptions,
+  progressCtx?: FetchProgressContext,
 ): Promise<Uint8Array> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   const fetchImpl =
@@ -518,6 +580,51 @@ async function fetchWithTimeout(
         `SlmRuntime: fetch failed for ${url} (HTTP ${res.status} ${res.statusText}).`,
       );
     }
+
+    // Sprint 54+: streaming read si hay `onProgress` + el body es un
+    // ReadableStream. Mantenemos fallback a `arrayBuffer()` para fetchs
+    // mockeados en tests (que solo implementan `arrayBuffer`).
+    const progress = opts.onProgress;
+    if (progress && progressCtx && res.body && typeof res.body.getReader === 'function') {
+      const totalHeader = res.headers?.get?.('content-length');
+      const total = totalHeader ? Number(totalHeader) : null;
+      const reader = res.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let loaded = 0;
+      // Emit immediate progress event so the UI shows "started" instantly.
+      progress({
+        loaded: 0,
+        total: Number.isFinite(total) ? total : null,
+        filename: progressCtx.filename,
+        fileIndex: progressCtx.fileIndex,
+        fileCount: progressCtx.fileCount,
+      });
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          loaded += value.byteLength;
+          progress({
+            loaded,
+            total: Number.isFinite(total) ? total : null,
+            filename: progressCtx.filename,
+            fileIndex: progressCtx.fileIndex,
+            fileCount: progressCtx.fileCount,
+          });
+        }
+      }
+      // Concatenate chunks into one Uint8Array.
+      const out = new Uint8Array(loaded);
+      let offset = 0;
+      for (const c of chunks) {
+        out.set(c, offset);
+        offset += c.byteLength;
+      }
+      return out;
+    }
+
+    // Fallback path (tests + servers sin streaming).
     const buf = await res.arrayBuffer();
     return new Uint8Array(buf);
   } finally {
@@ -571,17 +678,30 @@ async function loadBundledModel(
         descriptor.prePackagedPath,
         companionFilenames,
         opts,
+        principalFilename,
       );
       if (prePackedBundle) {
         payloads = prePackedBundle;
       } else {
         payloads = await Promise.all(
-          files.map((f) => fetchWithTimeout(f.url, opts)),
+          files.map((f, idx) =>
+            fetchWithTimeout(f.url, opts, {
+              filename: f.filename,
+              fileIndex: idx,
+              fileCount: files.length,
+            }),
+          ),
         );
       }
     } else {
       payloads = await Promise.all(
-        files.map((f) => fetchWithTimeout(f.url, opts)),
+        files.map((f, idx) =>
+          fetchWithTimeout(f.url, opts, {
+            filename: f.filename,
+            fileIndex: idx,
+            fileCount: files.length,
+          }),
+        ),
       );
     }
   } else {
