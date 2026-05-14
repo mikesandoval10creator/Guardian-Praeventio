@@ -57,6 +57,14 @@ export interface UseResilientAiResult {
   cancel: () => void;
   /** Limpia `lastResponse` + `error` sin cancelar query en curso. */
   reset: () => void;
+  /**
+   * Estado de streaming token-by-token. `null` cuando no hay query
+   * activa o cuando el tier final no fue SLM (zettelkasten/firestore/
+   * gemini/canned no streamean). El caller pasa este objeto a
+   * `<AiResponseCard streaming={...} />` para mostrar tokens mientras
+   * llegan.
+   */
+  streaming: { text: string; tokensReceived: number; tier: 'slm' } | null;
 }
 
 export function useResilientAi(
@@ -65,6 +73,9 @@ export function useResilientAi(
   const [loading, setLoading] = useState(false);
   const [lastResponse, setLastResponse] = useState<AiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState<UseResilientAiResult['streaming']>(
+    null,
+  );
 
   // Track active query so we can ignore late results after `cancel()`.
   const activeIdRef = useRef(0);
@@ -86,9 +97,27 @@ export function useResilientAi(
       if (mountedRef.current) {
         setLoading(true);
         setError(null);
+        setStreaming({ text: '', tokensReceived: 0, tier: 'slm' });
       }
 
-      const query: AiQuery = { prompt, ...queryExtras };
+      // Cable el streaming hook: cada token del SLM incrementa el
+      // estado para que la UI se actualice incrementalmente. Si el tier
+      // final NO fue slm (cae a zettelkasten/firestore/gemini/canned),
+      // el setStreaming(null) en el wrap del response lo limpia.
+      const onStreamToken = (token: string) => {
+        if (id !== activeIdRef.current || !mountedRef.current) return;
+        setStreaming((prev) =>
+          prev
+            ? {
+                text: prev.text + token,
+                tokensReceived: prev.tokensReceived + 1,
+                tier: 'slm',
+              }
+            : null,
+        );
+      };
+
+      const query: AiQuery = { prompt, ...queryExtras, onStreamToken };
       const orchestratorOpts: OrchestratorOptions = {
         tierTimeoutMs: options.tierTimeoutMs,
         allowedTiers: options.allowedTiers,
@@ -107,6 +136,8 @@ export function useResilientAi(
         }
         setLastResponse(r);
         setLoading(false);
+        // Limpiar streaming — el caller ahora muestra `lastResponse`.
+        setStreaming(null);
         return r;
       } catch (err) {
         // El orchestrator NO debería lanzar — esta rama atrapa errores
@@ -115,6 +146,7 @@ export function useResilientAi(
         if (id === activeIdRef.current && mountedRef.current) {
           setError(msg);
           setLoading(false);
+          setStreaming(null);
         }
         // Re-throw para que el caller pueda manejar el caso edge.
         throw err;
@@ -127,6 +159,7 @@ export function useResilientAi(
     activeIdRef.current += 1;
     if (mountedRef.current) {
       setLoading(false);
+      setStreaming(null);
     }
   }, []);
 
@@ -134,8 +167,9 @@ export function useResilientAi(
     if (mountedRef.current) {
       setLastResponse(null);
       setError(null);
+      setStreaming(null);
     }
   }, []);
 
-  return { ask, loading, lastResponse, error, cancel, reset };
+  return { ask, loading, lastResponse, error, cancel, reset, streaming };
 }
