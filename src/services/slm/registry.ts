@@ -92,7 +92,11 @@ export const MODEL_REGISTRY: readonly ModelDescriptor[] = [
     // Sprint 54: SHA-256 real desde HF LFS oid.
     expectedSha256: 'b11c1dd99efd57e6c6e5bc4443a019931a5fbd5dd500d48644d8225f5ce0b2cb',
     hashComputedAt: HASH_COMPUTED_AT,
-    // Qwen 0.5B q4f16 no usa external data — viene en un solo archivo.
+    // Sprint 54 ext: pre-packaged path. Cuando el release pipeline copie
+    // el .onnx a `public/models/qwen-2.5-0.5b/model_q4f16.onnx` el
+    // runtime lo prefiere sobre la descarga HF. Modelo de 483 MB → cabe
+    // en Android Asset Pack o iOS asset catalog.
+    prePackagedPath: '/models/qwen-2.5-0.5b/model_q4f16.onnx',
   },
   {
     id: 'gemma-2-2b',

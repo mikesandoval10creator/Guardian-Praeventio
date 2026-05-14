@@ -35,6 +35,14 @@ reports/mutation/
 public/models/slm/*.onnx
 public/models/slm/*.onnx.partial
 
+# Sprint 54 ext — Pre-packaged SLM bundle. Release pipeline drops the
+# verified `.onnx` + `.onnx_data` here so the runtime serves them as
+# same-origin assets (zero network, even on first launch). Never
+# commit the binaries; only the README + path layout lives in git.
+public/models/*/*.onnx
+public/models/*/*.onnx_data
+public/models/*/*.partial
+
 # Bucket PP — MediaPipe Pose Landmarker assets (Sprint 25 gaps cleanup).
 # Bajados por `scripts/download-mediapipe-models.mjs` (prebuild hook).
 # Local-first hosting para offline/GDPR; servidos desde nuestro origen

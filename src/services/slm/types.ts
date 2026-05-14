@@ -132,6 +132,32 @@ export interface ModelDescriptor {
    * Formato ISO-8601. Útil para detectar hashes obsoletos.
    */
   hashComputedAt?: string;
+  /**
+   * Sprint 54 ext — pre-packaged asset path.
+   *
+   * When set, the runtime tries this same-origin URL FIRST before
+   * touching HuggingFace. The intended layout is to ship the model
+   * inside the app bundle (`public/models/<id>/<file>`) so:
+   *
+   *   1. The very first launch works without internet — the file is
+   *      already on disk because the user installed the app.
+   *   2. The service worker can pre-cache the path with Workbox so
+   *      subsequent loads are instant + offline.
+   *   3. No HuggingFace fetch is required EVER for this model — the
+   *      release pipeline embeds the binary directly.
+   *
+   * Same SHA-256 contract: the pre-packaged bytes still run through
+   * `verifyBundleIntegrity()` / `assertModelIntegrity()` so a tampered
+   * APK / IPA / build artifact fails closed.
+   *
+   * For split models, this is the path to the PRINCIPAL `.onnx`; the
+   * `companionFiles` entries' filenames are appended to the same
+   * pre-packaged base.
+   *
+   * Example: `/models/qwen-2.5-0.5b/model_q4f16.onnx` (served by Vite
+   * from `public/models/qwen-2.5-0.5b/model_q4f16.onnx`).
+   */
+  prePackagedPath?: string;
 }
 
 /**
