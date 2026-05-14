@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFirebase } from '../../contexts/FirebaseContext';
@@ -18,11 +18,28 @@ import { useAutonomousAlerts } from '../../hooks/useAutonomousAlerts';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
 import { useZettelkastenIntelligence } from '../../hooks/useZettelkastenIntelligence';
-import { SmartConnectionsPanel } from '../knowledge/SmartConnectionsPanel';
 import { logger } from '../../utils/logger';
 import { ReloadPrompt } from './ReloadPrompt';
-import { SyncCenterModal } from '../shared/SyncCenterModal';
-import { MFASetupModal } from '../auth/MFASetupModal';
+
+// Sprint 54 perf — modales y paneles del shell que solo se montan bajo
+// condiciones específicas (modal abierto, conexión perdida, etc.) ahora
+// son lazy. Reducen el chunk del RootLayout en ~30-40KB de imports
+// transitivos (Radix dialogs, force-graph, etc.).
+const SyncCenterModal = lazy(() =>
+  import('../shared/SyncCenterModal').then((m) => ({
+    default: m.SyncCenterModal,
+  })),
+);
+const MFASetupModal = lazy(() =>
+  import('../auth/MFASetupModal').then((m) => ({
+    default: m.MFASetupModal,
+  })),
+);
+const SmartConnectionsPanel = lazy(() =>
+  import('../knowledge/SmartConnectionsPanel').then((m) => ({
+    default: m.SmartConnectionsPanel,
+  })),
+);
 import { NormativaSwitch } from '../normativa/NormativaSwitch';
 import { ShieldAlert } from 'lucide-react';
 import { getPendingActions } from '../../utils/pwa-offline';
@@ -341,23 +358,27 @@ export function RootLayout() {
         </div>
       </header>
 
-      <MFASetupModal 
-        isOpen={isMfaSetupOpen} 
-        onClose={() => {
-          setIsMfaSetupOpen(false);
-          setMfaSuccessCallback(null);
-        }} 
-        onComplete={async () => {
-          await set('mfa_setup_completed', 'true');
-          setMfaSetupCompleted(true);
-          setIsMfaSetupOpen(false);
-          if (mfaSuccessCallback) {
-            mfaSuccessCallback();
-            setMfaSuccessCallback(null);
-          }
-        }} 
-        isForced={isMfaForced}
-      />
+      {isMfaSetupOpen && (
+        <Suspense fallback={null}>
+          <MFASetupModal
+            isOpen={isMfaSetupOpen}
+            onClose={() => {
+              setIsMfaSetupOpen(false);
+              setMfaSuccessCallback(null);
+            }}
+            onComplete={async () => {
+              await set('mfa_setup_completed', 'true');
+              setMfaSetupCompleted(true);
+              setIsMfaSetupOpen(false);
+              if (mfaSuccessCallback) {
+                mfaSuccessCallback();
+                setMfaSuccessCallback(null);
+              }
+            }}
+            isForced={isMfaForced}
+          />
+        </Suspense>
+      )}
 
       <main
         id="main-content"
@@ -380,8 +401,17 @@ export function RootLayout() {
         </AnimatePresence>
       </main>
       <AsesorChatLazy />
-      <SyncCenterModal isOpen={isSyncModalOpen} onClose={() => setIsSyncModalOpen(false)} />
-      <SmartConnectionsPanel />
+      {isSyncModalOpen && (
+        <Suspense fallback={null}>
+          <SyncCenterModal
+            isOpen={isSyncModalOpen}
+            onClose={() => setIsSyncModalOpen(false)}
+          />
+        </Suspense>
+      )}
+      <Suspense fallback={null}>
+        <SmartConnectionsPanel />
+      </Suspense>
 
       {/* 4-mode UX dock — floating, post-login only (RootLayout never renders on landing). */}
       <div className="fixed bottom-4 right-4 z-50 pointer-events-auto">
