@@ -151,4 +151,122 @@ export async function getCachedModelBytes(modelId: string): Promise<number> {
 export async function deleteCachedModel(modelId: string): Promise<void> {
   const db = await getDb();
   await db.delete(STORE_NAME, modelId);
+  // Also evict any companion entries (Sprint 54 bundle support).
+  const allKeys = (await db.getAllKeys(STORE_NAME)) as string[];
+  const prefix = `${modelId}::`;
+  for (const k of allKeys) {
+    if (typeof k === 'string' && k.startsWith(prefix)) {
+      await db.delete(STORE_NAME, k);
+    }
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint 54: bundle cache (model.onnx + companion .onnx_data files)
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * One file in an SLM bundle. The principal `.onnx` and each companion
+ * (`.onnx_data` for Phi-3-style split models) are stored as separate
+ * records so eviction + integrity checks can run per-file without
+ * pulling the entire 2.7 GB Phi-3 bundle into memory.
+ */
+export interface CachedBundleFile {
+  filename: string;
+  payload: Uint8Array;
+}
+
+/**
+ * Cache key for a companion file is `${modelId}::${filename}` so:
+ *   - The principal file keeps its current key (`modelId`) for backwards
+ *     compatibility with the legacy `loader.ts` path.
+ *   - Companions live alongside in the same store under a namespaced key
+ *     that can't collide with a future single-file model id.
+ */
+function companionKey(modelId: string, filename: string): string {
+  return `${modelId}::${filename}`;
+}
+
+/**
+ * Persist a full bundle (principal + companions) atomically per file.
+ * The principal file (index 0) is stored under its `modelId` key so the
+ * legacy single-file `loadCachedModel(id)` still works. Companions go
+ * under namespaced keys.
+ *
+ * @param modelId  Stable registry id.
+ * @param files    Array of `{ filename, payload }`. The FIRST entry is
+ *                 treated as the principal `.onnx` weight file.
+ */
+export async function cacheBundle(
+  modelId: string,
+  files: ReadonlyArray<CachedBundleFile>,
+): Promise<void> {
+  if (files.length === 0) return;
+  const db = await getDb();
+  // The principal file keeps its raw key (legacy compatibility).
+  const principal = files[0]!;
+  await db.put(STORE_NAME, {
+    id: modelId,
+    blob: principal.payload.buffer.slice(
+      principal.payload.byteOffset,
+      principal.payload.byteOffset + principal.payload.byteLength,
+    ) as ArrayBuffer,
+    cachedAt: Date.now(),
+  });
+  // Companions go under namespaced keys.
+  for (let i = 1; i < files.length; i++) {
+    const f = files[i]!;
+    await db.put(STORE_NAME, {
+      id: companionKey(modelId, f.filename),
+      blob: f.payload.buffer.slice(
+        f.payload.byteOffset,
+        f.payload.byteOffset + f.payload.byteLength,
+      ) as ArrayBuffer,
+      cachedAt: Date.now(),
+    });
+  }
+}
+
+/**
+ * Read a full bundle back from cache.
+ *
+ * @param modelId    Stable registry id.
+ * @param companions Optional list of expected companion filenames. If
+ *                   provided and any companion is missing, returns
+ *                   `null` (incomplete bundle — caller re-fetches).
+ *                   If omitted, returns whatever exists for the
+ *                   principal only.
+ *
+ * @returns `null` on cold miss or incomplete bundle; otherwise the
+ *          ordered array `[principal, ...companions]` with the
+ *          principal's `filename` matching `principalFilename`.
+ */
+export async function loadCachedBundle(
+  modelId: string,
+  principalFilename: string,
+  companions: ReadonlyArray<string> = [],
+): Promise<CachedBundleFile[] | null> {
+  const principalBuf = await loadCachedModel(modelId);
+  if (!principalBuf) return null;
+
+  const out: CachedBundleFile[] = [
+    { filename: principalFilename, payload: new Uint8Array(principalBuf) },
+  ];
+
+  if (companions.length === 0) return out;
+
+  const db = await getDb();
+  for (const filename of companions) {
+    const record = (await db.get(STORE_NAME, companionKey(modelId, filename))) as
+      | CachedModelRecord
+      | undefined;
+    if (!record) {
+      // Incomplete bundle — refuse to return partial. Caller MUST
+      // re-fetch from network to guarantee integrity.
+      return null;
+    }
+    out.push({ filename, payload: new Uint8Array(record.blob) });
+  }
+
+  return out;
 }
