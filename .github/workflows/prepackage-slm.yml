@@ -1,0 +1,104 @@
+name: Pre-package SLM models
+
+# Sprint 54 release pipeline. Runs the script that downloads, verifies,
+# and stages SLM ONNX weights under `public/models/<id>/...` so the
+# `vite build` step picks them up as bundled assets.
+#
+# Two trigger modes:
+#   1. PR validator — dry-run only. Confirms the registry parser still
+#      works and nothing in `registry.ts` regressed the prePackagedPath
+#      contract. No network fetch.
+#   2. Release pre-step — full download + verify + upload artifact.
+#      Triggered manually via workflow_dispatch and by the release
+#      tags pattern. The artifact is consumed by the production build
+#      workflow (see TODO note below) so the same verified blob ships
+#      to Play Store / App Store.
+#
+# IMPORTANT: this workflow NEVER commits the model files to git. The
+# downloaded assets stay in the workflow artifact storage; the .gitignore
+# at the repo root excludes `public/models/*/*.onnx` so a misconfigured
+# local commit can't accidentally push 2.7 GB.
+
+on:
+  pull_request:
+    paths:
+      - 'src/services/slm/registry.ts'
+      - 'src/services/slm/types.ts'
+      - 'scripts/prepackage-slm-models.mjs'
+      - 'src/__tests__/scripts/prepackageSlmRegistryParser.test.ts'
+      - '.github/workflows/prepackage-slm.yml'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force re-download even if cached (true/false)'
+        type: boolean
+        default: false
+      model:
+        description: 'Only this model id (empty = all pre-packaged)'
+        type: string
+        default: ''
+
+jobs:
+  validate-parser:
+    if: github.event_name == 'pull_request'
+    name: Validate registry parser (dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (vitest only)
+        run: npm ci --no-audit --no-fund
+        env:
+          CI: 'true'
+
+      - name: Parser unit test
+        run: npx vitest run src/__tests__/scripts/prepackageSlmRegistryParser.test.ts
+
+      - name: Dry-run downloader (no fetch)
+        run: node scripts/prepackage-slm-models.mjs --dry-run
+
+  prepackage-and-stage:
+    if: github.event_name == 'workflow_dispatch'
+    name: Download + verify + stage SLM models
+    runs-on: ubuntu-latest
+    # Generous timeout — Phi-3 mini is ~2.7 GB and HF CDN can be slow.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache pre-packaged SLM models
+        uses: actions/cache@v4
+        with:
+          path: public/models
+          # Cache key includes the registry hash so a registry edit
+          # invalidates the cache and forces re-download.
+          key: slm-prepackaged-${{ hashFiles('src/services/slm/registry.ts') }}
+          restore-keys: |
+            slm-prepackaged-
+
+      - name: Download + verify
+        run: |
+          ARGS=""
+          if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+          if [ -n "${{ inputs.model }}" ]; then ARGS="$ARGS --model=${{ inputs.model }}"; fi
+          node scripts/prepackage-slm-models.mjs $ARGS
+
+      - name: Upload SLM bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slm-prepackaged-${{ github.sha }}
+          path: public/models/
+          retention-days: 7
+          # The artifact survives 7 days so the downstream release
+          # workflow can pick it up. Production deploys should download
+          # this exact artifact rather than re-fetching from HF — it's
+          # already SHA-256 verified by this job.
+          if-no-files-found: error
