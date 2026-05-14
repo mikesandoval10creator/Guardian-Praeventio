@@ -24,6 +24,18 @@ const SLMShellOverlayLazy = lazy(() =>
   })),
 );
 
+// Sprint 54 ext — primer-launch SLM acquisition prompt (#218). El
+// componente se monta DENTRO de `<SLMProvider>` para compartir el
+// estado de IA, y se descarga lazy porque solo aparece cuando el
+// usuario no tiene el modelo ni pre-empaquetado ni en cache. Para
+// el 99% de los launches (modelo ya descargado o pre-empaquetado)
+// este chunk no se baja jamás.
+const SlmAcquisitionPromptHostLazy = lazy(() =>
+  import('../components/slm/SlmAcquisitionPromptHost').then((m) => ({
+    default: m.SlmAcquisitionPromptHost,
+  })),
+);
+
 interface AppProvidersProps {
   children: ReactNode;
 }
@@ -60,6 +72,9 @@ export function AppProviders({ children }: AppProvidersProps) {
                       <SLMProvider>
                         <Suspense fallback={null}>
                           <SLMShellOverlayLazy />
+                        </Suspense>
+                        <Suspense fallback={null}>
+                          <SlmAcquisitionPromptHostLazy />
                         </Suspense>
                         {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
                             Mounted inside ProjectProvider + FirebaseProvider so
