@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { lazy, Suspense, type ReactNode } from 'react';
 import { UniversalKnowledgeProvider } from "../contexts/UniversalKnowledgeContext";
 import { ProjectProvider } from "../contexts/ProjectContext";
 import { SubscriptionProvider } from "../contexts/SubscriptionContext";
@@ -9,8 +9,20 @@ import { ThemeProvider } from "../contexts/ThemeContext";
 import { AppModeProvider } from "../contexts/AppModeContext";
 import { NormativeProvider } from "../contexts/NormativeContext";
 import { SLMProvider } from "../components/slm/SLMProvider";
-import { SLMShellOverlay } from "../components/slm/SLMShellOverlay";
 import { MeshProvider } from "./MeshProvider";
+
+// Sprint 54 perf — `<SLMShellOverlay>` only renders content when the
+// device is offline (the banner). Eager-importing it pulled framer-motion
+// + AppModeContext consumers + OfflineSLMBanner into the cold-start
+// chunk for zero visual cost when online (which is most of the time).
+// Lazy-load + Suspense with `null` fallback so when online the overlay
+// is literally absent from the DOM and downloads only the first time
+// the device goes offline.
+const SLMShellOverlayLazy = lazy(() =>
+  import('../components/slm/SLMShellOverlay').then((m) => ({
+    default: m.SLMShellOverlay,
+  })),
+);
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -46,7 +58,9 @@ export function AppProviders({ children }: AppProvidersProps) {
                   <EmergencyProvider>
                     <SensorProvider>
                       <SLMProvider>
-                        <SLMShellOverlay />
+                        <Suspense fallback={null}>
+                          <SLMShellOverlayLazy />
+                        </Suspense>
                         {/* Sprint 35 — closes ADR-0013 last-mile (Sprint 33 D3).
                             Mounted inside ProjectProvider + FirebaseProvider so
                             useFirebase() + useProject() resolve. Early-returns
