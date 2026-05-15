@@ -29,6 +29,8 @@ import { useFallDetectionPreference } from '../hooks/useFallDetectionPreference'
 import { BunkerManager } from '../components/BunkerManager';
 // Sprint 30 Bucket KK — WebAuthn keys management UI.
 import { WebAuthnKeysSection } from '../components/settings/WebAuthnKeysSection';
+// Sprint 56 follow-up — KEK rotation panel (Wire UI de PR #248).
+import { KekRotationPanel } from '../components/security/KekRotationPanel';
 // Sprint 31 Bucket MM — privacy compliance matrix UI.
 import { PrivacyComplianceMatrix } from '../components/compliance/PrivacyComplianceMatrix';
 import { LocalePicker } from '../components/LocalePicker';
@@ -263,6 +265,23 @@ export function Settings() {
             {/* Sprint 30 Bucket KK — WebAuthn keys (closes audit gap F-F). */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
               <WebAuthnKeysSection />
+            </div>
+            {/* Sprint 56 follow-up — Rotación de la KEK del dispositivo
+                (cierra el wire de PR #248: orchestrator + UI ya están,
+                ahora visible al usuario). Solo aparece al usuario que
+                tiene admin role idealmente — el componente se autocura
+                renderizando "Sin clave generada" si no hay KEK aún. */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">
+                {t('settings.security.kek_title', 'Cifrado del dispositivo')}
+              </h4>
+              <p className="text-xs text-zinc-600 dark:text-zinc-500 mb-3">
+                {t(
+                  'settings.security.kek_desc',
+                  'Clave maestra que envuelve los datos cifrados localmente (cache offline, sesiones, drafts). Rotación recomendada cada 90 días.',
+                )}
+              </p>
+              <KekRotationPanel />
             </div>
             {/* Sprint 31 Bucket MM — Datos personales y privacidad. */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
