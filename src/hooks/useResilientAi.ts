@@ -112,7 +112,19 @@ export function useResilientAi(
       // hasta que (a) el orchestrator returns (cualquier tier), o (b) un
       // safety timeout = tierTimeoutMs × 1.1 (margen sobre el race del
       // orchestrator). Después de eso, tokens tardíos se descartan.
-      const tierTimeoutMs = options.tierTimeoutMs ?? 8000;
+      //
+      // Codex P2 fix (PR #268 follow-up, 2026-05-15): el orchestrator usa
+      // DIFFERENT defaults:
+      //   - `answer()` default tierTimeoutMs = 8000ms
+      //   - `answerEmergency()` default tierTimeoutMs = 3000ms (más rápido
+      //      porque emergencias necesitan respuesta inmediata)
+      // Si el hook usaba 8000ms × 1.1 = 8800ms safety con emergencyMode,
+      // había una ventana de 5800ms donde tokens tardíos del SLM zombie
+      // mutaban la UI durante el fallback. Ahora ajustamos el default al
+      // modo seleccionado para que el safety timeout coincida con el race
+      // real del orchestrator.
+      const ORCHESTRATOR_DEFAULT_TIMEOUT_MS = options.emergencyMode ? 3000 : 8000;
+      const tierTimeoutMs = options.tierTimeoutMs ?? ORCHESTRATOR_DEFAULT_TIMEOUT_MS;
       let slmTokenWindowOpen = true;
       const closeStreamWindow = (): void => {
         slmTokenWindowOpen = false;

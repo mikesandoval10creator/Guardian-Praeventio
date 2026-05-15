@@ -21,45 +21,79 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
   const { addNotification } = useNotifications();
   const { register, isSupported } = useBiometricAuth();
 
+  // Codex fake fix §2.1 (2026-05-15): el path SMS estaba simulado con
+  // `setTimeout(1500)` + retornaba éxito sin enviar SMS real ni verificar
+  // código. **Cualquier código de 6 dígitos pasaba la verificación MFA**
+  // — bypass total de la 2FA. Solo el path biométrico (WebAuthn) era real.
+  //
+  // Fix honesto: deshabilitamos el path SMS hasta que tengamos
+  // credenciales Twilio configuradas (ver TODO.md §5). El user es forzado
+  // a usar biometric/TOTP que SÍ son reales. Si intenta SMS, le
+  // explicamos por qué no está disponible.
+  const SMS_PATH_AVAILABLE = false; // TODO: flip cuando Twilio Verify wired
+
   const handleSendCode = async () => {
+    if (!SMS_PATH_AVAILABLE) {
+      addNotification({
+        title: 'Verificación SMS no disponible',
+        message:
+          'Por seguridad, el path SMS está deshabilitado en esta versión. ' +
+          'Usa el método biométrico (huella/FaceID) o TOTP (Google Authenticator) que sí son verificados criptográficamente.',
+        type: 'warning',
+      });
+      // Volver al paso de selección de método — NO fingir éxito.
+      setStep('method');
+      return;
+    }
+
     if (!phoneNumber || phoneNumber.length < 9) {
       addNotification({
         title: 'Número inválido',
         message: 'Por favor, ingresa un número de teléfono válido.',
-        type: 'error'
+        type: 'error',
       });
       return;
     }
-    
-    setIsLoading(true);
-    // Simulate sending SMS code
-    setTimeout(() => {
-      setIsLoading(false);
-      setStep('verify');
-      addNotification({
-        title: 'Código enviado',
-        message: `Se ha enviado un código SMS al ${phoneNumber}`,
-        type: 'success'
-      });
-    }, 1500);
+
+    // Cuando Twilio esté wired, este bloque hará la request real a
+    // POST /api/auth/mfa/sms/send con verificación.
+    addNotification({
+      title: 'No implementado',
+      message: 'SMS Verify pendiente de credenciales Twilio.',
+      type: 'error',
+    });
   };
 
   const handleVerifyCode = async () => {
+    if (!SMS_PATH_AVAILABLE) {
+      // Coherencia: si SMS no está disponible, verify tampoco.
+      addNotification({
+        title: 'Verificación SMS no disponible',
+        message:
+          'No podemos verificar el código porque el path SMS está deshabilitado. ' +
+          'Usa biometric/TOTP.',
+        type: 'warning',
+      });
+      setStep('method');
+      return;
+    }
+
     if (!verificationCode || verificationCode.length < 6) {
       addNotification({
         title: 'Código inválido',
         message: 'Por favor, ingresa el código de 6 dígitos.',
-        type: 'error'
+        type: 'error',
       });
       return;
     }
 
-    setIsLoading(true);
-    // Simulate verifying code and enabling MFA
-    setTimeout(() => {
-      setIsLoading(false);
-      setStep('success');
-    }, 1500);
+    // Cuando Twilio esté wired, este bloque hará POST /api/auth/mfa/sms/verify
+    // con verificación server-side criptográfica.
+    addNotification({
+      title: 'No implementado',
+      message: 'SMS Verify pendiente de credenciales Twilio.',
+      type: 'error',
+    });
   };
 
   const handleBiometricSetup = async () => {
@@ -161,14 +195,29 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
 
                 <button
                   onClick={() => setStep('phone')}
-                  className="w-full p-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 flex items-center gap-4 hover:border-blue-500/50 transition-all group"
+                  disabled={!SMS_PATH_AVAILABLE}
+                  className={`w-full p-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/10 flex items-center gap-4 transition-all group ${
+                    SMS_PATH_AVAILABLE
+                      ? 'hover:border-blue-500/50 cursor-pointer'
+                      : 'opacity-50 cursor-not-allowed'
+                  }`}
+                  title={
+                    SMS_PATH_AVAILABLE
+                      ? undefined
+                      : 'SMS path no disponible — pendiente de credenciales Twilio'
+                  }
+                  data-testid="mfa-sms-button"
                 >
                   <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
                     <Smartphone className="w-6 h-6" />
                   </div>
-                  <div className="text-left">
+                  <div className="text-left flex-1">
                     <p className="font-bold text-zinc-900 dark:text-white">Mensaje SMS</p>
-                    <p className="text-xs text-zinc-500">Código de 6 dígitos al celular</p>
+                    <p className="text-xs text-zinc-500">
+                      {SMS_PATH_AVAILABLE
+                        ? 'Código de 6 dígitos al celular'
+                        : 'No disponible (pendiente Twilio Verify)'}
+                    </p>
                   </div>
                 </button>
               </motion.div>

@@ -1287,11 +1287,16 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
         ip: req.ip ?? null, userAgent: req.header('user-agent') ?? null,
       });
 
-      // Sprint 49 D.8.b — DTE auto-issue decision (placeholder).
-      // TODO Sprint 50 — connect to dteIssueQueue persister + PSE dispatch.
-      // We deliberately only log the decision here so the wiring lands without
-      // creating server I/O risk before the queue store exists. The decision
-      // is fully pure; logging it lets ops see the funnel in advance.
+      // Sprint 49 D.8.b → Codex fake fix §2.10 (2026-05-15):
+      // ANTES: solo se decidía y loggeaba (decideDteIssue), pero NUNCA se
+      // llamaba `tryAutoIssueDte()` → facturas pagadas no auto-emitían DTE.
+      //
+      // AHORA: si `decision.shouldIssue === true`, llamamos
+      // `tryAutoIssueDte()` que respeta `DTE_AUTO_ISSUE` env (default false).
+      // En producción quedará off hasta que infra setee la env var; entonces
+      // empieza a emitir vía Bsale automáticamente. Nunca bloquea el redirect
+      // — los errores se loggean + capturan a Sentry pero el user sigue su
+      // flujo de pago confirmado.
       try {
         const invoiceSnap = await invoiceRef.get();
         const invoiceData = invoiceSnap.data();
@@ -1318,10 +1323,50 @@ billingWebpayRouter.get('/webpay/return', async (req, res) => {
             reason: decision.reason,
             idempotencyKey: decision.idempotencyKey,
           });
+
+          // Si la decisión es emit, ahora SÍ ejecutamos vía tryAutoIssueDte.
+          // El helper respeta env DTE_AUTO_ISSUE — fail-soft si no está
+          // habilitado (skipped: 'disabled') o si no hay adapter Bsale
+          // (skipped: 'no-adapter'). En esos casos solo loggeamos.
+          if (decision.shouldIssue && invoiceData) {
+            try {
+              const { tryAutoIssueDte } = await import(
+                '../../services/billing/invoice.js'
+              );
+              // El invoiceData ya tiene el shape Invoice porque persiste
+              // desde createInvoice() en el mismo módulo. Re-hidratamos el
+              // status a 'paid' por si Firestore aún no propagó.
+              const invoiceForDte = {
+                ...invoiceData,
+                id: invoiceId,
+                status: 'paid' as const,
+                paidAt: new Date().toISOString(),
+              };
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const result = await tryAutoIssueDte(invoiceForDte as any);
+              logger.info('dte_autoissue_result', {
+                source: 'webpay-return',
+                invoiceId,
+                ownerUid,
+                ok: result.ok,
+                skipped: result.skipped ?? null,
+                folio: result.result?.folio ?? null,
+                errorMessage: result.errorMessage ?? null,
+              });
+            } catch (issueErr) {
+              logger.error('dte_autoissue_invoke_failed', issueErr as Error, {
+                source: 'webpay-return',
+                invoiceId,
+              });
+              sentryCapture(issueErr, {
+                endpoint: 'billing.webpay.dteAutoIssue.invoke',
+                tags: { invoiceId },
+              });
+            }
+          }
         }
       } catch (dteErr) {
-        // Never block the redirect on the DTE decision — it's advisory in
-        // this sprint. Capture so we can see the funnel health.
+        // Never block the redirect on the DTE decision — it's advisory.
         logger.error('dte_autoissue_decision_failed', dteErr as Error, { invoiceId });
         sentryCapture(dteErr, { endpoint: 'billing.webpay.dteAutoIssue', tags: { invoiceId } });
       }
