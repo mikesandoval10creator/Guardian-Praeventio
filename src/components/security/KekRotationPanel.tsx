@@ -79,11 +79,15 @@ export function KekRotationPanel({
   const refreshState = useCallback(async () => {
     const nowIso = new Date(nowMs ? nowMs() : Date.now()).toISOString();
     const k = await inspectDeviceKek(nowIso).catch(() => ({ exists: false }));
+    // `ageMs` solo existe en el shape completo `DeviceKekInfo`; el shape
+    // de fallback `{ exists: false }` no lo tiene. Usamos `'ageMs' in k`
+    // como type guard para que TS narrow correctamente.
+    const ageMs = 'ageMs' in k ? k.ageMs : undefined;
     setKekInfo({
       exists: k.exists,
       ageDays:
-        k.exists && k.ageMs !== undefined
-          ? Math.round(k.ageMs / (1000 * 60 * 60 * 24))
+        k.exists && ageMs !== undefined
+          ? Math.round(ageMs / (1000 * 60 * 60 * 24))
           : undefined,
       createdAt: 'createdAt' in k ? k.createdAt : undefined,
     });

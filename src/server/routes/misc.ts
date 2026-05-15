@@ -67,8 +67,13 @@ function sentryCapture(
 // Sprint 39 — extendido a buk/talana/mock (chilenos + adapter de pruebas).
 // `oracle` y `dynamics` aceptados por compatibilidad pero NO tienen
 // adapter — caen en NOT_IMPLEMENTED honesto en lugar de simular éxito.
+// Codex P1 fix (PR #266): `erpType` ahora es OPCIONAL — el server lee
+// ERP_ADAPTER del env por default. Si el body lo provee, valida que sea
+// uno con adapter real (sap/buk/talana/mock), si no devuelve 400.
 const erpSyncSchema = z.object({
-  erpType: z.enum(['sap', 'buk', 'talana', 'mock', 'oracle', 'dynamics', 'odoo']),
+  erpType: z
+    .enum(['sap', 'buk', 'talana', 'mock', 'oracle', 'dynamics', 'odoo'])
+    .optional(),
   action: z.enum([
     'manual_sync',
     'fetch_employees',
@@ -78,6 +83,9 @@ const erpSyncSchema = z.object({
   ]),
   payload: z.record(z.string(), z.unknown()).optional().default({}),
 });
+
+// Adapters con implementación real (los demás caen en not_implemented honesto).
+const SUPPORTED_ERP_ADAPTERS = new Set(['sap', 'buk', 'talana', 'mock']);
 
 const router = Router();
 
@@ -128,22 +136,69 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   const tenantId =
     (req.user as { tenantId?: string }).tenantId ?? 'default';
 
-  // Permitir override del adapter desde el body si erpType es buk/talana/sap/mock.
-  // Los legacy 'oracle'/'dynamics'/'odoo' caen en not_implemented honesto
-  // (no tenemos adapter para esos).
-  const requestedAdapter = ['sap', 'buk', 'talana', 'mock'].includes(erpType)
-    ? (erpType as 'sap' | 'buk' | 'talana' | 'mock')
-    : undefined;
+  // Codex P2 fix (PR #266): Rechazar legacy types ANTES del env fallback.
+  // Si el body manda oracle/dynamics/odoo, NO caer al env adapter — eso
+  // procesaría una request de Oracle a través de un SAP/Buk/Talana real
+  // y loggearía el erpType equivocado. Devolver 501 honesto.
+  if (erpType && !SUPPORTED_ERP_ADAPTERS.has(erpType)) {
+    const db = admin.firestore();
+    await db.collection('erp_sync_logs').add({
+      uid,
+      erpType,
+      action,
+      payload,
+      status: 'not_implemented',
+      mode: 'not_implemented',
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    logger.warn('erp_sync_legacy_type_rejected', { erpType, action, uid });
+    return res.status(501).json({
+      success: false,
+      mode: 'not_implemented',
+      message: `ERP adapter "${erpType}" no tiene implementación. Soportados: sap, buk, talana, mock.`,
+      reason: 'Tipo ERP legacy sin adapter — no caemos al env adapter para evitar logs incorrectos',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Codex P1 fix (PR #266): Si el body provee erpType válido, lo usamos;
+  // si no, el server lee ERP_ADAPTER del env. Frontend ya NO manda erpType
+  // (ver src/pages/ERPIntegration.tsx) — el body queda para callers
+  // server-to-server / admin tools que sí quieran override explícito.
+  const requestedAdapter = erpType as 'sap' | 'buk' | 'talana' | 'mock' | undefined;
+
+  // Codex P2 fix (PR #266): Helper compartido para loggear intentos antes
+  // de devolver respuesta — incluye los modos de falla (missing_creds,
+  // not_implemented) para que operators tengan audit trail completo.
+  const db = admin.firestore();
+  const logAttempt = async (
+    mode: string,
+    extraStatus: string,
+    extraMsg?: string,
+  ): Promise<void> => {
+    try {
+      await db.collection('erp_sync_logs').add({
+        uid,
+        erpType: requestedAdapter ?? process.env.ERP_ADAPTER ?? null,
+        action,
+        payload,
+        status: extraStatus,
+        mode,
+        message: extraMsg ?? null,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (logErr) {
+      // No bloquear la respuesta si el log falla.
+      logger.warn('erp_sync_log_failed', { uid, action, error: String(logErr) });
+    }
+  };
 
   try {
-    logger.info('erp_sync_started', { erpType, action, uid });
+    logger.info('erp_sync_started', { erpType: requestedAdapter, envAdapter: process.env.ERP_ADAPTER, action, uid });
 
     const adapter = selectErpAdapter({
       adapterName: requestedAdapter,
     });
-
-    // Log honesto a Firestore (sin pretender éxito antes de hacer la sync)
-    const db = admin.firestore();
 
     if (!adapter) {
       const result = buildNotConfiguredResult({
@@ -151,16 +206,8 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
         action: action as ErpAction,
         data: payload,
       });
-      await db.collection('erp_sync_logs').add({
-        uid,
-        erpType,
-        action,
-        payload,
-        status: 'not_configured',
-        mode: result.mode,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      logger.warn('erp_sync_not_configured', { erpType, action, uid });
+      await logAttempt('not_configured', 'not_configured', result.message);
+      logger.warn('erp_sync_not_configured', { erpType: requestedAdapter, action, uid });
       return res.status(503).json({ success: false, ...result });
     }
 
@@ -170,22 +217,14 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
       data: payload,
     });
 
-    await db.collection('erp_sync_logs').add({
-      uid,
-      erpType,
-      action,
-      payload,
-      status: result.ok ? 'success' : 'failed',
-      mode: result.mode,
-      message: result.message,
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    await logAttempt(result.mode, result.ok ? 'success' : 'failed', result.message);
 
     return res.json({ success: result.ok, ...result });
   } catch (error) {
-    // Errores tipados del adapter → respuestas honestas, no 500 genérico
+    // Errores tipados del adapter → respuestas honestas + audit log
     if (error instanceof ErpMissingCredentialsError) {
-      logger.warn('erp_sync_missing_credentials', { erpType, action, uid, message: error.message });
+      await logAttempt('missing_credentials', 'failed', error.message);
+      logger.warn('erp_sync_missing_credentials', { erpType: requestedAdapter, action, uid, message: error.message });
       return res.status(503).json({
         success: false,
         mode: 'missing_credentials',
@@ -195,7 +234,8 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
       });
     }
     if (error instanceof ErpNotImplementedError) {
-      logger.warn('erp_sync_not_implemented', { erpType, action, uid, message: error.message });
+      await logAttempt('not_implemented', 'failed', error.message);
+      logger.warn('erp_sync_not_implemented', { erpType: requestedAdapter, action, uid, message: error.message });
       return res.status(501).json({
         success: false,
         mode: 'not_implemented',
@@ -204,8 +244,9 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
         timestamp: new Date().toISOString(),
       });
     }
-    logger.error('erp_sync_failed', error, { erpType, action, uid });
-    sentryCapture(error, { endpoint: '/api/erp/sync', tags: { method: 'POST', erpType, action, uid } });
+    await logAttempt('failed', 'failed', (error as Error)?.message ?? 'unknown');
+    logger.error('erp_sync_failed', error, { erpType: requestedAdapter, action, uid });
+    sentryCapture(error, { endpoint: '/api/erp/sync', tags: { method: 'POST', erpType: requestedAdapter ?? null, action, uid } });
     return res.status(502).json({
       success: false,
       mode: 'failed',

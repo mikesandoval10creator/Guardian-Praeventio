@@ -186,6 +186,52 @@ describe('FirestoreRateLimitStore', () => {
     expect(b.totalHits).toBe(1);
   });
 
+  it('Codex P1 fix: keys con slash (IPv6 CIDR) NO crean nested path', async () => {
+    // ipKeyGenerator() para IPv6 puede devolver "2001:db8::/64" — contiene `/`.
+    // Sin encoding, .doc('2001:db8::/64') crearía nested path (Firestore lo
+    // interpreta como `_rate_limits/2001:db8::/64` → 2 segments → throw).
+    // Con encodeURIComponent, queda como un solo doc ID válido.
+    const ipv6Key = '2001:db8::/64';
+    const result = await store.increment(ipv6Key);
+    expect(result.totalHits).toBe(1);
+    // Verificar que el doc se guardó como un solo doc ID (encoded)
+    const encoded = encodeURIComponent(ipv6Key);
+    expect(db.__docs.has(`_rate_limits/${encoded}`)).toBe(true);
+    // Y que el segundo increment lo encuentra (sin crear otro doc)
+    const r2 = await store.increment(ipv6Key);
+    expect(r2.totalHits).toBe(2);
+  });
+
+  it('Codex P2 fix: resetAt + updatedAt se escriben como Date (no ISO string)', async () => {
+    await store.increment('check-types');
+    const raw = db.__docs.get('_rate_limits/check-types') as {
+      resetAt: unknown;
+      updatedAt: unknown;
+    };
+    expect(raw.resetAt).toBeInstanceOf(Date);
+    expect(raw.updatedAt).toBeInstanceOf(Date);
+  });
+
+  it('Codex P2 fix: backward compat — lee resetAt antiguo como ISO string', async () => {
+    // Doc legacy con ISO string — el helper toMillis() lo soporta.
+    db.__docs.set('_rate_limits/legacy', {
+      count: 50,
+      resetAt: new Date(Date.now() - 60_000).toISOString(),
+    });
+    // Como vencida, el siguiente increment debería resetear a 1.
+    const result = await store.increment('legacy');
+    expect(result.totalHits).toBe(1);
+  });
+
+  it('Codex P2 fix: backward compat — lee resetAt como Firestore Timestamp', async () => {
+    db.__docs.set('_rate_limits/ts-legacy', {
+      count: 10,
+      resetAt: { toMillis: () => Date.now() + 30_000 }, // ventana activa
+    });
+    const result = await store.increment('ts-legacy');
+    expect(result.totalHits).toBe(11); // continúa la ventana
+  });
+
   it('fail-soft: error de Firestore → permite el request (totalHits 1)', async () => {
     const failingDb = {
       runTransaction: async () => {

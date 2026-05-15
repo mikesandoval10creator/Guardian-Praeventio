@@ -22,11 +22,11 @@ export function ERPIntegration() {
     setSyncReason(null);
     try {
       const token = await auth.currentUser?.getIdToken();
-      // Sprint 39 fix — el backend ahora distingue modos honestamente.
-      // El erpType viene de env (ERP_ADAPTER). Aquí solicitamos 'mock' por
-      // default; en prod, el admin debe setear ERP_ADAPTER=sap|buk|talana
-      // y el server route lo elige (ignorando este request si el override
-      // no es válido).
+      // Codex P1 fix (PR #266, 2026-05-15): NO mandar `erpType` desde el
+      // frontend — el backend lee `ERP_ADAPTER` env y decide el adapter.
+      // Si el frontend hardcodea 'mock', prod con ERP_ADAPTER=sap siempre
+      // recibiría mode:'mock' (porque el body sobreescribía el env).
+      // Ahora dejamos al server decidir; el response.mode dice cuál corrió.
       const response = await fetch('/api/erp/sync', {
         method: 'POST',
         headers: {
@@ -34,7 +34,6 @@ export function ERPIntegration() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          erpType: 'mock',
           action: 'manual_sync'
         })
       });

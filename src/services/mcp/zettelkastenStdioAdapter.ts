@@ -61,8 +61,24 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
     tools: MCP_TOOLS,
   }));
 
+  // Codex P2 fix (PR #263, 2026-05-15): poblar allowedTenantIds desde el
+  // adapter en lugar de pasar Set vacío. Sin esto, `ctx.allowedTenantIds.has()`
+  // rechaza TODAS las requests con "tenantId not accessible" — haciendo el
+  // stdio server inútil. El adapter ya expone listAccessibleTenants() y el
+  // caller (server.ts / bin/mcp-server.mjs) lo configura con su política.
+  // Cacheamos por proceso para no re-leer Firestore por cada request; el
+  // stdio MCP server normalmente sirve a un único cliente LLM por proceso.
+  let cachedAllowedTenants: Set<string> | null = null;
+  const getAllowedTenants = async (): Promise<Set<string>> => {
+    if (cachedAllowedTenants) return cachedAllowedTenants;
+    const tenants = await config.zk.listAccessibleTenants();
+    cachedAllowedTenants = new Set(tenants);
+    return cachedAllowedTenants;
+  };
+
   // ── tools/call ─────────────────────────────────────────────────────────
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const allowedTenantIds = await getAllowedTenants();
     const response = await handleMcpRequest(
       {
         jsonrpc: '2.0',
@@ -73,7 +89,7 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
           arguments: request.params.arguments ?? {},
         },
       },
-      { allowedTenantIds: new Set(), adapter: config.zk },
+      { allowedTenantIds, adapter: config.zk },
     );
 
     if (response.error) {
@@ -100,6 +116,7 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
 
   // ── resources/read ─────────────────────────────────────────────────────
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const allowedTenantIds = await getAllowedTenants();
     const response = await handleMcpRequest(
       {
         jsonrpc: '2.0',
@@ -107,7 +124,7 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
         method: 'resources/read',
         params: { uri: request.params.uri },
       },
-      { allowedTenantIds: new Set(), adapter: config.zk },
+      { allowedTenantIds, adapter: config.zk },
     );
 
     if (response.error) {

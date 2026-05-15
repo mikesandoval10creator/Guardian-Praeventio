@@ -29,6 +29,36 @@
 import { Store, type SessionData } from 'express-session';
 import type { Firestore } from 'firebase-admin/firestore';
 
+// Codex P2 fix (PR #264, 2026-05-15): Firestore TTL policies SOLO evalúan
+// campos de tipo Timestamp — los strings ISO se ignoran, así que sesiones
+// nunca leídas no se borrarían automáticamente. Solución: escribir JS Date
+// (Firebase Admin SDK auto-convierte Date → Timestamp en wire). Al leer,
+// Firestore devuelve Timestamp con `.toDate()` o `.toMillis()` disponibles.
+/**
+ * Devuelve el timestamp en ms desde un campo expiresAt heredado:
+ *   - Date (lo que escribimos hoy)
+ *   - Firestore Timestamp { toMillis() } (lo que Firestore Admin devuelve)
+ *   - string ISO (legacy de versiones anteriores del store)
+ *   - número (epoch ms)
+ */
+function expiresMs(raw: unknown): number | null {
+  if (!raw) return null;
+  if (typeof raw === 'string') {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d.getTime();
+  }
+  if (typeof raw === 'number') return raw;
+  if (raw instanceof Date) return raw.getTime();
+  if (typeof raw === 'object' && raw !== null && 'toMillis' in raw) {
+    try {
+      return (raw as { toMillis(): number }).toMillis();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export interface FirestoreSessionStoreOptions {
   /** Firestore Admin instance. */
   db: Firestore;
@@ -71,7 +101,12 @@ export class FirestoreSessionStore extends Store {
     return this.db.collection(this.collectionName).doc(sid);
   }
 
-  private computeExpiresAtIso(sess: SessionData): string {
+  /**
+   * Devuelve el timestamp como **Date** (no ISO string) — Firestore Admin
+   * SDK lo auto-convierte a Timestamp en wire, lo que permite que la
+   * Firestore TTL policy lo evalúe y borre docs vencidos automáticamente.
+   */
+  private computeExpiresAt(sess: SessionData): Date {
     const cookie = sess.cookie;
     let ms: number | null = null;
     if (cookie?.expires) {
@@ -83,7 +118,7 @@ export class FirestoreSessionStore extends Store {
       ms = Date.now() + cookie.maxAge;
     }
     if (ms === null) ms = Date.now() + this.defaultTtlMs;
-    return new Date(ms).toISOString();
+    return new Date(ms);
   }
 
   // ── get ─────────────────────────────────────────────────────────────
@@ -93,11 +128,13 @@ export class FirestoreSessionStore extends Store {
       .then((snap) => {
         if (!snap.exists) return callback(null, null);
         const raw = snap.data() as
-          | { data?: string; expiresAt?: string }
+          | { data?: string; expiresAt?: unknown }
           | undefined;
         if (!raw?.data) return callback(null, null);
         // TTL check defensivo (Firestore TTL puede tardar en correr).
-        if (raw.expiresAt && raw.expiresAt < new Date().toISOString()) {
+        // `expiresAt` puede llegar como Timestamp/Date/string según source.
+        const expMs = expiresMs(raw.expiresAt);
+        if (expMs !== null && expMs < Date.now()) {
           // Vencido — fire-and-forget cleanup, devolver null
           this.ref(sid)
             .delete()
@@ -122,9 +159,9 @@ export class FirestoreSessionStore extends Store {
   // ── set ─────────────────────────────────────────────────────────────
   set(sid: string, sess: SessionData, callback?: Callback): void {
     const serialized = JSON.stringify(sess);
-    const expiresAt = this.computeExpiresAtIso(sess);
+    const expiresAt = this.computeExpiresAt(sess);
     this.ref(sid)
-      .set({ data: serialized, expiresAt, updatedAt: new Date().toISOString() })
+      .set({ data: serialized, expiresAt, updatedAt: new Date() })
       .then(() => callback?.(null))
       .catch((err) => {
         // eslint-disable-next-line no-console
@@ -148,7 +185,7 @@ export class FirestoreSessionStore extends Store {
   // ── touch ───────────────────────────────────────────────────────────
   // Extiende TTL sin re-escribir el payload completo.
   touch(sid: string, sess: SessionData, callback?: Callback): void {
-    const expiresAt = this.computeExpiresAtIso(sess);
+    const expiresAt = this.computeExpiresAt(sess);
     this.ref(sid)
       .update({ expiresAt })
       .then(() => callback?.(null))

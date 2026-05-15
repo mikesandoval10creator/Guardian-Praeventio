@@ -77,16 +77,57 @@ export class FirestoreRateLimitStore {
     this.windowMs = options.windowMs;
   }
 
+  /**
+   * Codex P1 fix (PR #264, 2026-05-15): Firestore doc IDs no aceptan `/`
+   * (lo interpreta como path separator → nested doc → throw). Las keys
+   * de rate-limiter pueden contener slash:
+   *   - IPv6 + ipKeyGenerator() produce CIDR como "2001:db8::/64" → tiene `/`
+   *   - Multi-tenant keys como "tid/uid" también
+   * Sin encoding, `.doc(key)` con slash crearía un nested path, throwearía,
+   * y el fail-soft devolvería totalHits:1 → IPv6 clients nunca se throttle.
+   * encodeURIComponent garantiza un doc ID válido para cualquier key.
+   */
+  private encodeKey(key: string): string {
+    return encodeURIComponent(`${this.prefix}${key}`);
+  }
+
   private ref(key: string) {
-    return this.db
-      .collection(this.collectionName)
-      .doc(`${this.prefix}${key}`);
+    return this.db.collection(this.collectionName).doc(this.encodeKey(key));
+  }
+
+  /**
+   * Convierte un campo `resetAt` heredado (Date | Timestamp | string | number)
+   * a ms desde epoch. Mantiene backward compat con docs antiguos que
+   * tenían ISO strings.
+   */
+  private toMillis(raw: unknown): number | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string') {
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? null : d.getTime();
+    }
+    if (raw instanceof Date) return raw.getTime();
+    if (typeof raw === 'object' && 'toMillis' in raw) {
+      try {
+        return (raw as { toMillis(): number }).toMillis();
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   /**
    * Incrementa el contador atomically. Si la ventana venció, resetea
    * a 1 con un nuevo resetAt. Usa Firestore transaction para evitar
    * race conditions entre pods.
+   */
+  /**
+   * Codex P2 fix (PR #264, 2026-05-15): Firestore TTL solo evalúa campos
+   * Timestamp; ISO string se ignora. Conversión: JS Date → Firestore
+   * Admin SDK auto-convierte a Timestamp en wire. Backward compat para
+   * docs antiguos que llegaron como string vía `expiresMs` helper.
    */
   async increment(key: string): Promise<IncrementResponse> {
     try {
@@ -95,38 +136,36 @@ export class FirestoreRateLimitStore {
       const result = await this.db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
         const data = snap.data() as
-          | { count?: number; resetAt?: string }
+          | { count?: number; resetAt?: unknown }
           | undefined;
 
         let count: number;
-        let resetAt: string;
+        let resetAtMs: number;
 
-        if (
-          !data ||
-          !data.resetAt ||
-          new Date(data.resetAt).getTime() < now
-        ) {
+        const prevResetMs = data ? this.toMillis(data.resetAt) : null;
+        if (!data || prevResetMs === null || prevResetMs < now) {
           // Nueva ventana — empezar en 1
           count = 1;
-          resetAt = new Date(now + this.windowMs).toISOString();
+          resetAtMs = now + this.windowMs;
         } else {
           // Ventana activa — incrementar
           count = (data.count ?? 0) + 1;
-          resetAt = data.resetAt;
+          resetAtMs = prevResetMs;
         }
 
         tx.set(ref, {
           count,
-          resetAt,
-          updatedAt: new Date(now).toISOString(),
+          // JS Date → Firestore Timestamp en wire → TTL policy lo evalúa
+          resetAt: new Date(resetAtMs),
+          updatedAt: new Date(now),
         });
 
-        return { count, resetAt };
+        return { count, resetAtMs };
       });
 
       return {
         totalHits: result.count,
-        resetTime: new Date(result.resetAt),
+        resetTime: new Date(result.resetAtMs),
       };
     } catch (err) {
       // Fail-soft: en error Firestore, dejar pasar el request (1 hit ficticio).
@@ -156,7 +195,7 @@ export class FirestoreRateLimitStore {
         if (!data || (data.count ?? 0) <= 0) return;
         tx.update(ref, {
           count: (data.count ?? 0) - 1,
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date(),
         });
       });
     } catch (err) {
