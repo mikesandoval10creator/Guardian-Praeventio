@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { SiteBookAdapter, type SiteBookFirestoreDb } from './siteBookFirestoreAdapter.js';
+import {
+  addWorker,
+  createCrdtEntry,
+  setDescription,
+  type CrdtStamp,
+} from './siteBookCrdt.js';
 
 // ────────────────────────────────────────────────────────────────────────
 // In-memory fake Firestore (estructura mínima)
@@ -341,5 +347,114 @@ describe('SiteBookAdapter — listByYear', () => {
     await seed(adapter);
     const list = await adapter.listByYear(2026, { limit: 1 });
     expect(list).toHaveLength(1);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// CRDT collaborative drafts (multi-supervisor concurrent edits)
+// ────────────────────────────────────────────────────────────────────────
+
+const CRDT_PATH = `tenants/${TENANT}/projects/${PROJECT}/sitebook_crdt_drafts`;
+
+function stamp(ts: number, actor: string): CrdtStamp {
+  return { ts, actor };
+}
+
+function baseCrdt(over?: { id?: string; provisionalFolio?: string; actor?: string }) {
+  return createCrdtEntry({
+    id: over?.id ?? 'crdt-1',
+    projectId: PROJECT,
+    provisionalFolio: over?.provisionalFolio ?? 'SB-2026-000099',
+    year: 2026,
+    kind: 'inspection',
+    occurredAt: '2026-05-14T08:00:00.000Z',
+    recordedByUid: 'sup-A',
+    recordedByRole: 'supervisor',
+    description: 'Inspección túnel 4 — visibilidad reducida y polvo elevado.',
+    actor: over?.actor ?? 'device-A',
+    now: new Date('2026-05-14T10:00:00.000Z'),
+  });
+}
+
+describe('SiteBookAdapter — CRDT drafts', () => {
+  it('loadCrdtDraft devuelve null si nunca se persistió', async () => {
+    const { adapter } = buildAdapter();
+    const got = await adapter.loadCrdtDraft('SB-2026-000099');
+    expect(got).toBeNull();
+  });
+
+  it('mergeAndPersistCrdtDraft persiste el draft + materializa flat', async () => {
+    const { db, adapter } = buildAdapter();
+    const local = baseCrdt();
+    await adapter.mergeAndPersistCrdtDraft(local);
+    // Doc CRDT persistido
+    const crdtDoc = db._data.get(CRDT_PATH)?.get(local.provisionalFolio);
+    expect(crdtDoc).toBeDefined();
+    expect(crdtDoc.id).toBe('crdt-1');
+    // Doc flat materializado
+    const flatDoc = db._data.get(COL_PATH)?.get(local.provisionalFolio);
+    expect(flatDoc).toBeDefined();
+    expect(flatDoc.description).toMatch(/Inspección túnel 4/);
+    expect(flatDoc.status).toBe('open');
+  });
+
+  it('mergeAndPersistCrdtDraft hace merge cuando existe remoto', async () => {
+    const { adapter } = buildAdapter();
+    // Supervisor A persiste primero.
+    const localA = setDescription(
+      baseCrdt({ actor: 'device-A' }),
+      'A actualizó: polvo crítico medido WBGT alto',
+      stamp(2_000_000_000_001, 'device-A'),
+    );
+    await adapter.mergeAndPersistCrdtDraft(localA);
+
+    // Supervisor B agrega trabajadores concurrentemente (no leyó el A).
+    const localB = addWorker(
+      baseCrdt({ actor: 'device-B' }),
+      'worker-99',
+      stamp(2_000_000_000_002, 'device-B'),
+    );
+    const merged = await adapter.mergeAndPersistCrdtDraft(localB);
+
+    // El merged tiene AMBAS contribuciones.
+    expect(merged.description.value).toMatch(/polvo crítico/);
+    // Worker agregado por B sobrevive el merge.
+    const workerKey = 'worker-99';
+    expect(merged.involvedWorkerUids.adds[workerKey]).toBeDefined();
+  });
+
+  it('loadCrdtDraft round-trip: persist → load preserva la shape', async () => {
+    const { adapter } = buildAdapter();
+    const original = setDescription(
+      baseCrdt(),
+      'descripción nueva con texto suficiente.',
+      stamp(2_000_000_000_010, 'device-A'),
+    );
+    await adapter.mergeAndPersistCrdtDraft(original);
+    const loaded = await adapter.loadCrdtDraft(original.provisionalFolio);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.id).toBe(original.id);
+    expect(loaded!.description.value).toBe(original.description.value);
+    expect(loaded!.description.stamp.ts).toBe(original.description.stamp.ts);
+    expect(loaded!.description.stamp.actor).toBe(original.description.stamp.actor);
+    expect(loaded!.status.value).toBe('open');
+  });
+
+  it('flat materializado por mergeAndPersistCrdtDraft es legible por getByFolio', async () => {
+    const { adapter } = buildAdapter();
+    const local = baseCrdt();
+    await adapter.mergeAndPersistCrdtDraft(local);
+    const flat = await adapter.getByFolio(local.provisionalFolio);
+    expect(flat).not.toBeNull();
+    expect(flat!.folio).toBe(local.provisionalFolio);
+    expect(flat!.status).toBe('open');
+  });
+
+  it('dos persists del mismo CRDT son idempotentes', async () => {
+    const { db, adapter } = buildAdapter();
+    const local = baseCrdt();
+    await adapter.mergeAndPersistCrdtDraft(local);
+    await adapter.mergeAndPersistCrdtDraft(local);
+    expect(db._data.get(CRDT_PATH)?.size).toBe(1);
   });
 });
