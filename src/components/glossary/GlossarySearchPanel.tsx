@@ -83,7 +83,7 @@ export function GlossarySearchPanel({
     }
     return searchGlossary(terms, query, {
       category: categoryFilter,
-      limit: 20,
+      maxResults: 20,
     });
   }, [terms, query, categoryFilter]);
 
@@ -98,7 +98,7 @@ export function GlossarySearchPanel({
         .slice(0, 20)
         .map((item) => ({ item, score: 0, matchedTokens: [] }));
     }
-    return searchFaq(faqs, query, { topic: categoryFilter, limit: 20 });
+    return searchFaq(faqs, query, { topic: categoryFilter, maxResults: 20 });
   }, [faqs, query, categoryFilter]);
 
   const tabClass = (active: boolean) =>

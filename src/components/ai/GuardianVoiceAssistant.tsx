@@ -11,8 +11,14 @@ import { isOnline } from '../../utils/pwa-offline';
 import { useAmbientNoise } from '../../hooks/useAmbientNoise';
 import { logger } from '../../utils/logger';
 
-// @ts-ignore
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+// Browser API not in lib.dom.d.ts by default. Cast vendor-prefixed
+// constructors at the boundary; downstream code uses the local variable
+// as a class constructor.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SpeechRecognitionCtor = new () => any;
+const SpeechRecognition: SpeechRecognitionCtor | undefined =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 export function GuardianVoiceAssistant() {
   const [isOpen, setIsOpen] = useState(false);

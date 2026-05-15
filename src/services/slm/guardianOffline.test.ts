@@ -113,7 +113,9 @@ describe('GuardianOfflineService.fromEnv', () => {
   });
 
   it('returns an instance when flag on (globalThis override)', () => {
-    globalThis.__SLM_OFFLINE_ENABLED__ = '1';
+    // Cast a boolean — el flag global está tipado como boolean | undefined;
+    // antes el test usaba '1' (string truthy) y rompía el typecheck.
+    globalThis.__SLM_OFFLINE_ENABLED__ = true;
     const svc = GuardianOfflineService.fromEnv({
       fetchImpl: makeFakeFetch({ chunks: SAMPLE_CHUNKS }) as unknown as typeof fetch,
       adapter: makeAdapter(),

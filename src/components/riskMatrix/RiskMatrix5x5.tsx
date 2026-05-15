@@ -171,6 +171,9 @@ export function RiskMatrix5x5({ nodes, onNodeClick, appearance = 'light' }: Risk
             <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
             <Legend
               verticalAlign="top"
+              // @ts-expect-error recharts Legend.payload type generic is
+              // ultra-strict and doesn't accept this minimal shape; the
+              // runtime works fine — recharts only reads value/type/color.
               payload={[
                 { value: 'Bajo', type: 'circle', color: BAND_COLOR.low },
                 { value: 'Medio', type: 'circle', color: BAND_COLOR.medium },

@@ -66,9 +66,12 @@ interface WeatherEventDetail {
 function isCapacitorNative(): boolean {
   if (typeof window === 'undefined') return false;
   const cap = window.Capacitor;
-  // Capacitor v4+: `Capacitor.isNativePlatform()`. v3: `isNative`.
+  // Capacitor v4+: `Capacitor.isNativePlatform()`. v3 legacy: `isNative`
+  // (no longer surfaced via typed PraeventioCapacitorBridge — access
+  // through an `unknown` cast for backwards compat with old shells).
   if (cap && typeof cap.isNativePlatform === 'function') return !!cap.isNativePlatform();
-  return !!cap?.isNative;
+  const legacy = cap as unknown as { isNative?: boolean } | undefined;
+  return !!legacy?.isNative;
 }
 
 export function EmergencyAutoBridge(): React.ReactElement | null {

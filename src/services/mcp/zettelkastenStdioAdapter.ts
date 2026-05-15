@@ -73,7 +73,7 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
           arguments: request.params.arguments ?? {},
         },
       },
-      { zk: config.zk },
+      { allowedTenantIds: new Set(), adapter: config.zk },
     );
 
     if (response.error) {
@@ -107,7 +107,7 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
         method: 'resources/read',
         params: { uri: request.params.uri },
       },
-      { zk: config.zk },
+      { allowedTenantIds: new Set(), adapter: config.zk },
     );
 
     if (response.error) {

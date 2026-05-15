@@ -38,12 +38,13 @@ function buildFakeOrt(opts: {
     release: vi.fn(async () => undefined),
     ...opts.session,
   };
+  const fallback = vi.fn(async () => session);
+  // vi.fn() devuelve `Mock & T` que pierde la firma exacta de overloads;
+  // casteamos en un punto para satisfacer el contrato OnnxRuntimeLike sin
+  // duplicar la unión MockInstance | base.
+  const create = (opts.createSpy ?? fallback) as unknown as OnnxRuntimeLike['InferenceSession']['create'];
   return {
-    InferenceSession: {
-      create:
-        opts.createSpy ??
-        (vi.fn(async () => session) as unknown as OnnxRuntimeLike['InferenceSession']['create']),
-    },
+    InferenceSession: { create },
   };
 }
 

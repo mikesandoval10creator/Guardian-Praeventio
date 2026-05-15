@@ -25,7 +25,9 @@ function manifest(
       projectId: 'proj-1',
       occurredAt: '2026-05-12T08:00:00Z',
       severity: over.incident?.severity ?? 'high',
-      kind: over.incident?.kind ?? 'fall_from_height',
+      summary: over.incident?.summary ?? 'Caída desde altura — sector A',
+      reportedByUid: over.incident?.reportedByUid ?? 'sup-1',
+      reportedAt: over.incident?.reportedAt ?? '2026-05-12T08:05:00Z',
       ...over.incident,
     },
     affectedWorkers: over.affectedWorkers ?? [],
@@ -181,7 +183,7 @@ describe('<IncidentEvidenceBundleCard />', () => {
   it('severity SIF muestra label correcto', () => {
     render(
       <IncidentEvidenceBundleCard
-        manifest={manifest({ incident: { id: 'i', projectId: 'p', occurredAt: '2026-05-12T08:00:00Z', severity: 'sif', kind: 'fall_from_height' } })}
+        manifest={manifest({ incident: { id: 'i', projectId: 'p', occurredAt: '2026-05-12T08:00:00Z', severity: 'sif', summary: 'SIF event', reportedByUid: 'u1', reportedAt: '2026-05-12T08:05:00Z' } })}
       />,
     );
     expect(screen.getByTestId('incident-bundle-severity')).toHaveTextContent('SIF');

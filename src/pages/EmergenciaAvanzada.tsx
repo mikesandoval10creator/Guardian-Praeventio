@@ -61,8 +61,8 @@ export function EmergenciaAvanzada() {
   });
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const projectLat = selectedProject?.lat ?? selectedProject?.coordinates?.lat ?? -33.4489;
-  const projectLng = selectedProject?.lng ?? selectedProject?.coordinates?.lng ?? -70.6693;
+  const projectLat = selectedProject?.coordinates?.lat ?? -33.4489;
+  const projectLng = selectedProject?.coordinates?.lng ?? -70.6693;
 
   const { earthquakes, criticalAlert } = useSeismicMonitor(projectLat, projectLng);
 

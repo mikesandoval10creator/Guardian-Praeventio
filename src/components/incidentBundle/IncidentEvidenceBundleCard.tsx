@@ -107,7 +107,7 @@ export function IncidentEvidenceBundleCard({
               {SEVERITY_LABEL[manifest.incident.severity]}
             </span>
             <span className="text-[11px] opacity-70">
-              {manifest.incident.kind}
+              {manifest.incident.summary}
             </span>
           </div>
         </div>
