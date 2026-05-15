@@ -3,6 +3,8 @@
 > **Filosofía:** "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián.
 >
 > **Regla #1 (inviolable):** este documento **NO marca ✅ sin evidencia file:line**. Cada claim de "hecho" debe ser verificable con `grep` o `Read` en el código real. Una app de prevención de riesgos NO puede permitirse falsa completeness — vidas dependen de que sepamos qué funciona de verdad.
+>
+> **Regla #2 (decisión usuario 2026-05-15):** "honesto" = **funciona REAL**. Si un feature no funciona, se **REMUEVE** (no se muestra al usuario con un banner "no disponible"). Una app sin un feature es mejor que una app con un feature que miente. Excepciones documentadas explícitamente abajo.
 
 **Última auditoría profunda:** 2026-05-15 — consolidación de 145+ docs internos + 5 agentes paralelos verificando claims contra código real + Codex reviews + PRs mergeados. Reemplaza a las versiones anteriores de TODO/ROADMAP/AUDIT/STATE/HONEST_STATE.
 
@@ -69,17 +71,18 @@ Cada dominio se mide:
 
 > **Estos items pretenden funcionar pero NO lo hacen.** Verificados con código en mano por agentes paralelos 2026-05-15. **Para una app de prevención de riesgos, esto es inaceptable** — empresas podrían tomar decisiones de vida basadas en datos fingidos.
 
-### 2.1 ✅ MFA SMS bypass DESHABILITADO (cierre 2026-05-15)
-**Archivo:** `src/components/auth/MFASetupModal.tsx:24-99` + UI gate
+### 2.1 ✅ MFA: SMS REMOVIDO completamente (cierre 2026-05-15)
+**Archivo:** `src/components/auth/MFASetupModal.tsx` (reescrito 100%)
 
-**Estado anterior:** `handleSendCode` y `handleVerifyCode` solo hacían `setTimeout(..., 1500)` y retornaban éxito → cualquier código de 6 dígitos pasaba la verificación MFA (bypass total).
+**Estado anterior:** modal ofrecía 3 métodos pero el SMS path simulaba éxito con `setTimeout(1500)` y aceptaba cualquier código de 6 dígitos → bypass MFA total.
 
-**Fix aplicado:** constante `SMS_PATH_AVAILABLE = false` en el modal. Si user intenta usar SMS:
-- El botón "Mensaje SMS" aparece deshabilitado (`disabled` + `cursor-not-allowed` + tooltip explicativo)
-- Si llega a `handleSendCode/handleVerifyCode` (defensive), notifica "Verificación SMS no disponible" y vuelve al paso de selección de método
-- Path biométrico (WebAuthn) y TOTP siguen funcionando normalmente
+**Decisión usuario 2026-05-15:** "sms no quiero, tampoco llamadas". Aplicando Regla #2 (funciona REAL o no existe):
 
-Cuando lleguen las credenciales Twilio (ver §5), flip la constante a `true` y wire a `/api/auth/mfa/sms/{send,verify}` con verificación server-side criptográfica.
+- **REMOVIDOS del componente:** estados `phoneNumber`, `verificationCode`, `step: 'phone'`, `step: 'verify'`, handlers `handleSendCode`, `handleVerifyCode`, props `Smartphone`/`KeyRound` para SMS, todo el flujo de teléfono
+- **Métodos disponibles** (ambos REALES, ambos verificables):
+  - 🟢 **Biometría / Passkey (WebAuthn)** — `handleBiometricSetup` con `useBiometricAuth.register()` — verificación CBOR server-side
+  - 🟢 **TOTP (Google Authenticator, Authy, 1Password)** — botón redirige a `/security-shield` donde RFC 6238 está implementado real con `@noble/hashes`
+- El intro screen explícitamente dice: *"Cero SMS, cero llamadas — métodos verificados criptográficamente."*
 
 ### 2.2 ✅ AuditTrail.tsx wireado a backend real (cierre 2026-05-15)
 **Archivos:**
@@ -121,31 +124,34 @@ EvacuationRoutes ahora:
 - Si A* devuelve null → log warning + estado `routeCalculated: false` (UI muestra error honesto, no path inexistente)
 - Subtitle UI actualizado: `"Algoritmo A* sobre grilla 10×10 (real, determinístico, heurística Manhattan)"`
 
-### 2.4 ✅ BunkerManager honestamente reportando estado (cierre 2026-05-15)
-**Archivo:** `src/components/BunkerManager.tsx:25-90`
+### 2.4 ✅ BunkerManager REAL — descarga leyes BCN íntegras (cierre 2026-05-15)
+**Archivos:**
+- `src/components/BunkerManager.tsx:25-72` (fetch real, no setTimeout)
+- `src/server/routes/bcn.ts` (NEW — endpoint `/api/bcn/snapshot`)
+- `server.ts` mounted en `/api/bcn`
 
-**Estado anterior:** simulaba descarga con `setTimeout(500ms × 10)` y persistía objeto literal hardcoded (`laws: ['Ley 16.744', ...]`) como si fuera la BCN real.
+**Estado anterior:** simulaba descarga con `setTimeout(500ms × 10)` y persistía objeto literal hardcoded (`laws: ['Ley 16.744',...]`) como si fuera BCN.
 
-**Fix aplicado:** ahora intenta `GET /api/bcn/snapshot`:
-- Si responde 200 → persiste el snapshot real (con `source: 'api'` marker) y progreso refleja chunks reales
-- Si 404 o 501 → estado `error` con UI honesta explicando que el endpoint aún no está implementado en este servidor
-- Si network/parsing error → estado `error` sin pretender éxito
-- **NO escribe datos hardcoded en ningún caso**
+**Fix REAL aplicado** (Regla #2: funciona o no existe — implementamos para que funcione):
+- `bcn.ts:33-86` fetcha las **8 leyes críticas REALES** desde la Biblioteca del Congreso Nacional vía `bcnService.fetchLawFromBCN()`:
+  - Ley 16.744, DS 594, DS 40, DS 132 (Minería), DS 76 (Contratistas), Ley 20.123, DS 43 (Sustancias Peligrosas), Ley 21.156 (DEA)
+- Cada ley devuelve `{ idNorma, titulo, fechaPublicacion, organismo, texto }` con el TEXTO ÍNTEGRO de la norma chilena
+- Cache server-side 1h evita hammering al servidor BCN (que es lento)
+- Si BCN está caído upstream Y no hay cache → 502 honesto. Si BCN parcialmente caído → devuelve las leyes que SÍ pudo descargar
+- Frontend persiste el snapshot REAL en IndexedDB con metadata: `lawsCount`, `totalSizeBytes`, `source: 'bcn-api'`
+- UI de error solo cuando hay falla de red/BCN real, con botón "Reintentar descarga" — NO mensaje de "endpoint pendiente"
 
-UI nueva: banner amber `data-testid="bunker-error"` con mensaje claro de que el bunker queda vacío hasta que el endpoint esté wired.
-
-**Pendiente backend:** implementar `GET /api/bcn/snapshot` que devuelva leyes BCN + protocolos + modelos pre-indexados (ver pendientes §8). El frontend ya está listo para consumirlo cuando exista.
-
-### 2.5 ✅ NationalParksEmergency wireado a forecast real (cierre 2026-05-15)
-**Archivo:** `src/pages/NationalParksEmergency.tsx:1-140`
+### 2.5 ✅ NationalParksEmergency REAL — sin fabricación, sin banners (cierre 2026-05-15)
+**Archivo:** `src/pages/NationalParksEmergency.tsx`
 
 **Estado anterior:** pronóstico Día 2/3 con `weatherData.temp + (Math.random()*4-2)`.
 
-**Fix aplicado:** consume `GET /api/environment/forecast?days=3` (que wrappea OpenWeather vía `environmentBackend.ts:getForecast`).
-- Bearer token del user autenticado
-- Si backend devuelve `forecast: []` (cuota OpenWeather o sin auth) → flag `forecastUnavailable=true` + banner amber que explica honestamente que no se muestran datos de Día 2/3 — **NO se fabrican con Math.random()**
-- Solo se renderizan los días que efectivamente vinieron del backend
-- Helper `riskForDay()` ahora deriva risk level de datos REALES (windKmh, tempMinC, precipMm) en lugar de hardcoded
+**Fix REAL aplicado** (Regla #2 después de iteración con usuario):
+- Consume `GET /api/environment/forecast?days=3` (wrappea OpenWeather 5-day API vía `environmentBackend.ts:getForecast`)
+- Si backend devuelve forecast con datos → renderiza Hoy + Mañana + Día 3 con valores REALES
+- Si backend devuelve `forecast: []` (sin OpenWeather key, sin cuota, sin auth) → **el grid colapsa a 1 columna mostrando solo "Hoy"** desde `fetchWeatherData()` real. SIN banner de "no disponible". SIN Math.random() fabricado. La UI no engaña.
+- Helper `riskForDay()` deriva risk level de datos REALES (`windKmh`, `tempMinC`, `precipMm`)
+- Grid responsive: 1 / 2 / 3 columnas según cuántos días el backend devolvió
 
 ### 2.6 🟡 Cálculos Bernoulli SOLO persisten cuando hay projectId
 **Archivos:**

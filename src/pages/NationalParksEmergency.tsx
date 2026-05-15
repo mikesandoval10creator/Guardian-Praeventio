@@ -47,7 +47,6 @@ export function NationalParksEmergency() {
   const [parkStatus, setParkStatus] = useState<'open' | 'restricted' | 'closed'>('restricted');
   const [weatherData, setWeatherData] = useState<any>(null);
   const [forecastDays, setForecastDays] = useState<ForecastDay[]>([]);
-  const [forecastUnavailable, setForecastUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,28 +57,21 @@ export function NationalParksEmergency() {
         setWeatherData(data);
         // Fetch 3-day forecast del backend real
         const token = await auth.currentUser?.getIdToken();
-        if (!token) {
-          // Sin auth → no podemos llamar; degrade graceful.
-          setForecastUnavailable(true);
-          return;
-        }
+        if (!token) return; // sin auth → solo mostramos el día actual
+
         const res = await fetch('/api/environment/forecast?days=3', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) {
-          setForecastUnavailable(true);
-          return;
-        }
+        if (!res.ok) return; // backend caído → solo Hoy
+
         const json = (await res.json()) as { forecast?: ForecastDay[] };
         if (Array.isArray(json.forecast) && json.forecast.length > 0) {
           setForecastDays(json.forecast);
-        } else {
-          // Backend respondió empty → OPENWEATHER_API_KEY missing o quota
-          setForecastUnavailable(true);
         }
+        // Si forecast viene vacío (sin OpenWeather key o cuota agotada),
+        // no fabricamos datos — simplemente mostramos solo Hoy.
       } catch (error) {
         logger.error("Failed to load climate:", error);
-        setForecastUnavailable(true);
       } finally {
         setLoading(false);
       }
@@ -146,22 +138,14 @@ export function NationalParksEmergency() {
         </div>
       </div>
 
-      {/* Predictive Weather Section */}
-      {forecastUnavailable && (
-        <div
-          data-testid="forecast-unavailable-banner"
-          className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-xs text-amber-300"
-        >
-          <strong className="font-bold uppercase tracking-wider">
-            {t('nationalParks.forecastUnavailable', 'Pronóstico extendido no disponible')}:
-          </strong>{' '}
-          {t(
-            'nationalParks.forecastUnavailableExplain',
-            'el backend no devolvió pronóstico de 3 días (puede ser cuota de OpenWeather o falta de credenciales). Mostramos solo el estado actual. NO se fabrican datos de Día 2/3.',
-          )}
-        </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Predictive Weather Section — solo muestra los días que el
+          backend efectivamente devolvió. Si solo tenemos Hoy, mostramos
+          Hoy en una columna (no banner de error, no Math.random fabricado). */}
+      <div className={`grid grid-cols-1 gap-4 ${
+        forecast.length === 1 ? 'md:grid-cols-1 max-w-md' :
+        forecast.length === 2 ? 'md:grid-cols-2' :
+        'md:grid-cols-3'
+      }`}>
         {forecast.map((day, idx) => {
           const Icon = day.icon;
           return (

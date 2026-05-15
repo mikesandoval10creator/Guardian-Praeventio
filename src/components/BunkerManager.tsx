@@ -22,18 +22,17 @@ export function BunkerManager() {
     }
   };
 
-  // Codex fake fix §2.4 (2026-05-15): antes esta función simulaba descarga
-  // con `setTimeout(500ms) × 10` y guardaba un objeto literal hardcoded
-  // (`laws: ['Ley 16.744', ...]`) como si fuera la base de datos BCN real.
-  // Era false-completeness peligrosa: el "bunker offline" mentía sobre
-  // qué datos quedaban disponibles sin red.
+  // Antes esta función simulaba descarga con `setTimeout(500ms) × 10` y
+  // guardaba un objeto literal hardcoded (`laws: ['Ley 16.744', ...]`)
+  // como si fuera la base de datos BCN real.
   //
-  // Fix honesto:
-  //   1. Llama a `/api/bcn/snapshot` (endpoint nuevo en este PR) que
-  //      devuelve el snapshot real de leyes indexadas para offline.
-  //   2. Si el endpoint no está configurado o falla, NO simulamos progreso
-  //      ni guardamos datos hardcoded — mostramos error honesto al user.
-  //   3. El progreso refleja chunks reales descargados, no `setTimeout`.
+  // 2026-05-15: ahora consume `/api/bcn/snapshot` (endpoint NUEVO en este
+  // PR — ver src/server/routes/bcn.ts) que fetcha las 8 leyes críticas
+  // desde la Biblioteca del Congreso Nacional REAL vía
+  // `bcnService.fetchLawFromBCN()`. Persiste el snapshot completo (con
+  // texto íntegro de cada ley) en IndexedDB para operación offline.
+  //
+  // Cache server-side de 1h evita hammering al servidor BCN.
   const downloadBunker = async () => {
     if (!online) return;
 
@@ -41,8 +40,7 @@ export function BunkerManager() {
     setProgress(0);
 
     try {
-      // Intentamos descargar el snapshot real desde el backend.
-      // Endpoint expone leyes BCN + protocolos + modelos pre-empaquetados.
+      // BCN snapshot endpoint — fetcha leyes reales del backend
       const res = await fetch('/api/bcn/snapshot', {
         method: 'GET',
         headers: { Accept: 'application/json' },
@@ -50,13 +48,8 @@ export function BunkerManager() {
       setProgress(50);
 
       if (!res.ok) {
-        if (res.status === 404 || res.status === 501) {
-          // Endpoint no implementado todavía en este servidor — NO
-          // fingimos éxito. Mostramos al user que el bunker está
-          // pendiente de implementación.
-          setStatus('error');
-          return;
-        }
+        // 502 = BCN está caído upstream. NO persistimos datos hardcoded —
+        // mostramos error real para que el user reintente más tarde.
         setStatus('error');
         return;
       }
@@ -64,20 +57,22 @@ export function BunkerManager() {
       const snapshot = await res.json();
       setProgress(90);
 
-      // Persistimos el snapshot REAL (no objeto literal hardcoded).
+      // Persistimos el snapshot REAL (leyes BCN íntegras, no objeto literal).
       const bunkerData = {
         id: 'bcn_database',
         timestamp: Date.now(),
         version: snapshot?.version ?? 'unknown',
         content: snapshot?.content ?? null,
-        source: 'api',
+        source: 'bcn-api',
+        lawsCount: snapshot?.content?.citationsCount ?? 0,
+        totalSizeBytes: snapshot?.content?.totalSizeBytes ?? 0,
       };
       await saveBunkerKnowledge('bcn_database', bunkerData);
       setProgress(100);
       setStatus('ready');
       setLastSync(new Date().toLocaleString());
     } catch (err) {
-      // Error de red / parsing — honesto, no fake-success.
+      // Error de red — honesto, no fake-success.
       setStatus('error');
     }
   };
@@ -142,15 +137,20 @@ export function BunkerManager() {
             <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div className="text-xs">
               <p className="font-bold text-amber-400 uppercase">
-                Bunker no disponible
+                BCN temporalmente inaccesible
               </p>
               <p className="text-amber-200/80 mt-1">
-                El endpoint <code className="font-mono">/api/bcn/snapshot</code>{' '}
-                aún no está implementado en este servidor (pendiente: indexar
-                BCN + protocolos + modelos para distribución offline). NO
-                hemos persistido datos hardcoded — el bunker queda vacío hasta
-                que el endpoint esté wired.
+                No pudimos conectar con la Biblioteca del Congreso Nacional
+                (servidor BCN caído o sin conectividad). Reintenta en unos
+                minutos. El bunker conservará la última versión válida que
+                hayas descargado previamente.
               </p>
+              <button
+                onClick={downloadBunker}
+                className="mt-3 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[10px] uppercase tracking-wider"
+              >
+                Reintentar descarga
+              </button>
             </div>
           </div>
         )}
