@@ -164,6 +164,21 @@ export function ResilientAiAssistantPanel({
         </div>
       )}
 
+      {/* Streaming preview — visible mientras llegan tokens del SLM y
+          aún no hay AiResponse final. Cuando la query termina, el hook
+          limpia `streaming` y la respuesta se inserta en `history`
+          (path normal de render). */}
+      {ai.streaming && (
+        <AiResponseCard
+          streaming={{
+            text: ai.streaming.text,
+            tokensReceived: ai.streaming.tokensReceived,
+            tier: ai.streaming.tier,
+          }}
+          prompt={t('aiPanel.streamingPrompt', 'Generando…') as string}
+        />
+      )}
+
       {/* History (latest first) */}
       {history.length > 0 && (
         <div className="space-y-3" data-testid="ai-panel-history">
