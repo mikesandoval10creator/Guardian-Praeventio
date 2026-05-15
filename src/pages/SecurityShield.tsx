@@ -40,7 +40,7 @@ import {
 import {
   getEncrypted,
   setEncrypted,
-  removeEncrypted,
+  deleteEncrypted,
 } from '../services/security/encryptedKvStore';
 import { useFirebase } from '../contexts/FirebaseContext';
 
@@ -146,7 +146,7 @@ export function SecurityShield() {
       );
       return;
     }
-    await removeEncrypted(MFA_STORAGE_KEY);
+    await deleteEncrypted(MFA_STORAGE_KEY);
     setRecord(null);
     setDraft(null);
     setView('not-enrolled');

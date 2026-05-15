@@ -79,7 +79,7 @@ interface HrSeries {
   bpm: number;
 }
 
-const SCOPES = ['heart_rate', 'steps', 'calories', 'sleep'] as const;
+const SCOPES = ['heart-rate', 'steps', 'calories', 'sleep'] as const;
 
 export function WearablesIntegration() {
   const { t } = useTranslation();
@@ -107,9 +107,7 @@ export function WearablesIntegration() {
     setError(null);
     setPermissionState('requesting');
     try {
-      const result = await adapter.requestPermissions(
-        SCOPES as unknown as (typeof SCOPES)[number][],
-      );
+      const result = await adapter.requestPermissions([...SCOPES]);
       if (result.denied.length === 0 && result.granted.length > 0) {
         setPermissionState('granted');
       } else if (result.granted.length > 0) {
@@ -128,11 +126,11 @@ export function WearablesIntegration() {
     setSyncing(true);
     setError(null);
     try {
-      const now = Date.now();
+      const now = new Date();
       // Ventana: últimas 24h.
       const range = {
-        startMs: now - 24 * 60 * 60 * 1000,
-        endMs: now,
+        start: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+        end: now,
       };
       const [hr, steps, kcal, sleep] = await Promise.all([
         adapter.readHeartRate(range).catch(() => [] as HeartRateSample[]),
@@ -147,13 +145,16 @@ export function WearablesIntegration() {
           ? Math.round(hr.reduce((acc, s) => acc + s.bpm, 0) / hr.length)
           : null;
       const totalSteps = steps.length
-        ? steps.reduce((acc, s) => acc + s.steps, 0)
+        ? steps.reduce((acc, s) => acc + s.count, 0)
         : null;
       const totalKcal = kcal.length
         ? Math.round(kcal.reduce((acc, s) => acc + s.kcal, 0))
         : null;
       const totalSleepMs = sleep.length
-        ? sleep.reduce((acc, s) => acc + (s.endMs - s.startMs), 0)
+        ? sleep.reduce(
+            (acc, s) => acc + (s.endTime.getTime() - s.startTime.getTime()),
+            0,
+          )
         : null;
       const totalSleepHours =
         totalSleepMs !== null ? +(totalSleepMs / 3_600_000).toFixed(1) : null;
@@ -651,7 +652,10 @@ function Stat({
 function downsampleHr(samples: HeartRateSample[], maxPoints: number): HrSeries[] {
   if (samples.length === 0) return [];
   if (samples.length <= maxPoints) {
-    return samples.map((s) => ({ timestamp: s.timestampMs, bpm: s.bpm }));
+    return samples.map((s) => ({
+      timestamp: s.timestamp.getTime(),
+      bpm: s.bpm,
+    }));
   }
   const step = Math.ceil(samples.length / maxPoints);
   const out: HrSeries[] = [];
@@ -660,7 +664,10 @@ function downsampleHr(samples: HeartRateSample[], maxPoints: number): HrSeries[]
     const avgBpm = Math.round(
       chunk.reduce((acc, s) => acc + s.bpm, 0) / chunk.length,
     );
-    out.push({ timestamp: chunk[Math.floor(chunk.length / 2)]!.timestampMs, bpm: avgBpm });
+    out.push({
+      timestamp: chunk[Math.floor(chunk.length / 2)]!.timestamp.getTime(),
+      bpm: avgBpm,
+    });
   }
   return out;
 }
