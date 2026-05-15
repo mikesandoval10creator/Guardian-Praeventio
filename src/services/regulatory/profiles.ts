@@ -585,7 +585,7 @@ const PROFILE_CN: JurisdictionProfile = {
     { id: 'GB/T-33000-2016', title: 'GB/T 33000-2016 — Enterprise Work Safety Standardization', category: 'standard', reference: 'http://www.gov.cn' },
   ],
   incidentReporting: { authority: 'MEM local bureau', deadlineDays: 1, fatalityImmediate: true, formName: 'Production Safety Accident Report', electronicSubmission: true },
-  privacyRegime: 'PIPA-JP', // Placeholder — PIPL chino se modela aparte si se requiere; mapping conservador.
+  privacyRegime: 'PIPL-CN', // 🔴 Fix 2026-05-15: antes apuntaba a 'PIPA-JP' (incorrecto). PIPL exige data localization + consent base separada.
   mandatoryCommittees: [],
   localizedNumbers: { medical: '120', fire: '119', police: '110' },
 };
@@ -598,7 +598,7 @@ const PROFILE_TW: JurisdictionProfile = {
     { id: 'OSHA-TW', title: 'Occupational Safety and Health Act (職業安全衛生法)', category: 'statute', reference: 'https://www.osha.gov.tw' },
   ],
   incidentReporting: { authority: 'OSHA Taiwan', deadlineDays: 1, fatalityImmediate: true, formName: 'Occupational Accident Report', electronicSubmission: true },
-  privacyRegime: 'PIPA-JP', // PDPA Taiwan ≈ PIPA-JP shape para baseline.
+  privacyRegime: 'PIPA-TW', // 🔴 Fix 2026-05-15: antes apuntaba a 'PIPA-JP' (incorrecto). Taiwan PDPA es régimen distinto.
   mandatoryCommittees: [],
   localizedNumbers: { medical: '119', fire: '119', police: '110' },
 };
@@ -612,7 +612,7 @@ const PROFILE_RU: JurisdictionProfile = {
     { id: 'FZ-426', title: '426-FZ — Special Assessment of Working Conditions (СОУТ)', category: 'regulation', reference: 'https://rostrud.gov.ru' },
   ],
   incidentReporting: { authority: 'Rostrud', deadlineDays: 1, fatalityImmediate: true, formName: 'N-1 Accident Report', electronicSubmission: false },
-  privacyRegime: 'PIPA-JP', // 152-FZ Russia modelado aparte; mapping conservador.
+  privacyRegime: '152-FZ-RU', // 🔴 Fix 2026-05-15: antes apuntaba a 'PIPA-JP' (incorrecto). 152-FZ exige data localization en servidores rusos (art.18.5).
   mandatoryCommittees: [{ name: 'Labour Protection Committee', minEmployees: 50, scope: 'TK RF art.218 — comité paritario ≥50 trabajadores' }],
   localizedNumbers: { medical: '103', fire: '101', police: '102' },
 };

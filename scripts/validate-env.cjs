@@ -76,6 +76,12 @@ const REQUIRED_PROD = [
   { name: 'MP_ACCESS_TOKEN', purpose: 'MercadoPago Access Token prod', mode: 'prod' },
   { name: 'MP_ENV', purpose: 'MercadoPago environment (prod|sandbox)', mode: 'prod', allowedValues: ['prod', 'sandbox'] },
 
+  // === B2D API key salt (2026-05-15 security) ===
+  // Sin esto, B2D API keys se hashearían con un salt público conocido.
+  // El servicio (`apiKeyService.ts:62`) ahora fail-closes en prod si no
+  // está; este check duplica protección en el contrato de deploy.
+  { name: 'B2D_API_KEY_SALT', purpose: 'Salt for hashing B2D API keys', mode: 'prod', minLength: 16 },
+
   // === Apple App Store Server API (Sprint 39 Fase A.2 — IAP validation) ===
   { name: 'APPLE_BUNDLE_ID', purpose: 'Apple bundle identifier', mode: 'prod' },
   { name: 'APPLE_API_KEY_PATH', purpose: 'Apple Connect API .p8 path', mode: 'prod' },
