@@ -12,12 +12,21 @@ export function ERPIntegration() {
   const { t } = useTranslation();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [syncMode, setSyncMode] = useState<string | null>(null);
+  const [syncReason, setSyncReason] = useState<string | null>(null);
   const { toasts, show: showToast, dismiss } = useToast();
 
   const handleSync = async () => {
     setIsSyncing(true);
+    setSyncMode(null);
+    setSyncReason(null);
     try {
       const token = await auth.currentUser?.getIdToken();
+      // Sprint 39 fix — el backend ahora distingue modos honestamente.
+      // El erpType viene de env (ERP_ADAPTER). Aquí solicitamos 'mock' por
+      // default; en prod, el admin debe setear ERP_ADAPTER=sap|buk|talana
+      // y el server route lo elige (ignorando este request si el override
+      // no es válido).
       const response = await fetch('/api/erp/sync', {
         method: 'POST',
         headers: {
@@ -25,15 +34,47 @@ export function ERPIntegration() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          erpType: 'SAP/Buk',
+          erpType: 'mock',
           action: 'manual_sync'
         })
       });
 
-      if (!response.ok) throw new Error('Error en la sincronización');
-      
       const data = await response.json();
-      setLastSync(new Date(data.data.timestamp).toLocaleString());
+      // Capturar el modo HONESTAMENTE — el backend reporta si fue real,
+      // mock, no configurado, o stub.
+      const mode: string | undefined = data?.mode;
+      const reason: string | undefined = data?.reason;
+      const timestamp: string | undefined = data?.timestamp;
+      setSyncMode(mode ?? null);
+      setSyncReason(reason ?? null);
+
+      if (response.status === 503 && mode === 'not_configured') {
+        showToast(
+          'ERP no está configurado en este servidor. Contacta al administrador.',
+          'warning',
+        );
+      } else if (response.status === 503 && mode === 'missing_credentials') {
+        showToast(
+          'El adapter ERP requiere credenciales no configuradas. Revisa env vars.',
+          'warning',
+        );
+      } else if (response.status === 501 && mode === 'not_implemented') {
+        showToast(
+          'Adapter declarado pero la acción aún no está implementada (stub honesto).',
+          'info',
+        );
+      } else if (mode === 'mock') {
+        showToast(
+          'Sincronización en modo MOCK — no se conectó a ERP real.',
+          'info',
+        );
+      } else if (response.ok && mode === 'real') {
+        showToast('Sincronización real con ERP completada.', 'success');
+      } else {
+        showToast('Sincronización terminó con error. Ver detalles.', 'error');
+      }
+
+      if (timestamp) setLastSync(new Date(timestamp).toLocaleString());
     } catch (error) {
       logger.error('Error syncing ERP:', error);
       showToast('Error al sincronizar con el ERP. Verifica la conexión con el servidor.', 'error');
@@ -118,9 +159,30 @@ export function ERPIntegration() {
             )}
           </Button>
 
+          {/* Sprint 39 — surface honesto del modo de la última sync. */}
+          {syncMode && (
+            <div
+              data-testid="erp-sync-mode-banner"
+              className={`text-center text-xs px-3 py-2 rounded ${
+                syncMode === 'real'
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : syncMode === 'mock'
+                    ? 'bg-blue-500/10 text-blue-400'
+                    : syncMode === 'not_configured' ||
+                        syncMode === 'missing_credentials' ||
+                        syncMode === 'not_implemented'
+                      ? 'bg-amber-500/10 text-amber-400'
+                      : 'bg-rose-500/10 text-rose-400'
+              }`}
+            >
+              <p className="font-bold uppercase tracking-wider">Modo: {syncMode}</p>
+              {syncReason && <p className="mt-1 opacity-80">{syncReason}</p>}
+            </div>
+          )}
+
           {lastSync && (
             <div className="text-center">
-              <p className="text-xs text-zinc-500">Última sincronización exitosa: {lastSync}</p>
+              <p className="text-xs text-zinc-500">Último intento: {lastSync}</p>
             </div>
           )}
         </Card>
