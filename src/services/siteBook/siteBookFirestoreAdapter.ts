@@ -23,6 +23,11 @@ import type {
   SiteBookEntryKind,
 } from './siteBookService.js';
 import { createEntry, signEntry } from './siteBookService.js';
+import {
+  crdtToEntry,
+  mergeCrdtEntries,
+  type CrdtSiteBookEntry,
+} from './siteBookCrdt.js';
 
 // ────────────────────────────────────────────────────────────────────────
 // Firestore-shape DI (subset de admin.firestore())
@@ -74,6 +79,14 @@ const SITEBOOK_PATH = (tid: string, pid: string) =>
   `tenants/${tid}/projects/${pid}/sitebook_entries`;
 const COUNTER_PATH = (tid: string, pid: string) =>
   `tenants/${tid}/projects/${pid}/sitebook_counters`;
+/**
+ * Drafts CRDT — solo se materializan mientras la entry está open. Al
+ * firmar, el draft se borra (atomic en `signAndPersist`) y solo queda
+ * la entry flat. Cada doc almacena `CrdtSiteBookEntry` completo (stamps
+ * + OR-Set metadata) para soportar merges multi-supervisor.
+ */
+const CRDT_DRAFT_PATH = (tid: string, pid: string) =>
+  `tenants/${tid}/projects/${pid}/sitebook_crdt_drafts`;
 
 // ────────────────────────────────────────────────────────────────────────
 // Adapter
@@ -153,6 +166,72 @@ export class SiteBookAdapter {
     });
   }
 
+  // ──────────────────────────────────────────────────────────────────────
+  // CRDT collaborative drafts (multi-supervisor concurrent edits)
+  // ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * Lee el draft CRDT remoto (si existe). Devuelve null si nunca se
+   * persistió un draft o si la entry ya fue firmada (draft borrado).
+   *
+   * Caller usa esta función al ABRIR un draft colaborativo en una tab —
+   * para tomar el snapshot remoto como base de merge con la versión
+   * local en memoria.
+   */
+  async loadCrdtDraft(folio: string): Promise<CrdtSiteBookEntry | null> {
+    const ref = this.deps.db
+      .collection(CRDT_DRAFT_PATH(this.deps.tenantId, this.deps.projectId))
+      .doc(folio);
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    return deserializeCrdt(snap.data());
+  }
+
+  /**
+   * Persiste el draft CRDT haciendo merge atómico con la versión remota.
+   *
+   * Transacción:
+   *   1. read remote → CrdtSiteBookEntry | null
+   *   2. merge(local, remote) → newCrdt
+   *   3. write newCrdt al doc CRDT draft
+   *   4. write `crdtToEntry(newCrdt)` al doc flat (sitebook_entries)
+   *      para que las queries existentes (`listByYear`, `getByFolio`)
+   *      sigan viendo la última versión convergente sin tocar la capa
+   *      CRDT
+   *
+   * El paso (4) es lo que permite que el resto del código existente
+   * (UI viewer, exports, audit) no necesite saber sobre CRDT — ve la
+   * shape canónica SiteBookEntry siempre.
+   */
+  async mergeAndPersistCrdtDraft(
+    localCrdt: CrdtSiteBookEntry,
+  ): Promise<CrdtSiteBookEntry> {
+    const crdtRef = this.deps.db
+      .collection(CRDT_DRAFT_PATH(this.deps.tenantId, this.deps.projectId))
+      .doc(localCrdt.provisionalFolio);
+    const flatRef = this.deps.db
+      .collection(SITEBOOK_PATH(this.deps.tenantId, this.deps.projectId))
+      .doc(localCrdt.folio ?? localCrdt.provisionalFolio);
+
+    return this.deps.db.runTransaction(async (tx) => {
+      const remoteSnap = await tx.get(crdtRef);
+      const remoteCrdt = remoteSnap.exists
+        ? deserializeCrdt(remoteSnap.data())
+        : null;
+      const merged = remoteCrdt
+        ? mergeCrdtEntries(localCrdt, remoteCrdt)
+        : localCrdt;
+      tx.set(crdtRef, serializeCrdt(merged));
+      // Materializa la shape flat para los lectores que no saben de CRDT.
+      tx.set(flatRef, serialize(crdtToEntry(merged)));
+      return merged;
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Lista por año
+  // ──────────────────────────────────────────────────────────────────────
+
   /**
    * Lista por año + filtros opcionales. Si `query.kind` o `query.workerUid`
    * presentes, requiere index compuesto (ver firestore.indexes.json).
@@ -202,6 +281,82 @@ function serialize(entry: SiteBookEntry): Record<string, any> {
     correctionReason: entry.correctionReason ?? null,
     status: entry.status,
     signature: entry.signature ?? null,
+  };
+}
+
+/**
+ * Serializa un CrdtSiteBookEntry para Firestore. Las shapes LWW + OR-Set
+ * son JSON-safe (sin Maps ni Sets), pero limpiamos undefined a null
+ * porque Firestore rechaza undefined.
+ */
+function serializeCrdt(crdt: CrdtSiteBookEntry): Record<string, any> {
+  return {
+    id: crdt.id,
+    projectId: crdt.projectId,
+    provisionalFolio: crdt.provisionalFolio,
+    folio: crdt.folio ?? null,
+    year: crdt.year,
+    kind: crdt.kind,
+    occurredAt: crdt.occurredAt,
+    recordedAt: crdt.recordedAt,
+    recordedByUid: crdt.recordedByUid,
+    recordedByRole: crdt.recordedByRole,
+    description: crdt.description,
+    // location.value puede ser undefined — Firestore quiere null.
+    location: {
+      value: crdt.location.value ?? null,
+      stamp: crdt.location.stamp,
+    },
+    involvedWorkerUids: {
+      adds: crdt.involvedWorkerUids.adds,
+      removes: crdt.involvedWorkerUids.removes,
+    },
+    evidenceUrls: {
+      adds: crdt.evidenceUrls.adds,
+      removes: crdt.evidenceUrls.removes,
+    },
+    status: crdt.status,
+    signature: {
+      value: crdt.signature.value ?? null,
+      stamp: crdt.signature.stamp,
+    },
+    correctsEntryFolio: crdt.correctsEntryFolio ?? null,
+    correctionReason: crdt.correctionReason ?? null,
+  };
+}
+
+function deserializeCrdt(data: any): CrdtSiteBookEntry {
+  return {
+    id: data.id,
+    projectId: data.projectId,
+    provisionalFolio: data.provisionalFolio,
+    folio: data.folio ?? undefined,
+    year: data.year,
+    kind: data.kind,
+    occurredAt: data.occurredAt,
+    recordedAt: data.recordedAt,
+    recordedByUid: data.recordedByUid,
+    recordedByRole: data.recordedByRole,
+    description: data.description,
+    location: {
+      value: data.location?.value ?? undefined,
+      stamp: data.location?.stamp,
+    },
+    involvedWorkerUids: {
+      adds: data.involvedWorkerUids?.adds ?? {},
+      removes: data.involvedWorkerUids?.removes ?? {},
+    },
+    evidenceUrls: {
+      adds: data.evidenceUrls?.adds ?? {},
+      removes: data.evidenceUrls?.removes ?? {},
+    },
+    status: data.status,
+    signature: {
+      value: data.signature?.value ?? undefined,
+      stamp: data.signature?.stamp,
+    },
+    correctsEntryFolio: data.correctsEntryFolio ?? undefined,
+    correctionReason: data.correctionReason ?? undefined,
   };
 }
 
