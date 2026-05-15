@@ -60,13 +60,14 @@ function basePayload(overrides: Partial<RiskNodePayload> = {}): RiskNodePayload 
 beforeEach(() => {
   vi.clearAllMocks();
   __resetDebounceForTests();
-  // mock fetch global por test
+  // mock fetch global por test — vi.fn pierde la firma exacta de
+  // overloads de `fetch`, así que casteamos vía unknown.
   globalThis.fetch = vi.fn(async () => ({
     ok: true,
     status: 200,
     text: async () => '',
     json: async () => ({ success: true }),
-  }));
+  })) as unknown as typeof fetch;
   // navigator online por defecto
   Object.defineProperty(globalThis, 'navigator', {
     value: { onLine: true },
@@ -132,7 +133,7 @@ describe('writeNodes â€” happy path', () => {
       ok: false,
       status: 400,
       text: async () => 'bad',
-    }));
+    })) as unknown as typeof fetch;
     const result = await writeNodes([basePayload()], { projectId: 'proj-A' });
     expect(result.ok).toBe(false);
     expect(result.status).toBe(400);

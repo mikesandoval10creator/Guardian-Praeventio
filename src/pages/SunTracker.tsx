@@ -68,6 +68,7 @@ export function SunTracker() {
 }
 
 function SunTrackerInner() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
   const { doy, iso } = useMemo(todayDoyIso, []);

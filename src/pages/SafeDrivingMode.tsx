@@ -40,7 +40,13 @@ export function SafeDrivingMode() {
   };
 
   const handleDictate = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type SpeechRecognitionCtor = new () => any;
+    const SpeechRecognition: SpeechRecognitionCtor | undefined =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).SpeechRecognition ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
     if (isListening) {
       recognitionRef.current?.stop();

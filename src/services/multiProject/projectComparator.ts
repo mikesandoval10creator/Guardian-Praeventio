@@ -171,6 +171,7 @@ export function compareProjects(snapshots: ProjectSnapshot[]): ComparisonReport 
         trainingCoverage: 0,
         eppCoverage: 0,
         overallScore: 0,
+        closureRate: 0,
       },
       trirOutliers: [],
     };

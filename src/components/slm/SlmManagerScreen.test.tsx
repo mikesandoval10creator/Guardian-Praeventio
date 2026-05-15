@@ -9,7 +9,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const mockDeleteCachedModel = vi.fn(async () => {});
+const mockDeleteCachedModel = vi.fn(async (..._args: unknown[]) => {});
 vi.mock('../../services/slm/cache/modelCache', () => ({
   deleteCachedModel: (...args: unknown[]) => mockDeleteCachedModel(...args),
   getCachedModelBytes: vi.fn(async () => 0),
@@ -22,18 +22,25 @@ let currentHookValue: ReturnType<typeof makeAcqShape>;
 function makeAcqShape() {
   return {
     status: {
-      state: 'ready' as const,
+      state: 'ready',
       modelId: 'phi-3-mini',
       totalBytes: 2_720_000_000,
       totalMb: 2723,
       isPrePackaged: false,
       cachedBytes: 2_720_000_000,
+    } as {
+      state: string;
+      modelId: string;
+      totalBytes: number;
+      totalMb: number;
+      isPrePackaged: boolean;
+      cachedBytes: number;
     },
-    networkAdvisory: 'wifi' as const,
+    networkAdvisory: 'wifi' as string,
     downloadProgress: 0,
     downloadedBytes: 0,
     error: null as string | null,
-    downloadPhase: 'idle' as const,
+    downloadPhase: 'idle' as string,
     retryAttempt: 0,
     accept: vi.fn(async () => {}),
     postpone: vi.fn(),

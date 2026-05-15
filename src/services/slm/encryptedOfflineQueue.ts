@@ -532,7 +532,9 @@ export async function migrateLegacyQueueEntries(): Promise<MigrationResult> {
   // migrate. A pure-encrypted store should be migration-idempotent
   // even with no KEK present (e.g. running migration in a worker that
   // has no SubtleCrypto access yet).
-  const legacy = all.filter((r) => !isEncryptedRecord(r));
+  const legacy = all.filter(
+    (r): r is LegacyPlaintextRecord => !isEncryptedRecord(r),
+  );
   result.skipped = all.length - legacy.length;
   if (legacy.length === 0) return result;
 

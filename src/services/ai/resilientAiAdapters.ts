@@ -17,6 +17,7 @@ import {
   type TierAdapter,
   type TierAdapterResult,
 } from './resilientAiOrchestrator';
+import type { LoadedModel } from '../slm/slmRuntime';
 import {
   makeSeedAdapter,
   retrieveResilient,
@@ -55,7 +56,7 @@ export interface SlmAdapterDeps {
  * `loadModel` (que incluye fetch + integrity + ORT session create).
  */
 export function makeSlmTierAdapter(deps: SlmAdapterDeps = {}): TierAdapter {
-  let cachedModel: unknown = null;
+  let cachedModel: LoadedModel | null = null;
   let cachedModelId: string | null = null;
 
   return async (query: AiQuery): Promise<TierAdapterResult | null> => {
@@ -69,8 +70,10 @@ export function makeSlmTierAdapter(deps: SlmAdapterDeps = {}): TierAdapter {
 
     const runtime = await factory();
     if (!cachedModel || cachedModelId !== targetId) {
-      const handle = await runtime.loadModel(targetId);
-      cachedModel = handle;
+      // Inject helper devuelve un shape minimal; el contract real del
+      // adapter es LoadedModel. Tratamos el handle returnado como
+      // LoadedModel — los tests pueden inyectar mocks ligeros.
+      cachedModel = (await runtime.loadModel(targetId)) as unknown as LoadedModel;
       cachedModelId = targetId;
     }
 

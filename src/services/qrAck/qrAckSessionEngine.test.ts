@@ -193,7 +193,7 @@ describe('validateAckScan — rejection paths', () => {
       { now: NOW },
     );
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('bad_payload');
+    if (r.ok === false) expect(r.code).toBe('bad_payload');
   });
 
   it('firma mal → bad_signature', () => {
@@ -203,7 +203,7 @@ describe('validateAckScan — rejection paths', () => {
       { now: NOW },
     );
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('bad_signature');
+    if (r.ok === false) expect(r.code).toBe('bad_signature');
   });
 
   it('sesión expirada → expired', () => {
@@ -211,13 +211,13 @@ describe('validateAckScan — rejection paths', () => {
       now: new Date(NOW.getTime() + 10 * 60 * 1000),
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('expired');
+    if (r.ok === false) expect(r.code).toBe('expired');
   });
 
   it('sin consent → no_consent', () => {
     const r = validateAckScan({ ...makeRequest(), consent: false }, verifier, { now: NOW });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('no_consent');
+    if (r.ok === false) expect(r.code).toBe('no_consent');
   });
 
   it('sessionId ya usado → replay', () => {
@@ -226,7 +226,7 @@ describe('validateAckScan — rejection paths', () => {
       usedSessionIds: new Set(['sid-reject']),
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('replay');
+    if (r.ok === false) expect(r.code).toBe('replay');
   });
 
   it('supervisor intenta firmar su propia sesión → creator_cannot_self_sign', () => {
@@ -234,7 +234,7 @@ describe('validateAckScan — rejection paths', () => {
       now: NOW,
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('creator_cannot_self_sign');
+    if (r.ok === false) expect(r.code).toBe('creator_cannot_self_sign');
   });
 });
 
@@ -295,7 +295,7 @@ describe('Codex P2 fixes (PR #123)', () => {
       { now: NOW, usedScans: used },
     );
     expect(r1.ok).toBe(false);
-    if (!r1.ok) expect(r1.code).toBe('replay');
+    if (r1.ok === false) expect(r1.code).toBe('replay');
 
     // Trabajador 2 (distinto uid) firma la misma sesión → OK
     const r2 = validateAckScan(
@@ -336,7 +336,7 @@ describe('Codex P2 fixes (PR #123)', () => {
       { now: NOW },
     );
     expect(r.ok).toBe(false);
-    if (!r.ok) {
+    if (r.ok === false) {
       expect(r.code).toBe('bad_payload');
       expect(r.detail).toMatch(/scannedByUid/i);
     }
@@ -361,7 +361,7 @@ describe('Codex P2 fixes (PR #123)', () => {
       { now: NOW },
     );
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.code).toBe('bad_payload');
+    if (r.ok === false) expect(r.code).toBe('bad_payload');
   });
 });
 

@@ -44,7 +44,10 @@ export {
 } from './cache/modelCache';
 
 export { loadModel } from './loader';
-export type { LoadModelOptions, LoadProgressFn } from './loader';
+export type {
+  LoadModelOptions as LegacyLoadModelOptions,
+  LoadProgressFn,
+} from './loader';
 
 export { createSlmWorker } from './workerProxy';
 export type { SlmWorkerProxy } from './workerProxy';

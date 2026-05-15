@@ -392,7 +392,7 @@ export function setupBackgroundTriggers(
             projectId: String(data.projectId ?? ''),
             status,
             type: typeof data.type === 'string' ? data.type : undefined,
-            rootCause: data.rootCause,
+            rootCause: typeof data.rootCause === 'string' ? data.rootCause : undefined,
             workerUid: typeof data.workerUid === 'string' ? data.workerUid : undefined,
             occurredAt: typeof data.occurredAt === 'string' ? data.occurredAt : undefined,
             severity: typeof data.severity === 'string' ? data.severity : undefined,

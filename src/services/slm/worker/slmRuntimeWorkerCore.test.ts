@@ -31,6 +31,7 @@ function makeStubRuntime(
   return {
     loadModel: async () => defaultLoaded,
     infer: async () => 'respuesta stub',
+    inferStream: async () => 'respuesta stub',
     release: async () => {},
     ...over,
   };
