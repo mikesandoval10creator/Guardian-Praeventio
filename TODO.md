@@ -196,20 +196,20 @@ Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keysto
 
 `expectedSha256: null` — el modelo Gemma no tiene integrity check. Loader debe fail-closed en prod. Bloqueado por DevOps que descargue + compute SHA-256.
 
-### 2.10 ✅ `tryAutoIssueDte` wireado en webpay/return (cierre 2026-05-15)
-**Archivo:** `src/server/routes/billing.ts:1290-1372`
+### 2.10 ✅ `tryAutoIssueDte` wireado en webpay/return + mercadoPagoIpn (cierre 2026-05-15)
+**Archivos:**
+- `src/server/routes/billing.ts:1290-1372` (webpay/return)
+- `src/server/routes/billing.ts:1063-1146` (mercadoPagoIpn handler)
 
-**Estado anterior:** después de Webpay AUTHORIZED, el handler hacía `decideDteIssue()` (función pura que decide si emitir) pero NUNCA llamaba `tryAutoIssueDte()` que es quien efectivamente ejecuta la emisión vía Bsale. Comment explícito: *"TODO Sprint 50 — connect to dteIssueQueue persister + PSE dispatch"*.
+**Estado anterior:** ambos handlers hacían `decideDteIssue()` (función pura que decide si emitir) pero NUNCA llamaban `tryAutoIssueDte()` que es quien efectivamente ejecuta la emisión vía Bsale.
 
 **Fix aplicado:** ahora si `decision.shouldIssue === true`:
 - Lazy-import `tryAutoIssueDte` (no contamina cold-start de otros endpoints)
 - Llama con el `invoiceData` re-hidratado a status `paid`
 - Loggea result: `ok`, `skipped`, `folio`, `errorMessage`
-- Try-catch interno → si Bsale falla NO bloquea el redirect del user
+- Try-catch interno → si Bsale falla NO bloquea el redirect/ack del IPN
 
 **Safety:** `tryAutoIssueDte` ya respeta `DTE_AUTO_ISSUE` env var (default `false`). En producción esto queda OFF hasta que infra setee la env, momento en que empieza a emitir DTEs automáticamente para suscripciones pagadas. Mientras está OFF, devuelve `skipped: 'disabled'` sin tocar Bsale.
-
-**Pendiente:** mismo wire en `mercadoPagoIpn.ts` handler (siguiente PR — patrón idéntico).
 
 ### 2.11 🔴 Tests fallando silenciosamente
 **Estado:** `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit code 0)
@@ -370,7 +370,7 @@ Mantener: tests verdes (resolver los 394 failing), CI workflow estable, no agreg
 - **ERP /sync honesto multi-modo** — `src/services/erp/erpAdapter.ts` (reemplaza setTimeout fake)
 - **Premium fake pages → real (5)** — `src/pages/SecurityShield.tsx` + `src/pages/ImmutableRender.tsx` + `src/pages/SusesoReports.tsx` + `src/pages/GoogleDriveIntegrationManager.tsx` + `src/pages/SSOConfig.tsx`
 
-> ⚠️ **MercadoPago HMAC manifest format**: `src/services/billing/mercadoPagoIpn.ts` valida x-signature en el formato `id+topic` (legacy/canonical-body), pero el formato productivo `ts=...,v1=...` (manifest signature) sigue diferido. Ver §8 "Billing pendiente".
+> ✅ **MercadoPago HMAC formato productivo cerrado 2026-05-15** (Regla #3): `src/services/billing/mercadoPagoIpn.ts:160-310` implementa el manifest productivo `id:<dataId>;request-id:<rid>;ts:<ts>;` con HMAC-SHA256 y replay-protection 5 min. Helper `verifyMpIpnAnyFormat()` detecta auto el formato (legacy `sha256=` vs prod `ts=,v1=`) y wirea en `billing.ts:1006-1046`. 20 tests cubriendo válido/inválido/replay/wrong-secret/header malformado.
 
 ### IA / SLM
 - **Vertex AI adapter inferencia real** — `src/services/ai/vertexAdapter.ts` (`@google-cloud/vertexai 1.12`)
@@ -401,7 +401,11 @@ Mantener: tests verdes (resolver los 394 failing), CI workflow estable, no agreg
 - **Privacy regimes 11+ países** — `src/services/privacy/registry.ts` (GDPR/CCPA/CPRA/LGPD/Ley 19628/PIPEDA/APPI/PDPA/PIPL/152-FZ/PIPA-TW)
 - **EPP expiry job + checkExpiredPpe wired** — `src/server/jobs/checkExpiredPpe.ts` mounted via `src/server/routes/maintenance.ts`
 
-> ⚠️ **DIAT WebAuthn signature ceremony**: el PDF se firma con la signature que el caller produce. El service NO ejecuta la WebAuthn ceremony — solo persiste la signature shape. Ceremony end-to-end (frontend prompts FaceID → backend verify CBOR → embed en PDF) sigue pendiente. Ver §8.
+> ✅ **DIAT WebAuthn ceremony cerrada end-to-end 2026-05-15** (Regla #3):
+> - NUEVO `src/server/auth/webauthnAssertion.ts` (verificador reusable de assertion: challenge consume + credential lookup + crypto verify + counter monotonicity)
+> - SUSESO sign endpoint (`src/server/routes/suseso.ts:171-262`) ahora ejecuta la ceremonia cuando `algorithm === 'webauthn-ecdsa-p256'` — campo `webauthnAssertion` obligatorio, verificado contra public key registrada antes de persistir
+> - NUEVO endpoint `GET /api/suseso/form/:id/sign-challenge` para issuar challenge
+> - 9 tests de capa 0 (shape validation); capas más profundas cubiertas por integration test existente en `__tests__/server/webauthnVerify.test.ts`
 
 ### Twin 3D + AR
 - **InstancedMesh + LOD + Rapier physics (D.1)** — `src/components/twinScene/TwinSceneInstanced.tsx` + `src/components/twinScene/TwinPhysicsScene.tsx`

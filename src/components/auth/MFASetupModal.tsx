@@ -118,8 +118,8 @@ export function MFASetupModal({ isOpen, onClose, onComplete, isForced = false }:
                   <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
                     Praeventio Guard usa Autenticación Multifactor (MFA) sólida y
                     auditable: <strong>biometría</strong> (huella / FaceID) o
-                    <strong> TOTP</strong> (Google Authenticator). Cero SMS, cero
-                    llamadas — métodos verificados criptográficamente.
+                    <strong> TOTP</strong> (Google Authenticator) — verificados
+                    criptográficamente.
                   </p>
                   <button
                     onClick={() => setStep('method')}

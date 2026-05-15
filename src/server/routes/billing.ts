@@ -96,6 +96,7 @@ import {
 } from '../../services/billing/mercadoPagoAdapter.js';
 import {
   verifyMercadoPagoIpnSignatureFromBody,
+  verifyMpIpnAnyFormat,
   verifyMercadoPagoIpnOidc,
   processMercadoPagoIpn,
 } from '../../services/billing/mercadoPagoIpn.js';
@@ -998,12 +999,19 @@ billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), asy
 // payment state from MP via the adapter, idempotent on
 // `processed_mp_ipn/{paymentId}`.
 //
-// MP's production manifest format `ts=<ts>,v1=<hex>` (over
-// id+request-id+ts) remains deferred â€” see the file-level TODO at the
-// top of mercadoPagoAdapter.ts.
+// 2026-05-15 (Regla #3): se agregó el formato productivo `ts=<ts>,v1=<hex>`
+// (manifest `id:<data.id>;request-id:<rid>;ts:<ts>;`). El handler ahora
+// acepta ambos formatos vía `verifyMpIpnAnyFormat` y rechaza replay > 5 min.
 billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
   const authHeader = req.header('authorization') ?? '';
   const xSignature = req.header('x-signature') ?? '';
+  const xRequestId = req.header('x-request-id') ?? '';
+  const dataId =
+    typeof req.body?.data?.id === 'string'
+      ? req.body.data.id
+      : req.body?.data?.id != null
+        ? String(req.body.data.id)
+        : '';
 
   // Tier 1 (preferred): OIDC JWT in `Authorization: Bearer ...`.
   let authenticated = false;
@@ -1020,13 +1028,18 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
     }
   }
 
-  // Tier 2 (fallback): legacy HMAC over canonical body.
+  // Tier 2: HMAC. 2026-05-15 (Regla #3): el helper `verifyMpIpnAnyFormat`
+  // detecta automáticamente el formato productivo (`ts=...,v1=...` con
+  // manifest `id;request-id;ts`) vs legacy (`sha256=<hex>` sobre canonical
+  // body). Sin esto, los IPN productivos de MP fallaban con 401.
   if (!authenticated) {
-    authenticated = verifyMercadoPagoIpnSignatureFromBody(
-      req.body ?? {},
-      xSignature,
-      process.env.MP_IPN_SECRET ?? '',
-    );
+    authenticated = verifyMpIpnAnyFormat({
+      signatureHeader: xSignature,
+      requestIdHeader: xRequestId,
+      dataId,
+      parsedBody: req.body ?? {},
+      secret: process.env.MP_IPN_SECRET ?? '',
+    });
   }
 
   if (!authenticated) {
@@ -1060,9 +1073,11 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
         idempotencyKind: result.idempotencyKind,
       }).catch(() => {});
 
-      // Sprint 49 D.8.b — DTE auto-issue decision (placeholder).
-      // TODO Sprint 50 — connect to dteIssueQueue persister + PSE dispatch.
-      // Only run on 'paid' outcomes; refunds/rejected don't trigger DTE.
+      // Sprint 49 D.8.b → 2026-05-15: DTE auto-issue REAL.
+      // ANTES: solo decideDteIssue + log, sin invocar el emitter.
+      // AHORA: decision.shouldIssue=true → tryAutoIssueDte (gated por env
+      // DTE_AUTO_ISSUE para activación controlada).
+      // Mismo patrón que webpay/return — fail-soft, no bloquea ack del IPN.
       if (result.outcome === 'paid' && result.invoiceId) {
         try {
           const invoiceSnap = await admin
@@ -1096,6 +1111,40 @@ billingApiRouter.post('/webhook/mercadopago', async (req, res) => {
               reason: decision.reason,
               idempotencyKey: decision.idempotencyKey,
             });
+
+            if (decision.shouldIssue && invoiceData) {
+              try {
+                const { tryAutoIssueDte } = await import(
+                  '../../services/billing/invoice.js'
+                );
+                const invoiceForDte = {
+                  ...invoiceData,
+                  id: result.invoiceId,
+                  status: 'paid' as const,
+                  paidAt: new Date().toISOString(),
+                };
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const issueResult = await tryAutoIssueDte(invoiceForDte as any);
+                logger.info('dte_autoissue_result', {
+                  source: 'mercadopago-ipn',
+                  invoiceId: result.invoiceId,
+                  ownerUid,
+                  ok: issueResult.ok,
+                  skipped: issueResult.skipped ?? null,
+                  folio: issueResult.result?.folio ?? null,
+                  errorMessage: issueResult.errorMessage ?? null,
+                });
+              } catch (issueErr) {
+                logger.error('dte_autoissue_invoke_failed', issueErr as Error, {
+                  source: 'mercadopago-ipn',
+                  invoiceId: result.invoiceId,
+                });
+                sentryCapture(issueErr, {
+                  endpoint: 'billing.mp.dteAutoIssue.invoke',
+                  tags: { invoiceId: result.invoiceId },
+                });
+              }
+            }
           }
         } catch (dteErr) {
           logger.error('dte_autoissue_decision_failed', dteErr as Error, {
