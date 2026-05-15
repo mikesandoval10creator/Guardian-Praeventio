@@ -100,12 +100,40 @@ export function useResilientAi(
         setStreaming({ text: '', tokensReceived: 0, tier: 'slm' });
       }
 
+      // Codex P2 fix (PR #250, 2026-05-15): "Stop streaming after the SLM
+      // tier fails". El orchestrator hace race(adapter, timeout) pero NO
+      // aborta el inferStream subyacente cuando timeout gana — la SLM
+      // sigue emitiendo tokens en background durante el fallback window.
+      // Sin este gate, late tokens mutarían `streaming.text` mientras
+      // zettelkasten/gemini corren → UI confusa (texto cambiando bajo el
+      // usuario).
+      //
+      // Mantenemos una flag local a esta query: tokens solo se aceptan
+      // hasta que (a) el orchestrator returns (cualquier tier), o (b) un
+      // safety timeout = tierTimeoutMs × 1.1 (margen sobre el race del
+      // orchestrator). Después de eso, tokens tardíos se descartan.
+      const tierTimeoutMs = options.tierTimeoutMs ?? 8000;
+      let slmTokenWindowOpen = true;
+      const closeStreamWindow = (): void => {
+        slmTokenWindowOpen = false;
+      };
+      const safetyTimeoutHandle = setTimeout(
+        closeStreamWindow,
+        Math.ceil(tierTimeoutMs * 1.1),
+      );
+
       // Cable el streaming hook: cada token del SLM incrementa el
       // estado para que la UI se actualice incrementalmente. Si el tier
       // final NO fue slm (cae a zettelkasten/firestore/gemini/canned),
       // el setStreaming(null) en el wrap del response lo limpia.
       const onStreamToken = (token: string) => {
-        if (id !== activeIdRef.current || !mountedRef.current) return;
+        if (
+          id !== activeIdRef.current ||
+          !mountedRef.current ||
+          !slmTokenWindowOpen
+        ) {
+          return;
+        }
         setStreaming((prev) =>
           prev
             ? {
@@ -130,6 +158,11 @@ export function useResilientAi(
             })
           : await answer(query, options.adapters, orchestratorOpts);
 
+        // Closing the stream window inmediatamente — cualquier token tardío
+        // del SLM (still running underground) ya no debe mutar la UI.
+        closeStreamWindow();
+        clearTimeout(safetyTimeoutHandle);
+
         // If a newer query started, discard this result silently.
         if (id !== activeIdRef.current || !mountedRef.current) {
           return r;
@@ -140,6 +173,8 @@ export function useResilientAi(
         setStreaming(null);
         return r;
       } catch (err) {
+        closeStreamWindow();
+        clearTimeout(safetyTimeoutHandle);
         // El orchestrator NO debería lanzar — esta rama atrapa errores
         // catastróficos del hook (e.g. caller pasó adapters undefined).
         const msg = err instanceof Error ? err.message : String(err);

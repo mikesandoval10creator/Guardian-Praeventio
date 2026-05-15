@@ -147,7 +147,11 @@ export function AiResponseCard({
 }: AiResponseCardProps) {
   const { t } = useTranslation();
   const isStreaming = Boolean(streaming);
-  const tierForBadge = streaming?.tier ?? response?.tier ?? 'slm';
+  // Codex P2 fix (PR #250, 2026-05-15): cuando hay `response` final (caller
+  // olvidó limpiar `streaming` o el final vino de otro tier post-fallback),
+  // el badge debe reflejar el tier del response final, NO el del streaming
+  // estancado. El final manda.
+  const tierForBadge = response?.tier ?? streaming?.tier ?? 'slm';
   const tierMeta = TIER_META[tierForBadge];
 
   // Si solo hay streaming (sin response todavía) → render skeleton + stream.
