@@ -1,458 +1,482 @@
-# MANIFIESTO ESTRATÉGICO: PRAEVENTIO GUARD (FASE 10x)
+# TODO.md — Guardian Praeventio (Fuente Única de Verdad)
 
-"El riesgo se neutraliza en el diseño, no en la reacción." - El Guardián.
-
-> **Estado real 2026-05-05** (recalibrado tras audit profundo): cobertura ponderada **~62% E2E**, no 99%. La cifra previa de 67% se ajustó hacia abajo en 5 dominios (i18n, SLM, Mesh, Bernoulli, Tests). Ver [`docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md`](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md) y la profundización [`docs/audits/AUDIT_2026-05-05_FULL.md`](docs/audits/AUDIT_2026-05-05_FULL.md) para % por dominio + roadmap S33+ (~260 SP) hasta Day-1 mundial.
+> **Filosofía:** "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián.
 >
-> **Sprints 27-28 cerraron**: 7 P0 audit + 9 P1 + foundation regulatoria global (ISO 45001 + 5 jurisdicciones) + i18n 12 locales + Zod transversal + CPHS + DIAT/DIEP + recordatorios. **191 tests nuevos**.
->
-> **Backlog vivo**: [`docs/audits/AUDIT_BACKLOG.md`](docs/audits/AUDIT_BACKLOG.md). Visión global: [memoria privada del operador].
+> **Regla #1 (inviolable):** este documento **NO marca ✅ sin evidencia file:line**. Cada claim de "hecho" debe ser verificable con `grep` o `Read` en el código real. Una app de prevención de riesgos NO puede permitirse falsa completeness — vidas dependen de que sepamos qué funciona de verdad.
 
-## Prioridad 0: Vulnerabilidades Críticas y Arquitectura Base (URGENTE)
+**Última auditoría profunda:** 2026-05-15 — consolidación de 145+ docs internos + 5 agentes paralelos verificando claims contra código real + Codex reviews + PRs mergeados. Reemplaza a las versiones anteriores de TODO/ROADMAP/AUDIT/STATE/HONEST_STATE.
 
-- [x] **Migración Full-Stack (Express + Vite):** Mover la lógica de IA (`geminiService.ts`) a un backend Node.js para proteger la `GEMINI_API_KEY` de exposición en el cliente.
-- [x] **RAG Real (Base de Datos Vectorial):** Reemplazar el texto estático simulado de la BCN por un sistema RAG real con embeddings y base de datos vectorial.
-- [x] **Algoritmo de Evacuación Determinista:** Reemplazar la generación de rutas por IA (LLM) con un algoritmo matemático estricto (A* o Dijkstra) para garantizar la seguridad vital.
-- [x] **Code Splitting (Lazy Loading):** Implementar `React.lazy` y `<Suspense>` en `App.tsx` para optimizar el rendimiento y la carga inicial en zonas de baja conectividad.
-
-## Prioridad 1: El Núcleo Predictivo y Cognitivo (Operativo)
-
-- [x] **Zettelkasten Neuronal:** Grafo 2D/3D operativo con persistencia de contexto por proyecto. Detección automática de Nodos Huérfanos (Riesgos sin controles, Trabajadores sin capacitación).
-- [x] **AI Hub con Divulgación Progresiva:** Motor RAG (Gemini) con respuestas logarítmicas (5, 10 o 15 nodos) para optimizar cuota y carga cognitiva.
-- [x] **Optimización de Costos (Batching):** Funciones `generateEmbeddingsBatch` implementadas para generar vectores matemáticos en lotes.
-- [x] **Inferencia de Riesgo Dinámica:** Cálculo de $R_{total}$ cruzando la Matriz IPER con telemetría en tiempo real (clima, sismos).
-- [x] **Asistente ISO Contextual:** Recomendaciones de inteligencia preventiva basadas en el rubro de la faena y normativas (ISO 45001/31000).
-
-## Prioridad 2: Resiliencia Táctica y Operación en Terreno (Operativo)
-
-- [x] **Offline Sync Manager (PWA):** Soporte total sin conexión en túneles con encolamiento de datos.
-- [x] **Throttling y UI Optimista:** Sincronización silenciosa en ventanas de 5 segundos (`writeBatch`) sin latencia perceptible para el usuario.
-- [x] **Bio-Análisis (Edge AI):** Detección de fatiga y posturas vía cámara (MediaPipe) procesado 100% en el dispositivo para garantizar privacidad. EPP validado vía Gemini Vision.
-- [x] **Torniquete Virtual:** Control de acceso mediante escáner QR, validando EPP y exámenes médicos al instante.
-- [x] **Diseño Clean Utility:** Interfaz ergonómica con Modo Oscuro (Azul Petróleo/Dorado) y semaforización de equipos críticos.
-- [x] **Geolocalización y Privacidad:** Rastreo GPS en segundo plano basado en horarios de jornada laboral por proyecto, con opción de rastreo de trayecto (1 hora antes/después) y rastreo 24/7 automático para trabajadores con Artículo 22.
-
-## Prioridad 3: Automatización Legal y Protocolos (Operativo y en Transición)
-
-- [x] **Generador de PTS y Planes de Emergencia:** Redacción de documentos legales asistidos por IA con exportación directa.
-- [x] **Integración Legal BCN:** Uso exclusivo de la Biblioteca del Congreso Nacional de Chile (BCN) como fuente de verdad para normativas (Ley 16.744, DS 594, etc.) en la IA.
-- [x] **Evaluaciones Ergonómicas:** Módulos RULA/REBA visualmente integrados.
-- [x] **Triage de Fatiga (ISTAS21):** Emisión de notificaciones silenciosas de recomendación al supervisor (sin bloqueo de torniquete) para empoderar el liderazgo humano.
-- [x] **Protocolos MINSAL Exactos:** Implementar las calculadoras algorítmicas oficiales para PREXOR (Ruido) y TMERT (Sílice/Polvo) en el backend.
-- [x] **Renderizado Inmutable:** Migrar la generación de PDFs a Cloud Functions (Puppeteer) para calidad de imprenta y blindaje legal irrefutable.
-
-## Prioridad 4: Seguridad Global y Cultura (Operativo y Pendiente)
-
-- [x] **Safety Rewards y Gamificación:** Simulador de extintores (P.A.S.S.) y sistema de recompensas para dopamina positiva.
-- [x] **Dashboard de Crisis:** Módulo "Man Down" y check-in de emergencias.
-- [x] **Rutas de Evacuación IA:** Reemplazar mapas estáticos por el Algoritmo A\* (A-Star) para cálculo dinámico de rutas si hay túneles bloqueados.
-- [x] **Audit Trail (Caja Negra):** Crear Triggers en Firestore para guardar un registro inmutable de acciones corporativas. (Reglas de seguridad y lógica de seeding implementadas).
-- [x] **SSO (Single Sign-On):** Habilitar inicio de sesión corporativo (Azure AD / Google Workspace) para integración Enterprise sin fricción. *(Sprint 26+ — `src/pages/SSOConfig.tsx` + Firebase Identity Platform hooks; backend SAML/OIDC flow pendiente de Sprint 30+ para clientes enterprise reales).*
-
-## Prioridad 5: Escala Corporativa (Fase 10x - Vectores de Desarrollo)
-
-- [ ] **API-First (Integración ERP/HRM B2B):** Desarrollar APIs bidireccionales con SAP, Workday, o Buk para sincronizar la lista de trabajadores de manera fluida, no solo mediante subidas pasivas, sino a nivel de servicios corporativos.
-- [ ] **Edge Filtering IoT (MQTT Broker):** Crear autopista de datos pesados para recibir telemetría de grúas y maquinaria pesada sin colapsar Firebase. *(Sprint 32 TT en progreso — `src/services/iot/mqttAdapter.ts` + ADR 0015. Estado real: SHELL — aún no boot ni endpoint expuesto, sin device cert flow ni broker wiring. Ver [docs/audits/AUDIT_2026-05-05_FULL.md](docs/audits/AUDIT_2026-05-05_FULL.md) §1.5.)*
-- [x] **Reportabilidad Gerencial (ROI y SUSESO):** Automatización de formularios DIAT/DIEP en XML/PDF y cálculo financiero del ahorro por siniestralidad.
-- [ ] **Per-country emission adapters (lanzamiento global):** Estrategia formalizada en [`docs/architecture-decisions/0017-per-country-emission-adapters.md`](docs/architecture-decisions/0017-per-country-emission-adapters.md). Doc-only, **NO push** a SUSESO/SII/OSHA/RIDDOR/NOM/NR/MEM/Rostrud — la empresa cliente firma y entrega. Cobertura por país:
-  - [x] **Chile (CL)**: DS-67, DS-76, DIAT/DIEP, DTE SII (Sprints 33-35 D2/E6/F1). *Sprint 38: consolidar en `registry.ts`.*
-  - [ ] **US**: OSHA Form 301 + 300 log. *Sprint 39.*
-  - [ ] **UK**: RIDDOR. *Sprint 40.*
-  - [ ] **EU**: EU-OSHA + Delt@ (ES) + INAIL (IT). *Sprint 41+.*
-  - [ ] **México**: NOM-019/STPS + IMSS ST-5. *Sprint 41+.*
-  - [ ] **Brasil**: NR-5 + CAT. *Sprint 41+.*
-  - [ ] **Australia**: WHS state-specific. *Sprint 41+.*
-  - [ ] **China**: GB/T 33000 + MEM. *Sprint 41+ (PIPL data residency requerida).*
-  - [ ] **Russia**: 152-FZ + Rostrud. *Sprint 41+.*
-- [ ] **Arquitectura CQRS / Redis:** Implementar caché distribuida para separar las operaciones de lectura y escritura cuando el sistema alcance cientos de miles de operarios concurrentes. *(Estado real: SHELL — `src/pages/CQRSArchitecture.tsx` es solo presentational; sin Redis productivo, sin command/query split en routes. Decisión pendiente: ADR formal o "deferred". Ver [PRAEVENTIO_HONEST_STATE](docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md).)*
-
-## Prioridad 6: Visiones Futuras y Expansión (Pendiente de Desarrollo)
-
-### 1. Dominio de Territorios Hostiles y Parques Nacionales
-
-- [x] **Gestor de Parques Nacionales (`NationalParksEmergency.tsx`):** Adaptación de protocolos de emergencia a zonas con flora y fauna protegida (implicaciones legales y ambientales por derrames Hazmat).
-- [x] **Guía de Emergencia Inhóspita (`InhospitableEmergencyGuide.tsx`):** Sistema 100% offline con protocolos de supervivencia (hipotermia, mal de altura, deshidratación) para aislamiento sin señal celular.
-- [x] **Gestor de Refugios de Montaña (`RefugioManager.tsx` & `mountainRefuges.ts`):** Base de datos georreferenciada que calcula distancia y ruta más segura a pie hacia el refugio más cercano en alta montaña.
-
-### 2. Gestión de Catástrofes Geográficas y Climáticas
-
-- [x] **Mapa de Emergencia Costera (`CoastalEmergencyMap.tsx` & `coastalCities.ts`):** Específico para riesgo de tsunami en el litoral. Calcula cotas de inundación y traza rutas de evacuación hacia zonas seguras en altura.
-- [x] **Rutas Regionales Conscientes del Clima (`WeatherAwareRegionalRoutes.tsx`):** Conexión a APIs meteorológicas para recalcular rutas logísticas de camiones ante nevazones, hielo o vientos huracanados.
-
-### 3. Bio-Ingeniería y Medicina Preventiva Avanzada
-
-- [x] **Visor de Anatomía Profesional (`ProfessionalAnatomyViewer.tsx` / `HumanBodyViewer.tsx`):** Modelo 3D interactivo para registrar lesiones exactas. El Zettelkasten cruza este dato con las posturas detectadas por el motor de Edge AI (MediaPipe) para generar rutinas de prevención específicas y evitar el desgaste a largo plazo.
-- [x] **Integración de Salud (`GoogleFitIntegration.tsx` / `BloodPressureMonitor.tsx`):** Conexión con wearables (smartwatches) para monitorear anomalías en presión arterial o ritmo cardíaco en tiempo real (prevención de infartos en altitud).
-
-### 4. Integraciones de Ingeniería y Arquitectura
-
-- [x] **Integración AutoCAD (`AutoCADIntegration.tsx`):** Lectura de planos .dwg directamente para superponer nodos de riesgo del Zettelkasten sobre el plano arquitectónico real. Permite saber, por ejemplo, que un "Riesgo de Derrame" (conectado a la GRE) está a 10 metros del comedor, cambiando la planificación de emergencias.
-- [x] **Visor de Planos Mejorado (`BlueprintViewer.tsx` / `LayoutViewer.tsx`):** Permite tomar decisiones de diseño de andamios o zonas de acopio viendo dimensiones exactas sin papel.
-
-### 5. Economía de la Prevención (Gamificación Cripto)
-
-- [ ] **Integración Cripto/Tokens (`useBinanceIntegration.ts`):** Estrategia de retención revolucionaria mediante economía de tokens. *(Pausado/Descartado por el usuario)*
-- [x] **Sistemas de Arcade (`ClawMachine.tsx`, `PoolGame.tsx`):** Minijuegos desbloqueables con tokens obtenidos por aprobar capacitaciones (liberación de dopamina y afianzamiento del conocimiento).
-
-### 6. Control Ambiental y Supervivencia Crítica
-
-- [x] **Rastreador Solar y Radiación UV (`SunTracker.tsx`):** Triangula posición del sol y altitud para calcular índice UV en tiempo real, emitiendo alertas para bloqueador y sombra (Ley de Ozono).
-- [x] **Gestión de Zonas DEA (`DEAZoneMap.tsx` y `DEAVerificationForm.tsx`):** Mapea ubicación de Desfibriladores (Ley 21.156), calcula radio de respuesta de 3 min y gestiona checklist de mantención.
-
-### 7. Interfaz Humano-Máquina (Operación en Terreno)
-
-- [x] **Asistente de Voz Manos Libres (`GuardianVoiceAssistant.tsx`):** Accesibilidad extrema para dictar reportes de incidentes o solicitar protocolos de evacuación de la GRE mediante comandos de voz procesados por IA. Vital para emergencias Hazmat donde los equipos usan trajes encapsulados y guantes pesados.
-
-### 8. Ingestión de Conocimiento y Expansión del Zettelkasten
-
-- [x] **El Escudo Químico: Fusión OCR y GRE (`DocumentOCRManager.tsx`):** Escanea Hojas de Datos de Seguridad (HDS/MSDS) antiguas. La IA extrae el Número ONU, lo cruza con la base de datos de la GRE en el Zettelkasten y genera un nodo de riesgo con distancias de aislamiento y EPP químicos obligatorios.
-- [x] **Procesador de Contenido Académico (`AcademicContentProcessor.tsx`):** Extrae conclusiones de papers científicos (ej. neurociencia sobre fatiga) y las vincula a protocolos y matriz de riesgos.
-
-### 9. Seguridad Enterprise y Ecosistema Corporativo
-
-- [x] **Escudo de Autenticación Multifactor - MFA (`MFASetupModal.tsx` y `SecurityShield.tsx`):** Obliga a usuarios con altos privilegios a usar 2FA (ej. Google Authenticator) para cumplir auditorías internacionales.
-- [x] **Sincronización con Google Workspace (`GoogleDriveIntegrationManager.tsx`):** Exporta y sincroniza bidireccionalmente documentos generados con el Google Drive corporativo automáticamente.
-
-### 10. Dominio Regulatorio y Medioambiental
-
-- [x] **Auditoría de Contaminación Lumínica (`ContaminacionLuminica.tsx`):** Conectado al motor de Visión IA. Un supervisor apunta la cámara a una torre de iluminación y el Guardián verifica si el ángulo y el espectro de luz cumplen con la normativa ambiental (DS 43), evitando multas millonarias en la gran minería.
-
-### 11. El Centro de Comando: Pizarra y Mural Dinámico
-
-- [x] **Mural Dinámico y Pizarra (`Pizarra.tsx`, `MuralDinamicoFirebase.tsx`):** Red social corporativa para compartir alertas, fotos y celebrar días sin accidentes o eventos de la empresa. Integrado al Zettelkasten: publica automáticamente "Lecciones Aprendidas Globales" y envía notificaciones push/emails (vía contacto@praeventio.net) según la gravedad del evento.
-
-### 12. Reconocimiento de Terreno: Diagnóstico de Línea Base
-
-- [x] **Diagnóstico Inicial (`Diagnostico.tsx`):** Evaluación física exhaustiva de la faena (instalaciones, campamento, accesos) antes de la matriz IPER. Actúa como "semilla" para que la IA infiera el rubro del SII y pre-cargue matrices IPER automáticamente.
-
-### 13. Precisión Quirúrgica: Aislamiento de Controles
-
-- [x] **Gestión de Controles y Materiales (`MedidasControl.tsx`, `Material.tsx`):** Trata cada control de ingeniería y material peligroso como una entidad viva y auditable. Permite alertas predictivas cruzadas (ej. si falla un control y hay fatiga humana, el Guardián detiene la maquinaria y notifica al encargado).
-
-### 14. Resiliencia Geográfica: Crisis y Sismos
-
-- [x] **Emergencia Avanzada y Sismos (`EmergenciaAvanzada.tsx`, `Sismos.tsx`):** Orquestación del caos post-evento crítico. Conectado al algoritmo A\* para recalcular instantáneamente rutas de evacuación en el mapa dinámico, aislando zonas con reportes de derrumbes o bloqueos.
-- [x] **Mapeo de Radio de Exposición Hazmat (`HazmatExposureMap.tsx`):** Visualiza el radio de exposición y aislamiento ante derrames o emergencias químicas. Cruza la información de la GRE (Guía de Respuesta en Caso de Emergencia), el tipo de químico y las condiciones climáticas (dirección del viento) para trazar zonas de aislamiento inicial y acción protectora directamente en el mapa de la faena.
-- [x] **Protocolo y Mapeo de Erupción Volcánica (`VolcanicEmergencyMap.tsx`):** Módulo de respuesta ante actividad volcánica. Despliega protocolos de acción inmediatos y visualiza el radio de la emergencia en el mapa, calculando la dispersión y dirección de la pluma de cenizas (cruzando datos de viento en tiempo real) para coordinar evacuaciones seguras y proteger tanto al personal como a la maquinaria crítica (filtros de aire, motores).
-
-### 15. Ingeniería de las Funciones Tácticas (El Detalle Mecánico)
-
-- [x] **Modo Presentación (`PresentationMode.tsx`):** Muta el DOM para ocultar la UI (Sidebar, encabezado) y transforma las tarjetas de riesgo en un carrusel de pantalla completa. Elimina la fricción de transcribir la matriz a PowerPoint para la charla ODI, proyectando la verdad cruda y en tiempo real.
-- [x] **Glosario Técnico Interactivo (`Glosario.tsx`):** Motor de coincidencia de cadenas (String Matching) mediante un HOC que envuelve los textos de los PTS. Subraya términos técnicos (ej. Hipoacusia, DS 594) y despliega tooltips con definiciones legales y médicas para reducir la carga cognitiva.
-- [x] **El Asesor (`Asesor.tsx`):** Componente aislado con un prompt estricto y contexto cerrado ("Zero-shot" o "Few-shot prompting"). Responde exclusivamente con planes de acción inmediatos y tácticos en formato de texto durante el caos de un incidente, sin alterar bases de datos ni dibujar gráficos.
+**Cobertura E2E real ponderada (recalibrada 2026-05-15):** ~70% (subió de 62% en 2026-05-05 tras Sprints 39-56 + Wave F + Codex sweep). **Meta Day-1 mundial:** 95%+.
 
 ---
 
-## HOJA DE RUTA DE EJECUCIÓN (Por Factibilidad Técnica)
+## 📑 Índice
 
-_Clasificación de los módulos pendientes según su viabilidad de desarrollo con el stack actual (React, Vite, Firebase, Gemini API)._
-
-### Fase 1: Victorias Rápidas (Alta Factibilidad - 1 a 2 semanas)
-
-_Puro Frontend, manipulación del DOM, operaciones CRUD en Firebase y Prompts simples de Gemini._
-
-- [x] **Modo Presentación:** Manipulación directa del DOM y CSS. Muy fácil de implementar.
-- [x] **Glosario Técnico Interactivo:** Lógica de _String Matching_ y Tooltips en React.
-- [x] **El Asesor:** Un componente de chat aislado con un prompt estricto (Zero-shot) de Gemini.
-- [x] **Diagnóstico Inicial:** Formulario React conectado a un prompt generativo para crear la matriz IPER.
-- [x] **Mural Dinámico y Pizarra:** CRUD estándar en Firestore con UI tipo feed de red social.
-- [x] **Gestión de Controles y Materiales:** CRUD en Firestore vinculando entidades a los nodos del Zettelkasten.
-- [x] **Gestión de Zonas DEA:** CRUD simple con marcadores estáticos en un mapa básico.
-- [x] **Protocolos MINSAL Exactos (PREXOR/TMERT):** Fórmulas matemáticas puras ejecutadas en el cliente/backend.
-- [x] **Procesador de Contenido Académico:** Envío de texto/PDFs a la API de Gemini para extraer resúmenes.
-- [x] **Guía de Emergencia Inhóspita:** Contenido estático cacheado mediante el Service Worker (PWA) existente.
-- [x] **Activación por Voz (Wake Word):** "Hey Guardián" o "Oye Praeventio" usando Web Speech API continua para abrir el chat sin tocar la pantalla.
-- [x] **Currículum Preventivo Portable (UI):** Perfil de usuario que muestra historial de gamificación y capacitaciones.
-- [x] **Acciones Contextuales en el Grafo:** Menú interactivo al hacer clic en nodos del Zettelkasten.
-- [x] **Reconocimiento Social en el Muro:** Botones de "Kudos" y "Enterado" en el Mural Dinámico.
-
-### Fase 2: Integraciones Geográficas y APIs (Factibilidad Media - 2 a 4 semanas)
-
-_Requiere librerías de mapas (Leaflet/Google Maps), matemáticas espaciales y consumo de APIs externas._
-
-- [x] **Mapeo de Radio de Exposición Hazmat:** Integración de Leaflet, parseo de datos de la GRE y cruce con la API de OpenWeather para la dirección del viento.
-- [x] **Protocolo y Mapeo de Erupción Volcánica:** Similar al Hazmat, cálculo de polígonos de dispersión de cenizas sobre el mapa.
-- [x] **Rastreador Solar y Radiación UV:** Uso de librerías astronómicas (ej. `suncalc`) cruzado con la API del clima.
-- [x] **Gestor de Refugios de Montaña:** Cálculo de distancias (Haversine) y trazado de rutas GPS.
-- [x] **Gestor de Parques Nacionales:** Lógica de Geofencing (polígonos en el mapa) para activar protocolos.
-- [x] **Rutas Regionales Conscientes del Clima:** Consumo de una API de Routing (Mapbox/Google) cruzada con alertas meteorológicas.
-- [x] **Sistemas de Arcade (Gamificación):** Lógica de minijuegos 2D usando HTML5 Canvas o librerías ligeras de React.
-- [x] **Reportabilidad Gerencial (ROI y SUSESO):** Generación avanzada de PDFs o exportación de XML estructurado.
-- [x] **Pronóstico a 3 Días ↔ Física del Terreno:** Cruce de datos de lluvia/temperatura para sugerir cierres en Parques Nacionales.
-- [x] **Clima ↔ Tareas Críticas:** Consumo de API meteorológica para suspender generación de PTS y registrar en el Zettelkasten.
-- [x] **Índice UV ↔ Turnos de Trabajo:** Alertas automáticas basadas en pronóstico de radiación y gestión de rotación de turnos.
-- [x] **Sismicidad ↔ Rutas de Evacuación:** Conexión con API sísmica (USGS) para activar protocolos de evacuación automáticamente.
-- [x] **Integración BCN e ISO (Core de Verdad):** Conexión de Gemini con una base de datos vectorial (RAG simulado) estricta de leyes chilenas para evitar alucinaciones.
-- [x] ~**Gamificación ↔ Probabilidad de Riesgo:**~ (DESCARTADO: Por principios de seguridad y responsabilidad legal, la gamificación nunca alterará la probabilidad real en la Matriz IPER. El enfoque es recomendar, no subestimar riesgos).
-- [x] **Gestión de Comités Paritarios:** Módulo CRUD avanzado con flujos de aprobación y actas, e integración de Carta Gantt en el Calendario.
-
-### Fase 3: Deep Tech & Cloud Backend (Factibilidad Compleja - 1 a 2 meses)
-
-_Requiere despliegue de Cloud Functions, WebGL, APIs complejas o Machine Learning específico._
-
-- [x] **Motor OCR de Documentos:** Integración de Google Cloud Vision API o Tesseract.js para extraer texto de PDFs escaneados con alta precisión.
-- [x] **Asistente de Voz Manos Libres:** Uso de la Web Speech API lidiando con compatibilidad de navegadores y ruido de fondo, conectado a Gemini.
-- [x] **Visor de Anatomía Profesional:** Integración de WebGL/Three.js y consecución de modelos 3D médicos optimizados para la web.
-- [x] **Rutas de Evacuación IA / Emergencia Avanzada:** Implementación del algoritmo A\* sobre grillas dinámicas generadas a partir de los planos de la faena.
-- [x] **Sincronización con Google Workspace:** Flujo OAuth 2.0 estricto y consumo de la API de Google Drive.
-- [x] **Escudo de Autenticación Multifactor (MFA):** Configuración de Firebase Identity Platform y flujos de enrolamiento de 2FA.
-- [x] **Audit Trail (Caja Negra):** Escritura y despliegue de Firebase Cloud Functions (Triggers) para registrar cada mutación en la base de datos.
-- [x] **Renderizado Inmutable:** Despliegue de Puppeteer (Chrome Headless) en Cloud Functions, requiere alta memoria y configuración de red.
-- [x] **Modelos de IA Avanzados (Tiers):** Lógica de backend para enrutar peticiones a Gemini Flash (Gratis) o Gemini Pro (Suscripción) según el tenant. *(Actualización Estratégica: El motor Zettelkasten y RAG usarán SIEMPRE Gemini Pro para todos los usuarios, asegurando ventaja competitiva).*
-- [x] **Gestión Multi-Proyecto:** Refactorización profunda de las reglas de seguridad de Firestore (RBAC) y consultas para aislar datos entre proyectos de un mismo contratista.
-- [x] **Dashboard de Cumplimiento SUSESO:** Cálculo interno de Tasas de Accidentabilidad y Siniestralidad para preparar auditorías, reemplazando el scraping público.
-- [x] **Módulo de Suscripciones y Facturación B2B:** Implementación de Tiers de precios basados en cantidad de trabajadores (DS 54, DS 40) con alertas de cumplimiento legal.
-
-### Fase 4: Enterprise & Hardware (Factibilidad Muy Compleja - +2 meses)
-
-_Requiere hardware externo, integraciones corporativas pesadas, regulaciones o infraestructura dedicada._
-
-- [x] **Integración AutoCAD:** Parsear archivos `.dwg` en el navegador es extremadamente difícil; requiere la costosa API de Autodesk Forge o conversores de backend pesados.
-- [x] **Auditoría de Contaminación Lumínica:** Visión computacional avanzada para medir espectros de luz y ángulos; muy difícil de lograr con precisión legal usando solo la cámara de un smartphone.
-- [x] **Integración de Salud (Wearables):** Flujos OAuth complejos (Google Fit / Apple Health) y necesidad de hardware físico diverso para pruebas.
-- [x] **Edge Filtering IoT (MQTT Broker):** Firebase no soporta alta frecuencia de telemetría IoT; requiere levantar infraestructura separada (ej. Google Cloud IoT o EMQX).
-- [x] **API-First (Integración ERP/RRHH):** Desarrollo de una API REST segura y escalable para sincronizar con sistemas cerrados como SAP o Buk.
-- [x] **SSO (Single Sign-On):** Configuración de SAML/OIDC que requiere coordinación directa con los departamentos de TI de los clientes corporativos.
-- [x] **Arquitectura CQRS / Redis:** Implica rediseñar la arquitectura base, alejándose de la simplicidad de Firestore hacia un backend personalizado.
-- [ ] **Integración Cripto/Tokens:** Interacción con Web3, Smart Contracts y superación de barreras regulatorias y de seguridad financiera. *(Pausado/Descartado por el usuario)*
-- [ ] **Fatiga Humana ↔ Asignación de Tareas:** Integración del motor de Computer Vision (MediaPipe) con el backend para reasignar tareas automáticamente en el ERP/Planificador.
-- [ ] **Telemetría IoT ↔ Probabilidad de Falla:** Conexión de sensores físicos de maquinaria al MQTT Broker para alterar el Zettelkasten en tiempo real.
-- [ ] **Dashboards Analíticos Predictivos:** Entrenamiento y despliegue de modelos de Machine Learning (TensorFlow/Vertex AI) personalizados con la data histórica de la multinacional.
-
-### Fase 5: Arquitectura de Búnker y Optimizaciones Extremas (Factibilidad Extrema)
-
-#### I. Arquitectura de Búnker (Core & Service Workers)
-- [x] **Pre-caché Masivo en Workbox:** Configurar vite-plugin-pwa para almacenar los 70 módulos dinámicos (.js, .css) en la caché del navegador durante el primer login.
-- [x] **Elevación de Límites de Caché:** Modificar maximumFileSizeToCacheInBytes en Vite a 20MB para asegurar que los modelos 3D y librerías de IA se descarguen por completo.
-- [x] **Almacenamiento Local Encriptado (IDB):** Usar idb para guardar la base de datos completa de trabajadores y matrices, aplicando encriptación AES-256 en el cliente.
-- [x] **Cola de Sincronización Background Sync:** Implementar una cola en IndexedDB para formularios llenados sin conexión, que se disparen automáticamente al detectar red.
-- [x] **Interceptor de Fetch Offline:** Si falla una petición fetch a Firebase, el Service Worker redirige la consulta a la base de datos local de manera invisible.
-- [x] **Desactivación de Telemetría Externa:** Bloquear cualquier tracker o analítica innecesaria para asegurar un consumo de batería y datos cercano a cero.
-- [x] **Motor de Compresión Brotli:** Configurar Vite para comprimir los archivos de la app en formato Brotli, haciendo que la "descarga única" sea ultra rápida.
-- [x] **Validación de JWT Offline:** Permitir acceso a la app con un token validado criptográficamente contra una llave pública almacenada en el teléfono.
-- [ ] **Gestión de Memoria en 3D (Garbage Collection):** Las vistas WebGL (Risk Network 3D, Renderizado de Medallas 3D) requieren un Garbage Collection (GC) más agresivo al cerrarse para no drenar la memoria RAM de celulares de gama baja. Actualmente los contextos WebGL persisten y calientan el dispositivo.
-- [x] **Fallback de Fuentes y UI:** Asegurar que los íconos de lucide-react estén incrustados localmente para que la interfaz no pierda legibilidad sin internet.
-- [x] **Estado de Red Reactivo:** Un hook useOnlineStatus que informe visualmente si estamos operando en el "Búnker" (offline) o conectados.
-- [x] **Caché Diferencial de Zettelkasten:** Sincronizar solo los "nodos nuevos" creados por la tripulación desde la última conexión, ahorrando procesamiento.
-- [x] **Manejo de Conflictos de Fusión:** Si dos supervisores editan la misma matriz offline, usar lógica basada en marcas de tiempo para resolver en Firebase.
-- [x] **Protección de Datos Biométricos (ISO 27001):** Asegurar que las validaciones biométricas ocurran a nivel de hardware del dispositivo móvil, sin enviar huellas al servidor.
-- [x] **Ping de Supervivencia Liviano:** Un servicio que, al tener señal, envíe un paquete de bytes mínimo (coordenadas básicas) sin bloquear el hilo principal.
-
-#### II. Módulo de Emergencias y Evacuación (/emergency)
-- [x] **Kill-Switch de Animaciones (Modo Táctico):** Al presionar "Emergencia", un estado en Zustand desactiva todo framer-motion para destinar el 100% de la CPU a la respuesta crítica.
-- [x] **Interfaz de Alto Contraste:** Cambio automático de la paleta de colores a "Darkhorse" (negro puro y colores neón) para máxima visibilidad en condiciones de humo o luz solar directa.
-- [x] **Rutas de Evacuación Vectoriales (Offline):** Reemplazar mapas pesados por SVGs pre-descargados y cacheados que se renderizan instantáneamente.
-- [x] **Geocercas de Exclusión Locales:** Cálculos matemáticos simples (Turf.js) en el cliente que hacen sonar el celular si el usuario cruza una zona HAZMAT delineada en el mapa offline.
-- [x] **Botón "Estoy a Salvo" Unificado:** Un botón masivo en pantalla de bloqueo que actualiza el estado del operario en el "Muro Dinámico" del comité paritario.
-- [x] **Síntesis de Voz Nativa:** Uso de la Web Speech API para leer instrucciones de evacuación en voz alta ("Gire a la derecha"), liberando la vista del operario.
-- [x] **Compresión de Audio de Rescate:** Si se usa CrisisChat, comprimir los audios a formatos ultra ligeros para que salgan incluso con redes Edge (2G).
-- [x] **Protocolo Triage Rápido:** Formulario visual de 3 botones (Verde, Amarillo, Rojo) para reportar heridos en 2 segundos.
-- [x] **Sincronización Mesh (Bluetooth):** Explorar la Web Bluetooth API para emitir balizas de proximidad entre dispositivos móviles si caen las antenas principales.
-- [x] **Fijación de Coordenadas UTM:** Mostrar latitud/longitud en gran formato para dictar fácilmente a equipos de rescate (Medevac).
-- [x] **Desconexión Automática LOTO:** Integración encriptada para apagar máquinas a distancia mediante un token local de un supervisor en el área de emergencia.
-- [x] **Bloqueo de Interfaz por Tensión:** Si se reporta sismo mayor a grado 6 (leído del caché local si hay alerta temprana), la app bloquea funciones no críticas.
-- [x] **Ruteo Dinámico de Escape:** El mapa redirige flechas si un usuario marca un pasillo como "Bloqueado por fuego".
-- [x] **Tarjetas de Primeros Auxilios Interactivas:** Guías paso a paso descargadas (RCP, torniquetes) con metrónomo a 100 BPM en pantalla.
-- [x] **Modo Silencio de Radio:** Desactiva todas las notificaciones push entrantes para no interrumpir la concentración de quien atiende una emergencia.
-
-#### III. IA, Visión Computacional y Wearables (/ai-hub)
-- [x] **IA Edge para EPP (MediaPipe):** Usar @mediapipe/tasks-vision precargado para verificar casco y lentes procesando el video solo en el celular, cumpliendo con normas de privacidad.
-- [x] **Desenfoque Facial Automático:** Si la cámara registra un hallazgo, aplicar filtros de difuminado sobre los rostros antes de guardar el registro (ISO 27001).
-- [x] **Análisis Biomecánico Local:** Usar la cámara para mapear la postura de carga (Ergonomía), calculando ángulos sin enviar el video a la nube.
-- [x] **El Asesor NLP Autónomo:** Un pequeño modelo LLM comprimido (si el hardware lo permite) o un árbol de decisiones semántico para buscar en el glosario sin usar tokens de GenAI.
-- [x] **Sensor de Temperatura Infrarroja (si aplica):** Leer datos de wearables integrados por Bluetooth para detectar alertas térmicas corporales.
-- [x] **Filtro Edge IoT:** Procesar la telemetría de la maquinaria en el módulo /iot-edge directamente en el dispositivo, subiendo a Firebase solo los "eventos anómalos" para no saturar la base.
-- [x] **OCR de Tarjetas de Seguridad:** Lector local que escanee permisos de trabajo físicos sin necesidad de escribirlos a mano.
-- [x] **Motor de Búsqueda Difusa:** Búsqueda ultra rápida en el Glosario (Fuse.js) que perdone errores ortográficos al buscar protocolos.
-- [x] **Integración con Acelerómetro:** Monitoreo sutil en segundo plano para alertar si se detecta una aceleración que indique caída inminente.
-- [x] **Modo de Susurro del Guardian:** La asistencia por voz ajusta su volumen si detecta ruido ambiental alto (usando el micrófono localmente).
-
-#### IV. Zettelkasten y Red Risk Network (/risk-network)
-- [x] **Motor de Renderizado 2D Optimizado:** Configurar react-force-graph-2d para detener la simulación física (las partículas dejan de moverse) después de 3 segundos para no drenar batería.
-- [x] **Paginación de Nodos:** Cargar solo el "vecindario" de ideas conectadas al protocolo que se está leyendo (profundidad de nivel 2).
-- [x] **Conexiones Semánticas Automáticas:** Si un PTS menciona "Trabajo en Altura", la app lo enlaza automáticamente al nodo EPP correspondiente (Arnés).
-- [x] **Bóveda Privada de Proyectos:** Separar criptográficamente el Zettelkasten de un proyecto minero del de uno forestal para evitar cruce de información confidencial.
-- [x] **Tags de Gravedad MINSAL:** Etiquetado visual automático de leyes que al fallar implican cierre de faena (Color Rojo absoluto).
-- [x] **Historial de Decisiones Inmutable:** Guardar cada cambio en la matriz IPERC como un bloque encadenado (Audit Trail) para trazabilidad ISO 45001.
-- [x] **Vista de Grafo en "Modo Zen":** Fondo oscuro y nodos brillantes para facilitar la lectura y el enfoque al estudiar el comportamiento de los accidentes.
-- [x] **Modo Exportación Rápida:** Convertir una rama de ideas del Zettelkasten en un PDF formateado como Charla Integral de 5 minutos.
-- [x] **Filtro de "Conocimiento Huérfano":** Resaltar protocolos creados que no están vinculados a ningún riesgo activo, para mantener la red limpia.
-- [x] **Sincronización P2P por Código QR:** Permitir transferir un nodo de conocimiento de un teléfono a otro mostrando un código QR (Air-gapped transfer).
-
-#### V. Bio-Análisis y Medio Ambiente (/bio-analysis / /hygiene)
-- [x] **Rutinas "Despertar Matutino":** Un submódulo de preparación antes del inicio de turno con elongaciones basadas en la matriz biomecánica personal.
-- [x] **Monitor de Vitalidad (Energía):** Gráfico que cruza los datos de temperatura externa, altitud y peso de herramientas para sugerir recesos de hidratación.
-- [x] **Catálogo Flora/Fauna Offline:** Base de datos botánica local (Bugainvillea y especies nativas) para evitar impactos medioambientales durante la instalación del campamento.
-- [x] **Calculadora de Índice UV Local:** Fórmulas matemáticas en la app que, cruzadas con la hora y latitud, exigen protector solar sin depender de APIs externas.
-- [x] **Pausas Fisiológicas Integradas:** Animaciones de respiración guiadas (flujo) de un minuto recomendadas antes de tareas de alto rigor mental.
-- [x] **Control de Ruidos (Dosimetría Aproximada):** Medir decibeles con el micrófono y generar alertas visuales para usar tapones auditivos (con aviso de privacidad de que no se graba el audio).
-- [x] **Bitácora Nutricional de Campamento:** Recomendaciones de hidratación integradas en el flujo diario, recordando la ingesta de jugos naturales y antioxidantes.
-- [ ] **Mapa de Contaminación Lumínica:** Vista táctica de los focos del campamento para asegurar que no interfieran con la fauna local nocturna.
-- [x] **Gestión de Acopio HAZMAT:** Mapeo de compatibilidad química (Matriz de segregación) validada de forma instantánea sin conexión.
-- [x] **Estimador de Tasa Metabólica:** Cálculo en tiempo real de la exigencia física de una faena para rotar roles y mantener la mente afilada.
-
-#### VI. Gestión de Proyectos, Trabajadores y PTS (/pts, /workers)
-- [x] **Firma Geométrica Vectorial:** Guardar las firmas de los operarios en los PTS como vectores .svg para que no pesen nada en la base de datos.
-- [x] **Perfil de Usuario (Cartas RPG):** Vista de trabajador con diseño "Cartas RPG" mostrando sus certificaciones activas de manera elegante.
-- [x] **Calculadora de Probabilidad/Consecuencia Nativa:** En el submódulo de Matriz, las fórmulas de riesgo puro corren en memoria local sin latencia.
-- [x] **Autocompletado Predictivo en PTS:** Basado en la ubicación GPS, pre-llenar la obra, el clima y los riesgos típicos de ese cuadrante.
-- [ ] **Control de Acceso Seguro (SSO Local):** Integración con el sistema del casino o campamento para validar identidades mediante credenciales encriptadas.
-- [x] **Generador Inmutable (Immutable Render):** Al cerrar un documento, sellarlo criptográficamente (Hash) para garantizar ante SUSESO que no fue modificado post-accidente.
-- [x] **Modo Asistencia Rápida:** Módulo que lee rápidamente códigos QR o NFC de los cascos en la entrada de la faena.
-- [ ] **Auditorías ISO Interactivas:** Checklist dinámico que oculta o muestra preguntas dependiendo de las respuestas previas.
-- [x] **Trazabilidad de EPI/EPP:** Registro de vida útil de un arnés desde que sale de bodega hasta su descarte, notificado localmente.
-- [ ] **Carga Diferida Inteligente (Lazy Modals):** Los modales pesados (como la edición de AutoCAD Viewer) solo se instancian cuando el usuario hace clic.
-
-#### VII. Currículum Portable y Gamificación (/gamification)
-- [x] **Árbol de Habilidades (Skill Tree):** Un visualizador donde el operario desbloquea insignias "Scout" al completar capacitaciones.
-- [x] **Buzzer de Reflejos:** Mini-simuladores (estilo arcade rápido) en los tiempos muertos para evaluar la capacidad de respuesta y fluidez antes del turno.
-- [ ] **Sistema de Logros Locales:** Reconocimientos (ej. "Semana Invicta") que se calculan en el celular del usuario y luego se respaldan.
-- [x] **Render de Medallas 3D:** Pequeños modelos three.js ligeros de las certificaciones, que pueden girarse con el dedo en el perfil de usuario.
-- [x] **Cápsulas de Sabiduría (El Arte de la Guerra):** Integrar citas tácticas o reglas de oro en las pantallas de confirmación de formularios.
-- [x] **Portable Curriculum PDF:** Un botón que compile toda la historia de seguridad del operario en un PDF estético generado por jspdf.
-- [x] **Progreso de Aclimatación:** Barra que muestra cuántos días le quedan a un trabajador nuevo para aclimatarse por completo a la altura o el terreno.
-- [x] **Simulacro de Extintores VR (Básico):** Uso de la cámara y giroscopio para enfocar a un fuego virtual en la sala y aprender el movimiento "PASS".
-- [x] **Recompensas Dopaminérgicas Elegantes:** Animaciones de confeti suaves (canvas-confetti) reservadas exclusivamente para auditorías con cero hallazgos.
-- [x] **Ranking de Cuadrillas "Flow":** Tabla de posiciones basada en el cumplimiento proactivo y la prevención, fomentando el orgullo de equipo.
-
-#### VIII. Seguridad Técnica, Estabilidad y Optimizaciones
-- [x] **Ofuscación de Código en Producción:** Falta blindar las reglas de negocio críticas en la build de producción para evitar ingeniería inversa en la web. Vital para la propiedad intelectual: nadie debe poder extraer la lógica algorítmica ni el enfoque de prevención de riesgos (que modela directamente la mente del experto).
-- [ ] **Rotación Automática de Keys (JWT):** Política de expiración corta de sesiones para mitigar el riesgo si se pierde un dispositivo físico en obra.
-- [ ] **Compresión de Imágenes en Cliente:** Implementar un compresor de imágenes local (API de Canvas) antes de subir fotos de evidencia (que pueden pesar 10MB) a Firebase. Esencial para no drenar la cuota de Storage y ahorrar ancho de banda en terrenos de baja señal.
-- [x] **Seguridad de API Keys:** La clave de Gemini (`GEMINI_API_KEY`) y la configuración de Firebase Admin SDK fueron aisladas *completamente* a Node.js (Servidor Express), evadiendo la exposición al cliente frontend. Se inicializa mediante un wrapper nativo que respeta el `firestoreDatabaseId`.
-- [ ] **Control de Costos IA (Batching en Zettelkasten):** Procesar nodos huérfanos con Gemini en segundo plano (`useRiskEngine.ts`) podría agotar las cuotas de la API si no se controla adecuadamente el "batching". Se requiere asimilar una estrategia rigurosa para enviar los prompts en lote y economizar tokens.
-- [ ] **Arquitectura CQRS Local:** Separar las lecturas (ej. ver el PTS) de las escrituras (ej. crear un PTS) en IndexedDB para máxima velocidad.
-- [ ] **Purgado de Caché Obsoleto:** Script automático que elimina versiones viejas de la app (v1.0.1) cuando detecta la instalación de la nueva (v1.0.2).
-- [x] **Error Boundary Silencioso:** Si un gráfico de la Matriz falla, que caiga solo ese componente mostrando un ícono amigable, manteniendo el resto de la app operativa.
-- [x] **Debounce en Red Neuronal:** Prevenir que la app intente calcular conexiones del Zettelkasten cada vez que se teclea una letra; hacerlo cuando el usuario pause su escritura.
-- [x] **Manejo de Permisos Degradado:** Si el usuario niega acceso a la cámara, la app debe seguir funcionando con opciones manuales de ingreso.
-- [x] **Validación Zod para Formularios:** Asegurar que los datos ingresados en el módulo Diagnóstico sean del tipo correcto antes de guardarlos.
-- [x] **Evitar Cálculos Flotantes Complejos:** Redondear geolocalizaciones al cuarto decimal (aprox. 11 metros de precisión) para acelerar cálculos matemáticos de zonas de riesgo.
-- [ ] **Precarga de DNS (dns-prefetch):** Acelerar el micro-segundo de resolución al conectarse a los servidores de Firebase.
-- [x] **Skeleton Loaders:** En los submódulos, usar estructuras grises animadas suavemente mientras se carga la data local, dando percepción visual de velocidad extrema.
-- [x] **Modo Pantalla Siempre Activa (Wake Lock API):** En el submódulo de /emergency, evitar que la pantalla del celular se apague mientras se dictan coordenadas.
-- [x] **Prevención de Doble Envío:** Bloquear botones críticas (como "Declarar Emergencia") instantáneamente tras el primer toque para evitar colapsos por pánico.
-- [x] **Modo "Safe Driving" Nativo:** Interfaz que usa fuentes enormes y solo botones gestuales de gran barrido para supervisores en movimiento en camionetas.
-- [x] **Virtualización de Listas Larga:** En el submódulo /history, usar bibliotecas como react-window para renderizar solo los 10 reportes visibles, ahorrando memoria al hacer scroll entre cientos.
-- [x] **Auditoría Ligthouse 100/100:** Someter la estructura PWA a validación extrema de accesibilidad (colores contrastantes para daltonismo) y rendimiento.
-- [x] **Arquitectura Symbiótica (Symbiosis):** El sistema central recoge las lecciones locales de cada teléfono cuando hay red, fortaleciendo el núcleo de conocimiento y actualizando las matrices para que todos se protejan mutuamente.
+1. [Estado honesto por dominio](#1-estado-honesto-por-dominio)
+2. [🔴 CRÍTICO inmediato — false completeness verificada](#2--crítico-inmediato--false-completeness-verificada)
+3. [🟡 Codex review pendings sin mergear](#3--codex-review-pendings-sin-mergear)
+4. [🟠 CI infrastructure rota en main](#4--ci-infrastructure-rota-en-main)
+5. [⏸ Bloqueado por input usuario](#5--bloqueado-por-input-usuario)
+6. [📋 Plan actual (orden de trabajo recomendado)](#6--plan-actual-orden-de-trabajo-recomendado)
+7. [✅ Cerrado verificado (compacto)](#7--cerrado-verificado-compacto)
+8. [🔮 Pendiente Day-1 — mobile + jurisdicciones + features](#8--pendiente-day-1)
+9. [🗑 Descartado por directiva](#9--descartado-por-directiva)
+10. [📚 Docs deprecated (no consultar)](#10--docs-deprecated-no-consultar)
+11. [Convenciones para mantener este TODO vivo](#11-convenciones-para-mantener-este-todo-vivo)
 
 ---
 
-## Prioridad 14: Mejoras Phase 3 — Escala, Roles y Conocimiento Colectivo
+## 1. Estado honesto por dominio
 
-*Implementadas y pendientes de la refactorización de roles por proyecto, modelo de precios y sistema de conocimiento de controles.*
+Cada dominio se mide:
+- 🟢 **E2E** — flujo completo cableado, persistencia, tests, env vars usables en prod
+- 🟡 **PARCIAL** — lógica existe pero falta wire crítico / secret / sensor / test
+- 🔴 **SHELL** — UI sin backing real (o backing fingido)
 
-### Completado ✅
-- [x] **Nuevo modelo de precios (4 planes):** Libre / Profesional ($10) / Empresa ($35) / Corporativo ($90). Filosofía: paga por escala, no por funciones. Todos los módulos de seguridad incluidos en todos los planes.
-- [x] **SubscriptionContext rediseñado:** Límites por proyectos, trabajadores/proyecto, equipo/proyecto. Migración automática de planes legacy. `canAccessExecutiveDashboard`, `canUseAPI` expuestos.
-- [x] **Pricing.tsx rediseñado:** Tabla comparativa completa mostrando todas las funciones disponibles. Sin bloqueo de características de seguridad por plan.
-- [x] **Roles por proyecto:** `Project` interface exportada con `memberRoles`, `createdBy`. El creador se asigna como `gerente` al crear.
-- [x] **Sistema de invitaciones:** 5 endpoints en `server.ts` (invite, accept, list members, remove, cancel invite). Colección `invitations` con reglas Firestore.
-- [x] **TeamManagementModal:** Gestión de equipo desde Projects.tsx (ícono Users). Listado de miembros con roles, formulario de invitación, invitaciones pendientes con cancelación, eliminación de miembros.
-- [x] **PendingInvitesBanner:** Banner en tiempo real (Firestore onSnapshot) para invitaciones pendientes. Aceptar desde el banner sin ir al correo.
-- [x] **Sistema de conocimiento de controles (tipos):** `NodeType.CONTROL`, interfaces `ImplementationGuide`, `ImplementationSpec`, `ImplementationEquipment`, campo `implementationGuide?` en `RiskNode`.
+| Dominio | % E2E | Tendencia desde 2026-05-05 | Notas |
+|---|---|---|---|
+| **Auth / RBAC** | 95% | — | WebAuthn cliente cierra envío de id/rawId (#264 + sweep) |
+| **Multi-tenant rules** | 85% | ⬆️ +5pp | tenants/* matcher + cross-tenant tests |
+| **Emergencia (SOS / Fall / Push)** | 92% | ⬆️ +2pp | FCM users/{uid}.fcmTokens migrado (#265 wave) |
+| **Billing (Webpay / MP / IAP / Google Play)** | 88% | ⬆️ +3pp | Webhooks audit replay; **falta** MP IPN HMAC SHA-256 verify production wire |
+| **AI / Gemini / Vertex (inferencia)** | 80% | ⬆️ +5pp | Adapter inferencia real; Trainer sigue STUB (NO descartar el bug) |
+| **AI offline (SLM)** | 80% | ⬆️ +15pp | Phi-3 + Qwen SHA-256 reales; **Gemma SHA-256 null** todavía |
+| **Compliance Chile (DS54/594/109/132 + Ley 16.744)** | 80% | ⬆️ +10pp | CPHS + DIAT/DIEP cerrados |
+| **Compliance global (ISO 45001 + jurisdicciones)** | 45% | ⬆️ +20pp | 6 jurisdicciones nuevas (E.4); **falta** UK/CA/AU/JP/KR/IN wire UI |
+| **i18n** | 91% | ⬆️ +46pp | 109/119 páginas con `useTranslation`; **quedan 10 páginas** |
+| **Health Vault (ADR 0012)** | 85% | ⬆️ +5pp | Disclaimer + QR sharing |
+| **CPHS Comité Paritario** | 80% | ⬆️ +30pp | Service + UI card (#265); falta endpoint admin |
+| **DIAT/DIEP SUSESO** | 75% | ⬆️ +15pp | PDF real + folio + firma; **falta** WebAuthn ceremony real |
+| **Mesh BLE/WiFi Direct** | 70% | ⬆️ +35pp | Plugin Android Kotlin **real (552 LOC)** + iOS Swift; falta consumer en src/ |
+| **PWA / Offline / Sync** | 92% | ⬆️ +2pp | SW models cache + outbox engine (#245-246) |
+| **Native plugins (HealthKit/HealthConnect)** | 40% | ⬆️ +10pp | Foundation; **bloqueado** por keystores |
+| **Photogrammetry (COLMAP / Modal)** | 75% | ⬆️ +15pp | Worker Cloud Run real (325 LOC); falta deploy |
+| **Digital Twin (3D mesh + AR)** | 80% | ⬆️ +15pp | InstancedMesh + Rapier + WebXR foundation (D.1+E.1) |
+| **CQRS / Event Store** | 75% | ⬆️ +75pp | Real productivo (#261) — Event Store + aggregates + read model |
+| **Bernoulli generators** | 50% | ⬆️ +5pp | Mayoría sin UI consumer; StructuralCalc va a logger.info, no Firestore |
+| **Telemetry / Wearables** | 75% | ⬆️ +5pp | Telemetry.tsx real; WearablesPanel sigue UI-only |
+| **Tests** | 70% | ⬆️ +20pp | 766 archivos; **8040 passing / 394 failing** (exit 0 silencia) |
+| **Stryker mutation** | 72% global | — | Limiters todavía 3% por Windows crash |
+| **Observability (Sentry + OTel)** | 90% | ⬆️ +5pp | Coverage sweep + CSP final (#249) |
+| **Mobile build pipeline** | 50% | ⬆️ +20pp | Foreground Service C.2 + capacitor-proximity C.3; **falta** keystore prod |
+| **CI/CD** | 75% | ⬇️ -15pp | **3 workflows rotos en main** (ver §4) |
 
-### Pendiente 🔲
-- [ ] **Página de aceptación de invitaciones vía email (`/invite`):** Landing page pública que acepta el token desde query string. Si el usuario no tiene sesión muestra botón "Aceptar con Google". Si tiene sesión, llama `POST /api/invitations/:token/accept` automáticamente y redirige a proyectos. Incluye endpoint público `GET /api/invitations/info/:token` (sin auth) para previsualizar el proyecto y rol.
+**Promedio ponderado E2E: ~70%** (subió desde 62% el 2026-05-05 tras 56 PRs mergeados + Codex sweep).
 
-### Completado ✅ (antes Pendiente)
-- [x] **UI de Guía de Implementación:** Formulario embebido en la vista de detalle de nodos tipo CONTROL para capturar: pasos de implementación, especificaciones técnicas (clave + valor + unidad), equipos requeridos (nombre + norma + cantidad), restricciones ambientales, tasa de éxito, nº de implementaciones y notas contextuales.
-- [x] **Enforcement de límites de plan en createProject:** Se verifica `PLAN_LIMITS[plan].projects` en Projects.tsx antes de mostrar el botón de crear. Si el usuario alcanzó el límite se muestra link a `/pricing`.
-- [x] **Dashboard Ejecutivo (Empresa/Corporativo):** KPIs cruzados entre proyectos en `/executive-dashboard`. Gate por `canAccessExecutiveDashboard`. Gráficos con recharts, PDF export, resumen IA.
-- [x] **Envío de invitaciones por email:** Resend SDK integrado en server.ts. `POST /api/projects/:id/invite` envía email branded con botón CTA al token de aceptación.
-- [x] **Compresión de imágenes en cliente:** Canvas API implementada en `ProjectDocuments.tsx` y `OfflineSyncManager.tsx`. Comprime imágenes antes de subir a Firebase Storage.
-- [x] **Carga diferida inteligente (Lazy Modals):** `TeamManagementModal`, `SyncCenterModal`, `MFASetupModal` lazy-loaded con React.lazy + Suspense.
+---
 
-## Prioridad 7: La "Resina Nativa" (Estrategia Capacitor)
+## 2. 🔴 CRÍTICO inmediato — false completeness verificada
 
-_Transformación de la PWA en una aplicación móvil nativa real con acceso a hardware de bajo nivel._
+> **Estos items pretenden funcionar pero NO lo hacen.** Verificados con código en mano por agentes paralelos 2026-05-15. **Para una app de prevención de riesgos, esto es inaceptable** — empresas podrían tomar decisiones de vida basadas en datos fingidos.
 
-### Fase 1: El Blindaje del Navío (Configuración Inicial)
-- [x] **Integración Capacitor:** Instalar `@capacitor/core` y `@capacitor/cli`.
-- [x] **Inicialización:** Crear `capacitor.config.ts` apuntando a la carpeta `dist`.
-- [x] **Añadir Plataformas:** Integrar proyectos nativos de Android e iOS.
+### 2.1 🔴 MFA SMS bypass (P0 SEGURIDAD)
+**Archivo:** `src/components/auth/MFASetupModal.tsx:34-63`
 
-### Fase 2: Sustitución Táctica de Sensores (Plugins Nativos)
-- [x] **Geolocalización Inquebrantable:** Reemplazar `navigator.geolocation` por `@capacitor/geolocation` con permisos "Background" (Siempre activado).
-- [x] **Autenticación Biométrica Nativa:** Integración segura con lectores de huella dactilar o FaceID de los dispositivos físicos a través de plugins oficiales de Capacitor, permitiendo firmar PTS o aprobar matrices rápidamente. *(Sprint 26+ — WebAuthn/biometric refs en Settings.tsx + verifyTwinStepUp middleware; Sprint 30 LL ARKit Quick Look + WebAuthn UI completaron el flujo).*
-- [x] **Sensores de Caída Nativos:** Usar `@capacitor/motion` para leer el acelerómetro directamente, saltando las restricciones de ahorro de energía web. Activar solo en tareas de alto riesgo (ej. trabajo en altura) para ahorrar batería.
-- [x] **Almacenamiento de Supervivencia:** Migrar de IndexedDB a `@capacitor-community/sqlite` para almacenamiento masivo y persistente sin conexión.
-- [x] **Bluetooth Nativo:** Reemplazar Web Bluetooth API por un plugin nativo de Capacitor para mayor estabilidad con Wearables.
+`handleSendCode` y `handleVerifyCode` solo hacen `setTimeout(..., 1500)` y retornan éxito sin enviar SMS real ni verificar código. **Cualquier código de 6 dígitos pasa la verificación MFA** — bypass total de la segunda factor. Solo el path biométrico (`handleBiometricSetup` con WebAuthn) hace algo real.
 
-### Fase 3: El Sistema de Alertas (Push Notifications)
-- [x] **Push Notifications Críticas (FCM):** Integrar completamente `@capacitor/push-notifications` con Firebase Cloud Messaging para asegurar que las alertas de incidentes, derrames HAZMAT o sismos suenen inmediatamente incluso con la aplicación totalmente cerrada en el teléfono. *(Sprint 27 H7 + `src/hooks/usePushNotifications.ts` + `Notifications.tsx`; cross-collection lookup `users/{uid}.fcmTokens`; falta `VITE_FIREBASE_VAPID_KEY` prod).*
+**Fix esperado:**
+- Integrar Twilio Verify API o Firebase Auth Phone (bloqueado por credenciales Twilio — ver §5)
+- Mientras tanto: **deshabilitar el path SMS** y forzar a usuarios a usar biometric/TOTP
 
-### Fase 4: Pruebas de Terreno
-- [x] **Compilación y Sincronización:** Ejecutar build y sincronizar con Android Studio / Xcode para pruebas en dispositivos físicos reales.
+### 2.2 🔴 AuditTrail.tsx fake (P0 COMPLIANCE)
+**Archivo:** `src/pages/AuditTrail.tsx:12-24`
 
-## Prioridad 8: El Haki del Rey (Seguridad y Jerarquía)
+La "Caja Negra / Audit Trail" muestra 5 entradas hardcoded (`'Creación de matriz base para Proyecto Alpha'`, etc.) tras `setTimeout(..., 1500)`. **La página NO lee Firestore** aunque el backend (`src/server/routes/audit.ts`) sí existe y persiste eventos reales. Documenta-fake con consecuencias legales (ISO 45001 §10.2 audit trail).
 
-- [ ] **Matriz de Permisos:** Diseñar tabla de roles (Gerente, Supervisor, Prevencionista, Trabajador).
-- [ ] **Custom Claims (Cloud Function):** Script seguro para inyectar roles en el token de usuario.
-- [ ] **Bloqueo en firestore.rules:** Exigir roles específicos para operaciones de escritura/lectura.
-- [ ] **Protección de Auditoría (Append-Only):** Reglas para que `Audit Trail` solo acepte `create`, bloqueando `update` y `delete`.
-- [ ] **Decodificación Front-end:** Ocultar UI no autorizada basada en el token decodificado.
-- [ ] **Desconexión Forzada:** Lógica para revocar acceso y forzar cierre de sesión desde el backend.
+**Fix:** Wire `useAuditLog()` hook a `GET /api/audit-log?projectId=...`.
 
-## Prioridad 9: El Cerebro Externo (Motor RAG y Vector DB)
+### 2.3 🔴 EvacuationRoutes "A*" es interpolación lineal (P0 EMERGENCIA)
+**Archivos:**
+- `src/pages/EvacuationRoutes.tsx:129-143` — devuelve `simulatedPath` hardcoded
+- `src/services/routingBackend.ts:37,46` — comentario literal: *"Basic interpolation (10 steps)"*
 
-- [x] **Elección de Vector DB:** Optimizamos el uso de Firestore y background triggers en lugar de Pinecone como primera iteración para el almacenamiento y búsqueda semántica de nuestros embeddings y documentos RAG.
-- [x] **Pipeline de Ingesta Continua:** Background Triggers implementados en nuestro propio backend `server.ts` que auto-procesan nuevos documentos y reportes de incidentes utilizando Gemini y retroalimentan el Zettelkasten y motor AI.
-- [ ] **Búsqueda Híbrida:** Filtrar por metadatos (ej. proyecto) + similitud semántica.
-- [x] **Endpoint Protegido:** Backend Node.js / Express con endpoints protegidos para consumir la API de Gemini ocultando la `GEMINI_API_KEY` totalmente del cliente frontend.
-- [ ] **Inyección de Contexto Limitado:** Enviar solo los Top 5 fragmentos a Gemini para optimizar costos.
-- [ ] **Streaming de Respuestas:** Server-Sent Events (SSE) para respuestas rápidas letra a letra.
-- [ ] **Bucle de Mejora (RLHF):** Botones "Útil/No útil" para ajustar prompts futuros.
+TODO.md previo decía `[x] Algoritmo A*`. Verificado: **no es A***. Para emergencias es crítico — rutas pre-calculadas no se adaptan a túneles bloqueados / pasillos con fuego reportado.
 
-## Prioridad 10: El Cuarto de Máquinas (Serverless y Cloud Functions)
+**Fix:** Implementar A* real sobre grilla discretizada de planos faena. O degradar honestamente: si no es A*, no decir A* en la UI/docs.
 
-- [ ] **Generador de Reportes (SUSESO/PDFs):** Función con Puppeteer/pdfkit que guarda en Storage y devuelve link.
-- [ ] **Sistema de Alertas Push (FCM):** Trigger `onCreate` en incidentes críticos para notificar a gerencia.
-- [ ] **Webhook de Facturación:** Endpoint para Stripe/Fintoc que activa módulos Premium.
-- [ ] **Sincronización Nocturna con ERP:** Cron Job (Cloud Scheduler) a las 3:00 AM para traer trabajadores de SAP/Defontana.
-- [ ] **Compresión de Evidencia:** Función para optimizar fotos pesadas subidas desde terreno.
-- [ ] **Manejo de Correos:** Integrar SendGrid/Resend para reportes diarios y alertas de Comité Paritario.
-- [ ] **Monitoreo de Errores (Logs):** Conectar Cloud Functions a Google Cloud Logging.
+### 2.4 🔴 BunkerManager fake offline download
+**Archivo:** `src/components/BunkerManager.tsx:25-52`
 
-## Prioridad 11: El Flujo de Pichilemu (Resolución de Conflictos Offline)
+`downloadBunker` simula descarga BCN/3D Models con `setTimeout(500ms × 10)` y escribe objeto literal hardcoded a IndexedDB. **No descarga nada real** — el "bunker offline" se vende como protección para zonas sin señal pero el usuario opera con datos fijos legados.
 
-- [ ] **Marcas de Tiempo Dobles:** Guardar `localUpdatedAt` y `serverTimestamp` para trazabilidad exacta.
-- [x] **Cola de Acciones (Action Queue):** Usar almacenamiento local (Capacitor/IDB) para encolar operaciones offline.
-- [ ] **Colisiones de Sincronización en IPER:** Reemplazar el sistema crudo de "El Último Gana". Si dos supervisores editan la *misma matriz*, ambas modificaciones deben quedar como opciones concurrentes en la UI hasta que un superior lo resuelva (o lo debatan en persona). Si editan riesgos *diferentes* en la misma matriz, hacer un merge inteligente automático, pero siempre ofreciendo la oportunidad de revisar el historial de fusiones.
-- [ ] **Fusión de Listas Inteligente:** Lógica backend para unir listas de asistencia o de EPP marcadas offline.
-- [ ] **Indicador Visual de Salud (Sync):** Ícono de estado en el Dashboard y en la vista de Matriz para indicar cuando hay conflictos de fusión pendientes de revisión por un superior.
+**Fix:** Wire a `bcnService.ts` + asset registry real con fetch + hash verify.
 
-## Prioridad 12: La Red Nerviosa (Broker MQTT para IoT Real)
+### 2.5 🔴 NationalParksEmergency pronóstico fabricado
+**Archivo:** `src/pages/NationalParksEmergency.tsx:43,51`
 
-- [ ] **Selección del Broker Industrial:** Integrar AWS IoT Core o EMQX.
-- [ ] **Integración IoT Total (MQTT Broker):** Conexión de telemetría masiva de maquinaria pesada sin colapsar la base de datos Firestore (aislar los datos puros en el broker de hardware).
-- [ ] **Jerarquía de Tópicos (Topics):** Diseñar rutas limpias (ej. `empresaA/mina1/camion_4/telemetria`).
-- [ ] **Reglas de Ingesta Inteligentes:** Guardar en Firestore solo datos anómalos (ej. Gas > umbral); el resto solo se muestra en vivo.
-- [ ] **Autenticación X.509:** Certificados únicos para sensores y Wearables.
-- [ ] **Latido de Supervivencia (Heartbeat):** Ping cada 5 min de Wearables; alertar si se pierde conexión.
-- [ ] **Conexión en Vivo Front-end:** Websockets (WSS) para telemetría en tiempo real sin recargar.
-- [ ] **Buffers Binarios (Payload):** Transmisión comprimida en formato binario para zonas de baja señal.
+Pronóstico Día 2 y Día 3 con `weatherData.temp + (Math.random() * 4 - 2)`. **Decisiones de evacuación en parques con datos inventados.** El equipo ya corrigió el mismo patrón en `Calendar.tsx` (ver comentario línea 60) pero quedó vivo aquí.
 
-## Prioridad 13: Mejoras Estratégicas y Arquitectura (Fase 10x)
+**Fix:** Wire a `environmentBackend.ts:getForecast(days=3)` real (ya existe).
 
-*Propuestas tácticas para elevar el ecosistema a un nivel predictivo y optimizar la arquitectura del código.*
+### 2.6 🔴 Cálculos Bernoulli van a `logger.info`, no a Firestore
+**Archivos:**
+- `src/components/engineering/StructuralCalculator.tsx:86-95`
+- `src/components/engineering/HazmatStorageDesigner.tsx:76-78`
 
-### Fase 1: Cimientos (Alta Factibilidad - Inmediata)
-- [x] **Refactorización del Árbol de Proveedores (AppProviders):** Agrupar todos los Context Providers en un único componente para limpiar `App.tsx` y facilitar la escalabilidad.
-- [x] **Unificación de la Interfaz de Carga (`<ConsciousnessLoader />`):** Extraer el estado de carga ("Calibrando Conciencia...") a un componente global reutilizable para estandarizar la UX.
+Comentario explícito: *"replace this console emission with addNode() into Firestore"*. **Cálculos de ingeniería estructural (uplift de andamios, distancia segura hazmat) se calculan correctamente pero NO se persisten** — el supervisor ve el número en pantalla pero el Zettelkasten/audit trail no lo registra.
 
-### Fase 2: Quick Wins Estratégicos (Factibilidad Alta)
-- [x] **Sincronización del Despertar Matutino (Gamificación):** Módulo interactivo de check-in al inicio del turno para verificar EPP y estado psicosocial, otorgando XP y fomentando un enfoque mental positivo.
-- [x] **Módulo de Supervivencia Aislada (Siempre Listos):** Expandir la base de datos local (IndexedDB/SQLite) con un "Modo de Emergencia Extrema" que incluya manuales interactivos de primeros auxilios y supervivencia 100% offline.
+**Fix:** Reemplazar `logger.info` con `addNode({type: 'engineering_calc', ...})`.
 
-### Fase 3: Innovación Táctica (Factibilidad Alta)
-- [x] **Oráculo Normativo en Terreno (Asistente de Voz):** Integrar la Web Speech API con Gemini para crear un asistente de voz que responda dudas técnicas sobre normativas (DS 594, Ley 16.744) en terreno, a manos libres.
-- [x] **Gestión Cinética de Escuadrones de Emergencia:** Sistema de asignación de roles dinámicos (líder, comunicador, rescatista) durante un incidente, optimizando el esfuerzo colectivo basado en la ubicación y competencias del personal.
+### 2.7 🔴 Vertex AI Trainer auto-stub (P1 documentación engañosa)
+**Archivo:** `src/services/ml/vertexTrainer.ts:2,128-132`
 
-### Fase 4: Deep Tech y Hardware (Factibilidad Media-Alta)
-- [x] **Auditorías de Protección Visuales (MediaPipe Vision):** Emplear la cámara del dispositivo como escáner automático para verificar el uso de EPP (casco, chaleco) y habilitar el acceso a zonas de riesgo, reduciendo el error humano.
-- [ ] **Digital Twins:** Simulaciones 3D inmersivas a mayor escala utilizando librerías WebGL avanzadas para entrenar personal dentro de réplicas exactas de yacimientos.
-- [x] **Uso Predictivo para la Optimización de Energía:** Conectar la telemetría de wearables (Web Bluetooth API / DeviceMotion) para medir biometría y ritmo de trabajo en tiempo real, anticipando fatiga antes de que se convierta en accidente.
-- [x] **Blindaje de Credenciales:** Asegurar que todas las claves sensibles (como la API Key de Gemini) se procesen exclusivamente del lado del servidor (Cloud Functions o Node.js) para proteger la integridad del ecosistema.
+Línea 2 dice literalmente: *"This module is a STUB intentionally"*. Línea 128 lanza `VertexTrainerError('NOT_ENABLED')` cuando `VERTEX_TRAINING_ENABLED=true`. PERO `HONEST_STATE.md:63` y `AUDIT_BACKLOG.md` dicen "✅ Vertex AI real" — eso se refiere al **adapter de inferencia** (`vertexAdapter.ts`, que SÍ es real), no al trainer.
 
+**Fix:**
+- **Opción A (recomendada):** declarar trainer DESCARTADO oficialmente — solo aplica a tier mega-enterprise, no es prioridad
+- **Opción B:** implementar branch real `JobServiceClient.createCustomJob` de `@google-cloud/aiplatform`
+
+### 2.8 🔴 assetlinks.json SHA-256 placeholder bloquea Play Store
+**Archivo:** `public/.well-known/assetlinks.json:8`
+
+`"sha256_cert_fingerprints": ["REPLACE_WITH_REAL_SHA256_BEFORE_STORE_BUILD"]`
+
+Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keystore real del usuario (§5).
+
+### 2.9 🔴 SLM Gemma 2 2B SHA-256 null
+**Archivo:** `src/services/slm/registry.ts:119`
+
+`expectedSha256: null` — el modelo Gemma no tiene integrity check. Loader debe fail-closed en prod. Bloqueado por DevOps que descargue + compute SHA-256.
+
+### 2.10 🔴 `tryAutoIssueDte` sin caller productivo
+**Archivos:**
+- `src/services/billing/invoice.ts:220-260` — función definida
+- Solo se invoca en `src/server/routes/dte.ts` (admin route manual)
+
+**Ningún webhook Webpay/MP/IAP la llama**. Las facturas pagadas no auto-emiten DTE. Confirma P1-3 del AUDIT_TRUTH_MATRIX.
+
+**Fix:** Llamar `tryAutoIssueDte(invoice)` en los handlers `webpay/return`, `mercadoPagoIpn`, `mark-paid`.
+
+### 2.11 🔴 Tests fallando silenciosamente
+**Estado:** `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit code 0)
+
+CI no falla por estos tests rotos. Algunos pueden ser flakiness, otros regresiones reales. Sin investigar.
+
+**Fix:** Hacer `npm test -- --bail` para detectar regresiones; triage de los 394 failing por archivo.
+
+---
+
+## 3. 🟡 Codex review pendings sin mergear
+
+> Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), **todos cubiertos por PRs #267 y #268 todavía abiertos**.
+
+### PR #267 — Codex fixes de #263 #264 #266 (7 hallazgos)
+- **P1** `firestoreRateLimitStore.ts:83` — keys con `/` (IPv6 CIDR) crean nested doc paths → IPv6 nunca se throttle
+- **P1** `ERPIntegration.tsx:37` — frontend hardcodeaba `erpType: 'mock'` → override env producción
+- **P2** `firestoreSessionStore.ts:127` — TTL como ISO string (Firestore TTL solo evalúa Timestamp)
+- **P2** `firestoreRateLimitStore.ts:122` — mismo TTL bug
+- **P2** `misc.ts:189` — failed sync attempts sin audit log
+- **P2** `misc.ts:143` — legacy erpTypes (oracle/dynamics/odoo) caían al env adapter
+- **P2** `zettelkastenStdioAdapter.ts:76` — `allowedTenantIds: new Set()` → MCP rechazaba todas las requests
+
+### PR #268 — Codex fixes de #250 AI streaming (3 hallazgos)
+- **P2** `AiResponseCard.tsx:150` — tier badge mislabels cuando streaming queda stale
+- **P2** `useResilientAi.ts:120` — SLM adapter ignora `onStreamToken` (UI con caret vacío)
+- **P2** `useResilientAi.ts:108` — late tokens del SLM zombie mutan streaming post-fallback
+
+### Bonus en #267
+- Fix TS narrowing en `KekRotationPanel.tsx:85` (PR #248 dejó 2 errores TS en main)
+
+**Acción:** mergear #267 primero, luego #268 (rebase post-#267 si necesario).
+
+---
+
+## 4. 🟠 CI infrastructure rota en main
+
+> 3 workflows fallan en main desde hace 7+ días. **No es regresión de PRs nuevos** — son fixtures/configs rotos que afectan a todos los PRs abiertos haciéndolos aparecer UNSTABLE.
+
+| Workflow | Última falla | Frecuencia | Impacto |
+|---|---|---|---|
+| `Performance Budgets` | 2026-05-15 | 7+ corridas seguidas | Block visual de PRs |
+| `Playwright full-stack (Express + Firestore emulator)` | 2026-05-15 | 8+ días | E2E gate desactivado en práctica |
+| `Firestore rules tests` | 2026-05-15 | 5+ corridas | Sin gate de rules en CI |
+| `Stryker mutation testing` (Linux) | 2026-05-15 | En PRs #267/#268 | Recurrente |
+
+**Hipótesis investigar primero:**
+- Performance Budgets: ¿Lighthouse CI saltando umbral por bundle size? `npm run size` debería decirlo
+- Playwright full-stack: ¿fixture roto post-Sprint 36 hardening (`continue-on-error: false`)?
+- Firestore rules: ¿emulator timing o regla con cobertura faltante?
+
+**Acción:** Spawn task dedicado a estabilizar estos 3 workflows ANTES de mergear más features. Ver §6.
+
+---
+
+## 5. ⏸ Bloqueado por input usuario (no código)
+
+Estos items no se pueden destrabar con código — requieren acción del usuario fuera del repo:
+
+### Cuentas / suscripciones
+- **Apple Developer Program** ($99/año) → bloquea iOS deploy + AASA Team ID real
+- **Google Play Console keystore** (`*.jks` generado por usuario) → bloquea assetlinks SHA-256 + Play Store
+- **Twilio account + número** → bloquea SMS Verify para MFA path (ver §2.1)
+
+### Secrets a configurar en Cloud Run / Secret Manager
+- `VITE_GOOGLE_MAPS_API_KEY` → 4 mapas + Site25DPanel
+- `VITE_FIREBASE_VAPID_KEY` → FCM web push
+- `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` → Calendar + Fit OAuth
+- `IOT_WEBHOOK_SECRET` → Telemetry HMAC
+- `MP_ACCESS_TOKEN` + `MP_IPN_SECRET` → MercadoPago producción
+- `GOOGLE_PLAY_PACKAGE_NAME` + `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` + `GOOGLE_PLAY_RTDN_TOPIC` → Android billing
+- `SENTRY_DSN` prod + rotar key del leak histórico
+- `KMS_KEY_RESOURCE_NAME` + `KMS_ADAPTER=cloud-kms` → KEK source prod (sin esto, prod NO bootea por preflight)
+- `SCHEDULER_SHARED_SECRET` → Cloud Scheduler gate del maintenance reaper
+- `VERTEX_PROJECT_ID` + `VERTEX_LOCATION` → Vertex AI residencia Latam
+- `Apple Root CA G3 PEM` (descarga oficial Apple) → SSN full-chain verify
+- `DWG_CONVERTER_URL` + `DWG_CONVERTER_TOKEN` + `CAD_OUTPUT_BUCKET` → LibreDWG Cloud Run
+- `PHOTOGRAMMETRY_WORKER_TOKEN` → COLMAP worker Cloud Run
+
+### Documento / proceso externo
+- Apple Root CA G3 PEM (oficial Apple)
+- Acuerdos con mutuales (ACHS/IST/Mutual) para opcional auto-reporte DIAT (recordar: directiva usuario = no push automático, empresa cliente firma+entrega — esto sería **opcional** para clientes que lo soliciten)
+- Traducciones humanas reales para fr/de/it/ja/zh-CN/ar/ko/hi (hoy son stubs ~40 keys cada uno; bloqueado por traductor profesional)
+
+---
+
+## 6. 📋 Plan actual (orden de trabajo recomendado)
+
+> Decisión usuario: mergear pendientes primero, luego cerrar deuda crítica antes de seguir features.
+
+### Sprint inmediato (esta semana)
+
+1. **Mergear #267** (Codex fixes #263/#264/#266 — 2 P1 + 5 P2). Bloquea producto sin riesgos.
+2. **Mergear #268** (Codex fixes #250 streaming — 3 P2). Rebase post-#267.
+3. **Estabilizar 3 workflows de CI rotos** (§4) — task dedicada, no mezclar con features
+4. **Mergear #260** después de rebase contra main (Resilience dashboard E2E wire)
+5. **Mergear o cerrar #85** (TODO docs viejos — este TODO.md lo reemplaza)
+6. **Podar 19 branches dev/sprint-*** viejas (ver `pr-codex-inventory` agent report)
+
+### Sprint siguiente — false completeness sweep (§2)
+
+Por orden de criticidad:
+1. **Fix MFA SMS bypass** (§2.1) — deshabilitar SMS path hasta Twilio creds, forzar biometric/TOTP
+2. **Wire AuditTrail.tsx** (§2.2) → `GET /api/audit-log` real
+3. **Wire NationalParksEmergency** (§2.5) → `getForecast()` real
+4. **Wire BunkerManager** (§2.4) → asset registry real
+5. **Wire StructuralCalculator + HazmatStorageDesigner** (§2.6) → `addNode()` Firestore
+6. **Honestar EvacuationRoutes "A*"** (§2.3) — implementar A* real O renombrar a "Ruta sugerida interpolada"
+7. **Documentar Vertex Trainer como descartado** (§2.7) o implementar real
+8. **Wire `tryAutoIssueDte`** (§2.10) en webhooks billing
+
+### Sprint posterior — Day-1 readiness (mobile + global)
+
+Bloqueado parcialmente por §5 (cuentas usuario). Pendiente:
+- C.1 mobile signing real (cuando llegue keystore)
+- 6 jurisdicciones nuevas (UK/CA/AU/JP/KR/IN) — code listo, falta wire UI
+- 10 páginas restantes i18n sweep
+- Demo project abierto sin login (Day-1)
+- Traducciones humanas (cuando llegue traductor)
+
+### Sprint vigente continuo
+
+Mantener: tests verdes (resolver los 394 failing), CI workflow estable, no agregar nuevos fakes.
+
+---
+
+## 7. ✅ Cerrado verificado (compacto)
+
+> Items con evidencia file:line. Por categoría — referencia rápida para no re-trabajar.
+
+### Seguridad
+- **KMS preflight fail-fast prod** — `src/server/kmsPreflight.ts:27-37` + `server.ts:157-166` (`process.exit(1)` si !ok)
+- **WebAuthn cliente envía `id/rawId/type/clientExtensionResults`** — `src/hooks/useBiometricAuth.ts:184-192`
+- **WebAuthn server verify** — `src/server/routes/curriculum.ts:763-849` (sin fallback consume-only en prod)
+- **Hash chain forense (tamper-proof)** — PR #233
+- **KEK rotation orchestrator + UI panel** — PRs #247 + #248 + #254
+- **Firestore session store (Firestore-backed, multi-instance safe)** — PR #264, `src/server/sessionStore/firestoreSessionStore.ts`
+- **Firestore rate limit store (multi-pod atomic via runTransaction)** — PR #264
+
+### Billing
+- **Webpay returnUrl + plan normalize** — `src/server/routes/billing.ts:560` + `src/services/pricing/subscriptionPlan.ts`
+- **Apple SSN v2 webhook (JWS verify + idempotency)** — `src/server/routes/billing.ts:1763` (PR #232)
+- **Google Play receipts validator (subscriptionsv2.get)** — `src/services/billing/googlePlayValidator.ts`
+- **Apple App Store Server API validator** — `src/services/billing/appleTransactionValidator.ts`
+- **MercadoPago x-signature HMAC SHA-256 validate** — `src/services/billing/mercadoPagoIpn.ts`
+- **MercadoPago IPN mounted** — `server.ts:676` → `billing.ts:959` (rectifica claim P0 del TECHNICAL_DEBT_AUDIT)
+- **ERP /sync honesto multi-modo** — PR #266, `src/services/erp/erpAdapter.ts` (reemplaza setTimeout fake)
+- **Five premium fake pages → real** — PR #262: SecurityShield (MFA TOTP RFC 6238), ImmutableRender (Puppeteer), SusesoReports (DIAT firma), GoogleDriveIntegrationManager (OAuth real), SSOConfig (SAML/OIDC scaffold real)
+
+### IA / SLM
+- **Vertex AI adapter inferencia real** — `@google-cloud/vertexai 1.12` + `getAiAdapterFor({dataResidency, strict})`
+- **SLM runtime ONNX + Web Worker + AbortSignal** — PRs #234, #239, #241
+- **SLM Phi-3 SHA-256 real** — `src/services/slm/registry.ts:67`
+- **SLM Qwen SHA-256 real** — `src/services/slm/registry.ts:75`
+- **SLM encrypted offline queue** — PR #238
+- **SLM in-app downloader UX** — PR #237
+- **SLM auto-trigger reconciliation online/FCM** — PR #235
+- **Resilient AI orchestrator 5-tier (SLM → ZK → Firestore → Gemini → canned)** — PRs #221-#229
+- **Streaming SLM tokens UI** — PR #250 (con fix en PR #268 abierto)
+
+### Mobile / IA local
+- **BLE Mesh plugin Android Kotlin REAL (552 LOC GATT)** — `packages/capacitor-mesh/android/src/main/java/com/praeventio/mesh/MeshPlugin.kt`
+- **BLE Mesh plugin iOS Swift CoreBluetooth** — PR #5503d50
+- **Foreground Service Android (@capawesome)** — PR #0320389 (C.2)
+- **capacitor-proximity sensor** — PR #784a9c3 (C.3)
+- **SOS orchestrator + GPS breadcrumbs** — PR #a333c01 (C.5)
+- **Mobile signing scripts + runbook + CI check** — PR #236 (config, no keystore real aún)
+
+### Compliance
+- **DIAT/DIEP PDF render real (pdfkit + folio atómico + WebAuthn signature)** — `src/services/suseso/diatPdfRenderer.ts`
+- **CPHS module (DS 54 + ISO 45001 §5.4)** — `src/services/cphs/` + `src/components/cphs/CphsCommitteeStatusCard.tsx`
+- **Job Safety Analysis (AST) + ISO 45001 hierarchy** — PR #259
+- **Work permits validators (izaje/excavación/LOTO)** — PR #258 (36 tests)
+- **Regulatory framework abstraction + 11 jurisdicciones** — ADR 0014 + `src/services/regulatory/jurisdictions/`
+- **Privacy regimes 11+ países (GDPR/CCPA/CPRA/LGPD/Ley 19628/PIPEDA/APPI/PDPA/PIPL/152-FZ/PIPA-TW)** — `src/services/privacy/registry.ts`
+- **EPP expiry job + checkExpiredPpe wired a maintenance reaper** — PR #28b3d9a
+
+### Twin 3D + AR
+- **InstancedMesh + LOD + Rapier physics (D.1)** — `src/components/twinScene/TwinSceneInstanced.tsx` + `TwinPhysicsScene.tsx`
+- **Cargo stowage 3DBPP + COG (D.2)** — `src/services/cargo/stowageOptimizer.ts`
+- **HVAC 1R1C thermal + CO2 + ventilation (D.3)** — `src/services/hvac/thermalModel.ts`
+- **WebXR foundation + platform policy (E.1)** — PR #257
+- **OSHA/ILO safety KPIs (D.10)** — `src/services/safetyMetrics/osha.ts`
+
+### Zettelkasten + persistence
+- **MCP Zettelkasten read-only stdio (D.11)** — `src/services/mcp/zettelkastenStdioAdapter.ts`
+- **ZK canonical materializer (D.8.c)** — PR #435bca9
+- **Site Book CRDT layer (multi-supervisor concurrent edits)** — PRs #251, #256
+- **Generic offline outbox engine + encrypted adapter** — PRs #245, #246
+- **CQRS Event Store + Incident aggregate + read model** — PR #261 (51 tests)
+
+### Wire UI cards (Sprint K/L sin UI antes)
+- **CphsCommitteeStatusCard + LeadershipTrailCard + EngineeringInventoryCard + MonthlyClientReportPanel + PrivacyDsarPanel** — PR #265
+
+### CI / Observability
+- **e2e workflow `continue-on-error: false`** — `.github/workflows/e2e.yml:90`
+- **Sentry coverage server + CSP final + i18n sweep (D.13.a/b/c)** — PRs #116d42e, #891802d, #49beca3
+- **Lint script honesto (real ESLint sobre firestore.rules)** — PR #264
+- **Resilience health alert cron + FCM** — PR #249
+
+---
+
+## 8. 🔮 Pendiente Day-1
+
+### Mobile pipeline
+- **Android signing real** — `*.jks` keystore + `signingConfigs` en `android/app/build.gradle` (bloqueado por §5)
+- **iOS provisioning + APNS p8** — bloqueado por Apple Developer Program (§5)
+- **HealthConnect Android plugin nativo real** — foundation hecha; falta dance fuera de Telemetry.tsx
+- **HealthKit iOS plugin nativo real** — idem
+- **Apple Pay / Google Play Billing UI nativa Capacitor** — webhooks server listos; falta plugin frontend
+
+### Compliance global expansion
+- **Wire UI citation snippets** para los 6 nuevos jurisdiction packs (UK/CA/AU/JP/KR/IN) — code en `src/services/regulatory/jurisdictions/` listo, falta UI
+- **Tier "Global" en pricing** — multi-jurisdicción simultáneo (Sprint posterior)
+- **Per-country emission adapters** (doc-only, no push) — solo Chile cerrado; pendiente: US OSHA, UK RIDDOR, EU OSHA + Delt@/INAIL, MX NOM-019, BR NR-5, AU WHS, CN GB/T 33000, RU 152-FZ
+
+### i18n
+- **10 páginas restantes sin `useTranslation`** — verificar cuáles con `grep -L useTranslation src/pages/*.tsx` y wirearlas
+- **Traducciones humanas** fr/de/it/ja/zh-CN/ar/ko/hi (hoy stubs ~40 keys) — bloqueado §5
+
+### Roadmap features pendientes (Sprint 29-32 candidato)
+- **F-A CalculatorHub** — 12 generadores Bernoulli sin UI consumer (gas dispersion, confined-space HVAC, respirator fatigue, pulmonary altitude, slope stability, dike hydrostatic, gas leak, misting dust, micro-wind, SLAM photogrammetry, hidrante fire network, scaffold wind suction)
+- **F-B RAG NL sobre incidentes históricos del tenant**
+- **F-D Gamification × salud** (días sin incidentes, awards) — sin tocar matriz IPER (directiva)
+- **F-E Predictive Alerts × Calendar** — pre-warnings tareas críticas wind/seismic
+- **F-F WebAuthn UI Settings** — backend completo, falta UI registro/listing credenciales
+
+### Productos pendientes (mencionados sin implementar)
+
+1. **MQTT IoT Broker productivo** — adapter existe (`src/services/iot/mqttAdapter.ts`); el cloud-iot/emqx están detrás de `IOT_BROKER_ADAPTER=cloud|emqx` env (default InMemory). Faltan: jerarquía de tópicos formal, X.509 device cert flow, heartbeat, WSS frontend, payload binario
+2. **WebXR `immersive-ar` end-to-end Android** — foundation existe; falta wire ARCore real + hit-test stability
+3. **ARKit Quick Look fallback iOS** (`.usdz`) — sin implementar (Sprint posterior)
+4. **Object lifecycle Calendar wire** — `useObjectLifecycle` hook que dispare CalendarEventSpec a Google Calendar cuando un PlacedObject pasa a `installed`
+5. **Geo-anchored ZK retrieval** — `useGeoAnchoredNodes(projectId, lat, lng, radiusM)` con Haversine
+6. **Digital Twin Faena backend COLMAP deployado** — worker existe (`cloud-run/photogrammetry-worker/`), falta deploy real
+7. **CSV ETL universal con import wizard** — Sprint 24 base; falta hub + detección automática schema
+8. **Onboarding wizard step-by-step UI** — endpoint backend listo
+9. **Coach IA por dominio** — hoy es un Asesor único; especializar por módulo (medicina/ergonomía/SST)
+10. **DS 67/76 reports PDF** — similar a DIAT/DIEP; pendiente
+11. **CLI + migration registry + SLO dashboard**
+12. **Twin triple-gate auth wire global** (ADR 0011) — hoy solo Site25DPanel y DigitalTwinFaena
+13. **AnatomyLibrary + DifferentialDiagnosis + DrugInteractions** — bundle OpenMedicalData CC0 + DrugBank + HCPCS
+14. **VitalityMonitor backend** — wire a healthFacade native plugins
+15. **MediaPipe Pose en AIPostureAnalysisModal** — hoy usa Gemini-vision; debería usar MediaPipe local (deps disponibles)
+16. **MorningRoutine slot persistencia** — UI existe, falta persistir respuestas
+17. **DynamicEvacuationMap / Coastal / Volcanic Maps con keys reales** — placeholder Maps key
+
+### Tests pending (H33)
+- ~184 componentes sin test cubiertos; triage por criticidad (priorizar emergency + billing + compliance + medical)
+- Modales workers/medicine (AddWorkerModal, EditWorkerModal, MassImportModal, AccessControlModal, TraceabilityModal, QRCodeModal, LaborManagementModal, DocsModal, AddMedicineModal, AptitudeCertificateForm, VigilanciaScheduler, AIPostureAnalysisModal, AddErgonomicsModal, AddPsychosocialModal, AddHygieneModal)
+- EmergencyOverlay sin test (`src/components/shared/EmergencyOverlay.tsx`)
+- 394 tests existentes fallando — triage por dominio
+
+### P2/P3 audit backlog restante
+- **H1** Doc DWG desfasada
+- **H3** Stripe pre-flight messaging (Stripe **descartado** por usuario; eliminar referencias del doc en lugar de "pre-flight")
+- **H5** SII pre-flight messaging (3 adapters stub: LibreDTE, OpenFactura, SimpleAPI)
+- **H19** KnowledgeGraph `as any` x18 cleanup
+- **H22** KnowledgeGraph virtualización + Web Worker (>1k nodos)
+- **H23** backgroundTriggers concurrency (Promise.all concurrency 10)
+- **H24** Code splitting eager (KG, Site25D, PortableCurriculum a React.lazy)
+- **H27** Geofence permission UX surface (toast cuando navegador deniega)
+- **H30** verificar `/processing-activities` no fugue por tenantId
+- **H31** Stryker en CI Linux ratchet (crash Windows bloquea)
+- **H32** Seeds determinísticos en 8 archivos test
+
+---
+
+## 9. 🗑 Descartado por directiva
+
+> Items que **NO** se van a implementar. Si aparecen en docs viejos, ignorar.
+
+| Item | Razón |
+|---|---|
+| **Vertex AI Agent SDK como runtime productivo** | Runtime productivo en Gemini + Vertex AI Agent Builder (no SDK). Claude Code solo desarrollo. |
+| **Vertex AI Trainer custom** | Solo aplica tier mega-enterprise; no es prioridad. Adapter inferencia sí real. Ver §2.7 — decidir si mantener stub o documentar oficial. |
+| **Stripe** | Reemplazado por Transbank/Webpay + MercadoPago + Google Play Billing + Khipu. |
+| **Cripto / Tokens / `useBinanceIntegration.ts`** | Pausado/descartado por el usuario. |
+| **Gamificación ↔ Probabilidad de Riesgo** | Por principios de seguridad y responsabilidad legal, gamificación NUNCA altera matriz IPER. Solo recomendar. |
+| **Push automático a APIs SUSESO/SII/MINSAL/OSHA/RIDDOR/NOM/NR/MEM/Rostrud** | Directiva 3 usuario: generamos documento, empresa cliente firma+entrega manualmente. Adapters quedan **doc-only**. |
+| **Generación dinámica de rutas A* por LLM** | Reemplazada por A* determinista (mejor decisión legal) — aunque ahora código es interpolación, ver §2.3. |
+| **Scraping público SUSESO accidentabilidad** | Reemplazado por cálculo interno (Dashboard Cumplimiento SUSESO). |
+| **Bloqueo de maquinaria** | Directiva 2 usuario: NUNCA bloquear maquinaria, solo recomendar científicamente. |
+| **ODA File Converter binary** | License comercial — pivotamos a LibreDWG Cloud Run (proxy real existe). |
+| **Fatiga Humana → reasignar tareas automáticamente** | Solo notificar al supervisor (directiva: no bloquear, no decidir por humano). |
+
+---
+
+## 10. 📚 Docs deprecated (no consultar)
+
+> Estos docs tienen claims optimistas/incorrectos. **Este TODO.md los supersede.** No actualizar — solo usar como referencia histórica.
+
+- `STATE_OF_FUNCTIONALITY_2026-05-04.md` — reportaba 99% E2E (era 62%, hoy ~70%)
+- `INFORME_AVANCE_NOTEBOOK_LLM.md` — reporta 81.29%/77.33% (auto-generado, no auditado)
+- `INFORME_ESTADO_2026-04-29.md` — anterior al audit profundo
+- `ROADMAP.md` + `ROADMAP_2026-05.md` + `PLAN_PARTE1/2/3/4_*.md` — fases ya cerradas (Sprint 27-56); items aún listados ahí ya están en §7 verificados
+- `MASTER_PROPOSAL_2026-05.md` — proposal histórica
+- `TECHNICAL_DEBT_AUDIT.md` (2026-05-07) — 2 items fueron rectificados por `AUDIT_TRUTH_MATRIX_2026-05-07.md` (WebAuthn endpoints SÍ existen; MercadoPago IPN SÍ montado). El resto del doc sigue válido como mapa histórico.
+
+**Docs vivos y autoritativos (consultar):**
+- ✅ **Este `TODO.md`** — fuente única de verdad
+- ✅ `docs/audits/PRAEVENTIO_HONEST_STATE_2026-05-05.md` — % por dominio (algo desactualizado pero útil)
+- ✅ `docs/audits/AUDIT_BACKLOG.md` — backlog vivo por hallazgo (H##)
+- ✅ `docs/audits/AUDIT_TRUTH_MATRIX_2026-05-07.md` — matriz de claims rectificados
+- ✅ `docs/audits/AUDIT_CODEX_2026-05-07.md` — Codex P0/P1/P2 (verificar contra commits recientes)
+- ✅ Architecture Decision Records `docs/architecture-decisions/0001-0017` — decisiones inmutables
+- ✅ Runbooks `docs/runbooks/` — operacionales
+
+---
+
+## 11. Convenciones para mantener este TODO vivo
+
+1. **Cada PR mergeado actualiza esta sección**:
+   - Si cierra hallazgo §2 → mover a §7 con file:line
+   - Si cierra item §8 → mover a §7
+   - Si descubre nuevo fake → agregar a §2 con evidencia file:line
+   - Si Codex deja hallazgo nuevo → agregar a §3
+
+2. **NUNCA marcar ✅ sin evidencia file:line.** Una app de prevención no permite falsa completeness.
+
+3. **Cada PR body debe referenciar este doc**:
+   - `Cierra: §2.X` (false completeness) o
+   - `Cierra hallazgo: H##` (audit backlog) o
+   - `Implementa: F-X` (roadmap feature)
+
+4. **Cuando un dominio en §1 cambie ≥5pp** en cobertura E2E → agregar nota en commit message + actualizar tabla.
+
+5. **Revisión mínima:** cada 2 semanas, agente parallel scan para detectar drift entre docs y código.
+
+6. **Métrica honesta de éxito:** cuando el promedio ponderado §1 llegue ≥95% → abrir issue "Day-1 readiness checklist" cruzando este TODO + §5 secrets + §5 cuentas + verificación pentest externa.
+
+---
+
+**Próxima revisión profunda:** post-merge de #267 + #268 + cleanup §2 (estimada 2026-05-22).
