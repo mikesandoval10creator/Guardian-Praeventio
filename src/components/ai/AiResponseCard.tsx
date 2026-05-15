@@ -34,13 +34,34 @@ import type {
 } from '../../services/ai/resilientAiOrchestrator';
 
 interface AiResponseCardProps {
-  response: AiResponse;
+  /**
+   * Respuesta final del orchestrator. Si `streaming` está set, este prop
+   * puede ser null/undefined hasta que termine el streaming.
+   */
+  response?: AiResponse | null;
   /** Callback al click en una citation. */
   onCitationClick?: (citation: AiCitation) => void;
   /** Si está set, muestra el prompt original encima de la respuesta. */
   prompt?: string;
   /** Override: oculta el footer de telemetría (tier badge + latency). */
   hideTelemetry?: boolean;
+  /**
+   * Estado de streaming token-by-token desde el SLM worker. Cuando está
+   * presente, la card renderiza el texto en construcción + caret + skipea
+   * citations/footer hasta que el caller swap `response` final.
+   *
+   * El caller es responsable de:
+   *   - Incrementar `text` con cada token desde el worker
+   *   - Limpiar este prop al recibir el `final` y pasar `response`
+   */
+  streaming?: {
+    /** Texto acumulado hasta ahora. */
+    text: string;
+    /** Cuántos tokens / chunks recibidos. */
+    tokensReceived: number;
+    /** Tier que está streameando (típicamente 'slm'). */
+    tier?: AiTier;
+  } | null;
 }
 
 const TIER_META: Record<
@@ -122,25 +143,42 @@ export function AiResponseCard({
   onCitationClick,
   prompt,
   hideTelemetry = false,
+  streaming,
 }: AiResponseCardProps) {
   const { t } = useTranslation();
-  const tierMeta = TIER_META[response.tier];
+  const isStreaming = Boolean(streaming);
+  const tierForBadge = streaming?.tier ?? response?.tier ?? 'slm';
+  const tierMeta = TIER_META[tierForBadge];
+
+  // Si solo hay streaming (sin response todavía) → render skeleton + stream.
+  // Si hay response (con o sin streaming) → render lo final, ignorando stream
+  //   (el caller debió limpiar `streaming` al recibir el final).
+  // Si hay ambos (caso edge) → response gana.
+  const displayText = response
+    ? response.text
+    : streaming
+      ? streaming.text
+      : '';
 
   // Group citations by kind for cleaner rendering.
   const citationsByKind = new Map<AiCitation['kind'], AiCitation[]>();
-  for (const c of response.citations) {
-    const existing = citationsByKind.get(c.kind) ?? [];
-    existing.push(c);
-    citationsByKind.set(c.kind, existing);
+  if (response) {
+    for (const c of response.citations) {
+      const existing = citationsByKind.get(c.kind) ?? [];
+      existing.push(c);
+      citationsByKind.set(c.kind, existing);
+    }
   }
 
   return (
     <article
       data-testid="ai-response-card"
-      data-tier={response.tier}
-      data-degraded={response.degraded ? 'true' : 'false'}
+      data-tier={tierForBadge}
+      data-degraded={response?.degraded ? 'true' : 'false'}
+      data-streaming={isStreaming && !response ? 'true' : 'false'}
       className="rounded-2xl border border-stone-500/30 bg-white/70 dark:bg-stone-900/40 p-4"
       aria-label={t('aiCard.aria', 'Respuesta del asistente IA') as string}
+      aria-busy={isStreaming && !response}
     >
       {/* Optional prompt header */}
       {prompt && (
@@ -159,20 +197,45 @@ export function AiResponseCard({
       )}
 
       {/* Degraded banner — only when NOT tier=slm */}
-      {response.degraded && (
+      {response?.degraded && (
         <DegradedBanner tier={response.tier} tierErrors={response.tierErrors} />
       )}
 
-      {/* Response text — preserve line breaks via whitespace-pre-wrap */}
+      {/* Streaming progress indicator — solo mientras llegan tokens */}
+      {isStreaming && !response && (
+        <div
+          data-testid="ai-response-streaming-indicator"
+          data-tokens={streaming?.tokensReceived ?? 0}
+          className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-300 mb-2"
+          role="status"
+          aria-live="polite"
+        >
+          <Cpu className="w-3 h-3 animate-pulse" aria-hidden="true" />
+          {t('aiCard.streaming', 'IA generando…')}
+          <span className="font-mono opacity-60">
+            ({streaming?.tokensReceived ?? 0} tk)
+          </span>
+        </div>
+      )}
+
+      {/* Response text — preserve line breaks via whitespace-pre-wrap.
+          Durante streaming agrega un caret animado al final. */}
       <p
         data-testid="ai-response-text"
         className="text-sm text-stone-800 dark:text-stone-100 leading-relaxed whitespace-pre-wrap mb-3"
       >
-        {response.text}
+        {displayText}
+        {isStreaming && !response && (
+          <span
+            data-testid="ai-response-streaming-caret"
+            aria-hidden="true"
+            className="inline-block w-1.5 h-3.5 ml-0.5 align-middle bg-emerald-500 animate-pulse"
+          />
+        )}
       </p>
 
       {/* Citations grouped by kind */}
-      {response.citations.length > 0 && (
+      {response && response.citations.length > 0 && (
         <div className="mb-3" data-testid="ai-response-citations">
           <p className="text-[10px] uppercase tracking-wide font-bold text-stone-600 dark:text-stone-400 mb-1.5">
             {t('aiCard.citationsLabel', 'Fuentes')} ({response.citations.length})
@@ -221,8 +284,10 @@ export function AiResponseCard({
         </div>
       )}
 
-      {/* Footer: tier badge + confidence + latency */}
-      {!hideTelemetry && (
+      {/* Footer: tier badge + confidence + latency. Solo cuando hay
+          response final — durante streaming la métrica de confidence
+          aún no está computada y el latency es 0. */}
+      {!hideTelemetry && response && (
         <footer
           className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] pt-2 border-t border-stone-500/20"
           data-testid="ai-response-footer"

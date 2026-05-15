@@ -196,4 +196,77 @@ describe('<AiResponseCard />', () => {
     expect(card).toHaveAttribute('data-tier', 'gemini');
     expect(card).toHaveAttribute('data-degraded', 'true');
   });
+
+  describe('streaming', () => {
+    it('streaming sin response: renderiza texto parcial + caret + indicador', () => {
+      render(
+        <AiResponseCard
+          streaming={{ text: 'Estoy gener', tokensReceived: 3, tier: 'slm' }}
+        />,
+      );
+      expect(screen.getByTestId('ai-response-text')).toHaveTextContent('Estoy gener');
+      expect(screen.getByTestId('ai-response-streaming-caret')).toBeInTheDocument();
+      const indicator = screen.getByTestId('ai-response-streaming-indicator');
+      expect(indicator).toHaveAttribute('data-tokens', '3');
+      expect(indicator).toHaveTextContent(/IA generando/);
+    });
+
+    it('streaming sin response: data-streaming="true" + aria-busy', () => {
+      render(
+        <AiResponseCard
+          streaming={{ text: '...', tokensReceived: 1, tier: 'slm' }}
+        />,
+      );
+      const card = screen.getByTestId('ai-response-card');
+      expect(card).toHaveAttribute('data-streaming', 'true');
+      expect(card).toHaveAttribute('aria-busy', 'true');
+    });
+
+    it('streaming sin response: footer + citations NO visibles (aún no hay métrica)', () => {
+      render(
+        <AiResponseCard
+          streaming={{ text: 'parcial', tokensReceived: 2, tier: 'slm' }}
+        />,
+      );
+      expect(screen.queryByTestId('ai-response-footer')).toBeNull();
+      expect(screen.queryByTestId('ai-response-citations')).toBeNull();
+    });
+
+    it('response sin streaming: data-streaming="false" + caret NO visible', () => {
+      render(<AiResponseCard response={response()} />);
+      const card = screen.getByTestId('ai-response-card');
+      expect(card).toHaveAttribute('data-streaming', 'false');
+      expect(screen.queryByTestId('ai-response-streaming-caret')).toBeNull();
+      expect(screen.queryByTestId('ai-response-streaming-indicator')).toBeNull();
+    });
+
+    it('response Y streaming presente (caller no limpió): response gana, no caret', () => {
+      render(
+        <AiResponseCard
+          response={response({ text: 'final' })}
+          streaming={{ text: 'parcial', tokensReceived: 5 }}
+        />,
+      );
+      expect(screen.getByTestId('ai-response-text')).toHaveTextContent('final');
+      expect(screen.queryByTestId('ai-response-streaming-caret')).toBeNull();
+      expect(screen.getByTestId('ai-response-footer')).toBeInTheDocument();
+    });
+
+    it('streaming con tier explícito gemini: badge implícito sigue siendo correcto', () => {
+      render(
+        <AiResponseCard
+          streaming={{ text: 'x', tokensReceived: 1, tier: 'gemini' }}
+        />,
+      );
+      const card = screen.getByTestId('ai-response-card');
+      expect(card).toHaveAttribute('data-tier', 'gemini');
+    });
+
+    it('streaming.text vacío: caret igual visible (UX feedback inmediato)', () => {
+      render(
+        <AiResponseCard streaming={{ text: '', tokensReceived: 0, tier: 'slm' }} />,
+      );
+      expect(screen.getByTestId('ai-response-streaming-caret')).toBeInTheDocument();
+    });
+  });
 });

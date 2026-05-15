@@ -54,6 +54,15 @@ export interface AiQuery {
   userUid?: string;
   /** Contexto adicional (proyecto, ubicación, etc.). */
   context?: Record<string, string | number | boolean>;
+  /**
+   * Streaming hook OPCIONAL — el adapter SLM (y cualquier otro que
+   * soporte streaming) lo invoca por cada token generado. Los adapters
+   * que no soportan streaming simplemente ignoran este campo.
+   *
+   * El orchestrator NO interpreta este hook: solo lo pasa abajo. Caller
+   * lo cablea para alimentar la UI mientras la respuesta se construye.
+   */
+  onStreamToken?: (token: string) => void;
 }
 
 export type AiDomain =
