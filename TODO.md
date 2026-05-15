@@ -4,7 +4,9 @@
 >
 > **Regla #1 (inviolable):** este documento **NO marca ✅ sin evidencia file:line**. Cada claim de "hecho" debe ser verificable con `grep` o `Read` en el código real. Una app de prevención de riesgos NO puede permitirse falsa completeness — vidas dependen de que sepamos qué funciona de verdad.
 >
-> **Regla #2 (decisión usuario 2026-05-15):** "honesto" = **funciona REAL**. Si un feature no funciona, se **REMUEVE** (no se muestra al usuario con un banner "no disponible"). Una app sin un feature es mejor que una app con un feature que miente. Excepciones documentadas explícitamente abajo.
+> **Regla #2 (decisión usuario 2026-05-15):** "honesto" = **funciona REAL**. Si un feature no funciona, primero intentamos producirlo. Solo removemos cuando el usuario lo pide explícitamente (ej: SMS).
+>
+> **Regla #3 (decisión usuario 2026-05-15):** **la respuesta default es PRODUCIR la solución, no etiquetarla ni sacarla.** Si una dependencia externa falla (API key, servicio caído), construimos un fallback REAL (climatología determinística, scratch local, modelo físico) — no un banner "no disponible" ni un grid que colapsa. El usuario nunca debe percibir que algo "está roto" o "pendiente"; debe sentir que la app funciona, porque funciona.
 
 **Última auditoría profunda:** 2026-05-15 — consolidación de 145+ docs internos + 5 agentes paralelos verificando claims contra código real + Codex reviews + PRs mergeados. Reemplaza a las versiones anteriores de TODO/ROADMAP/AUDIT/STATE/HONEST_STATE.
 
@@ -141,30 +143,37 @@ EvacuationRoutes ahora:
 - Frontend persiste el snapshot REAL en IndexedDB con metadata: `lawsCount`, `totalSizeBytes`, `source: 'bcn-api'`
 - UI de error solo cuando hay falla de red/BCN real, con botón "Reintentar descarga" — NO mensaje de "endpoint pendiente"
 
-### 2.5 ✅ NationalParksEmergency REAL — sin fabricación, sin banners (cierre 2026-05-15)
-**Archivo:** `src/pages/NationalParksEmergency.tsx`
+### 2.5 ✅ NationalParksEmergency REAL — predicción con fallback climatológico (cierre 2026-05-15)
+**Archivos:**
+- `src/pages/NationalParksEmergency.tsx` (wire dual-source)
+- `src/services/environment/chileClimatology.ts` (NEW, 16 tests — Regla #3)
 
 **Estado anterior:** pronóstico Día 2/3 con `weatherData.temp + (Math.random()*4-2)`.
 
-**Fix REAL aplicado** (Regla #2 después de iteración con usuario):
-- Consume `GET /api/environment/forecast?days=3` (wrappea OpenWeather 5-day API vía `environmentBackend.ts:getForecast`)
-- Si backend devuelve forecast con datos → renderiza Hoy + Mañana + Día 3 con valores REALES
-- Si backend devuelve `forecast: []` (sin OpenWeather key, sin cuota, sin auth) → **el grid colapsa a 1 columna mostrando solo "Hoy"** desde `fetchWeatherData()` real. SIN banner de "no disponible". SIN Math.random() fabricado. La UI no engaña.
-- Helper `riskForDay()` deriva risk level de datos REALES (`windKmh`, `tempMinC`, `precipMm`)
-- Grid responsive: 1 / 2 / 3 columnas según cuántos días el backend devolvió
+**Fix Regla #3 aplicado** (construir, no etiquetar ni sacar):
+- **Source 1 (preferido):** `GET /api/environment/forecast?days=3` que wrappea OpenWeather 5-day API. Si responde con datos → usar predicción real.
+- **Source 2 (fallback REAL):** climatología chilena DMC 1981-2010 — promedios mensuales 30-año por 7 zonas climáticas (norte_arido, norte_chico, central, sur, austral, altiplano, isla_pascua). Determinístico, mismo input → mismo output, sin Math.random.
+- El forecast SIEMPRE tiene 3 días, NUNCA hay grid colapsado ni banner "no disponible". Solo un badge sutil arriba indica la procedencia (`OpenWeather` verde · `DMC 1981-2010` azul) para que el usuario sepa qué tipo de pronóstico está viendo.
+- `riskForDay()` deriva risk level de datos REALES (`windKmh`, `tempMinC`, `precipMm`), funciona idénticamente con OpenWeather o climatología.
 
-### 2.6 🟡 Cálculos Bernoulli SOLO persisten cuando hay projectId
+### 2.6 ✅ Cálculos Bernoulli SIEMPRE persisten (scratch local + auto-promote) (cierre 2026-05-15)
 **Archivos:**
-- `src/components/engineering/StructuralCalculator.tsx:86-98`
-- `src/components/engineering/HazmatStorageDesigner.tsx:76-103`
+- `src/services/engineering/scratchCalculations.ts` (NEW, 10 tests — Regla #3)
+- `src/components/engineering/StructuralCalculator.tsx:97-114` (wire scratch fallback)
+- `src/components/engineering/HazmatStorageDesigner.tsx:99-118` (wire scratch fallback)
+- `src/contexts/ProjectContext.tsx:120-141` (auto-promote al seleccionar proyecto)
 
-**RECTIFICADO (2026-05-15, Codex feedback):** los comentarios `// TODO Sprint 10+: replace this console emission with addNode()` están desactualizados. El código de Sprint 11 SÍ persiste via `writeNodesDebounced([node], { projectId })` cuando hay proyecto seleccionado (línea 98 y 103). El `logger.info` quedó como observabilidad complementaria, NO como reemplazo.
+**Estado anterior (Codex feedback):** los cálculos persistían SOLO cuando había proyecto seleccionado; sin proyecto eran silently dropped (solo `logger.info`).
 
-**Lo que SÍ falta:**
-- Si el usuario no tiene proyecto seleccionado, los cálculos se calculan y se loggean pero NO se persisten (silently dropped). No hay UI feedback que indique esta condición.
-- Los comentarios stale crean confusión documental.
-
-**Fix:** (1) Limpiar comentarios `TODO Sprint 10+` para reflejar el wire real. (2) Agregar feedback UI cuando `selectedProject` es null indicando que el cálculo no quedó registrado.
+**Fix Regla #3 aplicado** (construir, no agregar UI feedback de error):
+- Nuevo módulo `scratchCalculations.ts` con storage IndexedDB:
+  - `saveScratchCalculation(node, userUid)` — persiste idempotentemente (hash determinístico del payload canonicalizado evita duplicados)
+  - `listScratchCalculations(userUid)` — lista los pendientes del user
+  - `promoteAllScratchToProject(userUid, projectId)` — promueve todo al proyecto
+  - Namespacing por uid: user A no ve scratch de user B; anonymous bucket separado
+- StructuralCalculator + HazmatStorageDesigner: si `selectedProject?.id` existe → Firestore via `writeNodesDebounced`; si no → `saveScratchCalculation()` local
+- ProjectContext: `useEffect` que detecta selección de proyecto + auto-promueve todos los scratch pendientes vía `writeNodesDebounced`
+- Resultado: cálculo NUNCA se pierde. Sin UI de error. Funciona idénticamente con o sin proyecto.
 
 ### 2.7 🔴 Vertex AI Trainer auto-stub (P1 documentación engañosa)
 **Archivo:** `src/services/ml/vertexTrainer.ts:2,128-132`

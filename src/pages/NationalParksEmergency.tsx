@@ -6,6 +6,10 @@ import { Card, Button } from '../components/shared/Card';
 import { fetchWeatherData } from '../services/orchestratorService';
 import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
+// Regla #3 (usuario 2026-05-15): si OpenWeather no responde, NO mostramos
+// menos días — usamos climatología chilena REAL (DMC normales 30-año) como
+// fallback determinístico. El forecast SIEMPRE tiene 3 días.
+import { getClimatologyForecast } from '../services/environment/chileClimatology';
 
 // Codex fake fix §2.5 (2026-05-15): antes el pronóstico Día 2 y Día 3 se
 // fabricaba con `weatherData.temp + (Math.random() * 4 - 2)` — decisiones
@@ -47,29 +51,71 @@ export function NationalParksEmergency() {
   const [parkStatus, setParkStatus] = useState<'open' | 'restricted' | 'closed'>('restricted');
   const [weatherData, setWeatherData] = useState<any>(null);
   const [forecastDays, setForecastDays] = useState<ForecastDay[]>([]);
+  /**
+   * Indica si los días Día 2/3 vienen de OpenWeather (predicción real) o
+   * de la climatología DMC (promedio histórico 30-año). Se muestra como
+   * badge sutil al usuario para que sepa la procedencia, sin esconderlo.
+   */
+  const [forecastSource, setForecastSource] = useState<'openweather' | 'climatology'>('climatology');
   const [loading, setLoading] = useState(true);
+
+  // Coords default — Torres del Paine. En el futuro pueden venir del
+  // proyecto seleccionado / parque elegido por el usuario.
+  const PARK_LAT = -51.0;
+  const PARK_LNG = -73.0;
 
   useEffect(() => {
     const loadClimate = async () => {
       try {
-        // Default to a national park coordinates (e.g., Torres del Paine)
-        const data = await fetchWeatherData(-51.0, -73.0);
+        // Estado actual (día Hoy) — siempre real desde fetchWeatherData
+        const data = await fetchWeatherData(PARK_LAT, PARK_LNG);
         setWeatherData(data);
-        // Fetch 3-day forecast del backend real
+
+        // Forecast 3 días — primero intentamos OpenWeather (predicción real)
         const token = await auth.currentUser?.getIdToken();
-        if (!token) return; // sin auth → solo mostramos el día actual
-
-        const res = await fetch('/api/environment/forecast?days=3', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return; // backend caído → solo Hoy
-
-        const json = (await res.json()) as { forecast?: ForecastDay[] };
-        if (Array.isArray(json.forecast) && json.forecast.length > 0) {
-          setForecastDays(json.forecast);
+        let backendForecast: ForecastDay[] = [];
+        if (token) {
+          try {
+            const res = await fetch('/api/environment/forecast?days=3', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = (await res.json()) as { forecast?: ForecastDay[] };
+              if (Array.isArray(json.forecast) && json.forecast.length > 0) {
+                backendForecast = json.forecast;
+              }
+            }
+          } catch (err) {
+            logger.warn('forecast_backend_failed', err);
+          }
         }
-        // Si forecast viene vacío (sin OpenWeather key o cuota agotada),
-        // no fabricamos datos — simplemente mostramos solo Hoy.
+
+        if (backendForecast.length >= 2) {
+          // OpenWeather respondió con suficiente data — usamos predicción real
+          setForecastDays(backendForecast);
+          setForecastSource('openweather');
+        } else {
+          // Backend vacío/sin auth → climatología DMC determinística como
+          // fallback REAL (no Math.random, no fake — promedio histórico
+          // 30-año para la zona climática + mes correspondiente).
+          const climatology = getClimatologyForecast(
+            PARK_LAT,
+            PARK_LNG,
+            3,
+            new Date(),
+          );
+          // Empezar desde día 1 (no Hoy — eso lo da fetchWeatherData)
+          const futureClimatology = climatology.slice(1).map((c) => ({
+            date: c.date,
+            tempMinC: c.tempMinC,
+            tempMaxC: c.tempMaxC,
+            windKmh: c.windKmh,
+            precipMm: c.precipMm,
+            condition: c.condition,
+          })) as ForecastDay[];
+          setForecastDays(futureClimatology);
+          setForecastSource('climatology');
+        }
       } catch (error) {
         logger.error("Failed to load climate:", error);
       } finally {
@@ -138,14 +184,25 @@ export function NationalParksEmergency() {
         </div>
       </div>
 
-      {/* Predictive Weather Section — solo muestra los días que el
-          backend efectivamente devolvió. Si solo tenemos Hoy, mostramos
-          Hoy en una columna (no banner de error, no Math.random fabricado). */}
-      <div className={`grid grid-cols-1 gap-4 ${
-        forecast.length === 1 ? 'md:grid-cols-1 max-w-md' :
-        forecast.length === 2 ? 'md:grid-cols-2' :
-        'md:grid-cols-3'
-      }`}>
+      {/* Predictive Weather Section — Hoy desde OpenCurrentWeather +
+          Día 2/3 desde OpenWeather forecast O climatología DMC (siempre 3 días). */}
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
+        <span className={`px-2 py-1 rounded font-bold ${
+          forecastSource === 'openweather'
+            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+            : 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+        }`} data-testid="forecast-source-badge">
+          {forecastSource === 'openweather'
+            ? t('nationalParks.forecastReal', 'Predicción · OpenWeather')
+            : t('nationalParks.forecastClimatology', 'Climatología · DMC 1981-2010')}
+        </span>
+        <span className="text-zinc-500">
+          {forecastSource === 'openweather'
+            ? t('nationalParks.forecastRealDesc', 'pronóstico en tiempo real para tu ubicación')
+            : t('nationalParks.forecastClimatologyDesc', 'promedio histórico 30-año (sin API key OpenWeather)')}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {forecast.map((day, idx) => {
           const Icon = day.icon;
           return (

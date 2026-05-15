@@ -14,6 +14,9 @@ import { generateMistingNode } from '../../services/zettelkasten/bernoulli/misti
 import { generateGasDispersionNode } from '../../services/zettelkasten/bernoulli/gasDispersionCloud';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
+// Regla #3 — scratch local cuando no hay proyecto seleccionado.
+import { saveScratchCalculation } from '../../services/engineering/scratchCalculations';
 import { RegulatoryCitation } from '../shared/RegulatoryCitation';
 
 // DS 594 Art. 35 â€” minimum air changes per hour for chemical storage
@@ -56,6 +59,7 @@ export const HazmatStorageDesigner: React.FC = () => {
   const [windKmh, setWindKmh] = useState<number | ''>(15);
   const [pasquillStability, setPasquillStability] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'F'>('D');
   const { selectedProject } = useProject();
+  const { user: currentUser } = useFirebase();
 
   const venturiResult = useMemo(() => {
     if (
@@ -93,14 +97,21 @@ export const HazmatStorageDesigner: React.FC = () => {
       );
       if (miningNode) logger.info('zettelkasten:mining-extraction', { node: miningNode });
       if (pipeNode) logger.info('zettelkasten:hazmat-pipe', { node: pipeNode });
-      // Sprint 11: persistir nodos en zettelkasten_nodes (debounce 2 s).
-      // Saltamos limpiamente si no hay proyecto seleccionado.
+      // Sprint 11 + Regla #3 (2026-05-15): persistir SIEMPRE.
+      //   - Con proyecto → Firestore debounceado
+      //   - Sin proyecto → IndexedDB scratch (auto-promueve después)
       const projectId = selectedProject?.id;
-      if (projectId) {
-        const batch = [miningNode, pipeNode].filter(
-          (n): n is NonNullable<typeof n> => Boolean(n),
-        );
-        if (batch.length > 0) writeNodesDebounced(batch, { projectId });
+      const batch = [miningNode, pipeNode].filter(
+        (n): n is NonNullable<typeof n> => Boolean(n),
+      );
+      if (batch.length > 0) {
+        if (projectId) {
+          writeNodesDebounced(batch, { projectId });
+        } else {
+          for (const node of batch) {
+            void saveScratchCalculation(node, currentUser?.uid ?? null);
+          }
+        }
       }
       return { q, ach, compliant: ach >= ACH_MIN_DS594 };
     } catch (err) {
@@ -130,9 +141,12 @@ export const HazmatStorageDesigner: React.FC = () => {
       { availableFlowM3S: 0.05 },
     );
     const projectId = selectedProject?.id;
-    if (node && projectId) writeNodesDebounced([node], { projectId });
+    if (node) {
+      if (projectId) writeNodesDebounced([node], { projectId });
+      else void saveScratchCalculation(node, currentUser?.uid ?? null);
+    }
     return { nozzleCount, pm10, exceedsOel: pm10 > 50 };
-  }, [pm10UgM3, roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, storageType, selectedProject?.id]);
+  }, [pm10UgM3, roomVolumeM3, inletAreaA1, throatAreaA2, deltaPPa, storageType, selectedProject?.id, currentUser?.uid]);
 
   // Sprint 25 Bucket NN â€” Gas dispersion cloud (LFL distance / IDLH exclusion).
   const dispersionResult = useMemo(() => {
@@ -149,9 +163,10 @@ export const HazmatStorageDesigner: React.FC = () => {
     if (node) {
       logger.info('zettelkasten:gas-dispersion', { node });
       if (projectId) writeNodesDebounced([node], { projectId });
+      else void saveScratchCalculation(node, currentUser?.uid ?? null);
     }
     return { node, lflDistanceM: node?.metadata?.exclusionRadiusM as number | undefined };
-  }, [leakRateKgS, windKmh, pasquillStability, storageType, selectedProject?.id]);
+  }, [leakRateKgS, windKmh, pasquillStability, storageType, selectedProject?.id, currentUser?.uid]);
 
   const handleDesign = async (e: React.FormEvent) => {
     e.preventDefault();
