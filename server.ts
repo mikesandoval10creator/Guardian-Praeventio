@@ -1,10 +1,22 @@
 import express from "express";
 import helmet from "helmet";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+// Sprint 39 audit (2026-05-15) — MemoryStore default de express-rate-limit
+// no es seguro en Cloud Run multi-replica (cada pod tiene su contador). El
+// FirestoreRateLimitStore comparte estado entre instancias usando una
+// transaction Firestore por increment. Ver
+// src/server/rateLimit/firestoreRateLimitStore.ts.
+import { makeFirestoreRateLimitStore } from "./src/server/rateLimit/firestoreRateLimitStore.js";
 // vite is imported dynamically inside the dev-only block below to avoid breaking production where vite is not installedimport path from "path";
 import path from "path";
 import cookieParser from "cookie-parser";
 import session from "express-session";
+// Sprint 39 audit (2026-05-15) — express-session sin store persistente
+// resultaba en MemoryStore por default → state OAuth se perdía entre
+// instancias Cloud Run. FirestoreSessionStore lo arregla con un Store
+// backed by Firestore (collection `_sessions`). Ver
+// src/server/sessionStore/firestoreSessionStore.ts.
+import { makeFirestoreSessionStore } from "./src/server/sessionStore/firestoreSessionStore.js";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { Resend } from "resend";
@@ -368,6 +380,19 @@ app.use("/api/admin/jobs", adminJobsRouter);
 // `express.json({ limit: '64kb' })` further down stays narrow. Browsers
 // ship reports as `application/csp-report`, but we accept JSON too in
 // case a tester runs it via curl.
+// Sprint 39 audit fix — Firestore-backed store si Firebase Admin está
+// inicializado (multi-instance safe). En dev sin Firebase, cae a
+// MemoryStore default (acceptable para single-process).
+function makeRateLimitStore(prefix: string) {
+  if (admin.apps.length === 0) return undefined;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return makeFirestoreRateLimitStore(admin.firestore(), { prefix }) as any;
+  } catch {
+    return undefined;
+  }
+}
+
 const cspReportLimiter = rateLimit({
   windowMs: 60_000,
   max: 50,
@@ -381,6 +406,7 @@ const cspReportLimiter = rateLimit({
   // a body for csp-report POSTs anyway.
   statusCode: 204,
   message: '',
+  store: makeRateLimitStore('csp:'),
 });
 app.post(
   '/api/csp-report',
@@ -400,7 +426,9 @@ const limiter = rateLimit({
   max: 100, // Limit each IP to 100 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
-  message: "Too many requests from this IP, please try again after 15 minutes"
+  message: "Too many requests from this IP, please try again after 15 minutes",
+  // Sprint 39 audit fix — Firestore-backed para multi-replica.
+  store: makeRateLimitStore('api:'),
 });
 
 // Sprint 23 Bucket BB — B2D public API mounted BEFORE the global `/api/`
@@ -452,10 +480,35 @@ app.use((req, res, next) => {
 });
 app.use(express.json({ limit: '64kb' }));
 app.use(cookieParser());
+// Sprint 39 audit fix — persist sessions in Firestore when Firebase Admin
+// está inicializado. Si no (dev sin credenciales), cae a MemoryStore default
+// — aceptable para single-process. En prod multi-replica esto es OBLIGATORIO
+// porque MemoryStore se pierde el state OAuth entre callback y request si
+// caen en pods distintos.
+let sessionStore: session.Store | undefined;
+try {
+  if (admin.apps.length > 0) {
+    sessionStore = makeFirestoreSessionStore(admin.firestore());
+    // eslint-disable-next-line no-console
+    console.log('✅ Session store: Firestore (multi-instance safe)');
+  } else if (process.env.NODE_ENV === 'production') {
+    // eslint-disable-next-line no-console
+    console.error('FATAL: Firebase Admin not initialized — cannot use MemoryStore in production.');
+    process.exit(1);
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn('⚠ Session store: MemoryStore (dev only — NOT safe for multi-instance prod)');
+  }
+} catch (err) {
+  // eslint-disable-next-line no-console
+  console.warn('Session store init failed, falling back to MemoryStore:', err);
+}
+
 app.use(session({
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
+  store: sessionStore,
   cookie: {
     secure: process.env.NODE_ENV === "production",
     sameSite: 'lax',
