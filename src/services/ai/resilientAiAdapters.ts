@@ -44,6 +44,16 @@ export interface SlmAdapterDeps {
       model: unknown,
       prompt: string,
     ) => Promise<string>;
+    /**
+     * Codex P2 fix (PR #250): SLM streaming. Optional para que los
+     * mocks de tests no tengan que implementarlo; el adapter chequea
+     * `typeof runtime.inferStream === 'function'` antes de invocarlo.
+     */
+    inferStream?: (
+      model: unknown,
+      prompt: string,
+      opts?: { onToken?: (token: string) => void; signal?: AbortSignal },
+    ) => Promise<string>;
     release: (model: unknown) => Promise<void>;
   }>;
   /** Override del id del modelo. Default DEFAULT_MODEL_ID. */
@@ -77,7 +87,18 @@ export function makeSlmTierAdapter(deps: SlmAdapterDeps = {}): TierAdapter {
       cachedModelId = targetId;
     }
 
-    const text = await runtime.infer(cachedModel, query.prompt);
+    // Codex P2 fix (PR #250, 2026-05-15): si el caller pasó onStreamToken,
+    // usar inferStream para emitir tokens incrementales — antes solo se
+    // llamaba runtime.infer() (no-streaming) → la UI mostraba caret vacío
+    // hasta el final, sin streaming real.
+    let text: string;
+    if (query.onStreamToken && typeof runtime.inferStream === 'function') {
+      text = await runtime.inferStream(cachedModel, query.prompt, {
+        onToken: query.onStreamToken,
+      });
+    } else {
+      text = await runtime.infer(cachedModel, query.prompt);
+    }
     if (!text || text.trim().length === 0) return null;
 
     return {

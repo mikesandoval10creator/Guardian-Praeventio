@@ -180,6 +180,44 @@ describe('useResilientAi', () => {
     expect(result.current.lastResponse?.text).toBe('segunda');
   });
 
+  it('Codex P2 fix: late tokens del SLM zombie NO mutan streaming post-fallback', async () => {
+    // Simula un SLM que emite 1 token, falla, y LUEGO emite tokens tardíos
+    // (caso del bug Codex flagged: orchestrator avanza a fallback mientras
+    // inferStream del SLM sigue corriendo en background).
+    let lateTokenEmitter: ((t: string) => void) | null = null;
+    const slowSlm: TierAdapter = async (query) => {
+      // Emite 1 token "inicial" sincronicamente
+      query.onStreamToken?.('inicial ');
+      // Guarda la callback para llamarla tardíamente
+      lateTokenEmitter = query.onStreamToken ?? null;
+      // SLM falla → orchestrator cae a zettelkasten
+      throw new Error('SLM timeout');
+    };
+    const zk: TierAdapter = ok('respuesta final ZK', 0.6);
+
+    const { result } = renderHook(() =>
+      useResilientAi({ adapters: { slm: slowSlm, zettelkasten: zk } }),
+    );
+
+    await act(async () => {
+      await result.current.ask('hola');
+    });
+
+    // Después de que orchestrator terminó, simular late tokens del SLM
+    // zombie (inferStream sigue corriendo aunque el adapter ya tiró).
+    act(() => {
+      lateTokenEmitter?.('LATE_TOKEN_1');
+      lateTokenEmitter?.('LATE_TOKEN_2');
+    });
+
+    // El streaming NO debe contener los late tokens — streaming ya se
+    // cerró cuando el orchestrator returns.
+    expect(result.current.streaming).toBeNull();
+    // Y la respuesta final es la del fallback, no la del SLM.
+    expect(result.current.lastResponse?.text).toBe('respuesta final ZK');
+    expect(result.current.lastResponse?.tier).toBe('zettelkasten');
+  });
+
   it('queryExtras (domain, tenantId, etc.) llegan al adapter', async () => {
     const adapter = vi.fn(async () => ({ text: 'ok', confidence: 0.9 }));
     const { result } = renderHook(() =>
