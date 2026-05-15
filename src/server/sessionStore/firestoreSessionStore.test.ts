@@ -153,18 +153,53 @@ describe('FirestoreSessionStore', () => {
     const raw = db.__docs.get('_sessions/sid-2');
     expect(raw).toBeDefined();
     expect(typeof raw.data).toBe('string');
-    expect(typeof raw.expiresAt).toBe('string');
-    expect(typeof raw.updatedAt).toBe('string');
+    // Codex P2 fix: expiresAt y updatedAt ahora se escriben como Date para
+    // que Firestore Admin SDK los convierta a Timestamp en wire, y la TTL
+    // policy pueda evaluarlos. ISO string no servía (TTL los ignora).
+    expect(raw.expiresAt).toBeInstanceOf(Date);
+    expect(raw.updatedAt).toBeInstanceOf(Date);
   });
 
-  it('get → returns null y borra cuando expiresAt está vencido', async () => {
-    // inyectar doc vencido directamente
+  it('get → returns null y borra cuando expiresAt está vencido (Date)', async () => {
+    // inyectar doc vencido directamente — con Date (formato actual)
     db.__docs.set('_sessions/sid-old', {
+      data: JSON.stringify(makeSession()),
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    const result = await new Promise<unknown>((resolve, reject) => {
+      store.get('sid-old', (err, val) =>
+        err ? reject(err) : resolve(val),
+      );
+    });
+    expect(result).toBeNull();
+  });
+
+  it('get → backward compat: lee docs antiguos con expiresAt como ISO string', async () => {
+    // Sesión legacy escrita por versión anterior del store (ISO string).
+    db.__docs.set('_sessions/sid-legacy', {
       data: JSON.stringify(makeSession()),
       expiresAt: new Date(Date.now() - 60_000).toISOString(),
     });
     const result = await new Promise<unknown>((resolve, reject) => {
-      store.get('sid-old', (err, val) =>
+      store.get('sid-legacy', (err, val) =>
+        err ? reject(err) : resolve(val),
+      );
+    });
+    // Debe interpretar el ISO como vencido y devolver null.
+    expect(result).toBeNull();
+  });
+
+  it('get → backward compat: lee docs con expiresAt como Firestore Timestamp', async () => {
+    // Simular shape de Firestore Admin que devuelve `Timestamp { toMillis() }`.
+    const fakeTimestamp = {
+      toMillis: () => Date.now() - 60_000,
+    };
+    db.__docs.set('_sessions/sid-ts', {
+      data: JSON.stringify(makeSession()),
+      expiresAt: fakeTimestamp,
+    });
+    const result = await new Promise<unknown>((resolve, reject) => {
+      store.get('sid-ts', (err, val) =>
         err ? reject(err) : resolve(val),
       );
     });
