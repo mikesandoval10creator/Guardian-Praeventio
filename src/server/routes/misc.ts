@@ -27,12 +27,22 @@
 
 import { Router } from 'express';
 import admin from 'firebase-admin';
-import crypto from 'crypto';
 import { z } from 'zod';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { erpSyncLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 import { getErrorTracker } from '../../services/observability/index.js';
+// Sprint 39 audit fix (2026-05-15) — ERP integration adapter HONESTO.
+// El handler anterior simulaba éxito con setTimeout(1500) + return success.
+// Esto era "falsa sensación de completitud" — exactamente el patrón que
+// el audit report flagged como peligroso para una app de prevención.
+import {
+  selectErpAdapter,
+  buildNotConfiguredResult,
+  ErpMissingCredentialsError,
+  ErpNotImplementedError,
+  type ErpAction,
+} from '../../services/erp/erpAdapter.js';
 
 function sentryCapture(
   err: unknown,
@@ -54,9 +64,18 @@ function sentryCapture(
 // values entirely) and bloat documents with arbitrary nested payloads.
 // Zod gives us a typed gate: erpType is restricted to a known whitelist
 // and payload must be a plain object.
+// Sprint 39 — extendido a buk/talana/mock (chilenos + adapter de pruebas).
+// `oracle` y `dynamics` aceptados por compatibilidad pero NO tienen
+// adapter — caen en NOT_IMPLEMENTED honesto en lugar de simular éxito.
 const erpSyncSchema = z.object({
-  erpType: z.enum(['sap', 'oracle', 'dynamics', 'odoo']),
-  action: z.string().min(1).max(128),
+  erpType: z.enum(['sap', 'buk', 'talana', 'mock', 'oracle', 'dynamics', 'odoo']),
+  action: z.enum([
+    'manual_sync',
+    'fetch_employees',
+    'fetch_org_chart',
+    'push_worker_status',
+    'push_training_record',
+  ]),
   payload: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
@@ -88,7 +107,16 @@ router.get('/environment/forecast', verifyAuth, erpSyncLimiter, async (req, res)
   }
 });
 
-// ERP Integration (SAP/Defontana Mock)
+// ERP Integration (Sprint 39 — adapter HONESTO).
+// Reemplaza la simulación setTimeout+success genérico con un adapter real
+// que distingue 3 estados:
+//   - not_configured (no ERP_ADAPTER seteado) → HTTP 503
+//   - mock (ERP_ADAPTER=mock) → HTTP 200 con mode:'mock' explícito
+//   - real (sap/buk/talana) → HTTP 200 si éxito; HTTP 502/501 si stub
+//
+// El front DEBE inspeccionar `mode` y mostrar banner "Modo prueba — no
+// sincronizó con ERP real" cuando reciba `mode: 'mock'`. Si recibe
+// `mode: 'not_configured'`, contactar admin.
 router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   const parsed = erpSyncSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -96,37 +124,94 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   }
   const { erpType, action, payload } = parsed.data;
   const uid = req.user.uid;
+  // Tenant context — viene del verifyAuth claim, no del body
+  const tenantId =
+    (req.user as { tenantId?: string }).tenantId ?? 'default';
+
+  // Permitir override del adapter desde el body si erpType es buk/talana/sap/mock.
+  // Los legacy 'oracle'/'dynamics'/'odoo' caen en not_implemented honesto
+  // (no tenemos adapter para esos).
+  const requestedAdapter = ['sap', 'buk', 'talana', 'mock'].includes(erpType)
+    ? (erpType as 'sap' | 'buk' | 'talana' | 'mock')
+    : undefined;
 
   try {
     logger.info('erp_sync_started', { erpType, action, uid });
 
-    // Simulate real backend activity by logging the sync attempt
+    const adapter = selectErpAdapter({
+      adapterName: requestedAdapter,
+    });
+
+    // Log honesto a Firestore (sin pretender éxito antes de hacer la sync)
     const db = admin.firestore();
+
+    if (!adapter) {
+      const result = buildNotConfiguredResult({
+        tenantId,
+        action: action as ErpAction,
+        data: payload,
+      });
+      await db.collection('erp_sync_logs').add({
+        uid,
+        erpType,
+        action,
+        payload,
+        status: 'not_configured',
+        mode: result.mode,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      logger.warn('erp_sync_not_configured', { erpType, action, uid });
+      return res.status(503).json({ success: false, ...result });
+    }
+
+    const result = await adapter.sync({
+      tenantId,
+      action: action as ErpAction,
+      data: payload,
+    });
+
     await db.collection('erp_sync_logs').add({
       uid,
       erpType,
       action,
       payload,
-      status: 'success',
+      status: result.ok ? 'success' : 'failed',
+      mode: result.mode,
+      message: result.message,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Simulate network latency
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    res.json({
-      success: true,
-      message: `SincronizaciÃ³n con ${erpType} exitosa`,
-      data: {
-        syncId: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        status: 'completed',
-      },
-    });
+    return res.json({ success: result.ok, ...result });
   } catch (error) {
+    // Errores tipados del adapter → respuestas honestas, no 500 genérico
+    if (error instanceof ErpMissingCredentialsError) {
+      logger.warn('erp_sync_missing_credentials', { erpType, action, uid, message: error.message });
+      return res.status(503).json({
+        success: false,
+        mode: 'missing_credentials',
+        message: error.message,
+        reason: 'ERP adapter requiere credenciales que no están configuradas en este servidor',
+        timestamp: new Date().toISOString(),
+      });
+    }
+    if (error instanceof ErpNotImplementedError) {
+      logger.warn('erp_sync_not_implemented', { erpType, action, uid, message: error.message });
+      return res.status(501).json({
+        success: false,
+        mode: 'not_implemented',
+        message: error.message,
+        reason: 'Adapter declarado pero acción aún no implementada (stub honesto)',
+        timestamp: new Date().toISOString(),
+      });
+    }
     logger.error('erp_sync_failed', error, { erpType, action, uid });
     sentryCapture(error, { endpoint: '/api/erp/sync', tags: { method: 'POST', erpType, action, uid } });
-    res.status(500).json({ error: 'Error de sincronizaciÃ³n con ERP' });
+    return res.status(502).json({
+      success: false,
+      mode: 'failed',
+      error: 'Error de sincronización con ERP',
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
