@@ -225,11 +225,17 @@ describe('SlmRuntimeWorkerCore — infer', () => {
 
   it('infer streaming con runtime que NO soporta streaming: degraded a single InferTokenEvent + complete', async () => {
     const { dispatch, responses } = captureDispatch();
+    // El default de `makeStubRuntime` SIEMPRE incluye `inferStream`.
+    // Para simular un runtime que NO soporta streaming necesitamos
+    // eliminarlo explícitamente del stub — si no, el worker detecta
+    // `typeof runtime.inferStream === 'function'` y nunca entra al
+    // path single-shot que estamos testeando.
+    const runtimeWithoutStream = makeStubRuntime({
+      infer: async () => 'todo de un golpe',
+    });
+    delete (runtimeWithoutStream as { inferStream?: unknown }).inferStream;
     const core = createWorkerCore(dispatch, {
-      runtimeFactory: () =>
-        makeStubRuntime({
-          infer: async () => 'todo de un golpe',
-        }),
+      runtimeFactory: () => runtimeWithoutStream,
     });
     await core.onMessage({
       kind: 'load',

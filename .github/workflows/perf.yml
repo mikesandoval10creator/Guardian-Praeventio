@@ -33,6 +33,11 @@ jobs:
           name: size-report
           path: size-report.json
       - name: Comment size budget on PR
+        # 2026-05-15 estabilización CI: `andresz1/size-limit-action@v1`
+        # solo soporta eventos `pull_request` — en `push` a main no hay PR
+        # context y el action falla con "No PR found". Skipeamos en push
+        # (el report YA quedó subido como artifact en el step anterior).
+        if: github.event_name == 'pull_request'
         uses: andresz1/size-limit-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

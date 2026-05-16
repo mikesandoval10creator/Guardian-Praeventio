@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SafetyTrendChart, type SafetyTrendPoint } from './SafetyTrendChart.js';
 
-// Recharts depende de ResizeObserver â€” mock para jsdom.
+// Recharts depende de ResizeObserver — mock para jsdom.
 class ResizeObserverMock {
   observe() {}
   unobserve() {}
@@ -22,13 +22,13 @@ describe('SafetyTrendChart', () => {
   it('renderiza header, count y footer', () => {
     render(<SafetyTrendChart data={SAMPLE} />);
     expect(screen.getByTestId('safety-trend.title')).toHaveTextContent(/OSHA/i);
-    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('3 perÃ­odos');
+    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('3 períodos');
     expect(screen.getByTestId('safety-trend.footer')).toBeInTheDocument();
   });
 
-  it('lista vacÃ­a no rompe', () => {
+  it('lista vacía no rompe', () => {
     render(<SafetyTrendChart data={[]} />);
-    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('0 perÃ­odos');
+    expect(screen.getByTestId('safety-trend.count')).toHaveTextContent('0 períodos');
   });
 
   it('appearance dark cambia className', () => {

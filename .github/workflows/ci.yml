@@ -102,7 +102,12 @@ jobs:
         # `firebase emulators:exec` boots the Firestore emulator, runs the
         # provided command, then tears it down. The project ID must match the
         # PROJECT_ID constant in src/rules-tests/firestore.rules.test.ts.
-        run: firebase emulators:exec --only firestore --project praeventio-rules-test "npx vitest run src/rules-tests/"
+        #
+        # 2026-05-15: usa la config dedicada `vitest.rules.config.ts` porque
+        # la config default excluye `src/rules-tests/**` (esos tests
+        # requieren emulator). Sin --config el workflow falla con "No test
+        # files found" porque vitest aplica el exclude antes que el filter.
+        run: firebase emulators:exec --only firestore --project praeventio-rules-test "npx vitest run --config vitest.rules.config.ts"
 
   adr-0012-enforcement:
     # Sprint 26 Bucket XX — ADR 0012 (no diagnosis) automated enforcement.
