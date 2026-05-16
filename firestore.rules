@@ -81,13 +81,25 @@ service cloud.firestore {
     }
 
     function isSupervisorOfTenant(tenantId) {
-      return hasSupervisorTierRole() && isMemberOfTenant(tenantId) && (
-        // Single-tenant claim — global role check is sufficient because the
-        // user only carries credentials for this tenant.
-        (request.auth.token.tenantId is string && request.auth.token.tenantId == tenantId) ||
-        // Multi-tenant claim — the per-tenant role string must match one of
-        // the supervisor-tier roles. Workers/operarios in this tenant are
-        // rejected here even if they have a supervisor claim in another.
+      // 2026-05-15 fix: el chequeo de rol depende del shape del claim.
+      // Para single-tenant claim (`token.tenantId` igual al tenant) el
+      // rol GLOBAL del token debe ser supervisor-tier. Para
+      // multi-tenant claim (`token.tenants[tid]`) lo que manda es el
+      // rol POR-TENANT — un usuario global=worker pero tenants.A=supervisor
+      // DEBE poder leer /tenants/A/supervisor_only/*. La versión vieja
+      // hacía AND con `hasSupervisorTierRole()` (global) y bloqueaba ese
+      // caso erróneamente.
+      return isEmailVerified() && (
+        // Single-tenant claim: global role tiene que ser supervisor-tier.
+        (
+          request.auth.token.tenantId is string &&
+          request.auth.token.tenantId == tenantId &&
+          hasSupervisorTierRole()
+        ) ||
+        // Multi-tenant claim: el rol POR-TENANT tiene que ser supervisor-tier.
+        // Workers/operarios con membership en este tenant son rechazados
+        // aquí incluso si tienen claim supervisor en otro tenant — el rol
+        // global queda fuera de la decisión porque cada tenant es soberano.
         (
           'tenants' in request.auth.token &&
           request.auth.token.tenants[tenantId] is string &&
