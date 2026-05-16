@@ -108,6 +108,12 @@ import complianceRouter from "./src/server/routes/compliance.js";
 // Mining) PDF generators. Mounted under /api/compliance so the URL space
 // matches Ley 19.628 endpoints (one compliance surface, not two).
 import ds67ds76Router from "./src/server/routes/ds67ds76.js";
+// Sprint 38 — Generic compliance emission endpoint per ADR-0017
+// (multi-jurisdiction document generation). Pre-existing router that
+// remained unmounted; activated here as part of Sprint E backend debt
+// cleanup (2026-05-16). Generates documents only — never pushes to
+// SUSESO/SII/etc per the no-org-integration directive.
+import complianceEmitRouter from "./src/server/routes/complianceEmit.js";
 // Sprint 23 Bucket GG — DTE / SII admin endpoints (Bsale-backed).
 import dteRouter from "./src/server/routes/dte.js";
 // Sprint 24 Bucket KK — onboarding wizard endpoint.
@@ -672,6 +678,12 @@ app.use('/api/compliance', complianceRouter);
 // Sprint 31 Bucket PP — DS 67 + DS 76 PDF reglamento generators. Same
 // /api/compliance surface; the routes are namespaced under /ds67 and /ds76.
 app.use('/api/compliance', ds67ds76Router);
+
+// Sprint 38 — ADR-0017 generic emission endpoint:
+//   POST /api/compliance/emit/:type with body { country, payload }
+// Adapters are resolved via `services/compliance/registry.ts` and never
+// auto-push to organisms. Mounted 2026-05-16 (Sprint E backend debt).
+app.use('/api/compliance/emit', complianceEmitRouter);
 
 // Sprint 24 Bucket KK — POST /api/onboarding/complete. Self-service
 // tenant onboarding (industry, countries, tier, invites, first project).

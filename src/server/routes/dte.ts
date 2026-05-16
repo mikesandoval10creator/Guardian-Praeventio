@@ -219,7 +219,11 @@ dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /api/dte/:folio/cancel  â€” admin-only cancellation (issues NC).
 // ---------------------------------------------------------------------------
-dteRouter.post('/:folio/cancel', verifyAuth, async (req: Request, res: Response) => {
+// Sprint E backend debt 2026-05-16: idempotencyKey() added. Without it,
+// a flaky-network double-tap from admin could file two NC (notas de
+// crédito) for the same folio — Bsale would either reject the second
+// or, worse, accept it and the empresa ends up with duplicate NC.
+dteRouter.post('/:folio/cancel', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
   const folioRaw = req.params.folio;
   const folio = Number.parseInt(folioRaw ?? '', 10);
@@ -303,7 +307,12 @@ const generateDteSchema = z.object({
     .optional(),
 });
 
-dteRouter.post('/generate', verifyAuth, async (req: Request, res: Response) => {
+// Sprint E backend debt 2026-05-16: idempotencyKey() added. Without it,
+// retrying a generate request (same folio + caller) would consume
+// another CAF folio on the second attempt and we'd burn folios on the
+// empresa cliente. With the key, the second request replays the first
+// response and no new generation happens.
+dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
   const callerUid = req.user?.uid as string;
 

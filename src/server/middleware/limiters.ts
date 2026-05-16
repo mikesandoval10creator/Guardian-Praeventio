@@ -112,6 +112,35 @@ export const webauthnRegisterLimiter = rateLimit({
   message: { error: 'too_many_register_attempts', retryAfterMs: 60_000 },
 });
 
+// Sprint E backend debt (2026-05-16) — per-IP limiter for the public
+// SUSESO verify endpoint (`GET /api/suseso/verify/:folio`). The route
+// is UNAUTHENTICATED by design (anyone can verify a DIAT/DIEP folio
+// signed by the empresa, that's the public-verifiability promise of
+// the WebAuthn-signed PDF). But "anyone" includes attackers who would:
+//
+//   1. Enumerate folios sequentially to learn folio cardinality
+//      (sensitivity: incident counts of an empresa). Folios are not
+//      randomized in the current implementation — they're monotonic
+//      per-tenant. Without rate-limiting, a sequential scan is trivial.
+//   2. DoS the Firestore reads behind verifyFolio() — every miss is
+//      still 1 read.
+//
+// 30 req/min per IP is well above any legitimate use case (a fiscalizador
+// checking a single folio takes ~1 second). The window is 1 min so a
+// burst doesn't lock out a legitimate user for long.
+//
+// We DO NOT cache responses inside the limiter — verifyFolio() is the
+// canonical source-of-truth and may return revoked status as soon as
+// the empresa cancels the folio.
+export const susesoVerifyLimiter = rateLimit({
+  windowMs: 60_000, // 1 minute
+  max: 30,
+  keyGenerator: (req: Request) => ipKeyGenerator(req.ip ?? '') || 'anonymous',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { valid: false, reason: 'verify_rate_limited' },
+});
+
 // Per-IP rate limiter for the Google Play RTDN webhook (POST
 // /api/billing/webhook). The endpoint is already shared-secret gated
 // (?token=) and idempotent on messageId, but a flooder who somehow
