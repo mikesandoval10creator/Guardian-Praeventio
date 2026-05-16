@@ -3,47 +3,52 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Info, Beaker } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
+import {
+  checkSegregation,
+  HAZMAT_CLASS_LABELS,
+  type HazmatSubclass,
+} from '../services/hazmat/hazmatSegregation';
 
-// Simplified UN Hazard Classes
-const HAZARD_CLASSES = [
-  { id: '1', name: 'Explosivos', color: 'bg-orange-500' },
-  { id: '2.1', name: 'Gases Inflamables', color: 'bg-red-500' },
-  { id: '2.2', name: 'Gases No Inflamables', color: 'bg-green-500' },
-  { id: '2.3', name: 'Gases Tóxicos', color: 'bg-zinc-100 text-black' },
-  { id: '3', name: 'Líquidos Inflamables', color: 'bg-red-600' },
-  { id: '4.1', name: 'Sólidos Inflamables', color: 'bg-red-400' },
-  { id: '5.1', name: 'Comburentes (Oxidantes)', color: 'bg-yellow-400 text-black' },
-  { id: '6.1', name: 'Sustancias Tóxicas', color: 'bg-zinc-100 text-black' },
-  { id: '8', name: 'Sustancias Corrosivas', color: 'bg-zinc-800' },
+// 2026-05-15 (Sprint C): el SEGREGATION_MATRIX hardcoded original
+// cubría sólo 9 clases con la nota "Simplified for demo purposes" y
+// dejaba afuera 4.2, 4.3, 5.2, 6.2, 7, 9 — entre ellos peróxidos
+// orgánicos y materiales reactivos al agua. Ahora delegamos al
+// servicio IMDG 7.2.4 completo (15 sub-clases).
+
+interface HazardClassEntry {
+  id: HazmatSubclass;
+  name: string;
+  color: string;
+}
+
+const HAZARD_CLASSES: HazardClassEntry[] = [
+  { id: '1', name: HAZMAT_CLASS_LABELS['1'], color: 'bg-orange-500' },
+  { id: '2_1', name: HAZMAT_CLASS_LABELS['2_1'], color: 'bg-red-500' },
+  { id: '2_2', name: HAZMAT_CLASS_LABELS['2_2'], color: 'bg-green-500' },
+  { id: '2_3', name: HAZMAT_CLASS_LABELS['2_3'], color: 'bg-zinc-100 text-black' },
+  { id: '3', name: HAZMAT_CLASS_LABELS['3'], color: 'bg-red-600' },
+  { id: '4_1', name: HAZMAT_CLASS_LABELS['4_1'], color: 'bg-red-400' },
+  { id: '4_2', name: HAZMAT_CLASS_LABELS['4_2'], color: 'bg-orange-400' },
+  { id: '4_3', name: HAZMAT_CLASS_LABELS['4_3'], color: 'bg-blue-400' },
+  { id: '5_1', name: HAZMAT_CLASS_LABELS['5_1'], color: 'bg-yellow-400 text-black' },
+  { id: '5_2', name: HAZMAT_CLASS_LABELS['5_2'], color: 'bg-yellow-600' },
+  { id: '6_1', name: HAZMAT_CLASS_LABELS['6_1'], color: 'bg-zinc-100 text-black' },
+  { id: '6_2', name: HAZMAT_CLASS_LABELS['6_2'], color: 'bg-purple-400' },
+  { id: '7', name: HAZMAT_CLASS_LABELS['7'], color: 'bg-yellow-300 text-black' },
+  { id: '8', name: HAZMAT_CLASS_LABELS['8'], color: 'bg-zinc-800' },
+  { id: '9', name: HAZMAT_CLASS_LABELS['9'], color: 'bg-zinc-500' },
 ];
-
-// Segregation Matrix (Simplified for demo purposes)
-// 0: Incompatible (Must be separated)
-// 1: Compatible (Can be stored together)
-// 2: Caution (Store with specific separation distance)
-const SEGREGATION_MATRIX: Record<string, Record<string, number>> = {
-  '1':   { '1': 1, '2.1': 0, '2.2': 0, '2.3': 0, '3': 0, '4.1': 0, '5.1': 0, '6.1': 0, '8': 0 },
-  '2.1': { '1': 0, '2.1': 1, '2.2': 1, '2.3': 0, '3': 0, '4.1': 0, '5.1': 0, '6.1': 0, '8': 0 },
-  '2.2': { '1': 0, '2.1': 1, '2.2': 1, '2.3': 1, '3': 1, '4.1': 1, '5.1': 0, '6.1': 1, '8': 1 },
-  '2.3': { '1': 0, '2.1': 0, '2.2': 1, '2.3': 1, '3': 0, '4.1': 0, '5.1': 0, '6.1': 1, '8': 0 },
-  '3':   { '1': 0, '2.1': 0, '2.2': 1, '2.3': 0, '3': 1, '4.1': 1, '5.1': 0, '6.1': 2, '8': 0 },
-  '4.1': { '1': 0, '2.1': 0, '2.2': 1, '2.3': 0, '3': 1, '4.1': 1, '5.1': 0, '6.1': 2, '8': 0 },
-  '5.1': { '1': 0, '2.1': 0, '2.2': 0, '2.3': 0, '3': 0, '4.1': 0, '5.1': 1, '6.1': 0, '8': 0 },
-  '6.1': { '1': 0, '2.1': 0, '2.2': 1, '2.3': 1, '3': 2, '4.1': 2, '5.1': 0, '6.1': 1, '8': 0 },
-  '8':   { '1': 0, '2.1': 0, '2.2': 1, '2.3': 0, '3': 0, '4.1': 0, '5.1': 0, '6.1': 0, '8': 1 },
-};
 
 export function HazmatStorage() {
   const { t } = useTranslation();
-  const [selectedClass1, setSelectedClass1] = useState<string | null>(null);
-  const [selectedClass2, setSelectedClass2] = useState<string | null>(null);
+  const [selectedClass1, setSelectedClass1] = useState<HazmatSubclass | null>(null);
+  const [selectedClass2, setSelectedClass2] = useState<HazmatSubclass | null>(null);
 
-  const getCompatibility = () => {
-    if (!selectedClass1 || !selectedClass2) return null;
-    return SEGREGATION_MATRIX[selectedClass1]?.[selectedClass2];
-  };
-
-  const compatibility = getCompatibility();
+  // Resultado del lookup IMDG. `null` cuando faltan inputs.
+  const segregation =
+    selectedClass1 && selectedClass2
+      ? checkSegregation(selectedClass1, selectedClass2)
+      : null;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -89,7 +94,7 @@ export function HazmatStorage() {
                   >
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-sm ${c.color}`} />
-                      <span>{c.id}</span>
+                      <span>{c.id.replace('_', '.')}</span>
                     </div>
                   </button>
                 ))}
@@ -111,7 +116,7 @@ export function HazmatStorage() {
                   >
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-sm ${c.color}`} />
-                      <span>{c.id}</span>
+                      <span>{c.id.replace('_', '.')}</span>
                     </div>
                   </button>
                 ))}
@@ -144,7 +149,7 @@ export function HazmatStorage() {
               <div className="flex justify-between items-center mb-8">
                 <div className="text-center">
                   <div className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-black border-4 border-zinc-900 shadow-xl ${HAZARD_CLASSES.find(c => c.id === selectedClass1)?.color}`}>
-                    {selectedClass1}
+                    {selectedClass1.replace('_', '.')}
                   </div>
                   <p className="text-xs font-bold text-zinc-400 mt-3 uppercase tracking-wider">
                     {HAZARD_CLASSES.find(c => c.id === selectedClass1)?.name}
@@ -161,7 +166,7 @@ export function HazmatStorage() {
 
                 <div className="text-center">
                   <div className={`w-16 h-16 mx-auto rounded-xl flex items-center justify-center text-2xl font-black border-4 border-zinc-900 shadow-xl ${HAZARD_CLASSES.find(c => c.id === selectedClass2)?.color}`}>
-                    {selectedClass2}
+                    {selectedClass2.replace('_', '.')}
                   </div>
                   <p className="text-xs font-bold text-zinc-400 mt-3 uppercase tracking-wider">
                     {HAZARD_CLASSES.find(c => c.id === selectedClass2)?.name}
@@ -170,32 +175,33 @@ export function HazmatStorage() {
               </div>
 
               <div className={`p-6 rounded-2xl border ${
-                compatibility === 1 ? 'bg-emerald-500/10 border-emerald-500/30' :
-                compatibility === 0 ? 'bg-rose-500/10 border-rose-500/30' :
+                segregation?.operational === 'compatible' ? 'bg-emerald-500/10 border-emerald-500/30' :
+                segregation?.operational === 'incompatible' ? 'bg-rose-500/10 border-rose-500/30' :
                 'bg-amber-500/10 border-amber-500/30'
               }`}>
                 <div className="flex items-center gap-4 mb-4">
-                  {compatibility === 1 ? <CheckCircle2 className="w-10 h-10 text-emerald-500" /> :
-                   compatibility === 0 ? <XCircle className="w-10 h-10 text-rose-500" /> :
+                  {segregation?.operational === 'compatible' ? <CheckCircle2 className="w-10 h-10 text-emerald-500" /> :
+                   segregation?.operational === 'incompatible' ? <XCircle className="w-10 h-10 text-rose-500" /> :
                    <AlertTriangle className="w-10 h-10 text-amber-500" />}
-                  
+
                   <div>
                     <h3 className={`text-xl font-black uppercase tracking-wider ${
-                      compatibility === 1 ? 'text-emerald-400' :
-                      compatibility === 0 ? 'text-rose-400' :
+                      segregation?.operational === 'compatible' ? 'text-emerald-400' :
+                      segregation?.operational === 'incompatible' ? 'text-rose-400' :
                       'text-amber-400'
                     }`}>
-                      {compatibility === 1 ? 'Almacenamiento Permitido' :
-                       compatibility === 0 ? 'Incompatible - Separar' :
-                       'Precaución - Separación Específica'}
+                      {segregation?.operational === 'compatible' ? t('hazmatStorage.compatible', 'Almacenamiento Permitido') :
+                       segregation?.operational === 'incompatible' ? t('hazmatStorage.incompatible', 'Incompatible — Separar') :
+                       t('hazmatStorage.caution', 'Precaución — Separación Específica')}
                     </h3>
+                    <p className="text-[10px] text-zinc-400 mt-1 font-mono">
+                      IMDG 7.2.4 — código {segregation?.imdgCode}
+                    </p>
                   </div>
                 </div>
 
                 <p className="text-sm text-zinc-300 leading-relaxed">
-                  {compatibility === 1 ? 'Estas sustancias pueden almacenarse en la misma bodega o área de acopio sin requerimientos especiales de separación, siempre que se mantengan en sus envases originales.' :
-                   compatibility === 0 ? '¡PELIGRO! Estas sustancias no deben almacenarse juntas. Requieren bodegas separadas o una distancia mínima de 10 metros con barreras físicas (muros cortafuego) según normativa.' :
-                   'Pueden almacenarse en la misma bodega, pero requieren una separación mínima de 3 metros o barreras físicas intermedias para evitar reacciones en caso de derrame.'}
+                  {segregation?.rationale}
                 </p>
               </div>
             </motion.div>
@@ -205,7 +211,10 @@ export function HazmatStorage() {
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
               <p className="text-xs text-zinc-300">
-                Matriz de segregación basada en NCh 382 y NCh 2190. Esta herramienta funciona 100% offline para uso en bodegas remotas.
+                {t(
+                  'hazmatStorage.source',
+                  'Matriz IMDG 7.2.4 (Code of Safe Practice 2024), compatible con NCh 382/2190 y 49 CFR §177.848. Cubre 15 sub-clases NU. 100% offline para uso en bodegas remotas.',
+                )}
               </p>
             </div>
           </div>
