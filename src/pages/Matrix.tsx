@@ -42,7 +42,7 @@ import { suggestRisksWithAI } from '../services/geminiService';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { INDUSTRY_IPER_BASE } from '../data/industryIPER';
+import { INDUSTRY_IPER_BASE, type IPERBaseNode } from '../data/industryIPER';
 
 const getCriticalityColor = (criticidad?: string) => {
   switch (String(criticidad || '').toLowerCase()) {
@@ -103,17 +103,17 @@ export function Matrix() {
       const { getDoc, doc } = await import('firebase/firestore');
       const templateDoc = await getDoc(doc(db, 'global_templates', industryKey.replace(/[^a-zA-Z0-9]/g, '_')));
       
-      let initialNodes = [];
+      let initialNodes: IPERBaseNode[] = [];
       if (templateDoc.exists()) {
-        initialNodes = templateDoc.data().nodes || [];
+        initialNodes = (templateDoc.data().nodes as IPERBaseNode[]) || [];
       } else {
         // Fallback to General if specific industry not found
         const generalDoc = await getDoc(doc(db, 'global_templates', 'General'));
         if (generalDoc.exists()) {
-          initialNodes = generalDoc.data().nodes || [];
+          initialNodes = (generalDoc.data().nodes as IPERBaseNode[]) || [];
         } else {
           // Fallback to local if Firestore is empty (e.g. before seeding)
-          initialNodes = INDUSTRY_IPER_BASE[industryKey] || INDUSTRY_IPER_BASE['General'];
+          initialNodes = INDUSTRY_IPER_BASE[industryKey] || INDUSTRY_IPER_BASE['General'] || [];
         }
       }
 
