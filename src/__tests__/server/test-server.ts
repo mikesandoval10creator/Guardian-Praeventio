@@ -349,6 +349,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       const decoded = await deps.auth.verifyIdToken(token);
       req.user = decoded;
       next();
+      return undefined;
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
@@ -416,9 +417,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         ip: req.ip ?? null,
         userAgent: req.header('user-agent') ?? null,
       });
-      res.json({ success: true });
+      return res.json({ success: true });
     } catch {
-      res.status(500).json({ error: 'Audit log write failed' });
+      return res.status(500).json({ error: 'Audit log write failed' });
     }
   });
 
@@ -452,9 +453,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         newRole: role,
         ts: fakeFieldValue.serverTimestamp(),
       });
-      res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
+      return res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
     } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -481,9 +482,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         target: targetUid,
         ts: fakeFieldValue.serverTimestamp(),
       });
-      res.json({ success: true, message: `Access revoked for user ${targetUid}` });
+      return res.json({ success: true, message: `Access revoked for user ${targetUid}` });
     } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -526,9 +527,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           [`purchased_products.${productId}`]: true,
         });
       }
-      res.json({ success: true, data });
+      return res.json({ success: true, data });
     } catch {
-      res.status(500).json({ error: 'Failed to verify purchase' });
+      return res.status(500).json({ error: 'Failed to verify purchase' });
     }
   });
 
@@ -623,7 +624,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     } else if (body.paymentMethod === 'manual-transfer') {
       status = 'awaiting-payment';
     }
-    res.json({
+    return res.json({
       invoiceId: invoice.id,
       invoice: { ...invoice, status: 'pending-payment' },
       paymentUrl,
@@ -662,7 +663,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     if (safe.status === 'rejected' && typeof data.rejectionReason === 'string') {
       safe.rejectionReason = data.rejectionReason;
     }
-    res.json(safe);
+    return res.json(safe);
   });
 
   // â”€â”€â”€ /api/billing/webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -890,13 +891,13 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           } catch {}
         }),
       );
-      res.json({ success: true, claimId: result.id });
+      return res.json({ success: true, claimId: result.id });
     } catch (error: any) {
       const message = error?.message || 'Internal server error';
       if (/required|invalid|exactly 2|distinct|500/i.test(message)) {
         return res.status(400).json({ error: message });
       }
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -972,13 +973,13 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         deps.firestore as any,
         audit,
       );
-      res.json({ success: true, verified: result.verified });
+      return res.json({ success: true, verified: result.verified });
     } catch (error: any) {
       const message = error?.message || 'Internal server error';
       if (/expired/i.test(message)) return res.status(410).json({ error: message });
       if (/already/i.test(message)) return res.status(409).json({ error: message });
       if (/token|match/i.test(message)) return res.status(404).json({ error: message });
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -1043,9 +1044,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
           html: `<a>link</a>`,
         });
       } catch {}
-      res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
+      return res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
     } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -1064,14 +1065,14 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       if (new Date(invite.expiresAt) < new Date()) {
         return res.status(410).json({ error: 'Invitation has expired' });
       }
-      res.json({
+      return res.json({
         projectName: invite.projectName || 'un proyecto',
         invitedRole: invite.invitedRole,
         invitedEmail: invite.invitedEmail,
         expiresAt: invite.expiresAt,
       });
     } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -1124,9 +1125,9 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
         [`memberRoles.${callerUid}`]: invite.invitedRole,
       });
       await inviteDoc.ref.update({ status: 'accepted', acceptedAt: new Date().toISOString() });
-      res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
+      return res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
     } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 
@@ -1178,7 +1179,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       }
     }
 
-    res.json({
+    return res.json({
       response: `Echo: ${query}`,
       contextUsed: false,
       envContextUsed,
@@ -1206,7 +1207,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     if (typeof action !== 'string' || !ALLOWED_GEMINI_ACTIONS.has(action)) {
       return res.status(400).json({ error: `Forbidden: Action ${action} is not allowed` });
     }
-    res.json({ result: { ok: true, action } });
+    return res.json({ result: { ok: true, action } });
   });
 
   // â”€â”€â”€ /api/reports/generate-pdf â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1290,7 +1291,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       details: { amount, reason: reason ?? null, beneficiary },
       userId: callerUid,
     });
-    res.json({ success: true });
+    return res.json({ success: true });
   });
 
   // â”€â”€â”€ /api/subscription/upgrade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1348,7 +1349,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       details: { planId: normalizedPlanId, tierId: paidTierId ?? normalizedPlanId, method: 'verified-payment' },
       userId: callerUid,
     });
-    res.status(200).json({ success: true, planId: normalizedPlanId });
+    return res.status(200).json({ success: true, planId: normalizedPlanId });
   });
 
   // â”€â”€â”€ /api/zettelkasten/nodes (Sprint 11) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1472,7 +1473,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       });
       written.push(node.idempotencyKey);
     }
-    res.json({ success: true, count: written.length, ids: written });
+    return res.json({ success: true, count: written.length, ids: written });
   });
 
   return { app, deps };
