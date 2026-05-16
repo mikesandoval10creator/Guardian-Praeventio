@@ -122,76 +122,118 @@ function fakeMetrics(over: Partial<B2dMetrics> = {}): B2dMetrics {
 // Tests
 // ────────────────────────────────────────────────────────────────────────
 
-describe('runB2dMrrSnapshot', () => {
-  it('crea snapshot nuevo en el mes actual cuando no existe', async () => {
+// Nueva semántica (Codex fix PR #284 round 2):
+//   El snapshot SIEMPRE captura el MES CERRADO INMEDIATAMENTE ANTERIOR
+//   a `now`, computado AS-OF el último ms de ese mes en UTC.
+describe('runB2dMrrSnapshot — closed-month semantic', () => {
+  it('cron scheduled (día 1 00:30 UTC) captura el mes recién cerrado', async () => {
     const db = fakeDb();
-    const now = new Date('2026-05-16T10:00:00Z');
+    // Cloud Scheduler corre 2026-06-01 00:30 UTC → debemos cerrar mayo.
+    const now = new Date('2026-06-01T00:30:00Z');
     const metrics = fakeMetrics({ mrr: 1500, arr: 18000 });
+    const computeSpy = vi.fn().mockResolvedValue(metrics);
 
     const result = await runB2dMrrSnapshot({
       db: db as any,
       now: () => now,
-      computeMetrics: vi.fn().mockResolvedValue(metrics),
+      computeMetrics: computeSpy,
     });
 
     expect(result.created).toBe(true);
-    expect(result.monthKey).toBe('2026-05');
+    expect(result.monthKey).toBe('2026-05'); // ← MAYO, no junio
     expect(result.snapshot.mrr).toBe(1500);
     expect(result.snapshot.arr).toBe(18000);
-    expect(result.snapshot.monthLabel).toMatch(/May/);
-    expect(result.snapshot.capturedAt).toBe('2026-05-16T10:00:00.000Z');
-    expect(result.snapshot.schemaVersion).toBe(1);
+    expect(result.snapshot.monthLabel).toMatch(/May/i);
+    // capturedAt = momento real de la corrida (audit), no el cutoff.
+    expect(result.snapshot.capturedAt).toBe('2026-06-01T00:30:00.000Z');
+    // computeMetrics fue llamado con `now = last ms of May UTC`
+    // (2026-05-31 23:59:59.999 UTC = 1748735999999 ms).
+    expect(computeSpy).toHaveBeenCalledWith({
+      now: Date.UTC(2026, 5, 1, 0, 0, 0, 0) - 1,
+    });
   });
 
-  it('preserva capturedAt original al re-correr en el mismo mes', async () => {
+  it('re-correr en el mismo mes preserva capturedAt original', async () => {
     const db = fakeDb();
     const computeMetrics = vi.fn().mockResolvedValue(fakeMetrics({ mrr: 1500 }));
 
-    // Primera corrida
+    // Primera corrida: 2026-06-01 00:30 UTC → cierra mayo
     const r1 = await runB2dMrrSnapshot({
       db: db as any,
-      now: () => new Date('2026-05-16T10:00:00Z'),
+      now: () => new Date('2026-06-01T00:30:00Z'),
       computeMetrics,
     });
     expect(r1.created).toBe(true);
+    expect(r1.monthKey).toBe('2026-05');
 
-    // Segunda corrida en el mismo mes (mid-month refresh) con MRR distinto
+    // Mid-month refresh (operador re-corre el 15 de junio) — sigue
+    // cerrando mayo, NO junio. capturedAt original se preserva.
     computeMetrics.mockResolvedValueOnce(fakeMetrics({ mrr: 1800 }));
     const r2 = await runB2dMrrSnapshot({
       db: db as any,
-      now: () => new Date('2026-05-29T18:00:00Z'),
+      now: () => new Date('2026-06-15T18:00:00Z'),
       computeMetrics,
     });
 
     expect(r2.created).toBe(false);
-    expect(r2.snapshot.mrr).toBe(1800); // métricas actualizadas
+    expect(r2.monthKey).toBe('2026-05');
+    expect(r2.snapshot.mrr).toBe(1800);
 
-    // El capturedAt en Firestore sigue siendo el de la primera corrida
+    // capturedAt = primera corrida; mrr = última corrida.
     const stored = await (db as any).collection('b2d_mrr_snapshots').doc('2026-05').get();
-    expect(stored.data().capturedAt).toBe('2026-05-16T10:00:00.000Z');
+    expect(stored.data().capturedAt).toBe('2026-06-01T00:30:00.000Z');
     expect(stored.data().mrr).toBe(1800);
+  });
+
+  it('cierre de enero captura diciembre del año anterior', async () => {
+    const db = fakeDb();
+    const result = await runB2dMrrSnapshot({
+      db: db as any,
+      now: () => new Date('2026-01-01T00:30:00Z'),
+      computeMetrics: vi.fn().mockResolvedValue(fakeMetrics()),
+    });
+    expect(result.monthKey).toBe('2025-12');
+    expect(result.snapshot.monthLabel).toMatch(/Dec/i);
   });
 
   it('genera monthKey con padding 2-digit para meses enero-sept', async () => {
     const db = fakeDb();
+    // Mid-marzo → cierra febrero
     const result = await runB2dMrrSnapshot({
       db: db as any,
       now: () => new Date('2026-03-07T12:00:00Z'),
       computeMetrics: vi.fn().mockResolvedValue(fakeMetrics()),
     });
-    expect(result.monthKey).toBe('2026-03');
+    expect(result.monthKey).toBe('2026-02');
   });
 
-  it('usa UTC para el monthKey (no timezone-aware del runner)', async () => {
+  it('usa UTC consistentemente (host TZ no afecta monthKey ni monthLabel)', async () => {
     const db = fakeDb();
-    // Una fecha que cae en mes distinto según TZ: 2026-05-01T01:00 UTC
-    // es todavía 30 abril en muchos husos americanos.
+    // 2026-05-01T01:00 UTC: en husos americanos (UTC-4..-8) es todavía
+    // 30 abril. Con la nueva semántica, cerramos abril (no marzo) porque
+    // UTC ya cruzó al 1 de mayo.
     const result = await runB2dMrrSnapshot({
       db: db as any,
       now: () => new Date('2026-05-01T01:00:00Z'),
       computeMetrics: vi.fn().mockResolvedValue(fakeMetrics()),
     });
-    expect(result.monthKey).toBe('2026-05');
+    expect(result.monthKey).toBe('2026-04');
+    // monthLabel también en UTC (no del host)
+    expect(result.snapshot.monthLabel).toMatch(/Apr/i);
+  });
+
+  it('cutoff pasado a computeMetrics es exactly el último ms del mes cerrado', async () => {
+    const db = fakeDb();
+    const computeSpy = vi.fn().mockResolvedValue(fakeMetrics());
+    await runB2dMrrSnapshot({
+      db: db as any,
+      now: () => new Date('2026-06-01T00:30:00Z'),
+      computeMetrics: computeSpy,
+    });
+    // Last ms of May UTC = 2026-05-31T23:59:59.999Z
+    const expectedCutoff = Date.UTC(2026, 5, 1, 0, 0, 0, 0) - 1;
+    expect(new Date(expectedCutoff).toISOString()).toBe('2026-05-31T23:59:59.999Z');
+    expect(computeSpy).toHaveBeenCalledWith({ now: expectedCutoff });
   });
 
   it('propaga métricas calculadas: customersActive, churnRate, topCustomers', async () => {
@@ -204,7 +246,7 @@ describe('runB2dMrrSnapshot', () => {
     });
     const result = await runB2dMrrSnapshot({
       db: db as any,
-      now: () => new Date('2026-05-16T10:00:00Z'),
+      now: () => new Date('2026-06-01T00:30:00Z'),
       computeMetrics: vi.fn().mockResolvedValue(metrics),
     });
 

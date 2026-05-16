@@ -236,10 +236,13 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
 //
 //   POST /api/maintenance/run-b2d-mrr-snapshot
 //
-// Cloud Scheduler corre esto día 1 de cada mes a 00:30 UTC para
-// capturar las métricas finales del mes anterior. Es idempotente:
-// puede re-correrse a mediados de mes para refrescar el valor en
-// curso sin borrar `capturedAt`.
+// Cloud Scheduler corre esto día 1 de cada mes a 00:30 UTC. El job
+// SIEMPRE cierra el mes inmediatamente anterior (cron en Jun 1 →
+// cierra mayo), computando métricas AS-OF el último ms del mes
+// cerrado en UTC. Es idempotente: re-correr en cualquier momento
+// del mes en curso sigue cerrando el mismo mes-anterior (capturedAt
+// original se preserva via merge). Si necesitas el live state del
+// mes en curso, usa `GET /api/admin/b2d/metrics`.
 router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => {
   const start = Date.now();
   try {
