@@ -51,9 +51,18 @@ export interface WorkerLike {
     type: 'error',
     listener: (ev: { message?: string }) => void,
   ): void;
+  // strictFunctionTypes fix: el listener original era `(ev: unknown) => void`
+  // pero las versiones específicas (`{ data: unknown }` / `{ message? }`)
+  // son MÁS NARROW que `unknown`, lo que viola contravarianza. Sobrecargamos
+  // con los mismos shapes que addEventListener para que ambas operaciones
+  // acepten el mismo handler tipado.
   removeEventListener(
-    type: 'message' | 'error',
-    listener: (ev: unknown) => void,
+    type: 'message',
+    listener: (ev: { data: unknown }) => void,
+  ): void;
+  removeEventListener(
+    type: 'error',
+    listener: (ev: { message?: string }) => void,
   ): void;
   terminate(): void;
 }

@@ -106,11 +106,15 @@ export function XRSession({
       }
 
       try {
-        session = await xr.requestSession('immersive-ar', {
+        // strictFunctionTypes: el `xr.requestSession()` (DOM WebXR types)
+        // devuelve un `XRSession` nativo más ancho que nuestro
+        // `XRSessionInstance` local. Cast explícito en el boundary
+        // porque solo usamos las propiedades intersectadas.
+        session = (await xr.requestSession('immersive-ar', {
           requiredFeatures: ['hit-test'],
           optionalFeatures: ['anchors', 'dom-overlay', 'light-estimation'],
           domOverlay: { root: overlayRef.current },
-        });
+        })) as unknown as XRSessionInstance;
       } catch (err) {
         setError(`No se pudo iniciar AR: ${(err as Error).message}`);
         return;

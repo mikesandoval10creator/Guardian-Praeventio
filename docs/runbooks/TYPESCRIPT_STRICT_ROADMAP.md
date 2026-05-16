@@ -4,7 +4,7 @@
 > "TypeScript NO strict" como **deuda estructural #1**. Este documento
 > traquea el camino incremental para llegar a strict completo.
 
-## Baseline actual (commit post-PR #287)
+## Baseline actual (commit post-Wave 1)
 
 `tsconfig.json` tiene activadas las siguientes flags strict-family:
 
@@ -14,6 +14,7 @@
 | `noFallthroughCasesInSwitch` | ✅ activado | 0 |
 | `strictBindCallApply` | ✅ activado | 0 |
 | `noImplicitOverride` | ✅ activado | 13 fixed |
+| `strictFunctionTypes` | ✅ activado (Wave 1) | 7 fixed |
 
 ## Siguientes ondas (recomendación priorizada)
 
@@ -21,19 +22,23 @@ Cada onda debería ser un PR separado. NO mergeear varias en el mismo PR
 — cada activación es una semántica distinta y el reviewer necesita
 context limpio para evaluar los fixes.
 
-### Onda 1 — `strictFunctionTypes` (7 errores)
-**Prioridad**: ALTA (las librerías afectadas son user-facing).
+### ✅ Onda 1 — `strictFunctionTypes` (7 errores) — COMPLETADA
 
-Errores en:
-- `src/components/admin/MrrChart.tsx` — recharts Formatter type
-- `src/components/admin/RevenueByTierChart.tsx` — recharts Formatter type
-- `src/components/ar/XRSession.tsx` — WebXR type narrowing
-- `src/components/shared/KnowledgeGraph.tsx` (×3) — react-force-graph generic shape
-- `src/services/slm/worker/slmRuntimeWorkerProxy.ts` — Worker MessageEvent shape
+**Resultado**: 7 errores fixed, todos por mismatch entre tipos
+locales narrow y tipos de librerías más anchos (recharts, react-force-graph,
+WebXR DOM, MessageEvent shape).
 
-Fix approach: type narrowing + signature alignment con las definiciones
-de las libs. Si recharts/react-force-graph tipan demasiado loose,
-agregar wrapper type asserts en el callsite.
+Fix approach aplicado: type narrowing + signature alignment con las
+definiciones de las libs. En tres casos (recharts × 2 + slmRuntimeWorker)
+se alineó la signature del callsite. En tres casos (XRSession + KnowledgeGraph
+× 2) se castó al boundary porque las libs upstream tipan demasiado loose.
+
+Archivos modificados:
+- `src/components/admin/MrrChart.tsx` — Formatter signature coerce
+- `src/components/admin/RevenueByTierChart.tsx` — idem
+- `src/components/ar/XRSession.tsx` — cast XRSession → XRSessionInstance
+- `src/components/shared/KnowledgeGraph.tsx` — cast ref, onNodeClick, nodeThreeObject
+- `src/services/slm/worker/slmRuntimeWorkerProxy.ts` — overloads removeEventListener
 
 ### Onda 2 — `noUnusedParameters` (33 errores)
 **Prioridad**: MEDIA (cleanup, signals dead code path).
@@ -128,7 +133,7 @@ mantiene CI verde, y deja la deuda visible en este doc.
 ## Tracking
 
 Items abiertos:
-- [ ] Onda 1: `strictFunctionTypes` (7 errores)
+- [x] Onda 1: `strictFunctionTypes` (7 errores) — COMPLETADA
 - [ ] Onda 2: `noUnusedParameters` (33 errores)
 - [ ] Onda 3: `noImplicitReturns` (240 errores)
 - [ ] Onda 4: `strictNullChecks` (337 errores, multi-PR por domain)

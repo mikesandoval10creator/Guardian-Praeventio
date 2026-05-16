@@ -77,7 +77,14 @@ export function RevenueByTierChart({ revenueByTier, customersByTier }: RevenueBy
               <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" />
               <XAxis dataKey="tier" stroke="#71717a" fontSize={11} />
               <YAxis stroke="#71717a" fontSize={11} />
-              <Tooltip formatter={(v: number) => [`$${v.toLocaleString('en-US')}`, 'USD']} />
+              <Tooltip
+                // strictFunctionTypes: recharts Formatter signature
+                // (value: ValueType, name: NameType, …) — coerce v to number.
+                formatter={(value) => {
+                  const v = typeof value === 'number' ? value : Number(value);
+                  return [`$${v.toLocaleString('en-US')}`, 'USD'];
+                }}
+              />
               <Bar dataKey="revenue">
                 {barData.map((entry, i) => (
                   <Cell key={`bar-${i}`} fill={entry.color} />

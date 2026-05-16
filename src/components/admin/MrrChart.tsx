@@ -42,7 +42,13 @@ export function MrrChart({ data }: MrrChartProps) {
           <XAxis dataKey="monthLabel" stroke="#71717a" fontSize={12} />
           <YAxis stroke="#71717a" fontSize={12} />
           <Tooltip
-            formatter={(v: number) => [`$${v.toLocaleString('en-US')} USD`, 'MRR']}
+            // Codex/strictFunctionTypes fix: el Formatter recharts pide
+            // (value: ValueType, name: NameType, ...) → number coerced
+            // via `as number`. El return debe ser [valueString, name].
+            formatter={(value) => {
+              const v = typeof value === 'number' ? value : Number(value);
+              return [`$${v.toLocaleString('en-US')} USD`, 'MRR'];
+            }}
           />
           <Line
             type="monotone"

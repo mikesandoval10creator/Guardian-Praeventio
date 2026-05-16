@@ -29,7 +29,8 @@
     "alwaysStrict": true,
     "noFallthroughCasesInSwitch": true,
     "strictBindCallApply": true,
-    "noImplicitOverride": true
+    "noImplicitOverride": true,
+    "strictFunctionTypes": true
   },
   "include": ["src", "server.ts"],
   "exclude": ["node_modules", "dist"]
