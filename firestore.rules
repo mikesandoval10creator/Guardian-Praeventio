@@ -805,8 +805,17 @@ service cloud.firestore {
 
       // Subcollections (entitlements, audit_summaries, etc.) follow
       // the same tenant-claim gate. The server owns writes.
+      //
+      // 2026-05-15 fix: en Firestore rules, los `match` que se solapan se
+      // combinan con OR sobre los `allow`. Este catchall daba lectura a
+      // CUALQUIER tenant member, incluyendo subcolecciones que tienen
+      // matchers hermanos más estrictos (`supervisor_only`, `suseso_forms`,
+      // `suseso_counters`). El OR anulaba esos checks. Excluimos esas rutas
+      // de aquí para que la regla estricta sea la única aplicable.
       match /{subcoll}/{docId} {
-        allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+        allow read: if isSignedIn()
+          && isMemberOfTenant(tenantId)
+          && !(subcoll in ['supervisor_only', 'suseso_forms', 'suseso_counters']);
         allow create, update, delete: if false;
       }
 
