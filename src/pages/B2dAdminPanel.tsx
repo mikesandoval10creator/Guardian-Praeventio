@@ -161,19 +161,26 @@ export function B2dAdminPanel() {
     return counts;
   }, [keys]);
 
-  // Placeholder MRR-over-time series — until a historical snapshot job
-  // exists, render the current MRR as the latest point only. Bucket DD
-  // follow-up will populate the series from a `b2d_mrr_snapshots`
-  // collection.
+  // MRR-over-time series. 2026-05-16 (Sprint D fix): antes esta función
+  // sintetizaba un ramp LINEAL desde 0 hasta el MRR actual distribuido
+  // por 11 meses — visual pero MENTIROSO porque el chart parecía mostrar
+  // crecimiento histórico real cuando los puntos eran fórmula simple.
+  //
+  // Ahora: mostramos SOLO el punto actual (mes actual) hasta que el
+  // cron `runB2dMrrSnapshot` (TODO Sprint E, ver server/jobs/) llene
+  // `b2d_mrr_snapshots/{YYYY-MM}` con valores reales mensuales.
+  //
+  // Esto cumple Regla #3: producir solución honesta en vez de fingir
+  // historia que no existe. El usuario ve el valor real + leyenda
+  // explicando que el histórico está pendiente.
   const mrrSeries = useMemo<MrrPoint[]>(() => {
     if (!metrics) return [];
-    const labels = ['Jul 25', 'Ago 25', 'Sep 25', 'Oct 25', 'Nov 25', 'Dic 25', 'Ene 26', 'Feb 26', 'Mar 26', 'Abr 26', 'May 26'];
-    return labels.map((monthLabel, i) => ({
-      monthLabel,
-      // Linear ramp synthesized for visual continuity. Replace with real
-      // snapshot data once Bucket DD wires it.
-      mrr: Math.round((metrics.mrr * (i + 1)) / labels.length),
-    }));
+    const now = new Date();
+    const monthLabel = now.toLocaleDateString('es-CL', {
+      month: 'short',
+      year: '2-digit',
+    });
+    return [{ monthLabel, mrr: metrics.mrr }];
   }, [metrics]);
 
   return (
@@ -228,9 +235,15 @@ export function B2dAdminPanel() {
             className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4"
           >
             <h3 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-2">
-              {t('b2dAdmin.metrics.mrrChart', 'MRR — últimos 12 meses')}
+              {t('b2dAdmin.metrics.mrrChart', 'MRR — mes actual')}
             </h3>
             <MrrChart data={mrrSeries} />
+            <p className="mt-2 text-[10px] text-zinc-500 leading-relaxed">
+              {t(
+                'b2dAdmin.metrics.mrrChartNote',
+                'Solo se muestra el valor actual. El histórico mensual se llenará automáticamente cuando el cron `runB2dMrrSnapshot` empiece a poblar la colección b2d_mrr_snapshots.',
+              )}
+            </p>
           </motion.div>
 
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4">

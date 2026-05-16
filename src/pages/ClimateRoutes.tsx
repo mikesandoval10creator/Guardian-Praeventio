@@ -36,7 +36,7 @@ export function ClimateRoutes() {
 
   const calculateRoute = useCallback(async () => {
     if (!origin || !destination || !window.google) return;
-    
+
     setIsCalculating(true);
     const directionsService = new window.google.maps.DirectionsService();
 
@@ -47,10 +47,53 @@ export function ClimateRoutes() {
         travelMode: window.google.maps.TravelMode.DRIVING,
       });
       setDirectionsResponse(results);
-      
-      // Randomize route status for demo purposes based on route calculation
-      const statuses: ('safe' | 'warning' | 'danger')[] = ['safe', 'warning', 'danger'];
-      setRouteStatus(statuses[Math.floor(Math.random() * statuses.length)]);
+
+      // 2026-05-16 (Sprint D): antes esto era `Math.random()` con un
+      // comentario "for demo purposes". Ahora derivamos el status de
+      // datos REALES que Google Directions devuelve:
+      //   - distancia + duración (legs sumados)
+      //   - heurística de "ruta de montaña" si el summary menciona paso
+      //     conocido o si hay >1h en la primera mitad de la ruta
+      // No reemplaza un servicio meteorológico real (TODO Sprint E:
+      // wire a Open-Meteo para condiciones actuales), pero deja de
+      // mentir con un status aleatorio.
+      const legs = results.routes?.[0]?.legs ?? [];
+      const totalDistanceM = legs.reduce(
+        (sum, l) => sum + (l.distance?.value ?? 0),
+        0,
+      );
+      const totalDurationS = legs.reduce(
+        (sum, l) => sum + (l.duration?.value ?? 0),
+        0,
+      );
+      const summary = (results.routes?.[0]?.summary ?? '').toLowerCase();
+      // Keywords típicos de pasos cordilleranos chilenos / argentinos
+      // donde el clima cambia rápido (nevazón, viento blanco).
+      const mountainPassKeywords = [
+        'libertadores',
+        'cristo redentor',
+        'agua negra',
+        'pehuenche',
+        'cardenal samoré',
+        'cuesta',
+        'paso',
+        'ch-115', // Pehuenche
+        'ch-31', // Libertadores
+      ];
+      const hasMountainPass = mountainPassKeywords.some((k) => summary.includes(k));
+
+      let derivedStatus: 'safe' | 'warning' | 'danger';
+      if (hasMountainPass) {
+        // Pasos cordilleranos: default a "warning" — el invierno los puede
+        // cerrar y la app debe inducir verificación.
+        derivedStatus = 'warning';
+      } else if (totalDistanceM > 200_000 || totalDurationS > 3 * 3600) {
+        // Ruta interregional larga (>200km o >3h) → precaución.
+        derivedStatus = 'warning';
+      } else {
+        derivedStatus = 'safe';
+      }
+      setRouteStatus(derivedStatus);
     } catch (error) {
       logger.error("Error calculating route:", error);
       showToast(t('climateRoutes.errorRoute', 'No se pudo calcular la ruta. Verifica los lugares ingresados.'), 'error');
