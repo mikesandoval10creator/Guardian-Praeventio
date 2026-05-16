@@ -17,12 +17,40 @@ export type CurrencyCode = 'CLP' | 'USD';
 /**
  * Supported payment rails.
  *
+ * 2026-05-16 — Decisión usuario: la empresa está en Chile, Stripe no
+ * la considera para checkout productivo. `stripe` queda como rail
+ * SERVER-SIDE únicamente (legacy de `src/server/routes/billing.ts` y
+ * `src/services/billing/stripeAdapter.ts`). El cliente NUNCA debería
+ * solicitarlo, por eso lo separamos en dos tipos:
+ *
+ *   - `ClientPaymentMethod`: lo que el UI puede ofrecer al usuario
+ *   - `ServerPaymentMethod`: lo que el backend reconoce (incluye stripe
+ *     por compatibilidad con código legacy)
+ *
+ * Si en el futuro Stripe acepta a Chile, podemos re-exportar:
+ *   `export type ClientPaymentMethod = 'webpay' | 'stripe' | ...;`
+ * Sin tener que tocar el resto del código.
+ *
+ * Rails activos:
  * - `webpay` → Transbank Webpay Plus (CLP, Chilean issuers)
- * - `stripe` → International cards (USD)
+ * - `mercadopago` → MercadoPago Checkout Pro (CLP/ARS regional)
  * - `manual-transfer` → Transferencia bancaria; admin marks invoice paid
  *   manually via `POST /api/billing/invoice/:id/mark-paid`.
  */
-export type PaymentMethod = 'webpay' | 'stripe' | 'manual-transfer';
+export type ClientPaymentMethod = 'webpay' | 'mercadopago' | 'manual-transfer';
+
+/**
+ * Server-side method type — incluye 'stripe' por compatibilidad con
+ * código legacy del backend. NO usar en código cliente.
+ */
+export type ServerPaymentMethod = ClientPaymentMethod | 'stripe';
+
+/**
+ * @deprecated Usar `ClientPaymentMethod` (UI) o `ServerPaymentMethod`
+ * (backend) explícitamente. Mantenido como alias del tipo SERVER para
+ * no romper código existente.
+ */
+export type PaymentMethod = ServerPaymentMethod;
 
 export interface InvoiceLineItem {
   /** Tier id from `src/services/pricing/tiers.ts`. */

@@ -107,17 +107,34 @@ function PointCloudViewer({ pointCount, boundingBox }: { pointCount: number; bou
   );
 }
 
-// Risk markers (pinned in 3D space — demo: static positions, future: from risk engine)
-function RiskMarkers() {
-  const markers = [
-    { pos: [3, 1.5, 2] as [number, number, number], color: '#f43f5e', label: 'Caída altura' },
-    { pos: [-4, 0.8, -3] as [number, number, number], color: '#f59e0b', label: 'Atropello' },
-    { pos: [0, 2, 5] as [number, number, number], color: '#fbbf24', label: 'EPP faltante' },
-  ];
+// Risk markers (pinned in 3D space).
+//
+// 2026-05-16 (Sprint F fix): antes este componente renderizaba 3 markers
+// hardcoded ("demo: static positions, future: from risk engine"). Eso era
+// un fake — el Twin parecía mostrar riesgos reales en posiciones reales
+// cuando ambos venían del código. Ahora el componente acepta `markers`
+// como prop (lista vacía por default) y el caller decide qué pasa.
+//
+// El caller (DigitalTwinFaena) puede derivar los markers desde:
+//   - `placedObjects` filtrados por kind === 'risk' (drag-drop manual)
+//   - Una collection `tenants/{tid}/projects/{pid}/risk_nodes` (futuro
+//     wire al motor de riesgos cuando se decida la integración)
+//   - Las anclas AR de tipo 'machinery' (ARMachineryScene Sprint F)
+//
+// Mientras tanto: si no recibe markers, renderiza vacío. Eso es honesto
+// — el Twin sin datos no inventa riesgos.
+interface RiskMarker {
+  pos: [number, number, number];
+  color: string;
+  label: string;
+}
+
+function RiskMarkers({ markers = [] }: { markers?: RiskMarker[] }) {
+  if (markers.length === 0) return null;
   return (
     <>
       {markers.map((m, i) => (
-        <mesh key={i} position={m.pos}>
+        <mesh key={`${m.label}-${i}`} position={m.pos}>
           <sphereGeometry args={[0.3, 16, 16]} />
           <meshStandardMaterial color={m.color} emissive={m.color} emissiveIntensity={0.6} />
         </mesh>
@@ -177,27 +194,56 @@ export function DigitalTwinFaena() {
       e.dataTransfer.getData('text/plain')) as PlacedObjectKind | '';
     if (!kind) return;
     e.preventDefault();
-    // Place at a sensible default — center of grid; Ola 3 will raycast onto mesh.
+    // 2026-05-16 (Sprint F fix): antes la posición era
+    // `(Math.random()-0.5)*8` → objetos caían en lugares impredecibles.
+    // Ahora usamos una grilla determinística basada en cuántos objetos
+    // ya están placeados: 4 columnas × N filas, espaciado 1.5m.
+    //
+    // Codex fix follow-up: el useCallback NO lista `placedObjects` en
+    // sus deps (intencional — re-crear la callback en cada drop
+    // invalidaría DnD handlers). Eso hacía que `placedObjects.length`
+    // leído en el closure capturara el valor del primer render → todos
+    // los drops siguientes caían en el mismo idx 0.
+    //
+    // Fix: calcular el índice DENTRO del updater `setPlacedObjects(prev
+    // => ...)` que SÍ ve el estado actual. Una pasada, sin races.
+    //
+    // Mejora futura: Three.js raycaster contra la malla 3D para
+    // posición exacta bajo el cursor (requiere ref al canvas R3F).
     const now = Date.now();
-    const newObj: PlacedObject = {
+    const newObjBase = {
       id: `placed_${now}_${Math.random().toString(36).slice(2, 8)}`,
       kind: kind as PlacedObjectKind,
-      position: { x: (Math.random() - 0.5) * 8, y: 1, z: (Math.random() - 0.5) * 8 },
-      lifecycle: 'planning',
+      lifecycle: 'planning' as const,
       createdAt: now,
       updatedAt: now,
     };
-    setPlacedObjects((prev) => [...prev, newObj]);
-    setSelectedObjectId(newObj.id);
+    let newObj: PlacedObject | null = null;
+    setPlacedObjects((prev) => {
+      const idx = prev.length;
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      newObj = {
+        ...newObjBase,
+        position: {
+          x: (col - 1.5) * 1.5, // centrar en X: -2.25, -0.75, 0.75, 2.25
+          y: 1,
+          z: row * 1.5 - 2.25, // empezar cerca de la cámara y avanzar
+        },
+      };
+      return [...prev, newObj];
+    });
+    if (!newObj) return;
+    setSelectedObjectId((newObj as PlacedObject).id);
     // Bucket J.2 — persistir en Firestore (best-effort; el subscribe lo
     // re-hidratará igualmente al confirmar la escritura remota).
     const projectId = selectedProject?.id;
     if (projectId) {
-      void savePlacedObject(newObj, projectId).catch((err) =>
+      void savePlacedObject(newObj as PlacedObject, projectId).catch((err) =>
         logger.warn('placed_object_save_failed', { err: String(err) }),
       );
     }
-    void onLifecycleChange(null, newObj).catch((err) =>
+    void onLifecycleChange(null, newObj as PlacedObject).catch((err) =>
       logger.error('object lifecycle (planning) failed', { err: String(err) }),
     );
   }, [onLifecycleChange, selectedProject?.id]);
