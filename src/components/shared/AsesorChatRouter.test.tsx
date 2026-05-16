@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { AsesorChatRouter } from './AsesorChatRouter';
 
-const KEY = 'praeventio:asesor:resilient:v1';
+// 2026-05-15: actualizado a la semántica Sprint 55 (#242). Antes:
+//   • default OFF → legacy
+//   • LEGACY_OPT_IN_KEY ('praeventio:asesor:resilient:v1') = '1' → ON
+// Ahora:
+//   • default ON → resilient
+//   • LEGACY_OPT_OUT_KEY ('praeventio:asesor:legacy-optout:v2') = '1' → OFF
+const LEGACY_OPT_OUT_KEY = 'praeventio:asesor:legacy-optout:v2';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -31,16 +37,7 @@ describe('<AsesorChatRouter />', () => {
     localStorage.clear();
   });
 
-  it('flag OFF (default): renderiza legacy AsesorChat', async () => {
-    render(<AsesorChatRouter />);
-    await waitFor(() => {
-      expect(screen.getByTestId('legacy-asesor-mock')).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId('resilient-asesor-mock')).toBeNull();
-  });
-
-  it('flag ON: renderiza ResilientAsesorPanel', async () => {
-    localStorage.setItem(KEY, '1');
+  it('default (sin opt-out): renderiza ResilientAsesorPanel (Sprint 55 default ON)', async () => {
     render(<AsesorChatRouter />);
     await waitFor(() => {
       expect(screen.getByTestId('resilient-asesor-mock')).toBeInTheDocument();
@@ -48,8 +45,16 @@ describe('<AsesorChatRouter />', () => {
     expect(screen.queryByTestId('legacy-asesor-mock')).toBeNull();
   });
 
-  it('resilientProps se pasan al panel cuando flag ON', async () => {
-    localStorage.setItem(KEY, '1');
+  it('LEGACY_OPT_OUT_KEY=1: renderiza legacy AsesorChat (opt-out al panel viejo)', async () => {
+    localStorage.setItem(LEGACY_OPT_OUT_KEY, '1');
+    render(<AsesorChatRouter />);
+    await waitFor(() => {
+      expect(screen.getByTestId('legacy-asesor-mock')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('resilient-asesor-mock')).toBeNull();
+  });
+
+  it('resilientProps se pasan al panel por defecto (flag ON, no opt-out)', async () => {
     render(
       <AsesorChatRouter
         resilientProps={{

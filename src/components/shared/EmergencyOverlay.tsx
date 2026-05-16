@@ -1,463 +1,463 @@
-﻿import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
-import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
-import { useEmergency } from '../../contexts/EmergencyContext';
-import { useAppMode } from '../../contexts/AppModeContext';
-import { db, serverTimestamp } from '../../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
-import { logger } from '../../utils/logger';
-
-// Sprint 14 â€” climate sub-type copy (Spanish UI). Centralized so future
-// sub-types (e.g., visibility, lightning) are added in one place.
-const CLIMATE_COPY: Record<'storm' | 'extreme_heat' | 'extreme_cold', { title: string; body: string }> = {
-  storm: {
-    title: 'ðŸŒªï¸ TORMENTA DETECTADA',
-    body: 'Suspende trabajos en altura',
-  },
-  extreme_heat: {
-    title: 'ðŸ¥µ CALOR EXTREMO',
-    body: 'HidrataciÃ³n obligatoria Â· pausas cada 20 min',
-  },
-  extreme_cold: {
-    title: 'ðŸ¥¶ FRÃO EXTREMO',
-    body: 'Verifica EPP tÃ©rmico',
-  },
-};
-
-const SISMO_AUTO_DISMISS_MS = 30_000;
-const CLIMATE_AUTO_DISMISS_MS = 60_000;
-
-interface SeismicLogPayload {
-  detectedAt: string;
-  peakG: number;
-  location: { lat: number; lng: number } | null;
-  tenantId: string;
-}
-
-/**
- * Sprint 14 â€” Sismic overlay. Full-screen black takeover with the
- * "AgÃ¡chate Â· CÃºbrete Â· SujÃ©tate" trio, optional TriÃ¡ngulo de la Vida tip
- * (afternoon + indoor heuristic), and a 30s auto-dismiss / tap-to-dismiss.
- *
- * Persists one row to `tenants/{tenantId}/seismic_events/{id}` per trigger.
- */
-function SismicAutoOverlay({
-  peakG,
-  onDismiss,
-  tenantId,
-}: {
-  peakG: number;
-  onDismiss: () => void;
-  tenantId: string;
-}): React.ReactElement {
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [logged, setLogged] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(onDismiss, SISMO_AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
-
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) =>
-          setLocation({
-            lat: Number(pos.coords.latitude.toFixed(5)),
-            lng: Number(pos.coords.longitude.toFixed(5)),
-          }),
-        () => setLocation(null),
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
-      );
-    }
-  }, []);
-
-  // Persist exactly once.
-  useEffect(() => {
-    if (logged) return;
-    setLogged(true);
-    const payload: SeismicLogPayload = {
-      detectedAt: new Date().toISOString(),
-      peakG,
-      location,
-      tenantId,
-    };
-    addDoc(collection(db, `tenants/${tenantId}/seismic_events`), {
-      ...payload,
-      createdAt: serverTimestamp(),
-    }).catch((err) =>
-      logger.warn('SismicAutoOverlay: failed to persist seismic_event', { err }),
-    );
-  }, [logged, peakG, location, tenantId]);
-
-  // Indoor heuristic: afternoon (12:00â€“20:00) + GPS at coarse fix is a weak
-  // proxy for "user is inside a building". Without a known-buildings index
-  // we surface the TriÃ¡ngulo de la Vida tip whenever both conditions hold.
-  const hour = new Date().getHours();
-  const isAfternoon = hour >= 12 && hour < 20;
-  const indoorLikely = isAfternoon && location !== null;
-
-  return (
-    <button
-      type="button"
-      onClick={onDismiss}
-      className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center cursor-pointer"
-      aria-label="Cerrar alerta sÃ­smica"
-    >
-      <div className="text-6xl md:text-8xl font-black mb-6">ðŸŸ¥ SISMO DETECTADO</div>
-      <div className="text-3xl md:text-5xl font-bold mb-4 text-red-400 uppercase tracking-widest">
-        AgÃ¡chate Â· CÃºbrete Â· SujÃ©tate
-      </div>
-      {indoorLikely && (
-        <div className="mt-6 max-w-2xl text-base md:text-xl text-amber-300 border-2 border-amber-500 rounded-2xl p-4">
-          TriÃ¡ngulo de la Vida: junto a un mueble sÃ³lido, NUNCA debajo. Cuello protegido.
-        </div>
-      )}
-      <div className="mt-8 text-sm text-zinc-500">Toca la pantalla para descartar</div>
-    </button>
-  );
-}
-
-/**
- * Sprint 14 â€” Climate overlay. Routes by sub-type to the relevant copy,
- * auto-dismisses after 60s OR when the user acknowledges with "Entendido".
- */
-function ClimateAutoOverlay({
-  subType,
-  onDismiss,
-}: {
-  subType: 'storm' | 'extreme_heat' | 'extreme_cold';
-  onDismiss: () => void;
-}): React.ReactElement {
-  const copy = CLIMATE_COPY[subType];
-  useEffect(() => {
-    const t = setTimeout(onDismiss, CLIMATE_AUTO_DISMISS_MS);
-    return () => clearTimeout(t);
-  }, [onDismiss]);
-  return (
-    <div
-      className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center"
-      role="alertdialog"
-      aria-label="Alerta climÃ¡tica"
-    >
-      <div className="text-5xl md:text-7xl font-black mb-6">{copy.title}</div>
-      <div className="text-2xl md:text-4xl font-bold mb-8 text-amber-300 max-w-3xl">
-        {copy.body}
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="bg-amber-500 hover:bg-amber-400 text-black px-10 py-4 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-lg"
-      >
-        Entendido
-      </button>
-    </div>
-  );
-}
-
-export function EmergencyOverlay() {
-  const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
-  const { emergencyAutoEvent, dismissEmergency } = useAppMode();
-
-  // Sprint 14 â€” auto-monitor variants take precedence when their reason is
-  // present. The legacy `useEmergency` flow continues to drive the overlay
-  // when triggered manually or via the IoT critical path. Rendering happens
-  // BEFORE the early-returnless legacy branch so we can short-circuit.
-  if (emergencyAutoEvent) {
-    if (emergencyAutoEvent.reason === 'sismo') {
-      const tenantId =
-        (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
-      return (
-        <SismicAutoOverlay
-          peakG={emergencyAutoEvent.peakG}
-          onDismiss={dismissEmergency}
-          tenantId={String(tenantId)}
-        />
-      );
-    }
-    if (emergencyAutoEvent.reason === 'climate' && emergencyAutoEvent.climateSubType) {
-      return (
-        <ClimateAutoOverlay
-          subType={emergencyAutoEvent.climateSubType}
-          onDismiss={dismissEmergency}
-        />
-      );
-    }
-    // Reason 'company' falls through to the legacy useEmergency-driven UI.
-  }
-
-  const [isSafe, setIsSafe] = useState(false);
-  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);
-
-  // Kill-Switch de Animaciones (Modo TÃ¡ctico) y SÃ­ntesis de Voz
-  useEffect(() => {
-    let utterance: SpeechSynthesisUtterance | null = null;
-
-    if (isEmergencyActive) {
-      document.documentElement.classList.add('tactical-mode');
-      // Force high contrast
-      document.body.style.backgroundColor = '#000000';
-
-      // Get location for Medevac
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            setLocation({
-              lat: Number(pos.coords.latitude.toFixed(5)),
-              lng: Number(pos.coords.longitude.toFixed(5))
-            });
-          },
-          (err) => logger.warn("No se pudo obtener ubicaciÃ³n para emergencia:", { code: err.code, message: err.message }),
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-        );
-      }
-
-      // SÃ­ntesis de Voz Nativa
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Clear any ongoing speech
-
-        let textToSpeak = 'Alerta de emergencia. EvacuaciÃ³n inmediata.';
-        if (emergencyType === 'sismo') {
-          textToSpeak = 'Alerta de sismo. Mantenga la calma y dirÃ­jase a la salida mÃ¡s cercana. Siga las seÃ±ales luminosas hacia la Zona de Seguridad. No use ascensores.';
-        } else if (emergencyType === 'iot_critical') {
-          textToSpeak = 'Alerta crÃ­tica de telemetrÃ­a. Localice al trabajador afectado inmediatamente. Despache al equipo de primeros auxilios. Asegure el Ã¡rea.';
-        }
-
-        utterance = new SpeechSynthesisUtterance(textToSpeak);
-        utterance.lang = 'es-CL'; // Use Chilean Spanish if available, falls back to generic Spanish
-        utterance.rate = 0.9; // Slightly slower for clarity
-        utterance.pitch = 1.1; // Slightly higher pitch for urgency
-        utterance.volume = 1.0; // Max volume
-
-        // Try to find a Spanish voice
-        const voices = window.speechSynthesis.getVoices();
-        const spanishVoice = voices.find(v => v.lang.startsWith('es'));
-        if (spanishVoice) {
-          utterance.voice = spanishVoice;
-        }
-
-        // Speak and repeat
-        utterance.onend = () => {
-          if (isEmergencyActive && !isSafe) {
-            // Wait 2 seconds before repeating
-            setTimeout(() => {
-              if (isEmergencyActive && !isSafe && utterance) {
-                window.speechSynthesis.speak(utterance);
-              }
-            }, 2000);
-          }
-        };
-
-        window.speechSynthesis.speak(utterance);
-      }
-
-    } else {
-      document.documentElement.classList.remove('tactical-mode');
-      document.body.style.backgroundColor = '';
-      setIsSafe(false);
-      setTriageReported(null);
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    }
-
-    return () => {
-      document.documentElement.classList.remove('tactical-mode');
-      document.body.style.backgroundColor = '';
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, [isEmergencyActive, emergencyType, isSafe]);
-
-  const handleSafeClick = () => {
-    setIsSafe(true);
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    // Here we would normally update Firebase: users/uid/status = 'safe'
-    // For now, we just show the visual feedback and let them resolve it
-    setTimeout(() => {
-      resolveEmergency();
-    }, 3000);
-  };
-
-  const handleTriage = (level: 'verde' | 'amarillo' | 'rojo') => {
-    setTriageReported(level);
-    // Here we would send the triage report to Firebase with the location
-  };
-
-  return (
-    <MotionConfig reducedMotion={isEmergencyActive ? "always" : "user"}>
-      <AnimatePresence>
-        {isEmergencyActive && (
-          <motion.div
-            key="emergency-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center text-[#00ff00] overflow-hidden font-mono"
-          >
-          {/* Pulsing background effect - Disabled in tactical mode via MotionConfig, but kept for structure */}
-          <div className="absolute inset-0 bg-[#110000] mix-blend-multiply" />
-
-          <div className="relative z-10 w-full max-w-4xl p-6 flex flex-col items-center text-center">
-            <div className="w-32 h-32 bg-[#00ff00] rounded-full flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(0,255,0,0.5)]">
-              <ShieldAlert className="w-16 h-16 text-black" />
-            </div>
-
-            <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-4 text-red-500 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">
-              ALERTA DE EMERGENCIA
-            </h1>
-
-            <p className="text-2xl md:text-3xl font-bold text-white mb-8 bg-red-600 px-6 py-2 rounded-lg uppercase tracking-widest">
-              {emergencyType === 'sismo' ? 'SISMO DETECTADO - EVACUACIÃ“N INMEDIATA' : 
-               emergencyType === 'iot_critical' ? 'ALERTA CRÃTICA DE TELEMETRÃA - REVISAR PERSONAL' :
-               'EVACUACIÃ“N INMEDIATA'}
-            </p>
-
-            {location && (
-              <div className="mb-8 bg-black/80 border-2 border-amber-500 p-4 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.3)] w-full max-w-2xl mx-auto flex items-center justify-center gap-4">
-                <Navigation className="w-8 h-8 text-amber-500" />
-                <div className="text-left">
-                  <p className="text-amber-500 font-bold uppercase tracking-widest text-sm">Coordenadas GPS (Rescate/Medevac)</p>
-                  <p className="text-white font-mono text-2xl md:text-3xl tracking-wider">
-                    LAT: {location.lat} <span className="text-zinc-600">|</span> LNG: {location.lng}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-12">
-              <div className="bg-black/80 p-6 rounded-2xl border-2 border-[#00ff00] text-left shadow-[0_0_15px_rgba(0,255,0,0.2)]">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-[#00ff00]">
-                  <MapPin className="w-6 h-6" />
-                  {emergencyType === 'iot_critical' ? 'Protocolo de Rescate' : 'Ruta de EvacuaciÃ³n'}
-                </h3>
-                <ul className="space-y-4">
-                  {emergencyType === 'iot_critical' ? (
-                    <>
-                      <li className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">1</div>
-                        <p className="text-lg text-white">Localice al trabajador afectado inmediatamente en el Mapa Vivo.</p>
-                      </li>
-                      <li className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">2</div>
-                        <p className="text-lg text-white">Despache al equipo de primeros auxilios al sector.</p>
-                      </li>
-                      <li className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">3</div>
-                        <p className="text-lg text-white">Asegure el Ã¡rea y detenga la maquinaria cercana.</p>
-                      </li>
-                    </>
-                  ) : (
-                    <>
-                      <li className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">1</div>
-                        <p className="text-lg text-white">Mantenga la calma y dirÃ­jase a la salida mÃ¡s cercana.</p>
-                      </li>
-                      <li className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">2</div>
-                        <p className="text-lg text-white">Siga las seÃ±ales luminosas hacia la Zona de Seguridad.</p>
-                      </li>
-                      <li className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">3</div>
-                        <p className="text-lg text-white">No use ascensores. Utilice las escaleras de emergencia.</p>
-                      </li>
-                    </>
-                  )}
-                </ul>
-              </div>
-
-              <div className="bg-black/80 p-6 rounded-2xl border-2 border-red-500 text-left shadow-[0_0_15px_rgba(255,0,0,0.2)] flex flex-col justify-between">
-                <div>
-                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-red-500">
-                    <Phone className="w-6 h-6" />
-                    Contactos de Emergencia
-                  </h3>
-                  <ul className="space-y-3">
-                    <li className="flex items-center justify-between bg-red-900/20 p-3 rounded-lg border border-red-500/30">
-                      <span className="font-medium text-white">Ambulancia (SAMU)</span>
-                      <span className="font-bold text-xl text-red-400">131</span>
-                    </li>
-                    <li className="flex items-center justify-between bg-red-900/20 p-3 rounded-lg border border-red-500/30">
-                      <span className="font-medium text-white">Bomberos</span>
-                      <span className="font-bold text-xl text-red-400">132</span>
-                    </li>
-                    <li className="flex items-center justify-between bg-red-900/20 p-3 rounded-lg border border-red-500/30">
-                      <span className="font-medium text-white">Carabineros</span>
-                      <span className="font-bold text-xl text-red-400">133</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* BotÃ³n "Estoy a Salvo" Unificado */}
-            {!isSafe ? (
-              <div className="w-full flex flex-col items-center gap-8">
-                <button 
-                  onClick={handleSafeClick}
-                  className="w-full md:w-auto bg-[#00ff00] text-black px-12 py-6 rounded-2xl text-3xl font-black uppercase tracking-widest hover:bg-[#00cc00] transition-all shadow-[0_0_30px_rgba(0,255,0,0.6)] flex items-center justify-center gap-4 border-4 border-white"
-                >
-                  <CheckCircle2 className="w-10 h-10" />
-                  <span>ESTOY A SALVO</span>
-                </button>
-
-                {/* Protocolo Triage RÃ¡pido */}
-                <div className="w-full max-w-2xl bg-black/80 border-2 border-zinc-800 p-6 rounded-2xl">
-                  <h3 className="text-white font-bold uppercase tracking-widest mb-4">Reporte RÃ¡pido de Heridos (Triage)</h3>
-                  {!triageReported ? (
-                    <div className="grid grid-cols-3 gap-4">
-                      <button 
-                        onClick={() => handleTriage('verde')}
-                        className="bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all"
-                      >
-                        Leve
-                      </button>
-                      <button 
-                        onClick={() => handleTriage('amarillo')}
-                        className="bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)] transition-all"
-                      >
-                        Grave
-                      </button>
-                      <button 
-                        onClick={() => handleTriage('rojo')}
-                        className="bg-red-600 hover:bg-red-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all"
-                      >
-                        CrÃ­tico
-                      </button>
-                    </div>
-                  ) : (
-                    <div className={`py-4 rounded-xl font-bold uppercase tracking-wider border-2 flex items-center justify-center gap-2 ${
-                      triageReported === 'verde' ? 'bg-green-900/50 border-green-500 text-green-400' :
-                      triageReported === 'amarillo' ? 'bg-yellow-900/50 border-yellow-500 text-yellow-400' :
-                      'bg-red-900/50 border-red-500 text-red-400'
-                    }`}>
-                      <CheckCircle2 className="w-6 h-6" />
-                      Reporte {triageReported} enviado
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white text-black px-12 py-6 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(255,255,255,0.6)] flex items-center justify-center gap-4">
-                <CheckCircle2 className="w-8 h-8 text-green-500" />
-                <span>ESTADO REGISTRADO. ESPERE INSTRUCCIONES.</span>
-              </div>
-            )}
-
-            <button 
-              onClick={resolveEmergency}
-              className="mt-8 text-zinc-500 hover:text-white uppercase tracking-widest text-sm font-bold underline decoration-zinc-500 underline-offset-4"
-            >
-              (Admin) Desactivar Alarma
-            </button>
-          </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </MotionConfig>
-  );
-}
+﻿import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
+import { AlertTriangle, MapPin, ShieldAlert, Phone, ArrowRight, CheckCircle2, Navigation } from 'lucide-react';
+import { useEmergency } from '../../contexts/EmergencyContext';
+import { useAppMode } from '../../contexts/AppModeContext';
+import { db, serverTimestamp } from '../../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { logger } from '../../utils/logger';
+
+// Sprint 14 — climate sub-type copy (Spanish UI). Centralized so future
+// sub-types (e.g., visibility, lightning) are added in one place.
+const CLIMATE_COPY: Record<'storm' | 'extreme_heat' | 'extreme_cold', { title: string; body: string }> = {
+  storm: {
+    title: '🌪ï¸ TORMENTA DETECTADA',
+    body: 'Suspende trabajos en altura',
+  },
+  extreme_heat: {
+    title: '🥵 CALOR EXTREMO',
+    body: 'Hidratación obligatoria · pausas cada 20 min',
+  },
+  extreme_cold: {
+    title: '🥶 FRÍO EXTREMO',
+    body: 'Verifica EPP térmico',
+  },
+};
+
+const SISMO_AUTO_DISMISS_MS = 30_000;
+const CLIMATE_AUTO_DISMISS_MS = 60_000;
+
+interface SeismicLogPayload {
+  detectedAt: string;
+  peakG: number;
+  location: { lat: number; lng: number } | null;
+  tenantId: string;
+}
+
+/**
+ * Sprint 14 — Sismic overlay. Full-screen black takeover with the
+ * "Agáchate · Cúbrete · Sujétate" trio, optional Triángulo de la Vida tip
+ * (afternoon + indoor heuristic), and a 30s auto-dismiss / tap-to-dismiss.
+ *
+ * Persists one row to `tenants/{tenantId}/seismic_events/{id}` per trigger.
+ */
+function SismicAutoOverlay({
+  peakG,
+  onDismiss,
+  tenantId,
+}: {
+  peakG: number;
+  onDismiss: () => void;
+  tenantId: string;
+}): React.ReactElement {
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [logged, setLogged] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(onDismiss, SISMO_AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          setLocation({
+            lat: Number(pos.coords.latitude.toFixed(5)),
+            lng: Number(pos.coords.longitude.toFixed(5)),
+          }),
+        () => setLocation(null),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
+      );
+    }
+  }, []);
+
+  // Persist exactly once.
+  useEffect(() => {
+    if (logged) return;
+    setLogged(true);
+    const payload: SeismicLogPayload = {
+      detectedAt: new Date().toISOString(),
+      peakG,
+      location,
+      tenantId,
+    };
+    addDoc(collection(db, `tenants/${tenantId}/seismic_events`), {
+      ...payload,
+      createdAt: serverTimestamp(),
+    }).catch((err) =>
+      logger.warn('SismicAutoOverlay: failed to persist seismic_event', { err }),
+    );
+  }, [logged, peakG, location, tenantId]);
+
+  // Indoor heuristic: afternoon (12:00–20:00) + GPS at coarse fix is a weak
+  // proxy for "user is inside a building". Without a known-buildings index
+  // we surface the Triángulo de la Vida tip whenever both conditions hold.
+  const hour = new Date().getHours();
+  const isAfternoon = hour >= 12 && hour < 20;
+  const indoorLikely = isAfternoon && location !== null;
+
+  return (
+    <button
+      type="button"
+      onClick={onDismiss}
+      className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center cursor-pointer"
+      aria-label="Cerrar alerta sísmica"
+    >
+      <div className="text-6xl md:text-8xl font-black mb-6">🟥 SISMO DETECTADO</div>
+      <div className="text-3xl md:text-5xl font-bold mb-4 text-red-400 uppercase tracking-widest">
+        Agáchate · Cúbrete · Sujétate
+      </div>
+      {indoorLikely && (
+        <div className="mt-6 max-w-2xl text-base md:text-xl text-amber-300 border-2 border-amber-500 rounded-2xl p-4">
+          Triángulo de la Vida: junto a un mueble sólido, NUNCA debajo. Cuello protegido.
+        </div>
+      )}
+      <div className="mt-8 text-sm text-zinc-500">Toca la pantalla para descartar</div>
+    </button>
+  );
+}
+
+/**
+ * Sprint 14 — Climate overlay. Routes by sub-type to the relevant copy,
+ * auto-dismisses after 60s OR when the user acknowledges with "Entendido".
+ */
+function ClimateAutoOverlay({
+  subType,
+  onDismiss,
+}: {
+  subType: 'storm' | 'extreme_heat' | 'extreme_cold';
+  onDismiss: () => void;
+}): React.ReactElement {
+  const copy = CLIMATE_COPY[subType];
+  useEffect(() => {
+    const t = setTimeout(onDismiss, CLIMATE_AUTO_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+  return (
+    <div
+      className="fixed inset-0 z-[10001] bg-black text-white flex flex-col items-center justify-center p-6 text-center"
+      role="alertdialog"
+      aria-label="Alerta climática"
+    >
+      <div className="text-5xl md:text-7xl font-black mb-6">{copy.title}</div>
+      <div className="text-2xl md:text-4xl font-bold mb-8 text-amber-300 max-w-3xl">
+        {copy.body}
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="bg-amber-500 hover:bg-amber-400 text-black px-10 py-4 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-lg"
+      >
+        Entendido
+      </button>
+    </div>
+  );
+}
+
+export function EmergencyOverlay() {
+  const { isEmergencyActive, emergencyType, resolveEmergency } = useEmergency();
+  const { emergencyAutoEvent, dismissEmergency } = useAppMode();
+
+  // Sprint 14 — auto-monitor variants take precedence when their reason is
+  // present. The legacy `useEmergency` flow continues to drive the overlay
+  // when triggered manually or via the IoT critical path. Rendering happens
+  // BEFORE the early-returnless legacy branch so we can short-circuit.
+  if (emergencyAutoEvent) {
+    if (emergencyAutoEvent.reason === 'sismo') {
+      const tenantId =
+        (typeof window !== 'undefined' && window.__GP_TENANT_ID__) || 'default';
+      return (
+        <SismicAutoOverlay
+          peakG={emergencyAutoEvent.peakG}
+          onDismiss={dismissEmergency}
+          tenantId={String(tenantId)}
+        />
+      );
+    }
+    if (emergencyAutoEvent.reason === 'climate' && emergencyAutoEvent.climateSubType) {
+      return (
+        <ClimateAutoOverlay
+          subType={emergencyAutoEvent.climateSubType}
+          onDismiss={dismissEmergency}
+        />
+      );
+    }
+    // Reason 'company' falls through to the legacy useEmergency-driven UI.
+  }
+
+  const [isSafe, setIsSafe] = useState(false);
+  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [triageReported, setTriageReported] = useState<'verde' | 'amarillo' | 'rojo' | null>(null);
+
+  // Kill-Switch de Animaciones (Modo Táctico) y Síntesis de Voz
+  useEffect(() => {
+    let utterance: SpeechSynthesisUtterance | null = null;
+
+    if (isEmergencyActive) {
+      document.documentElement.classList.add('tactical-mode');
+      // Force high contrast
+      document.body.style.backgroundColor = '#000000';
+
+      // Get location for Medevac
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setLocation({
+              lat: Number(pos.coords.latitude.toFixed(5)),
+              lng: Number(pos.coords.longitude.toFixed(5))
+            });
+          },
+          (err) => logger.warn("No se pudo obtener ubicación para emergencia:", { code: err.code, message: err.message }),
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      }
+
+      // Síntesis de Voz Nativa
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Clear any ongoing speech
+
+        let textToSpeak = 'Alerta de emergencia. Evacuación inmediata.';
+        if (emergencyType === 'sismo') {
+          textToSpeak = 'Alerta de sismo. Mantenga la calma y diríjase a la salida más cercana. Siga las señales luminosas hacia la Zona de Seguridad. No use ascensores.';
+        } else if (emergencyType === 'iot_critical') {
+          textToSpeak = 'Alerta crítica de telemetría. Localice al trabajador afectado inmediatamente. Despache al equipo de primeros auxilios. Asegure el área.';
+        }
+
+        utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.lang = 'es-CL'; // Use Chilean Spanish if available, falls back to generic Spanish
+        utterance.rate = 0.9; // Slightly slower for clarity
+        utterance.pitch = 1.1; // Slightly higher pitch for urgency
+        utterance.volume = 1.0; // Max volume
+
+        // Try to find a Spanish voice
+        const voices = window.speechSynthesis.getVoices();
+        const spanishVoice = voices.find(v => v.lang.startsWith('es'));
+        if (spanishVoice) {
+          utterance.voice = spanishVoice;
+        }
+
+        // Speak and repeat
+        utterance.onend = () => {
+          if (isEmergencyActive && !isSafe) {
+            // Wait 2 seconds before repeating
+            setTimeout(() => {
+              if (isEmergencyActive && !isSafe && utterance) {
+                window.speechSynthesis.speak(utterance);
+              }
+            }, 2000);
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
+      }
+
+    } else {
+      document.documentElement.classList.remove('tactical-mode');
+      document.body.style.backgroundColor = '';
+      setIsSafe(false);
+      setTriageReported(null);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    return () => {
+      document.documentElement.classList.remove('tactical-mode');
+      document.body.style.backgroundColor = '';
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [isEmergencyActive, emergencyType, isSafe]);
+
+  const handleSafeClick = () => {
+    setIsSafe(true);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    // Here we would normally update Firebase: users/uid/status = 'safe'
+    // For now, we just show the visual feedback and let them resolve it
+    setTimeout(() => {
+      resolveEmergency();
+    }, 3000);
+  };
+
+  const handleTriage = (level: 'verde' | 'amarillo' | 'rojo') => {
+    setTriageReported(level);
+    // Here we would send the triage report to Firebase with the location
+  };
+
+  return (
+    <MotionConfig reducedMotion={isEmergencyActive ? "always" : "user"}>
+      <AnimatePresence>
+        {isEmergencyActive && (
+          <motion.div
+            key="emergency-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center text-[#00ff00] overflow-hidden font-mono"
+          >
+          {/* Pulsing background effect - Disabled in tactical mode via MotionConfig, but kept for structure */}
+          <div className="absolute inset-0 bg-[#110000] mix-blend-multiply" />
+
+          <div className="relative z-10 w-full max-w-4xl p-6 flex flex-col items-center text-center">
+            <div className="w-32 h-32 bg-[#00ff00] rounded-full flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(0,255,0,0.5)]">
+              <ShieldAlert className="w-16 h-16 text-black" />
+            </div>
+
+            <h1 className="text-5xl md:text-7xl font-black uppercase tracking-tighter mb-4 text-red-500 drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]">
+              ALERTA DE EMERGENCIA
+            </h1>
+
+            <p className="text-2xl md:text-3xl font-bold text-white mb-8 bg-red-600 px-6 py-2 rounded-lg uppercase tracking-widest">
+              {emergencyType === 'sismo' ? 'SISMO DETECTADO - EVACUACIÓN INMEDIATA' : 
+               emergencyType === 'iot_critical' ? 'ALERTA CRÍTICA DE TELEMETRÍA - REVISAR PERSONAL' :
+               'EVACUACIÓN INMEDIATA'}
+            </p>
+
+            {location && (
+              <div className="mb-8 bg-black/80 border-2 border-amber-500 p-4 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.3)] w-full max-w-2xl mx-auto flex items-center justify-center gap-4">
+                <Navigation className="w-8 h-8 text-amber-500" />
+                <div className="text-left">
+                  <p className="text-amber-500 font-bold uppercase tracking-widest text-sm">Coordenadas GPS (Rescate/Medevac)</p>
+                  <p className="text-white font-mono text-2xl md:text-3xl tracking-wider">
+                    LAT: {location.lat} <span className="text-zinc-600">|</span> LNG: {location.lng}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-12">
+              <div className="bg-black/80 p-6 rounded-2xl border-2 border-[#00ff00] text-left shadow-[0_0_15px_rgba(0,255,0,0.2)]">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-[#00ff00]">
+                  <MapPin className="w-6 h-6" />
+                  {emergencyType === 'iot_critical' ? 'Protocolo de Rescate' : 'Ruta de Evacuación'}
+                </h3>
+                <ul className="space-y-4">
+                  {emergencyType === 'iot_critical' ? (
+                    <>
+                      <li className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">1</div>
+                        <p className="text-lg text-white">Localice al trabajador afectado inmediatamente en el Mapa Vivo.</p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">2</div>
+                        <p className="text-lg text-white">Despache al equipo de primeros auxilios al sector.</p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">3</div>
+                        <p className="text-lg text-white">Asegure el área y detenga la maquinaria cercana.</p>
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">1</div>
+                        <p className="text-lg text-white">Mantenga la calma y diríjase a la salida más cercana.</p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">2</div>
+                        <p className="text-lg text-white">Siga las señales luminosas hacia la Zona de Seguridad.</p>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00ff00] text-black flex items-center justify-center font-bold shrink-0">3</div>
+                        <p className="text-lg text-white">No use ascensores. Utilice las escaleras de emergencia.</p>
+                      </li>
+                    </>
+                  )}
+                </ul>
+              </div>
+
+              <div className="bg-black/80 p-6 rounded-2xl border-2 border-red-500 text-left shadow-[0_0_15px_rgba(255,0,0,0.2)] flex flex-col justify-between">
+                <div>
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-red-500">
+                    <Phone className="w-6 h-6" />
+                    Contactos de Emergencia
+                  </h3>
+                  <ul className="space-y-3">
+                    <li className="flex items-center justify-between bg-red-900/20 p-3 rounded-lg border border-red-500/30">
+                      <span className="font-medium text-white">Ambulancia (SAMU)</span>
+                      <span className="font-bold text-xl text-red-400">131</span>
+                    </li>
+                    <li className="flex items-center justify-between bg-red-900/20 p-3 rounded-lg border border-red-500/30">
+                      <span className="font-medium text-white">Bomberos</span>
+                      <span className="font-bold text-xl text-red-400">132</span>
+                    </li>
+                    <li className="flex items-center justify-between bg-red-900/20 p-3 rounded-lg border border-red-500/30">
+                      <span className="font-medium text-white">Carabineros</span>
+                      <span className="font-bold text-xl text-red-400">133</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Botón "Estoy a Salvo" Unificado */}
+            {!isSafe ? (
+              <div className="w-full flex flex-col items-center gap-8">
+                <button 
+                  onClick={handleSafeClick}
+                  className="w-full md:w-auto bg-[#00ff00] text-black px-12 py-6 rounded-2xl text-3xl font-black uppercase tracking-widest hover:bg-[#00cc00] transition-all shadow-[0_0_30px_rgba(0,255,0,0.6)] flex items-center justify-center gap-4 border-4 border-white"
+                >
+                  <CheckCircle2 className="w-10 h-10" />
+                  <span>ESTOY A SALVO</span>
+                </button>
+
+                {/* Protocolo Triage Rápido */}
+                <div className="w-full max-w-2xl bg-black/80 border-2 border-zinc-800 p-6 rounded-2xl">
+                  <h3 className="text-white font-bold uppercase tracking-widest mb-4">Reporte Rápido de Heridos (Triage)</h3>
+                  {!triageReported ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      <button 
+                        onClick={() => handleTriage('verde')}
+                        className="bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all"
+                      >
+                        Leve
+                      </button>
+                      <button 
+                        onClick={() => handleTriage('amarillo')}
+                        className="bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.3)] transition-all"
+                      >
+                        Grave
+                      </button>
+                      <button 
+                        onClick={() => handleTriage('rojo')}
+                        className="bg-red-600 hover:bg-red-500 text-white py-4 rounded-xl font-bold uppercase tracking-wider border-2 border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)] transition-all"
+                      >
+                        Crítico
+                      </button>
+                    </div>
+                  ) : (
+                    <div className={`py-4 rounded-xl font-bold uppercase tracking-wider border-2 flex items-center justify-center gap-2 ${
+                      triageReported === 'verde' ? 'bg-green-900/50 border-green-500 text-green-400' :
+                      triageReported === 'amarillo' ? 'bg-yellow-900/50 border-yellow-500 text-yellow-400' :
+                      'bg-red-900/50 border-red-500 text-red-400'
+                    }`}>
+                      <CheckCircle2 className="w-6 h-6" />
+                      Reporte {triageReported} enviado
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white text-black px-12 py-6 rounded-2xl text-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(255,255,255,0.6)] flex items-center justify-center gap-4">
+                <CheckCircle2 className="w-8 h-8 text-green-500" />
+                <span>ESTADO REGISTRADO. ESPERE INSTRUCCIONES.</span>
+              </div>
+            )}
+
+            <button 
+              onClick={resolveEmergency}
+              className="mt-8 text-zinc-500 hover:text-white uppercase tracking-widest text-sm font-bold underline decoration-zinc-500 underline-offset-4"
+            >
+              (Admin) Desactivar Alarma
+            </button>
+          </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </MotionConfig>
+  );
+}

@@ -209,6 +209,19 @@ function check(env, options = {}) {
     }
 
     if (spec.allowedValues && !spec.allowedValues.includes(String(value))) {
+      // En test mode toleramos valores fuera de allowedValues: el
+      // contrato dice "test mode = shape check, no prod policy". Por
+      // ejemplo, `KMS_ADAPTER=in-memory-dev` es ilegal en prod (Sprint
+      // 39 B.3) pero es el valor canónico de dev/test. Sin esta
+      // tolerancia, el CI smoke fallaría aunque la app corra como debe
+      // en dev.
+      if (mode === 'test') {
+        warnings.push(
+          `${spec.name} = "${value}" — allowedValues bypass in test mode ` +
+            `(prod allowedValues: ${spec.allowedValues.join(', ')})`,
+        );
+        continue;
+      }
       errors.push(
         `INVALID VALUE: ${spec.name} = "${value}" — allowed: ${spec.allowedValues.join(', ')}`,
       );

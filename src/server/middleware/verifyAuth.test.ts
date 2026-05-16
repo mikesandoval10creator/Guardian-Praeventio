@@ -227,9 +227,12 @@ describe('verifyAuth â€” Bearer positive path + sepIdx cluster + StringLite
     expect(res.status).toBe(200);
     expect(res.body.uid).toBe('firebase-uid-positive');
     expect(res.body.email).toBe('positive@example.com');
-    // verifyIdToken received the slice after "Bearer ". Pins the
-    // `authHeader.split('Bearer ')[1]` extraction.
-    expect(verifyIdTokenMock).toHaveBeenCalledWith('abc123');
+    // verifyIdToken received the slice after "Bearer " and the
+    // `checkRevoked=true` flag added in Sprint 39 Fase B.2 (revoked-token
+    // detection per request). Pins both the `authHeader.split('Bearer ')[1]`
+    // extraction AND the `checkRevoked` 2nd argument so a mutation that
+    // drops either is killed.
+    expect(verifyIdTokenMock).toHaveBeenCalledWith('abc123', true);
   });
 
   it('Bearer with empty token (header value gets trimmed to "Bearer") â†’ 401 no-token rejection', async () => {
