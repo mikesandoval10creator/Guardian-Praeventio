@@ -81,6 +81,17 @@ export interface RouteAssessmentResult {
   };
   /** Eventos EONET que afectan la bbox (los primeros 5). */
   activeEvents: EonetEvent[];
+  /**
+   * Codex fix PR #279: indica qué fuentes externas NO pudieron consultarse
+   * (offline, CSP bloqueado, 5xx, timeout). La UI debe distinguir
+   * "no detectamos riesgos" (todas las fuentes respondieron OK y nada
+   * salió de los thresholds) de "no podemos saber" (alguna fuente falló).
+   *
+   * Mostrar "Sin riesgos detectados" cuando hay `failedSources` activos
+   * sería deshonesto y peligroso — el operador podría tomar decisiones
+   * basándose en señal que no existe.
+   */
+  failedSources: Array<'NASA_POWER' | 'EONET'>;
 }
 
 // Thresholds operacionales (documentados para review).
@@ -117,6 +128,12 @@ export async function assessRouteClimate(
   input: RouteAssessmentInput,
 ): Promise<RouteAssessmentResult> {
   const reasons: RouteRiskReason[] = [];
+  // Codex fix PR #279: trackeamos qué fuentes externas FALLARON para que
+  // la UI distinga "no detectamos riesgos" (todo OK) de "no sabemos" (alguna
+  // fuente bloqueada por CSP / offline / 5xx). Sin esto, el assessment
+  // devolvía reasons=[] en ambos casos → operador podía tomar decisión
+  // basada en señal que no existió.
+  const failedSources: Array<'NASA_POWER' | 'EONET'> = [];
   const distanceKm = input.totalDistanceM / 1000;
   const durationHours = input.totalDurationS / 3600;
   const summaryLower = input.summary.toLowerCase();
@@ -229,9 +246,9 @@ export async function assessRouteClimate(
       }
     }
   } catch {
-    // NASA POWER caído — degradamos gracefully al status basado en
-    // heurística + distancia. No agregamos reason de error (el usuario
-    // no debería ver "NASA falló", debería ver lo que SÍ podemos decir).
+    // NASA POWER caído — registramos en failedSources para que la UI
+    // muestre "sin datos NASA" en lugar de "sin riesgos detectados".
+    failedSources.push('NASA_POWER');
   }
 
   // 4) EONET — eventos extremos activos en bbox ─────────────────────────
@@ -244,8 +261,10 @@ export async function assessRouteClimate(
       categories: ['severeStorms', 'wildfires', 'floods', 'landslides'],
     });
   } catch {
-    // EONET caído — sin evento activo no es lo mismo que evento cero,
-    // pero degradamos en silencio (no falseamos al usuario).
+    // EONET caído — registramos en failedSources para que la UI sepa
+    // que no podemos garantizar "sin eventos activos". Sin esto, la UI
+    // mostraría verde "todo OK" cuando en realidad no consultamos.
+    failedSources.push('EONET');
   }
 
   if (activeEvents.length > 0) {
@@ -283,5 +302,6 @@ export async function assessRouteClimate(
       isMountainPass,
     },
     activeEvents: activeEvents.slice(0, 5),
+    failedSources,
   };
 }

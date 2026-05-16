@@ -200,7 +200,7 @@ describe('assessRouteClimate', () => {
     expect(result.activeEvents.length).toBe(1);
   });
 
-  it('NASA POWER caído → degrada gracefully (no error a la UI)', async () => {
+  it('NASA POWER caído → degrada gracefully + failedSources incluye NASA_POWER', async () => {
     vi.mocked(nasaPowerAdapter.fetchAggregated).mockRejectedValue(
       new Error('NASA POWER upstream 503'),
     );
@@ -210,9 +210,12 @@ describe('assessRouteClimate', () => {
     // Sin NASA + sin pasos = safe (no hay evidencia de problema).
     expect(result.status).toBe('safe');
     expect(result.metrics.avgWindMs).toBeNull();
+    // Codex fix: NASA_POWER reportado como fuente caída → la UI sabrá
+    // distinguir "todo OK" de "no podemos saber".
+    expect(result.failedSources).toEqual(['NASA_POWER']);
   });
 
-  it('EONET caído → degrada gracefully', async () => {
+  it('EONET caído → degrada gracefully + failedSources incluye EONET', async () => {
     vi.mocked(nasaPowerAdapter.fetchAggregated).mockResolvedValue({
       series: makeNasaSeries({
         WS10M: [3],
@@ -227,6 +230,30 @@ describe('assessRouteClimate', () => {
     expect(result.status).toBe('safe');
     expect(result.activeEvents).toEqual([]);
     expect(result.metrics.activeEventCount).toBe(0);
+    expect(result.failedSources).toEqual(['EONET']);
+  });
+
+  it('todas las fuentes OK → failedSources vacío', async () => {
+    vi.mocked(nasaPowerAdapter.fetchAggregated).mockResolvedValue({
+      series: makeNasaSeries({
+        WS10M: [3, 4, 5],
+        PRECTOTCORR: [0, 0, 0],
+        T2M: [15, 16, 14],
+      }),
+      aggregates: [],
+    });
+    vi.mocked(eonetAdapter.fetchEvents).mockResolvedValue([]);
+
+    const result = await assessRouteClimate(BASE_INPUT);
+    expect(result.failedSources).toEqual([]);
+  });
+
+  it('ambas fuentes caídas → failedSources incluye ambas', async () => {
+    vi.mocked(nasaPowerAdapter.fetchAggregated).mockRejectedValue(new Error('NASA down'));
+    vi.mocked(eonetAdapter.fetchEvents).mockRejectedValue(new Error('EONET down'));
+
+    const result = await assessRouteClimate(BASE_INPUT);
+    expect(result.failedSources.sort()).toEqual(['EONET', 'NASA_POWER']);
   });
 
   it('ruta >200km marca warning por distance_duration', async () => {

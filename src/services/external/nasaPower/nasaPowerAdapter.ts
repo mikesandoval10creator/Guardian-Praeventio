@@ -272,6 +272,16 @@ export function nasaKeyToIso(key: string): string {
  * Calcula start/end en formato NASA `YYYYMMDD` para una ventana de
  * `daysBack` días hacia atrás desde "hoy menos LAG_DAYS_FROM_NOW".
  * Pure — exportable para tests directos.
+ *
+ * Codex fix PR #279: NASA POWER trata `start` y `end` como **inclusive
+ * calendar days**. Antes restábamos `daysBack` enteros, devolviendo
+ * `daysBack + 1` días de muestras (daysBack=7 → 8 días = 192h). Eso
+ * inflaba precipitación acumulada + horas-bajo-0°C y empujaba rutas
+ * borderline a warning/danger por data fuera de la ventana prometida.
+ *
+ * Fix: usar `daysBack - 1` para mantener exactamente la ventana
+ * solicitada (daysBack=7 → start a 6 días antes de end → 7 días
+ * inclusivos = 168h).
  */
 export function computeDateWindow(
   daysBack: number,
@@ -279,7 +289,7 @@ export function computeDateWindow(
 ): { start: string; end: string } {
   const nowMs = nowFn();
   const endMs = nowMs - LAG_DAYS_FROM_NOW * 86_400_000;
-  const startMs = endMs - daysBack * 86_400_000;
+  const startMs = endMs - (daysBack - 1) * 86_400_000;
   return { start: toNasaDate(new Date(startMs)), end: toNasaDate(new Date(endMs)) };
 }
 

@@ -299,11 +299,22 @@ export function ClimateRoutes() {
                   </li>
                 ))}
               </ul>
-            ) : assessment ? (
+            ) : assessment && assessment.failedSources.length === 0 ? (
               <p className="text-xs text-emerald-400 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
                 {t(
                   'climateRoutes.noRisks',
                   'Sin riesgos climáticos detectados en histórico NASA ni eventos activos. Conduce con precaución estándar.',
+                )}
+              </p>
+            ) : assessment ? (
+              // Codex fix: alguna fuente externa falló (CSP/offline/5xx).
+              // NO podemos afirmar "sin riesgos" porque no consultamos —
+              // mostramos honestamente que parte de la evidencia no llegó.
+              <p className="text-xs text-amber-300 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                {t(
+                  'climateRoutes.noData',
+                  'No pudimos consultar todas las fuentes climáticas ({{sources}}). El status mostrado se basa SOLO en la heurística de Google Directions. Reintenta cuando tengas mejor red.',
+                  { sources: assessment.failedSources.join(', ') },
                 )}
               </p>
             ) : (

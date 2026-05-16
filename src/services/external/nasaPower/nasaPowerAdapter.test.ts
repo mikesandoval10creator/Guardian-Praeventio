@@ -70,27 +70,30 @@ describe('nasaKeyToIso', () => {
 });
 
 describe('computeDateWindow', () => {
+  // NASA POWER trata start/end como INCLUSIVE calendar days. Una ventana
+  // de N días → start = end - (N-1) días. Codex fix PR #279.
   it('respeta el lag de 4 días desde now', () => {
     const fakeNow = () => Date.UTC(2026, 4, 16, 12, 0, 0); // 2026-05-16 12:00 UTC
     const { start, end } = computeDateWindow(7, fakeNow);
     // end = 2026-05-16 - 4 días = 2026-05-12
     expect(end).toBe('20260512');
-    // start = end - 7 días = 2026-05-05
-    expect(start).toBe('20260505');
+    // start = end - 6 días (= 7 días inclusive incl. end) = 2026-05-06
+    expect(start).toBe('20260506');
   });
 
-  it('daysBack 1 → 1 día de ventana', () => {
+  it('daysBack 1 → start === end (mismo día inclusivo)', () => {
     const fakeNow = () => Date.UTC(2026, 4, 16, 12, 0, 0);
     const { start, end } = computeDateWindow(1, fakeNow);
     expect(end).toBe('20260512');
-    expect(start).toBe('20260511');
+    expect(start).toBe('20260512');
   });
 
-  it('daysBack 30 → 30 días', () => {
+  it('daysBack 30 → 30 días inclusivos', () => {
     const fakeNow = () => Date.UTC(2026, 4, 16, 12, 0, 0);
     const { start, end } = computeDateWindow(30, fakeNow);
     expect(end).toBe('20260512');
-    expect(start).toBe('20260412');
+    // 2026-05-12 - 29 días = 2026-04-13
+    expect(start).toBe('20260413');
   });
 });
 
