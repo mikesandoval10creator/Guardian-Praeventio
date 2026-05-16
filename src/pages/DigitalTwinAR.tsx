@@ -37,6 +37,7 @@ import { useWebXRSupport } from '../hooks/useWebXRSupport';
 import { isIosUserAgent, isAndroidUserAgent } from '../components/ar/ArViewLink';
 import { ARMachineryScene } from '../components/ar/ARMachineryScene';
 import { ARWarehouseScene } from '../components/ar/ARWarehouseScene';
+import { ARPosterScanner } from '../components/ar/ARPosterScanner';
 import { useProject } from '../contexts/ProjectContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -74,28 +75,8 @@ export function DigitalTwinAR() {
     return <ARWarehouseScene onExit={() => setMode('menu')} />;
   }
 
-  // Poster scan sigue como placeholder hasta el siguiente PR
   if (mode === 'poster') {
-    return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-4">
-        <Button variant="secondary" onClick={() => setMode('menu')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          {t('digitalTwinAr.backMenu', 'Volver al menú AR')}
-        </Button>
-        <Card className="p-6 border-amber-500/30 bg-amber-500/5">
-          <h2 className="text-lg font-bold text-amber-300 mb-2 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5" />
-            {t('digitalTwinAr.posterWip', 'Escaneo de Poster — en construcción')}
-          </h2>
-          <p className="text-sm text-amber-100/80">
-            {t(
-              'digitalTwinAr.posterDesc',
-              'Apunta tu cámara a un poster de seguridad impreso. MediaPipe Vision detectará la imagen y mostrará una animación educativa relacionada (cómo usar el arnés, protocolo extintor, etc.). Disponible en próxima iteración.',
-            )}
-          </p>
-        </Card>
-      </div>
-    );
+    return <ARPosterScanner onExit={() => setMode('menu')} />;
   }
 
   return (
@@ -212,13 +193,15 @@ export function DigitalTwinAR() {
           </Button>
         </Card>
 
+        {/* Poster scan: NO requiere WebXR — solo cámara + MediaPipe. Por
+            eso el gate solo chequea selectedProject. */}
         <Card
           className={`p-6 border-violet-500/30 bg-violet-500/5 transition-all ${
-            hasNativeAr && selectedProject
+            selectedProject
               ? 'hover:scale-[1.02] cursor-pointer'
               : 'opacity-50 cursor-not-allowed'
           }`}
-          onClick={() => hasNativeAr && selectedProject && setMode('poster')}
+          onClick={() => selectedProject && setMode('poster')}
         >
           <ImageIcon className="w-10 h-10 text-violet-400 mb-3" />
           <h3 className="text-lg font-bold text-white mb-2">
@@ -230,12 +213,21 @@ export function DigitalTwinAR() {
               'Apunta la cámara a un poster de seguridad impreso. MediaPipe detecta la imagen y muestra una animación educativa: cómo usar el arnés, protocolo del extintor, evacuación, etc.',
             )}
           </p>
+          <p className="text-[10px] text-violet-300/70 mb-3">
+            {t(
+              'digitalTwinAr.modePosterReq',
+              'Funciona en cualquier smartphone con cámara — no requiere ARCore.',
+            )}
+          </p>
           <Button
-            variant="secondary"
-            className="w-full"
-            disabled
+            className="w-full bg-violet-600 hover:bg-violet-500"
+            disabled={!selectedProject}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectedProject) setMode('poster');
+            }}
           >
-            {t('digitalTwinAr.soon', 'Próxima iteración')}
+            {t('digitalTwinAr.startPoster', 'Iniciar')}
           </Button>
         </Card>
       </div>
