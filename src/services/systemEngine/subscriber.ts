@@ -46,7 +46,7 @@ export function useSystemEvent(
   });
 
   useEffect(() => {
-    if (!filter.tenantId) return;
+    if (!filter.tenantId) return undefined;
 
     const unsubLocal = onLocalEmit((event) => {
       if (!matches(event, filter)) return;

@@ -444,7 +444,7 @@ function PredictiveSchedulerSlot() {
   useEffect(() => {
     if (!selectedProject?.id) {
       setCrewId(null);
-      return;
+      return undefined;
     }
     const q = query(
       collection(firestoreDb, 'crews'),

@@ -31,7 +31,7 @@ export function EmergencyCheckIn() {
   const [workers, setWorkers] = useState<WorkerStatus[]>([]);
 
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
 
     // Listen to emergency state (could be a document in the project)
     const projectRef = doc(db, 'projects', selectedProject.id);

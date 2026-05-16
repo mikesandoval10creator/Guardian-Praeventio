@@ -54,7 +54,7 @@ export function DocsModal({ isOpen, onClose, worker, projectId }: DocsModalProps
 
   // Fetch documents for the worker
   React.useEffect(() => {
-    if (!worker || !isOpen) return;
+    if (!worker || !isOpen) return undefined;
 
     const path = projectId ? `projects/${projectId}/workers/${worker.id}/documents` : `workers/${worker.id}/documents`;
     // Note: doc creation must set archived=false for this listener to surface it.

@@ -34,7 +34,7 @@ export function LightningTrainingPlayer({
   const startedAt = useMemo(() => Date.now(), []);
 
   useEffect(() => {
-    if (done) return;
+    if (done) return undefined;
     const id = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(id);
   }, [done]);

@@ -38,7 +38,7 @@ export function Card({ children, className, interactive = true, ...props }: Card
           // Force GPU compositing layer up-front to avoid first-hover jank.
           gsap.set(el, { willChange: 'transform', force3D: true });
 
-          if (!motionOK) return; // Reduced motion: skip animation entirely.
+          if (!motionOK) return undefined; // Reduced motion: skip animation entirely.
 
           const enter = () => {
             gsap.to(el, {

@@ -88,7 +88,7 @@ export function EmergencyAutoBridge(): React.ReactElement | null {
   // FCM fan-out to supervisors. Without this listener the supervisor never
   // got pushed: the auto-monitor only flipped the local UI mode.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const handler = (evt: Event): void => {
       const detail = (evt as CustomEvent<EmergencyTriggerEvent>).detail;
       if (!detail) return;
@@ -109,7 +109,7 @@ export function EmergencyAutoBridge(): React.ReactElement | null {
 
   // Weather: listen for app-wide CustomEvent dispatches.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const handler = (evt: Event): void => {
       const detail = (evt as CustomEvent<WeatherEventDetail>).detail ?? {};
       pushWeatherSnapshot({
@@ -127,7 +127,7 @@ export function EmergencyAutoBridge(): React.ReactElement | null {
   // attaching a second listener is idempotent at the predicate level
   // because samples are time-windowed).
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     let cleanup: (() => void) | null = null;
 
     if (isCapacitorNative()) {

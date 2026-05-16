@@ -159,7 +159,7 @@ function useIsOffline(): boolean {
   });
 
   React.useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const update = (): void =>
       setOffline(typeof navigator !== 'undefined' && navigator.onLine === false);
     window.addEventListener('online', update);

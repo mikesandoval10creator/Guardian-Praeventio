@@ -59,7 +59,7 @@ export function ExternalEventsPanel({
   );
 
   useEffect(() => {
-    if (!bbox) return;
+    if (!bbox) return undefined;
     let cancelled = false;
     setState({ status: 'loading' });
     eonetAdapter

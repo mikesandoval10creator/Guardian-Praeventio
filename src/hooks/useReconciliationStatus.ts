@@ -64,7 +64,7 @@ export function useReconciliationStatus(
   }, [options.triggerFn]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const onStats = (evt: Event): void => {
       const detail = (evt as CustomEvent<ReconciliationStats>).detail;
       if (!detail) return;

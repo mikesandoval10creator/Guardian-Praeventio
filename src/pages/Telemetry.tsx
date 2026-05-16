@@ -372,7 +372,7 @@ export function Telemetry() {
 
   // Refresh fitness data periodically if connected
   useEffect(() => {
-    if (!fitTokens) return;
+    if (!fitTokens) return undefined;
     const interval = setInterval(() => {
       fetchFitnessData();
     }, 5 * 60 * 1000); // Every 5 minutes

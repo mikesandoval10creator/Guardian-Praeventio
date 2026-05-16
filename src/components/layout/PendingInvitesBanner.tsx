@@ -22,7 +22,7 @@ export function PendingInvitesBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (!user?.email) return;
+    if (!user?.email) return undefined;
 
     const q = query(
       collection(db, 'invitations'),

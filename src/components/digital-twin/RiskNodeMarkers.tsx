@@ -87,7 +87,7 @@ export function RiskNodeMarkers({ tenantId, projectId }: Props): React.ReactElem
       );
     } catch (err) {
       logger.error('RiskNodeMarkers query build failed', { err: String(err) });
-      return;
+      return undefined;
     }
     const unsub = onSnapshot(
       q,

@@ -40,7 +40,7 @@ export const useGeolocationTracking = () => {
   useEffect(() => {
     if (!user || !selectedProject) {
       setIsTracking(false);
-      return;
+      return undefined;
     }
 
     const checkTrackingSchedule = () => {

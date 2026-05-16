@@ -78,7 +78,7 @@ export function MeshProvider({ children }: MeshProviderProps) {
     // Auth or project context still resolving — early return per
     // Sprint 35 D acceptance: do NOT construct a facade with empty
     // selfUid/projectId. Effect will re-fire when both arrive.
-    if (!uid || !projectId) return;
+    if (!uid || !projectId) return undefined;
 
     let cancelled = false;
     let facade: TransportFacade | null = null;

@@ -330,7 +330,7 @@ export function useManDownDetection(options: ManDownOptions = {}) {
   }, [isActive, sensorData.acceleration, isAlerting, MOVEMENT_THRESHOLD]);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) return undefined;
 
     timerRef.current = setInterval(() => {
       const now = Date.now();

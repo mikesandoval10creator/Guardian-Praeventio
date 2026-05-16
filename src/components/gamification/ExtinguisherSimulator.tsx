@@ -77,7 +77,7 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
   }, []);
 
   useEffect(() => {
-    if (gameWon || gameLost) return;
+    if (gameWon || gameLost) return undefined;
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -114,6 +114,7 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
       }, 100);
       return () => clearInterval(interval);
     }
+    return undefined;
   }, [isExtinguishing, currentStep, onComplete, aimOffset, hasGyro]);
 
   const triggerConfetti = () => {

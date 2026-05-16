@@ -31,7 +31,8 @@
     "strictBindCallApply": true,
     "noImplicitOverride": true,
     "strictFunctionTypes": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
   },
   "include": ["src", "server.ts"],
   "exclude": ["node_modules", "dist"]

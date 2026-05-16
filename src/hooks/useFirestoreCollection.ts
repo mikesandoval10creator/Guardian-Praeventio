@@ -25,7 +25,7 @@ export function useFirestoreCollection<T = DocumentData>(
     if (!collectionPath) {
       setFetchedData([]);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     setLoading(true);

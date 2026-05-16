@@ -49,7 +49,7 @@ export function ProjectHealthCheck() {
 
   // Listen to the cached latest result from Firestore in real-time
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
     const ref = doc(db, `projects/${selectedProject.id}/health_checks/latest`);
     const unsub = onSnapshot(ref, (snap) => {
       if (snap.exists()) setResult(snap.data() as HealthResult);

@@ -113,8 +113,8 @@ export function AlertSchedulerMount({ projectId, crewId, probes, notify = defaul
   const [lastAlerts, setLastAlerts] = useState<ScheduledAlert[]>([]);
 
   useEffect(() => {
-    if (!projectId || !crewId) return;
-    if (probes.length === 0) return;
+    if (!projectId || !crewId) return undefined;
+    if (probes.length === 0) return undefined;
 
     const tick = () => {
       const alerts = evaluateProbes({ probes, minLeadTimeMin: MIN_LEAD_TIME_MIN });

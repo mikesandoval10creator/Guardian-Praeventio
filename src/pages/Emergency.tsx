@@ -102,7 +102,7 @@ export function Emergency() {
   };
 
   React.useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
     const projectRef = doc(db, 'projects', selectedProject.id);
     const unsubscribe = onSnapshot(projectRef, (docSnap) => {
       if (docSnap.exists()) {

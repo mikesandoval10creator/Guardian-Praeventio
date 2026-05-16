@@ -76,13 +76,13 @@ export function useWebXRSupport(): XRSupport {
 
     if (typeof navigator === 'undefined') {
       setSupport(UNSUPPORTED);
-      return;
+      return undefined;
     }
 
     const xrSystem = (navigator as Navigator & { xr?: MinimalXRSystem }).xr;
     if (!xrSystem || typeof xrSystem.isSessionSupported !== 'function') {
       setSupport(UNSUPPORTED);
-      return;
+      return undefined;
     }
 
     xrSystem

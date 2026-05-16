@@ -204,7 +204,7 @@ function Site25DPanelInner(): React.ReactElement {
 
   // Live Firestore subscription per (tenant, project).
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId) return undefined;
     const unsub = subscribeSiteGeometry(
       tenantId,
       projectId,

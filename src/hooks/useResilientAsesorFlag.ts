@@ -113,7 +113,7 @@ export function useResilientAsesorFlag(): UseResilientAsesorFlagResult {
 
   // Cross-tab sync.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const onStorage = (e: StorageEvent) => {
       if (e.key === LEGACY_OPT_OUT_KEY || e.key === LEGACY_OPT_IN_KEY) {
         setEnabledLocal(resolveEnabled(envForce, readEnabledFromStorage()));

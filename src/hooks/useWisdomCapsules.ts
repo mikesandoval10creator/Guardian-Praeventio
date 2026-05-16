@@ -39,7 +39,7 @@ export function useWisdomCapsules() {
 
   // Watch GPS and compute proximity
   useEffect(() => {
-    if (!('geolocation' in navigator) || capsules.length === 0) return;
+    if (!('geolocation' in navigator) || capsules.length === 0) return undefined;
 
     const watchId = navigator.geolocation.watchPosition(
       ({ coords }) => {

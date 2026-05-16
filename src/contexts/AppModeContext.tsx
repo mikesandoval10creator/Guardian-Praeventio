@@ -138,8 +138,8 @@ export function AppModeProvider({ children }: { children: ReactNode }): React.Re
 
   // React to system appearance changes when appearance === 'auto'.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (mode !== 'normal' || appearance !== 'auto') return;
+    if (typeof window === 'undefined') return undefined;
+    if (mode !== 'normal' || appearance !== 'auto') return undefined;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (): void => {
       const root = document.documentElement;

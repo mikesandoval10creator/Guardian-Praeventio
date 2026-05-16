@@ -115,7 +115,7 @@ export const indexLaw = async (law: any, vectorCollection: admin.firestore.Colle
  * Enforces a 6-month update rule.
  */
 export const downloadSpecificNormative = async (normativeId: string, force: boolean = false) => {
-  if (!admin.apps.length) return;
+  if (!admin.apps.length) return undefined;
   const db = admin.firestore();
   const vectorCollection = db.collection('vector_store');
 

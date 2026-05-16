@@ -234,7 +234,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setSelectedProject(null);
       setError(null);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     let q;

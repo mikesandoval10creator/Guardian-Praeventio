@@ -92,7 +92,7 @@ export function ConflictResolutionDrawer({
   // Escape closes the drawer (cancels current resolution; conflict stays
   // in queue so the supervisor can return to it).
   useEffect(() => {
-    if (!head) return;
+    if (!head) return undefined;
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         setQueue((prev) => prev.slice(1));

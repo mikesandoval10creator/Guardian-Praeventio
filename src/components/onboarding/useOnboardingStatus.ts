@@ -21,7 +21,7 @@ export function useOnboardingStatus(uid: string | undefined | null): boolean | n
     let cancelled = false;
     if (!uid) {
       setOnboarded(null);
-      return;
+      return undefined;
     }
 
     setOnboarded(null);
