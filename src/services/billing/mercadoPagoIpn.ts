@@ -29,10 +29,12 @@
 // verification under the old contract on a primary mismatch — see the
 // Express handler at /api/billing/webhook/mercadopago for the call site.
 //
-// MP's production manifest format (`ts=<ts>,v1=<hex>` over
-// id+request-id+ts) remains deferred to a later round — this module
-// ships the simpler raw-HMAC variant over canonical body to retire the
-// TODO at the head of mercadoPagoAdapter.ts.
+// 2026-05-15 (Regla #3): se agregó el formato de producción
+// `ts=<ts>,v1=<hex>` sobre el manifest `id:<data.id>;request-id:<rid>;ts:<ts>;`
+// que es lo que MercadoPago envía hoy en su dashboard productivo. Ver
+// `verifyMercadoPagoIpnProductionSignature` abajo. El parser detecta
+// automáticamente cuál formato llegó (sha256= legacy vs ts=,v1= producción)
+// y verifica el correcto — no requiere cambio de config del caller.
 
 import crypto from 'crypto';
 import admin from 'firebase-admin';
@@ -161,6 +163,148 @@ export function verifyMercadoPagoIpnSignatureFromBody(
       });
       return true;
     }
+  }
+  return false;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// MercadoPago production manifest format `ts=...,v1=...`
+//
+// 2026-05-15 (Regla #3): MP's dashboard productivo envía signatures con
+// el formato:
+//   x-signature: ts=1704672000,v1=<hexHmacSha256>
+//   x-request-id: <uuid>
+//
+// El manifest a firmar es:
+//   id:<data.id>;request-id:<x-request-id>;ts:<ts>;
+//
+// donde:
+//   - `<data.id>` = body.data.id (id del payment)
+//   - `<x-request-id>` = header (UUID que MP genera por delivery)
+//   - `<ts>` = timestamp del header (epoch seconds)
+//
+// Spec: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
+//
+// Window de replay-protection: rechazamos timestamps > 5 min de drift.
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Default tolerance para replay protection (5 min). */
+const MP_SIG_TIMESTAMP_TOLERANCE_SEC = 5 * 60;
+
+export interface MercadoPagoProductionSignatureInput {
+  /** Raw `x-signature` header (formato `ts=<n>,v1=<hex>`). */
+  signatureHeader: string;
+  /** Raw `x-request-id` header. */
+  requestIdHeader: string;
+  /** `body.data.id` del IPN. */
+  dataId: string;
+  /** Secret HMAC compartido (dashboard MP). */
+  secret: string;
+  /** Override del tiempo actual (segundos epoch) — tests only. */
+  nowSec?: number;
+  /** Override de la tolerancia de drift (segundos) — tests only. */
+  toleranceSec?: number;
+}
+
+/**
+ * Parsea un header `x-signature` de MP en formato productivo:
+ *   `ts=1704672000,v1=abc...def`
+ * Devuelve `null` si formato inválido. Tolerante a espacios y orden.
+ */
+export function parseMpProductionSignatureHeader(
+  header: string,
+): { ts: number; v1: string } | null {
+  if (!header || typeof header !== 'string') return null;
+  const parts = header.split(',').map((p) => p.trim());
+  let ts: number | null = null;
+  let v1: string | null = null;
+  for (const part of parts) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    const k = part.slice(0, eq).trim().toLowerCase();
+    const v = part.slice(eq + 1).trim();
+    if (k === 'ts') {
+      const n = parseInt(v, 10);
+      if (Number.isFinite(n) && n > 0) ts = n;
+    } else if (k === 'v1') {
+      if (/^[0-9a-f]{64}$/i.test(v)) v1 = v.toLowerCase();
+    }
+  }
+  if (ts === null || v1 === null) return null;
+  return { ts, v1 };
+}
+
+/**
+ * Verifica una signature MP en formato producción (`ts=...,v1=...`).
+ *
+ * El manifest a firmar (HMAC-SHA256) es:
+ *   `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
+ *
+ * Returns false si:
+ *   - Header malformado
+ *   - Timestamp fuera del window de tolerancia (replay)
+ *   - HMAC mismatch
+ */
+export function verifyMercadoPagoIpnProductionSignature(
+  input: MercadoPagoProductionSignatureInput,
+): boolean {
+  const parsed = parseMpProductionSignatureHeader(input.signatureHeader);
+  if (!parsed) return false;
+  if (!input.requestIdHeader || typeof input.requestIdHeader !== 'string') return false;
+  if (!input.dataId || typeof input.dataId !== 'string') return false;
+  if (!input.secret || typeof input.secret !== 'string') return false;
+
+  const now = input.nowSec ?? Math.floor(Date.now() / 1000);
+  const tolerance = input.toleranceSec ?? MP_SIG_TIMESTAMP_TOLERANCE_SEC;
+  if (Math.abs(now - parsed.ts) > tolerance) {
+    // Replay-protection: rechazamos timestamps fuera del window.
+    return false;
+  }
+
+  // Manifest exactamente como lo arma MP:
+  //   id:<id>;request-id:<rid>;ts:<ts>;
+  const manifest = `id:${input.dataId};request-id:${input.requestIdHeader};ts:${parsed.ts};`;
+  const expectedHex = crypto
+    .createHmac('sha256', input.secret)
+    .update(manifest)
+    .digest('hex');
+
+  return constantTimeHexEqual(parsed.v1, expectedHex);
+}
+
+/**
+ * Helper unificado para la route handler: intenta primero el formato
+ * producción (`ts=,v1=`), luego cae al legacy (`sha256=`) si el header
+ * tiene ese shape. Mantiene compatibilidad cross-format sin que el
+ * caller tenga que rama-jear manualmente.
+ */
+export function verifyMpIpnAnyFormat(input: {
+  signatureHeader: string;
+  requestIdHeader?: string;
+  dataId?: string;
+  parsedBody: unknown;
+  secret: string;
+  nowSec?: number;
+}): boolean {
+  if (!input.signatureHeader) return false;
+
+  // Detect format por shape del header
+  if (input.signatureHeader.startsWith('ts=')) {
+    if (!input.requestIdHeader || !input.dataId) return false;
+    return verifyMercadoPagoIpnProductionSignature({
+      signatureHeader: input.signatureHeader,
+      requestIdHeader: input.requestIdHeader,
+      dataId: input.dataId,
+      secret: input.secret,
+      nowSec: input.nowSec,
+    });
+  }
+  if (input.signatureHeader.startsWith('sha256=')) {
+    return verifyMercadoPagoIpnSignatureFromBody(
+      input.parsedBody,
+      input.signatureHeader,
+      input.secret,
+    );
   }
   return false;
 }

@@ -99,6 +99,24 @@ export async function startStdioMcpServer(config: StdioAdapterConfig): Promise<S
       };
     }
 
+    // Codex P2 fix (PR #268 follow-up, 2026-05-15): `handleMcpRequest` para
+    // tools/call YA devuelve el MCP envelope `{content: [...], isError}` en
+    // su `.result`. Antes lo re-wrapeábamos en otro `content[0].text` con
+    // JSON.stringify del envelope completo → clientes recibían el envelope
+    // nested y tenían que unwrap dos veces para leer el payload.
+    // Ahora pasamos el envelope tal cual viene del server core.
+    const result = response.result as
+      | { content: Array<{ type: string; text?: string }>; isError?: boolean }
+      | undefined;
+    if (result && Array.isArray(result.content)) {
+      return {
+        content: result.content,
+        isError: result.isError ?? false,
+      };
+    }
+
+    // Fallback defensivo (no debería darse con el core actual, pero si una
+    // futura versión cambia el shape, evitamos crash silencioso).
     return {
       content: [
         {

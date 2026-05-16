@@ -116,7 +116,33 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       /* private mode / quota â€” no-op; bridge degrades gracefully */
     }
   }, [selectedProject?.id]);
+
   const { isAuthReady, user, isAdmin } = useFirebase();
+
+  // Regla #3 (2026-05-15): cuando el usuario selecciona un proyecto,
+  // los cálculos de ingeniería que tenía en scratch (porque no había
+  // proyecto antes) se auto-promueven al proyecto seleccionado vía
+  // writeNodesDebounced. Best-effort: si falla, no rompe el flujo del user.
+  useEffect(() => {
+    if (!selectedProject?.id) return;
+    const projectId = selectedProject.id;
+    void (async () => {
+      try {
+        const [{ promoteAllScratchToProject }, { writeNodesDebounced }] = await Promise.all([
+          import('../services/engineering/scratchCalculations'),
+          import('../services/zettelkasten/persistence/writeNode'),
+        ]);
+        const userUid = user?.uid ?? null;
+        const promoted = await promoteAllScratchToProject(userUid, projectId);
+        if (promoted.length > 0) {
+          writeNodesDebounced(promoted, { projectId });
+        }
+      } catch {
+        // Best-effort — scratch storage no es crítico para el flujo principal.
+      }
+    })();
+    // Solo dispara cuando cambia el proyecto seleccionado o el user, no en cada render.
+  }, [selectedProject?.id, user?.uid]);
   const pendingActions = usePendingActions('projects');
   const { toasts, show: showToast, dismiss } = useToast();
 

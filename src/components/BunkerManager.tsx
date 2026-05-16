@@ -22,33 +22,59 @@ export function BunkerManager() {
     }
   };
 
+  // Antes esta función simulaba descarga con `setTimeout(500ms) × 10` y
+  // guardaba un objeto literal hardcoded (`laws: ['Ley 16.744', ...]`)
+  // como si fuera la base de datos BCN real.
+  //
+  // 2026-05-15: ahora consume `/api/bcn/snapshot` (endpoint NUEVO en este
+  // PR — ver src/server/routes/bcn.ts) que fetcha las 8 leyes críticas
+  // desde la Biblioteca del Congreso Nacional REAL vía
+  // `bcnService.fetchLawFromBCN()`. Persiste el snapshot completo (con
+  // texto íntegro de cada ley) en IndexedDB para operación offline.
+  //
+  // Cache server-side de 1h evita hammering al servidor BCN.
   const downloadBunker = async () => {
     if (!online) return;
-    
+
     setStatus('downloading');
     setProgress(0);
 
-    // Simulate downloading large datasets (BCN, 3D Models, etc.)
-    const steps = 10;
-    for (let i = 1; i <= steps; i++) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProgress((i / steps) * 100);
-    }
+    try {
+      // BCN snapshot endpoint — fetcha leyes reales del backend
+      const res = await fetch('/api/bcn/snapshot', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+      });
+      setProgress(50);
 
-    const bunkerData = {
-      id: 'bcn_database',
-      timestamp: Date.now(),
-      version: '2026.4.1',
-      content: {
-        laws: ['Ley 16.744', 'DS 594', 'DS 40', 'Ley 21.012'],
-        models: ['Andamio_Standard_v2', 'Grua_Torre_X100'],
-        protocols: ['Rescate_Mina_S1', 'Evacuacion_Tsunami_L1']
+      if (!res.ok) {
+        // 502 = BCN está caído upstream. NO persistimos datos hardcoded —
+        // mostramos error real para que el user reintente más tarde.
+        setStatus('error');
+        return;
       }
-    };
 
-    await saveBunkerKnowledge('bcn_database', bunkerData);
-    setStatus('ready');
-    setLastSync(new Date().toLocaleString());
+      const snapshot = await res.json();
+      setProgress(90);
+
+      // Persistimos el snapshot REAL (leyes BCN íntegras, no objeto literal).
+      const bunkerData = {
+        id: 'bcn_database',
+        timestamp: Date.now(),
+        version: snapshot?.version ?? 'unknown',
+        content: snapshot?.content ?? null,
+        source: 'bcn-api',
+        lawsCount: snapshot?.content?.citationsCount ?? 0,
+        totalSizeBytes: snapshot?.content?.totalSizeBytes ?? 0,
+      };
+      await saveBunkerKnowledge('bcn_database', bunkerData);
+      setProgress(100);
+      setStatus('ready');
+      setLastSync(new Date().toLocaleString());
+    } catch (err) {
+      // Error de red — honesto, no fake-success.
+      setStatus('error');
+    }
   };
 
   return (
@@ -85,13 +111,13 @@ export function BunkerManager() {
         )}
 
         {status === 'downloading' && (
-          <div className="space-y-3">
+          <div className="space-y-3" data-testid="bunker-downloading">
             <div className="flex justify-between text-[10px] font-black text-blue-400 uppercase tracking-widest">
               <span>Descargando Inteligencia...</span>
               <span>{Math.round(progress)}%</span>
             </div>
             <div className="h-2 bg-white/5 rounded-full overflow-hidden">
-              <motion.div 
+              <motion.div
                 className="h-full bg-blue-500"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
@@ -100,6 +126,32 @@ export function BunkerManager() {
             <p className="text-[10px] text-zinc-500 italic text-center">
               Asegurando leyes, protocolos y modelos 3D en la bóveda local...
             </p>
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div
+            className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3"
+            data-testid="bunker-error"
+          >
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold text-amber-400 uppercase">
+                BCN temporalmente inaccesible
+              </p>
+              <p className="text-amber-200/80 mt-1">
+                No pudimos conectar con la Biblioteca del Congreso Nacional
+                (servidor BCN caído o sin conectividad). Reintenta en unos
+                minutos. El bunker conservará la última versión válida que
+                hayas descargado previamente.
+              </p>
+              <button
+                onClick={downloadBunker}
+                className="mt-3 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[10px] uppercase tracking-wider"
+              >
+                Reintentar descarga
+              </button>
+            </div>
           </div>
         )}
 

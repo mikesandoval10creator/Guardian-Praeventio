@@ -136,50 +136,27 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
   const tenantId =
     (req.user as { tenantId?: string }).tenantId ?? 'default';
 
-  // Codex P2 fix (PR #266): Rechazar legacy types ANTES del env fallback.
-  // Si el body manda oracle/dynamics/odoo, NO caer al env adapter — eso
-  // procesaría una request de Oracle a través de un SAP/Buk/Talana real
-  // y loggearía el erpType equivocado. Devolver 501 honesto.
-  if (erpType && !SUPPORTED_ERP_ADAPTERS.has(erpType)) {
-    const db = admin.firestore();
-    await db.collection('erp_sync_logs').add({
-      uid,
-      erpType,
-      action,
-      payload,
-      status: 'not_implemented',
-      mode: 'not_implemented',
-      timestamp: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    logger.warn('erp_sync_legacy_type_rejected', { erpType, action, uid });
-    return res.status(501).json({
-      success: false,
-      mode: 'not_implemented',
-      message: `ERP adapter "${erpType}" no tiene implementación. Soportados: sap, buk, talana, mock.`,
-      reason: 'Tipo ERP legacy sin adapter — no caemos al env adapter para evitar logs incorrectos',
-      timestamp: new Date().toISOString(),
-    });
-  }
-
   // Codex P1 fix (PR #266): Si el body provee erpType válido, lo usamos;
   // si no, el server lee ERP_ADAPTER del env. Frontend ya NO manda erpType
   // (ver src/pages/ERPIntegration.tsx) — el body queda para callers
   // server-to-server / admin tools que sí quieran override explícito.
   const requestedAdapter = erpType as 'sap' | 'buk' | 'talana' | 'mock' | undefined;
 
-  // Codex P2 fix (PR #266): Helper compartido para loggear intentos antes
-  // de devolver respuesta — incluye los modos de falla (missing_creds,
-  // not_implemented) para que operators tengan audit trail completo.
+  // Codex P2 fix (PR #266 + #267 follow-up): Helper compartido para loggear
+  // intentos antes de devolver respuesta — incluye los modos de falla
+  // (missing_creds, not_implemented) para audit trail completo. Si el write
+  // a Firestore falla, NO bloqueamos la respuesta (try-catch interno).
   const db = admin.firestore();
   const logAttempt = async (
     mode: string,
     extraStatus: string,
     extraMsg?: string,
+    extraErpType?: string,
   ): Promise<void> => {
     try {
       await db.collection('erp_sync_logs').add({
         uid,
-        erpType: requestedAdapter ?? process.env.ERP_ADAPTER ?? null,
+        erpType: extraErpType ?? requestedAdapter ?? process.env.ERP_ADAPTER ?? null,
         action,
         payload,
         status: extraStatus,
@@ -195,6 +172,33 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
 
   try {
     logger.info('erp_sync_started', { erpType: requestedAdapter, envAdapter: process.env.ERP_ADAPTER, action, uid });
+
+    // Codex P2 fix (PR #267/#268 follow-up — moved inside try):
+    // Rechazar legacy types (oracle/dynamics/odoo) ANTES del env fallback.
+    // Si el body manda oracle/dynamics/odoo, NO caer al env adapter — eso
+    // procesaría una request de Oracle a través de un SAP/Buk/Talana real
+    // y loggearía el erpType equivocado. Devolver 501 honesto.
+    //
+    // Codex 2026-05-15: el write a audit log debe ser fail-soft. Antes el
+    // `await ...add()` estaba fuera del try, así que si Firestore tiraba,
+    // Express 4 devolvía 500 en lugar del 501 honesto que queremos. Ahora
+    // usamos `logAttempt()` compartido que es fail-soft por diseño.
+    if (erpType && !SUPPORTED_ERP_ADAPTERS.has(erpType)) {
+      await logAttempt(
+        'not_implemented',
+        'not_implemented',
+        `Legacy erpType "${erpType}" rejected (no adapter implementation).`,
+        erpType,
+      );
+      logger.warn('erp_sync_legacy_type_rejected', { erpType, action, uid });
+      return res.status(501).json({
+        success: false,
+        mode: 'not_implemented',
+        message: `ERP adapter "${erpType}" no tiene implementación. Soportados: sap, buk, talana, mock.`,
+        reason: 'Tipo ERP legacy sin adapter — no caemos al env adapter para evitar logs incorrectos',
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     const adapter = selectErpAdapter({
       adapterName: requestedAdapter,

@@ -95,4 +95,92 @@ router.post('/audit-log', verifyAuth, async (req, res) => {
   }
 });
 
+// ─── GET /api/audit-log ─────────────────────────────────────────────────────
+// Codex fake fix §2.2 (2026-05-15): antes la página AuditTrail.tsx
+// mostraba 5 entradas hardcoded tras `setTimeout(1500)`. Esto era
+// "false completeness" peligrosa para compliance (ISO 45001 §10.2 exige
+// audit trail real). Este endpoint expone los audit_logs persistidos
+// por el POST de arriba, scoped al tenant + opcionalmente al project.
+//
+// Query params:
+//   ?projectId=PID  — filtra por proyecto (membresía verificada)
+//   ?limit=N        — max 100, default 50
+//   ?module=NAME    — filtra por módulo
+//   ?since=ISO_DATE — solo entradas posteriores
+router.get('/audit-log', verifyAuth, async (req, res) => {
+  const callerUid = req.user.uid;
+  const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+  const moduleFilter = typeof req.query.module === 'string' ? req.query.module : undefined;
+  const sinceIso = typeof req.query.since === 'string' ? req.query.since : undefined;
+  const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit ?? '50'), 10) || 50));
+
+  // Membership check si se pidió un projectId específico
+  if (projectId) {
+    try {
+      await assertProjectMember(callerUid, projectId, admin.firestore());
+    } catch (err) {
+      if (err instanceof ProjectMembershipError) {
+        return res.status(err.httpStatus).json({ error: 'forbidden' });
+      }
+      throw err;
+    }
+  }
+
+  try {
+    let query = admin
+      .firestore()
+      .collection('audit_logs')
+      .orderBy('timestamp', 'desc')
+      .limit(limit);
+
+    if (projectId) {
+      query = query.where('projectId', '==', projectId) as typeof query;
+    } else {
+      // Sin projectId → solo logs del propio usuario (no exponer trail de otros)
+      query = query.where('userId', '==', callerUid) as typeof query;
+    }
+
+    if (moduleFilter) {
+      query = query.where('module', '==', moduleFilter) as typeof query;
+    }
+
+    if (sinceIso) {
+      const sinceDate = new Date(sinceIso);
+      if (!Number.isNaN(sinceDate.getTime())) {
+        query = query.where(
+          'timestamp',
+          '>=',
+          admin.firestore.Timestamp.fromDate(sinceDate),
+        ) as typeof query;
+      }
+    }
+
+    const snap = await query.get();
+    const entries = snap.docs.map((doc) => {
+      const data = doc.data();
+      // ISO string para que el cliente no tenga que convertir Timestamps
+      const ts = data.timestamp?.toDate?.() ?? null;
+      return {
+        id: doc.id,
+        action: data.action,
+        module: data.module,
+        details: data.details ?? {},
+        userId: data.userId,
+        userEmail: data.userEmail ?? null,
+        projectId: data.projectId ?? null,
+        timestamp: ts ? ts.toISOString() : null,
+        ip: data.ip ?? null,
+      };
+    });
+    return res.json({ entries, count: entries.length });
+  } catch (error: any) {
+    logger.error('audit_log_read_failed', { uid: callerUid, projectId, message: error?.message });
+    captureRouteError(error, 'audit.log_read', { uid: callerUid, projectId });
+    return res.status(500).json({
+      error: 'Audit log read failed',
+      details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
+    });
+  }
+});
+
 export default router;

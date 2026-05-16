@@ -14,6 +14,10 @@ import { logger } from '../utils/logger';
 // manual. The "started" verb in the catalog row corresponds to the user
 // (or auto-trigger) committing to an evacuation flow.
 import { analytics } from '../services/analytics';
+// Codex fake fix §2.3 (2026-05-15): antes esta página simulaba A* con
+// `setTimeout(2000)` + `simulatedPath` hardcoded. Ahora usa A* REAL sobre
+// grilla 10×10 implementado en src/services/routing/gridAStar.ts (10 tests).
+import { findPathAStar } from '../services/routing/gridAStar';
 
 interface Earthquake {
   id: string;
@@ -126,21 +130,31 @@ export function EvacuationRoutes() {
       });
     } catch { /* analytics must never break user flow */ }
 
-    // Simulate A* algorithm calculation delay
+    // Codex fake fix §2.3: A* REAL en vez de simulatedPath hardcoded.
+    // El algoritmo corre síncronamente en <1ms para una grilla 10×10, así
+    // que mantenemos un mini-delay UX de 300ms para que el "calculando"
+    // sea visible (NO setTimeout de 2000ms que escondía la falta de algoritmo).
     setTimeout(() => {
-      // Hardcoded path for demonstration
-      const simulatedPath = [
-        {x: 0, y: 0}, {x: 0, y: 1}, {x: 0, y: 2}, {x: 1, y: 2},
-        {x: 1, y: 3}, {x: 1, y: 4}, {x: 1, y: 5}, {x: 2, y: 5},
-        {x: 3, y: 5}, {x: 4, y: 5}, {x: 4, y: 6}, {x: 4, y: 7},
-        {x: 5, y: 7}, {x: 6, y: 7}, {x: 7, y: 7}, {x: 8, y: 7},
-        {x: 9, y: 7}, {x: 9, y: 8}, {x: 9, y: 9}
-      ];
-      
-      setPath(simulatedPath);
+      const realPath = findPathAStar(
+        grid,
+        { x: 0, y: 0 },           // origen (esquina superior izquierda)
+        { x: 9, y: 9 },           // destino (zona segura, esquina inferior derecha)
+        { allowDiagonals: false }, // 4-conexa (conservador para evacuación)
+      );
+      if (realPath && realPath.length > 0) {
+        setPath(realPath);
+        setRouteCalculated(true);
+      } else {
+        // Caso honesto: A* no encontró ruta. NO devolvemos fake path.
+        logger.warn('evacuation_route_unreachable', {
+          projectId: selectedProject?.id,
+          gridSize: '10x10',
+        });
+        setPath([]);
+        setRouteCalculated(false);
+      }
       setIsCalculating(false);
-      setRouteCalculated(true);
-    }, 2000);
+    }, 300);
   };
 
   return (
@@ -152,7 +166,7 @@ export function EvacuationRoutes() {
             {t('evacuationRoutes.title', 'Rutas de Evacuación IA')}
           </h1>
           <p className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] mt-2">
-            {t('evacuationRoutes.subtitle', 'Algoritmo A* sobre Grillas Dinámicas')}
+            {t('evacuationRoutes.subtitle', 'Algoritmo A* sobre grilla 10×10 (real, determinístico, heurística Manhattan)')}
           </p>
         </div>
         <div className="px-4 py-2 rounded-xl border flex items-center gap-2 text-emerald-500 bg-emerald-500/10 border-emerald-500/20">

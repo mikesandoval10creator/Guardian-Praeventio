@@ -129,6 +129,23 @@ const signSchema = z.object({
     signatureB64: z.string().min(1),
     payloadHashHex: z.string().regex(/^[0-9a-f]{64}$/),
   }),
+  // 2026-05-15 (Regla #3): WebAuthn assertion completa. Cuando
+  // algorithm === 'webauthn-ecdsa-p256', estos campos son obligatorios y
+  // el server ejecuta la ceremonia end-to-end (challenge consume + crypto
+  // verify + counter monotonicity). Sin esto, una signature WebAuthn
+  // shape-valid se podía persistir sin validación criptográfica.
+  webauthnAssertion: z
+    .object({
+      challengeId: z.string().min(1),
+      credentialId: z.string().min(1),
+      rawId: z.string().min(1),
+      clientDataJSON: z.string().min(1),
+      authenticatorData: z.string().min(1),
+      signature: z.string().min(1),
+      type: z.literal('public-key'),
+      clientExtensionResults: z.record(z.string(), z.unknown()).default({}),
+    })
+    .optional(),
 });
 
 const submitSchema = z.object({ tenantId: z.string().min(1) });
@@ -172,8 +189,66 @@ router.post(
   verifyAuth,
   validate(signSchema),
   async (req, res) => {
-    const { tenantId, signature } = req.validated as z.infer<typeof signSchema>;
+    const { tenantId, signature, webauthnAssertion } =
+      req.validated as z.infer<typeof signSchema>;
+    const callerUid = req.user.uid;
     try {
+      // 2026-05-15 (Regla #3): SI algorithm === 'webauthn-ecdsa-p256',
+      // ejecutamos la ceremonia WebAuthn end-to-end antes de persistir.
+      // Sin esto, una signature shape-valid se persistía sin verificación
+      // criptográfica — exactamente lo que el TODO §7 advertía.
+      if (signature.algorithm === 'webauthn-ecdsa-p256') {
+        if (!webauthnAssertion) {
+          return res.status(400).json({
+            error: 'suseso_sign_webauthn_assertion_required',
+            detail:
+              'algorithm=webauthn-ecdsa-p256 requiere campo webauthnAssertion con challengeId/credentialId/clientDataJSON/authenticatorData/signature/rawId/type',
+          });
+        }
+        // El signerUid de la signature debe coincidir con el uid del caller
+        // (no permitimos firmar como otro user).
+        if (signature.signerUid !== callerUid) {
+          return res.status(403).json({
+            error: 'suseso_sign_uid_mismatch',
+            detail: 'signerUid no coincide con el usuario autenticado',
+          });
+        }
+        const { verifyWebAuthnAssertion } = await import(
+          '../auth/webauthnAssertion.js'
+        );
+        const { buildWebAuthnDb } = await import('./curriculum.js');
+        const { buildWebAuthnCredentialsDb } = await import('./curriculum.js');
+        const verdict = await verifyWebAuthnAssertion({
+          uid: callerUid,
+          credentialId: webauthnAssertion.credentialId,
+          rawId: webauthnAssertion.rawId,
+          clientDataJSON: webauthnAssertion.clientDataJSON,
+          authenticatorData: webauthnAssertion.authenticatorData,
+          signature: webauthnAssertion.signature,
+          clientExtensionResults: webauthnAssertion.clientExtensionResults,
+          type: webauthnAssertion.type,
+          challengeId: webauthnAssertion.challengeId,
+          expectedOrigin: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+          expectedRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+          challengesDb: buildWebAuthnDb(),
+          credentialsDb: buildWebAuthnCredentialsDb(),
+        });
+        if (!verdict.verified) {
+          logger.warn('suseso_form_sign_webauthn_failed', {
+            uid: callerUid,
+            formId: req.params.id,
+            reason: verdict.reason,
+          });
+          return res.status(401).json({
+            error: 'suseso_sign_webauthn_failed',
+            reason: verdict.reason,
+          });
+        }
+        // Verificación exitosa — el signatureB64 que viene en el body
+        // debe coincidir con el que el authenticator firmó (es la misma
+        // base64). Ya verificamos crypto; ahora persistimos.
+      }
+
       const updated = await signForm(
         tenantId,
         req.params.id,
@@ -184,6 +259,7 @@ router.post(
         void auditServerEvent(req, 'suseso.form_signed', 'suseso', {
           folio: updated.folio,
           algorithm: signature.algorithm,
+          webauthnVerified: signature.algorithm === 'webauthn-ecdsa-p256',
         });
       } catch {
         /* noop */
@@ -196,6 +272,31 @@ router.post(
     }
   },
 );
+
+// 2026-05-15 (Regla #3): endpoint nuevo para issuar challenge WebAuthn
+// específicamente para firmar DIAT/DIEP. El challenge se ata al `formId`
+// implícitamente porque el cliente debe pasar el mismo `challengeId` al
+// llamar `/sign` después de la ceremonia biométrica.
+router.get('/form/:id/sign-challenge', verifyAuth, async (req, res) => {
+  const callerUid = req.user.uid;
+  try {
+    const { generateWebAuthnChallenge, storeWebAuthnChallenge } = await import(
+      '../../services/auth/webauthnChallenge.js'
+    );
+    const { buildWebAuthnDb } = await import('./curriculum.js');
+    const { challengeId, challenge } = generateWebAuthnChallenge();
+    await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
+    res.json({
+      challengeId,
+      challenge: Buffer.from(challenge).toString('base64'),
+      formId: req.params.id,
+      rpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+    });
+  } catch (err) {
+    logger.error('suseso_sign_challenge_failed', { err: String(err) });
+    res.status(500).json({ error: 'suseso_sign_challenge_failed' });
+  }
+});
 
 router.post(
   '/form/:id/submit',

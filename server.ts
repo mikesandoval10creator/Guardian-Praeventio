@@ -66,6 +66,9 @@ import photogrammetryRouter from "./src/server/routes/photogrammetry.js";
 // Sprint 27 (audit H20) — overdue-maintenance reaper, called by Cloud
 // Scheduler. Gated by verifySchedulerToken at the route level.
 import maintenanceRouter from "./src/server/routes/maintenance.js";
+// 2026-05-15 — BCN snapshot router (Biblioteca del Congreso Nacional)
+// para BunkerManager offline. Lazy data fetch + cache 1h.
+import { bcnRouter } from "./src/server/routes/bcn.js";
 import auditRouter from "./src/server/routes/audit.js";
 import pushRouter from "./src/server/routes/push.js";
 import {
@@ -357,6 +360,11 @@ app.use("/api/photogrammetry", photogrammetryRouter);
 // gated by SCHEDULER_SHARED_SECRET (constant-time bearer compare) so
 // public ingress can't trigger it without the secret.
 app.use("/api/maintenance", maintenanceRouter);
+// 2026-05-15 — BCN snapshot endpoint para BunkerManager offline. Fetcha
+// leyes REALES desde la Biblioteca del Congreso Nacional. Cacheado 1h.
+// Public (no requiere auth) porque las leyes son contenido público —
+// pero compartirá el limiter global /api/ para evitar abuse.
+app.use("/api/bcn", bcnRouter);
 // Sprint 35 audit P1 §1.3 — Cloud Scheduler endpoint for the weekly
 // `aggregateAiFeedback` job (Sprint 32 B1 left it orphan with no
 // trigger). Gated by SCHEDULER_SHARED_SECRET like /api/maintenance.

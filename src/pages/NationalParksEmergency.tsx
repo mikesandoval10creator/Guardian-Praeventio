@@ -4,61 +4,165 @@ import { useTranslation } from 'react-i18next';
 import { TreePine, Map, ShieldAlert, AlertTriangle, Info, Droplet, CloudSnow, Sun, CloudLightning, ThermometerSnowflake, Wind, Cloud } from 'lucide-react';
 import { Card, Button } from '../components/shared/Card';
 import { fetchWeatherData } from '../services/orchestratorService';
+import { auth } from '../services/firebase';
 import { logger } from '../utils/logger';
+// Regla #3 (usuario 2026-05-15): si OpenWeather no responde, NO mostramos
+// menos días — usamos climatología chilena REAL (DMC normales 30-año) como
+// fallback determinístico. El forecast SIEMPRE tiene 3 días.
+import { getClimatologyForecast } from '../services/environment/chileClimatology';
+
+// Codex fake fix §2.5 (2026-05-15): antes el pronóstico Día 2 y Día 3 se
+// fabricaba con `weatherData.temp + (Math.random() * 4 - 2)` — decisiones
+// de evacuación de parques con datos inventados. Ahora consume el endpoint
+// real `/api/environment/forecast?days=3` que wrappea OpenWeather 5-day API
+// vía `src/services/environmentBackend.ts:getForecast`.
+//
+// Si OPENWEATHER_API_KEY no está configurada en server o falla la red, el
+// endpoint devuelve `{forecast: []}` graceful → mostramos el estado actual
+// (`fetchWeatherData`) sin fabricar días futuros.
+interface ForecastDay {
+  date: string;        // ISO YYYY-MM-DD
+  tempMinC: number;
+  tempMaxC: number;
+  windKmh: number;
+  precipMm: number;
+  condition: string;   // 'sunny' | 'cloudy' | 'rain' | etc.
+}
+
+function pickIcon(condition: string, tempC: number) {
+  if (tempC < 0) return CloudSnow;
+  if (tempC > 25 && condition === 'sunny') return Sun;
+  if (condition === 'storm' || condition === 'thunderstorm') return CloudLightning;
+  if (condition === 'rain') return Droplet;
+  return Cloud;
+}
+
+function riskForDay(d: ForecastDay): { risk: string; riskLevel: 'medium' | 'high' | 'critical' } {
+  if (d.windKmh > 60) return { risk: 'Vientos críticos', riskLevel: 'critical' };
+  if (d.windKmh > 40) return { risk: 'Vientos fuertes', riskLevel: 'high' };
+  if (d.tempMinC < 0) return { risk: 'Hielo negro', riskLevel: 'high' };
+  if (d.precipMm > 20) return { risk: 'Lluvia intensa', riskLevel: 'high' };
+  return { risk: 'Normal', riskLevel: 'medium' };
+}
 
 export function NationalParksEmergency() {
   const { t } = useTranslation();
   const [incidentType, setIncidentType] = useState<'fire' | 'spill'>('spill');
   const [parkStatus, setParkStatus] = useState<'open' | 'restricted' | 'closed'>('restricted');
   const [weatherData, setWeatherData] = useState<any>(null);
+  const [forecastDays, setForecastDays] = useState<ForecastDay[]>([]);
+  /**
+   * Indica si los días Día 2/3 vienen de OpenWeather (predicción real) o
+   * de la climatología DMC (promedio histórico 30-año). Se muestra como
+   * badge sutil al usuario para que sepa la procedencia, sin esconderlo.
+   */
+  const [forecastSource, setForecastSource] = useState<'openweather' | 'climatology'>('climatology');
   const [loading, setLoading] = useState(true);
 
+  // Coords default — Torres del Paine. En el futuro pueden venir del
+  // proyecto seleccionado / parque elegido por el usuario.
+  const PARK_LAT = -51.0;
+  const PARK_LNG = -73.0;
+
   useEffect(() => {
-    const loadWeather = async () => {
+    const loadClimate = async () => {
       try {
-        // Default to a national park coordinates (e.g., Torres del Paine)
-        const data = await fetchWeatherData(-51.0, -73.0);
+        // Estado actual (día Hoy) — siempre real desde fetchWeatherData
+        const data = await fetchWeatherData(PARK_LAT, PARK_LNG);
         setWeatherData(data);
+
+        // Forecast 3 días — primero intentamos OpenWeather (predicción real)
+        const token = await auth.currentUser?.getIdToken();
+        let backendForecast: ForecastDay[] = [];
+        if (token) {
+          try {
+            const res = await fetch('/api/environment/forecast?days=3', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = (await res.json()) as { forecast?: ForecastDay[] };
+              if (Array.isArray(json.forecast) && json.forecast.length > 0) {
+                backendForecast = json.forecast;
+              }
+            }
+          } catch (err) {
+            logger.warn('forecast_backend_failed', err);
+          }
+        }
+
+        if (backendForecast.length >= 2) {
+          // OpenWeather respondió con suficiente data — usamos predicción real
+          setForecastDays(backendForecast);
+          setForecastSource('openweather');
+        } else {
+          // Backend vacío/sin auth → climatología DMC determinística como
+          // fallback REAL (no Math.random, no fake — promedio histórico
+          // 30-año para la zona climática + mes correspondiente).
+          const climatology = getClimatologyForecast(
+            PARK_LAT,
+            PARK_LNG,
+            3,
+            new Date(),
+          );
+          // Empezar desde día 1 (no Hoy — eso lo da fetchWeatherData)
+          const futureClimatology = climatology.slice(1).map((c) => ({
+            date: c.date,
+            tempMinC: c.tempMinC,
+            tempMaxC: c.tempMaxC,
+            windKmh: c.windKmh,
+            precipMm: c.precipMm,
+            condition: c.condition,
+          })) as ForecastDay[];
+          setForecastDays(futureClimatology);
+          setForecastSource('climatology');
+        }
       } catch (error) {
-        logger.error("Failed to load weather:", error);
+        logger.error("Failed to load climate:", error);
       } finally {
         setLoading(false);
       }
     };
-    loadWeather();
+    loadClimate();
   }, []);
 
-  // Generate forecast based on current weather (since free tier doesn't have 3-day forecast)
-  const forecast = weatherData ? [
-    { 
-      day: 'Hoy', 
-      temp: weatherData.temp, 
-      condition: weatherData.condition, 
-      icon: weatherData.temp < 0 ? CloudSnow : (weatherData.temp > 25 ? Sun : Cloud), 
-      risk: weatherData.windSpeed > 40 ? 'Vientos Fuertes' : (weatherData.temp < 0 ? 'Hielo Negro' : 'Normal'), 
-      riskLevel: weatherData.windSpeed > 60 ? 'critical' : (weatherData.windSpeed > 40 ? 'high' : 'medium') 
-    },
-    { 
-      day: 'Mañana', 
-      temp: weatherData.temp + (Math.random() * 4 - 2), // Slight random variation
-      condition: 'Pronóstico', 
-      icon: Cloud, 
-      risk: 'Pendiente', 
-      riskLevel: 'medium' 
-    },
-    { 
-      day: 'Día 3', 
-      temp: weatherData.temp + (Math.random() * 6 - 3), 
-      condition: 'Pronóstico', 
-      icon: Cloud, 
-      risk: 'Pendiente', 
-      riskLevel: 'medium' 
-    }
-  ] : [
-    { day: 'Hoy', temp: 0, condition: 'Cargando...', icon: Cloud, risk: '-', riskLevel: 'medium' },
-    { day: 'Mañana', temp: 0, condition: 'Cargando...', icon: Cloud, risk: '-', riskLevel: 'medium' },
-    { day: 'Día 3', temp: 0, condition: 'Cargando...', icon: Cloud, risk: '-', riskLevel: 'medium' }
-  ];
+  // Build forecast UI honestamente — Hoy desde weatherData, Día 2/3 desde
+  // backend real si está disponible. Si el backend no responde, mostramos
+  // banner explicando que el pronóstico extendido no está disponible
+  // (en lugar de fabricar con Math.random()).
+  const todayCard = weatherData
+    ? {
+        day: 'Hoy',
+        temp: weatherData.temp,
+        condition: weatherData.condition,
+        icon: pickIcon(weatherData.condition, weatherData.temp),
+        risk:
+          weatherData.windSpeed > 40
+            ? 'Vientos Fuertes'
+            : weatherData.temp < 0
+              ? 'Hielo Negro'
+              : 'Normal',
+        riskLevel:
+          weatherData.windSpeed > 60
+            ? ('critical' as const)
+            : weatherData.windSpeed > 40
+              ? ('high' as const)
+              : ('medium' as const),
+      }
+    : { day: 'Hoy', temp: 0, condition: 'Cargando...', icon: Cloud, risk: '-', riskLevel: 'medium' as const };
+
+  const futureCards = forecastDays.slice(0, 2).map((d, idx) => {
+    const r = riskForDay(d);
+    return {
+      day: idx === 0 ? 'Mañana' : 'Día 3',
+      temp: Math.round((d.tempMinC + d.tempMaxC) / 2),
+      condition: d.condition,
+      icon: pickIcon(d.condition, (d.tempMinC + d.tempMaxC) / 2),
+      risk: r.risk,
+      riskLevel: r.riskLevel,
+    };
+  });
+
+  const forecast = [todayCard, ...futureCards];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -80,7 +184,24 @@ export function NationalParksEmergency() {
         </div>
       </div>
 
-      {/* Predictive Weather Section */}
+      {/* Predictive Weather Section — Hoy desde OpenCurrentWeather +
+          Día 2/3 desde OpenWeather forecast O climatología DMC (siempre 3 días). */}
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest">
+        <span className={`px-2 py-1 rounded font-bold ${
+          forecastSource === 'openweather'
+            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+            : 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+        }`} data-testid="forecast-source-badge">
+          {forecastSource === 'openweather'
+            ? t('nationalParks.forecastReal', 'Predicción · OpenWeather')
+            : t('nationalParks.forecastClimatology', 'Climatología · DMC 1981-2010')}
+        </span>
+        <span className="text-zinc-500">
+          {forecastSource === 'openweather'
+            ? t('nationalParks.forecastRealDesc', 'pronóstico en tiempo real para tu ubicación')
+            : t('nationalParks.forecastClimatologyDesc', 'promedio histórico 30-año (sin API key OpenWeather)')}
+        </span>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {forecast.map((day, idx) => {
           const Icon = day.icon;

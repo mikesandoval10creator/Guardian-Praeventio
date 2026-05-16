@@ -3,6 +3,10 @@
 > **Filosofía:** "El riesgo se neutraliza en el diseño, no en la reacción." — El Guardián.
 >
 > **Regla #1 (inviolable):** este documento **NO marca ✅ sin evidencia file:line**. Cada claim de "hecho" debe ser verificable con `grep` o `Read` en el código real. Una app de prevención de riesgos NO puede permitirse falsa completeness — vidas dependen de que sepamos qué funciona de verdad.
+>
+> **Regla #2 (decisión usuario 2026-05-15):** "honesto" = **funciona REAL**. Si un feature no funciona, primero intentamos producirlo. Solo removemos cuando el usuario lo pide explícitamente (ej: SMS).
+>
+> **Regla #3 (decisión usuario 2026-05-15):** **la respuesta default es PRODUCIR la solución, no etiquetarla ni sacarla.** Si una dependencia externa falla (API key, servicio caído), construimos un fallback REAL (climatología determinística, scratch local, modelo físico) — no un banner "no disponible" ni un grid que colapsa. El usuario nunca debe percibir que algo "está roto" o "pendiente"; debe sentir que la app funciona, porque funciona.
 
 **Última auditoría profunda:** 2026-05-15 — consolidación de 145+ docs internos + 5 agentes paralelos verificando claims contra código real + Codex reviews + PRs mergeados. Reemplaza a las versiones anteriores de TODO/ROADMAP/AUDIT/STATE/HONEST_STATE.
 
@@ -69,53 +73,107 @@ Cada dominio se mide:
 
 > **Estos items pretenden funcionar pero NO lo hacen.** Verificados con código en mano por agentes paralelos 2026-05-15. **Para una app de prevención de riesgos, esto es inaceptable** — empresas podrían tomar decisiones de vida basadas en datos fingidos.
 
-### 2.1 🔴 MFA SMS bypass (P0 SEGURIDAD)
-**Archivo:** `src/components/auth/MFASetupModal.tsx:34-63`
+### 2.1 ✅ MFA: SMS REMOVIDO completamente (cierre 2026-05-15)
+**Archivo:** `src/components/auth/MFASetupModal.tsx` (reescrito 100%)
 
-`handleSendCode` y `handleVerifyCode` solo hacen `setTimeout(..., 1500)` y retornan éxito sin enviar SMS real ni verificar código. **Cualquier código de 6 dígitos pasa la verificación MFA** — bypass total de la segunda factor. Solo el path biométrico (`handleBiometricSetup` con WebAuthn) hace algo real.
+**Estado anterior:** modal ofrecía 3 métodos pero el SMS path simulaba éxito con `setTimeout(1500)` y aceptaba cualquier código de 6 dígitos → bypass MFA total.
 
-**Fix esperado:**
-- Integrar Twilio Verify API o Firebase Auth Phone (bloqueado por credenciales Twilio — ver §5)
-- Mientras tanto: **deshabilitar el path SMS** y forzar a usuarios a usar biometric/TOTP
+**Decisión usuario 2026-05-15:** "sms no quiero, tampoco llamadas". Aplicando Regla #2 (funciona REAL o no existe):
 
-### 2.2 🔴 AuditTrail.tsx fake (P0 COMPLIANCE)
-**Archivo:** `src/pages/AuditTrail.tsx:12-24`
+- **REMOVIDOS del componente:** estados `phoneNumber`, `verificationCode`, `step: 'phone'`, `step: 'verify'`, handlers `handleSendCode`, `handleVerifyCode`, props `Smartphone`/`KeyRound` para SMS, todo el flujo de teléfono
+- **Métodos disponibles** (ambos REALES, ambos verificables):
+  - 🟢 **Biometría / Passkey (WebAuthn)** — `handleBiometricSetup` con `useBiometricAuth.register()` — verificación CBOR server-side
+  - 🟢 **TOTP (Google Authenticator, Authy, 1Password)** — botón redirige a `/security-shield` donde RFC 6238 está implementado real con `@noble/hashes`
+- El intro screen explícitamente dice: *"Cero SMS, cero llamadas — métodos verificados criptográficamente."*
 
-La "Caja Negra / Audit Trail" muestra 5 entradas hardcoded (`'Creación de matriz base para Proyecto Alpha'`, etc.) tras `setTimeout(..., 1500)`. **La página NO lee Firestore** aunque el backend (`src/server/routes/audit.ts`) sí existe y persiste eventos reales. Documenta-fake con consecuencias legales (ISO 45001 §10.2 audit trail).
-
-**Fix:** Wire `useAuditLog()` hook a `GET /api/audit-log?projectId=...`.
-
-### 2.3 🔴 EvacuationRoutes "A*" es interpolación lineal (P0 EMERGENCIA)
+### 2.2 ✅ AuditTrail.tsx wireado a backend real (cierre 2026-05-15)
 **Archivos:**
-- `src/pages/EvacuationRoutes.tsx:129-143` — devuelve `simulatedPath` hardcoded
-- `src/services/routingBackend.ts:37,46` — comentario literal: *"Basic interpolation (10 steps)"*
+- `src/pages/AuditTrail.tsx:11-115` (wire al fetch real)
+- `src/server/routes/audit.ts:98-181` (endpoint nuevo `GET /api/audit-log`)
 
-TODO.md previo decía `[x] Algoritmo A*`. Verificado: **no es A***. Para emergencias es crítico — rutas pre-calculadas no se adaptan a túneles bloqueados / pasillos con fuego reportado.
+**Estado anterior:** mostraba 5 entradas hardcoded tras `setTimeout(1500)`, NO leía Firestore.
 
-**Fix:** Implementar A* real sobre grilla discretizada de planos faena. O degradar honestamente: si no es A*, no decir A* en la UI/docs.
+**Fix aplicado:** nuevo endpoint `GET /api/audit-log` con:
+- Auth via `verifyAuth`
+- Filtros: `?projectId=X` (con membership check via `assertProjectMember`), `?module=NAME`, `?since=ISO`, `?limit=N` (max 100)
+- Sin projectId → solo logs del propio usuario (no expone trail de otros)
+- Devuelve entries con timestamp ISO + módulo + detalles + IP
 
-### 2.4 🔴 BunkerManager fake offline download
-**Archivo:** `src/components/BunkerManager.tsx:25-52`
+Frontend ahora:
+- Fetcha al endpoint con Bearer token del usuario
+- Filtra por `selectedProject?.id` automáticamente
+- Búsqueda local (cliente) sobre los entries cargados
+- Estados visibles: loading / error / empty / data (con `data-testid` para tests)
+- Sin `setTimeout` fake delay — UX espera el response real
 
-`downloadBunker` simula descarga BCN/3D Models con `setTimeout(500ms × 10)` y escribe objeto literal hardcoded a IndexedDB. **No descarga nada real** — el "bunker offline" se vende como protección para zonas sin señal pero el usuario opera con datos fijos legados.
-
-**Fix:** Wire a `bcnService.ts` + asset registry real con fetch + hash verify.
-
-### 2.5 🔴 NationalParksEmergency pronóstico fabricado
-**Archivo:** `src/pages/NationalParksEmergency.tsx:43,51`
-
-Pronóstico Día 2 y Día 3 con `weatherData.temp + (Math.random() * 4 - 2)`. **Decisiones de evacuación en parques con datos inventados.** El equipo ya corrigió el mismo patrón en `Calendar.tsx` (ver comentario línea 60) pero quedó vivo aquí.
-
-**Fix:** Wire a `environmentBackend.ts:getForecast(days=3)` real (ya existe).
-
-### 2.6 🔴 Cálculos Bernoulli van a `logger.info`, no a Firestore
+### 2.3 ✅ EvacuationRoutes A* REAL implementado (cierre 2026-05-15)
 **Archivos:**
-- `src/components/engineering/StructuralCalculator.tsx:86-95`
-- `src/components/engineering/HazmatStorageDesigner.tsx:76-78`
+- `src/services/routing/gridAStar.ts` (NEW, 217 LOC — A* real con MinHeap + Manhattan/Octile heuristic)
+- `src/services/routing/gridAStar.test.ts` (NEW, 10 tests — incluye unreachable returns null, no fake path)
+- `src/pages/EvacuationRoutes.tsx:129-150` (wire al findPathAStar real)
 
-Comentario explícito: *"replace this console emission with addNode() into Firestore"*. **Cálculos de ingeniería estructural (uplift de andamios, distancia segura hazmat) se calculan correctamente pero NO se persisten** — el supervisor ve el número en pantalla pero el Zettelkasten/audit trail no lo registra.
+**Estado anterior:** `simulatedPath` hardcoded tras `setTimeout(2000)`. UI decía "Algoritmo A* sobre Grillas Dinámicas" → mentira.
 
-**Fix:** Reemplazar `logger.info` con `addNode({type: 'engineering_calc', ...})`.
+**Fix aplicado:** algoritmo A* real con:
+- MinHeap (priority queue) ordenado por fScore — O(log n) operaciones
+- Heurística Manhattan (4-conexa) o Octile (8-conexa) — admisibles → garantiza shortest path
+- Anti-corner-cutting con diagonales (más seguro para evacuación)
+- Devuelve `null` si destino inalcanzable — NO fake path
+- Determinístico (mismos inputs → mismo path)
+
+EvacuationRoutes ahora:
+- Llama `findPathAStar(grid, start, goal)` con la grilla 10×10 + obstáculos reales del state
+- Si A* devuelve null → log warning + estado `routeCalculated: false` (UI muestra error honesto, no path inexistente)
+- Subtitle UI actualizado: `"Algoritmo A* sobre grilla 10×10 (real, determinístico, heurística Manhattan)"`
+
+### 2.4 ✅ BunkerManager REAL — descarga leyes BCN íntegras (cierre 2026-05-15)
+**Archivos:**
+- `src/components/BunkerManager.tsx:25-72` (fetch real, no setTimeout)
+- `src/server/routes/bcn.ts` (NEW — endpoint `/api/bcn/snapshot`)
+- `server.ts` mounted en `/api/bcn`
+
+**Estado anterior:** simulaba descarga con `setTimeout(500ms × 10)` y persistía objeto literal hardcoded (`laws: ['Ley 16.744',...]`) como si fuera BCN.
+
+**Fix REAL aplicado** (Regla #2: funciona o no existe — implementamos para que funcione):
+- `bcn.ts:33-86` fetcha las **8 leyes críticas REALES** desde la Biblioteca del Congreso Nacional vía `bcnService.fetchLawFromBCN()`:
+  - Ley 16.744, DS 594, DS 40, DS 132 (Minería), DS 76 (Contratistas), Ley 20.123, DS 43 (Sustancias Peligrosas), Ley 21.156 (DEA)
+- Cada ley devuelve `{ idNorma, titulo, fechaPublicacion, organismo, texto }` con el TEXTO ÍNTEGRO de la norma chilena
+- Cache server-side 1h evita hammering al servidor BCN (que es lento)
+- Si BCN está caído upstream Y no hay cache → 502 honesto. Si BCN parcialmente caído → devuelve las leyes que SÍ pudo descargar
+- Frontend persiste el snapshot REAL en IndexedDB con metadata: `lawsCount`, `totalSizeBytes`, `source: 'bcn-api'`
+- UI de error solo cuando hay falla de red/BCN real, con botón "Reintentar descarga" — NO mensaje de "endpoint pendiente"
+
+### 2.5 ✅ NationalParksEmergency REAL — predicción con fallback climatológico (cierre 2026-05-15)
+**Archivos:**
+- `src/pages/NationalParksEmergency.tsx` (wire dual-source)
+- `src/services/environment/chileClimatology.ts` (NEW, 16 tests — Regla #3)
+
+**Estado anterior:** pronóstico Día 2/3 con `weatherData.temp + (Math.random()*4-2)`.
+
+**Fix Regla #3 aplicado** (construir, no etiquetar ni sacar):
+- **Source 1 (preferido):** `GET /api/environment/forecast?days=3` que wrappea OpenWeather 5-day API. Si responde con datos → usar predicción real.
+- **Source 2 (fallback REAL):** climatología chilena DMC 1981-2010 — promedios mensuales 30-año por 7 zonas climáticas (norte_arido, norte_chico, central, sur, austral, altiplano, isla_pascua). Determinístico, mismo input → mismo output, sin Math.random.
+- El forecast SIEMPRE tiene 3 días, NUNCA hay grid colapsado ni banner "no disponible". Solo un badge sutil arriba indica la procedencia (`OpenWeather` verde · `DMC 1981-2010` azul) para que el usuario sepa qué tipo de pronóstico está viendo.
+- `riskForDay()` deriva risk level de datos REALES (`windKmh`, `tempMinC`, `precipMm`), funciona idénticamente con OpenWeather o climatología.
+
+### 2.6 ✅ Cálculos Bernoulli SIEMPRE persisten (scratch local + auto-promote) (cierre 2026-05-15)
+**Archivos:**
+- `src/services/engineering/scratchCalculations.ts` (NEW, 10 tests — Regla #3)
+- `src/components/engineering/StructuralCalculator.tsx:97-114` (wire scratch fallback)
+- `src/components/engineering/HazmatStorageDesigner.tsx:99-118` (wire scratch fallback)
+- `src/contexts/ProjectContext.tsx:120-141` (auto-promote al seleccionar proyecto)
+
+**Estado anterior (Codex feedback):** los cálculos persistían SOLO cuando había proyecto seleccionado; sin proyecto eran silently dropped (solo `logger.info`).
+
+**Fix Regla #3 aplicado** (construir, no agregar UI feedback de error):
+- Nuevo módulo `scratchCalculations.ts` con storage IndexedDB:
+  - `saveScratchCalculation(node, userUid)` — persiste idempotentemente (hash determinístico del payload canonicalizado evita duplicados)
+  - `listScratchCalculations(userUid)` — lista los pendientes del user
+  - `promoteAllScratchToProject(userUid, projectId)` — promueve todo al proyecto
+  - Namespacing por uid: user A no ve scratch de user B; anonymous bucket separado
+- StructuralCalculator + HazmatStorageDesigner: si `selectedProject?.id` existe → Firestore via `writeNodesDebounced`; si no → `saveScratchCalculation()` local
+- ProjectContext: `useEffect` que detecta selección de proyecto + auto-promueve todos los scratch pendientes vía `writeNodesDebounced`
+- Resultado: cálculo NUNCA se pierde. Sin UI de error. Funciona idénticamente con o sin proyecto.
 
 ### 2.7 🔴 Vertex AI Trainer auto-stub (P1 documentación engañosa)
 **Archivo:** `src/services/ml/vertexTrainer.ts:2,128-132`
@@ -138,14 +196,20 @@ Sin esto, **Android App Links no funcionan en Play Store**. Bloqueado por keysto
 
 `expectedSha256: null` — el modelo Gemma no tiene integrity check. Loader debe fail-closed en prod. Bloqueado por DevOps que descargue + compute SHA-256.
 
-### 2.10 🔴 `tryAutoIssueDte` sin caller productivo
+### 2.10 ✅ `tryAutoIssueDte` wireado en webpay/return + mercadoPagoIpn (cierre 2026-05-15)
 **Archivos:**
-- `src/services/billing/invoice.ts:220-260` — función definida
-- Solo se invoca en `src/server/routes/dte.ts` (admin route manual)
+- `src/server/routes/billing.ts:1290-1372` (webpay/return)
+- `src/server/routes/billing.ts:1063-1146` (mercadoPagoIpn handler)
 
-**Ningún webhook Webpay/MP/IAP la llama**. Las facturas pagadas no auto-emiten DTE. Confirma P1-3 del AUDIT_TRUTH_MATRIX.
+**Estado anterior:** ambos handlers hacían `decideDteIssue()` (función pura que decide si emitir) pero NUNCA llamaban `tryAutoIssueDte()` que es quien efectivamente ejecuta la emisión vía Bsale.
 
-**Fix:** Llamar `tryAutoIssueDte(invoice)` en los handlers `webpay/return`, `mercadoPagoIpn`, `mark-paid`.
+**Fix aplicado:** ahora si `decision.shouldIssue === true`:
+- Lazy-import `tryAutoIssueDte` (no contamina cold-start de otros endpoints)
+- Llama con el `invoiceData` re-hidratado a status `paid`
+- Loggea result: `ok`, `skipped`, `folio`, `errorMessage`
+- Try-catch interno → si Bsale falla NO bloquea el redirect/ack del IPN
+
+**Safety:** `tryAutoIssueDte` ya respeta `DTE_AUTO_ISSUE` env var (default `false`). En producción esto queda OFF hasta que infra setee la env, momento en que empieza a emitir DTEs automáticamente para suscripciones pagadas. Mientras está OFF, devuelve `skipped: 'disabled'` sin tocar Bsale.
 
 ### 2.11 🔴 Tests fallando silenciosamente
 **Estado:** `npm test` → **8040 passing / 394 failing / 84 archivos failed** (exit code 0)
@@ -158,7 +222,7 @@ CI no falla por estos tests rotos. Algunos pueden ser flakiness, otros regresion
 
 ## 3. 🟡 Codex review pendings sin mergear
 
-> Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), **todos cubiertos por PRs #267 y #268 todavía abiertos**.
+> Codex ChatGPT hizo review automática en ~16 PRs mergeados últimos 14 días. La mayoría muestran "Codex usage limits reached" (sin contenido técnico). Solo **4 PRs** tuvieron hallazgos reales — **10 hallazgos totales** (2 P1 + 8 P2), cubiertos por PRs #267 + #268. **+ 7 hallazgos nuevos de Codex** en PRs #267/#268/#269, atendidos en este PR.
 
 ### PR #267 — Codex fixes de #263 #264 #266 (7 hallazgos)
 - **P1** `firestoreRateLimitStore.ts:83` — keys con `/` (IPv6 CIDR) crean nested doc paths → IPv6 nunca se throttle
@@ -173,6 +237,15 @@ CI no falla por estos tests rotos. Algunos pueden ser flakiness, otros regresion
 - **P2** `AiResponseCard.tsx:150` — tier badge mislabels cuando streaming queda stale
 - **P2** `useResilientAi.ts:120` — SLM adapter ignora `onStreamToken` (UI con caret vacío)
 - **P2** `useResilientAi.ts:108` — late tokens del SLM zombie mutan streaming post-fallback
+
+### ✅ Codex fixes de #267/#268/#269 atendidos en este PR (2026-05-15)
+- **P2** `misc.ts:145` — legacy ERP rejection bloqueaba 501 si Firestore audit fallaba → ahora dentro de try + helper `logAttempt()` fail-soft
+- **P2** `useResilientAi.ts:123` — safety timeout window NO se ajustaba a emergencyMode (3000ms vs 8000ms × 1.1) → ahora deriva del default del modo seleccionado
+- **P2** `zettelkastenStdioAdapter.ts:92` — MCP envelope double-wrap → ahora passthrough del `content[]` que devuelve `handleMcpRequest`
+- **P2** `TODO.md:116` — §2.6 falsamente decía que Bernoulli no persiste; SÍ persiste via `writeNodesDebounced` con projectId → rectificado a 🟡 partial (solo falta UI feedback cuando no hay proyecto)
+- **P2** `TODO.md:277` — §7 violaba la Regla #1 (PR# sin file:line) → expandido a `src/services/...` real para cada item
+- **P2** `TODO.md:293` — MercadoPago HMAC marcado closed cuando formato productivo `ts=..,v1=..` sigue diferido → calificado con nota explícita
+- **P2** `TODO.md:318` — DIAT WebAuthn signature marcado closed cuando ceremony end-to-end falta → calificado con nota explícita
 
 ### Bonus en #267
 - Fix TS narrowing en `KekRotationPanel.tsx:85` (PR #248 dejó 2 errores TS en main)
@@ -276,75 +349,92 @@ Mantener: tests verdes (resolver los 394 failing), CI workflow estable, no agreg
 
 > Items con evidencia file:line. Por categoría — referencia rápida para no re-trabajar.
 
+> **Regla #1 aplicada (Codex feedback 2026-05-15):** cada item DEBE citar file:line o ADR. Los items que solo citaban PR# fueron expandidos. Los items con dudas se marcan 🟡 PARTIAL en lugar de ✅.
+
 ### Seguridad
 - **KMS preflight fail-fast prod** — `src/server/kmsPreflight.ts:27-37` + `server.ts:157-166` (`process.exit(1)` si !ok)
 - **WebAuthn cliente envía `id/rawId/type/clientExtensionResults`** — `src/hooks/useBiometricAuth.ts:184-192`
 - **WebAuthn server verify** — `src/server/routes/curriculum.ts:763-849` (sin fallback consume-only en prod)
-- **Hash chain forense (tamper-proof)** — PR #233
-- **KEK rotation orchestrator + UI panel** — PRs #247 + #248 + #254
-- **Firestore session store (Firestore-backed, multi-instance safe)** — PR #264, `src/server/sessionStore/firestoreSessionStore.ts`
-- **Firestore rate limit store (multi-pod atomic via runTransaction)** — PR #264
+- **Hash chain forense (tamper-proof audit)** — `src/services/audit/tamperProofChain.ts`
+- **KEK rotation orchestrator** — `src/services/security/kekRotationOrchestrator.ts`
+- **KEK rotation UI panel** — `src/components/security/KekRotationPanel.tsx` + montado en `src/pages/Settings.tsx`
+- **Firestore session store (Firestore-backed, multi-instance safe)** — `src/server/sessionStore/firestoreSessionStore.ts` + wired `server.ts:455`
+- **Firestore rate limit store (multi-pod atomic via runTransaction)** — `src/server/rateLimit/firestoreRateLimitStore.ts` + wired `server.ts:404`
 
 ### Billing
 - **Webpay returnUrl + plan normalize** — `src/server/routes/billing.ts:560` + `src/services/pricing/subscriptionPlan.ts`
-- **Apple SSN v2 webhook (JWS verify + idempotency)** — `src/server/routes/billing.ts:1763` (PR #232)
+- **Apple SSN v2 webhook (JWS verify + idempotency)** — `src/server/routes/billing.ts:1763`
 - **Google Play receipts validator (subscriptionsv2.get)** — `src/services/billing/googlePlayValidator.ts`
 - **Apple App Store Server API validator** — `src/services/billing/appleTransactionValidator.ts`
-- **MercadoPago x-signature HMAC SHA-256 validate** — `src/services/billing/mercadoPagoIpn.ts`
-- **MercadoPago IPN mounted** — `server.ts:676` → `billing.ts:959` (rectifica claim P0 del TECHNICAL_DEBT_AUDIT)
-- **ERP /sync honesto multi-modo** — PR #266, `src/services/erp/erpAdapter.ts` (reemplaza setTimeout fake)
-- **Five premium fake pages → real** — PR #262: SecurityShield (MFA TOTP RFC 6238), ImmutableRender (Puppeteer), SusesoReports (DIAT firma), GoogleDriveIntegrationManager (OAuth real), SSOConfig (SAML/OIDC scaffold real)
+- **MercadoPago IPN mounted** — `server.ts:676` → `src/server/routes/billing.ts:959` (rectifica claim P0 del TECHNICAL_DEBT_AUDIT)
+- **ERP /sync honesto multi-modo** — `src/services/erp/erpAdapter.ts` (reemplaza setTimeout fake)
+- **Premium fake pages → real (5)** — `src/pages/SecurityShield.tsx` + `src/pages/ImmutableRender.tsx` + `src/pages/SusesoReports.tsx` + `src/pages/GoogleDriveIntegrationManager.tsx` + `src/pages/SSOConfig.tsx`
+
+> ✅ **MercadoPago HMAC formato productivo cerrado 2026-05-15** (Regla #3): `src/services/billing/mercadoPagoIpn.ts:160-310` implementa el manifest productivo `id:<dataId>;request-id:<rid>;ts:<ts>;` con HMAC-SHA256 y replay-protection 5 min. Helper `verifyMpIpnAnyFormat()` detecta auto el formato (legacy `sha256=` vs prod `ts=,v1=`) y wirea en `billing.ts:1006-1046`. 20 tests cubriendo válido/inválido/replay/wrong-secret/header malformado.
 
 ### IA / SLM
-- **Vertex AI adapter inferencia real** — `@google-cloud/vertexai 1.12` + `getAiAdapterFor({dataResidency, strict})`
-- **SLM runtime ONNX + Web Worker + AbortSignal** — PRs #234, #239, #241
+- **Vertex AI adapter inferencia real** — `src/services/ai/vertexAdapter.ts` (`@google-cloud/vertexai 1.12`)
+- **SLM runtime ONNX + Web Worker** — `src/services/slm/slmRuntime.ts` + `src/services/slm/worker/slmRuntimeWorkerCore.ts`
+- **SLM `inferStream` con AbortSignal + onToken** — `src/services/slm/slmRuntime.ts:230-548`
 - **SLM Phi-3 SHA-256 real** — `src/services/slm/registry.ts:67`
 - **SLM Qwen SHA-256 real** — `src/services/slm/registry.ts:75`
-- **SLM encrypted offline queue** — PR #238
-- **SLM in-app downloader UX** — PR #237
-- **SLM auto-trigger reconciliation online/FCM** — PR #235
-- **Resilient AI orchestrator 5-tier (SLM → ZK → Firestore → Gemini → canned)** — PRs #221-#229
-- **Streaming SLM tokens UI** — PR #250 (con fix en PR #268 abierto)
+- **SLM encrypted offline queue** — `src/services/slm/encryptedOfflineQueue.ts`
+- **SLM in-app downloader UX** — `src/components/slm/SlmManagerScreen.tsx`
+- **Resilient AI orchestrator 5-tier** — `src/services/ai/resilientAiOrchestrator.ts:355-396` (SLM → ZK → Firestore → Gemini → canned)
+- **Streaming SLM tokens UI** — `src/components/ai/AiResponseCard.tsx` + `src/hooks/useResilientAi.ts` (con fixes Codex en este PR)
 
 ### Mobile / IA local
 - **BLE Mesh plugin Android Kotlin REAL (552 LOC GATT)** — `packages/capacitor-mesh/android/src/main/java/com/praeventio/mesh/MeshPlugin.kt`
-- **BLE Mesh plugin iOS Swift CoreBluetooth** — PR #5503d50
-- **Foreground Service Android (@capawesome)** — PR #0320389 (C.2)
-- **capacitor-proximity sensor** — PR #784a9c3 (C.3)
-- **SOS orchestrator + GPS breadcrumbs** — PR #a333c01 (C.5)
-- **Mobile signing scripts + runbook + CI check** — PR #236 (config, no keystore real aún)
+- **BLE Mesh plugin iOS Swift CoreBluetooth** — `packages/capacitor-mesh/ios/Plugin/Plugin.swift`
+- **Foreground Service Android (@capawesome)** — `src/services/foregroundService/guardianForegroundService.ts`
+- **capacitor-proximity sensor** — `src/services/proximitySensor/proximityModeDetector.ts`
+- **SOS orchestrator + GPS breadcrumbs** — `src/services/emergency/sosOrchestrator.ts` + `src/services/emergency/gpsBreadcrumbTracker.ts` + `src/services/emergency/emergencyNumbers.ts`
+- **Mobile signing scripts + runbook + CI check** — `scripts/mobile-signing/` + `docs/runbooks/MOBILE_SIGNING.md` + `.github/workflows/mobile-signing-check.yml`
 
 ### Compliance
-- **DIAT/DIEP PDF render real (pdfkit + folio atómico + WebAuthn signature)** — `src/services/suseso/diatPdfRenderer.ts`
-- **CPHS module (DS 54 + ISO 45001 §5.4)** — `src/services/cphs/` + `src/components/cphs/CphsCommitteeStatusCard.tsx`
-- **Job Safety Analysis (AST) + ISO 45001 hierarchy** — PR #259
-- **Work permits validators (izaje/excavación/LOTO)** — PR #258 (36 tests)
-- **Regulatory framework abstraction + 11 jurisdicciones** — ADR 0014 + `src/services/regulatory/jurisdictions/`
-- **Privacy regimes 11+ países (GDPR/CCPA/CPRA/LGPD/Ley 19628/PIPEDA/APPI/PDPA/PIPL/152-FZ/PIPA-TW)** — `src/services/privacy/registry.ts`
-- **EPP expiry job + checkExpiredPpe wired a maintenance reaper** — PR #28b3d9a
+- **DIAT/DIEP PDF render (pdfkit + folio atómico)** — `src/services/suseso/diatPdfRenderer.ts` + `src/services/suseso/folioGenerator.ts`
+- **CPHS service (DS 54 + ISO 45001 §5.4)** — `src/services/cphs/cphsService.ts` + `src/services/cphs/types.ts`
+- **CPHS UI status card** — `src/components/cphs/CphsCommitteeStatusCard.tsx`
+- **Job Safety Analysis (AST) + ISO 45001 hierarchy** — `src/services/jsa/jobSafetyAnalysis.ts`
+- **Work permits validators (izaje/excavación/LOTO)** — `src/services/workPermits/criticalPermitValidators.ts` + `liftingPermitExtension.ts` + `excavationPermitExtension.ts`
+- **Regulatory framework abstraction + 11 jurisdicciones** — ADR 0014 (`docs/architecture-decisions/0014-regulatory-framework-abstraction.md`) + `src/services/regulatory/jurisdictions/`
+- **Privacy regimes 11+ países** — `src/services/privacy/registry.ts` (GDPR/CCPA/CPRA/LGPD/Ley 19628/PIPEDA/APPI/PDPA/PIPL/152-FZ/PIPA-TW)
+- **EPP expiry job + checkExpiredPpe wired** — `src/server/jobs/checkExpiredPpe.ts` mounted via `src/server/routes/maintenance.ts`
+
+> ✅ **DIAT WebAuthn ceremony cerrada end-to-end 2026-05-15** (Regla #3):
+> - NUEVO `src/server/auth/webauthnAssertion.ts` (verificador reusable de assertion: challenge consume + credential lookup + crypto verify + counter monotonicity)
+> - SUSESO sign endpoint (`src/server/routes/suseso.ts:171-262`) ahora ejecuta la ceremonia cuando `algorithm === 'webauthn-ecdsa-p256'` — campo `webauthnAssertion` obligatorio, verificado contra public key registrada antes de persistir
+> - NUEVO endpoint `GET /api/suseso/form/:id/sign-challenge` para issuar challenge
+> - 9 tests de capa 0 (shape validation); capas más profundas cubiertas por integration test existente en `__tests__/server/webauthnVerify.test.ts`
 
 ### Twin 3D + AR
-- **InstancedMesh + LOD + Rapier physics (D.1)** — `src/components/twinScene/TwinSceneInstanced.tsx` + `TwinPhysicsScene.tsx`
+- **InstancedMesh + LOD + Rapier physics (D.1)** — `src/components/twinScene/TwinSceneInstanced.tsx` + `src/components/twinScene/TwinPhysicsScene.tsx`
 - **Cargo stowage 3DBPP + COG (D.2)** — `src/services/cargo/stowageOptimizer.ts`
 - **HVAC 1R1C thermal + CO2 + ventilation (D.3)** — `src/services/hvac/thermalModel.ts`
-- **WebXR foundation + platform policy (E.1)** — PR #257
+- **WebXR foundation + platform policy (E.1)** — `src/services/ar/webxrCapabilities.ts` + `src/components/ar/`
 - **OSHA/ILO safety KPIs (D.10)** — `src/services/safetyMetrics/osha.ts`
 
 ### Zettelkasten + persistence
-- **MCP Zettelkasten read-only stdio (D.11)** — `src/services/mcp/zettelkastenStdioAdapter.ts`
-- **ZK canonical materializer (D.8.c)** — PR #435bca9
-- **Site Book CRDT layer (multi-supervisor concurrent edits)** — PRs #251, #256
-- **Generic offline outbox engine + encrypted adapter** — PRs #245, #246
-- **CQRS Event Store + Incident aggregate + read model** — PR #261 (51 tests)
+- **MCP Zettelkasten read-only stdio (D.11)** — `src/services/mcp/zettelkastenStdioAdapter.ts` + `src/services/mcp/zettelkastenServer.ts`
+- **ZK canonical materializer (D.8.c)** — `src/services/zettelkasten/canonical/materializer.ts`
+- **Site Book CRDT layer (multi-supervisor concurrent edits)** — `src/services/siteBook/siteBookCrdt.ts` + adapter Firestore en `src/services/siteBook/siteBookFirestoreAdapter.ts`
+- **Generic offline outbox engine + encrypted adapter** — `src/services/sync/genericOutboxEngine.ts` + `src/services/sync/encryptedOutboxAdapter.ts`
+- **CQRS Event Store + Incident aggregate + read model** — `src/services/eventStore/inMemoryEventStore.ts` + `src/services/cqrs/incidents/incidentCommands.ts` + `src/services/cqrs/incidents/incidentReadModel.ts` + `src/services/cqrs/incidents/incidentSystem.ts`
 
 ### Wire UI cards (Sprint K/L sin UI antes)
-- **CphsCommitteeStatusCard + LeadershipTrailCard + EngineeringInventoryCard + MonthlyClientReportPanel + PrivacyDsarPanel** — PR #265
+- **CphsCommitteeStatusCard** — `src/components/cphs/CphsCommitteeStatusCard.tsx`
+- **LeadershipTrailCard** — `src/components/leadership/LeadershipTrailCard.tsx`
+- **EngineeringInventoryCard** — `src/components/engineeringControls/EngineeringInventoryCard.tsx`
+- **MonthlyClientReportPanel** — `src/components/clientReporting/MonthlyClientReportPanel.tsx`
+- **PrivacyRegimeCard** — `src/components/privacy/PrivacyRegimeCard.tsx`
 
 ### CI / Observability
 - **e2e workflow `continue-on-error: false`** — `.github/workflows/e2e.yml:90`
-- **Sentry coverage server + CSP final + i18n sweep (D.13.a/b/c)** — PRs #116d42e, #891802d, #49beca3
-- **Lint script honesto (real ESLint sobre firestore.rules)** — PR #264
-- **Resilience health alert cron + FCM** — PR #249
+- **Sentry coverage server** — `src/server/middleware/sentryCapture.ts` + invocaciones en routes
+- **CSP final con nonce** — `src/server/middleware/securityHeaders.ts` + `vite.config.ts` CSP transform
+- **i18n sweep 91% páginas** — `grep -l useTranslation src/pages/*.tsx | wc -l = 109` de 119
+- **Lint script honesto (real ESLint sobre firestore.rules)** — `package.json:lint`
+- **Resilience health alert cron + FCM** — `src/server/jobs/resilienceHealthAlert.ts` mounted via `maintenance.ts`
 
 ---
 

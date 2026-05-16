@@ -9,6 +9,10 @@ import { windLoadOnSurface, windSpeedKmhToMs } from '../../services/physics/bern
 import { generateScaffoldUpliftNode } from '../../services/zettelkasten/bernoulli';
 import { writeNodesDebounced } from '../../services/zettelkasten/persistence/writeNode';
 import { useProject } from '../../contexts/ProjectContext';
+import { useFirebase } from '../../contexts/FirebaseContext';
+// Regla #3 — scratch local cuando no hay proyecto seleccionado (auto-
+// promueve al primer projectId que el user seleccione/cree).
+import { saveScratchCalculation } from '../../services/engineering/scratchCalculations';
 import {
   calculateCriticalLoad,
   bucklingSafetyFactor,
@@ -76,6 +80,7 @@ export const StructuralCalculator: React.FC = () => {
   const [bucklingDisplayKN, setBucklingDisplayKN] = useState<boolean>(true);
 
   const { selectedProject } = useProject();
+  const { user: currentUser } = useFirebase();
 
   const windForceN = windLoadOnSurface(
     windAreaM2,
@@ -93,9 +98,17 @@ export const StructuralCalculator: React.FC = () => {
   );
   if (scaffoldUpliftNode) {
     logger.info('zettelkasten:scaffold-uplift', { node: scaffoldUpliftNode });
-    // Sprint 11: persistencia debounceada (2 s). Sin proyecto, no escribimos.
+    // Sprint 11 + Regla #3 (2026-05-15): persistencia siempre.
+    //   - Con proyecto → Firestore debounceado (writeNodesDebounced)
+    //   - Sin proyecto → IndexedDB scratch (auto-promueve cuando user
+    //     selecciona/crea un proyecto vía promoteAllScratchToProject).
     const projectId = selectedProject?.id;
-    if (projectId) writeNodesDebounced([scaffoldUpliftNode], { projectId });
+    if (projectId) {
+      writeNodesDebounced([scaffoldUpliftNode], { projectId });
+    } else {
+      // Persistir en scratch local — NO silent drop.
+      void saveScratchCalculation(scaffoldUpliftNode, currentUser?.uid ?? null);
+    }
   }
 
   // Sprint 25 Bucket NN — Succión sobre andamios (NCh 433 / NCh 432).
@@ -119,10 +132,15 @@ export const StructuralCalculator: React.FC = () => {
     if (node) {
       logger.info('zettelkasten:scaffold-uplift-suction', { node });
       const projectId = selectedProject?.id;
-      if (projectId) writeNodesDebounced([node], { projectId });
+      if (projectId) {
+        writeNodesDebounced([node], { projectId });
+      } else {
+        // Regla #3 — siempre persistimos. Sin proyecto → scratch local.
+        void saveScratchCalculation(node, currentUser?.uid ?? null);
+      }
     }
     return { node, horizontalForceN, compliance, allowableKnPerM2 };
-  }, [scaffoldHeightM, scaffoldLateralAreaM2, gustWindKmh, selectedProject?.id]);
+  }, [scaffoldHeightM, scaffoldLateralAreaM2, gustWindKmh, selectedProject?.id, currentUser?.uid]);
 
   // Euler P_cr — pure-compute, derived per render.
   const bucklingResult = useMemo(() => {
