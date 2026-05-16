@@ -32,45 +32,52 @@ embeddings ONCE offline:
 
 Two flows are supported — pick the one that matches your environment.
 
-### A) Browser flow (recommended for the first seed)
+### A) Browser flow (recommended)
 
-This uses the same browser-side MediaPipe code path as the runtime. No
-Node-side ML deps needed.
+This uses the same browser-side MediaPipe code path as the runtime — embeddings
+generated here are bit-identical to those the scanner computes at runtime, so
+cosine similarity behavior is consistent.
 
-1. Start the dev server: `npm run dev`
-2. Open `/dev/poster-seeder` (gated to admin in production; in dev opens
-   directly).
-3. Click **Generate embeddings**. The page iterates `POSTER_CATALOG_RAW`,
-   loads each `referenceImageUrl`, runs the embedder, and emits a JSON
-   blob.
-4. Download the blob → it's the new `posterEmbeddings.generated.ts`
-   contents.
-5. Replace `src/services/ar/posterEmbeddings.generated.ts` and commit.
+1. Place reference JPEGs in `public/posters/` (see
+   `public/posters/README.md` for spec).
+2. Start the dev server: `npm run dev`
+3. Open **`/dev/poster-seeder`** (gated by `PremiumFeatureGuard` — admin
+   role required in prod).
+4. Click **Generar embeddings**. The page iterates
+   `POSTER_CATALOG_SEED`, loads each `referenceImageUrl`, runs the
+   `ImageEmbedder` (MobileNetV3 small + `l2Normalize=true`), shows
+   progress + a sanity check (cosine self-similarity should be very
+   close to 1.0 for each successful poster).
+5. Click **Descargar .ts** → downloads the new contents of
+   `posterEmbeddings.generated.ts`.
+6. Replace `src/services/ar/posterEmbeddings.generated.ts` in the repo
+   with the downloaded file.
+7. Commit + push. Next deploy, the scanner header will report
+   `N/N afiches matcheables`.
 
-> **NOTE:** `/dev/poster-seeder` is not yet implemented — track in
-> `dev/ar-poster-seeder` follow-up. Until then, use flow B.
+**Implementation**: see `src/pages/DevPosterSeeder.tsx` + the route in
+`src/routes/OperationsRoutes.tsx`. Zero additional deps — reuses the
+matcher singleton from runtime, so the script and the app share the
+same model and produce bit-identical embeddings.
 
-### B) Node flow (CI-friendly)
+### B) Node flow (CI-friendly) — DEFERRED
 
-Uses `@tensorflow/tfjs-node` + the MobileNetV3 small SavedModel
-(equivalent feature extractor — embeddings are not bit-identical to
-MediaPipe's but cosine similarity ranks similarly enough for the 0.85
-threshold to hold).
+Uses `@tensorflow/tfjs-node` + the MobileNetV3 small SavedModel as
+feature extractor.
 
-```bash
-# One-time install
-npm install --no-save @tensorflow/tfjs-node @tensorflow-models/mobilenet sharp
+**Status**: NOT implemented yet. Browser flow (A) is sufficient for
+the current seed workflow (one-time + manual on poster update); a Node
+flow would only help if we wanted to seed in CI on every poster JPG
+change without operator interaction. Track in a future PR when there
+is real demand.
 
-# Generate
-node scripts/seed-poster-embeddings.mjs
-
-# Output: src/services/ar/posterEmbeddings.generated.ts (overwritten)
-```
-
-> **NOTE:** `scripts/seed-poster-embeddings.mjs` is not yet committed —
-> the script depends on the deciding which feature extractor to use
-> (MediaPipe-Node bindings have a different surface than the browser
-> tasks-vision package). Track in `dev/ar-poster-seeder` follow-up.
+**If implemented**, the Node flow would NOT produce bit-identical
+embeddings to the MediaPipe browser path — TFJS-Node and MediaPipe
+tasks-vision use slightly different feature extractors. The threshold
+0.85 should still hold (similarity ranking is preserved) but the
+absolute values won't match the browser-seed. Mixing browser-seeded
+posters with node-seeded posters in the same catalog is therefore
+discouraged.
 
 ## Verification
 
