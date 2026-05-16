@@ -148,9 +148,9 @@ function isValidDteCreateInput(body: unknown): body is DteCreateInput {
 // POST /api/dte/create  â€” admin-only manual DTE emission.
 // ---------------------------------------------------------------------------
 dteRouter.post('/create', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  if (!(await requireAdmin(req, res))) return undefined;
   const adapter = resolveBsale(res);
-  if (!adapter) return;
+  if (!adapter) return undefined;
   if (!isValidDteCreateInput(req.body)) {
     return res.status(400).json({ error: 'invalid_input' });
   }
@@ -194,7 +194,7 @@ dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'folio_required' });
   }
   const adapter = resolveBsale(res);
-  if (!adapter) return;
+  if (!adapter) return undefined;
   try {
     const result = await adapter.getDte(folio);
     if (!result.ok) {
@@ -224,7 +224,7 @@ dteRouter.get('/:folio', verifyAuth, async (req: Request, res: Response) => {
 // crédito) for the same folio — Bsale would either reject the second
 // or, worse, accept it and the empresa ends up with duplicate NC.
 dteRouter.post('/:folio/cancel', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  if (!(await requireAdmin(req, res))) return undefined;
   const folioRaw = req.params.folio;
   const folio = Number.parseInt(folioRaw ?? '', 10);
   if (!Number.isFinite(folio) || folio <= 0) {
@@ -235,7 +235,7 @@ dteRouter.post('/:folio/cancel', verifyAuth, idempotencyKey(), async (req: Reque
     return res.status(400).json({ error: 'reason_required' });
   }
   const adapter = resolveBsale(res);
-  if (!adapter) return;
+  if (!adapter) return undefined;
   try {
     const result = await adapter.cancelDte(folio, reason);
     if (!result.ok) {
@@ -313,7 +313,7 @@ const generateDteSchema = z.object({
 // empresa cliente. With the key, the second request replays the first
 // response and no new generation happens.
 dteRouter.post('/generate', verifyAuth, idempotencyKey(), async (req: Request, res: Response) => {
-  if (!(await requireAdmin(req, res))) return;
+  if (!(await requireAdmin(req, res))) return undefined;
   const callerUid = req.user?.uid as string;
 
   const parsed = generateDteSchema.safeParse(req.body);

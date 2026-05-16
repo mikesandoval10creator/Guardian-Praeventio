@@ -136,9 +136,9 @@ router.post(
         /* observability never breaks request path */
       }
 
-      res.json({ success: true, response });
+      return res.json({ success: true, response });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: error.message });
     }
   },
 );

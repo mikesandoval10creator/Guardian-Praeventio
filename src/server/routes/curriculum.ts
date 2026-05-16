@@ -378,7 +378,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
       }),
     );
 
-    res.json({ success: true, claimId: result.id });
+    return res.json({ success: true, claimId: result.id });
   } catch (error: any) {
     const message = error?.message || 'Internal server error';
     // Validation-style errors thrown by the service map to 400.
@@ -387,7 +387,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
     }
     logger.error('curriculum_claim_create_failed', { uid: callerUid, message });
     captureRouteError(error, 'curriculum.claim_create', { uid: callerUid });
-    res.status(500).json({
+    return res.status(500).json({
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : message,
     });
   }
@@ -398,11 +398,11 @@ router.get('/claims', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   try {
     const claims = await curriculumGetByWorker(callerUid, admin.firestore() as any);
-    res.json({ success: true, claims });
+    return res.json({ success: true, claims });
   } catch (error: any) {
     logger.error('curriculum_claims_list_failed', { uid: callerUid, message: error?.message });
     captureRouteError(error, 'curriculum.claims_list', { uid: callerUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -466,11 +466,11 @@ router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
       });
       captureRouteError(emailErr, 'curriculum.resend_email', { claimId });
     }
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: any) {
     logger.error('curriculum_resend_failed', { uid: callerUid, message: error?.message });
     captureRouteError(error, 'curriculum.resend', { uid: callerUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -524,7 +524,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
     } catch {
       /* worker may have been deleted; fall back to email */
     }
-    res.json({
+    return res.json({
       claimText: matchedClaim.claim,
       workerName,
       workerEmail: matchedClaim.workerEmail,
@@ -538,7 +538,7 @@ router.get('/referee/:token', refereeLimiter, async (req, res) => {
   } catch (error: any) {
     logger.error('curriculum_referee_preview_failed', { message: error?.message });
     captureRouteError(error, 'curriculum.referee_preview');
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -624,7 +624,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
       admin.firestore() as any,
       audit,
     );
-    res.json({ success: true, verified: result.verified });
+    return res.json({ success: true, verified: result.verified });
   } catch (error: any) {
     const message = error?.message || 'Internal server error';
     if (/expired/i.test(message)) return res.status(410).json({ error: message });
@@ -632,7 +632,7 @@ router.post('/referee/:token', refereeLimiter, async (req, res) => {
     if (/token|match/i.test(message)) return res.status(404).json({ error: message });
     logger.error('curriculum_referee_endorse_failed', { message });
     captureRouteError(error, 'curriculum.referee_endorse');
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -651,7 +651,7 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
   try {
     const { challengeId, challenge } = generateWebAuthnChallenge();
     await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
-    res.json({
+    return res.json({
       challengeId,
       // base64 â€” the client decodes via `Uint8Array.from(atob(...), c => c.charCodeAt(0))`
       challenge: Buffer.from(challenge).toString('base64'),
@@ -663,7 +663,7 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
       message: error?.message,
     });
     captureRouteError(error, 'curriculum.webauthn_challenge', { uid: callerUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -265,11 +265,11 @@ router.post(
       } catch {
         /* noop */
       }
-      res.json({ form: updated });
+      return res.json({ form: updated });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
       logger.warn('suseso_form_sign_failed', { err: msg });
-      res.status(400).json({ error: 'suseso_sign_failed', detail: msg });
+      return res.status(400).json({ error: 'suseso_sign_failed', detail: msg });
     }
   },
 );
@@ -309,10 +309,10 @@ router.post(
       const updated = await submitToMutualidad(tenantId, req.params.id, {
         formStore: buildFormStore(),
       });
-      res.json({ form: updated });
+      return res.json({ form: updated });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
-      res.status(400).json({ error: 'suseso_submit_failed', detail: msg });
+      return res.status(400).json({ error: 'suseso_submit_failed', detail: msg });
     }
   },
 );
@@ -360,10 +360,10 @@ router.post(
       } catch {
         /* observability never breaks the response */
       }
-      res.json({ ok: true, formId, submittedByCompanyAt: nowIso });
+      return res.json({ ok: true, formId, submittedByCompanyAt: nowIso });
     } catch (err) {
       logger.error('suseso_mark_submitted_failed', { err: String(err) });
-      res.status(500).json({ error: 'mark_submitted_failed' });
+      return res.status(500).json({ error: 'mark_submitted_failed' });
     }
   },
 );

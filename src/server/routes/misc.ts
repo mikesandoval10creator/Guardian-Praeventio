@@ -108,10 +108,10 @@ router.get('/environment/forecast', verifyAuth, erpSyncLimiter, async (req, res)
       const forecast = await getForecast(days);
       return res.json({ forecast });
     }
-    res.json({ forecast: [] });
+    return res.json({ forecast: [] });
   } catch (error: any) {
     logger.warn('environment_forecast_failed', { days, message: error?.message });
-    res.json({ forecast: [] });
+    return res.json({ forecast: [] });
   }
 });
 
@@ -269,11 +269,11 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
     }
     const { runSeed } = await import('../../services/seedBackend.js');
     await runSeed();
-    res.json({ success: true, message: 'Community glossary seeded successfully' });
+    return res.json({ success: true, message: 'Community glossary seeded successfully' });
   } catch (error: any) {
     logger.error('seed_glossary_failed', error);
     sentryCapture(error, { endpoint: '/api/seed-glossary', tags: { method: 'POST' } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'
@@ -291,11 +291,11 @@ router.post('/seed-data', verifyAuth, async (req, res) => {
     }
     const { seedInitialData } = await import('../../services/dataSeedService.js');
     await seedInitialData();
-    res.json({ success: true, message: 'Initial project data seeded successfully' });
+    return res.json({ success: true, message: 'Initial project data seeded successfully' });
   } catch (error: any) {
     logger.error('seed_data_failed', error);
     sentryCapture(error, { endpoint: '/api/seed-data', tags: { method: 'POST' } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'

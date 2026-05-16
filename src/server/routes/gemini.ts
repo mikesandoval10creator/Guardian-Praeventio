@@ -373,6 +373,7 @@ ${envBlock}
       res.end();
     }
   }
+  return undefined;
 });
 
 // Gemini API Proxy
@@ -456,6 +457,7 @@ router.post('/gemini', verifyAuth, geminiGlobalDailyLimiter, geminiLimiter, asyn
           : error.message || 'Internal server error',
     });
   }
+  return undefined;
 });
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -498,7 +500,7 @@ router.post(
       res.write(`data: ${JSON.stringify({ chunk: 'E2E mock stream chunk.', done: false })}\n\n`);
       res.write(`data: ${JSON.stringify({ chunk: '', done: true, totalTokens: 6 })}\n\n`);
       res.end();
-      return;
+      return undefined;
     }
 
     if (!process.env.GEMINI_API_KEY) {
@@ -583,6 +585,7 @@ router.post(
         res.end();
       }
     }
+    return undefined;
   },
 );
 

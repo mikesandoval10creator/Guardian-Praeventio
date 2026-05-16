@@ -82,7 +82,7 @@ router.get('/:projectId/vulnerability/latest', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new VulnerabilityAdapter(admin.firestore() as any, g.tenantId, projectId);
     const latest = await adapter.getLatest();
@@ -102,7 +102,7 @@ router.get('/:projectId/sif/pending-review', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new SIFAdapter(admin.firestore() as any, g.tenantId, projectId);
     const pending = await adapter.listPendingExecutiveReview();
@@ -129,7 +129,7 @@ router.post(
     const { projectId, id } = req.params;
     const body = req.body as z.infer<typeof sifReviewSchema>;
     const g = await guard(callerUid, projectId, res);
-    if (!g) return;
+    if (!g) return undefined;
     try {
       const adapter = new SIFAdapter(admin.firestore() as any, g.tenantId, projectId);
       await adapter.recordExecutiveReview(
@@ -158,7 +158,7 @@ router.get(
     const callerUid = req.user.uid;
     const { projectId, workerUid } = req.params;
     const g = await guard(callerUid, projectId, res);
-    if (!g) return;
+    if (!g) return undefined;
     try {
       const adapter = new PositiveObservationsAdapter(
         admin.firestore() as any,
@@ -201,7 +201,7 @@ router.post(
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof positiveObsSchema>;
     const g = await guard(callerUid, projectId, res);
-    if (!g) return;
+    if (!g) return undefined;
     try {
       const adapter = new PositiveObservationsAdapter(
         admin.firestore() as any,
@@ -231,7 +231,7 @@ router.get('/:projectId/waste/inventory', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new WasteAdapter(admin.firestore() as any, g.tenantId, projectId);
     const [stock, pendingManifests, permits] = await Promise.all([
@@ -255,7 +255,7 @@ router.get('/:projectId/visitors/active', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new VisitorAdapter(admin.firestore() as any, g.tenantId, projectId);
     const list = await adapter.listActive();
@@ -275,7 +275,7 @@ router.get('/:projectId/lessons', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
     const scope = typeof req.query.scope === 'string' ? req.query.scope : null;
@@ -324,7 +324,7 @@ router.post(
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof lessonSchema>;
     const g = await guard(callerUid, projectId, res);
-    if (!g) return;
+    if (!g) return undefined;
     try {
       const adapter = new LessonsAdapter(admin.firestore() as any, g.tenantId);
       await adapter.save(body);
@@ -345,7 +345,7 @@ router.get('/:projectId/corrective-actions', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new CorrectiveActionsAdapter(
       admin.firestore() as any,
@@ -397,7 +397,7 @@ router.post(
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof correctiveActionSchema>;
     const g = await guard(callerUid, projectId, res);
-    if (!g) return;
+    if (!g) return undefined;
     try {
       const adapter = new CorrectiveActionsAdapter(
         admin.firestore() as any,
@@ -422,7 +422,7 @@ router.get('/:projectId/loto', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new LotoAdapter(admin.firestore() as any, g.tenantId, projectId);
     const equipmentId =
@@ -446,7 +446,7 @@ router.get('/:projectId/equipment', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
-  if (!g) return;
+  if (!g) return undefined;
   try {
     const adapter = new EquipmentAdapter(
       admin.firestore() as any,

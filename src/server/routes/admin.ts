@@ -152,11 +152,11 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
       });
     } catch { /* analytics must never break user flow */ }
 
-    res.json({ success: true, message: `Access revoked for user ${targetUid}` });
+    return res.json({ success: true, message: `Access revoked for user ${targetUid}` });
   } catch (error) {
     logger.error('admin_revoke_access_failed', error, { callerUid, targetUid });
     captureRouteError(error, 'admin.revoke_access', { callerUid, targetUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -228,11 +228,11 @@ router.post('/set-role', verifyAuth, async (req, res) => {
       }
     } catch { /* analytics must never break user flow */ }
 
-    res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
+    return res.json({ success: true, message: `Role ${role} assigned to user ${uid}` });
   } catch (error) {
     logger.error('admin_set_role_failed', error, { callerUid, targetUid: uid });
     captureRouteError(error, 'admin.set_role', { callerUid, targetUid: uid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -273,11 +273,11 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
       result,
     });
 
-    res.json({ ok: true, ...result });
+    return res.json({ ok: true, ...result });
   } catch (error) {
     logger.error('admin_replicate_critical_failed', error, { callerUid });
     captureRouteError(error, 'admin.replicate_critical', { callerUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -315,11 +315,11 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
         totalEmailErrors: result.totalEmailErrors,
       },
     });
-    res.json({ ok: true, ...result });
+    return res.json({ ok: true, ...result });
   } catch (error) {
     logger.error('admin_weekly_digest_failed', error, { callerUid });
     captureRouteError(error, 'admin.weekly_digest', { callerUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -328,7 +328,7 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
 // an N-tenant FCM burst. Wires the orchestrator to real Firestore /
 // Open-Meteo / FCM admin SDK; the orchestrator itself is DI-testeable.
 router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   const callerUid = req.user.uid;
   try {
     const deps: ClimateRiskScanDeps = {
@@ -505,7 +505,7 @@ async function assertAdminCaller(req: any, res: any): Promise<boolean> {
 //   optional; defaults to today UTC. Used by the operator dashboard
 //   to investigate per-tenant abuse / runaway-loop scenarios.
 router.get('/quotas', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   const tenantId = typeof req.query.tenantId === 'string' ? req.query.tenantId : '';
   if (!UID_REGEX.test(tenantId)) {
     return res.status(400).json({ error: 'Invalid tenantId' });
@@ -516,11 +516,11 @@ router.get('/quotas', verifyAuth, async (req, res) => {
   }
   try {
     const usage = await getUsage(tenantId, date);
-    res.json({ ok: true, usage });
+    return res.json({ ok: true, usage });
   } catch (error) {
     logger.error('admin_quotas_get_failed', error, { tenantId, date });
     captureRouteError(error, 'admin.quotas_get', { tenantId, date });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -530,7 +530,7 @@ router.get('/quotas', verifyAuth, async (req, res) => {
 //   dashboard â€” useful for catching runaway tenants before billing
 //   sees the bill.
 router.get('/quotas/global', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   const date = typeof req.query.date === 'string' ? req.query.date : todayUtc();
   if (!QUOTAS_DATE_REGEX.test(date)) {
     return res.status(400).json({ error: 'Invalid date (expected YYYY-MM-DD)' });
@@ -539,11 +539,11 @@ router.get('/quotas/global', verifyAuth, async (req, res) => {
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 100 ? limitRaw : 10;
   try {
     const top = await topTenantsByUsage(date, limit);
-    res.json({ ok: true, date, limit, tenants: top });
+    return res.json({ ok: true, date, limit, tenants: top });
   } catch (error) {
     logger.error('admin_quotas_global_failed', error, { date, limit });
     captureRouteError(error, 'admin.quotas_global', { date, limit });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -553,7 +553,7 @@ router.get('/quotas/global', verifyAuth, async (req, res) => {
 //   job that shouldn't have been counted. Document the reason in the
 //   change ticket â€” the audit_logs row captures who/when only.
 router.post('/quotas/reset', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   const callerUid = req.user.uid;
   const { tenantId, date } = req.body ?? {};
   if (typeof tenantId !== 'string' || !UID_REGEX.test(tenantId)) {
@@ -573,11 +573,11 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
-    res.json({ ok: true, tenantId, date });
+    return res.json({ ok: true, tenantId, date });
   } catch (error) {
     logger.error('admin_quotas_reset_failed', error, { tenantId, date });
     captureRouteError(error, 'admin.quotas_reset', { tenantId, date });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -585,9 +585,9 @@ router.post('/quotas/reset', verifyAuth, async (req, res) => {
 //   Snapshot of in-process circuit breaker state. Note: in-process
 //   only â€” see header comment block above.
 router.get('/circuit-state', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   try {
-    res.json({
+    return res.json({
       ok: true,
       thresholds: {
         threshold: geminiCircuit.THRESHOLD,
@@ -599,7 +599,7 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
   } catch (error) {
     logger.error('admin_circuit_state_failed', error);
     captureRouteError(error, 'admin.circuit_state');
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -623,7 +623,7 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
 //       "stuck users" widget on the operator dashboard.
 
 router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   const callerUid = req.user.uid;
   const { targetUid } = req.body ?? {};
   if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
@@ -650,19 +650,19 @@ router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
       ip: req.ip,
       ua: req.header('user-agent') || null,
     });
-    res.json({ ok: true, targetUid });
+    return res.json({ ok: true, targetUid });
   } catch (error) {
     logger.error('admin_sync_clear_user_queue_failed', error, {
       callerUid,
       targetUid,
     });
     captureRouteError(error, 'admin.sync_clear_user_queue', { callerUid, targetUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 router.get('/sync/stats', verifyAuth, async (req, res) => {
-  if (!(await assertAdminCaller(req, res))) return;
+  if (!(await assertAdminCaller(req, res))) return undefined;
   try {
     const snap = await admin.firestore().collection('user_sync_state').get();
     let totalPending = 0;

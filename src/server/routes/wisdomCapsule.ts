@@ -290,12 +290,12 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
 
     const result = aggregateCapsuleStats(capsules, totalMembers, crewMembership);
     statsCache.set(cacheKey, { at: Date.now(), value: result });
-    res.json({ success: true, ...result, cached: false });
+    return res.json({ success: true, ...result, cached: false });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -381,12 +381,12 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
       // Never block the user-facing response on an internal node emission failure.
     }
 
-    res.json({ success: true, capsule, cached: false });
+    return res.json({ success: true, capsule, cached: false });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -433,12 +433,12 @@ router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
       );
       awarded = true;
     });
-    res.json({ success: true, xpAwarded: awarded ? 5 : 0, reason: 'wisdom_capsule_completed' });
+    return res.json({ success: true, xpAwarded: awarded ? 5 : 0, reason: 'wisdom_capsule_completed' });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 

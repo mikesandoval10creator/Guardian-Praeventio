@@ -195,14 +195,14 @@ router.post('/telemetry/ingest', async (req, res) => {
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    res.json({
+    return res.json({
       success: true,
       message: 'Telemetry event ingested successfully',
       aiValidation: validation,
     });
   } catch (error) {
     logger.error('iot_ingest_failed', error, { type, source, metric });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
