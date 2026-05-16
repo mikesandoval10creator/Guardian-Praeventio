@@ -107,17 +107,34 @@ function PointCloudViewer({ pointCount, boundingBox }: { pointCount: number; bou
   );
 }
 
-// Risk markers (pinned in 3D space — demo: static positions, future: from risk engine)
-function RiskMarkers() {
-  const markers = [
-    { pos: [3, 1.5, 2] as [number, number, number], color: '#f43f5e', label: 'Caída altura' },
-    { pos: [-4, 0.8, -3] as [number, number, number], color: '#f59e0b', label: 'Atropello' },
-    { pos: [0, 2, 5] as [number, number, number], color: '#fbbf24', label: 'EPP faltante' },
-  ];
+// Risk markers (pinned in 3D space).
+//
+// 2026-05-16 (Sprint F fix): antes este componente renderizaba 3 markers
+// hardcoded ("demo: static positions, future: from risk engine"). Eso era
+// un fake — el Twin parecía mostrar riesgos reales en posiciones reales
+// cuando ambos venían del código. Ahora el componente acepta `markers`
+// como prop (lista vacía por default) y el caller decide qué pasa.
+//
+// El caller (DigitalTwinFaena) puede derivar los markers desde:
+//   - `placedObjects` filtrados por kind === 'risk' (drag-drop manual)
+//   - Una collection `tenants/{tid}/projects/{pid}/risk_nodes` (futuro
+//     wire al motor de riesgos cuando se decida la integración)
+//   - Las anclas AR de tipo 'machinery' (ARMachineryScene Sprint F)
+//
+// Mientras tanto: si no recibe markers, renderiza vacío. Eso es honesto
+// — el Twin sin datos no inventa riesgos.
+interface RiskMarker {
+  pos: [number, number, number];
+  color: string;
+  label: string;
+}
+
+function RiskMarkers({ markers = [] }: { markers?: RiskMarker[] }) {
+  if (markers.length === 0) return null;
   return (
     <>
       {markers.map((m, i) => (
-        <mesh key={i} position={m.pos}>
+        <mesh key={`${m.label}-${i}`} position={m.pos}>
           <sphereGeometry args={[0.3, 16, 16]} />
           <meshStandardMaterial color={m.color} emissive={m.color} emissiveIntensity={0.6} />
         </mesh>
@@ -177,12 +194,28 @@ export function DigitalTwinFaena() {
       e.dataTransfer.getData('text/plain')) as PlacedObjectKind | '';
     if (!kind) return;
     e.preventDefault();
-    // Place at a sensible default — center of grid; Ola 3 will raycast onto mesh.
+    // 2026-05-16 (Sprint F fix): antes la posición era
+    // `(Math.random()-0.5)*8` → objetos caían en lugares impredecibles.
+    // Ahora usamos una grilla determinística basada en cuántos objetos
+    // ya están placeados: 4 columnas × N filas, espaciado 1.5m. Esto
+    // hace que cada drop tenga una posición predecible y ordenada hasta
+    // que el usuario los reposicione manualmente.
+    //
+    // Mejora futura (Ola 4 cuando se invierta el tiempo): usar Three.js
+    // raycaster contra la malla 3D para calcular la posición exacta
+    // bajo el cursor al momento del drop. Requiere ref al canvas R3F.
     const now = Date.now();
+    const idx = placedObjects.length;
+    const col = idx % 4;
+    const row = Math.floor(idx / 4);
     const newObj: PlacedObject = {
       id: `placed_${now}_${Math.random().toString(36).slice(2, 8)}`,
       kind: kind as PlacedObjectKind,
-      position: { x: (Math.random() - 0.5) * 8, y: 1, z: (Math.random() - 0.5) * 8 },
+      position: {
+        x: (col - 1.5) * 1.5, // centrar en X: -2.25, -0.75, 0.75, 2.25
+        y: 1,
+        z: row * 1.5 - 2.25, // empezar cerca de la cámara y avanzar
+      },
       lifecycle: 'planning',
       createdAt: now,
       updatedAt: now,
