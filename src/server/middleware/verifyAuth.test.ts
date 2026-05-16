@@ -140,7 +140,7 @@ describe('verifyAuth â€” prod-config guard (Stryker mutants line 33 / 41)',
 
     const app = express();
     app.get('/protected', verifyAuth, (req, res) => {
-      res.json({ uid: req.user.uid });
+      res.json({ uid: req.user!.uid });
     });
 
     const res = await request(app)
@@ -217,7 +217,7 @@ describe('verifyAuth â€” Bearer positive path + sepIdx cluster + StringLite
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
     app.get('/protected', verifyAuth, (req, res) => {
-      res.json({ uid: req.user.uid, email: req.user.email });
+      res.json({ uid: req.user!.uid, email: req.user!.email });
     });
 
     const res = await request(app)
@@ -292,10 +292,10 @@ describe('verifyAuth â€” Bearer positive path + sepIdx cluster + StringLite
     const app = express();
     app.get('/protected', verifyAuth, (req, res) => {
       res.json({
-        uid: req.user.uid,
-        email: req.user.email,
-        displayName: req.user.displayName,
-        tenantId: req.user.tenantId,
+        uid: req.user!.uid,
+        email: req.user!.email,
+        displayName: req.user!.displayName,
+        tenantId: req.user!.tenantId,
       });
     });
 
@@ -328,7 +328,7 @@ describe('verifyAuth â€” Bearer positive path + sepIdx cluster + StringLite
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
     app.get('/protected', verifyAuth, (req, res) => {
-      res.json({ uid: req.user.uid });
+      res.json({ uid: req.user!.uid });
     });
 
     // No colon in payload â€” secret comparison must still succeed.
@@ -351,7 +351,7 @@ describe('verifyAuth â€” Bearer positive path + sepIdx cluster + StringLite
     const { verifyAuth } = await import('./verifyAuth.js');
     const app = express();
     app.get('/protected', verifyAuth, (req, res) => {
-      res.json({ uid: req.user.uid });
+      res.json({ uid: req.user!.uid });
     });
 
     const res = await request(app)
