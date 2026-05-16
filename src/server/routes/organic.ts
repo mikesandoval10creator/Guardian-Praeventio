@@ -52,7 +52,7 @@ const VALID_PROCESS_TYPES: ProcessType[] = [
 ];
 
 router.post('/crews', verifyAuth, organicLimiter, assertProjectMemberFromBody(), async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const { projectId, name, memberUids } = req.body ?? {};
   if (typeof projectId !== 'string' || !projectId) {
     return res.status(400).json({ error: 'projectId required' });
@@ -83,7 +83,7 @@ router.post('/crews', verifyAuth, organicLimiter, assertProjectMemberFromBody(),
 });
 
 router.post('/crews/:id/members', verifyAuth, organicLimiter, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const crewId = req.params.id;
   const { memberUid } = req.body ?? {};
   if (typeof memberUid !== 'string' || !memberUid) {
@@ -146,7 +146,7 @@ router.post('/processes', verifyAuth, organicLimiter, assertProjectMemberFromBod
 });
 
 router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const processId = req.params.id;
   const { complianceScore } = req.body ?? {};
   if (typeof complianceScore !== 'number' || !Number.isFinite(complianceScore)) {
@@ -197,7 +197,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
   // Sprint 16 â€” pause/resume support for ProcessDetailModal.
   // Sprint 17a â€” uses pure `checkStatusTransition` guard, audits the
   // transition, and emits a Sentry breadcrumb for ops visibility.
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const processId = req.params.id;
   const { status } = req.body ?? {};
   if (status !== 'active' && status !== 'paused') {
@@ -260,7 +260,7 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
 });
 
 router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const processId = req.params.id;
   const { description, date, assignedUids } = req.body ?? {};
   if (typeof description !== 'string' || !description.trim()) {
@@ -304,7 +304,7 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
  * to the crew. Always positive â€” alerts NEVER deduct XP.
  */
 router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const { projectId, crewId, generatorId } = req.body ?? {};
   if (typeof projectId !== 'string' || !projectId) {
     return res.status(400).json({ error: 'projectId required' });
@@ -374,7 +374,7 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
 });
 
 router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const taskId = req.params.id;
   try {
     const db = admin.firestore();

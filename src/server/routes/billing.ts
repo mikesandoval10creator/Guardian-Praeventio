@@ -240,7 +240,7 @@ export const billingWebpayRouter = Router();
 // update the user's `subscription` block.
 billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
   const { purchaseToken, productId, type } = req.body;
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const packageName = process.env.GOOGLE_PLAY_PACKAGE_NAME;
 
   if (!playAuth || !packageName) {
@@ -460,8 +460,8 @@ billingApiRouter.post('/webhook', googlePlayWebhookLimiter, async (req, res) => 
 // for Webpay/Stripe. CLP must use webpay or manual-transfer; USD must use
 // stripe. Until adapters are wired, falls back to 'pending-config'.
 billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
 
   try {
     const body = req.body ?? {};
@@ -622,8 +622,8 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
 // transferencia bancaria. 403 unless caller has admin role; writes a
 // matching audit_logs row directly via the Admin SDK.
 billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
   const invoiceId = req.params.id;
 
   if (typeof invoiceId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
@@ -729,7 +729,7 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
 // or rawResponse fields from the adapter. If Pricing.tsx needs more, add
 // fields here narrowly â€” never spread the entire doc.
 billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const invoiceId = req.params.id;
 
   if (typeof invoiceId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
@@ -805,8 +805,8 @@ billingApiRouter.get('/invoice/:id', verifyAuth, invoiceStatusLimiter, async (re
 // RTDN â€” until then MP payments must be reconciled via /mark-paid (same
 // admin fallback used for transferencia bancaria).
 billingApiRouter.post('/checkout/mercadopago', verifyAuth, idempotencyKey(), async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
 
   try {
     const body = req.body ?? {};
