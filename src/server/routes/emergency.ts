@@ -380,9 +380,30 @@ router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
 // Distinct from /sos: callable by supervisor/admin to notify the BRIGADE
 // of a project-wide event, regardless of who dispatched it.
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// 2026-05-16 (Codex fix #275 follow-up): agregamos tipos de emergencia
+// que faltaban en el enum y que vidas dependen de poder reportar:
+//   - tsunami: CoastalEmergencyMap dispara el botón emite-alerta (Sprint D)
+//   - flood: inundación urbana/rural separada de tsunami
+//   - earthquake: sismo (puede ir como 'collapse' pero merece su propio bucket)
+//   - volcanic: ceniza/lava/lahar — VolcanicEruptionMap
+//   - storm: viento blanco / temporales severos
+// El enum sigue cerrado: backend rechaza valores arbitrarios.
 const NotifyBrigadaSchema = z.object({
   projectId: z.string().min(1).max(128),
-  emergencyType: z.enum(['fall', 'sos', 'medical', 'fire', 'gas', 'collapse', 'other']),
+  emergencyType: z.enum([
+    'fall',
+    'sos',
+    'medical',
+    'fire',
+    'gas',
+    'collapse',
+    'tsunami',
+    'flood',
+    'earthquake',
+    'volcanic',
+    'storm',
+    'other',
+  ]),
   message: z.string().max(500).optional(),
 });
 

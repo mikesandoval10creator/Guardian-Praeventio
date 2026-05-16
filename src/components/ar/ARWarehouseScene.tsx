@@ -30,6 +30,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useTenantId } from '../../hooks/useTenantId';
 import { useProjectArAnchors } from '../../hooks/useProjectArAnchors';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -99,7 +100,8 @@ export interface ARWarehouseSceneProps {
 export function ARWarehouseScene({ onExit }: ARWarehouseSceneProps) {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
-  const tenantId = (user as { tenantId?: string } | null)?.tenantId ?? null;
+  // Codex fix: tenantId viene del custom claim del ID token, no de user.*
+  const { tenantId } = useTenantId();
   const projectId = selectedProject?.id ?? null;
 
   const { anchors, loading, error } = useProjectArAnchors({
@@ -159,7 +161,7 @@ export function ARWarehouseScene({ onExit }: ARWarehouseSceneProps) {
       status: 'planned',
     };
     try {
-      const path = `tenants/${tenantId}/projects/${projectId}/ar_anchors/${anchor.id}`;
+      const path = `tenants/${tenantId}/ar_anchors/${anchor.id}`;
       await setDoc(doc(db, path), anchor);
     } catch (err) {
       logger.error('AR warehouse anchor create failed', err);
@@ -180,7 +182,7 @@ export function ARWarehouseScene({ onExit }: ARWarehouseSceneProps) {
   ) => {
     if (!tenantId || !projectId) return;
     try {
-      const path = `tenants/${tenantId}/projects/${projectId}/ar_anchors/${anchor.id}`;
+      const path = `tenants/${tenantId}/ar_anchors/${anchor.id}`;
       await setDoc(
         doc(db, path),
         { ...anchor, status, updatedAt: new Date().toISOString() },

@@ -52,7 +52,19 @@ export function DigitalTwinAR() {
   // Detectamos plataforma para mostrar pista accurate al usuario
   const isIos = typeof navigator !== 'undefined' && isIosUserAgent();
   const isAndroid = typeof navigator !== 'undefined' && isAndroidUserAgent();
-  const hasNativeAr = xrSupport.immersiveAr || isIos || isAndroid;
+  // Codex fix: la escena ARMachinery/Warehouse usan WebXR immersive-ar
+  // directamente (no Quick Look ni Scene Viewer). El gate antes incluía
+  // iOS/Android UA aunque NO tuvieran WebXR — la "Iniciar" prometía algo
+  // que después fallaba con error WebXR. Ahora gate solo por capability
+  // REAL. iOS Quick Look y Android Scene Viewer son links a modelos `.glb`/
+  // `.usdz` (otro flow) — los usaremos en el modo poster scan más adelante.
+  const hasNativeAr = xrSupport.immersiveAr;
+  // Mantenemos el detector de plataforma para mensajes más útiles.
+  const platformHint = isIos
+    ? 'iPhone/iPad detectado: WebXR immersive-ar no está soportado en iOS Safari. El modo AR completo requiere Chrome Android con ARCore. iOS Quick Look estará disponible en el modo poster scan (próxima iteración).'
+    : isAndroid
+      ? 'Android detectado: si no aparece "Iniciar" aquí, abre el sitio en Chrome y verifica que tu dispositivo soporte ARCore (instalable desde Play Store si tu Android es compatible).'
+      : 'Desktop detectado: el AR está pensado para tu smartphone en faena. El Digital Twin 3D normal sigue funcionando aquí.';
 
   // Cuando entramos a una escena AR, ocultamos el menú con state
   if (mode === 'machinery') {
@@ -111,14 +123,9 @@ export function DigitalTwinAR() {
         <Card className="p-6 border-rose-500/30 bg-rose-500/5">
           <h2 className="text-lg font-bold text-rose-300 mb-2 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" />
-            {t('digitalTwinAr.noSupport', 'Tu dispositivo no soporta AR')}
+            {t('digitalTwinAr.noSupport', 'Tu dispositivo no soporta el AR completo')}
           </h2>
-          <p className="text-sm text-rose-100/80 mb-3">
-            {t(
-              'digitalTwinAr.noSupportBody',
-              'AR funciona en Chrome Android (WebXR) o Safari iOS (Quick Look). En desktop puedes seguir usando el Digital Twin 3D normal — el AR está pensado para tu smartphone cuando estés en faena.',
-            )}
-          </p>
+          <p className="text-sm text-rose-100/80 mb-3">{platformHint}</p>
           <p className="text-[10px] text-rose-200/60 font-mono">
             WebXR immersive-ar: {String(xrSupport.immersiveAr)} · iOS:{' '}
             {String(isIos)} · Android: {String(isAndroid)}
@@ -126,13 +133,32 @@ export function DigitalTwinAR() {
         </Card>
       )}
 
-      {/* 3 cards de modos */}
+      {/* Aviso si no hay proyecto seleccionado */}
+      {hasNativeAr && !selectedProject && (
+        <Card className="p-4 border-amber-500/30 bg-amber-500/5">
+          <p className="text-sm text-amber-200 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            {t(
+              'digitalTwinAr.noProjectWarn',
+              'Selecciona un proyecto activo antes de entrar al modo AR — las anclas son privadas por proyecto y necesitamos saber dónde guardarlas.',
+            )}
+          </p>
+        </Card>
+      )}
+
+      {/* 3 cards de modos.
+          Codex fix: el gate de la Card (cursor-pointer + onClick) ahora
+          chequea TAMBIÉN selectedProject — sin esto, hacer click en la
+          card sin proyecto activo te metía a la cámara y después no podías
+          guardar nada. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card
           className={`p-6 border-cyan-500/30 bg-cyan-500/5 transition-all ${
-            hasNativeAr ? 'hover:scale-[1.02] cursor-pointer' : 'opacity-50 cursor-not-allowed'
+            hasNativeAr && selectedProject
+              ? 'hover:scale-[1.02] cursor-pointer'
+              : 'opacity-50 cursor-not-allowed'
           }`}
-          onClick={() => hasNativeAr && setMode('machinery')}
+          onClick={() => hasNativeAr && selectedProject && setMode('machinery')}
         >
           <Cpu className="w-10 h-10 text-cyan-400 mb-3" />
           <h3 className="text-lg font-bold text-white mb-2">
@@ -149,7 +175,7 @@ export function DigitalTwinAR() {
             disabled={!hasNativeAr || !selectedProject}
             onClick={(e) => {
               e.stopPropagation();
-              if (hasNativeAr) setMode('machinery');
+              if (hasNativeAr && selectedProject) setMode('machinery');
             }}
           >
             {t('digitalTwinAr.startMachinery', 'Iniciar')}
@@ -158,9 +184,11 @@ export function DigitalTwinAR() {
 
         <Card
           className={`p-6 border-emerald-500/30 bg-emerald-500/5 transition-all ${
-            hasNativeAr ? 'hover:scale-[1.02] cursor-pointer' : 'opacity-50 cursor-not-allowed'
+            hasNativeAr && selectedProject
+              ? 'hover:scale-[1.02] cursor-pointer'
+              : 'opacity-50 cursor-not-allowed'
           }`}
-          onClick={() => hasNativeAr && setMode('warehouse')}
+          onClick={() => hasNativeAr && selectedProject && setMode('warehouse')}
         >
           <Warehouse className="w-10 h-10 text-emerald-400 mb-3" />
           <h3 className="text-lg font-bold text-white mb-2">
@@ -186,9 +214,11 @@ export function DigitalTwinAR() {
 
         <Card
           className={`p-6 border-violet-500/30 bg-violet-500/5 transition-all ${
-            hasNativeAr ? 'hover:scale-[1.02] cursor-pointer' : 'opacity-50 cursor-not-allowed'
+            hasNativeAr && selectedProject
+              ? 'hover:scale-[1.02] cursor-pointer'
+              : 'opacity-50 cursor-not-allowed'
           }`}
-          onClick={() => hasNativeAr && setMode('poster')}
+          onClick={() => hasNativeAr && selectedProject && setMode('poster')}
         >
           <ImageIcon className="w-10 h-10 text-violet-400 mb-3" />
           <h3 className="text-lg font-bold text-white mb-2">

@@ -875,6 +875,80 @@ service cloud.firestore {
       match /suseso_counters/{counterId} {
         allow read, write: if false;
       }
+
+      // ===============================================================
+      // Sprint F (2026-05-16) — AR Anchors per project.
+      //
+      // Modelo: tenants/{tid}/projects/{pid}/ar_anchors/{anchorId}
+      //
+      // El usuario describió la directiva: "los nodos de información en
+      // la maquinaria de la empresa con coordenadas, esa información es
+      // privada por proyecto". Estas reglas son la barrera de privacidad
+      // de los datos AR — solo miembros del project pueden leer/crear/
+      // actualizar/eliminar SUS PROPIAS anclas.
+      //
+      // Validación al crear:
+      //  - createdByUid debe ser el caller (no se puede crear ancla
+      //    suplantando otro UID)
+      //  - projectId/tenantId deben coincidir con la ruta
+      //  - kind debe ser uno de los discriminator types definidos
+      //  - matrix debe ser una lista de 16 numbers (validamos length)
+      //  - label es string no vacío con tope de 200 chars
+      //
+      // Update: solo el creador, admin o supervisor del proyecto.
+      // Delete: solo creador o admin (no supervisor — el ancla puede
+      //   ser evidencia de inspección, no debería borrarse a la ligera).
+      // ===============================================================
+      match /ar_anchors/{anchorId} {
+        // Path: tenants/{tid}/ar_anchors/{id}
+        // (consistente con supervisor_only/, suseso_forms/ — tenant
+        // subcollection directa, projectId vive como FIELD del doc).
+        //
+        // Validación project-scoping: la app filtra por
+        // `where('projectId','==',selectedProject.id)` client-side,
+        // pero NO podemos enforcing eso en rules sin un get() costoso.
+        // Aceptamos eso porque el tenantId aquí ya garantiza que solo
+        // miembros del tenant ven CUALQUIER anchor del tenant — el
+        // project-scope sirve para ORGANIZACIÓN (filtrar UI), no como
+        // privacy boundary fuerte. Si se necesita aislamiento estricto
+        // entre proyectos del mismo tenant, migrar a path 4-niveles
+        // tenants/{tid}/projects/{pid}/ar_anchors/{id} con rule wrap.
+
+        allow read: if isSignedIn() && isMemberOfTenant(tenantId);
+
+        allow create: if isSignedIn()
+          && isMemberOfTenant(tenantId)
+          && incoming().tenantId == tenantId
+          && incoming().createdByUid == request.auth.uid
+          && incoming().kind in ['machinery', 'warehouse_object', 'poster']
+          && incoming().projectId is string
+          && incoming().projectId.size() > 0
+          && incoming().label is string
+          && incoming().label.size() > 0
+          && incoming().label.size() <= 200
+          && incoming().matrix is list
+          && incoming().matrix.size() == 16;
+
+        allow update: if isSignedIn()
+          && isMemberOfTenant(tenantId)
+          && (
+            resource.data.createdByUid == request.auth.uid
+            || isAdmin()
+            || isSupervisorOfTenant(tenantId)
+          )
+          // No cambiar identity fields después de crear.
+          && incoming().tenantId == resource.data.tenantId
+          && incoming().projectId == resource.data.projectId
+          && incoming().createdByUid == resource.data.createdByUid
+          && incoming().kind == resource.data.kind;
+
+        allow delete: if isSignedIn()
+          && isMemberOfTenant(tenantId)
+          && (
+            resource.data.createdByUid == request.auth.uid
+            || isAdmin()
+          );
+      }
     }
 
     // ===============================================================

@@ -49,12 +49,26 @@ export function useProjectArAnchors(
       setLoading(false);
       return;
     }
+    // Codex fix: limpiar anchors viejos ANTES de subscribirse al nuevo
+    // path. Sin esto, al cambiar de proyecto la UI seguía mostrando
+    // anchors del proyecto anterior hasta que llegara el primer snapshot
+    // del nuevo — violación del privacy boundary que el hook promete.
+    setAnchors([]);
     setLoading(true);
     setError(null);
 
-    const path = `tenants/${opts.tenantId}/projects/${opts.projectId}/ar_anchors`;
+    // Codex fix: path consistente con tenant subcollections existentes
+    // (supervisor_only/, suseso_forms/). projectId es FIELD del doc,
+    // no parte del path — match con firestore.rules ar_anchors matcher.
+    const path = `tenants/${opts.tenantId}/ar_anchors`;
     const colRef = collection(db, path);
-    const q = opts.kind ? query(colRef, where('kind', '==', opts.kind)) : query(colRef);
+    const q = opts.kind
+      ? query(
+          colRef,
+          where('projectId', '==', opts.projectId),
+          where('kind', '==', opts.kind),
+        )
+      : query(colRef, where('projectId', '==', opts.projectId));
 
     const unsubscribe = onSnapshot(
       q,

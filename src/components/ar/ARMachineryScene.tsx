@@ -18,6 +18,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useProject } from '../../contexts/ProjectContext';
 import { useFirebase } from '../../contexts/FirebaseContext';
+import { useTenantId } from '../../hooks/useTenantId';
 import { useProjectArAnchors } from '../../hooks/useProjectArAnchors';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
@@ -69,7 +70,9 @@ export interface ARMachineryScenePros {
 export function ARMachineryScene({ onExit }: ARMachineryScenePros) {
   const { selectedProject } = useProject();
   const { user } = useFirebase();
-  const tenantId = (user as { tenantId?: string } | null)?.tenantId ?? null;
+  // Codex fix: tenantId NO está en user.* — viene del custom claim del
+  // ID token. Sin esto, todo el flujo AR fallaba silenciosamente.
+  const { tenantId } = useTenantId();
   const projectId = selectedProject?.id ?? null;
 
   const { anchors, loading, error } = useProjectArAnchors({
@@ -115,7 +118,43 @@ export function ARMachineryScene({ onExit }: ARMachineryScenePros) {
     setDraftAnchor({ ...draftAnchor, step: 'saving' });
     setSaveError(null);
 
+    // Codex fix — Limitación honesta:
+    //
+    // Las coordenadas (x, y, z) que devuelve XRSession vienen del
+    // WebXR `local` reference space, cuyo origen se establece POR SESIÓN.
+    // Es decir, si guardo (3.2, 1.0, -0.5) ahora y mañana abro AR de
+    // nuevo, esos mismos números van a apuntar a OTRO lugar físico
+    // porque el origen del nuevo `local` space va a ser diferente.
+    //
+    // Mientras NO tengamos WebXR `anchors` con persistent ID (limitado
+    // en browsers actuales) o un sistema de markers visuales (ej. QR
+    // code en cada máquina que recalibre el origen), las anclas tienen
+    // utilidad SOLO dentro de la misma sesión + son referencia
+    // "aproximada" cross-session.
+    //
+    // Por eso:
+    //   - Capturamos GPS coords del navigator.geolocation cuando se
+    //     pueda — al menos sabremos a qué bbox del faena pertenece el
+    //     ancla (útil para listas "anchors cerca de mí").
+    //   - El UI debe disclaimar que las posiciones son "referenciales"
+    //     hasta que llegue persistencia AR real (Roadmap próximo).
     const nowIso = new Date().toISOString();
+    let gps = { latitude: 0, longitude: 0 };
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 3000,
+            maximumAge: 60_000,
+            enableHighAccuracy: false,
+          });
+        });
+        gps = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      } catch {
+        // Geolocation rechazado o timeout — guardamos sin GPS (0,0).
+      }
+    }
+
     const anchor: MachineryAnchor = {
       id: newAnchorId('machinery'),
       kind: 'machinery',
@@ -124,7 +163,7 @@ export function ARMachineryScene({ onExit }: ARMachineryScenePros) {
       createdByUid: user.uid,
       createdAt: nowIso,
       updatedAt: nowIso,
-      gps: { latitude: 0, longitude: 0 }, // GPS opcional, se rellena con geolocation luego
+      gps,
       matrix: matrixFromPosition(
         draftAnchor.position.x,
         draftAnchor.position.y,
@@ -138,7 +177,8 @@ export function ARMachineryScene({ onExit }: ARMachineryScenePros) {
     };
 
     try {
-      const path = `tenants/${tenantId}/projects/${projectId}/ar_anchors/${anchor.id}`;
+      // Path 3-niveles (match con firestore.rules).
+      const path = `tenants/${tenantId}/ar_anchors/${anchor.id}`;
       await setDoc(doc(db, path), anchor);
       setDraftAnchor(null);
     } catch (err) {

@@ -128,7 +128,26 @@ export function CoastalEmergencyMap() {
       }
 
       const body = (await res.json()) as { notified?: number; failed?: number };
-      setNotifiedCount(body.notified ?? 0);
+      const notified = body.notified ?? 0;
+      setNotifiedCount(notified);
+
+      // Codex fix: `notified: 0` (sin supervisores con FCM tokens
+      // disponibles) NO es éxito — el operador estaría creyendo que
+      // alertó a alguien cuando NADIE recibió la notificación push.
+      // Lo tratamos como error con mensaje claro de fallback (teléfono
+      // de emergencia). HTTP 200 + notified 0 = "endpoint corrió pero
+      // nadie escuchó".
+      if (notified === 0) {
+        setNotifyStatus('error');
+        setNotifyError(
+          t(
+            'coastalEmergency.notifyNoone',
+            'El servidor respondió OK pero ningún supervisor del proyecto tiene FCM token registrado — NADIE recibió la alerta. Llama directo al teléfono de emergencia (CITSU/ONEMI 137) Y verifica con tu admin que los supervisores tengan la app instalada.',
+          ) as string,
+        );
+        return;
+      }
+
       setNotifyStatus('sent');
 
       // Animación de progreso ahora es FEEDBACK VISUAL post-notificación
