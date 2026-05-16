@@ -241,7 +241,16 @@ export function buildWebAuthnDb(): WebAuthnChallengesDb {
                   ? (snap.data() as Record<string, unknown>)
                   : undefined;
                 if (!precondition(current)) return false;
-                tx.update(ref, patch);
+                // Firestore Admin's `update()` overloads accept either
+                // `(ref, UpdateData)` or `(ref, field, value, ...)`. The
+                // first overload's `UpdateData<T>` resolves to
+                // `{ [k: string]: FieldValue | Partial<...> | undefined }`
+                // which is structurally compatible with our
+                // `Record<string, unknown>` at runtime but not via TS's
+                // narrow inference. Cast via `unknown` first because
+                // `Record<string, unknown>` and `UpdateData` don't
+                // sufficiently overlap for a direct cast.
+                tx.update(ref, patch as unknown as { [k: string]: any });
                 return true;
               });
             },
@@ -310,8 +319,8 @@ const router = Router();
 // POST /api/curriculum/claim â€” worker creates a claim (signed) and the
 // server fires off the 2 magic-link emails to the referees.
 router.post('/claim', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
   const ipMaybe = req.ip ?? undefined;
   const uaMaybe = req.header('user-agent') ?? undefined;
   const { claim, category, referees, signedByWorker } = req.body ?? {};
@@ -395,7 +404,7 @@ router.post('/claim', verifyAuth, async (req, res) => {
 
 // GET /api/curriculum/claims â€” list claims for the authenticated worker.
 router.get('/claims', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   try {
     const claims = await curriculumGetByWorker(callerUid, admin.firestore() as any);
     return res.json({ success: true, claims });
@@ -409,7 +418,7 @@ router.get('/claims', verifyAuth, async (req, res) => {
 // POST /api/curriculum/claim/:id/resend â€” re-email the magic link to one
 // of the still-pending referees. Rate-limited per (claimId,refereeIndex).
 router.post('/claim/:id/resend', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const claimId = req.params.id;
   const { refereeIndex } = req.body ?? {};
   if (refereeIndex !== 0 && refereeIndex !== 1) {
@@ -647,7 +656,7 @@ export default router;
 export const webauthnChallengeRouter = Router();
 
 webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   try {
     const { challengeId, challenge } = generateWebAuthnChallenge();
     await storeWebAuthnChallenge(callerUid, challengeId, challenge, buildWebAuthnDb());
@@ -711,7 +720,7 @@ webauthnChallengeRouter.get('/webauthn/challenge', verifyAuth, async (req, res) 
 // + counter-replay layers stay the cryptographic line of defense, this is
 // just a request-rate ceiling.
 webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimiter, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const {
     challengeId,
     id: credentialId,
@@ -785,7 +794,7 @@ webauthnChallengeRouter.post('/webauthn/verify', verifyAuth, webauthnVerifyLimit
 
     const audit = buildCurriculumAuditor(
       callerUid,
-      req.user.email ?? null,
+      req.user!.email ?? null,
       req.ip ?? undefined,
       req.header('user-agent') ?? undefined,
     );
@@ -913,8 +922,8 @@ webauthnChallengeRouter.post(
   verifyAuth,
   webauthnRegisterLimiter,
   async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail: string | null = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
     try {
       const options = await generateRegistrationOptions({
         rpName: RP_NAME,
@@ -964,7 +973,7 @@ webauthnChallengeRouter.post(
   verifyAuth,
   webauthnRegisterLimiter,
   async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { challengeId, attestationResponse } = req.body ?? {};
 
     if (typeof challengeId !== 'string' || challengeId.length === 0 || challengeId.length > 1024) {
@@ -1050,7 +1059,7 @@ webauthnChallengeRouter.post(
 
       const audit = buildCurriculumAuditor(
         callerUid,
-        req.user.email ?? null,
+        req.user!.email ?? null,
         req.ip ?? undefined,
         req.header('user-agent') ?? undefined,
       );
