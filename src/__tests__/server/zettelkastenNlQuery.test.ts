@@ -39,6 +39,7 @@ function buildApp(opts: {
     if (!uid) return res.status(401).json({ error: 'unauthorized' });
     req.user = { uid };
     next();
+    return undefined;
   });
 
   app.post('/api/zettelkasten/nl-query', validate(nlQuerySchema), async (req, res) => {

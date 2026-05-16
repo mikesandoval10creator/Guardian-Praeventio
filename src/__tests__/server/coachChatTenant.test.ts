@@ -54,6 +54,7 @@ function buildApp(fs: InMemoryFirestore, auth: FakeAuth): Express {
       const decoded = await auth.verifyIdToken(token);
       req.user = decoded;
       next();
+      return undefined;
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
@@ -94,7 +95,7 @@ function buildApp(fs: InMemoryFirestore, auth: FakeAuth): Express {
       projectId,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
-    res.json({ success: true, response: 'echo' });
+    return res.json({ success: true, response: 'echo' });
   });
 
   return app;

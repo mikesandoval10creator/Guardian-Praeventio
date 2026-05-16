@@ -111,6 +111,7 @@ function buildLimitedAskGuardianApp(deps: AskGuardianRateDeps = {}): Express {
     const [, uid, email] = token.split(':');
     req.user = { uid: uid ?? 'uid-default', email: email || `${uid}@test.com` };
     next();
+    return undefined;
   };
 
   // Mirror src/server/middleware/limiters.ts â†’ geminiLimiter shape.
@@ -130,7 +131,7 @@ function buildLimitedAskGuardianApp(deps: AskGuardianRateDeps = {}): Express {
       return res.status(400).json({ error: 'query is required' });
     }
     deps.auditSink?.push({ uid, query });
-    res.json({ response: `Echo: ${query}`, contextUsed: false });
+    return res.json({ response: `Echo: ${query}`, contextUsed: false });
   });
 
   return app;

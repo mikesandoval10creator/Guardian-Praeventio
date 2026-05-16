@@ -79,7 +79,7 @@ export function GuardianVoiceAssistant() {
         try { recognitionRef.current.stop(); } catch (e) {}
       }
       setIsListeningWakeWord(false);
-      return;
+      return undefined;
     }
 
     const recognition = new SpeechRecognition();

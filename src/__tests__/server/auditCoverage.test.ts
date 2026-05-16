@@ -120,6 +120,7 @@ function buildApp(deps: Deps): Express {
       const decoded = await deps.auth.verifyIdToken(token);
       req.user = decoded;
       next();
+      return undefined;
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
@@ -156,7 +157,7 @@ function buildApp(deps: Deps): Express {
         actorOverride: { uid: initiator.uid, email: null },
       });
     } catch {}
-    res.send('<p>linked</p>');
+    return res.send('<p>linked</p>');
   });
 
   // 3) /api/calendar/sync
@@ -190,7 +191,7 @@ function buildApp(deps: Deps): Express {
         messageLength: typeof message === 'string' ? message.length : 0,
       }, { projectId });
     } catch {}
-    res.json({ success: true, response: 'echo' });
+    return res.json({ success: true, response: 'echo' });
   });
 
   // 5) /api/gamification/points
