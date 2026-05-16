@@ -754,7 +754,7 @@ if (process.env.NODE_ENV !== "production") {
     console.warn('[boot] dist/index.html not readable; SPA fallback will 503:', err);
   }
 
-  app.get('*', (req, res) => {
+  app.get('*', (_req, res) => {
     if (!INDEX_HTML_TEMPLATE) {
       return res.status(503).type('text/plain').send('SPA bundle missing');
     }
