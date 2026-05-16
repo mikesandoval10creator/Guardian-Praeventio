@@ -33,7 +33,7 @@ const parseGlossary = (): GlossaryItem[] => {
 
 const glossaryItems = parseGlossary();
 
-export function withGlossary<P extends { text: string }>(WrappedComponent: React.ComponentType<P>) {
+export function withGlossary<P extends { text: string }>(_WrappedComponent: React.ComponentType<P>) {
   return function WithGlossaryComponent(props: P) {
     const [tooltipContent, setTooltipContent] = useState<string | null>(null);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -70,7 +70,7 @@ export function withGlossary<P extends { text: string }>(WrappedComponent: React
 
           const splitText = part.text.split(regex);
           
-          splitText.forEach((segment, index) => {
+          splitText.forEach((segment, _index) => {
             if (segment.toLowerCase() === item.term.toLowerCase()) {
               newParts.push({ text: segment, isTerm: true, definition: item.definition });
             } else if (segment) {

@@ -47,7 +47,7 @@ const mocks = vi.hoisted(() => {
 
   const collectionFactory = (col: string) => ({
     doc: (id: string) => makeDocRef(`${col}/${id}`),
-    where: (f: string, op: string, v: unknown) => makeQuery(col, [{ field: f, value: v }]),
+    where: (f: string, _op: string, v: unknown) => makeQuery(col, [{ field: f, value: v }]),
   });
 
   const firestoreFactory = () => ({ collection: collectionFactory });

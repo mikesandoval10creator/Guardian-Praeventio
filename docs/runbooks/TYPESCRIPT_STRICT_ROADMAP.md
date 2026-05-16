@@ -4,7 +4,7 @@
 > "TypeScript NO strict" como **deuda estructural #1**. Este documento
 > traquea el camino incremental para llegar a strict completo.
 
-## Baseline actual (commit post-Wave 1)
+## Baseline actual (commit post-Wave 2)
 
 `tsconfig.json` tiene activadas las siguientes flags strict-family:
 
@@ -15,6 +15,7 @@
 | `strictBindCallApply` | ✅ activado | 0 |
 | `noImplicitOverride` | ✅ activado | 13 fixed |
 | `strictFunctionTypes` | ✅ activado (Wave 1) | 7 fixed |
+| `noUnusedParameters` | ✅ activado (Wave 2) | 33 fixed |
 
 ## Siguientes ondas (recomendación priorizada)
 
@@ -40,12 +41,27 @@ Archivos modificados:
 - `src/components/shared/KnowledgeGraph.tsx` — cast ref, onNodeClick, nodeThreeObject
 - `src/services/slm/worker/slmRuntimeWorkerProxy.ts` — overloads removeEventListener
 
-### Onda 2 — `noUnusedParameters` (33 errores)
-**Prioridad**: MEDIA (cleanup, signals dead code path).
+### ✅ Onda 2 — `noUnusedParameters` (33 errores) — COMPLETADA
 
-Fix: prefijar params con `_` (convención TS) cuando son intencionalmente
-no usados (callbacks, interface impl). Caso por caso revisar si se
-debe eliminar el param o renombrarlo.
+**Resultado**: 33 errores fixed mediante prefijo `_` (convención TS
+para "intencionalmente no usado"). Distribuidos por:
+
+- 3 callbacks de Google Maps `onUnmount(map)` (Evacuation, SafeDriving,
+  SiteMap) — Maps API exige la signature pero no usamos el ref
+- 5 callbacks `(item, index)` cuando solo se usa `item`
+- 4 callbacks `(item, op)`, `(_, s)`, `(a, b)` en tests cuando solo
+  parte de la signature es necesaria
+- 8 fakes de Firestore/Storage/Auth donde el param existe por
+  contrato pero el test no lo verifica
+- 3 funciones de geminiBackend con params legacy `glossary` /
+  `projectId` que ya no se usan tras refactors anteriores
+- 2 functions con opts/payload "futuro use" (deactivateUser, buildNotConfiguredResult)
+- Resto: errors handlers `(error)` / `(reject)` / `(cause)` no usados
+  por diseño (catch-all que solo loguea).
+
+**Sin cambios funcionales** — todos los params siguen presentes en la
+signature (algunos son requeridos por contrato externo). Solo cambia
+el name visible para que TS sepa que la intención es ignorarlos.
 
 ### Onda 3 — `noImplicitReturns` (240 errores)
 **Prioridad**: ALTA (signals potential bugs — funciones que retornan
@@ -134,7 +150,7 @@ mantiene CI verde, y deja la deuda visible en este doc.
 
 Items abiertos:
 - [x] Onda 1: `strictFunctionTypes` (7 errores) — COMPLETADA
-- [ ] Onda 2: `noUnusedParameters` (33 errores)
+- [x] Onda 2: `noUnusedParameters` (33 errores) — COMPLETADA
 - [ ] Onda 3: `noImplicitReturns` (240 errores)
 - [ ] Onda 4: `strictNullChecks` (337 errores, multi-PR por domain)
 - [ ] Onda 5: `noUnusedLocals` (684 errores) — opcional

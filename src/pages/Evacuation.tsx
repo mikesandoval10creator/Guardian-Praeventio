@@ -130,11 +130,11 @@ export function Evacuation() {
     setMap(map);
   }, []);
 
-  const onUnmount = useCallback(function callback(map: google.maps.Map) {
+  const onUnmount = useCallback(function callback(_map: google.maps.Map) {
     setMap(null);
   }, []);
 
-  const runDynamicCalculation = async (triggerReason: string = "Manual") => {
+  const runDynamicCalculation = async (_triggerReason: string = "Manual") => {
     if (!isOnline) return;
     setCalculating(true);
     try {
@@ -588,7 +588,7 @@ export function Evacuation() {
                   </OverlayView>
                 ))}
 
-                {incidentNodes.map((node, i) => (
+                {incidentNodes.map((node, _i) => (
                   <OverlayView
                     key={node.id}
                     position={{ lat: node.metadata?.lat || defaultCenter.lat, lng: node.metadata?.lng || defaultCenter.lng }}

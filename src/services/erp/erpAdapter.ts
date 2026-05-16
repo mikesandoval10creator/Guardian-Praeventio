@@ -234,7 +234,7 @@ export function selectErpAdapter(opts: SelectAdapterOptions = {}): ErpAdapter | 
  * ERP_ADAPTER seteado. El front muestra este mensaje al usuario en lugar
  * de pretender que la sync fue exitosa.
  */
-export function buildNotConfiguredResult(payload: ErpSyncPayload): ErpSyncResult {
+export function buildNotConfiguredResult(_payload: ErpSyncPayload): ErpSyncResult {
   return {
     ok: false,
     mode: 'not_configured',

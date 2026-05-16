@@ -144,7 +144,7 @@ export interface ReviewScheduleItem {
 }
 
 export function scheduleNextReviews(
-  workerUid: string,
+  _workerUid: string,
   topicHistory: ReadonlyArray<{ topic: string; difficulty: Difficulty; consecutiveCorrect: number }>,
   options: { now: Date },
 ): ReviewScheduleItem[] {

@@ -18,7 +18,7 @@ export const compressImage = async (
     useWebP = true,
   } = options;
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     // Si no es una imagen o es un SVG, devolver original
     if (!file.type.startsWith('image/') || file.type.includes('svg')) {
       return resolve(file);

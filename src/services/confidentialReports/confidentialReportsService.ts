@@ -198,7 +198,7 @@ export function detectRetaliation(
       });
     }
   }
-  return flags.sort((a, b) => (a.severity === 'critical' ? -1 : 1));
+  return flags.sort((a, _b) => (a.severity === 'critical' ? -1 : 1));
 }
 
 // ────────────────────────────────────────────────────────────────────────

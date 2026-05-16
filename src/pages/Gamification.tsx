@@ -451,7 +451,7 @@ export function Gamification() {
             exit={{ opacity: 0, y: -20 }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {medals.map((medal, i) => (
+            {medals.map((medal, _i) => (
               <div 
                 key={medal.id}
                 className={`relative overflow-hidden rounded-3xl p-6 border transition-all ${
@@ -512,7 +512,7 @@ export function Gamification() {
             exit={{ opacity: 0, y: -20 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            {games.map((game, i) => (
+            {games.map((game, _i) => (
               <div 
                 key={game.id}
                 className="group relative bg-zinc-900 border border-white/10 rounded-[32px] overflow-hidden hover:border-indigo-500/30 transition-all shadow-xl"

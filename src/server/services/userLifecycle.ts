@@ -55,7 +55,7 @@ export interface DeactivateUserOptions {
 export async function deactivateUser(
   authAdmin: typeof admin.auth,
   uid: string,
-  opts: DeactivateUserOptions = {},
+  _opts: DeactivateUserOptions = {},
 ): Promise<DeactivateUserResult> {
   if (!uid || typeof uid !== 'string') {
     throw new TypeError('deactivateUser: uid is required and must be a string');

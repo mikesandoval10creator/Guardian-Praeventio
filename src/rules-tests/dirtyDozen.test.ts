@@ -107,7 +107,7 @@ async function seedProject(projectId: string, members: string[]) {
 }
 
 describe('Dirty Dozen — Firestore rules pentest', () => {
-  function maybeSkip(ctx: { skip: () => void }) {
+  function maybeSkip(_ctx: { skip: () => void }) {
     if (!testEnv) {
       throw new Error(`[dirtyDozen] FAILED TO START EMULATOR. Tests cannot be skipped: ${skipReason}`);
     }

@@ -302,7 +302,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
     async getUser(uid: string) {
       return { uid, email: `${uid}@test.com`, customClaims: {} };
     },
-    async getUserByEmail(email: string) {
+    async getUserByEmail(_email: string) {
       throw Object.assign(new Error('user not found'), { code: 'auth/user-not-found' });
     },
     async setCustomUserClaims() {},
@@ -318,7 +318,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
       (async () => ({ token: 'tok_test', url: 'https://webpay.test/redirect?token_ws=tok_test' })),
     webpayCommit:
       overrides.webpayCommit ??
-      (async (token: string) => ({
+      (async (_token: string) => ({
         status: 'AUTHORIZED' as const,
         buyOrder: 'inv_test',
         amount: 11990,

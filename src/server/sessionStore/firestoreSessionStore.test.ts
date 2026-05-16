@@ -76,7 +76,7 @@ function makeFakeDb() {
     batch: () => {
       const ops: Array<() => void> = [];
       return {
-        delete: (ref: { _path?: string } & Record<string, unknown>) => {
+        delete: (_ref: { _path?: string } & Record<string, unknown>) => {
           // We can't easily intercept `ref` here, but the test for clear
           // uses a different path — see test below.
           ops.push(() => {
