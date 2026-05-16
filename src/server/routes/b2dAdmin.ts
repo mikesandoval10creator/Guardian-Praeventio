@@ -80,7 +80,7 @@ const VALID_SCOPES: ReadonlySet<B2dScope> = new Set<B2dScope>([
 // GET /api/admin/b2d/keys[?customerId=X]
 // ---------------------------------------------------------------------------
 router.get('/keys', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return;
+  if (!(await assertAdmin(req, res))) return undefined;
   const customerId = typeof req.query.customerId === 'string' ? req.query.customerId : null;
   if (customerId !== null && !CUSTOMER_ID_REGEX.test(customerId)) {
     return res.status(400).json({ error: 'Invalid customerId' });
@@ -110,11 +110,11 @@ router.get('/keys', verifyAuth, async (req, res) => {
         lastUsedAt: typeof d.lastUsedAt === 'number' ? d.lastUsedAt : null,
       });
     });
-    res.json({ ok: true, keys });
+    return res.json({ ok: true, keys });
   } catch (error) {
     logger.error('b2d_admin_keys_list_failed', error);
     captureRouteError(error, 'b2dAdmin.keys_list');
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -123,7 +123,7 @@ router.get('/keys', verifyAuth, async (req, res) => {
 // Returns rawKey EXACTLY ONCE â€” caller must store/show it then.
 // ---------------------------------------------------------------------------
 router.post('/keys', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return;
+  if (!(await assertAdmin(req, res))) return undefined;
   const callerUid = req.user.uid;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const customerId = typeof body.customerId === 'string' ? body.customerId : '';
@@ -180,11 +180,11 @@ router.post('/keys', verifyAuth, async (req, res) => {
       ts: Date.now(),
     });
 
-    res.json({ ok: true, id, rawKey, maskedKey });
+    return res.json({ ok: true, id, rawKey, maskedKey });
   } catch (error) {
     logger.error('b2d_admin_keys_create_failed', error, { callerUid });
     captureRouteError(error, 'b2dAdmin.keys_create', { callerUid });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -192,7 +192,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
 // POST /api/admin/b2d/keys/:id/revoke
 // ---------------------------------------------------------------------------
 router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return;
+  if (!(await assertAdmin(req, res))) return undefined;
   const callerUid = req.user.uid;
   const id = req.params.id;
   if (!KEY_DOC_ID_REGEX.test(id)) {
@@ -217,11 +217,11 @@ router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
       ts: Date.now(),
     });
 
-    res.json({ ok: true, id });
+    return res.json({ ok: true, id });
   } catch (error) {
     logger.error('b2d_admin_keys_revoke_failed', error, { callerUid, id });
     captureRouteError(error, 'b2dAdmin.keys_revoke', { callerUid, id });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -229,14 +229,14 @@ router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
 // GET /api/admin/b2d/metrics
 // ---------------------------------------------------------------------------
 router.get('/metrics', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return;
+  if (!(await assertAdmin(req, res))) return undefined;
   try {
     const metrics = await computeB2dMetrics();
-    res.json({ ok: true, metrics });
+    return res.json({ ok: true, metrics });
   } catch (error) {
     logger.error('b2d_admin_metrics_failed', error);
     captureRouteError(error, 'b2dAdmin.metrics');
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -253,7 +253,7 @@ router.get('/metrics', verifyAuth, async (req, res) => {
 // pretender historia que no existe.
 // ---------------------------------------------------------------------------
 router.get('/mrr-history', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return;
+  if (!(await assertAdmin(req, res))) return undefined;
   const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : NaN;
   // Tope absoluto: 36 meses (3 años). Default: 12 meses (1 año).
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 36) : 12;
@@ -263,11 +263,11 @@ router.get('/mrr-history', verifyAuth, async (req, res) => {
     // reverse() — el caller pinta de izquierda (más antiguo) a derecha
     // (más reciente).
     const ascending = [...snapshots].reverse();
-    res.json({ ok: true, snapshots: ascending });
+    return res.json({ ok: true, snapshots: ascending });
   } catch (error) {
     logger.error('b2d_admin_mrr_history_failed', error);
     captureRouteError(error, 'b2dAdmin.mrr_history');
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -276,7 +276,7 @@ router.get('/mrr-history', verifyAuth, async (req, res) => {
 // `from` / `to` are epoch ms; both optional. Defaults: last 30 days.
 // ---------------------------------------------------------------------------
 router.get('/events', verifyAuth, async (req, res) => {
-  if (!(await assertAdmin(req, res))) return;
+  if (!(await assertAdmin(req, res))) return undefined;
   const now = Date.now();
   const fromRaw = typeof req.query.from === 'string' ? parseInt(req.query.from, 10) : NaN;
   const toRaw = typeof req.query.to === 'string' ? parseInt(req.query.to, 10) : NaN;
@@ -306,13 +306,13 @@ router.get('/events', verifyAuth, async (req, res) => {
         ts: typeof d.ts === 'number' ? d.ts : null,
       });
     });
-    res.json({ ok: true, from, to, events });
+    return res.json({ ok: true, from, to, events });
   } catch (error) {
     // The composite range+order query needs an index; surface a clean
     // empty result if the index isn't built yet rather than a 500.
     logger.error('b2d_admin_events_failed', error);
     captureRouteError(error, 'b2dAdmin.events');
-    res.json({ ok: true, from, to, events: [] });
+    return res.json({ ok: true, from, to, events: [] });
   }
 });
 

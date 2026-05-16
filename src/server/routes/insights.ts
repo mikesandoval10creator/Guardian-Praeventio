@@ -67,7 +67,7 @@ async function guardProjectAccess(
 router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
-  if (!(await guardProjectAccess(callerUid, projectId, res))) return;
+  if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   const topN = Math.min(Math.max(Number(req.query.topN) || 5, 1), 20);
 
@@ -98,7 +98,7 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
 router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
   const callerUid = req.user.uid;
   const { projectId } = req.params;
-  if (!(await guardProjectAccess(callerUid, projectId, res))) return;
+  if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   try {
     const db = admin.firestore();
@@ -173,7 +173,7 @@ router.get('/:projectId/role-view', verifyAuth, async (req, res) => {
   const callerEmail = req.user.email ?? null;
   const callerRole = req.user.role ?? 'worker';
   const { projectId } = req.params;
-  if (!(await guardProjectAccess(callerUid, projectId, res))) return;
+  if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
   const userRole: UserRole = VALID_ROLES.includes(callerRole as UserRole)
     ? (callerRole as UserRole)

@@ -106,7 +106,7 @@ router.post('/consent', verifyAuth, async (req, res) => {
       legalBasis,
       textVersion,
     });
-    res.json({ ok: true, record });
+    return res.json({ ok: true, record });
   } catch (err) {
     if (err instanceof ComplianceError) {
       return res.status(err.httpStatus).json({ error: err.code });
@@ -117,7 +117,7 @@ router.post('/consent', verifyAuth, async (req, res) => {
       { uid },
     );
     captureRouteError(err, 'compliance.record_consent', { uid });
-    res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ error: 'internal_error' });
   }
 });
 
@@ -129,7 +129,7 @@ router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
   }
   try {
     await revokeConsent(getDb(), uid, purpose);
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (err) {
     if (err instanceof ComplianceError) {
       return res.status(err.httpStatus).json({ error: err.code, message: err.message });
@@ -140,7 +140,7 @@ router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
       { uid, purpose },
     );
     captureRouteError(err, 'compliance.revoke_consent', { uid, purpose });
-    res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ error: 'internal_error' });
   }
 });
 
@@ -148,7 +148,7 @@ router.get('/consent', verifyAuth, async (req, res) => {
   const uid = req.user.uid as string;
   try {
     const status = await getConsentStatus(getDb(), uid);
-    res.json({ uid, consents: status });
+    return res.json({ uid, consents: status });
   } catch (err) {
     logger.error(
       'compliance_get_consent_failed',
@@ -156,7 +156,7 @@ router.get('/consent', verifyAuth, async (req, res) => {
       { uid },
     );
     captureRouteError(err, 'compliance.get_consent', { uid });
-    res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ error: 'internal_error' });
   }
 });
 
@@ -221,7 +221,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
     const request = await requestDataAccess(getDb(), uid, type, {
       rectificationPayload,
     });
-    res.status(201).json({
+    return res.status(201).json({
       ok: true,
       request,
       // Surfaced so the client can render "responderemos en N dÃ­as".
@@ -238,7 +238,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
       { uid, type },
     );
     captureRouteError(err, 'compliance.data_request', { uid, type });
-    res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ error: 'internal_error' });
   }
 });
 
@@ -257,7 +257,7 @@ router.get('/data-request/:id', verifyAuth, async (req, res) => {
     if (request.uid !== uid) {
       return res.status(403).json({ error: 'forbidden' });
     }
-    res.json({ request });
+    return res.json({ request });
   } catch (err) {
     logger.error(
       'compliance_get_request_failed',
@@ -265,7 +265,7 @@ router.get('/data-request/:id', verifyAuth, async (req, res) => {
       { uid, requestId },
     );
     captureRouteError(err, 'compliance.get_request', { uid, requestId });
-    res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ error: 'internal_error' });
   }
 });
 
@@ -296,7 +296,7 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
       'Content-Disposition',
       `attachment; filename="praeventio-export-${uid}.json"`,
     );
-    res.json(exported);
+    return res.json(exported);
   } catch (err) {
     logger.error(
       'compliance_data_export_failed',
@@ -304,7 +304,7 @@ router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
       { uid, requestId },
     );
     captureRouteError(err, 'compliance.data_export', { uid, requestId });
-    res.status(500).json({ error: 'internal_error' });
+    return res.status(500).json({ error: 'internal_error' });
   }
 });
 

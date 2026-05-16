@@ -290,7 +290,7 @@ router.post(
         logger.warn('ai_feedback_audit_append_failed', { err: String(auditErr) });
       }
 
-      res.json({
+      return res.json({
         ok: true,
         messageId: body.messageId,
         sanitized: redaction.hadPII || (rationaleRedaction?.hadPII ?? false),
@@ -299,7 +299,7 @@ router.post(
     } catch (err) {
       logger.error('ai_feedback_persist_failed', { err: String(err) });
       captureRouteError(err, 'ai.feedback.persist', { tenantId });
-      res.status(500).json({ error: 'feedback_persist_failed' });
+      return res.status(500).json({ error: 'feedback_persist_failed' });
     }
   },
 );
@@ -327,11 +327,11 @@ router.get('/feedback/summary', verifyAuth, async (req, res) => {
     if (!snap.exists) {
       return res.json({ ok: true, summary: null, week, tenantId });
     }
-    res.json({ ok: true, summary: snap.data(), week, tenantId });
+    return res.json({ ok: true, summary: snap.data(), week, tenantId });
   } catch (err) {
     logger.error('ai_feedback_summary_read_failed', { err: String(err) });
     captureRouteError(err, 'ai.feedback.summary_read', { tenantId, week });
-    res.status(500).json({ error: 'summary_read_failed' });
+    return res.status(500).json({ error: 'summary_read_failed' });
   }
 });
 

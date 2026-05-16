@@ -73,7 +73,7 @@ router.post('/register-token', verifyAuth, async (req, res) => {
       userAgent: req.header('user-agent') ?? null,
     });
 
-    res.json({ ok: true });
+    return res.json({ ok: true });
   } catch (error: any) {
     logger.error('push_register_token_failed', {
       uid: callerUid,
@@ -81,7 +81,7 @@ router.post('/register-token', verifyAuth, async (req, res) => {
       message: error?.message,
     });
     captureRouteError(error, 'push.register_token', { uid: callerUid, platform });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
     });

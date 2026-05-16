@@ -186,6 +186,7 @@ export function verifyTwinStepUp(opts: VerifyTwinStepUpOptions = {}): RequestHan
     // Anexar el payload para handlers downstream (audit log, etc).
     (req as Request & { twinStepUp?: TwinStepUpClaims }).twinStepUp = payload;
     next();
+    return undefined;
   };
 }
 

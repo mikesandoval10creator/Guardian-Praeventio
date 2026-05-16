@@ -84,11 +84,11 @@ router.post('/audit-log', verifyAuth, async (req, res) => {
       ip: req.ip ?? null,
       userAgent: req.header('user-agent') ?? null,
     });
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: any) {
     logger.error('audit_log_write_failed', { uid: callerUid, action, message: error?.message });
     captureRouteError(error, 'audit.log_write', { uid: callerUid, action });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Audit log write failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
     });

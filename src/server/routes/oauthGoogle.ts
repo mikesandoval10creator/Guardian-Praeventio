@@ -177,11 +177,11 @@ oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
       return res.json({ items: [] });
     }
     const data = await response.json();
-    res.json({ items: data.items ?? [] });
+    return res.json({ items: data.items ?? [] });
   } catch (error: any) {
     logger.error('calendar_list_failed', { uid, message: error?.message });
     sentryCapture(error, { endpoint: '/api/calendar/list', tags: { method: 'GET', uid } });
-    res.json({ items: [] }); // graceful degradation
+    return res.json({ items: [] }); // graceful degradation
   }
 });
 
@@ -241,11 +241,11 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
       /* observability never breaks request path */
     }
 
-    res.json({ success: true, results });
+    return res.json({ success: true, results });
   } catch (error) {
     logger.error('google_calendar_sync_failed', error, { uid });
     sentryCapture(error, { endpoint: '/api/calendar/sync', tags: { method: 'POST', uid } });
-    res.status(500).json({ error: 'Failed to sync with Google Calendar' });
+    return res.status(500).json({ error: 'Failed to sync with Google Calendar' });
   }
 });
 
@@ -317,11 +317,11 @@ oauthGoogleApiRouter.post('/fitness/sync', verifyAuth, async (req, res) => {
     }
 
     const data = await response.json();
-    res.json({ success: true, data });
+    return res.json({ success: true, data });
   } catch (error) {
     logger.error('google_fit_sync_failed', error, { uid });
     sentryCapture(error, { endpoint: '/api/fitness/sync', tags: { method: 'POST', uid } });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -390,7 +390,7 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
     delete sess.driveOauthState;
     delete sess.driveOauthInitiator;
 
-    res.send(`
+    return res.send(`
       <html>
         <body>
           <script>
@@ -411,7 +411,7 @@ oauthGoogleApiRouter.get('/drive/auth/callback', async (req, res) => {
   } catch (error) {
     logger.error('google_drive_auth_callback_failed', error);
     sentryCapture(error, { endpoint: '/api/drive/auth/callback', tags: { method: 'GET' } });
-    res.status(500).send('Error during authentication');
+    return res.status(500).send('Error during authentication');
   }
 });
 
@@ -474,7 +474,7 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
     delete sess.oauthInitiator;
 
     // Tell the popup that linking succeeded â€” payload contains NO tokens.
-    res.send(`
+    return res.send(`
       <html>
         <body>
           <script>
@@ -495,6 +495,6 @@ oauthGoogleAuthRouter.get('/google/callback', async (req, res) => {
   } catch (error) {
     logger.error('google_auth_callback_failed', error);
     sentryCapture(error, { endpoint: '/auth/google/callback', tags: { method: 'GET' } });
-    res.status(500).send('Error during authentication');
+    return res.status(500).send('Error during authentication');
   }
 });

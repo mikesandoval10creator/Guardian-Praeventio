@@ -76,9 +76,9 @@ router.post('/crews', verifyAuth, organicLimiter, assertProjectMemberFromBody(),
       xp: 0,
       lastIncidentAt: null,
     });
-    res.status(201).json({ success: true, id: docRef.id });
+    return res.status(201).json({ success: true, id: docRef.id });
   } catch (err: any) {
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -99,12 +99,12 @@ router.post('/crews/:id/members', verifyAuth, organicLimiter, async (req, res) =
     if (!crew.memberUids.includes(memberUid)) {
       await ref.update({ memberUids: [...crew.memberUids, memberUid] });
     }
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -139,9 +139,9 @@ router.post('/processes', verifyAuth, organicLimiter, assertProjectMemberFromBod
       alertsResponded: 0,
       xpAwardedAtClose: null,
     });
-    res.status(201).json({ success: true, id: docRef.id });
+    return res.status(201).json({ success: true, id: docRef.id });
   } catch (err: any) {
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -184,12 +184,12 @@ router.post('/processes/:id/close', verifyAuth, organicLimiter, async (req, res)
         totalProcessesCompleted: (c.totalProcessesCompleted ?? 0) + 1,
       });
     });
-    res.json({ success: true, xpAwarded: xp, baseXp: baseXpForProcessType(proc.type) });
+    return res.json({ success: true, xpAwarded: xp, baseXp: baseXpForProcessType(proc.type) });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -250,12 +250,12 @@ router.post('/processes/:id/status', verifyAuth, organicLimiter, async (req, res
       /* non-fatal */
     }
 
-    res.json({ success: true, status });
+    return res.json({ success: true, status });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -285,12 +285,12 @@ router.post('/processes/:id/tasks', verifyAuth, organicLimiter, async (req, res)
       status: 'pending',
       completedAt: null,
     });
-    res.status(201).json({ success: true, id: docRef.id });
+    return res.status(201).json({ success: true, id: docRef.id });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -364,12 +364,12 @@ router.post('/predictive-alerts/ack', verifyAuth, organicLimiter, async (req, re
       // non-fatal
     }
 
-    res.json({ success: true, xpAwarded, reason: 'evadir_riesgo_predictivo' });
+    return res.json({ success: true, xpAwarded, reason: 'evadir_riesgo_predictivo' });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 
@@ -384,12 +384,12 @@ router.post('/tasks/:id/done', verifyAuth, organicLimiter, async (req, res) => {
     const t = snap.data() as { projectId: string };
     await assertProjectMember(uid, t.projectId, db);
     await ref.update({ status: 'done', completedAt: new Date().toISOString() });
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (err: any) {
     if (err instanceof ProjectMembershipError) {
       return res.status(err.httpStatus).json({ error: 'forbidden' });
     }
-    res.status(500).json({ error: err?.message ?? 'internal' });
+    return res.status(500).json({ error: err?.message ?? 'internal' });
   }
 });
 

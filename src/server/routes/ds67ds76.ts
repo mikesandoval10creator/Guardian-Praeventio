@@ -207,10 +207,11 @@ router.get('/ds67/:formId/pdf', verifyAuth, async (req, res) => {
       `attachment; filename="${form.folio}.pdf"`,
     );
     res.end(Buffer.from(bytes));
+    return undefined;
   } catch (err) {
     logger.error('ds67_pdf_failed', { err: String(err) });
     captureRouteError(err, 'ds67.pdf');
-    res.status(500).json({ error: 'ds67_pdf_failed' });
+    return res.status(500).json({ error: 'ds67_pdf_failed' });
   }
 });
 
@@ -280,10 +281,11 @@ router.get('/ds76/:formId/pdf', verifyAuth, async (req, res) => {
       `attachment; filename="${form.folio}.pdf"`,
     );
     res.end(Buffer.from(bytes));
+    return undefined;
   } catch (err) {
     logger.error('ds76_pdf_failed', { err: String(err) });
     captureRouteError(err, 'ds76.pdf');
-    res.status(500).json({ error: 'ds76_pdf_failed' });
+    return res.status(500).json({ error: 'ds76_pdf_failed' });
   }
 });
 

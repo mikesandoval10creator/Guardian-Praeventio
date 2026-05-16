@@ -260,11 +260,11 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
       });
     } catch { /* analytics must never break user flow */ }
 
-    res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
+    return res.json({ success: true, inviteId: inviteRef.id, token, expiresAt });
   } catch (error: any) {
     logger.error('invitation_create_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/invite', tags: { method: 'POST', projectId, uid: callerUid } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'
@@ -337,11 +337,11 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
       expiresAt: doc.data().expiresAt,
     }));
 
-    res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
+    return res.json({ success: true, members: memberDetails, pendingInvitations: invitations });
   } catch (error: any) {
     logger.error('project_members_list_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/members', tags: { method: 'GET', projectId, uid: callerUid } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'
@@ -399,11 +399,11 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
       });
     } catch { /* analytics must never break user flow */ }
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: any) {
     logger.error('project_member_remove_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/members/:uid', tags: { method: 'DELETE', projectId, targetUid, uid: callerUid } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'
@@ -447,11 +447,11 @@ projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
     }
 
     await inviteDoc.ref.delete();
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: any) {
     logger.error('invitation_cancel_failed', error);
     sentryCapture(error, { endpoint: '/api/projects/:id/invite', tags: { method: 'DELETE', projectId, uid: callerUid } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'
@@ -485,7 +485,7 @@ invitationsRouter.get('/info/:token', async (req, res) => {
     if (new Date(invite.expiresAt) < new Date())
       return res.status(410).json({ error: 'Invitation has expired' });
     // Return only safe, non-sensitive fields
-    res.json({
+    return res.json({
       projectName: invite.projectName || 'un proyecto',
       invitedRole: invite.invitedRole,
       invitedEmail: invite.invitedEmail,
@@ -493,7 +493,7 @@ invitationsRouter.get('/info/:token', async (req, res) => {
     });
   } catch (error: any) {
     sentryCapture(error, { endpoint: '/api/invitations/info/:token', tags: { method: 'GET' } });
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -602,14 +602,14 @@ invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
       });
     } catch { /* analytics must never break user flow */ }
 
-    res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
+    return res.json({ success: true, projectId: invite.projectId, role: invite.invitedRole });
   } catch (error: any) {
     if (error && typeof error.statusCode === 'number') {
       return res.status(error.statusCode).json({ error: error.message });
     }
     logger.error('invitation_accept_failed', error);
     sentryCapture(error, { endpoint: '/api/invitations/:token/accept', tags: { method: 'POST', uid: callerUid } });
-    res.status(500).json({
+    return res.status(500).json({
       error:
         process.env.NODE_ENV === 'production'
           ? 'Internal server error'

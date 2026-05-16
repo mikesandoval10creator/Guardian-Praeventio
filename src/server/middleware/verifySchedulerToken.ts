@@ -43,4 +43,5 @@ export const verifySchedulerToken: RequestHandler = (req, res, next) => {
     return res.status(401).json({ error: 'unauthorized' });
   }
   next();
+  return undefined;
 };

@@ -307,11 +307,11 @@ billingApiRouter.post('/verify', verifyAuth, async (req, res) => {
       });
     }
 
-    res.json({ success: true, data });
+    return res.json({ success: true, data });
   } catch (error: any) {
     logger.error('purchase_verification_failed', error, { uid });
     sentryCapture(error, { endpoint: '/api/billing/verify', tags: { method: 'POST', uid } });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to verify purchase',
       // Avoid leaking Firebase/googleapis internals in production responses.
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
@@ -607,11 +607,11 @@ billingApiRouter.post('/checkout', verifyAuth, idempotencyKey(), async (req, res
       paymentUrl,
       status,
     };
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('billing_checkout_failed', error, { uid: callerUid });
     sentryCapture(error, { endpoint: '/api/billing/checkout', tags: { method: 'POST', uid: callerUid } });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Checkout failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
     });
@@ -704,11 +704,11 @@ billingApiRouter.post('/invoice/:id/mark-paid', verifyAuth, async (req, res) => 
       sentryCapture(dteErr, { endpoint: 'billing.markPaid.dteAutoIssue', tags: { invoiceId } });
     }
 
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch (error: any) {
     logger.error('billing_mark_paid_failed', error, { uid: callerUid, invoiceId });
     sentryCapture(error, { endpoint: '/api/billing/invoice/:id/mark-paid', tags: { method: 'POST', uid: callerUid, invoiceId } });
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Mark-paid failed',
       details: process.env.NODE_ENV === 'production' ? undefined : error?.message,
     });
