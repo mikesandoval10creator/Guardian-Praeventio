@@ -87,6 +87,14 @@ const CONNECT_SRC_ORIGINS = [
   // toda la HF org porque expone exfiltration surface.
   'https://huggingface.co',
   'https://cdn-lfs.huggingface.co',
+  // Sprint F (2026-05-16) — NASA APIs (clima + eventos extremos).
+  //  - power.larc.nasa.gov: NASA POWER hourly histórico (nasaPowerAdapter)
+  //  - eonet.gsfc.nasa.gov: NASA EONET v3 eventos activos (eonetAdapter)
+  // Sin estas entradas el `fetch` desde el cliente queda bloqueado por
+  // CSP connect-src en prod y los services silenciosamente pierden la
+  // evidencia NASA. Codex review PR #279 (POWER) + audit propio (EONET).
+  'https://power.larc.nasa.gov',
+  'https://eonet.gsfc.nasa.gov',
 ] as const;
 
 /*
