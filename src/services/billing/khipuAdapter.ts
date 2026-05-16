@@ -87,7 +87,7 @@ export interface KhipuCommitResult {
 /** Wraps any Khipu network or 4xx/5xx failure. Caller can `instanceof`-check. */
 export class KhipuAdapterError extends Error {
   readonly method: string;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   readonly statusCode?: number;
   constructor(method: string, cause: unknown, statusCode?: number) {
     const causeMsg =

@@ -92,7 +92,7 @@ export interface MercadoPagoAdapter {
 /** Thrown when the MercadoPago SDK call fails (or input is invalid). */
 export class MercadoPagoAdapterError extends Error {
   readonly method: string;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   constructor(method: string, cause: unknown) {
     const causeMsg =
       cause instanceof Error

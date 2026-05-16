@@ -47,7 +47,7 @@ export interface FcmSendResult {
 
 /** Distinguishes infra/SDK errors from caller-side validation errors. */
 export class FcmAdapterError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  constructor(message: string, public override readonly cause?: unknown) {
     super(message);
     this.name = 'FcmAdapterError';
   }

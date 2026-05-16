@@ -112,7 +112,7 @@ export class WebpayNotImplementedError extends Error {
 /** Thrown when the underlying Transbank SDK call fails. Wraps the cause. */
 export class WebpayAdapterError extends Error {
   readonly method: string;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   constructor(method: string, cause: unknown) {
     const causeMsg =
       cause instanceof Error ? cause.message : typeof cause === 'string' ? cause : 'unknown error';

@@ -93,7 +93,7 @@ export function calculateDteTotals(lineItems: readonly DteLineItem[]): DteTotals
  */
 export class SiiAdapterError extends Error {
   readonly method: string;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   constructor(method: string, message: string, cause?: unknown) {
     super(`SiiAdapter.${method}() failed: ${message}`);
     this.name = 'SiiAdapterError';
