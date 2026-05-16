@@ -137,7 +137,7 @@ const projectsRouter = Router();
 // POST /api/projects/:id/invite  â€” project creator sends an invitation
 projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { invitedEmail, invitedRole } = req.body;
 
   if (!invitedEmail || !invitedRole) {
@@ -276,7 +276,7 @@ projectsRouter.post('/:id/invite', verifyAuth, async (req, res) => {
 // GET /api/projects/:id/members  â€” list members with display info and roles
 projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
 
   try {
     const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
@@ -353,7 +353,7 @@ projectsRouter.get('/:id/members', verifyAuth, async (req, res) => {
 // DELETE /api/projects/:id/members/:uid  â€” remove a member
 projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
   const { id: projectId, uid: targetUid } = req.params;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
 
   try {
     const projectDoc = await admin.firestore().collection('projects').doc(projectId).get();
@@ -415,7 +415,7 @@ projectsRouter.delete('/:id/members/:uid', verifyAuth, async (req, res) => {
 // DELETE /api/projects/:id/invite  â€” project creator cancels a pending invitation
 projectsRouter.delete('/:id/invite', verifyAuth, async (req, res) => {
   const projectId = req.params.id;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { inviteId } = req.body;
 
   if (!inviteId) {
@@ -500,8 +500,8 @@ invitationsRouter.get('/info/:token', async (req, res) => {
 // POST /api/invitations/:token/accept  â€” invited user accepts
 invitationsRouter.post('/:token/accept', verifyAuth, async (req, res) => {
   const { token } = req.params;
-  const callerUid = req.user.uid;
-  const callerEmail = req.user.email;
+  const callerUid = req.user!.uid;
+  const callerEmail = req.user!.email;
   // Optional client-supplied projectId â€” when present it MUST match the
   // invitation's projectId. This blocks cross-tenant write attacks where a
   // crafted projectId could otherwise bypass the invitation's intended target.

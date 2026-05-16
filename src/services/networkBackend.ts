@@ -167,7 +167,11 @@ export const syncNodeToNetwork = async (nodeData: any, authorUid: string) => {
  */
 export const syncBatchToNetwork = async (operations: any[], authorUid: string) => {
   const db = admin.firestore();
-  const results = [];
+  type BatchOpResult =
+    | { id: string; status: 'success'; res: unknown }
+    | { id: string; status: 'deleted' }
+    | { id: string; status: 'error'; error: string };
+  const results: BatchOpResult[] = [];
 
   for (const op of operations) {
     try {

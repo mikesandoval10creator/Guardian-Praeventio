@@ -65,7 +65,7 @@ async function guardProjectAccess(
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
@@ -96,7 +96,7 @@ router.get('/:projectId/risk-ranking', verifyAuth, async (req, res) => {
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 
@@ -169,9 +169,9 @@ router.get('/:projectId/safety-talks', verifyAuth, async (req, res) => {
 const VALID_ROLES: UserRole[] = ['worker', 'site_chief', 'prevention', 'management'];
 
 router.get('/:projectId/role-view', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail = req.user.email ?? null;
-  const callerRole = req.user.role ?? 'worker';
+  const callerUid = req.user!.uid;
+  const callerEmail = req.user!.email ?? null;
+  const callerRole = req.user!.role ?? 'worker';
   const { projectId } = req.params;
   if (!(await guardProjectAccess(callerUid, projectId, res))) return undefined;
 

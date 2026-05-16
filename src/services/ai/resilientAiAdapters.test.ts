@@ -22,8 +22,8 @@ describe('makeZettelkastenTierAdapter (con seed bundle)', () => {
     expect(r).not.toBeNull();
     expect(r!.text).toContain('grafo');
     expect(r!.confidence).toBeGreaterThan(0);
-    expect(r!.citations.length).toBeGreaterThan(0);
-    expect(r!.citations[0]!.kind).toBe('node');
+    expect(r!.citations!.length).toBeGreaterThan(0);
+    expect(r!.citations![0]!.kind).toBe('node');
   });
 
   it('retorna null si no encuentra nada (caller cae al siguiente tier)', async () => {
@@ -39,7 +39,7 @@ describe('makeZettelkastenTierAdapter (con seed bundle)', () => {
     const adapter = makeZettelkastenTierAdapter({});
     const r = await adapter({ ...query, prompt: 'samu' });
     expect(r).not.toBeNull();
-    expect(r!.citations.every((c) => c.kind === 'node')).toBe(true);
+    expect(r!.citations!.every((c) => c.kind === 'node')).toBe(true);
   });
 
   it('header cambia por dominio', async () => {
@@ -78,7 +78,7 @@ describe('makeFirestoreTierAdapter', () => {
     expect(r).not.toBeNull();
     expect(r!.text).toContain('Protocolo SOS');
     expect(r!.text).toContain('Aprieta el botón rojo');
-    expect(r!.citations[0]!.ref).toBe('faq-1');
+    expect(r!.citations![0]!.ref).toBe('faq-1');
   });
 
   it('sin docs → null', async () => {
@@ -153,8 +153,8 @@ describe('makeGeminiTierAdapter', () => {
     });
     const r = await adapter(query);
     expect(r!.citations).toHaveLength(2);
-    expect(r!.citations[0]!.ref).toBe('https://example.com/doc1');
-    expect(r!.citations[0]!.label).toBe('Doc 1');
+    expect(r!.citations![0]!.ref).toBe('https://example.com/doc1');
+    expect(r!.citations![0]!.label).toBe('Doc 1');
   });
 
   it('texto vacío → null', async () => {

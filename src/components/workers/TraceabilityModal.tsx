@@ -27,11 +27,15 @@ export function TraceabilityModal({ isOpen, onClose, worker, projectId: _project
   }, [isOpen, worker, nodes]);
 
   const fetchLogs = async () => {
+    // useEffect gates this call on `isOpen && worker`, so worker is
+    // guaranteed truthy here. The early return is just for TS narrowing
+    // — at runtime the caller has already ensured worker !== null.
+    if (!worker) return;
     setLoading(true);
     try {
       // Fetch real logs from Risk nodes related to this worker
-      const workerNodes = nodes.filter(n => 
-        (n.metadata?.authorId === worker.id) || 
+      const workerNodes = nodes.filter(n =>
+        (n.metadata?.authorId === worker.id) ||
         n.tags.includes(worker.name) ||
         n.title.includes(worker.name) ||
         n.description.includes(worker.name)

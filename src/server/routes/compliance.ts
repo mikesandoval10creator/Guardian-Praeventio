@@ -82,7 +82,7 @@ router.get('/processing-activities', (_req, res) => {
 // ---------------------------------------------------------------------------
 
 router.post('/consent', verifyAuth, async (req, res) => {
-  const uid = req.user.uid as string;
+  const uid = req.user!.uid;
   const { purpose, granted, legalBasis, textVersion } = req.body ?? {};
 
   if (!VALID_PURPOSES.includes(purpose)) {
@@ -122,7 +122,7 @@ router.post('/consent', verifyAuth, async (req, res) => {
 });
 
 router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
-  const uid = req.user.uid as string;
+  const uid = req.user!.uid;
   const purpose = req.params.purpose as ConsentPurpose;
   if (!VALID_PURPOSES.includes(purpose)) {
     return res.status(400).json({ error: 'invalid_purpose' });
@@ -145,7 +145,7 @@ router.delete('/consent/:purpose', verifyAuth, async (req, res) => {
 });
 
 router.get('/consent', verifyAuth, async (req, res) => {
-  const uid = req.user.uid as string;
+  const uid = req.user!.uid;
   try {
     const status = await getConsentStatus(getDb(), uid);
     return res.json({ uid, consents: status });
@@ -188,7 +188,7 @@ const dataRequestSchema = z.object({
 });
 
 router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req, res) => {
-  const uid = req.user.uid as string;
+  const uid = req.user!.uid;
   const { type, rectificationPayload, subjectCountry, dataResidency } =
     req.body as {
       type: 'access' | 'rectification' | 'erasure' | 'portability';
@@ -243,7 +243,7 @@ router.post('/data-request', verifyAuth, validate(dataRequestSchema), async (req
 });
 
 router.get('/data-request/:id', verifyAuth, async (req, res) => {
-  const uid = req.user.uid as string;
+  const uid = req.user!.uid;
   const requestId = req.params.id;
   if (!requestId || requestId.length > 128) {
     return res.status(400).json({ error: 'invalid_id' });
@@ -277,7 +277,7 @@ router.get('/data-request/:id', verifyAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/data-export/:requestId', verifyAuth, async (req, res) => {
-  const uid = req.user.uid as string;
+  const uid = req.user!.uid;
   const requestId = req.params.requestId;
   try {
     const request = await getDataAccessRequest(getDb(), requestId);
