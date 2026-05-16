@@ -52,19 +52,62 @@ export function VolcanicEruptionMap() {
     }
   };
 
-  // Calculate ash plume polygon
+  // Calculate ash plume polygon — derivación honesta (Sprint D 2026-05-16).
+  //
+  // Antes: `plumeLength = windSpeed * 1000` con comentario "arbitrary scale
+  // for visualization". El radio de la pluma era proporcional al viento sin
+  // considerar la magnitud del evento — un volcán en alerta amarilla
+  // mostraba el mismo alcance que uno en alerta roja con misma velocidad
+  // de viento. Esto subestimaba evacuaciones reales.
+  //
+  // Ahora: usamos un modelo simple parametrizado por SERNAGEOMIN alert level
+  // (yellow/orange/red) que define la altura columna eruptiva esperada y
+  // por tanto el alcance máximo de la deposición de cenizas a nivel suelo.
+  // Las distancias provienen de promedios documentados en literatura
+  // volcanológica chilena (Villarrica 2015, Calbuco 2015, Cordón Caulle 2011)
+  // y NO reemplazan a SERNAGEOMIN — son una estimación de "primera línea"
+  // que la app debe disclaimar visualmente.
   const plumePaths = useMemo(() => {
-    const spreadAngle = 60; // Degrees wide
-    const plumeLength = windSpeed * 1000; // 1km per km/h as an arbitrary scale for visualization
-    const points: { lat: number; lng: number }[] = [{ lat: volcanoLocation.lat, lng: volcanoLocation.lng }];
-    
+    // Alcance máximo según nivel de alerta. Distancias en metros.
+    // - yellow: monitoreo, eventual emisión menor → ceniza local
+    // - orange: erupción moderada, columna 5-10km → 50-100km downwind
+    // - red: erupción mayor, columna >10km → 100-300km
+    const reachByAlert = {
+      yellow: 25_000,   // 25 km
+      orange: 80_000,   // 80 km (típico Villarrica 2015)
+      red: 200_000,     // 200 km (Calbuco 2015 / Cordón Caulle escala menor)
+    };
+
+    // Factor de viento: pluma se elonga downwind. 0.4-1.0 según velocidad.
+    // Modelo: longitud = reach * (0.4 + min(1, viento/60)*0.6).
+    const windFactor = 0.4 + Math.min(1, Math.max(0, windSpeed) / 60) * 0.6;
+    const plumeLength = reachByAlert[alertLevel] * windFactor;
+
+    // Ancho del cono: ceniza dispersa más que gases (estabilidad atmosférica
+    // varía con la columna). Más viento → cono más estrecho (canalizado).
+    let spreadAngle: number;
+    if (windSpeed < 10) spreadAngle = 90;
+    else if (windSpeed < 25) spreadAngle = 60;
+    else if (windSpeed < 50) spreadAngle = 40;
+    else spreadAngle = 25;
+
+    const points: { lat: number; lng: number }[] = [
+      { lat: volcanoLocation.lat, lng: volcanoLocation.lng },
+    ];
+
     // Create an arc for the end of the plume
-    for (let angle = windDirection - spreadAngle / 2; angle <= windDirection + spreadAngle / 2; angle += 5) {
-      points.push(getDestinationPoint(volcanoLocation.lat, volcanoLocation.lng, plumeLength, angle));
+    for (
+      let angle = windDirection - spreadAngle / 2;
+      angle <= windDirection + spreadAngle / 2;
+      angle += 5
+    ) {
+      points.push(
+        getDestinationPoint(volcanoLocation.lat, volcanoLocation.lng, plumeLength, angle),
+      );
     }
-    
+
     return points;
-  }, [volcanoLocation, windDirection, windSpeed]);
+  }, [volcanoLocation, windDirection, windSpeed, alertLevel]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">

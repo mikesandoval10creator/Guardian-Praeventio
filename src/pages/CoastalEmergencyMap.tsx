@@ -22,6 +22,9 @@ import {
   eonetCategoryGlyph,
   type EonetEvent,
 } from '../services/external/index.js';
+import { useProject } from '../contexts/ProjectContext';
+import { useFirebase } from '../contexts/FirebaseContext';
+import { logger } from '../utils/logger';
 
 const containerStyle = {
   width: '100%',
@@ -34,8 +37,18 @@ const safeZoneLocation = { lat: -33.050, lng: -71.610 }; // Higher ground
 
 export function CoastalEmergencyMap() {
   const { t } = useTranslation();
+  const { selectedProject } = useProject();
+  const { user } = useFirebase();
   const [isTsunamiWarning, setIsTsunamiWarning] = useState(false);
   const [evacuationProgress, setEvacuationProgress] = useState(0);
+  // 2026-05-16 (Sprint D): handleTriggerWarning antes solo contaba
+  // progress local sin contactar a nadie. Ahora llama al endpoint
+  // real `/api/emergency/notify-brigada` que dispara FCM a TODOS los
+  // supervisores del proyecto + audit log. Estos states cubren el
+  // round-trip al servidor.
+  const [notifyStatus, setNotifyStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [notifiedCount, setNotifiedCount] = useState<number>(0);
+  const [notifyError, setNotifyError] = useState<string | null>(null);
 
   // Sprint 39 J4b — EONET layer (eventos marítimos en zona).
   // Layer toggle ON por defecto. Click en marker → tooltip tranquilo.
@@ -72,19 +85,79 @@ export function CoastalEmergencyMap() {
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
-  const handleTriggerWarning = () => {
+  const handleTriggerWarning = async () => {
+    if (!selectedProject || !user) {
+      setNotifyError(
+        t(
+          'coastalEmergency.noProject',
+          'No hay proyecto activo. Selecciona uno para poder activar la alerta.',
+        ) as string,
+      );
+      return;
+    }
     setIsTsunamiWarning(true);
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 5;
-      setEvacuationProgress(progress);
-      if (progress >= 100) clearInterval(interval);
-    }, 1000);
+    setNotifyStatus('sending');
+    setNotifyError(null);
+    setEvacuationProgress(0);
+
+    try {
+      // Llamada REAL al endpoint que dispara FCM a todos los supervisores
+      // del proyecto + escribe audit_log. Esto reemplaza el setInterval
+      // fake que solo simulaba progreso sin contactar a nadie.
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/emergency/notify-brigada', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+          'X-Idempotency-Key': `tsunami-${selectedProject.id}-${Date.now()}`,
+        },
+        body: JSON.stringify({
+          projectId: selectedProject.id,
+          emergencyType: 'tsunami',
+          message: t(
+            'coastalEmergency.fcmMessage',
+            'Alerta tsunami: evacuación inmediata a zona segura (cota alta). Sigue las rutas señalizadas.',
+          ),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'network' }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+
+      const body = (await res.json()) as { notified?: number; failed?: number };
+      setNotifiedCount(body.notified ?? 0);
+      setNotifyStatus('sent');
+
+      // Animación de progreso ahora es FEEDBACK VISUAL post-notificación
+      // exitosa (no la fuente de verdad). Se rueda en 5s para indicar
+      // que el flujo está activo.
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 5;
+        setEvacuationProgress(progress);
+        if (progress >= 100) clearInterval(interval);
+      }, 250);
+    } catch (err) {
+      logger.error('CoastalEmergency: notify-brigada fallback', err);
+      setNotifyStatus('error');
+      setNotifyError(
+        t(
+          'coastalEmergency.notifyError',
+          'No pudimos contactar a la brigada vía FCM. Llama directo al teléfono de emergencia y reintenta.',
+        ) as string,
+      );
+    }
   };
 
   const handleCancelWarning = () => {
     setIsTsunamiWarning(false);
     setEvacuationProgress(0);
+    setNotifyStatus('idle');
+    setNotifiedCount(0);
+    setNotifyError(null);
   };
 
   // Simple polygon to represent the ocean/inundation zone
@@ -129,31 +202,63 @@ export function CoastalEmergencyMap() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-4 rounded-xl bg-blue-900/40 border border-blue-500/50 flex items-start gap-4"
+          className={`p-4 rounded-xl border flex items-start gap-4 ${
+            notifyStatus === 'error'
+              ? 'bg-rose-900/40 border-rose-500/50'
+              : 'bg-blue-900/40 border-blue-500/50'
+          }`}
         >
-          <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 animate-pulse">
-            <Waves className="w-6 h-6 text-blue-400" />
+          <div
+            className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 animate-pulse ${
+              notifyStatus === 'error' ? 'bg-rose-500/20' : 'bg-blue-500/20'
+            }`}
+          >
+            <Waves
+              className={`w-6 h-6 ${notifyStatus === 'error' ? 'text-rose-400' : 'text-blue-400'}`}
+            />
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-bold text-blue-400 uppercase tracking-wider">
-              Alerta de Tsunami Emitida (SHOA)
+            <h2
+              className={`text-lg font-bold uppercase tracking-wider ${notifyStatus === 'error' ? 'text-rose-400' : 'text-blue-400'}`}
+            >
+              {notifyStatus === 'sending'
+                ? t('coastalEmergency.notifyingTitle', 'Notificando a la brigada...')
+                : notifyStatus === 'sent'
+                  ? t('coastalEmergency.notifiedTitle', `Brigada notificada (${notifiedCount} supervisores)`)
+                  : notifyStatus === 'error'
+                    ? t('coastalEmergency.errorTitle', 'Error notificando brigada')
+                    : t('coastalEmergency.alertTitle', 'Alerta de Tsunami Emitida (SHOA)')}
             </h2>
             <p className="text-sm text-blue-300/80 mt-1">
-              Evacuar inmediatamente a cota 30 (Zona Segura). Tiempo estimado de
-              arribo: 15 minutos.
+              {notifyStatus === 'sent'
+                ? t(
+                    'coastalEmergency.alertBody',
+                    'Evacuar inmediatamente a cota 30 (Zona Segura). Tiempo estimado de arribo: 15 minutos. FCM push enviado.',
+                  )
+                : notifyStatus === 'error'
+                  ? notifyError
+                  : t('coastalEmergency.connecting', 'Conectando con servidor de emergencia...')}
             </p>
-            <div className="mt-4">
-              <div className="flex justify-between text-xs text-blue-300 mb-1">
-                <span>Progreso de Evacuación</span>
-                <span>{evacuationProgress}%</span>
+            {notifyStatus === 'sent' && (
+              <div className="mt-4">
+                <div className="flex justify-between text-xs text-blue-300 mb-1">
+                  <span>{t('coastalEmergency.progressLabel', 'Progreso de Evacuación')}</span>
+                  <span>{evacuationProgress}%</span>
+                </div>
+                <div className="w-full h-2 bg-blue-950 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-250 ease-linear"
+                    style={{ width: `${evacuationProgress}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] text-blue-400/70">
+                  {t(
+                    'coastalEmergency.progressDisclaimer',
+                    'Animación visual post-notificación. Las acciones reales las ejecuta la brigada en terreno.',
+                  )}
+                </p>
               </div>
-              <div className="w-full h-2 bg-blue-950 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-1000 ease-linear"
-                  style={{ width: `${evacuationProgress}%` }}
-                />
-              </div>
-            </div>
+            )}
           </div>
         </motion.div>
       )}
