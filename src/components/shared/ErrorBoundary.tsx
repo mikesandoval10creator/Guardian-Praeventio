@@ -49,7 +49,7 @@ const CATEGORY_COPY: Record<ErrorCategory, { title: string; description: string;
 };
 
 export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
+  public override state: State = {
     hasError: false,
     error: null,
     category: 'runtime',
@@ -59,7 +59,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, category: classifyError(error) };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public override componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     logger.error('Uncaught error: ' + error.message, { componentStack: errorInfo.componentStack ?? '' });
     captureEmergencyError(error, {
       boundary: 'global',
@@ -68,7 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
     });
   }
 
-  public render() {
+  public override render() {
     if (this.state.hasError) {
       if (this.props.silent) {
         return (

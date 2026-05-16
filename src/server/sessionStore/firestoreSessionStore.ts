@@ -184,7 +184,7 @@ export class FirestoreSessionStore extends Store {
 
   // ── touch ───────────────────────────────────────────────────────────
   // Extiende TTL sin re-escribir el payload completo.
-  touch(sid: string, sess: SessionData, callback?: Callback): void {
+  override touch(sid: string, sess: SessionData, callback?: Callback): void {
     const expiresAt = this.computeExpiresAt(sess);
     this.ref(sid)
       .update({ expiresAt })
@@ -207,7 +207,7 @@ export class FirestoreSessionStore extends Store {
   }
 
   // ── length ──────────────────────────────────────────────────────────
-  length(callback: Callback<number>): void {
+  override length(callback: Callback<number>): void {
     this.db
       .collection(this.collectionName)
       .count()
@@ -219,7 +219,7 @@ export class FirestoreSessionStore extends Store {
   // ── clear ───────────────────────────────────────────────────────────
   // Borra TODAS las sesiones — solo expone para tests/admin.
   // En producción, usar Firestore TTL policy sobre `expiresAt`.
-  clear(callback?: Callback): void {
+  override clear(callback?: Callback): void {
     (async () => {
       try {
         const snap = await this.db.collection(this.collectionName).get();
@@ -234,7 +234,7 @@ export class FirestoreSessionStore extends Store {
   }
 
   // ── all ─────────────────────────────────────────────────────────────
-  all(
+  override all(
     callback: Callback<SessionData[] | { [sid: string]: SessionData } | null>,
   ): void {
     this.db

@@ -194,7 +194,7 @@ async function loadCapacitorIapPlugin(): Promise<CapacitorIapPlugin> {
 
 export class IapAdapterError extends Error {
   readonly method: string;
-  readonly cause?: unknown;
+  override readonly cause?: unknown;
   constructor(method: string, cause: unknown) {
     const causeMsg =
       cause instanceof Error
