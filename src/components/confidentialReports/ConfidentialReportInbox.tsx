@@ -46,9 +46,21 @@ export function ConfidentialReportInbox({
     return reports
       .map((r) => ({ report: r, sla: computeLegalDeadlines(r) }))
       .sort((a, b) => {
-        // breached primero, luego at_risk, luego on_track
+        // Primario: breached primero, luego at_risk, luego on_track.
+        // Secundario: dentro del mismo status, los más antiguos primero
+        // (un reporte breached de hace 14 días es más urgente que uno
+        // breached de hace 4 días — ambos están incumplidos pero el
+        // más viejo escala antes en Ley Karin).
         const order = { breached: 0, at_risk: 1, on_track: 2 };
-        return order[a.sla.slaStatus] - order[b.sla.slaStatus];
+        const statusDiff = order[a.sla.slaStatus] - order[b.sla.slaStatus];
+        if (statusDiff !== 0) return statusDiff;
+        // Date.parse devuelve NaN para strings malformados; tratamos
+        // NaN como "más viejo" (cae al final con isNaN ? Infinity).
+        const aMs = Date.parse(a.report.submittedAt);
+        const bMs = Date.parse(b.report.submittedAt);
+        const aKey = Number.isFinite(aMs) ? aMs : Number.POSITIVE_INFINITY;
+        const bKey = Number.isFinite(bMs) ? bMs : Number.POSITIVE_INFINITY;
+        return aKey - bKey;
       });
   }, [reports]);
 

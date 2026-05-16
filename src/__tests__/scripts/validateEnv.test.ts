@@ -58,8 +58,13 @@ function buildHealthyEnv(): Record<string, string> {
 describe('validate-env (Bucket U.1)', () => {
   it('rejects empty env with MISSING errors for every required var', () => {
     const result = check({});
-    // Should flag every non-optional spec.
-    const requiredCount = REQUIRED_PROD.filter((s) => !s.optional).length;
+    // Should flag every non-optional spec EXCEPT those guarded by
+    // requiredIf (e.g. KMS_KEY_RESOURCE_NAME, que solo se exige cuando
+    // KMS_ADAPTER === 'cloud-kms' — con env vacío el predicado es
+    // false y la spec se salta sin generar MISSING).
+    const requiredCount = REQUIRED_PROD.filter(
+      (s) => !s.optional && !s.requiredIf,
+    ).length;
     expect(result.errors.length).toBeGreaterThanOrEqual(requiredCount);
     expect(result.errors.every((e) => e.startsWith('MISSING:'))).toBe(true);
     expect(result.checked).toBe(REQUIRED_PROD.length);
@@ -113,8 +118,10 @@ describe('validate-env (Bucket U.1)', () => {
     const result = check(env);
     const invalid = result.errors.filter((e) => e.startsWith('INVALID VALUE:'));
     expect(invalid.some((e) => e.includes('KMS_ADAPTER'))).toBe(true);
+    // Sprint 39 B.3 cerró 'in-memory-dev' como valor prod aceptado; el
+    // único allowedValue en prod es 'cloud-kms'. El mensaje de error
+    // refleja eso (no incluye 'in-memory-dev' ya).
     expect(invalid[0]).toContain('cloud-kms');
-    expect(invalid[0]).toContain('in-memory-dev');
   });
 
   it('test mode tolerates placeholders and missing non-optional vars (CI smoke)', () => {
