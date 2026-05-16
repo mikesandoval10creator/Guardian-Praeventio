@@ -283,6 +283,29 @@ export function Settings() {
               </p>
               <KekRotationPanel />
             </div>
+            {/* End-to-end wire: link a la página de Salud del Sistema
+                (que ya corre el monitor con checkers REALES). */}
+            <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
+              <button
+                type="button"
+                onClick={() => navigate('/settings/system-health')}
+                data-testid="settings-system-health-link"
+                className="w-full flex items-center justify-between p-3 rounded-lg bg-white/50 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 hover:border-teal-500/40 transition-colors text-left"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-zinc-900 dark:text-white">
+                    {t('settings.security.system_health_link', 'Salud del sistema')}
+                  </p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-500 mt-0.5">
+                    {t(
+                      'settings.security.system_health_desc',
+                      'Estado en vivo de los 6 subsistemas: IA local, grafo, base de datos, cifrado, cache, red.',
+                    )}
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0 ml-2" aria-hidden="true" />
+              </button>
+            </div>
             {/* Sprint 31 Bucket MM — Datos personales y privacidad. */}
             <div className="pt-2 border-t border-zinc-200 dark:border-white/5">
               <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-2">{t('settings.security.privacy_title', 'Datos personales y privacidad')}</h4>
