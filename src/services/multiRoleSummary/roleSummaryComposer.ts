@@ -87,13 +87,19 @@ export interface RoleSummary {
 // Audience priority — qué métricas son más importantes para cada rol
 // ────────────────────────────────────────────────────────────────────────
 
+// Extracted `highlights[].kind` literal union — the conditional-type
+// `ProjectSnapshot['highlights'] extends Array<infer T> ? ...` resolved
+// to `never` under strictNullChecks because `highlights?` is optional
+// (i.e. `Array<...> | undefined`, and `undefined extends Array<infer>`
+// is false → fallback `never`). Using `NonNullable<...>[number]['kind']`
+// strips the `| undefined` first so the resulting `K[]` is preserved.
+type HighlightKind = NonNullable<ProjectSnapshot['highlights']>[number]['kind'];
+
 interface AudiencePolicy {
   /** Orden de prioridad de métricas (más importante primero). */
   metricPriority: Array<keyof NonNullable<ProjectSnapshot['metrics']>>;
   /** Highlight kinds que esta audiencia ve. */
-  visibleHighlightKinds: ProjectSnapshot['highlights'] extends Array<infer T>
-    ? T extends { kind: infer K } ? K[] : never
-    : never;
+  visibleHighlightKinds: HighlightKind[];
   /** Tono general del summary. */
   tone: 'operational' | 'strategic' | 'compliance' | 'individual';
   /** Max bullets a incluir. */

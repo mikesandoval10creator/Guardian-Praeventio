@@ -29,7 +29,11 @@ export function PredictiveAnalysis() {
     setAnalyzing(true);
     try {
       const context = nodes.map(n => `- [${n.type}] ${n.title}: ${n.description} (Tags: ${n.tags.join(', ')})`).join('\n');
-      const envContext = environment ? `Clima: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h. Sismos recientes: ${environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud + ' en ' + environment.earthquakes[0].RefGeografica : 'Ninguno'}.` : 'Sin datos ambientales.';
+      const weather = environment?.weather;
+      const earthquakes = environment?.earthquakes ?? [];
+      const envContext = environment
+        ? `Clima: ${weather?.temp ?? '?'}°C, Viento: ${weather?.windSpeed ?? '?'}km/h. Sismos recientes: ${earthquakes.length > 0 ? earthquakes[0].Magnitud + ' en ' + earthquakes[0].RefGeografica : 'Ninguno'}.`
+        : 'Sin datos ambientales.';
       const data = await predictGlobalIncidents(context, envContext);
       setResults(data);
     } catch (error) {
@@ -45,7 +49,11 @@ export function PredictiveAnalysis() {
     try {
       const node = nodes.find(n => n.id === nodeId);
       const connections = node?.connections.map(id => nodes.find(n => n.id === id)?.title).join(', ') || 'Ninguna';
-      const envContext = environment ? `Clima: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h. Sismos: ${environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud : 'Ninguno'}.` : 'Sin datos ambientales.';
+      const weather = environment?.weather;
+      const earthquakes = environment?.earthquakes ?? [];
+      const envContext = environment
+        ? `Clima: ${weather?.temp ?? '?'}°C, Viento: ${weather?.windSpeed ?? '?'}km/h. Sismos: ${earthquakes.length > 0 ? earthquakes[0].Magnitud : 'Ninguno'}.`
+        : 'Sin datos ambientales.';
       
       const context = `
 Riesgo Principal: ${title}
