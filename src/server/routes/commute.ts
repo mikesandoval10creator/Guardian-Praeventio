@@ -59,8 +59,8 @@ async function tenantIdFor(projectId: string): Promise<string | null> {
 }
 
 router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
   const { type, projectId } = req.body ?? {};
 
   if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {
@@ -123,7 +123,7 @@ router.post('/start', verifyAuth, commuteLimiter, async (req, res) => {
 });
 
 router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { sessionId, lat, lng, speedKmh, accuracyM, timestamp } = req.body ?? {};
 
   if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
@@ -202,8 +202,8 @@ router.post('/sample', verifyAuth, commuteLimiter, async (req, res) => {
 });
 
 router.post('/end', verifyAuth, commuteLimiter, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
   const { sessionId } = req.body ?? {};
 
   if (typeof sessionId !== 'string' || !SESSION_ID_REGEX.test(sessionId)) {
