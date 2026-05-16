@@ -104,10 +104,10 @@ function PosterAnimationOverlay({
 
   // Auto-avance del timer.
   useEffect(() => {
-    if (paused) return;
-    if (steps.length === 0) return;
+    if (paused) return undefined;
+    if (steps.length === 0) return undefined;
     const step = steps[currentStep];
-    if (!step) return;
+    if (!step) return undefined;
     const timer = window.setTimeout(() => {
       if (currentStep < steps.length - 1) {
         setCurrentStep((s) => s + 1);
@@ -415,11 +415,11 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
 
   // Loop de escaneo.
   useEffect(() => {
-    if (!cameraReady || !matcherReady || paused || matchedPoster) return;
-    if (!videoRef.current || !canvasRef.current) return;
+    if (!cameraReady || !matcherReady || paused || matchedPoster) return undefined;
+    if (!videoRef.current || !canvasRef.current) return undefined;
     if (matchableCatalog.length === 0) {
       // Sin embeddings pre-computados, el loop no haría nada útil.
-      return;
+      return undefined;
     }
 
     const tick = async () => {
