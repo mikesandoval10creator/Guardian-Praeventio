@@ -12,7 +12,7 @@ interface TraceabilityModalProps {
   projectId: string | null;
 }
 
-export function TraceabilityModal({ isOpen, onClose, worker, projectId }: TraceabilityModalProps) {
+export function TraceabilityModal({ isOpen, onClose, worker, projectId: _projectId }: TraceabilityModalProps) {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -125,7 +125,7 @@ export function TraceabilityModal({ isOpen, onClose, worker, projectId }: Tracea
                 </div>
               ) : logs.length > 0 ? (
                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-zinc-200 dark:before:via-white/10 before:to-transparent">
-                  {logs.map((log, index) => {
+                  {logs.map((log, _index) => {
                     const Icon = log.icon;
                     return (
                       <div key={log.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">

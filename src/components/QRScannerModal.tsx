@@ -30,7 +30,7 @@ export function QRScannerModal({ isOpen, onClose, onScan }: QRScannerModalProps)
         setIsScanning(false);
         onClose();
       },
-      (error) => {
+      (_error) => {
         // Ignore errors, they happen constantly when no QR is in frame
       }
     );

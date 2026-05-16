@@ -89,7 +89,7 @@ export function useGamification() {
     fetchStats();
   }, [user]);
 
-  const addPoints = async (amount: number, reason: string) => {
+  const addPoints = async (amount: number, _reason: string) => {
     if (!user) return;
     const docRef = doc(db, 'user_stats', user.uid);
     await updateDoc(docRef, {

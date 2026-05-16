@@ -27,7 +27,7 @@ const critical = (id: string): SubsystemChecker => async () => ({
   detail: `${id}: down`,
 });
 
-const failing = (id: string, msg = 'boom'): SubsystemChecker => async () => {
+const failing = (_id: string, msg = 'boom'): SubsystemChecker => async () => {
   throw new Error(msg);
 };
 

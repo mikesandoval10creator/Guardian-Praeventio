@@ -30,7 +30,8 @@
     "noFallthroughCasesInSwitch": true,
     "strictBindCallApply": true,
     "noImplicitOverride": true,
-    "strictFunctionTypes": true
+    "strictFunctionTypes": true,
+    "noUnusedParameters": true
   },
   "include": ["src", "server.ts"],
   "exclude": ["node_modules", "dist"]

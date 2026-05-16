@@ -621,7 +621,7 @@ export const generateISOAuditChecklist = async (topic: string, context: string) 
   return JSON.parse(response.text);
 };
 
-export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, glossary: any, envContext: string, zkContext: string, documentType: string) => {
+export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, _glossary: any, envContext: string, zkContext: string, documentType: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -667,7 +667,7 @@ export const generatePTS = async (taskName: string, taskDescription: string, ris
   return JSON.parse(response.text || '{}');
 };
 
-export const generatePTSWithManufacturerData = async (taskName: string, taskDescription: string, machineryDetails: string, riskLevel: string, normative: string, glossary: any, envContext: string, zkContext: string, documentType: string) => {
+export const generatePTSWithManufacturerData = async (taskName: string, taskDescription: string, machineryDetails: string, riskLevel: string, normative: string, _glossary: any, envContext: string, zkContext: string, documentType: string) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
   const ai = new GoogleGenAI({ apiKey: API_KEY });
@@ -2762,7 +2762,7 @@ export const calculateComplianceSummary = async (projectId: string, nodes: any[]
   return JSON.parse(response.text);
 };
 
-export const processGlobalSafetyAudit = async (projectId: string, projectData: any) => {
+export const processGlobalSafetyAudit = async (_projectId: string, projectData: any) => {
   if (!API_KEY) throw new Error("GEMINI_API_KEY is not configured");
   const ai = new GoogleGenAI({ apiKey: API_KEY });
 

@@ -87,7 +87,7 @@ vi.mock('./mercadoPagoAdapter.js', () => ({
   },
   MercadoPagoAdapterError: class MercadoPagoAdapterError extends Error {
     method: string;
-    constructor(method: string, cause: unknown) {
+    constructor(method: string, _cause: unknown) {
       super(`MercadoPagoAdapter.${method}() failed`);
       this.method = method;
     }

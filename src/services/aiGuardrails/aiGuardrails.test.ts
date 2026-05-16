@@ -146,7 +146,7 @@ describe('runEvalSuite — regression / dataset eval', () => {
   ];
 
   it('todos los casos pasan → passRate 1', async () => {
-    const report = await runEvalSuite(TEMPLATE, cases, async (rendered, id) => {
+    const report = await runEvalSuite(TEMPLATE, cases, async (_rendered, id) => {
       if (id === 'epp-altura') return 'Necesitas arnés y casco según el nodo.';
       return 'Curso de químicos según DS 594.';
     });
@@ -155,7 +155,7 @@ describe('runEvalSuite — regression / dataset eval', () => {
   });
 
   it('un caso falla → reporta detalle', async () => {
-    const report = await runEvalSuite(TEMPLATE, cases, async (rendered, id) => {
+    const report = await runEvalSuite(TEMPLATE, cases, async (_rendered, id) => {
       if (id === 'epp-altura') return 'No tengo esa info';
       return 'Curso de químicos según DS 594.';
     });

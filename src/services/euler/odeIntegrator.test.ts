@@ -86,7 +86,7 @@ describe('eulerScalar — convergence vs known closed-form solutions', () => {
 describe('eulerStep / eulerIntegrate — generic state plumbing', () => {
   it('eulerStep one-shot for vector ODE [x,y]', () => {
     type Vec = { x: number; y: number };
-    const derivative: DerivativeFn<Vec> = (_, s) => ({ x: 1, y: 2 });
+    const derivative: DerivativeFn<Vec> = (_, _s) => ({ x: 1, y: 2 });
     const add: StateAdder<Vec> = (s, d, h) => ({ x: s.x + h * d.x, y: s.y + h * d.y });
     const result = eulerStep({
       t: 0,

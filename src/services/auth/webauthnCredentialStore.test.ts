@@ -63,7 +63,7 @@ function makeFakeDb(now: () => number = () => Date.now()): {
             },
           };
         },
-        where(field: string, op: '==', value: unknown) {
+        where(field: string, _op: '==', value: unknown) {
           return {
             async get() {
               const docs: Array<{ id: string; data: () => Record<string, unknown> }> = [];

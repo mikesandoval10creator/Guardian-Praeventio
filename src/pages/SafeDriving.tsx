@@ -67,7 +67,7 @@ export function SafeDriving() {
     setMap(map);
   }, []);
 
-  const onUnmount = useCallback(function callback(map: google.maps.Map) {
+  const onUnmount = useCallback(function callback(_map: google.maps.Map) {
     setMap(null);
   }, []);
 

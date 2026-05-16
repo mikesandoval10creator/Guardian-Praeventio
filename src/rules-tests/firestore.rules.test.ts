@@ -146,7 +146,7 @@ describe('firestore.rules', () => {
   // Vitest doesn't have a native "skip whole describe based on async state",
   // so each `it` checks the flag. The cost is one branch per test; the win
   // is that vitest still reports skipped tests rather than crashing.
-  function maybeSkip(ctx: { skip: () => void }) {
+  function maybeSkip(_ctx: { skip: () => void }) {
     if (!testEnv) {
       throw new Error(`[rules-tests] FAILED TO START EMULATOR. Tests cannot be skipped: ${skipReason}`);
     }
