@@ -37,6 +37,11 @@ import { runCalendarPreWarnCron } from '../../services/predictiveAlerts/calendar
 // Sprint 56 follow-up — resilience health alert cron.
 import { runResilienceHealthAlertCron } from '../jobs/runResilienceHealthAlert.js';
 import { fcmAdapter } from '../../services/notifications/fcmAdapter.js';
+// Sprint E backend debt (2026-05-16) — B2D MRR monthly snapshot.
+// El B2dAdminPanel hace render de la serie temporal MRR; sin este job
+// solo aparece el punto del mes actual. Endpoint dedicado para Cloud
+// Scheduler corriendo día 1 de cada mes a 00:30 UTC.
+import { runB2dMrrSnapshot } from '../jobs/runB2dMrrSnapshot.js';
 
 const router = Router();
 
@@ -224,6 +229,44 @@ router.post('/check-overdue', verifySchedulerToken, async (_req, res) => {
     return res
       .status(500)
       .json({ ok: false, error: 'internal_error', message: 'check-overdue failed' });
+  }
+});
+
+// Sprint E backend debt (2026-05-16) — B2D MRR monthly snapshot.
+//
+//   POST /api/maintenance/run-b2d-mrr-snapshot
+//
+// Cloud Scheduler corre esto día 1 de cada mes a 00:30 UTC para
+// capturar las métricas finales del mes anterior. Es idempotente:
+// puede re-correrse a mediados de mes para refrescar el valor en
+// curso sin borrar `capturedAt`.
+router.post('/run-b2d-mrr-snapshot', verifySchedulerToken, async (_req, res) => {
+  const start = Date.now();
+  try {
+    const db = admin.firestore();
+    const result = await runB2dMrrSnapshot({ db });
+    logger.info('[maintenance] b2d-mrr-snapshot done', {
+      monthKey: result.monthKey,
+      created: result.created,
+      mrr: result.snapshot.mrr,
+      arr: result.snapshot.arr,
+      tookMs: Date.now() - start,
+    });
+    return res.status(200).json({
+      ok: true,
+      monthKey: result.monthKey,
+      created: result.created,
+      mrr: result.snapshot.mrr,
+      arr: result.snapshot.arr,
+      customersActive: result.snapshot.customersActive,
+      tookMs: Date.now() - start,
+    });
+  } catch (err) {
+    logger.error('[maintenance] b2d-mrr-snapshot failed', err);
+    captureRouteError(err, 'maintenance.b2d-mrr-snapshot');
+    return res
+      .status(500)
+      .json({ ok: false, error: 'internal_error', message: 'b2d-mrr-snapshot failed' });
   }
 });
 

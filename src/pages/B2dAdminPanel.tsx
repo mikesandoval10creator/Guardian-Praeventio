@@ -71,21 +71,41 @@ function formatDate(ts: number | null): string {
   return new Date(ts).toLocaleDateString('es-CL');
 }
 
+/**
+ * Sprint E backend debt (2026-05-16): shape canónico de un snapshot
+ * MRR mensual. Match con `B2dMrrSnapshotDoc` en
+ * `src/server/jobs/runB2dMrrSnapshot.ts`. No importamos el tipo
+ * server-side desde el cliente para mantener separación; si el shape
+ * cambia, los dos lados se actualizan en el mismo PR.
+ */
+interface B2dMrrSnapshot {
+  monthKey: string;
+  monthLabel: string;
+  mrr: number;
+  arr: number;
+  customersActive: number;
+  customersTotal: number;
+  churnRate30d: number;
+  capturedAt: string;
+}
+
 export function B2dAdminPanel() {
   const { t } = useTranslation();
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [metrics, setMetrics] = useState<B2dMetrics | null>(null);
   const [events, setEvents] = useState<B2dEvent[]>([]);
+  const [mrrHistory, setMrrHistory] = useState<B2dMrrSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [keysRes, metricsRes, eventsRes] = await Promise.all([
+      const [keysRes, metricsRes, eventsRes, mrrHistoryRes] = await Promise.all([
         authedFetch('/api/admin/b2d/keys'),
         authedFetch('/api/admin/b2d/metrics'),
         authedFetch('/api/admin/b2d/events'),
+        authedFetch('/api/admin/b2d/mrr-history?limit=12'),
       ]);
       if (keysRes.ok) {
         const data = await keysRes.json();
@@ -98,6 +118,10 @@ export function B2dAdminPanel() {
       if (eventsRes.ok) {
         const data = await eventsRes.json();
         setEvents(Array.isArray(data.events) ? data.events : []);
+      }
+      if (mrrHistoryRes.ok) {
+        const data = await mrrHistoryRes.json();
+        setMrrHistory(Array.isArray(data.snapshots) ? data.snapshots : []);
       }
     } catch (err) {
       logger.error('b2d_admin_panel_load_failed', err);
@@ -161,19 +185,27 @@ export function B2dAdminPanel() {
     return counts;
   }, [keys]);
 
-  // MRR-over-time series. 2026-05-16 (Sprint D fix): antes esta función
-  // sintetizaba un ramp LINEAL desde 0 hasta el MRR actual distribuido
-  // por 11 meses — visual pero MENTIROSO porque el chart parecía mostrar
-  // crecimiento histórico real cuando los puntos eran fórmula simple.
+  // MRR-over-time series. Histórico real desde `b2d_mrr_snapshots`
+  // collection (escrito por el cron `runB2dMrrSnapshot` cada mes,
+  // wireado en /api/maintenance/run-b2d-mrr-snapshot).
   //
-  // Ahora: mostramos SOLO el punto actual (mes actual) hasta que el
-  // cron `runB2dMrrSnapshot` (TODO Sprint E, ver server/jobs/) llene
-  // `b2d_mrr_snapshots/{YYYY-MM}` con valores reales mensuales.
+  // Estados:
+  //   - mrrHistory NO vacío → chart con snapshots históricos.
+  //   - mrrHistory vacío + metrics presente → fallback al punto único
+  //     del mes actual (sin synthesis falsa). El usuario ve la realidad:
+  //     todavía no hay histórico capturado.
+  //   - mrrHistory vacío + metrics ausente → [] (loading).
   //
-  // Esto cumple Regla #3: producir solución honesta en vez de fingir
-  // historia que no existe. El usuario ve el valor real + leyenda
-  // explicando que el histórico está pendiente.
+  // 2026-05-16 (Sprint E): cierra el TODO Sprint D fix sustituyendo
+  // el placeholder del mes actual con datos reales mensuales cuando
+  // están disponibles. Sigue siendo honesto en el caso vacío.
   const mrrSeries = useMemo<MrrPoint[]>(() => {
+    if (mrrHistory.length > 0) {
+      return mrrHistory.map((s) => ({
+        monthLabel: s.monthLabel,
+        mrr: s.mrr,
+      }));
+    }
     if (!metrics) return [];
     const now = new Date();
     const monthLabel = now.toLocaleDateString('es-CL', {
@@ -181,7 +213,7 @@ export function B2dAdminPanel() {
       year: '2-digit',
     });
     return [{ monthLabel, mrr: metrics.mrr }];
-  }, [metrics]);
+  }, [mrrHistory, metrics]);
 
   return (
     <PremiumFeatureGuard

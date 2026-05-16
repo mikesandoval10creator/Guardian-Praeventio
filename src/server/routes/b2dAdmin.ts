@@ -28,6 +28,7 @@ import { isAdminRole } from '../../types/roles.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 import { computeB2dMetrics } from '../../services/analytics/b2dMetrics.js';
+import { readRecentB2dMrrSnapshots } from '../jobs/runB2dMrrSnapshot.js';
 import { API_TIERS, type ApiTierId } from '../../services/pricing/aiTier.js';
 // Bucket BB shipped â€” we depend on the canonical key service directly.
 import {
@@ -235,6 +236,37 @@ router.get('/metrics', verifyAuth, async (req, res) => {
   } catch (error) {
     logger.error('b2d_admin_metrics_failed', error);
     captureRouteError(error, 'b2dAdmin.metrics');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/b2d/mrr-history?limit=12
+//
+// Sprint E backend debt (2026-05-16): el B2dAdminPanel mostraba un solo
+// punto (mes actual) en el chart MRR porque no había histórico
+// persistido. Este endpoint expone `b2d_mrr_snapshots/{YYYY-MM}` (más
+// reciente primero) escritos por el cron `runB2dMrrSnapshot`.
+//
+// Si todavía no se ha corrido ningún snapshot (deployment fresco), el
+// caller debe seguir mostrando solo el punto de `/metrics` actual sin
+// pretender historia que no existe.
+// ---------------------------------------------------------------------------
+router.get('/mrr-history', verifyAuth, async (req, res) => {
+  if (!(await assertAdmin(req, res))) return;
+  const limitRaw = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : NaN;
+  // Tope absoluto: 36 meses (3 años). Default: 12 meses (1 año).
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 36) : 12;
+  try {
+    const snapshots = await readRecentB2dMrrSnapshots(admin.firestore(), limit);
+    // Devolvemos en orden ascendente para que el chart no tenga que
+    // reverse() — el caller pinta de izquierda (más antiguo) a derecha
+    // (más reciente).
+    const ascending = [...snapshots].reverse();
+    res.json({ ok: true, snapshots: ascending });
+  } catch (error) {
+    logger.error('b2d_admin_mrr_history_failed', error);
+    captureRouteError(error, 'b2dAdmin.mrr_history');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
