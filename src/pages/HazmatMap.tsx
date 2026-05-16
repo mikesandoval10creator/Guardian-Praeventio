@@ -5,6 +5,12 @@ import { Card, Button } from '../components/shared/Card';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Polygon } from '@react-google-maps/api';
 import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { useTranslation } from 'react-i18next';
+import {
+  computeExposureDistances,
+  estimatePlumeConeDegrees,
+  periodFromDate,
+  type HazmatClass,
+} from '../services/hazmat/hazmatExposureCalculator';
 
 const containerStyle = {
   width: '100%',
@@ -38,28 +44,51 @@ export function HazmatMap() {
   const [incidentLocation, setIncidentLocation] = useState({ lat: -33.4489, lng: -70.6693, name: 'Planta Química' });
   const [windDirection, setWindDirection] = useState(120); // Degrees (direction wind is blowing towards)
   const [windSpeed, setWindSpeed] = useState(15); // km/h
-  const [chemicalType, setChemicalType] = useState<'gas' | 'liquid'>('gas');
+  // 2026-05-15 (Sprint C): antes este UI usaba dos toggles ('gas'/'liquid' y
+  // 'small'/'large') y hardcoded los radios (30/60 isolation, 100/300
+  // protection) sin referenciar fuente. Ahora aceptamos hazmatClass NU
+  // (Class 2.1, 2.3, 3, 8, etc.) y delegamos al calculador GRE 2024.
+  const [hazmatClass, setHazmatClass] = useState<HazmatClass>('class_2_3');
   const [spillSize, setSpillSize] = useState<'small' | 'large'>('large');
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
-  const isolationDistance = spillSize === 'small' ? 30 : 60; // meters
-  const protectionDistance = spillSize === 'small' ? 100 : 300; // meters
+  // Distancias reales según GRE 2024 Green Pages. Día/noche se decide
+  // por hora local — la noche dispara la zona de acción protectiva por
+  // inversión térmica.
+  const period = useMemo(() => periodFromDate(), []);
+  const exposure = useMemo(
+    () => computeExposureDistances(hazmatClass, spillSize, period),
+    [hazmatClass, spillSize, period],
+  );
+  const protectionDistanceNight = useMemo(
+    () => computeExposureDistances(hazmatClass, spillSize, 'night').protectiveActionDistanceM,
+    [hazmatClass, spillSize],
+  );
+  const isolationDistance = exposure.initialIsolationRadiusM;
+  const protectionDistance = exposure.protectiveActionDistanceM;
 
-  // Calculate plume polygon (cone shape)
+  // Calculate plume polygon (cone shape) — ancho depende del viento real
+  // (estabilidad atmosférica Pasquill aproximada). 45° era arbitrario y
+  // hacía la pluma idéntica con viento de 5 km/h o 50 km/h.
   const plumePaths = useMemo(() => {
-    const spreadAngle = 45; // Degrees wide
+    const spreadAngle = estimatePlumeConeDegrees(windSpeed);
     const points: { lat: number; lng: number }[] = [{ lat: incidentLocation.lat, lng: incidentLocation.lng }];
-    
-    // Create an arc for the end of the plume
+
     for (let angle = windDirection - spreadAngle / 2; angle <= windDirection + spreadAngle / 2; angle += 5) {
       points.push(getDestinationPoint(incidentLocation.lat, incidentLocation.lng, protectionDistance, angle));
     }
-    
-    return points;
-  }, [incidentLocation, windDirection, protectionDistance]);
 
-  const plumeColor = chemicalType === 'gas' ? '#8b5cf6' : '#10b981';
+    return points;
+  }, [incidentLocation, windDirection, windSpeed, protectionDistance]);
+
+  // Color de la pluma — gas tóxico/inflamable vs. corrosivo/líquido.
+  const plumeColor =
+    hazmatClass === 'class_2_1' || hazmatClass === 'class_2_3' || hazmatClass === 'class_2_2'
+      ? '#8b5cf6'
+      : hazmatClass === 'class_8'
+        ? '#f59e0b'
+        : '#10b981';
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8">
@@ -91,11 +120,28 @@ export function HazmatMap() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Tipo de Sustancia</label>
-              <div className="flex gap-2">
-                <button onClick={() => setChemicalType('gas')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${chemicalType === 'gas' ? 'bg-violet-500/20 text-violet-400 border-violet-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Gas Tóxico</button>
-                <button onClick={() => setChemicalType('liquid')} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider border ${chemicalType === 'liquid' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>Líquido Inflamable</button>
-              </div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">
+                {t('hazmat.params.class', 'Clase NU (UN Class)')}
+              </label>
+              <select
+                value={hazmatClass}
+                onChange={(e) => setHazmatClass(e.target.value as HazmatClass)}
+                className="w-full px-3 py-2 rounded-lg bg-zinc-900 border border-white/5 text-white text-sm focus:outline-none focus:border-violet-500"
+              >
+                <option value="class_1">Clase 1 — Explosivos</option>
+                <option value="class_2_1">Clase 2.1 — Gas Inflamable</option>
+                <option value="class_2_2">Clase 2.2 — Gas No-Inflamable</option>
+                <option value="class_2_3">Clase 2.3 — Gas Tóxico (TIH)</option>
+                <option value="class_3">Clase 3 — Líquido Inflamable</option>
+                <option value="class_4">Clase 4 — Sólido Inflamable</option>
+                <option value="class_5">Clase 5 — Oxidante/Peróxido</option>
+                <option value="class_6_1">Clase 6.1 — Tóxico</option>
+                <option value="class_6_2">Clase 6.2 — Infeccioso</option>
+                <option value="class_7">Clase 7 — Radioactivo</option>
+                <option value="class_8">Clase 8 — Corrosivo</option>
+                <option value="class_9">Clase 9 — Misceláneos</option>
+                <option value="unknown">Desconocido (fallback conservador)</option>
+              </select>
             </div>
 
             <div>
@@ -144,22 +190,27 @@ export function HazmatMap() {
           <div className="pt-4 border-t border-white/5">
             <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-violet-500" />
-              Distancias GRE (Aprox)
+              {t('hazmat.distances.title', 'Distancias GRE 2024')}
             </h3>
             <ul className="space-y-2 text-sm text-zinc-400">
               <li className="flex items-center justify-between">
-                <span>Aislamiento Inicial:</span>
+                <span>{t('hazmat.distances.isolation', 'Aislamiento Inicial:')}</span>
                 <span className="font-bold text-rose-400">{isolationDistance} m</span>
               </li>
               <li className="flex items-center justify-between">
-                <span>Acción Protectora (Día):</span>
+                <span>{t('hazmat.distances.protectionDay', 'Acción Protectora (Día):')}</span>
                 <span className="font-bold text-orange-400">{protectionDistance} m</span>
               </li>
               <li className="flex items-center justify-between">
-                <span>Acción Protectora (Noche):</span>
-                <span className="font-bold text-orange-400">{protectionDistance * 2.5} m</span>
+                <span>{t('hazmat.distances.protectionNight', 'Acción Protectora (Noche):')}</span>
+                <span className="font-bold text-orange-400">{protectionDistanceNight} m</span>
               </li>
             </ul>
+            <p className="mt-3 text-[10px] text-zinc-500 leading-relaxed">
+              <span className="font-bold text-zinc-400">{exposure.reference}</span>
+              {' — '}
+              {t('hazmat.disclaimerShort', 'Aproximación según GRE Green Pages. Consulta el GRE físico y al protocolo de emergencia local para respuesta operativa.')}
+            </p>
           </div>
         </Card>
 
@@ -318,7 +369,10 @@ export function HazmatMap() {
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
               <p className="text-xs text-zinc-300">
-                Basado en la Guía de Respuesta a Emergencias (GRE). El polígono muestra la zona de acción protectora a favor del viento.
+                {t(
+                  'hazmat.mapInfo',
+                  'Basado en GRE 2024 Green Pages (Initial Isolation + Protective Action Distances). El polígono muestra la zona de acción protectora a favor del viento; ancho calculado por estabilidad atmosférica (Pasquill) según velocidad de viento.',
+                )}
               </p>
             </div>
           </div>
