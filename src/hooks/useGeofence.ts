@@ -159,7 +159,7 @@ export function useGeofence(
   const zonesIdHash = useMemo(() => buildZonesGeometryHash(zones), [zones]);
 
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    if (!('geolocation' in navigator)) return undefined;
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {

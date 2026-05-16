@@ -16,6 +16,7 @@
 | `noImplicitOverride` | ✅ activado | 13 fixed |
 | `strictFunctionTypes` | ✅ activado (Wave 1) | 7 fixed |
 | `noUnusedParameters` | ✅ activado (Wave 2) | 33 fixed |
+| `noImplicitReturns` | ✅ activado (Wave 3) | 240 fixed |
 
 ## Siguientes ondas (recomendación priorizada)
 
@@ -63,16 +64,57 @@ para "intencionalmente no usado"). Distribuidos por:
 signature (algunos son requeridos por contrato externo). Solo cambia
 el name visible para que TS sepa que la intención es ignorarlos.
 
-### Onda 3 — `noImplicitReturns` (240 errores)
-**Prioridad**: ALTA (signals potential bugs — funciones que retornan
-implícito undefined cuando no debería).
+### ✅ Onda 3 — `noImplicitReturns` (240 errores) — COMPLETADA
 
-Fix: agregar `return undefined;` explícito O reorganizar early returns
-para que cada path retorne. Puede revelar bugs reales (callsite
-asumiendo return type que no siempre se da).
+**Resultado**: 240 errores fixed en 6 sub-PRs (#287-#292 + final).
+Distribución por categoría:
 
-Tamaño: 240 errores son muchos pero homogéneos (1-line fix cada uno).
-Estimado ~6-8 horas concentradas.
+- **Wave 3a server routes** (95 errores, PR #290): convertir `return;`
+  bare a `return undefined;` y agregar `return` antes de
+  `res.status(...).json(...)` cuando Express middleware esperaba que
+  la función retorne para señalar "respondí". Files: sprintK.ts (13),
+  admin.ts (12), organic.ts (8), b2dAdmin.ts (8), dte.ts (6),
+  projects.ts (6), oauthGoogle.ts (5), compliance.ts (5),
+  curriculum.ts (4), gemini.ts (4), wisdomCapsule.ts (3), misc.ts (3),
+  billing.ts (3), ds67ds76.ts (2), suseso.ts (2), aiFeedback.ts (2),
+  insights.ts (3), audit.ts (1), gamification.ts (1), push.ts (1),
+  telemetry.ts (1), verifySchedulerToken.ts (1),
+  verifyTwinStepUp.ts (1).
+- **Wave 3b tests** (34 errores, PR #291): test-server.ts (17),
+  askGuardian.test.ts (2), auditCoverage.test.ts (3),
+  coachChatTenant.test.ts (2), commute.test.ts (4),
+  emergency.test.ts (1), push.test.ts (1),
+  telemetryCanonical.test.ts (1), telemetryRotation.test.ts (3),
+  zettelkastenNlQuery.test.ts (1).
+- **Wave 3c partial** (21 errores, PR #292): 9 test files + 2
+  components (ARPosterScanner.tsx, server.ts:757 `_req`).
+- **Wave 3d final** (79 errores, this PR): componentes useEffect
+  early-return + contexts + hooks + pages + services. Pattern
+  dominante: `useEffect(() => { if (!x) return; ... return cleanup; })`
+  → `if (!x) return undefined;`. Files (parcial): AlertSchedulerMount,
+  ProcessDetailModal, ProjectHealthCheck, QRScannerModal,
+  QrSignatureModal, AsesorChat, AsesorChatLazy, Card, KnowledgeGraph,
+  OfflineSLMBanner, ReconciliationStatusToast, SLMProvider,
+  ConflictResolutionDrawer, DocsModal, AppModeContext,
+  NotificationContext, ProjectContext, SensorContext,
+  SystemEngineProvider, UniversalKnowledgeContext, useAutoLogout,
+  useBiometricAuth, useDeadReckoning, useFirestoreCollection,
+  useGeoAnchoredNodes, useGeofence, useGeolocationTracking,
+  useHealthMetrics, useInsights, useInvoicePolling,
+  useManDownDetection, useProjectArAnchors,
+  useReconciliationStatus, useResilientAsesorFlag, useRiskEngine,
+  useSensoryFatigue, useSlmAcquisition, useSprintK, useSurvivalPing,
+  useTenantId, useTwinAccess, useWebXRSupport, useWisdomCapsules,
+  ClawMachine, ControlsAndMaterials, CuadrillasDashboard,
+  DigitalTwinFaena, Driving, EmergenciaAvanzada, Emergency,
+  HealthVaultShare, History, IoTEdgeFiltering, MuralDinamico,
+  PortableCurriculum, Telemetry, MeshProvider, speedTrigger,
+  ragService, subscriber, pwa-offline.
+
+Flag activado en `tsconfig.json` tras los 240 fixes. Sin bugs
+funcionales revelados — todos los casos eran del patrón
+"early-return en useEffect retorna `undefined` implícito en lugar de
+una cleanup function".
 
 ### Onda 4 — `strictNullChecks` (337 errores) ⚠️ deuda estructural mayor
 
@@ -151,7 +193,7 @@ mantiene CI verde, y deja la deuda visible en este doc.
 Items abiertos:
 - [x] Onda 1: `strictFunctionTypes` (7 errores) — COMPLETADA
 - [x] Onda 2: `noUnusedParameters` (33 errores) — COMPLETADA
-- [ ] Onda 3: `noImplicitReturns` (240 errores)
+- [x] Onda 3: `noImplicitReturns` (240 errores) — COMPLETADA
 - [ ] Onda 4: `strictNullChecks` (337 errores, multi-PR por domain)
 - [ ] Onda 5: `noUnusedLocals` (684 errores) — opcional
 - [ ] Onda 6: `noPropertyAccessFromIndexSignature` (1832) — **NO recomendado**

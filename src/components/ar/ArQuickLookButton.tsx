@@ -86,7 +86,7 @@ export function ArQuickLookButton({
   }, []);
 
   useEffect(() => {
-    if (!supported) return;
+    if (!supported) return undefined;
     let cancelled = false;
     // HEAD probe — si el archivo no existe (404) o el server-side está
     // mal configurado, fallback gracefully a no renderizar el botón.

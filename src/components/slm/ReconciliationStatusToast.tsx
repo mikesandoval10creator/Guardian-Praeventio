@@ -105,8 +105,8 @@ export function ReconciliationStatusToast({
   });
 
   React.useEffect(() => {
-    if (forceStats) return;
-    if (typeof window === 'undefined') return;
+    if (forceStats) return undefined;
+    if (typeof window === 'undefined') return undefined;
     const onStats = (evt: Event): void => {
       const detail = (evt as CustomEvent<ReconciliationStats>).detail;
       if (!detail) return;
@@ -129,7 +129,7 @@ export function ReconciliationStatusToast({
   // de-duped via the `scheduledRef` set.
   const scheduledRef = React.useRef<Set<string>>(new Set());
   React.useEffect(() => {
-    if (autoDismissMs <= 0) return;
+    if (autoDismissMs <= 0) return undefined;
     const timers: ReturnType<typeof setTimeout>[] = [];
     for (const t of toasts) {
       if (scheduledRef.current.has(t.id)) continue;

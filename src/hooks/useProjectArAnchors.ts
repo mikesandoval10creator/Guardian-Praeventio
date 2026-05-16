@@ -47,7 +47,7 @@ export function useProjectArAnchors(
     if (!opts.tenantId || !opts.projectId) {
       setAnchors([]);
       setLoading(false);
-      return;
+      return undefined;
     }
     // Codex fix: limpiar anchors viejos ANTES de subscribirse al nuevo
     // path. Sin esto, al cambiar de proyecto la UI seguía mostrando

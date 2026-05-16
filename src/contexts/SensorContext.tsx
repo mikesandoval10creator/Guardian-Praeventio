@@ -27,7 +27,7 @@ export function SensorProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    if (!isListening) return;
+    if (!isListening) return undefined;
 
     let accelListener: any;
     let orientListener: any;

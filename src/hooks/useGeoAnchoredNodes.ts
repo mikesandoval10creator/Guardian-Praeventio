@@ -103,7 +103,7 @@ export function useGeoAnchoredNodes(
       setRawDocs([]);
       setLoading(false);
       setError(null);
-      return;
+      return undefined;
     }
 
     const box = boundingBox(stableCenter, radiusM);

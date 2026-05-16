@@ -36,7 +36,7 @@ export function useTenantId(): UseTenantIdResult {
     if (!user) {
       setTenantId(null);
       setLoading(false);
-      return;
+      return undefined;
     }
     let cancelled = false;
     setLoading(true);

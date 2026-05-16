@@ -51,7 +51,7 @@ export function QrSignatureModal({
 
   // Re-render cada 1s para countdown
   useEffect(() => {
-    if (ackMatchesChallenge) return; // ya firmado, no countdown
+    if (ackMatchesChallenge) return undefined; // ya firmado, no countdown
     const id = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(id);
   }, [ackMatchesChallenge]);

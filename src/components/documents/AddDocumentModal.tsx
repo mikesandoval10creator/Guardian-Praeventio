@@ -38,7 +38,7 @@ export function AddDocumentModal({ isOpen, onClose, projectId }: AddDocumentModa
   // the trigger button (matches WAI-ARIA dialog pattern).
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {

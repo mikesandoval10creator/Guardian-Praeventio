@@ -33,7 +33,7 @@ export function ControlsAndMaterials() {
   const { selectedProject } = useProject();
 
   useEffect(() => {
-    if (!selectedProject) return;
+    if (!selectedProject) return undefined;
 
     const controlsPath = `projects/${selectedProject.id}/controls`;
     const materialsPath = `projects/${selectedProject.id}/materials`;

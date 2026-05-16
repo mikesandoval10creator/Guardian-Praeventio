@@ -41,7 +41,7 @@ export function EmergencyDashboard() {
   const [lotoActivated, setLotoActivated] = useState(false);
 
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
 
     const projectRef = doc(db, 'projects', selectedProject.id);
     const unsubscribeProject = onSnapshot(projectRef, (docSnap) => {
@@ -60,6 +60,7 @@ export function EmergencyDashboard() {
           return () => clearInterval(interval);
         }
       }
+      return undefined;
     });
 
     let checkinsQuery = query(collection(db, `projects/${selectedProject.id}/emergency_checkins`));

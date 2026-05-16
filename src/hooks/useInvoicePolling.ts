@@ -274,7 +274,7 @@ export function useInvoicePolling(
   useEffect(() => {
     if (!invoiceId) {
       setState({ kind: 'idle' });
-      return;
+      return undefined;
     }
 
     const controller = new AbortController();

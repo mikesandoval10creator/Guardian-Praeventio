@@ -32,7 +32,7 @@ export function useAutoLogout() {
   useEffect(() => {
     if (!user) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      return;
+      return undefined;
     }
 
     // Events that reset the inactivity timer

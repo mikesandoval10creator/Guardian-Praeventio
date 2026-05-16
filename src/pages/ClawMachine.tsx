@@ -95,8 +95,8 @@ function ClawMachineInner() {
   }, [scenario]);
 
   useEffect(() => {
-    if (phase !== 'playing') return;
-    if (seconds <= 0) { setPhase('review'); return; }
+    if (phase !== 'playing') return undefined;
+    if (seconds <= 0) { setPhase('review'); return undefined; }
     const t = setTimeout(() => setSeconds(s => s - 1), 1000);
     return () => clearTimeout(t);
   }, [seconds, phase]);

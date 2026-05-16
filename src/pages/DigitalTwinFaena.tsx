@@ -175,7 +175,7 @@ export function DigitalTwinFaena() {
     const projectId = selectedProject?.id;
     if (!projectId) {
       setPlacedObjects([]);
-      return;
+      return undefined;
     }
     const unsub = subscribePlacedObjects(
       projectId,
@@ -347,7 +347,7 @@ export function DigitalTwinFaena() {
   // Polling: refresh active processing job every 4s (skipped when user prefers reduced motion)
   useEffect(() => {
     const hasProcessing = jobs.some(j => j.status === 'queued' || j.status === 'processing');
-    if (!hasProcessing || reducedMotion) return;
+    if (!hasProcessing || reducedMotion) return undefined;
     const interval = setInterval(refreshJobs, 4000);
     return () => clearInterval(interval);
   }, [jobs.map(j => `${j.jobId}:${j.status}`).join(','), reducedMotion]);

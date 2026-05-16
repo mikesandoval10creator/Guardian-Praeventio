@@ -158,7 +158,7 @@ export function useTwinAccess(
 
   // Inactivity expiry watcher
   useEffect(() => {
-    if (state !== 'granted') return;
+    if (state !== 'granted') return undefined;
     const now = fakersRef.current.now ?? Date.now;
     const interval = setInterval(() => {
       const idleMs = now() - lastInteractionRef.current;

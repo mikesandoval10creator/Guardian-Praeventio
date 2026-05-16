@@ -51,7 +51,7 @@ export function HealthVaultShare() {
 
   // Cargar shares activos del trabajador (Firestore client SDK).
   useEffect(() => {
-    if (!user?.uid || !db) return;
+    if (!user?.uid || !db) return undefined;
     let cancelled = false;
     async function load() {
       try {

@@ -53,7 +53,7 @@ export function History() {
   const { selectedProject } = useProject();
 
   useEffect(() => {
-    if (activeTab !== 'Reportes' || !selectedProject) return;
+    if (activeTab !== 'Reportes' || !selectedProject) return undefined;
 
     const path = `projects/${selectedProject.id}/reports`;
     const q = query(

@@ -155,7 +155,7 @@ function SystemEngineInner({
 
   // Drain the offline outbox whenever the device comes back online.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const onOnline = () => {
       void drainOutbox().catch((err) =>
         logger.warn('SystemEngineProvider: drain failed', { err: String(err) }),

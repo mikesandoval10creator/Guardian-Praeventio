@@ -140,7 +140,7 @@ export function IoTEdgeFiltering() {
   // Poll metrics cada 1s mientras conectado (las metricas mutate
   // internamente y queremos reflejarlas en UI).
   useEffect(() => {
-    if (state !== 'connected' && state !== 'reconnecting') return;
+    if (state !== 'connected' && state !== 'reconnecting') return undefined;
     const handle = setInterval(() => {
       if (clientRef.current) {
         setMetrics(clientRef.current.getMetrics());

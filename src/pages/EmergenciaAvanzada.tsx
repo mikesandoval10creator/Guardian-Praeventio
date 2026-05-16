@@ -77,7 +77,7 @@ export function EmergenciaAvanzada() {
 
   // Real-time chat
   useEffect(() => {
-    if (!selectedProject) return;
+    if (!selectedProject) return undefined;
     const q = query(
       collection(db, `projects/${selectedProject.id}/emergency_chat`),
       orderBy('createdAt', 'asc'),
@@ -90,7 +90,7 @@ export function EmergenciaAvanzada() {
 
   // Real-time worker safety statuses
   useEffect(() => {
-    if (!selectedProject) return;
+    if (!selectedProject) return undefined;
     const safetyQuery = query(
       collection(db, `projects/${selectedProject.id}/emergency_safety`),
       limit(50),

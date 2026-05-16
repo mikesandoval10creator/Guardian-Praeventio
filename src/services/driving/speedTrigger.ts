@@ -181,8 +181,8 @@ export function useSpeedMonitor(enabled: boolean = true): SpeedSample {
   const lastTsRef = useRef(0);
 
   useEffect(() => {
-    if (!enabled) return;
-    if (typeof navigator === 'undefined' || !navigator.geolocation) return;
+    if (!enabled) return undefined;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
 
     const id = navigator.geolocation.watchPosition(
       (pos) => {

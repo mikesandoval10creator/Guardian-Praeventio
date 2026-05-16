@@ -250,8 +250,8 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
 
   useEffect(() => {
     const total = graphData.nodes.length;
-    if (total < WORKER_THRESHOLD) return;
-    if (typeof Worker === 'undefined') return;
+    if (total < WORKER_THRESHOLD) return undefined;
+    if (typeof Worker === 'undefined') return undefined;
 
     let cancelled = false;
     let worker = workerRef.current;
@@ -267,7 +267,7 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
       // Worker construction can fail in test/jsdom; we silently
       // fall back to the inline simulation.
       logger.warn('forceGraphWorker unavailable, falling back inline', e);
-      return;
+      return undefined;
     }
 
     const onMessage = (event: MessageEvent<ForceGraphResponse>) => {

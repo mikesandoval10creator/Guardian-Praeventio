@@ -143,7 +143,7 @@ export function SurvivalMode({ onClose }: SurvivalModeProps) {
   useEffect(() => {
     if (!isStrobeActive) {
       setStrobeFlash(false);
-      return;
+      return undefined;
     }
     requestWakeLock();
     const interval = setInterval(() => setStrobeFlash(f => !f), 500);

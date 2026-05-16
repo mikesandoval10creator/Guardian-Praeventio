@@ -93,7 +93,7 @@ export function AsesorChat() {
   // Pre-cargar el corpus + (si estÃ¡) el modelo en idle al montar para
   // que el primer ask() en emergencia no pague costo de download.
   useEffect(() => {
-    if (!offlineService) return;
+    if (!offlineService) return undefined;
     let cancelled = false;
     const idle = (cb: () => void) =>
       typeof window.requestIdleCallback === 'function'

@@ -49,7 +49,7 @@ function useEndpoint<T>(path: string | null): FetchState<T> & { refetch: () => v
   useEffect(() => {
     if (!path) {
       setState({ data: null, loading: false, error: null });
-      return;
+      return undefined;
     }
     setState((s) => ({ ...s, loading: true, error: null }));
     const ctl = new AbortController();

@@ -54,7 +54,7 @@ export function CrisisChat() {
   }, [activeDropdown]);
 
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
 
     const messagesRef = collection(db, `projects/${selectedProject.id}/emergency_messages`);
     const q = query(messagesRef, orderBy('timestamp', 'asc'));

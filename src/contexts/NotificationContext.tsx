@@ -38,7 +38,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [isCrisisMode, setIsCrisisMode] = useState(false);
 
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
     const projectRef = doc(db, 'projects', selectedProject.id);
     const unsubscribe = onSnapshot(projectRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -113,7 +113,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Listen for system notifications written by useZettelkastenIntelligence and server triggers
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
 
     const notifQuery = query(
       collection(db, `projects/${selectedProject.id}/notifications`),

@@ -30,7 +30,7 @@ export function useDeadReckoning({
   useEffect(() => { headingRef.current = heading; }, [heading]);
 
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive) return undefined;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
       // compassHeading is available on some browsers; alpha as fallback

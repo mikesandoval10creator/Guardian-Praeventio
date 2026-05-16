@@ -254,7 +254,7 @@ export function useSlmAcquisition(
   }, [autoCheck, refresh]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const onChange = () => setNetworkAdvisory(detectNetworkAdvisory());
     window.addEventListener('online', onChange);
     window.addEventListener('offline', onChange);

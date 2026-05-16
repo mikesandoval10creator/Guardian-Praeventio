@@ -46,7 +46,7 @@ export function CuadrillasDashboard() {
   useEffect(() => {
     if (!projectId) {
       setCrews([]);
-      return;
+      return undefined;
     }
     const q = query(collection(db, 'crews'), where('projectId', '==', projectId));
     const un = onSnapshot(
@@ -68,7 +68,7 @@ export function CuadrillasDashboard() {
   useEffect(() => {
     if (!projectId) {
       setProcesses([]);
-      return;
+      return undefined;
     }
     const q = query(collection(db, 'processes'), where('projectId', '==', projectId));
     const un = onSnapshot(

@@ -14,7 +14,7 @@ export function QRScannerModal({ isOpen, onClose, onScan }: QRScannerModalProps)
   const [isScanning, setIsScanning] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const scanner = new Html5QrcodeScanner(
       "reader",

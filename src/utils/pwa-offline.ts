@@ -100,6 +100,7 @@ export const cacheAIResponse = async (key: string, data: any) => {
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if(db) await db.run('INSERT OR REPLACE INTO ai_cache (key, data, timestamp) VALUES (?, ?, ?)', [key, JSON.stringify(data), Date.now()]);
+    return undefined;
   } else {
     const db = await getIDB();
     return db.put(CACHE_STORE_NAME, { key, data, timestamp: Date.now() });
@@ -123,6 +124,7 @@ export const saveBunkerKnowledge = async (id: string, data: any) => {
   if (Capacitor.isNativePlatform()) {
     const db = await initSQLite();
     if(db) await db.run('INSERT OR REPLACE INTO bunker_knowledge (id, data, timestamp) VALUES (?, ?, ?)', [id, JSON.stringify(data), Date.now()]);
+    return undefined;
   } else {
     const db = await getIDB();
     return db.put(BUNKER_STORE_NAME, { id, data, timestamp: Date.now() });
@@ -196,6 +198,7 @@ export const saveForSync = async (action: Omit<SyncAction, 'timestamp' | 'localU
       );
     }
     window.dispatchEvent(new CustomEvent('sync-actions-updated'));
+    return undefined;
   } else {
     const db = await getIDB();
     const result = await db.add(STORE_NAME, syncAction);

@@ -55,7 +55,7 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
   useEffect(() => {
     if (!isOpen || !process) {
       setTasks([]);
-      return;
+      return undefined;
     }
     const q = query(collection(db, 'tasks'), where('processId', '==', process.id));
     const un = onSnapshot(
@@ -73,7 +73,7 @@ export function ProcessDetailModal({ isOpen, process, onClose, onStatusChanged }
   useEffect(() => {
     if (!isOpen || !process) {
       setHallazgos([]);
-      return;
+      return undefined;
     }
     const q = query(collection(db, 'hallazgos'), where('processId', '==', process.id));
     const un = onSnapshot(

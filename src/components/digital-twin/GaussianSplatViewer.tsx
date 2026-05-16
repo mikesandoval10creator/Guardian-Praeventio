@@ -57,7 +57,7 @@ export function GaussianSplatViewer({
 
   // Lazy load engine al abrir el visor
   useEffect(() => {
-    if (!is3DOpen || engineState !== 'idle') return;
+    if (!is3DOpen || engineState !== 'idle') return undefined;
     setEngineState('loading');
     let aborted = false;
     (async () => {

@@ -12,7 +12,7 @@ export const useSurvivalPing = () => {
   const lastPingRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user || !isOnline) return;
+    if (!user || !isOnline) return undefined;
 
     const pingInterval = setInterval(() => {
       const now = Date.now();

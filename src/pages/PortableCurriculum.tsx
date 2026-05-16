@@ -116,7 +116,7 @@ export function PortableCurriculum() {
   });
 
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid) return undefined;
     let cancelled = false;
     const uid = user.uid;
     async function loadCurriculum() {

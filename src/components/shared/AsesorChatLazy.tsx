@@ -34,7 +34,7 @@ export function AsesorChatLazy(): React.ReactElement | null {
   const pendingEventRef = useRef<CustomEvent | null>(null);
 
   useEffect(() => {
-    if (shouldMount) return;
+    if (shouldMount) return undefined;
 
     const handleOpen = (e: Event) => {
       pendingEventRef.current = e as CustomEvent;

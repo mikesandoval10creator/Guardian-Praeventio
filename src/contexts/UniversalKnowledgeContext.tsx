@@ -79,7 +79,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
       setNodes([]);
       setCommunityGlossary([]);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     // No project selected â†’ don't subscribe yet. We surface an empty list
@@ -90,7 +90,7 @@ export function UniversalKnowledgeProvider({ children }: { children: React.React
     if (!selectedProject) {
       setNodes([]);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     // Round 14 Task 4: scope the subscription to the active project.

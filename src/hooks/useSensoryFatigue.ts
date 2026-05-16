@@ -20,7 +20,7 @@ export function useSensoryFatigue({
   const alertSentRef = useRef(false);
 
   useEffect(() => {
-    if (!isListening) return;
+    if (!isListening) return undefined;
 
     const interval = setInterval(() => {
       const now = Date.now();

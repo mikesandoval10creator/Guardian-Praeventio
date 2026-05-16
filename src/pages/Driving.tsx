@@ -101,7 +101,7 @@ export function Driving(): React.ReactElement {
   const [showWildfireCitation, setShowWildfireCitation] = useState(false);
 
   useEffect(() => {
-    if (mode !== 'driving') return;
+    if (mode !== 'driving') return undefined;
     const bbox = bboxFromCenter(center, 1.2);
     const cacheKey = `driving:eonet:wildfires:${center.lat.toFixed(2)}:${center.lng.toFixed(2)}`;
     let cancelled = false;

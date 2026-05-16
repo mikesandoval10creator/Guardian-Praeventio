@@ -52,7 +52,7 @@ export function MuralDinamico() {
   const [openComments, setOpenComments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!selectedProject) return;
+    if (!selectedProject) return undefined;
 
     const path = `projects/${selectedProject.id}/safety_posts`;
     const q = query(

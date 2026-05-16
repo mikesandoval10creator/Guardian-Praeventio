@@ -170,7 +170,7 @@ export function SLMProvider({ children }: SLMProviderProps): React.ReactElement 
 
   // online/offline tracking. Fires synchronously on browser events.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return undefined;
     const update = (): void => setIsOnline(readOnline());
     window.addEventListener('online', update);
     window.addEventListener('offline', update);

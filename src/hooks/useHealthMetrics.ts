@@ -317,7 +317,7 @@ export function useHealthMetrics(
 
   // Auto-sync interval.
   useEffect(() => {
-    if (autoSyncMs <= 0) return;
+    if (autoSyncMs <= 0) return undefined;
     const id = setInterval(() => {
       void syncNow();
     }, autoSyncMs);

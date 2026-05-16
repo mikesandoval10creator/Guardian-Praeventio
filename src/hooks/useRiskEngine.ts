@@ -37,7 +37,7 @@ export const useRiskEngine = () => {
       setFetchedNodes([]);
       setError(null);
       setLoading(false);
-      return;
+      return undefined;
     }
 
     const q = query(
@@ -134,7 +134,7 @@ export const useRiskEngine = () => {
 
   // Background Auto-Healer: runs once per session to avoid exhausting API quota
   useEffect(() => {
-    if (!user || fetchedNodes.length === 0 || healerRanRef.current) return;
+    if (!user || fetchedNodes.length === 0 || healerRanRef.current) return undefined;
     healerRanRef.current = true;
 
     const healIncompleteNodes = async () => {

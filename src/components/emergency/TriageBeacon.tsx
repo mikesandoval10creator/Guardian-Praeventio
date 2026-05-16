@@ -50,7 +50,7 @@ export function TriageBeacon({ workerId, workerName, bloodType, allergies, impac
 
   // Pulse vibration pattern to signal rescuers
   useEffect(() => {
-    if (!navigator.vibrate) return;
+    if (!navigator.vibrate) return undefined;
     const id = setInterval(() => {
       navigator.vibrate([200, 100, 200, 100, 200]);
     }, 5000);

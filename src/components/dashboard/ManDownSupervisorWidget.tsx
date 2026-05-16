@@ -35,7 +35,7 @@ export function ManDownSupervisorWidget() {
   const [acking, setAcking] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!selectedProject?.id) return;
+    if (!selectedProject?.id) return undefined;
     const q = query(
       collection(db, 'projects', selectedProject.id, 'mandown_events'),
       orderBy('timestamp', 'desc'),

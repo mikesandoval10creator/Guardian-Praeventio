@@ -213,7 +213,7 @@ export const useBiometricAuth = () => {
   // On native, ask the plugin whether biometry is actually available
   // (hardware present + user enrolled + device secured).
   useEffect(() => {
-    if (!isNative) return;
+    if (!isNative) return undefined;
     let cancelled = false;
     BiometricAuth.checkBiometry()
       .then((res) => {
