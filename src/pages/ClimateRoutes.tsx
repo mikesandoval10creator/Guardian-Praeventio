@@ -8,6 +8,10 @@ import { getMapLoaderConfig } from '../components/maps/mapConfig';
 import { logger } from '../utils/logger';
 import { useToast } from '../hooks/useToast';
 import { ToastContainer } from '../components/shared/ToastContainer';
+import {
+  assessRouteClimate,
+  type RouteAssessmentResult,
+} from '../services/routing/routeClimateAssessment';
 
 const containerStyle = {
   width: '100%',
@@ -24,15 +28,22 @@ export function ClimateRoutes() {
   const [routeStatus, setRouteStatus] = useState<'safe' | 'warning' | 'danger'>('warning');
   const [directionsResponse, setDirectionsResponse] = useState<google.maps.DirectionsResult | null>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  // 2026-05-16 (Sprint E): assessment combinado NASA POWER + EONET.
+  // Reemplaza la heurística pura de keywords de Sprint D (que ya era
+  // mejor que el Math.random original, pero seguía siendo limitada).
+  const [assessment, setAssessment] = useState<RouteAssessmentResult | null>(null);
+  const [isAssessing, setIsAssessing] = useState(false);
   const { toasts, show: showToast, dismiss } = useToast();
 
   const { isLoaded } = useJsApiLoader(getMapLoaderConfig());
 
-  const waypoints = [
-    { id: 1, name: 'Paso Los Libertadores', status: 'danger', condition: 'Nevazón', temp: -5, wind: 80 },
-    { id: 2, name: 'Ruta 68 - Curacaví', status: 'safe', condition: 'Despejado', temp: 15, wind: 15 },
-    { id: 3, name: 'Cuesta La Dormida', status: 'warning', condition: 'Niebla', temp: 8, wind: 30 },
-  ];
+  // 2026-05-16 (Sprint E): removido el array `waypoints` hardcoded con
+  // 3 puntos ficticios (Paso Los Libertadores / Curacaví / Cuesta La
+  // Dormida). Antes el panel mostraba esos 3 puntos como "Alertas
+  // Meteorológicas" independiente de la ruta calculada — confundía al
+  // usuario porque parecía que la app SABÍA del clima específico de
+  // esos lugares cuando los valores estaban hardcoded. Ahora mostramos
+  // las razones REALES del assessment NASA POWER + EONET (ver UI abajo).
 
   const calculateRoute = useCallback(async () => {
     if (!origin || !destination || !window.google) return;
@@ -48,16 +59,15 @@ export function ClimateRoutes() {
       });
       setDirectionsResponse(results);
 
-      // 2026-05-16 (Sprint D): antes esto era `Math.random()` con un
-      // comentario "for demo purposes". Ahora derivamos el status de
-      // datos REALES que Google Directions devuelve:
-      //   - distancia + duración (legs sumados)
-      //   - heurística de "ruta de montaña" si el summary menciona paso
-      //     conocido o si hay >1h en la primera mitad de la ruta
-      // No reemplaza un servicio meteorológico real (TODO Sprint E:
-      // wire a Open-Meteo para condiciones actuales), pero deja de
-      // mentir con un status aleatorio.
-      const legs = results.routes?.[0]?.legs ?? [];
+      // 2026-05-16 (Sprint E): assessment REAL combinando:
+      //   - Google Directions: distancia, duración, summary (paso cordillerano)
+      //   - NASA POWER hourly histórico 7d: viento, precipitación, hielo
+      //   - NASA EONET activos: tormentas, incendios, inundaciones, derrumbes
+      //
+      // Degrada gracefully si NASA/EONET fallan (preserva utilidad).
+      // Para detalles ver `src/services/routing/routeClimateAssessment.ts`.
+      const route0 = results.routes?.[0];
+      const legs = route0?.legs ?? [];
       const totalDistanceM = legs.reduce(
         (sum, l) => sum + (l.distance?.value ?? 0),
         0,
@@ -66,34 +76,76 @@ export function ClimateRoutes() {
         (sum, l) => sum + (l.duration?.value ?? 0),
         0,
       );
-      const summary = (results.routes?.[0]?.summary ?? '').toLowerCase();
-      // Keywords típicos de pasos cordilleranos chilenos / argentinos
-      // donde el clima cambia rápido (nevazón, viento blanco).
-      const mountainPassKeywords = [
-        'libertadores',
-        'cristo redentor',
-        'agua negra',
-        'pehuenche',
-        'cardenal samoré',
-        'cuesta',
-        'paso',
-        'ch-115', // Pehuenche
-        'ch-31', // Libertadores
-      ];
-      const hasMountainPass = mountainPassKeywords.some((k) => summary.includes(k));
+      const summary = route0?.summary ?? '';
 
-      let derivedStatus: 'safe' | 'warning' | 'danger';
-      if (hasMountainPass) {
-        // Pasos cordilleranos: default a "warning" — el invierno los puede
-        // cerrar y la app debe inducir verificación.
-        derivedStatus = 'warning';
-      } else if (totalDistanceM > 200_000 || totalDurationS > 3 * 3600) {
-        // Ruta interregional larga (>200km o >3h) → precaución.
-        derivedStatus = 'warning';
+      // Punto medio y bbox para sondeo NASA/EONET.
+      // Si Google nos da `overview_path`, tomamos un punto al ~50%.
+      // Fallback: midpoint entre origin/destination de los legs.
+      let midpointLat: number;
+      let midpointLng: number;
+      let latMin = Infinity;
+      let latMax = -Infinity;
+      let lngMin = Infinity;
+      let lngMax = -Infinity;
+      const path = route0?.overview_path ?? [];
+      if (path.length > 0) {
+        const mid = path[Math.floor(path.length / 2)]!;
+        midpointLat = mid.lat();
+        midpointLng = mid.lng();
+        for (const p of path) {
+          const la = p.lat();
+          const lo = p.lng();
+          if (la < latMin) latMin = la;
+          if (la > latMax) latMax = la;
+          if (lo < lngMin) lngMin = lo;
+          if (lo > lngMax) lngMax = lo;
+        }
+      } else if (legs.length > 0) {
+        const startLatLng = legs[0]!.start_location;
+        const endLatLng = legs[legs.length - 1]!.end_location;
+        midpointLat = (startLatLng.lat() + endLatLng.lat()) / 2;
+        midpointLng = (startLatLng.lng() + endLatLng.lng()) / 2;
+        latMin = Math.min(startLatLng.lat(), endLatLng.lat());
+        latMax = Math.max(startLatLng.lat(), endLatLng.lat());
+        lngMin = Math.min(startLatLng.lng(), endLatLng.lng());
+        lngMax = Math.max(startLatLng.lng(), endLatLng.lng());
       } else {
-        derivedStatus = 'safe';
+        // Sin path ni legs: no podemos hacer assessment climático.
+        setRouteStatus('safe');
+        setAssessment(null);
+        setIsCalculating(false);
+        return;
       }
-      setRouteStatus(derivedStatus);
+
+      // Expandimos la bbox ~0.1° para captar eventos cercanos a la ruta.
+      const bbox = {
+        lonMin: lngMin - 0.1,
+        lonMax: lngMax + 0.1,
+        latMin: latMin - 0.1,
+        latMax: latMax + 0.1,
+      };
+
+      setIsAssessing(true);
+      try {
+        const result = await assessRouteClimate({
+          midpointLat,
+          midpointLng,
+          bbox,
+          totalDistanceM,
+          totalDurationS,
+          summary,
+          historicalDaysBack: 7,
+        });
+        setRouteStatus(result.status);
+        setAssessment(result);
+      } catch (err) {
+        logger.error('Route climate assessment failed', err);
+        // Last resort: heurística mínima sin NASA/EONET.
+        setRouteStatus('safe');
+        setAssessment(null);
+      } finally {
+        setIsAssessing(false);
+      }
     } catch (error) {
       logger.error("Error calculating route:", error);
       showToast(t('climateRoutes.errorRoute', 'No se pudo calcular la ruta. Verifica los lugares ingresados.'), 'error');
@@ -168,24 +220,107 @@ export function ClimateRoutes() {
           <div className="pt-4 border-t border-white/5">
             <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-cyan-500" />
-              {t('climateRoutes.weatherAlerts', 'Alertas Meteorológicas')}
+              {t('climateRoutes.assessment', 'Evaluación Climática de Ruta')}
+              {isAssessing && (
+                <Loader2 className="w-3 h-3 animate-spin text-zinc-500" />
+              )}
             </h3>
-            <ul className="space-y-3">
-              {waypoints.map(wp => (
-                <li key={wp.id} className="flex flex-col gap-1 p-3 rounded-lg bg-zinc-900 border border-white/5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-white">{wp.name}</span>
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${wp.status === 'danger' ? 'bg-rose-500/20 text-rose-400' : wp.status === 'warning' ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                      {wp.condition}
-                    </span>
+
+            {/* Métricas NASA POWER reales (cuando están disponibles) */}
+            {assessment?.metrics && (
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {assessment.metrics.avgWindMs !== null && (
+                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5">
+                    <div className="text-[9px] text-zinc-500 uppercase">
+                      {t('climateRoutes.avgWind', 'Viento promedio (7d)')}
+                    </div>
+                    <div className="text-sm font-bold text-white flex items-center gap-1">
+                      <Wind className="w-3 h-3 text-cyan-400" />
+                      {(assessment.metrics.avgWindMs * 3.6).toFixed(0)} km/h
+                    </div>
                   </div>
-                  <div className="flex gap-4 text-xs text-zinc-400 mt-1">
-                    <span className="flex items-center gap-1"><Thermometer className="w-3 h-3" /> {wp.temp}°C</span>
-                    <span className="flex items-center gap-1"><Wind className="w-3 h-3" /> {wp.wind} km/h</span>
+                )}
+                {assessment.metrics.totalPrecipMm !== null && (
+                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5">
+                    <div className="text-[9px] text-zinc-500 uppercase">
+                      {t('climateRoutes.totalPrecip', 'Lluvia total (7d)')}
+                    </div>
+                    <div className="text-sm font-bold text-white flex items-center gap-1">
+                      <CloudRain className="w-3 h-3 text-blue-400" />
+                      {assessment.metrics.totalPrecipMm.toFixed(0)} mm
+                    </div>
                   </div>
-                </li>
-              ))}
-            </ul>
+                )}
+                {assessment.metrics.frostHourCount > 0 && (
+                  <div className="p-2 rounded-lg bg-zinc-900 border border-white/5 col-span-2">
+                    <div className="text-[9px] text-zinc-500 uppercase">
+                      {t('climateRoutes.frostHours', 'Horas bajo 0°C en 7d')}
+                    </div>
+                    <div className="text-sm font-bold text-white flex items-center gap-1">
+                      <Thermometer className="w-3 h-3 text-blue-300" />
+                      {assessment.metrics.frostHourCount} h
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Razones específicas que llevaron al status */}
+            {assessment?.reasons && assessment.reasons.length > 0 ? (
+              <ul className="space-y-2">
+                {assessment.reasons.map((reason, idx) => (
+                  <li
+                    key={idx}
+                    className={`p-3 rounded-lg border ${
+                      reason.level === 'danger'
+                        ? 'bg-rose-500/10 border-rose-500/30'
+                        : reason.level === 'warning'
+                          ? 'bg-amber-500/10 border-amber-500/30'
+                          : 'bg-emerald-500/10 border-emerald-500/30'
+                    }`}
+                  >
+                    <p
+                      className={`text-xs ${
+                        reason.level === 'danger'
+                          ? 'text-rose-300'
+                          : reason.level === 'warning'
+                            ? 'text-amber-300'
+                            : 'text-emerald-300'
+                      }`}
+                    >
+                      {reason.message}
+                    </p>
+                    <p className="text-[9px] text-zinc-500 mt-1 font-mono uppercase tracking-wide">
+                      {reason.source === 'NASA_POWER' && '📡 NASA POWER'}
+                      {reason.source === 'EONET' && '🛰️ NASA EONET'}
+                      {reason.source === 'GOOGLE_DIRECTIONS' && '🗺️ Google Directions'}
+                      {reason.source === 'HEURISTIC' && '🧮 Heurística interna'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : assessment ? (
+              <p className="text-xs text-emerald-400 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+                {t(
+                  'climateRoutes.noRisks',
+                  'Sin riesgos climáticos detectados en histórico NASA ni eventos activos. Conduce con precaución estándar.',
+                )}
+              </p>
+            ) : (
+              <p className="text-xs text-zinc-500 italic">
+                {t(
+                  'climateRoutes.calculatePrompt',
+                  'Calcula una ruta para ver la evaluación NASA POWER + EONET.',
+                )}
+              </p>
+            )}
+
+            <p className="mt-3 text-[9px] text-zinc-500 leading-relaxed">
+              {t(
+                'climateRoutes.dataSources',
+                'Fuentes: NASA POWER (clima histórico hourly, lag ~3 días) + NASA EONET (eventos extremos activos) + Google Directions. NO sustituye al servicio meteorológico nacional (DMC) ni a la información vial oficial (MOP).',
+              )}
+            </p>
           </div>
         </Card>
 
