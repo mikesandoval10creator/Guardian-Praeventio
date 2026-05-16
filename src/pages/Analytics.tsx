@@ -117,32 +117,48 @@ export function Analytics() {
     { name: 'Bajo', value: lowRisks, color: '#22c55e' },
   ];
 
-  // Calculate incident trend data based on actual nodes
+  // Calculate incident trend data based on actual nodes.
+  //
+  // 2026-05-16 (Sprint F): fix de precisión. Antes el filtro era SOLO
+  // por mes sin considerar año, lo que mezclaba incidentes de Mayo 2024,
+  // 2025 y 2026 en la misma barra "May". Además había un fallback
+  // `|| (i === 0 ? incidents.length : 0)` que rellenaba el mes actual
+  // con TODOS los incidentes si el bucket salía vacío — disfrazaba la
+  // ausencia de datos como pico de actividad.
+  //
+  // Ahora: bucketizamos por (año, mes) reales y mostramos cero honesto
+  // cuando un mes no tiene actividad. El loop construye los últimos 5
+  // meses calendario reales (no mezclados por wraparound de mes).
   const calculateTrendData = () => {
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-    const currentMonth = new Date().getMonth();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
     const trendData = [];
 
     for (let i = 4; i >= 0; i--) {
-      const monthIndex = (currentMonth - i + 12) % 12;
-      const monthName = months[monthIndex];
-      
-      // Filter nodes for this specific month (simplified logic, assumes current year for now)
-      // In a real app, you'd check the year too.
-      const monthIncidents = incidents.filter(n => {
-        const date = n.createdAt ? new Date(n.createdAt) : new Date();
-        return date.getMonth() === monthIndex;
+      // Computamos año/mes calendario REALES (manejando wraparound
+      // diciembre→enero del año anterior).
+      const targetMonth = (currentMonth - i + 12) % 12;
+      const targetYear = currentMonth - i < 0 ? currentYear - 1 : currentYear;
+      const monthName = months[targetMonth];
+
+      const monthIncidents = incidents.filter((n) => {
+        if (!n.createdAt) return false;
+        const date = new Date(n.createdAt);
+        return date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;
 
-      const monthFindings = findings.filter(n => {
-        const date = n.createdAt ? new Date(n.createdAt) : new Date();
-        return date.getMonth() === monthIndex;
+      const monthFindings = findings.filter((n) => {
+        if (!n.createdAt) return false;
+        const date = new Date(n.createdAt);
+        return date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;
 
       trendData.push({
         month: monthName,
-        incidentes: monthIncidents || (i === 0 ? incidents.length : 0), // Fallback for demo
-        hallazgos: monthFindings || (i === 0 ? findings.length : 0) // Fallback for demo
+        incidentes: monthIncidents, // cero honesto si no hay datos
+        hallazgos: monthFindings,
       });
     }
     return trendData;
