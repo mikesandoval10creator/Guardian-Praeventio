@@ -38,8 +38,10 @@ import {
   CheckCircle2,
   ImageIcon,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react';
-import { PremiumFeatureGuard } from '../components/shared/PremiumFeatureGuard';
+import { useNavigate } from 'react-router-dom';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { Card, Button } from '../components/shared/Card';
 import {
   POSTER_CATALOG_SEED,
@@ -157,6 +159,14 @@ ${entries.join('\n')}
 
 export function DevPosterSeeder() {
   const { t } = useTranslation();
+  // Codex fix #286 P2 round 2 (L257): el runbook describe esto como
+  // admin-only pero antes solo había `PremiumFeatureGuard` (que valida
+  // suscripción, NO admin role). Cualquier tenant pagado podía abrir la
+  // ruta — riesgo real porque el flow genera artefactos de producción.
+  // Ahora gating REAL por `isAdmin` (custom claim Firebase Auth).
+  const { isAdmin, loading: authLoading } = useFirebase();
+  const navigate = useNavigate();
+
   const [progress, setProgress] = useState<SeedProgress[]>(() =>
     POSTER_CATALOG_SEED.map((p) => ({ posterId: p.id, status: 'pending' as const })),
   );
@@ -219,13 +229,34 @@ export function DevPosterSeeder() {
       }
     }
 
-    if (successful.size > 0) {
+    // Codex fix #286 P2 round 2 (L224): SOLO habilitar download cuando
+    // TODOS los posters del catálogo seed quedaron OK. Antes con N de M
+    // exitosos, el operador podía descargar un archivo parcial que al
+    // commitearlo bajaría la cobertura de scanner runtime de N/N a M/N
+    // sin warning. Ahora exigimos all-or-nothing: si falta uno, mostrar
+    // error explícito + lista de IDs que faltan; NO se genera download
+    // hasta corregir las imágenes faltantes.
+    if (successful.size === POSTER_CATALOG_SEED.length) {
       const content = renderGeneratedFile(successful, new Date().toISOString());
       setDownloadable(content);
     } else {
-      setGlobalError(
-        'Ningún poster pudo procesarse. Verifica que public/posters/*.jpg existan.',
-      );
+      const missing = POSTER_CATALOG_SEED
+        .filter((p) => !successful.has(p.id))
+        .map((p) => p.id)
+        .join(', ');
+      if (successful.size === 0) {
+        setGlobalError(
+          'Ningún poster pudo procesarse. Verifica que public/posters/*.jpg existan.',
+        );
+      } else {
+        setGlobalError(
+          `Solo ${successful.size}/${POSTER_CATALOG_SEED.length} posters terminaron OK. ` +
+            `Faltan: ${missing}. El download está DESACTIVADO hasta que todos ` +
+            `los posters se procesen — un commit parcial bajaría la cobertura ` +
+            `del scanner de N/N a M/N sin warning. Coloca las imágenes faltantes ` +
+            `y vuelve a correr.`,
+        );
+      }
     }
     setRunning(false);
   }, [running, updateProgress]);
@@ -247,14 +278,51 @@ export function DevPosterSeeder() {
   const failureCount = progress.filter((p) => p.status === 'failed').length;
   const pendingCount = progress.filter((p) => p.status === 'pending').length;
 
+  // Codex fix #286 P2 round 2 (L257): gate REAL por admin antes de
+  // render. Mientras auth carga, mostrar loader. Si no admin →
+  // tarjeta de bloqueo con CTA back to dashboard, NO renderizar la
+  // herramienta. Esto es complementario al gate server-side (firestore
+  // rules + custom claims) pero corrige la promesa del runbook que
+  // decía "admin-only" sin gating real en cliente.
+  if (authLoading) {
+    return (
+      <div className="p-8 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+      </div>
+    );
+  }
+  if (!isAdmin) {
+    return (
+      <div className="p-4 lg:p-8 max-w-3xl mx-auto">
+        <Card className="p-6 border-rose-500/30 bg-rose-500/5">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-6 h-6 text-rose-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h1 className="text-lg font-bold text-rose-300">
+                {t('devPosterSeeder.adminOnly.title', 'Herramienta solo para admin')}
+              </h1>
+              <p className="text-sm text-rose-200/80 mt-2">
+                {t(
+                  'devPosterSeeder.adminOnly.body',
+                  'Esta ruta genera artefactos de producción (embeddings AR) y está restringida a usuarios con rol admin. Si crees que deberías tener acceso, contacta al gerente del proyecto.',
+                )}
+              </p>
+              <Button
+                variant="secondary"
+                className="mt-4"
+                onClick={() => navigate('/')}
+              >
+                {t('devPosterSeeder.adminOnly.back', 'Volver al inicio')}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <PremiumFeatureGuard
-      featureName={t('devPosterSeeder.guard.featureName', 'Dev: Poster Seeder')}
-      description={t(
-        'devPosterSeeder.guard.description',
-        'Herramienta admin para generar embeddings de referencia de los afiches de seguridad. Solo uso de dev/admin.',
-      )}
-    >
+    <>
       <div className="p-4 lg:p-8 space-y-6 max-w-4xl mx-auto">
         <header>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
@@ -401,6 +469,6 @@ export function DevPosterSeeder() {
           </ol>
         </Card>
       </div>
-    </PremiumFeatureGuard>
+    </>
   );
 }
