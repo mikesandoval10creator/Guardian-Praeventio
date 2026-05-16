@@ -140,6 +140,32 @@ const redactPromptForVertex = (prompt: string, action: string): string => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Parse the JSON body of a Gemini `generateContent` response.
+ *
+ * The SDK types `response.text` as `string | undefined` — `undefined`
+ * happens when the model produced no text (safety-blocked, finish reason
+ * non-STOP, or empty completion). We surface that as an explicit error
+ * instead of letting `JSON.parse(undefined)` throw `SyntaxError`, which
+ * is much harder to attribute to "the model returned nothing".
+ *
+ * Centralised helper for strictNullChecks Wave 4a — replaces 27 callsites
+ * of the form `return JSON.parse(response.text)` scattered through this
+ * file. Behaviour is preserved: same `JSON.parse` semantics, just with a
+ * typed error on the empty-response path.
+ */
+// Default generic is `any` (not `unknown`) to preserve the original
+// `JSON.parse(...)` return-type so downstream callers that spread the
+// result (`{ ...auditResult, compliance, timestamp }`) keep compiling
+// without each callsite having to specify a generic. Callers that want
+// stricter typing pass an explicit type parameter.
+const parseGeminiJson = <T = any>(response: { text?: string }): T => {
+  if (!response.text) {
+    throw new Error('gemini_empty_response');
+  }
+  return JSON.parse(response.text) as T;
+};
+
 const withExponentialBackoff = async <T>(
   operation: () => Promise<T>,
   maxRetries: number = 5,
@@ -313,7 +339,7 @@ export const analyzeFastCheck = async (observation: string) => {
         }
       });
 
-      return JSON.parse(response.text);
+      return parseGeminiJson(response);
     },
   );
 };
@@ -377,7 +403,7 @@ async function predictGlobalIncidentsImpl(context: string, envContext: string) {
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 }
 
 export const analyzeRiskWithAI = async (description: string, nodesContext: string, industry?: string) => {
@@ -447,6 +473,9 @@ async function analyzeRiskWithAIImpl(description: string, nodesContext: string, 
         }
       }
     });
+    if (!response.text) {
+      throw new Error('gemini_empty_response');
+    }
     return response.text;
   };
 
@@ -491,7 +520,7 @@ export const analyzePostureWithAI = async (base64Image: string, mimeType: string
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateEmergencyPlan = async (projectName: string, context: string, industry?: string) => {
@@ -569,7 +598,7 @@ export const analyzeSafetyImage = async (base64Image: string, mimeType: string, 
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateISOAuditChecklist = async (topic: string, context: string) => {
@@ -618,7 +647,7 @@ export const generateISOAuditChecklist = async (topic: string, context: string) 
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generatePTS = async (taskName: string, taskDescription: string, riskLevel: string, normative: string, _glossary: any, envContext: string, zkContext: string, documentType: string) => {
@@ -752,7 +781,7 @@ export const generateEmergencyScenario = async (context: string) => {
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateRealisticIoTEvent = async (context: string) => {
@@ -789,7 +818,7 @@ export const generateRealisticIoTEvent = async (context: string) => {
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const processDocumentToNodes = async (text: string) => {
@@ -799,7 +828,7 @@ export const processDocumentToNodes = async (text: string) => {
   
   // Chunking strategy to avoid token limits
   const CHUNK_SIZE = 8000; // Aiming for roughly 2k tokens per chunk
-  const chunks = [];
+  const chunks: string[] = [];
   for (let i = 0; i < text.length; i += CHUNK_SIZE) {
     chunks.push(text.slice(i, i + CHUNK_SIZE));
   }
@@ -839,7 +868,7 @@ export const processDocumentToNodes = async (text: string) => {
         })
       );
       
-      const nodes = JSON.parse(response.text);
+      const nodes = parseGeminiJson<RiskNode[]>(response);
       allNodes.push(...nodes);
     } catch (e) {
       logger.error("Error processing chunk for document nodes:", e);
@@ -881,7 +910,7 @@ export const simulateRiskPropagation = async (nodeTitle: string, context: string
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const enrichNodeData = async (nodeData: Partial<RiskNode>): Promise<Partial<RiskNode>> => {
@@ -1134,7 +1163,7 @@ export const generateActionPlan = async (findingTitle: string, findingDescriptio
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateSafetyReport = async (reportType: 'PTS' | 'PE' | 'AST', context: string) => {
@@ -1190,7 +1219,7 @@ export const auditAISuggestion = async (suggestion: string, context: string) => 
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generatePersonalizedSafetyPlan = async (workerName: string, role: string, history: string, projectRisks: string) => {
@@ -1232,7 +1261,7 @@ export const generatePersonalizedSafetyPlan = async (workerName: string, role: s
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const analyzeDocumentCompliance = async (documentText: string, normativeContext: string) => {
@@ -1264,7 +1293,7 @@ export const analyzeDocumentCompliance = async (documentText: string, normativeC
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateTrainingRecommendations = async (workerName: string, workerRole: string, context: string) => {
@@ -1296,7 +1325,7 @@ export const generateTrainingRecommendations = async (workerName: string, worker
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const investigateIncidentWithAI = async (incidentTitle: string, incidentDescription: string, context: string) => {
@@ -1362,7 +1391,7 @@ export const investigateIncidentWithAI = async (incidentTitle: string, incidentD
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const auditProjectComplianceWithAI = async (projectName: string, projectContext: string, normativeContext: string) => {
@@ -1407,7 +1436,7 @@ export const auditProjectComplianceWithAI = async (projectName: string, projectC
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const analyzeAttendancePatterns = async (projectName: string, attendanceData: string) => {
@@ -1435,7 +1464,7 @@ export const analyzeAttendancePatterns = async (projectName: string, attendanceD
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const generateSafetyCapsule = async (workerName: string, role: string, context: string) => {
@@ -1463,7 +1492,7 @@ export const generateSafetyCapsule = async (workerName: string, role: string, co
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const suggestRisksWithAI = async (industry: string, context: string) => {
@@ -1507,7 +1536,7 @@ export const suggestRisksWithAI = async (industry: string, context: string) => {
       }
     }
   });
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const suggestNormativesWithAI = async (industry: string) => {
@@ -1838,7 +1867,7 @@ export const forecastSafetyEvents = async (nodesContext: string, historicalData?
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const analyzeRiskNetwork = async (nodesContext: string) => {
@@ -1867,7 +1896,7 @@ export const analyzeRiskNetwork = async (nodesContext: string) => {
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const predictAccidents = async (nodesContext: string, telemetryContext: string) => {
@@ -1911,7 +1940,7 @@ export const predictAccidents = async (nodesContext: string, telemetryContext: s
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const analyzeSiteMapDensity = async (nodesContext: string, workersContext: string, assetsContext: string) => {
@@ -1991,7 +2020,7 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const validateRiskImageClick = async (imageBase64: string, x: number, y: number, width: number, height: number, gameContext: string = '') => {
@@ -2044,7 +2073,7 @@ export const validateRiskImageClick = async (imageBase64: string, x: number, y: 
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const calculateDynamicEvacuationRoute = async (activeEmergencies: any[], workers: any[], machinery: any[], userBlockedAreas: string[] = []) => {
@@ -2195,11 +2224,11 @@ export const processAudioWithAI = async (base64Audio: string) => {
   });
 
   let aiText = result.text || "";
-  let functionCall = null;
+  let functionCall: Record<string, unknown> | null = null;
 
   if (result.functionCalls && result.functionCalls.length > 0) {
     const call = result.functionCalls[0];
-    if (call.name === "reportIncident") {
+    if (call && call.name === "reportIncident" && call.args) {
       functionCall = call.args;
       aiText = `He registrado el incidente: ${call.args.title}. Se ha clasificado con severidad ${call.args.severity}. ¿Necesitas reportar algo más o requieres asistencia inmediata?`;
     }
@@ -2427,6 +2456,9 @@ export const analyzeFeedPostForRiskNetwork = async (content: string, imageBase64
     }
   });
 
+  if (!response.text) {
+    throw new Error('gemini_empty_response');
+  }
   return JSON.parse(response.text.trim());
 };
 
@@ -2627,6 +2659,9 @@ export const generateExecutiveSummary = async (stats: any, nodes: any[]) => {
     }
   });
 
+  if (!response.text) {
+    throw new Error('gemini_empty_response');
+  }
   return JSON.parse(response.text.trim());
 };
 
@@ -2759,7 +2794,7 @@ export const calculateComplianceSummary = async (projectId: string, nodes: any[]
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const processGlobalSafetyAudit = async (_projectId: string, projectData: any) => {
@@ -2795,7 +2830,7 @@ export const processGlobalSafetyAudit = async (_projectId: string, projectData: 
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const scanLegalUpdates = async (normativeTitle: string, normativeText: string, modulesSummary: string) => {
@@ -2831,7 +2866,7 @@ export const scanLegalUpdates = async (normativeTitle: string, normativeText: st
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export const getNutritionSuggestion = async (mood: number, role: string = 'Trabajador', taskContext: string = '') => {
@@ -2866,7 +2901,7 @@ export const getNutritionSuggestion = async (mood: number, role: string = 'Traba
     }
   });
 
-  return JSON.parse(response.text);
+  return parseGeminiJson(response);
 };
 
 export * from './susesoBackend.js';
