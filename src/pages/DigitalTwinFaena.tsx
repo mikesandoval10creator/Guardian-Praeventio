@@ -445,14 +445,25 @@ export function DigitalTwinFaena() {
             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">{t('digitalTwin.subtitle', 'Reconstrucción Faena · lingBot-Map')}</p>
           </div>
         </div>
-        <button
-          onClick={refreshJobs}
-          disabled={loadingJobs}
-          aria-label="Refrescar lista de jobs"
-          className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-        >
-          <RefreshCw className={`w-4 h-4 text-zinc-400 ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Sprint F (2026-05-16): entrada al Modo AR — la magia visual */}
+          <a
+            href="/digital-twin/ar"
+            aria-label="Abrir Modo AR"
+            className="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 text-[10px] font-black uppercase tracking-widest transition-colors min-h-[44px] flex items-center gap-2"
+          >
+            <span aria-hidden="true">🥽</span>
+            <span>{t('digitalTwin.openAr', 'Modo AR')}</span>
+          </a>
+          <button
+            onClick={refreshJobs}
+            disabled={loadingJobs}
+            aria-label="Refrescar lista de jobs"
+            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <RefreshCw className={`w-4 h-4 text-zinc-400 ${loadingJobs ? 'animate-spin' : ''}`} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
