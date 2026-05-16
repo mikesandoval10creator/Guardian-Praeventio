@@ -18,6 +18,7 @@ import admin from 'firebase-admin';
 import { verifyAuth } from '../middleware/verifyAuth.js';
 import { validate } from '../middleware/validate.js';
 import { auditServerEvent } from '../middleware/auditLog.js';
+import { susesoVerifyLimiter } from '../middleware/limiters.js';
 import { logger } from '../../utils/logger.js';
 import {
   createSusesoForm,
@@ -367,7 +368,11 @@ router.post(
   },
 );
 
-router.get('/verify/:folio', async (req, res) => {
+// Sprint E backend debt 2026-05-16: el endpoint sigue público (regla de
+// verificabilidad pública de DIAT/DIEP), pero ahora con limiter dedicado
+// (30 req/min/IP). Bloquea enumeración secuencial de folios + DoS de
+// reads Firestore sin afectar a fiscalizadores legítimos.
+router.get('/verify/:folio', susesoVerifyLimiter, async (req, res) => {
   try {
     const result = await verifyFolio(req.params.folio, {
       formStore: buildFormStore(),
