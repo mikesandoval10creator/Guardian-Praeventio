@@ -209,8 +209,8 @@ export async function sendToProjectSupervisors(
 const router = Router();
 
 router.post('/sos', verifyAuth, sosLimiter, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
   const { type, projectId, geo, timestamp } = req.body ?? {};
 
   if (type !== 'sos') {
@@ -416,8 +416,8 @@ router.post(
     const { projectId, emergencyType, message } = req.body as z.infer<
       typeof NotifyBrigadaSchema
     >;
-    const callerUid = req.user.uid;
-    const callerEmail: string | null = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
     const db = admin.firestore();
 
     try {
