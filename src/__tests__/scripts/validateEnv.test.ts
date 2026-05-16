@@ -33,6 +33,9 @@ const { check, REQUIRED_PROD, PLACEHOLDER_REGEX, SECRET_MANAGER_SECRETS } = vali
     optional?: boolean;
     minLength?: number;
     allowedValues?: string[];
+    // Sprint 39 B.3: predicado opcional para enforcement condicional
+    // (e.g. KMS_KEY_RESOURCE_NAME solo se exige si KMS_ADAPTER='cloud-kms').
+    requiredIf?: (env: Record<string, string | undefined>) => boolean;
   }>;
   PLACEHOLDER_REGEX: RegExp;
   SECRET_MANAGER_SECRETS: string[];
