@@ -138,3 +138,19 @@ export class EonetAdapter {
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Lazy singleton — permite usar `eonetAdapter.fetchEvents(...)` sin
+ * construir manualmente. Match con el patrón de `nasaPowerAdapter`.
+ * Tests pueden mockear la importación de este símbolo.
+ */
+let _singleton: EonetAdapter | null = null;
+export const eonetAdapter = {
+  fetchEvents(opts: EonetFetchOptions = {}): Promise<EonetEvent[]> {
+    if (!_singleton) _singleton = new EonetAdapter();
+    return _singleton.fetchEvents(opts);
+  },
+  clearCache(): void {
+    _singleton?.clearCache();
+  },
+};
