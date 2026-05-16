@@ -1,4 +1,4 @@
-// Sprint 48 E.4 — Catálogo de 8 regímenes de privacidad. Determinístico,
+// Sprint 48 E.4 — Catálogo de regímenes de privacidad. Determinístico,
 // números concretos (deadlines en horas, retenciones en días).
 //
 // Consumido por `privacyRegimeRegistry.ts` (API pública) y por
@@ -13,6 +13,13 @@
 //   - PIPA-JP (Japón APPI 2003 rev. 2022) — 30 días
 //   - PIPA-KR (Corea PIPA 2011 rev. 2024) — 72h
 //   - DPDP (India 2023)             — "as soon as possible" (estandar 72h)
+//   - PIPL-CN (China 2021)          — "immediate" (estandar 24h)
+//   - PIPA-TW (Taiwan PDPA 2015)    — 72h breach notification
+//   - 152-FZ (Russia 2006/2022)     — 24h notification + data localization
+//
+// 🔴 Fix 2026-05-15: antes CN/TW/RU apuntaban erróneamente a 'PIPA-JP'
+// como placeholder (`profiles.ts:588,601,615`). Esto es riesgo regulatorio
+// real — un cliente chino procesando bajo "régimen japonés" violaría PIPL.
 
 export type PrivacyRegimeCode =
   | 'GDPR'
@@ -22,7 +29,10 @@ export type PrivacyRegimeCode =
   | 'APP'
   | 'PIPA-JP'
   | 'PIPA-KR'
-  | 'DPDP';
+  | 'DPDP'
+  | 'PIPL-CN'
+  | 'PIPA-TW'
+  | '152-FZ-RU';
 
 export type DataSubjectRight =
   | 'access'
@@ -274,6 +284,80 @@ const REGIMES: Record<PrivacyRegimeCode, PrivacyRegime> = {
     dataResidencyRequired: true, // localización para SDFs (Significant Data Fiduciaries)
     minorConsentAge: 18, // DPDP es estricto: <18 requiere consentimiento parental
     regulator: 'Data Protection Board of India',
+  },
+  // 🔴 NUEVO 2026-05-15: regímenes que antes faltaban — CN/TW/RU apuntaban
+  // erróneamente a 'PIPA-JP' como placeholder en profiles.ts. Eso era
+  // riesgo regulatorio real (un cliente chino procesando bajo "régimen
+  // japonés" violaría PIPL art.40 cross-border + data localization).
+  'PIPL-CN': {
+    code: 'PIPL-CN',
+    name: '个人信息保护法 (Personal Information Protection Law)',
+    jurisdiction: 'China',
+    effectiveYear: 2021,
+    dataSubjectRights: [
+      'access',
+      'rectification',
+      'erasure',
+      'portability',
+      'withdraw_consent',
+      'automated_decision_review',
+    ],
+    // PIPL exige consent base separada y específica — no acepta legitimate_interests
+    validConsentBases: ['explicit_consent', 'contract_performance', 'legal_obligation'],
+    alwaysRequireExplicitConsent: [
+      'biometric',
+      'health_medical',
+      'minor_data',
+      'genetic',
+      'location_precise',
+    ],
+    // PIPL art.57: notification "immediate" — estandarizamos 24h conservador
+    breachNotificationHours: 24,
+    breachNotificationToIndividuals: true,
+    // PIPL art.40: data localization OBLIGATORIA para datos de ciudadanos chinos
+    dataResidencyRequired: true,
+    minorConsentAge: 14, // PIPL art.31
+    regulator: 'Cyberspace Administration of China (CAC)',
+  },
+  'PIPA-TW': {
+    code: 'PIPA-TW',
+    name: '個人資料保護法 (Personal Data Protection Act)',
+    jurisdiction: 'Taiwan',
+    effectiveYear: 2015,
+    dataSubjectRights: [
+      'access',
+      'rectification',
+      'erasure',
+      'withdraw_consent',
+    ],
+    validConsentBases: ['explicit_consent', 'contract_performance', 'legal_obligation'],
+    alwaysRequireExplicitConsent: ['biometric', 'health_medical', 'minor_data', 'genetic'],
+    breachNotificationHours: 72,
+    breachNotificationToIndividuals: true,
+    dataResidencyRequired: false,
+    minorConsentAge: 20, // Civil Code Taiwan (mayoría de edad)
+    regulator: 'National Development Council (NDC) / Personal Data Protection Commission',
+  },
+  '152-FZ-RU': {
+    code: '152-FZ-RU',
+    name: 'Федеральный закон №152-ФЗ "О персональных данных"',
+    jurisdiction: 'Federación Rusa',
+    effectiveYear: 2006, // Última reforma 2022
+    dataSubjectRights: [
+      'access',
+      'rectification',
+      'erasure',
+      'withdraw_consent',
+    ],
+    validConsentBases: ['explicit_consent', 'legal_obligation', 'contract_performance'],
+    alwaysRequireExplicitConsent: ['biometric', 'health_medical', 'minor_data', 'genetic'],
+    // 152-FZ art.21.3: notificación "inmediata" — estandar 24h
+    breachNotificationHours: 24,
+    breachNotificationToIndividuals: true,
+    // 152-FZ art.18.5: data localization OBLIGATORIA en servidores en Rusia
+    dataResidencyRequired: true,
+    minorConsentAge: 14,
+    regulator: 'Roskomnadzor (Roscomnadzor)',
   },
 };
 

@@ -58,9 +58,30 @@ export interface B2dApiKey {
 
 const COLLECTION = 'b2d_api_keys';
 
-/** Salt used when hashing keys. Defaults to a public string in dev so tests run. */
+/**
+ * Salt used when hashing keys.
+ *
+ * 🔴 Security 2026-05-15: antes esto devolvía un default público
+ * `'praeventio-b2d-default-salt'` que vive en GitHub — si la env var no
+ * está seteada en prod, TODAS las API keys B2D quedarían hasheadas con
+ * un salt conocido públicamente (rainbow-table trivial). Ahora:
+ *   - En dev/test (`NODE_ENV !== 'production'`): default público OK
+ *     (los tests necesitan determinismo y nadie corre prod en dev).
+ *   - En producción: FAIL-CLOSED si `B2D_API_KEY_SALT` no está seteada.
+ *     Lanzamos al primer uso para que el proceso no levante con un salt
+ *     débil sin que nadie se dé cuenta.
+ */
 function projectSalt(): string {
-  return process.env.B2D_API_KEY_SALT ?? 'praeventio-b2d-default-salt';
+  const fromEnv = process.env.B2D_API_KEY_SALT;
+  if (fromEnv && fromEnv.length >= 16) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'B2D_API_KEY_SALT is required in production (min 16 chars). ' +
+        'Hashing API keys with a public default salt is a security risk. ' +
+        'Generate one via `openssl rand -hex 32` and set it in Secret Manager.',
+    );
+  }
+  return 'praeventio-b2d-default-salt';
 }
 
 /**

@@ -1,4 +1,6 @@
-// Sprint 48 E.4 — Tests del privacyRegimeRegistry (8 regímenes).
+// Sprint 48 E.4 — Tests del privacyRegimeRegistry.
+// 2026-05-15 fix: catálogo expandido de 8 → 11 (agregado PIPL-CN, PIPA-TW,
+// 152-FZ-RU; antes profiles.ts mapeaba CN/TW/RU a PIPA-JP por error).
 
 import { describe, it, expect } from 'vitest';
 import {
@@ -7,8 +9,8 @@ import {
   requiredConsentFor,
 } from './privacyRegimeRegistry.js';
 
-describe('privacyRegimeRegistry — catálogo de 8', () => {
-  it('listRegimes incluye exactamente los 8 regímenes esperados', () => {
+describe('privacyRegimeRegistry — catálogo de 11', () => {
+  it('listRegimes incluye exactamente los 11 regímenes esperados', () => {
     const codes = listRegimes().map((r) => r.code);
     for (const c of [
       'GDPR',
@@ -19,15 +21,41 @@ describe('privacyRegimeRegistry — catálogo de 8', () => {
       'PIPA-JP',
       'PIPA-KR',
       'DPDP',
+      // Nuevos 2026-05-15
+      'PIPL-CN',
+      'PIPA-TW',
+      '152-FZ-RU',
     ] as const) {
       expect(codes).toContain(c);
     }
-    expect(codes.length).toBe(8);
+    expect(codes.length).toBe(11);
   });
 
   it('getRegime(XX) → null', () => {
     // @ts-expect-error — intencional.
     expect(getRegime('XX')).toBeNull();
+  });
+
+  it('PIPL-CN requiere data localization (art.40)', () => {
+    const cn = getRegime('PIPL-CN');
+    expect(cn).not.toBeNull();
+    expect(cn?.dataResidencyRequired).toBe(true);
+    expect(cn?.breachNotificationHours).toBe(24);
+    expect(cn?.regulator).toContain('Cyberspace Administration');
+  });
+
+  it('152-FZ-RU requiere data localization (art.18.5)', () => {
+    const ru = getRegime('152-FZ-RU');
+    expect(ru).not.toBeNull();
+    expect(ru?.dataResidencyRequired).toBe(true);
+    expect(ru?.regulator).toContain('Roskomnadzor');
+  });
+
+  it('PIPA-TW NO requiere data localization (PDPA estándar)', () => {
+    const tw = getRegime('PIPA-TW');
+    expect(tw).not.toBeNull();
+    expect(tw?.dataResidencyRequired).toBe(false);
+    expect(tw?.breachNotificationHours).toBe(72);
   });
 });
 
