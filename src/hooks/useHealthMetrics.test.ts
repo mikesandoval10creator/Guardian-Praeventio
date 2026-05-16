@@ -22,7 +22,7 @@ vi.mock('@capacitor/core', () => ({
 
 const facadeMock = {
   backend: 'none' as 'none' | 'healthkit' | 'health-connect',
-  requestPermissions: vi.fn(async () => ({ granted: [], denied: [] })),
+  requestPermissions: vi.fn(async (): Promise<{ granted: string[]; denied: string[] }> => ({ granted: [], denied: [] })),
   getStepsToday: vi.fn(async () => 0),
   getHeartRate: vi.fn(async () => [] as { timestamp: number; bpm: number }[]),
   getActiveEnergyBurned: vi.fn(
