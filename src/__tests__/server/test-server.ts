@@ -376,8 +376,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/audit-log â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/audit-log', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail = req.user!.email ?? null;
     const { action, module: mod, details, projectId } = req.body ?? {};
 
     if (typeof action !== 'string' || action.length === 0 || action.length > 64) {
@@ -426,7 +426,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/admin/set-role â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/admin/set-role', verifyAuth, async (req, res) => {
     const { uid, role } = req.body ?? {};
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     if (typeof uid !== 'string' || !UID_REGEX.test(uid)) {
       return res.status(400).json({ error: 'Invalid uid' });
     }
@@ -462,7 +462,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/admin/revoke-access â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/admin/revoke-access', verifyAuth, async (req, res) => {
     const { targetUid } = req.body ?? {};
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
       return res.status(400).json({ error: 'Invalid uid' });
     }
@@ -491,7 +491,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/billing/verify â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/billing/verify', verifyAuth, async (req, res) => {
     const { purchaseToken, productId, type } = req.body ?? {};
-    const uid = req.user.uid;
+    const uid = req.user!.uid;
     if (!deps.playVerify) {
       return res.status(500).json({ error: 'Google Play API not configured on server' });
     }
@@ -535,8 +535,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/billing/checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/billing/checkout', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail = req.user!.email ?? null;
     const body = req.body ?? {};
     if (typeof body.tierId !== 'string' || body.tierId.length === 0 || body.tierId.length > 64) {
       return res.status(400).json({ error: 'Invalid tierId' });
@@ -634,7 +634,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/billing/invoice/:id â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.get('/api/billing/invoice/:id', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const invoiceId = req.params.id;
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(invoiceId)) {
       return res.status(400).json({ error: 'Invalid invoice id' });
@@ -843,8 +843,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
 
   // â”€â”€â”€ /api/curriculum/claim â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/curriculum/claim', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail = req.user!.email ?? null;
     const { claim, category, referees, signedByWorker } = req.body ?? {};
 
     if (typeof claim !== 'string' || claim.trim().length === 0 || claim.trim().length > 500) {
@@ -986,7 +986,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/projects/:id/invite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/projects/:id/invite', verifyAuth, async (req, res) => {
     const projectId = req.params.id;
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { invitedEmail, invitedRole } = req.body ?? {};
     if (!invitedEmail || !invitedRole) {
       return res.status(400).json({ error: 'invitedEmail and invitedRole are required' });
@@ -1079,8 +1079,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // â”€â”€â”€ /api/invitations/:token/accept â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.post('/api/invitations/:token/accept', verifyAuth, async (req, res) => {
     const { token } = req.params;
-    const callerUid = req.user.uid;
-    const callerEmail = req.user.email;
+    const callerUid = req.user!.uid;
+    const callerEmail = req.user!.email;
     // Optional client-supplied projectId â€” when present, must match the
     // invitation's projectId. Blocks cross-tenant write attacks.
     const claimedProjectId: string | undefined =
@@ -1248,7 +1248,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // scope is supplied, points are awarded to the caller's own uid (the
   // production handler reads uid from the verified token, NOT body).
   app.post('/api/gamification/points', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { amount, reason, projectId, targetUid } = req.body ?? {};
     if (typeof amount !== 'number' || !Number.isFinite(amount)) {
       return res.status(400).json({ error: 'invalid amount' });
@@ -1298,7 +1298,7 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   // Closes DT-01/DT-05: only callers with a paid invoice for the
   // requested plan may upgrade. Mirrors the production gate.
   app.post('/api/subscription/upgrade', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { planId } = req.body ?? {};
     if (!isSubscriptionPlan(planId)) {
       return res.status(400).json({ error: 'invalid_plan' });
@@ -1381,8 +1381,8 @@ export function buildTestServer(overrides: Partial<TestServerDeps> = {}): TestSe
   const ZK_ID_REGEX = /^[A-Za-z0-9_\-:.]{1,256}$/;
 
   app.post('/api/zettelkasten/nodes', verifyAuth, async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail = req.user!.email ?? null;
 
     // Rate-limit por uid.
     const count = (zkRateBuckets.get(callerUid) ?? 0) + 1;
