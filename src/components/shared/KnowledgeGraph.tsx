@@ -619,7 +619,15 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
           </div>
         }>
         <ForceGraph3D
-          ref={graph3DRef}
+          // strictFunctionTypes: react-force-graph-3d genera tipos
+          // basados en un default `{ [k: string]: any }` que es DEMASIADO
+          // ancho para nuestra forma narrow `RiskNode`. Cast en el
+          // boundary porque la lógica de runtime SÍ pasa RiskNode.
+          // Usar `any` aquí (en lugar de `unknown`) porque la prop
+          // espera la forma con TODOS los métodos del ForceGraphMethods
+          // y `unknown` es demasiado restrictivo para asignar.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ref={graph3DRef as any}
           graphData={graphData}
           nodeLabel="title"
           nodeColor={node => getNodeColorWithCritical((node as RFGNode).type, node as RiskNode)}
@@ -627,9 +635,9 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
           linkDirectionalParticles={2}
           linkDirectionalParticleSpeed={0.005}
           linkColor={() => 'rgba(255, 255, 255, 0.1)'}
-          onNodeClick={handleNodeClick}
+          onNodeClick={handleNodeClick as unknown as (node: unknown, event: MouseEvent) => void}
           backgroundColor={isZenMode ? '#000000' : '#09090b'}
-          nodeThreeObject={(node: RFGNode) => {
+          nodeThreeObject={((node: RFGNode) => {
             const color = getNodeColorWithCritical(node.type, node as RiskNode);
             const isAffected = affectedNodes.has(String(node.id ?? ''));
             
@@ -688,7 +696,7 @@ export function KnowledgeGraph({ controlledSelectedId }: KnowledgeGraphProps = {
             }
 
             return mesh;
-          }}
+          }) as unknown as (node: unknown) => THREE.Object3D}
         />
         </Suspense>
       ) : (
