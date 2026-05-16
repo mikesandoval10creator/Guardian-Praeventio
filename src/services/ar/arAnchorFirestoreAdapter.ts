@@ -37,8 +37,13 @@ export interface ArAnchorFirestoreDb {
   collection(path: string): any;
 }
 
-const PATH = (tid: string, pid: string) =>
-  `tenants/${tid}/projects/${pid}/ar_anchors`;
+// Codex fix 2026-05-16: el path está a 3 niveles tenant-subcollection
+// (consistente con supervisor_only/, suseso_forms/, etc.). El project
+// scoping vive como FIELD del doc, no en path. Las firestore.rules
+// validan tenant membership; el client filtra por projectId con
+// `where('projectId','==',...)`.
+const PATH = (tid: string, _pid: string) =>
+  `tenants/${tid}/ar_anchors`;
 
 export class ArAnchorAdapter {
   constructor(
@@ -83,6 +88,7 @@ export class ArAnchorAdapter {
   async listAll(limitN = 500): Promise<ArAnchor[]> {
     const snap = await this.db
       .collection(PATH(this.tenantId, this.projectId))
+      .where('projectId', '==', this.projectId)
       .limit(limitN)
       .get();
     return snap.docs.map((d: any) => d.data() as ArAnchor);
@@ -92,6 +98,7 @@ export class ArAnchorAdapter {
   async listByKind<K extends AnchorKind>(kind: K, limitN = 200): Promise<ArAnchor[]> {
     const snap = await this.db
       .collection(PATH(this.tenantId, this.projectId))
+      .where('projectId', '==', this.projectId)
       .where('kind', '==', kind)
       .limit(limitN)
       .get();
@@ -120,6 +127,7 @@ export class ArAnchorAdapter {
   async listByEquipmentId(equipmentId: string): Promise<MachineryAnchor[]> {
     const snap = await this.db
       .collection(PATH(this.tenantId, this.projectId))
+      .where('projectId', '==', this.projectId)
       .where('kind', '==', 'machinery')
       .where('equipmentId', '==', equipmentId)
       .get();
@@ -160,6 +168,7 @@ export class ArAnchorAdapter {
     const lngDelta = radiusKm / (111 * Math.cos((latitude * Math.PI) / 180));
     const snap = await this.db
       .collection(PATH(this.tenantId, this.projectId))
+      .where('projectId', '==', this.projectId)
       .where('gps.latitude', '>=', latitude - latDelta)
       .where('gps.latitude', '<=', latitude + latDelta)
       .limit(500)
