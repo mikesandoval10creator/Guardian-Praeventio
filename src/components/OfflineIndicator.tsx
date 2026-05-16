@@ -21,7 +21,7 @@ export function OfflineIndicator() {
     if (!sync.isOnline) {
       setWasOffline(true);
       setShowBackOnline(false);
-      return;
+      return undefined;
     }
     if (wasOffline && sync.isOnline) {
       setWasOffline(false);
@@ -29,6 +29,7 @@ export function OfflineIndicator() {
       const t = setTimeout(() => setShowBackOnline(false), 3000);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [sync.isOnline, wasOffline]);
 
   const renderBadge = () => {

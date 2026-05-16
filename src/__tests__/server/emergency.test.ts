@@ -200,7 +200,7 @@ function buildSosApp(deps: SosTestDeps): Express {
       }
     }
 
-    res.json({
+    return res.json({
       ok: true,
       alertId: alertRef.id,
       notified,

@@ -127,7 +127,7 @@ function buildApp(deps: Deps): Express {
       tenantId: tenantId ?? null,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
-    res.json({ success: true });
+    return res.json({ success: true });
   });
 
   return app;

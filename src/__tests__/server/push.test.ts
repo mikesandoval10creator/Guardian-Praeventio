@@ -100,9 +100,9 @@ function buildPushApp(deps: PushTestDeps): Express {
         ts: new Date().toISOString(),
       });
 
-      res.json({ ok: true });
+      return res.json({ ok: true });
     } catch {
-      res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ error: 'Internal server error' });
     }
   });
 

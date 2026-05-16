@@ -89,6 +89,7 @@ function buildApp(deps: Deps): Express {
       const decoded = await deps.auth.verifyIdToken(token);
       req.user = decoded;
       next();
+      return undefined;
     } catch {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
@@ -154,7 +155,7 @@ function buildApp(deps: Deps): Express {
       tenantId: tenantId ?? null,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
-    res.json({ success: true });
+    return res.json({ success: true });
   });
 
   // â”€â”€â”€ /api/admin/iot/rotate-secret â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -183,7 +184,7 @@ function buildApp(deps: Deps): Express {
       userId: callerUid,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
-    res.json({ secret: newSecret });
+    return res.json({ secret: newSecret });
   });
 
   return app;

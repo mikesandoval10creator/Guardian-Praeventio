@@ -46,6 +46,7 @@ function build(): Handle {
     const [, uid, email] = token.split(':');
     req.user = { uid: uid ?? 'uid-default', email: email ?? `${uid}@test.com` };
     next();
+    return undefined;
   };
 
   // Resolve tenantId from project doc.
@@ -96,7 +97,7 @@ function build(): Handle {
       projectId,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
-    res.json({ success: true, sessionId });
+    return res.json({ success: true, sessionId });
   });
 
   // Helper: scan the in-memory store for a session by id.
@@ -140,7 +141,7 @@ function build(): Handle {
       samples: [...(found.data.samples ?? []), { lat, lng, speedKmh, accuracyM, timestamp }],
     };
     fs.store.set(found.key, next);
-    res.json({ success: true });
+    return res.json({ success: true });
   });
 
   app.post('/api/commute/end', verifyAuth, async (req, res) => {
@@ -161,7 +162,7 @@ function build(): Handle {
       projectId: found.data.projectId ?? null,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
-    res.json({ success: true });
+    return res.json({ success: true });
   });
 
   return { app, fs };
