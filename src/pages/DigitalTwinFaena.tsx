@@ -197,40 +197,53 @@ export function DigitalTwinFaena() {
     // 2026-05-16 (Sprint F fix): antes la posición era
     // `(Math.random()-0.5)*8` → objetos caían en lugares impredecibles.
     // Ahora usamos una grilla determinística basada en cuántos objetos
-    // ya están placeados: 4 columnas × N filas, espaciado 1.5m. Esto
-    // hace que cada drop tenga una posición predecible y ordenada hasta
-    // que el usuario los reposicione manualmente.
+    // ya están placeados: 4 columnas × N filas, espaciado 1.5m.
     //
-    // Mejora futura (Ola 4 cuando se invierta el tiempo): usar Three.js
-    // raycaster contra la malla 3D para calcular la posición exacta
-    // bajo el cursor al momento del drop. Requiere ref al canvas R3F.
+    // Codex fix follow-up: el useCallback NO lista `placedObjects` en
+    // sus deps (intencional — re-crear la callback en cada drop
+    // invalidaría DnD handlers). Eso hacía que `placedObjects.length`
+    // leído en el closure capturara el valor del primer render → todos
+    // los drops siguientes caían en el mismo idx 0.
+    //
+    // Fix: calcular el índice DENTRO del updater `setPlacedObjects(prev
+    // => ...)` que SÍ ve el estado actual. Una pasada, sin races.
+    //
+    // Mejora futura: Three.js raycaster contra la malla 3D para
+    // posición exacta bajo el cursor (requiere ref al canvas R3F).
     const now = Date.now();
-    const idx = placedObjects.length;
-    const col = idx % 4;
-    const row = Math.floor(idx / 4);
-    const newObj: PlacedObject = {
+    const newObjBase = {
       id: `placed_${now}_${Math.random().toString(36).slice(2, 8)}`,
       kind: kind as PlacedObjectKind,
-      position: {
-        x: (col - 1.5) * 1.5, // centrar en X: -2.25, -0.75, 0.75, 2.25
-        y: 1,
-        z: row * 1.5 - 2.25, // empezar cerca de la cámara y avanzar
-      },
-      lifecycle: 'planning',
+      lifecycle: 'planning' as const,
       createdAt: now,
       updatedAt: now,
     };
-    setPlacedObjects((prev) => [...prev, newObj]);
-    setSelectedObjectId(newObj.id);
+    let newObj: PlacedObject | null = null;
+    setPlacedObjects((prev) => {
+      const idx = prev.length;
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      newObj = {
+        ...newObjBase,
+        position: {
+          x: (col - 1.5) * 1.5, // centrar en X: -2.25, -0.75, 0.75, 2.25
+          y: 1,
+          z: row * 1.5 - 2.25, // empezar cerca de la cámara y avanzar
+        },
+      };
+      return [...prev, newObj];
+    });
+    if (!newObj) return;
+    setSelectedObjectId((newObj as PlacedObject).id);
     // Bucket J.2 — persistir en Firestore (best-effort; el subscribe lo
     // re-hidratará igualmente al confirmar la escritura remota).
     const projectId = selectedProject?.id;
     if (projectId) {
-      void savePlacedObject(newObj, projectId).catch((err) =>
+      void savePlacedObject(newObj as PlacedObject, projectId).catch((err) =>
         logger.warn('placed_object_save_failed', { err: String(err) }),
       );
     }
-    void onLifecycleChange(null, newObj).catch((err) =>
+    void onLifecycleChange(null, newObj as PlacedObject).catch((err) =>
       logger.error('object lifecycle (planning) failed', { err: String(err) }),
     );
   }, [onLifecycleChange, selectedProject?.id]);
