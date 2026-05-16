@@ -29,7 +29,12 @@ import {
 // URLs del modelo ImageEmbedder.
 // Local-first: `public/models/mediapipe/embedder/mobilenet_v3_small.tflite`
 // Si no existe, cae a Google Storage (Apache 2.0, free, sin auth).
-const LOCAL_WASM_BASE = '/models/mediapipe/wasm';
+// Codex fix 2026-05-16: el prebuild downloader (mismo que usa
+// useMediaPipePose.ts) deja los WASM directamente en `/models/mediapipe`,
+// no en una subcarpeta `/wasm`. Antes apuntaba a `/wasm/` y fallaba en
+// deployments offline aunque el modelo SÍ existiera. Alineado con
+// useMediaPipePose.ts:59.
+const LOCAL_WASM_BASE = '/models/mediapipe';
 const CDN_WASM_BASE =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm';
 
@@ -87,6 +92,13 @@ class PosterMatcher {
    *
    * Es seguro llamarlo varias veces concurrentemente — usa una
    * promise compartida.
+   *
+   * Codex fix 2026-05-16: si el usuario sale del scanner mientras
+   * createFromOptions() todavía está cargando el modelo, `close()` ya
+   * habrá puesto `isClosed=true` pero la init en curso aún terminará y
+   * asignaba el embedder. Resultado: el GPU/WASM resource quedaba
+   * inalcanzable (leak). Ahora, post-create, si ya está cerrada,
+   * cerramos el embedder recién creado y retornamos null sin asignarlo.
    */
   async init(): Promise<void> {
     if (this.embedder) return;
@@ -113,6 +125,18 @@ class PosterMatcher {
         l2Normalize: true, // imprescindible para cosine similarity precisa
         quantize: false,
       });
+
+      // Codex fix: si el caller cerró el matcher mientras esperábamos
+      // a createFromOptions, NO almacenes el embedder — ciérralo ya
+      // que de otro modo queda dangling sin owner.
+      if (this.isClosed) {
+        try {
+          (embedder as { close?: () => void }).close?.();
+        } catch {
+          /* no-op */
+        }
+        return null;
+      }
 
       this.embedder = embedder;
       return embedder;

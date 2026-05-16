@@ -31,7 +31,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFirebase } from '../../contexts/FirebaseContext';
 import { useProject } from '../../contexts/ProjectContext';
 import { useTenantId } from '../../hooks/useTenantId';
-import { doc, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  query,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { logger } from '../../utils/logger';
 import {
@@ -40,7 +49,6 @@ import {
   type PosterMatchResult,
 } from '../../services/ar/posterMatcher';
 import {
-  filterPosters,
   POSTER_CATALOG_SEED,
   type PosterAnimationStep,
   type PosterDefinition,
@@ -231,10 +239,16 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
   // Catálogo efectivo — solo posters con embedding pre-computado se
   // pueden matchear; los otros aparecen en el listado pero no en el
   // loop de matching.
+  //
+  // Codex fix 2026-05-16: antes filtrábamos POSTER_CATALOG_SEED y
+  // descartábamos posters tenant-custom (que es justo el caso de uso
+  // documentado del prop `catalog`). Ahora filtramos `source` directo
+  // por `referenceEmbedding` — los posters custom con embedding propio
+  // pasan; los que apuntan a un seed-id con embedding propio también.
   const matchableCatalog = useMemo(() => {
     const source = catalog ?? POSTER_CATALOG_SEED;
-    return filterPosters({ onlyWithEmbedding: true }).filter((p) =>
-      source.some((s) => s.id === p.id),
+    return source.filter(
+      (p) => Array.isArray(p.referenceEmbedding) && p.referenceEmbedding.length > 0,
     );
   }, [catalog]);
 
@@ -250,6 +264,12 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [matcherReady, setMatcherReady] = useState(false);
+  // Codex fix 2026-05-16: antes solo logueábamos el error de init y
+  // dejábamos `matcherReady=false` permanente — el usuario veía
+  // "Cargando matcher IA..." para siempre. Ahora el error se muestra
+  // como tarjeta tipo `cameraError` con CTA de retry.
+  const [matcherError, setMatcherError] = useState<string | null>(null);
+  const [matcherInitNonce, setMatcherInitNonce] = useState(0);
   const [matchedPoster, setMatchedPoster] = useState<PosterDefinition | null>(null);
   const [scanCount, setScanCount] = useState(0);
   const [lastSimilarity, setLastSimilarity] = useState<number | null>(null);
@@ -300,10 +320,15 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
   }, []);
 
   // Matcher init (warm-up del modelo).
+  // Codex fix 2026-05-16: ahora setMatcherError() en lugar de solo
+  // loggear — sin esto el usuario veía "Cargando matcher IA..." para
+  // siempre cuando el modelo no carga (típico: sin CDN ni assets
+  // locales). `matcherInitNonce` permite retry sin remontar.
   useEffect(() => {
     let cancelled = false;
     const initMatcher = async () => {
       try {
+        setMatcherError(null);
         const matcher = getPosterMatcher({
           thresholdSimilarity: 0.85,
           runningMode: 'IMAGE',
@@ -312,6 +337,10 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
         if (!cancelled) setMatcherReady(true);
       } catch (err) {
         logger.error('ARPosterScanner: matcher init failed', err);
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setMatcherError(msg);
+        }
       }
     };
     void initMatcher();
@@ -320,34 +349,62 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
       // Cerramos el matcher al salir del scanner.
       closePosterMatcher();
     };
-  }, []);
+  }, [matcherInitNonce]);
 
-  // Guardar PosterAnchor cuando matchea por primera vez.
+  // Guardar/actualizar PosterAnchor cuando matchea.
   // El path Firestore: tenants/{tid}/ar_anchors/{id}
+  //
+  // Codex fix 2026-05-16: antes creábamos UN NUEVO documento con
+  // newAnchorId('poster') por cada match exitoso (incluso después del
+  // debounce de 5s). Resultado: scanCount estaba siempre en 1 por
+  // anchor + el historial AR del proyecto se llenaba de duplicados.
+  // Ahora hacemos query previa por (projectId, posterId): si existe,
+  // incrementamos scanCount + actualizamos GPS/timestamp. Si no, creamos.
   const savePosterAnchor = useCallback(
     async (poster: PosterDefinition, similarity: number) => {
       if (!tenantId || !projectId || !user) return;
       const nowIso = new Date().toISOString();
-      const anchor: PosterAnchor = {
-        id: newAnchorId('poster'),
-        kind: 'poster',
-        projectId,
-        tenantId,
-        createdByUid: user.uid,
-        createdAt: nowIso,
-        updatedAt: nowIso,
-        gps: await captureGpsOrZero(),
-        // Para poster scan, la matriz no es relevante (no es AR pose
-        // tracking). Guardamos identity.
-        matrix: matrixFromPosition(0, 0, 0),
-        label: poster.title,
-        posterId: poster.id,
-        scanCount: 1,
-        tags: [`sim:${similarity.toFixed(3)}`],
-      };
+      const colRef = collection(db, `tenants/${tenantId}/ar_anchors`);
       try {
-        const path = `tenants/${tenantId}/ar_anchors/${anchor.id}`;
-        await setDoc(doc(db, path), anchor);
+        const existingSnap = await getDocs(
+          query(
+            colRef,
+            where('projectId', '==', projectId),
+            where('kind', '==', 'poster'),
+            where('posterId', '==', poster.id),
+            limit(1),
+          ),
+        );
+        const gps = await captureGpsOrZero();
+
+        if (!existingSnap.empty) {
+          const docSnap = existingSnap.docs[0]!;
+          const existing = docSnap.data() as PosterAnchor;
+          await updateDoc(docSnap.ref, {
+            scanCount: (existing.scanCount ?? 0) + 1,
+            updatedAt: nowIso,
+            gps, // refresca posición — el poster puede haber sido movido
+            tags: [`sim:${similarity.toFixed(3)}`],
+          });
+          return;
+        }
+
+        const anchor: PosterAnchor = {
+          id: newAnchorId('poster'),
+          kind: 'poster',
+          projectId,
+          tenantId,
+          createdByUid: user.uid,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          gps,
+          matrix: matrixFromPosition(0, 0, 0),
+          label: poster.title,
+          posterId: poster.id,
+          scanCount: 1,
+          tags: [`sim:${similarity.toFixed(3)}`],
+        };
+        await setDoc(doc(colRef, anchor.id), anchor);
       } catch (err) {
         logger.warn('ARPosterScanner: failed to persist anchor', err);
         // No bloqueamos UX — la animación se muestra igual.
@@ -373,9 +430,27 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
       if (!ctx) return;
       if (video.readyState < 2) return; // todavía cargando metadata
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
+      // Codex fix 2026-05-16: la UI muestra un reticle (w-2/3 + aspect-[3/4])
+      // donde el usuario alinea el poster. Antes pasábamos el frame
+      // COMPLETO al embedder — incluía paredes/máquinas/fondo y degradaba
+      // el match porque la imagen de referencia es solo el poster.
+      // Ahora recortamos al rectángulo del reticle ANTES de embedearlo.
+      //
+      // Geometría del reticle: 2/3 del width del video, aspect 3:4
+      // (alto = width * 4/3), centrado. El canvas final mantiene esa
+      // forma para que el embedder reciba un tile rectangular bien
+      // alineado con la imagen de referencia.
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const cropW = Math.floor(vw * (2 / 3));
+      // aspecto 3:4 (más alto que ancho) — el reticle del DOM es así.
+      const cropH = Math.min(vh, Math.floor(cropW * (4 / 3)));
+      const cropX = Math.floor((vw - cropW) / 2);
+      const cropY = Math.floor((vh - cropH) / 2);
+
+      canvas.width = cropW;
+      canvas.height = cropH;
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
       setScanCount((c) => c + 1);
 
@@ -528,9 +603,44 @@ export function ARPosterScanner({ onExit, catalog }: ARPosterScannerProps) {
         )}
 
         {/* Estado: matcher cargando */}
-        {cameraReady && !matcherReady && !cameraError && (
+        {cameraReady && !matcherReady && !matcherError && !cameraError && (
           <div className="absolute top-4 right-4 bg-black/70 px-3 py-2 rounded-lg">
             <p className="text-[10px] text-zinc-300">Cargando matcher IA...</p>
+          </div>
+        )}
+
+        {/* Estado: matcher falló cargar — Codex #4 */}
+        {matcherError && !cameraError && (
+          <div className="absolute inset-0 flex items-center justify-center p-6 pointer-events-auto">
+            <div className="bg-rose-900/85 border border-rose-400/40 rounded-2xl p-4 max-w-md">
+              <div className="flex items-start gap-3 mb-3">
+                <AlertCircle className="w-5 h-5 text-rose-300 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-rose-100">
+                    No pudimos cargar el matcher IA
+                  </p>
+                  <p className="text-xs text-rose-200/80 mt-1">{matcherError}</p>
+                  <p className="text-[10px] text-rose-200/60 mt-2">
+                    Verifica conexión a Internet o asegúrate de tener los
+                    modelos MediaPipe locales en /models/mediapipe/. La cámara
+                    sigue funcionando pero el scanner no podrá matchear hasta
+                    que el modelo cargue.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  closePosterMatcher();
+                  setMatcherReady(false);
+                  setMatcherError(null);
+                  setMatcherInitNonce((n) => n + 1);
+                }}
+                className="w-full px-3 py-2 rounded-lg bg-rose-500/30 text-rose-100 text-xs font-bold hover:bg-rose-500/40 transition-colors"
+              >
+                Reintentar carga
+              </button>
+            </div>
           </div>
         )}
 
