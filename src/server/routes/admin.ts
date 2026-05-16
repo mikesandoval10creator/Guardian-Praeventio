@@ -97,7 +97,7 @@ const router = Router();
 // DesconexiÃ³n Forzada (Revoke Tokens - El Haki del Rey / Security)
 router.post('/revoke-access', verifyAuth, async (req, res) => {
   const { targetUid } = req.body;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
 
   if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
     return res.status(400).json({ error: 'Invalid uid' });
@@ -163,7 +163,7 @@ router.post('/revoke-access', verifyAuth, async (req, res) => {
 // Custom Claims Endpoint (El Haki del Rey)
 router.post('/set-role', verifyAuth, async (req, res) => {
   const { uid, role } = req.body;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
 
   if (typeof uid !== 'string' || !UID_REGEX.test(uid)) {
     return res.status(400).json({ error: 'Invalid uid' });
@@ -250,7 +250,7 @@ router.post('/set-role', verifyAuth, async (req, res) => {
 // to "best-effort hourly replica"; a failure on one collection should
 // never starve the other.
 router.post('/replicate-critical', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
 
   try {
     const callerRecord = await admin.auth().getUser(callerUid);
@@ -287,7 +287,7 @@ router.post('/replicate-critical', verifyAuth, async (req, res) => {
 // Optional `projectIds` body field allows ad-hoc replays for ops:
 //   POST /api/admin/jobs/weekly-digest { "projectIds": ["proj_1"] }
 router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   try {
     const callerRecord = await admin.auth().getUser(callerUid);
     if (!isAdminRole(callerRecord.customClaims?.role)) {
@@ -329,7 +329,7 @@ router.post('/jobs/weekly-digest', verifyAuth, async (req, res) => {
 // Open-Meteo / FCM admin SDK; the orchestrator itself is DI-testeable.
 router.post('/jobs/climate-scan', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   try {
     const deps: ClimateRiskScanDeps = {
       listActiveProjects: async () => {
@@ -554,7 +554,7 @@ router.get('/quotas/global', verifyAuth, async (req, res) => {
 //   change ticket â€” the audit_logs row captures who/when only.
 router.post('/quotas/reset', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { tenantId, date } = req.body ?? {};
   if (typeof tenantId !== 'string' || !UID_REGEX.test(tenantId)) {
     return res.status(400).json({ error: 'Invalid tenantId' });
@@ -624,7 +624,7 @@ router.get('/circuit-state', verifyAuth, async (req, res) => {
 
 router.post('/sync/clear-user-queue', verifyAuth, async (req, res) => {
   if (!(await assertAdminCaller(req, res))) return undefined;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { targetUid } = req.body ?? {};
   if (typeof targetUid !== 'string' || !UID_REGEX.test(targetUid)) {
     return res.status(400).json({ error: 'Invalid targetUid' });

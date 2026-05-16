@@ -86,7 +86,7 @@ export const oauthGoogleApiRouter = Router();
 // Deletes stored tokens for both Google providers. Idempotent â€” safe to call
 // when no tokens exist.
 oauthGoogleApiRouter.post('/oauth/unlink', verifyAuth, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   try {
     await Promise.all([
       revokeTokens({ uid, provider: 'google' }),
@@ -123,7 +123,7 @@ oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
   // Bind this OAuth flow to the authenticated user. The callback runs in a
   // popup that shares the session cookie, so we recover the UID there
   // without ever exposing it (or the resulting tokens) to the browser.
-  sess.oauthInitiator = { uid: req.user.uid, provider: 'google' as const };
+  sess.oauthInitiator = { uid: req.user!.uid, provider: 'google' as const };
 
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || '',
@@ -146,7 +146,7 @@ oauthGoogleApiRouter.get('/auth/google/url', verifyAuth, (req, res) => {
 // Used by useCalendarPredictions to detect already-scheduled CPHS meetings,
 // ODI trainings, etc. and suppress duplicate suggestions.
 oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const accessToken = await getValidAccessToken(
     { uid, provider: 'google' },
     GOOGLE_CLIENT_ID || '',
@@ -187,7 +187,7 @@ oauthGoogleApiRouter.get('/calendar/list', verifyAuth, async (req, res) => {
 
 oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
   const { challenges } = req.body;
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
 
   const accessToken = await getValidAccessToken(
     { uid, provider: 'google' },
@@ -199,7 +199,7 @@ oauthGoogleApiRouter.post('/calendar/sync', verifyAuth, async (req, res) => {
   }
 
   try {
-    const results = [];
+    const results: unknown[] = [];
     for (const challenge of challenges) {
       const event = {
         summary: `DesafÃ­o Praeventio: ${challenge}`,
@@ -266,7 +266,7 @@ oauthGoogleApiRouter.post('/fitness/sync', verifyAuth, async (req, res) => {
   res.setHeader('Deprecation', 'Wed, 31 Dec 2026 23:59:59 GMT');
   res.setHeader('Link', '</api/health-data>; rel="successor-version"');
 
-  const uid = req.user?.uid;
+  const uid = req.user!.uid;
 
   // Structured deprecation log so we can quantify residual usage of the
   // legacy endpoint and confirm Telemetry.tsx truly stopped calling it.
@@ -334,7 +334,7 @@ oauthGoogleApiRouter.get('/drive/auth/url', verifyAuth, (req, res) => {
   const sess = req.session as any;
   sess.driveOauthState = state;
   sess.driveOauthInitiator = {
-    uid: req.user.uid,
+    uid: req.user!.uid,
     provider: 'google-drive' as const,
   };
 
