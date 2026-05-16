@@ -36,7 +36,11 @@ export function EmergencyPlanGenerator() {
         .map(n => `- [${n.type}] ${n.title}: ${n.description}`)
         .join('\n');
 
-      const envContext = environment ? `Clima actual: ${environment.weather.temp}°C, Viento: ${environment.weather.windSpeed}km/h. Sismos recientes: ${environment.earthquakes.length > 0 ? environment.earthquakes[0].Magnitud + ' en ' + environment.earthquakes[0].RefGeografica : 'Ninguno'}.` : 'Sin datos ambientales.';
+      const weather = environment?.weather;
+      const earthquakes = environment?.earthquakes ?? [];
+      const envContext = environment
+        ? `Clima actual: ${weather?.temp ?? '?'}°C, Viento: ${weather?.windSpeed ?? '?'}km/h. Sismos recientes: ${earthquakes.length > 0 ? earthquakes[0].Magnitud + ' en ' + earthquakes[0].RefGeografica : 'Ninguno'}.`
+        : 'Sin datos ambientales.';
       const fullContext = `${context}\n\nCONTEXTO AMBIENTAL ACTUAL:\n${envContext}`;
 
       const result = await generateEmergencyPlan(selectedProject.name, fullContext);

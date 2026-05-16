@@ -72,7 +72,7 @@ async function resolveTenantId(
 }
 
 router.get('/:projectId/entries', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { projectId } = req.params;
   const yearParam = req.query.year;
   const year =
@@ -100,7 +100,7 @@ router.get('/:projectId/entries', verifyAuth, async (req, res) => {
 });
 
 router.get('/:projectId/entry/:folio', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const { projectId, folio } = req.params;
 
   try {
@@ -126,8 +126,8 @@ router.post(
   verifyAuth,
   validate(createEntrySchema),
   async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerRole = req.user.role ?? 'worker';
+    const callerUid = req.user!.uid;
+    const callerRole = req.user!.role ?? 'worker';
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof createEntrySchema>;
 
