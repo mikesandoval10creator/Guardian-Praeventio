@@ -36,6 +36,7 @@ import { Card, Button } from '../components/shared/Card';
 import { useWebXRSupport } from '../hooks/useWebXRSupport';
 import { isIosUserAgent, isAndroidUserAgent } from '../components/ar/ArViewLink';
 import { ARMachineryScene } from '../components/ar/ARMachineryScene';
+import { ARWarehouseScene } from '../components/ar/ARWarehouseScene';
 import { useProject } from '../contexts/ProjectContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -57,9 +58,12 @@ export function DigitalTwinAR() {
   if (mode === 'machinery') {
     return <ARMachineryScene onExit={() => setMode('menu')} />;
   }
+  if (mode === 'warehouse') {
+    return <ARWarehouseScene onExit={() => setMode('menu')} />;
+  }
 
-  // Placeholder para warehouse/poster mientras se construyen
-  if (mode === 'warehouse' || mode === 'poster') {
+  // Poster scan sigue como placeholder hasta el siguiente PR
+  if (mode === 'poster') {
     return (
       <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-4">
         <Button variant="secondary" onClick={() => setMode('menu')}>
@@ -69,20 +73,13 @@ export function DigitalTwinAR() {
         <Card className="p-6 border-amber-500/30 bg-amber-500/5">
           <h2 className="text-lg font-bold text-amber-300 mb-2 flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" />
-            {mode === 'warehouse'
-              ? t('digitalTwinAr.warehouseWip', 'Modo Bodega — en construcción')
-              : t('digitalTwinAr.posterWip', 'Escaneo de Poster — en construcción')}
+            {t('digitalTwinAr.posterWip', 'Escaneo de Poster — en construcción')}
           </h2>
           <p className="text-sm text-amber-100/80">
-            {mode === 'warehouse'
-              ? t(
-                  'digitalTwinAr.warehouseDesc',
-                  'Este modo te permitirá placear extintores, hidrantes, AEDs y señaléticas en AR antes de comprarlos. La integración con la matriz IMDG 7.2.4 detectará combinaciones peligrosas (e.g. peróxidos cerca de combustibles). Disponible en próxima iteración.',
-                )
-              : t(
-                  'digitalTwinAr.posterDesc',
-                  'Apunta tu cámara a un poster de seguridad impreso. MediaPipe Vision detectará la imagen y mostrará una animación educativa relacionada (cómo usar el arnés, protocolo extintor, etc.). Disponible en próxima iteración.',
-                )}
+            {t(
+              'digitalTwinAr.posterDesc',
+              'Apunta tu cámara a un poster de seguridad impreso. MediaPipe Vision detectará la imagen y mostrará una animación educativa relacionada (cómo usar el arnés, protocolo extintor, etc.). Disponible en próxima iteración.',
+            )}
           </p>
         </Card>
       </div>
@@ -172,15 +169,18 @@ export function DigitalTwinAR() {
           <p className="text-sm text-zinc-300 mb-4">
             {t(
               'digitalTwinAr.modeWarehouseDesc',
-              'Placea virtualmente extintores, AEDs, señalética e hidrantes para visualizar el orden óptimo antes de comprar/instalar. Detecta combinaciones peligrosas con la matriz IMDG 7.2.4.',
+              'Placea virtualmente extintores, hidrantes, AEDs y 17 tipos de señalética para visualizar el orden antes de instalar. Detecta automáticamente pares demasiado cerca (<1.5m) para evitar interferencias.',
             )}
           </p>
           <Button
-            variant="secondary"
-            className="w-full"
-            disabled
+            className="w-full bg-emerald-600 hover:bg-emerald-500"
+            disabled={!hasNativeAr || !selectedProject}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (hasNativeAr) setMode('warehouse');
+            }}
           >
-            {t('digitalTwinAr.soon', 'Próxima iteración')}
+            {t('digitalTwinAr.startWarehouse', 'Iniciar')}
           </Button>
         </Card>
 
