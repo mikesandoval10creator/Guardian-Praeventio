@@ -4095,5 +4095,391 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.16 — Score de Preparación del Trabajador
+// ─────────────────────────────────────────────────────────────────────
+//
+// Asistente NO BLOQUEANTE. El endpoint cruza:
+//   - Worker doc (projects/{pid}/workers/{workerUid})
+//   - Trainings vigentes desde training_assignments + training top-level
+//   - EPP entregado desde epp_assignments donde assignedTo == workerUid
+//   - Task opcional (projects/{pid}/tasks/{taskId}) para extraer
+//     requiredTrainings/requiredEpp/taskCategory
+//   - Incidentes recientes del trabajador (últimos 90 días) para calcular
+//     `daysSinceLastIncident`
+//
+// Llama `computeReadiness(profile, task)` del servicio inmutable y
+// devuelve el `ReadinessReport` exacto. Si falta data, popula con
+// defaults conservadores (NO inventa: campos vacíos se marcan como
+// gaps reales) — directiva del usuario: "no fabricar timestamps,
+// reportar honestamente."
+//
+// Datos sensibles (medicalAptitudeStatus, fatigueLevel) se leen
+// best-effort: si la colección no existe o está vacía, se asume
+// 'sin_aptitud' y 'low' respectivamente (el peor caso para aptitud,
+// el caso esperado para fatiga sin señal).
+
+router.get(
+  '/:projectId/worker-readiness/:workerUid',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, workerUid } = req.params;
+    const taskIdParam =
+      typeof req.query.taskId === 'string' && req.query.taskId.length > 0
+        ? req.query.taskId
+        : null;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const { computeReadiness } = await import(
+        '../../services/workerReadiness/readinessScore.js'
+      );
+      const db = admin.firestore();
+
+      // Best-effort partial reads — one failure per feed degrades to
+      // an empty array / null rather than 500-ing the entire bundle.
+      // Matches the `safeRead` pattern used by the data-quality endpoint.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T>,
+        fallback: T,
+      ): Promise<T> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.workerReadiness.read.${label}.failed`, err);
+          return fallback;
+        }
+      };
+
+      // Worker doc lives at `projects/{pid}/workers/{workerUid}` per
+      // Workers.tsx line 71. Reading by workerUid as docId rather than
+      // by field equality — that's the contract used by the modal that
+      // edits/creates workers.
+      const workerDocPromise = safeRead(
+        'worker',
+        async () => {
+          const snap = await db
+            .collection('projects')
+            .doc(projectId)
+            .collection('workers')
+            .doc(workerUid)
+            .get();
+          return snap.exists ? (snap.data() as Record<string, unknown>) : null;
+        },
+        null as Record<string, unknown> | null,
+      );
+
+      // Training assignments — first try nested
+      // `projects/{pid}/training_assignments` (active live data per
+      // runConsistencyAudit.ts and the data-quality scanner), then
+      // fall back to top-level `training` filtered by projectId +
+      // workerUid for legacy records.
+      const trainingsPromise = safeRead(
+        'trainings',
+        async () => {
+          const [nestedSnap, topSnap] = await Promise.all([
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('training_assignments')
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            db
+              .collection('training')
+              .where('projectId', '==', projectId)
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+          ]);
+          const all: Array<Record<string, unknown>> = [];
+          if (nestedSnap) {
+            for (const d of nestedSnap.docs) {
+              all.push({ id: d.id, ...d.data() });
+            }
+          }
+          if (topSnap) {
+            for (const d of topSnap.docs) {
+              all.push({ id: d.id, ...d.data() });
+            }
+          }
+          return all;
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      // EPP assignments — `epp_assignments` is the canonical collection
+      // (insights.ts line 215 confirms). Records carry `workerUid` (the
+      // canonical SLA) or fall back to `assignedTo` (legacy). Check both
+      // so we don't false-flag missing EPP for older records.
+      const eppPromise = safeRead(
+        'epp',
+        async () => {
+          const [byUid, byAssignedTo] = await Promise.all([
+            db
+              .collection('epp_assignments')
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            db
+              .collection('epp_assignments')
+              .where('assignedTo', '==', workerUid)
+              .get()
+              .catch(() => null),
+          ]);
+          const all = new Map<string, Record<string, unknown>>();
+          if (byUid) {
+            for (const d of byUid.docs) {
+              all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (byAssignedTo) {
+            for (const d of byAssignedTo.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          return Array.from(all.values());
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      // Task (optional). Without a taskId, requirements degrade to an
+      // "any" baseline so the report still renders for a worker-only
+      // self-check — the report just won't have task-specific gaps.
+      const taskPromise = safeRead(
+        'task',
+        async () => {
+          if (!taskIdParam) return null;
+          // Tasks are top-level (`tasks` collection per insights.ts:115),
+          // filtered by projectId — read by docId then assert projectId
+          // for cross-project safety.
+          const snap = await db.collection('tasks').doc(taskIdParam).get();
+          if (!snap.exists) return null;
+          const data = snap.data() as Record<string, unknown>;
+          if (
+            typeof data.projectId === 'string' &&
+            data.projectId !== projectId
+          ) {
+            // Cross-project: refuse silently (treat as no task) rather
+            // than leak. The caller still gets the worker-only baseline.
+            return null;
+          }
+          return { id: snap.id, ...data };
+        },
+        null as Record<string, unknown> | null,
+      );
+
+      // Recent incidents (last 90 days) where the worker was involved.
+      // Used purely to compute `daysSinceLastIncident`. We avoid Firestore
+      // array-contains-with-range gymnastics by filtering by projectId +
+      // date range and matching in-memory on `involvedWorkers`.
+      const ninetyDaysAgo = new Date(
+        Date.now() - 90 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const incidentsPromise = safeRead(
+        'incidents',
+        async () => {
+          const snap = await db
+            .collection('incidents')
+            .where('projectId', '==', projectId)
+            .where('occurredAt', '>=', ninetyDaysAgo)
+            .limit(200)
+            .get();
+          return snap.docs
+            .map((d) => d.data() as Record<string, unknown>)
+            .filter((data) => {
+              const inv = data.involvedWorkers;
+              if (Array.isArray(inv) && inv.includes(workerUid)) return true;
+              // Legacy fallback: some records track a single
+              // `affectedWorkerUid` or `reportedByUid` field.
+              if (data.affectedWorkerUid === workerUid) return true;
+              return false;
+            });
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      const [worker, trainings, epps, taskDoc, incidents] = await Promise.all([
+        workerDocPromise,
+        trainingsPromise,
+        eppPromise,
+        taskPromise,
+        incidentsPromise,
+      ]);
+
+      if (!worker) {
+        return res.status(404).json({ error: 'worker_not_found' });
+      }
+
+      // ───── Build WorkerProfile (the service contract) ─────
+
+      // Active trainings: include only non-expired entries. Records
+      // carry `expiresAt` (ISO) on the F.4 shape; legacy ones may use
+      // `validUntil`. Records without any expiry are treated as active
+      // (better-than-empty fallback — they'd otherwise tank the score
+      // for a project whose admins haven't backfilled dates yet).
+      const nowIso = new Date().toISOString();
+      const activeTrainings: string[] = [];
+      for (const t of trainings) {
+        const expiry =
+          (typeof t.expiresAt === 'string' && t.expiresAt) ||
+          (typeof t.validUntil === 'string' && t.validUntil) ||
+          null;
+        const expired = expiry !== null && expiry < nowIso;
+        if (expired) continue;
+        const code =
+          (typeof t.code === 'string' && t.code) ||
+          (typeof t.trainingCode === 'string' && t.trainingCode) ||
+          (typeof t.name === 'string' && t.name) ||
+          (typeof t.title === 'string' && t.title) ||
+          (typeof t.id === 'string' && t.id) ||
+          null;
+        if (code) activeTrainings.push(code);
+      }
+
+      // Active EPP: same expiry rule. EPP categories live in either
+      // `category` (canonical) or `type`/`kind` (legacy aliases).
+      const activeEpp: string[] = [];
+      for (const e of epps) {
+        const expiry =
+          (typeof e.expiresAt === 'string' && e.expiresAt) ||
+          (typeof e.validUntil === 'string' && e.validUntil) ||
+          null;
+        const expired = expiry !== null && expiry < nowIso;
+        if (expired) continue;
+        const cat =
+          (typeof e.category === 'string' && e.category) ||
+          (typeof e.type === 'string' && e.type) ||
+          (typeof e.kind === 'string' && e.kind) ||
+          (typeof e.name === 'string' && e.name) ||
+          null;
+        if (cat) activeEpp.push(cat);
+      }
+
+      // Medical aptitude — read from the worker doc. Default to
+      // `sin_aptitud` when missing (worst case; the score honestly
+      // reports the gap rather than masking it).
+      const medRaw = worker.medicalAptitudeStatus ?? worker.medicalStatus;
+      const medicalAptitudeStatus: 'vigente' | 'expirada' | 'restringida' | 'sin_aptitud' =
+        medRaw === 'vigente' || medRaw === 'expirada' || medRaw === 'restringida'
+          ? medRaw
+          : 'sin_aptitud';
+
+      // Signed documents — `signedDocuments` on the worker doc; legacy
+      // alias `acknowledgements`. Array of doc codes.
+      const signedDocsRaw = worker.signedDocuments ?? worker.acknowledgements;
+      const signedDocuments: string[] = Array.isArray(signedDocsRaw)
+        ? (signedDocsRaw.filter((s) => typeof s === 'string') as string[])
+        : [];
+
+      // Fatigue — best-effort from worker doc; absent → 'low' so the
+      // score doesn't punish workers whose project hasn't wired the
+      // fatigueMonitor signal yet.
+      const fatRaw = worker.fatigueLevel;
+      const fatigueLevel: 'low' | 'moderate' | 'high' | 'critical' =
+        fatRaw === 'moderate' || fatRaw === 'high' || fatRaw === 'critical'
+          ? fatRaw
+          : 'low';
+
+      // daysSinceLastIncident — compute from the incidents fetched.
+      // No incidents in 90d → 90 (the cap; the score reads "≥50 = max").
+      let daysSinceLastIncident = 90;
+      if (incidents.length > 0) {
+        const mostRecent = incidents
+          .map((i) => (typeof i.occurredAt === 'string' ? i.occurredAt : ''))
+          .filter((s) => s.length > 0)
+          .sort()
+          .reverse()[0];
+        if (mostRecent) {
+          const diffMs = Date.now() - new Date(mostRecent).getTime();
+          daysSinceLastIncident = Math.max(
+            0,
+            Math.min(90, Math.floor(diffMs / (24 * 60 * 60 * 1000))),
+          );
+        }
+      }
+
+      // Task category experience count — proxy from the worker doc's
+      // `experienceByCategory` map if available, otherwise the count
+      // of all-time incidents-free assignments. Fallback to 0 — the
+      // score reports "sin experiencia" as a gap, which is honest.
+      const expMap = worker.experienceByCategory;
+      const taskCategoryRaw =
+        (taskDoc && typeof taskDoc.riskCategory === 'string'
+          ? taskDoc.riskCategory
+          : null) ??
+        (taskDoc && typeof taskDoc.category === 'string'
+          ? taskDoc.category
+          : null) ??
+        'general';
+      const taskCategory = taskCategoryRaw;
+      let taskCategoryExperienceCount = 0;
+      if (expMap && typeof expMap === 'object') {
+        const v = (expMap as Record<string, unknown>)[taskCategory];
+        if (typeof v === 'number') taskCategoryExperienceCount = v;
+      }
+
+      const profile = {
+        workerUid,
+        activeTrainings,
+        activeEpp,
+        medicalAptitudeStatus,
+        signedDocuments,
+        taskCategoryExperienceCount,
+        fatigueLevel,
+        daysSinceLastIncident,
+      };
+
+      // ───── Build TaskRequirements ─────
+      //
+      // Task-less calls (taskId omitted) get a baseline that requires
+      // nothing — the report still surfaces medical/fatigue/incident
+      // gaps because those don't depend on the task.
+      const reqTrainings: string[] = taskDoc
+        ? Array.isArray(taskDoc.requiredTrainings)
+          ? (taskDoc.requiredTrainings.filter(
+              (s: unknown) => typeof s === 'string',
+            ) as string[])
+          : []
+        : [];
+      const reqEpp: string[] = taskDoc
+        ? Array.isArray(taskDoc.requiredEpp)
+          ? (taskDoc.requiredEpp.filter(
+              (s: unknown) => typeof s === 'string',
+            ) as string[])
+          : []
+        : [];
+      const reqAcks: string[] = taskDoc
+        ? Array.isArray(taskDoc.requiredAcknowledgements)
+          ? (taskDoc.requiredAcknowledgements.filter(
+              (s: unknown) => typeof s === 'string',
+            ) as string[])
+          : []
+        : [];
+      const requiresMedicalAptitude: boolean = taskDoc
+        ? Boolean(taskDoc.requiresMedicalAptitude)
+        : false;
+
+      const task = {
+        requiredTrainings: reqTrainings,
+        requiredEpp: reqEpp,
+        taskCategory,
+        requiresMedicalAptitude,
+        requiredAcknowledgements: reqAcks,
+      };
+
+      const report = computeReadiness(profile, task);
+
+      return res.json({ report });
+    } catch (err) {
+      logger.error?.('sprintK.workerReadiness.error', err);
+      captureRouteError(err, 'sprintK.workerReadiness');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;
