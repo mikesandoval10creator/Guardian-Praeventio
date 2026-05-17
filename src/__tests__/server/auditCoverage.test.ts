@@ -182,7 +182,7 @@ function buildApp(deps: Deps): Express {
     // Member check (mirrors assertProjectMemberFromBody behavior).
     const proj = deps.fs.store.get(`projects/${projectId}`);
     if (!proj) return res.status(403).json({ error: 'forbidden' });
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const ok = (proj.members ?? []).includes(callerUid) || proj.createdBy === callerUid;
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     try {

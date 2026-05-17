@@ -97,7 +97,7 @@ function estimateDurationMin(imageCount: number): number {
 // POST /api/photogrammetry/jobs â€” create a queued job and dispatch to worker.
 // -----------------------------------------------------------------------------
 router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => {
-  const callerUid = req.user.uid as string;
+  const callerUid = req.user!.uid;
   const { projectId, imageUrls, videoUrl, name } = req.validated as z.infer<
     typeof CreateJobSchema
   >;
@@ -226,7 +226,7 @@ router.post('/jobs', verifyAuth, validate(CreateJobSchema), async (req, res) => 
 // GET /api/photogrammetry/jobs â€” list recent jobs for the Digital Twin UI.
 // -----------------------------------------------------------------------------
 router.get('/jobs', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid as string;
+  const callerUid = req.user!.uid;
   const projectId = req.query.projectId;
   if (typeof projectId !== 'string' || projectId.length === 0) {
     return res.status(400).json({ error: 'missing_projectId' });
@@ -292,7 +292,7 @@ router.get('/jobs', verifyAuth, async (req, res) => {
 // GET /api/photogrammetry/jobs/:jobId â€” return status + result URL when done.
 // -----------------------------------------------------------------------------
 router.get('/jobs/:jobId', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid as string;
+  const callerUid = req.user!.uid;
   const projectId = req.query.projectId;
   if (typeof projectId !== 'string' || projectId.length === 0) {
     return res.status(400).json({ error: 'missing_projectId' });

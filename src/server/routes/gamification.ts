@@ -34,7 +34,7 @@ const router = Router();
 
 router.post('/gamification/points', verifyAuth, async (req, res) => {
   const { amount, reason } = req.body;
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   try {
     await awardPoints(uid, amount, reason);
     // Round 17 R1 â€” audit row for awarded points (compliance trail per
@@ -65,7 +65,7 @@ router.get('/gamification/leaderboard', verifyAuth, async (req, res) => {
 });
 
 router.post('/gamification/check-medals', verifyAuth, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   try {
     const newMedals = await checkMedalEligibility(uid);
     // Round 17 R1 â€” audit row for medal checks. Records the count of new
@@ -101,7 +101,7 @@ router.post(
   assertProjectMemberFromBody(),
   async (req, res) => {
     const { message, projectId } = req.body ?? {};
-    const uid = req.user.uid;
+    const uid = req.user!.uid;
     if (typeof projectId !== 'string' || projectId.length === 0) {
       return res.status(400).json({ error: 'projectId is required' });
     }

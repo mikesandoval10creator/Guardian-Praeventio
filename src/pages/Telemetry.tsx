@@ -314,8 +314,8 @@ export function Telemetry() {
       const { data } = await response.json();
 
       // Parse Google Fit aggregate data
-      let heartRate = null;
-      let steps = null;
+      let heartRate: number | null = null;
+      let steps: number | null = null;
 
       if (data && data.bucket && data.bucket.length > 0) {
         const bucket = data.bucket[0];
@@ -457,20 +457,25 @@ export function Telemetry() {
   }, [lat, lon, isOnline]);
 
   // Check weather alerts
+  // Codex P2 (PR #304): wind and temp are independent on the weather
+  // payload. The earlier outer guard `if (weather && typeof
+  // weather.windSpeed === 'number')` would hide the heat alert when
+  // windSpeed was missing — keep each rule scoped to its own field.
   useEffect(() => {
-    if (weather) {
-      if (weather.windSpeed > 40) {
-        setAlerts(prev => {
-          const msg = `Vientos fuertes detectados (${Math.round(weather.windSpeed)} km/h). Sugerencia: Suspender trabajos en altura y maniobras de izaje (D.S. 594).`;
-          return prev.includes(msg) ? prev : [...prev, msg];
-        });
-      }
-      if (weather.temp > 32) {
-        setAlerts(prev => {
-          const msg = `Estrés térmico extremo (${Math.round(weather.temp)}°C). Activar protocolo de hidratación y pausas activas.`;
-          return prev.includes(msg) ? prev : [...prev, msg];
-        });
-      }
+    if (!weather) return;
+    if (typeof weather.windSpeed === 'number' && weather.windSpeed > 40) {
+      const speed = weather.windSpeed;
+      setAlerts(prev => {
+        const msg = `Vientos fuertes detectados (${Math.round(speed)} km/h). Sugerencia: Suspender trabajos en altura y maniobras de izaje (D.S. 594).`;
+        return prev.includes(msg) ? prev : [...prev, msg];
+      });
+    }
+    if (typeof weather.temp === 'number' && weather.temp > 32) {
+      const temp = weather.temp;
+      setAlerts(prev => {
+        const msg = `Estrés térmico extremo (${Math.round(temp)}°C). Activar protocolo de hidratación y pausas activas.`;
+        return prev.includes(msg) ? prev : [...prev, msg];
+      });
     }
   }, [weather]);
 

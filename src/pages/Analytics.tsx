@@ -134,7 +134,7 @@ export function Analytics() {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
-    const trendData = [];
+    const trendData: { month: string; incidentes: number; hallazgos: number }[] = [];
 
     for (let i = 4; i >= 0; i--) {
       // Computamos año/mes calendario REALES (manejando wraparound
