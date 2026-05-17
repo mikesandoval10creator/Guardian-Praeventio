@@ -146,4 +146,76 @@ describe('computeReadiness', () => {
     expect(computeReadiness(profile({ taskCategoryExperienceCount: 25 }), taskReq).subScores.experience).toBe(12);
     expect(computeReadiness(profile({ taskCategoryExperienceCount: 100 }), taskReq).subScores.experience).toBe(15);
   });
+
+  // Codex PR #315 round-2 P2: incident-recency penalty.
+  describe('incident_recency (Codex PR #315 round-2)', () => {
+    it('días ≥ 60 → sin penalización, sin gap', () => {
+      const r = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 90 }),
+        task(),
+      );
+      expect(r.score).toBe(100);
+      expect(r.gaps.some((g) => g.kind === 'incident_recency')).toBe(false);
+    });
+
+    it('días en rango 30-59 → penalización -2 + gap leve', () => {
+      const r = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 45 }),
+        task(),
+      );
+      expect(r.score).toBe(98);
+      const g = r.gaps.find((x) => x.kind === 'incident_recency');
+      expect(g).toBeDefined();
+      expect(g?.weight).toBe(2);
+    });
+
+    it('días en rango 7-29 → penalización -5 + gap notable', () => {
+      const r = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 14 }),
+        task(),
+      );
+      expect(r.score).toBe(95);
+      const g = r.gaps.find((x) => x.kind === 'incident_recency');
+      expect(g?.weight).toBe(5);
+    });
+
+    it('días 1-6 → penalización -10 + gap muy reciente', () => {
+      const r = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 3 }),
+        task(),
+      );
+      expect(r.score).toBe(90);
+      const g = r.gaps.find((x) => x.kind === 'incident_recency');
+      expect(g?.weight).toBe(10);
+      expect(g?.description).toMatch(/3 días/);
+    });
+
+    it('días 0 → penalización -15 + gap crítico hoy', () => {
+      const r = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 0 }),
+        task(),
+      );
+      expect(r.score).toBe(85);
+      const g = r.gaps.find((x) => x.kind === 'incident_recency');
+      expect(g?.weight).toBe(15);
+      expect(g?.description).toMatch(/hoy/i);
+    });
+
+    it('singular vs plural en descripción (1 día vs N días)', () => {
+      const rSingular = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 1 }),
+        task(),
+      );
+      const gSingular = rSingular.gaps.find((g) => g.kind === 'incident_recency');
+      expect(gSingular?.description).toMatch(/hace 1 día/);
+      expect(gSingular?.description).not.toMatch(/días/);
+
+      const rPlural = computeReadiness(
+        profile({ taskCategoryExperienceCount: 100, daysSinceLastIncident: 5 }),
+        task(),
+      );
+      const gPlural = rPlural.gaps.find((g) => g.kind === 'incident_recency');
+      expect(gPlural?.description).toMatch(/hace 5 días/);
+    });
+  });
 });

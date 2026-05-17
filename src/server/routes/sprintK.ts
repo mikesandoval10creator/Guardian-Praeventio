@@ -4190,38 +4190,63 @@ router.get(
       const trainingsPromise = safeRead(
         'trainings',
         async () => {
-          const [nestedSnap, projectTrainingsByUid, projectTrainingsByWorkerId, topSnap] =
-            await Promise.all([
-              db
-                .collection('projects')
-                .doc(projectId)
-                .collection('training_assignments')
-                .where('workerUid', '==', workerUid)
-                .get()
-                .catch(() => null),
-              // `projects/{pid}/trainings` — TrainingRecommendations writes
-              // `workerId`; some other flows may write `workerUid` as well.
-              db
-                .collection('projects')
-                .doc(projectId)
-                .collection('trainings')
-                .where('workerUid', '==', workerUid)
-                .get()
-                .catch(() => null),
-              db
-                .collection('projects')
-                .doc(projectId)
-                .collection('trainings')
-                .where('workerId', '==', workerUid)
-                .get()
-                .catch(() => null),
-              db
-                .collection('training')
-                .where('projectId', '==', projectId)
-                .where('workerUid', '==', workerUid)
-                .get()
-                .catch(() => null),
-            ]);
+          // Codex PR #315 round-2 P2: the top-level `training` collection
+          // identifies workers via the `attendees: string[]` array (see
+          // Training.tsx:193, where `updateDoc` pushes the worker's uid
+          // into `attendees` and flips `status: 'completed'`). The
+          // previous top-level query only used `workerUid` equality and
+          // returned nothing for the canonical Training.tsx happy path,
+          // so trainings actually completed via the Training page were
+          // silently scored as missing. Add a 5th query against the
+          // `attendees` array filtered by `status: 'completed'`.
+          const [
+            nestedSnap,
+            projectTrainingsByUid,
+            projectTrainingsByWorkerId,
+            topSnap,
+            topByAttendees,
+          ] = await Promise.all([
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('training_assignments')
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            // `projects/{pid}/trainings` — TrainingRecommendations writes
+            // `workerId`; some other flows may write `workerUid` as well.
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('trainings')
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('trainings')
+              .where('workerId', '==', workerUid)
+              .get()
+              .catch(() => null),
+            db
+              .collection('training')
+              .where('projectId', '==', projectId)
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            // Canonical Training.tsx shape: completed sessions where the
+            // worker's uid appears in `attendees`. Scoped by projectId
+            // for tenant isolation (training docs from other projects in
+            // the same tenant must not leak).
+            db
+              .collection('training')
+              .where('projectId', '==', projectId)
+              .where('status', '==', 'completed')
+              .where('attendees', 'array-contains', workerUid)
+              .get()
+              .catch(() => null),
+          ]);
           const all = new Map<string, Record<string, unknown>>();
           if (nestedSnap) {
             for (const d of nestedSnap.docs) {
@@ -4240,6 +4265,11 @@ router.get(
           }
           if (topSnap) {
             for (const d of topSnap.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topByAttendees) {
+            for (const d of topByAttendees.docs) {
               if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
             }
           }
@@ -4463,27 +4493,113 @@ router.get(
         [] as Array<Record<string, unknown>>,
       );
 
-      const [worker, trainings, epps, taskDoc, incidents] = await Promise.all([
+      // Codex PR #315 round-2 P2: completed task history for experience
+      // calculation. Organic tasks are written to the top-level `tasks`
+      // collection (server/routes/organic.ts:278) with `assignedUids:
+      // string[]` and `status: 'done'` + `completedAt` on completion
+      // (organic.ts:386). The previous implementation only read the
+      // worker doc's `experienceByCategory` map — but no code in this
+      // repo WRITES that map, so the count was permanently 0 and every
+      // worker received a false "sin experiencia" gap, even after
+      // completing dozens of tasks in the same category.
+      //
+      // Fix: query `tasks` filtered by projectId + `assignedUids
+      // array-contains workerUid` + `status == 'done'`. We pull all
+      // completed tasks (limit 500 to bound the response — projects
+      // shouldn't realistically exceed this for a single worker's
+      // career, and it's a cheap query). We bucket them by parent
+      // process type AFTER the parallel reads complete (we need to
+      // know each task's process to compute the category).
+      const completedTasksPromise = safeRead(
+        'completedTasks',
+        async () => {
+          const snap = await db
+            .collection('tasks')
+            .where('projectId', '==', projectId)
+            .where('assignedUids', 'array-contains', workerUid)
+            .where('status', '==', 'done')
+            .limit(500)
+            .get();
+          return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      const [worker, trainings, epps, taskDoc, incidents, completedTasks] = await Promise.all([
         workerDocPromise,
         trainingsPromise,
         eppPromise,
         taskPromise,
         incidentsPromise,
+        completedTasksPromise,
       ]);
 
       if (!worker) {
         return res.status(404).json({ error: 'worker_not_found' });
       }
 
+      // Codex PR #315 round-2 P2: fetch the parent process EARLY so it
+      // can drive `taskCategory` AND the experience derivation. The
+      // previous order computed `taskCategory` from the task doc alone
+      // (which carries no `riskCategory`/`category` on organic tasks),
+      // then read processDoc later — too late for the profile.
+      let processDoc: Record<string, unknown> | null = null;
+      if (taskDoc && typeof taskDoc.processId === 'string' && taskDoc.processId.length > 0) {
+        processDoc = await safeRead(
+          'process',
+          async () => {
+            const snap = await db
+              .collection('processes')
+              .doc(taskDoc.processId as string)
+              .get();
+            if (!snap.exists) return null;
+            const data = snap.data() as Record<string, unknown>;
+            // Cross-project safety: refuse silently if mismatched.
+            if (typeof data.projectId === 'string' && data.projectId !== projectId) {
+              return null;
+            }
+            return data;
+          },
+          null as Record<string, unknown> | null,
+        );
+      }
+
       // ───── Build WorkerProfile (the service contract) ─────
 
-      // Active trainings: include only non-expired entries. Records
-      // carry `expiresAt` (ISO) on the F.4 shape; legacy ones may use
-      // `validUntil`. Records without any expiry are treated as active
-      // (better-than-empty fallback — they'd otherwise tank the score
-      // for a project whose admins haven't backfilled dates yet).
+      // Active trainings — Codex PR #315 round-2 P1 (CRITICAL):
+      //
+      // TrainingRecommendations.tsx:81 writes `projects/{pid}/trainings`
+      // with `status: 'assigned'` the moment a supervisor *assigns* a
+      // recommended course — the worker has NOT taken or completed it.
+      // The previous mapper accepted every non-expired record (and even
+      // treated records without an expiry as active), so a worker who
+      // had merely been assigned a critical safety course satisfied the
+      // `requiredTrainings` set and could receive a falsely HIGH
+      // readiness score for tasks like trabajo en altura / soldadura.
+      //
+      // Fix: explicitly EXCLUDE records whose status is one of the known
+      // "not-yet-completed" markers (`assigned`, `pending`, `scheduled`,
+      // `in_progress`, `expired`). Records that have no status at all
+      // remain active (legacy training_assignments don't carry a status
+      // field and have always been considered live — we can't regress
+      // those projects). Records that explicitly say `status: 'completed'`
+      // are active when not expired (the canonical happy path).
+      //
+      // Note: `expired` already filters on date; the status check is
+      // strictly about whether the worker has actually DONE the course.
       const nowIso = new Date().toISOString();
       const activeTrainings: string[] = [];
+      const trainingNotCompletedStatuses = new Set<string>([
+        'assigned',
+        'pending',
+        'scheduled',
+        'in_progress',
+        'expired',
+        'cancelled',
+        'canceled',
+        'rejected',
+        'no_show',
+      ]);
       for (const t of trainings) {
         const expiry =
           (typeof t.expiresAt === 'string' && t.expiresAt) ||
@@ -4491,6 +4607,11 @@ router.get(
           null;
         const expired = expiry !== null && expiry < nowIso;
         if (expired) continue;
+        // Status gate: reject "not completed" markers explicitly.
+        // A missing status is treated as active (legacy compat).
+        if (typeof t.status === 'string' && trainingNotCompletedStatuses.has(t.status)) {
+          continue;
+        }
         const code =
           (typeof t.code === 'string' && t.code) ||
           (typeof t.trainingCode === 'string' && t.trainingCode) ||
@@ -4501,8 +4622,31 @@ router.get(
         if (code) activeTrainings.push(code);
       }
 
-      // Active EPP: same expiry rule. EPP categories live in either
-      // `category` (canonical) or `type`/`kind` (legacy aliases).
+      // Active EPP — Codex PR #315 round-2 P1 (CRITICAL):
+      //
+      // AssignEPPModal.tsx:93 writes the delivered equipment label as
+      // `eppItemName` (the canonical UI-facing name shown to the worker
+      // when they receive the item, e.g. "Casco amarillo clase E" or
+      // "Arnés tipo paracaidista"). Some legacy shapes use `itemLabel`.
+      // The previous mapper accepted only `category`/`type`/`kind`/`name`
+      // before adding to `activeEpp`, so the nested-query fix in round 1
+      // started returning the canonical docs — but this mapper dropped
+      // their primary label field and `activeEpp` stayed empty.
+      //
+      // Net effect: workers with required helmets / harnesses assigned
+      // through the modal were scored as MISSING those items, producing
+      // a falsely low EPP subscore for any task that required them.
+      //
+      // Fix: read EPP labels from the FULL union of shapes that any
+      // writer in this codebase produces. Priority order:
+      //   1. `category` (canonical taxonomy field).
+      //   2. `type`/`kind` (legacy aliases).
+      //   3. `name` (legacy generic field).
+      //   4. `eppItemName` (AssignEPPModal canonical name).
+      //   5. `itemLabel` (existing legacy alias).
+      // We keep `category` first so that when both `category` and
+      // `eppItemName` exist on the same doc, the taxonomy field wins for
+      // requirement matching (the requirement set uses canonical labels).
       const activeEpp: string[] = [];
       for (const e of epps) {
         const expiry =
@@ -4516,6 +4660,8 @@ router.get(
           (typeof e.type === 'string' && e.type) ||
           (typeof e.kind === 'string' && e.kind) ||
           (typeof e.name === 'string' && e.name) ||
+          (typeof e.eppItemName === 'string' && e.eppItemName) ||
+          (typeof e.itemLabel === 'string' && e.itemLabel) ||
           null;
         if (cat) activeEpp.push(cat);
       }
@@ -4621,11 +4767,17 @@ router.get(
         }
       }
 
-      // Task category experience count — proxy from the worker doc's
-      // `experienceByCategory` map if available, otherwise the count
-      // of all-time incidents-free assignments. Fallback to 0 — the
-      // score reports "sin experiencia" as a gap, which is honest.
-      const expMap = worker.experienceByCategory;
+      // Task category resolution — Codex PR #315 round-2 P2:
+      //
+      // Organic task docs (created by server/routes/organic.ts) carry
+      // `processId` but NOT `riskCategory`/`category`. The task's
+      // EFFECTIVE category is the parent process `type` (e.g.
+      // `soldadura`, `fachada`, `instalacion_electrica`). The previous
+      // resolver fell back to the literal string 'general' before the
+      // process was read, so every worker with real category-specific
+      // experience (e.g. `experienceByCategory.soldadura`) was scored as
+      // having zero experience whenever a normal organic task was
+      // selected. Fix: read `processDoc.type` as the third source.
       const taskCategoryRaw =
         (taskDoc && typeof taskDoc.riskCategory === 'string'
           ? taskDoc.riskCategory
@@ -4633,12 +4785,85 @@ router.get(
         (taskDoc && typeof taskDoc.category === 'string'
           ? taskDoc.category
           : null) ??
+        (processDoc && typeof processDoc.type === 'string'
+          ? processDoc.type
+          : null) ??
         'general';
       const taskCategory = taskCategoryRaw;
+
+      // Experience count — Codex PR #315 round-2 P2:
+      //
+      // Sources, in priority order:
+      //   1. `worker.experienceByCategory[taskCategory]` — typed map. No
+      //      writer in this repo produces it today, but it's the
+      //      forward-compat field and we honor it if a future migration
+      //      backfills it.
+      //   2. Completed organic tasks (top-level `tasks` collection) that
+      //      were assigned to this worker, bucketed by their parent
+      //      process `type`. We fetch the unique processIds across the
+      //      worker's completed tasks and resolve their types via a
+      //      `getAll` (cheap batched read; the IN-cardinality is capped
+      //      at 10 per chunk).
+      // The two sources are SUMMED (a project that backfills the typed
+      // map AND also has real task history should reflect both).
       let taskCategoryExperienceCount = 0;
+      const expMap = worker.experienceByCategory;
       if (expMap && typeof expMap === 'object') {
         const v = (expMap as Record<string, unknown>)[taskCategory];
         if (typeof v === 'number') taskCategoryExperienceCount = v;
+      }
+      // Source 2: bucket completed tasks by parent process type.
+      if (completedTasks.length > 0) {
+        // Collect unique processIds from the worker's completed tasks.
+        const processIds = new Set<string>();
+        for (const t of completedTasks) {
+          if (typeof t.processId === 'string' && t.processId.length > 0) {
+            processIds.add(t.processId);
+          }
+        }
+        // Resolve processId → type via batched `getAll` (chunks of 10
+        // for safety; `getAll` itself accepts arbitrary counts but
+        // smaller batches keep individual RPCs bounded and let a partial
+        // failure degrade gracefully). Best-effort: any chunk that
+        // throws contributes zero count for its processes.
+        const processIdToType = new Map<string, string>();
+        if (processIds.size > 0) {
+          const ids = Array.from(processIds);
+          const chunks: string[][] = [];
+          for (let i = 0; i < ids.length; i += 10) {
+            chunks.push(ids.slice(i, i + 10));
+          }
+          await Promise.all(
+            chunks.map(async (chunk) => {
+              try {
+                const refs = chunk.map((id) => db.collection('processes').doc(id));
+                const snaps = await db.getAll(...refs);
+                for (const snap of snaps) {
+                  if (!snap.exists) continue;
+                  const data = snap.data() as Record<string, unknown>;
+                  // Cross-project safety: skip if mismatched projectId.
+                  if (typeof data.projectId === 'string' && data.projectId !== projectId) {
+                    continue;
+                  }
+                  if (typeof data.type === 'string' && data.type.length > 0) {
+                    processIdToType.set(snap.id, data.type);
+                  }
+                }
+              } catch (err) {
+                logger.warn?.('sprintK.workerReadiness.read.processBatch.failed', err);
+              }
+            }),
+          );
+        }
+        // Count tasks whose process type matches the current taskCategory.
+        let historyCount = 0;
+        for (const t of completedTasks) {
+          const pid = typeof t.processId === 'string' ? t.processId : null;
+          if (!pid) continue;
+          const ptype = processIdToType.get(pid);
+          if (ptype && ptype === taskCategory) historyCount += 1;
+        }
+        taskCategoryExperienceCount += historyCount;
       }
 
       const profile = {
@@ -4751,27 +4976,8 @@ router.get(
         },
       };
 
-      // Layer 2: parent process (optional best-effort read).
-      let processDoc: Record<string, unknown> | null = null;
-      if (taskDoc && typeof taskDoc.processId === 'string' && taskDoc.processId.length > 0) {
-        processDoc = await safeRead(
-          'process',
-          async () => {
-            const snap = await db
-              .collection('processes')
-              .doc(taskDoc.processId as string)
-              .get();
-            if (!snap.exists) return null;
-            const data = snap.data() as Record<string, unknown>;
-            // Cross-project safety: refuse silently if mismatched.
-            if (typeof data.projectId === 'string' && data.projectId !== projectId) {
-              return null;
-            }
-            return data;
-          },
-          null as Record<string, unknown> | null,
-        );
-      }
+      // Layer 2: parent process — already fetched earlier (see processDoc
+      // resolution above the profile build, round-2 P2 fix).
 
       const collectStrings = (src: Record<string, unknown> | null, key: string): string[] => {
         if (!src) return [];
@@ -4815,21 +5021,35 @@ router.get(
         }
       }
 
-      // Layer 4: fuzzy resolution. If a requirement is a HUMAN NAME (not
-      // a canonical code), substitute it with the matching training/EPP
-      // entry the worker already has (case-insensitive substring) so
-      // the scorer's exact-set-membership check succeeds.
+      // Layer 4: fuzzy resolution — Codex PR #315 round-2 P2 (SAFETY):
+      //
+      // Previous logic accepted EITHER direction of substring match:
+      //   `itemLower.includes(reqLower) || reqLower.includes(itemLower)`
+      // The second clause is dangerous: a worker with the generic owned
+      // item "guantes" would satisfy a specialized requirement like
+      // "guantes dieléctricos" (because "guantes dieléctricos" contains
+      // "guantes"). For electrical / hot-work / chemical-resistant PPE
+      // this falsely marks required specialized equipment as PRESENT —
+      // a worker handling 480V circuits with regular cotton gloves would
+      // pass the readiness check that explicitly required dielectric
+      // gloves. SAME RISK for trainings ("Trabajo en altura" satisfied
+      // by a generic "Trabajo" course).
+      //
+      // Fix: ONE-WAY match only. The owned item must CONTAIN the full
+      // requirement (i.e. the worker's record is at least as specific
+      // as the requirement). A generic owned item never satisfies a
+      // more specific requirement. This is the safe direction because
+      // canonical requirements describe the minimum specificity needed.
       const fuzzyResolve = (req: string, owned: string[]): string => {
         const reqLower = req.toLowerCase().trim();
         if (reqLower.length === 0) return req;
-        // Walk the worker's owned items; if any case-insensitive
-        // substring match, return the requirement itself unchanged AND
-        // inject the owned item as an alias by also adding it to owned
-        // (caller passes a set). Here we just normalize: return the
-        // owned entry that matches, so set membership works.
+        // Walk the worker's owned items; ONLY accept items that contain
+        // the full requirement string. Reject the reverse direction
+        // (requirement contains owned) which would let generic items
+        // satisfy specialized requirements.
         for (const item of owned) {
           const itemLower = item.toLowerCase();
-          if (itemLower.includes(reqLower) || reqLower.includes(itemLower)) {
+          if (itemLower.includes(reqLower)) {
             return item;
           }
         }

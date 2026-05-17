@@ -52,7 +52,19 @@ export interface WorkerProfile {
 }
 
 export interface ReadinessGap {
-  kind: 'missing_training' | 'missing_epp' | 'medical_aptitude' | 'missing_doc' | 'fatigue' | 'experience';
+  kind:
+    | 'missing_training'
+    | 'missing_epp'
+    | 'medical_aptitude'
+    | 'missing_doc'
+    | 'fatigue'
+    | 'experience'
+    /**
+     * Codex PR #315 round-2 P2: incident-recency gap. Emitted when
+     * `daysSinceLastIncident < 60`; reduces total score by a graduated
+     * penalty proportional to how recent the incident was.
+     */
+    | 'incident_recency';
   description: string;
   weight: number;
   /** Sugerencia de cómo cerrar el gap. */
@@ -161,6 +173,63 @@ function scoreExperience(profile: WorkerProfile, req: TaskRequirements): { score
   };
 }
 
+/**
+ * Codex PR #315 round-2 P2: incident-recency penalty.
+ *
+ * Up to round 1 the route computed `daysSinceLastIncident` and passed
+ * it into the profile, but `computeReadiness` ignored the field
+ * entirely — a worker with an incident yesterday produced an identical
+ * report to one with no incident in 90 days. That contradicted the
+ * route's own contract (it advertised incident proximity as part of
+ * readiness) and silenced a real safety signal.
+ *
+ * Penalty curve (subtracted from total score; never positive):
+ *   days >= 60   →  0   (no penalty — incident is historical)
+ *   days 30-59  → -2   (mild reminder)
+ *   days 7-29   → -5   (notable; supervisor should know)
+ *   days 1-6    → -10  (very recent; significant signal)
+ *   days <= 0   → -15  (incident today; strongest signal)
+ *
+ * The penalty is also surfaced as a gap so the supervisor sees WHY the
+ * score dropped. Weight matches the penalty magnitude for sort order.
+ * The base 6 subscores are unchanged so existing tests/UI continue to
+ * pass; this is a top-level adjustment on the final score.
+ */
+function scoreIncidentRecency(profile: WorkerProfile): { penalty: number; gap?: ReadinessGap } {
+  const d = profile.daysSinceLastIncident;
+  if (typeof d !== 'number' || d >= 60) return { penalty: 0 };
+  let penalty = 0;
+  let weight = 0;
+  let description = '';
+  let recommendation = '';
+  if (d <= 0) {
+    penalty = 15;
+    weight = 15;
+    description = 'Incidente registrado hoy — máxima atención.';
+    recommendation = 'Pausa de toma de conciencia + revisión de causa raíz antes de reasignar.';
+  } else if (d <= 6) {
+    penalty = 10;
+    weight = 10;
+    description = `Incidente reciente (hace ${d} día${d === 1 ? '' : 's'}).`;
+    recommendation = 'Supervisión directa esta jornada + charla de 5 minutos.';
+  } else if (d <= 29) {
+    penalty = 5;
+    weight = 5;
+    description = `Incidente en los últimos 30 días (hace ${d} días).`;
+    recommendation = 'Revisar lecciones aprendidas con el trabajador antes de iniciar tarea.';
+  } else {
+    // 30-59
+    penalty = 2;
+    weight = 2;
+    description = `Incidente en los últimos 60 días (hace ${d} días).`;
+    recommendation = 'Confirmar que medidas correctivas del incidente estén aplicadas.';
+  }
+  return {
+    penalty,
+    gap: { kind: 'incident_recency', description, weight, recommendation },
+  };
+}
+
 function scoreFatigue(profile: WorkerProfile): { score: number; gap?: ReadinessGap } {
   switch (profile.fatigueLevel) {
     case 'low':
@@ -223,8 +292,15 @@ export function computeReadiness(
   const d = scoreDocuments(profile, task);
   const x = scoreExperience(profile, task);
   const f = scoreFatigue(profile);
+  // Codex PR #315 round-2 P2: incident-recency penalty applied to the
+  // final aggregate. The 6 sub-scores keep their original weights so the
+  // existing UI and tests are not regressed; the recency signal is a
+  // top-level deduction that ranges 0..-15 depending on how recent the
+  // incident was.
+  const ir = scoreIncidentRecency(profile);
 
-  const score = t.score + e.score + m.score + d.score + x.score + f.score;
+  const baseScore = t.score + e.score + m.score + d.score + x.score + f.score;
+  const score = baseScore - ir.penalty;
 
   const gaps: ReadinessGap[] = [];
   for (const missing of t.missing) {
@@ -254,6 +330,7 @@ export function computeReadiness(
   }
   if (x.gap) gaps.push(x.gap);
   if (f.gap) gaps.push(f.gap);
+  if (ir.gap) gaps.push(ir.gap);
 
   // Priorizar recomendaciones por weight desc
   const recommendations = [...gaps]
@@ -261,11 +338,12 @@ export function computeReadiness(
     .map((g) => g.recommendation)
     .slice(0, 5);
 
+  const clamped = Math.max(0, Math.min(100, score));
   return {
     workerUid: profile.workerUid,
     taskCategory: task.taskCategory,
-    score: Math.max(0, Math.min(100, score)),
-    level: classifyLevel(score),
+    score: clamped,
+    level: classifyLevel(clamped),
     gaps,
     recommendations,
     subScores: {
