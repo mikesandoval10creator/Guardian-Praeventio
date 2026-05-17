@@ -128,7 +128,7 @@ export function Projects() {
     }
   };
 
-  const filteredProjects = projects.filter(p => 
+  const filteredProjects = projects.filter((p): boolean =>
     (p.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
     (p.industry || '').toLowerCase().includes(String(searchTerm || '').toLowerCase()) ||
     (p.location || '').toLowerCase().includes(String(searchTerm || '').toLowerCase())
@@ -407,13 +407,20 @@ export function Projects() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {filteredProjects.map((project) => (
+          {filteredProjects.map((project) => {
+            const projectId = project.id;
+            return (
             <motion.div
-              key={project.id}
+              key={projectId}
               whileHover={{ y: -5 }}
               onClick={() => setSelectedProject(project)}
               className={`bg-white dark:bg-zinc-900/50 border rounded-2xl sm:rounded-3xl p-5 sm:p-6 cursor-pointer transition-all relative overflow-hidden group shadow-sm flex flex-col ${
-                selectedProject?.id === project.id ? 'border-[#4db6ac] ring-1 ring-[#4db6ac]/50' : 'border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20'
+                /* Codex/strict note: outer early-return narrows
+                   `selectedProject` to `null` so the selected-card style
+                   never applies in this branch. We render the unselected
+                   style explicitly — the list view IS the unselected
+                   state, by design. */
+                'border-zinc-200 dark:border-white/10 hover:border-zinc-300 dark:hover:border-white/20'
               }`}
             >
               {/* Status Badge */}
@@ -467,7 +474,7 @@ export function Projects() {
                 </div>
               </div>
             </motion.div>
-          ))}
+          );})}
         </div>
       )}
 

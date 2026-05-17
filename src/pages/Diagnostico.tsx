@@ -147,6 +147,7 @@ export function Diagnostico() {
         metadata: { ...formData, result },
         connections: []
       });
+      if (!diagnosisNode) return;
 
       // Create risk nodes for the generated base risks. Round 16 (R1):
       // we no longer let the LLM emit `criticidad` (the legal P×S

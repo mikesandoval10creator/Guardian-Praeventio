@@ -68,7 +68,7 @@ router.post(
   idempotencyKey(),
   validate(RegisterDeviceSchema),
   async (req, res) => {
-    const callerUid = req.user.uid;
+    const callerUid = req.user!.uid;
     const { deviceId, projectId, type } = req.validated as z.infer<
       typeof RegisterDeviceSchema
     >;

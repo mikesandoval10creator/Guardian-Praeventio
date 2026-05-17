@@ -146,14 +146,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const pendingActions = usePendingActions('projects');
   const { toasts, show: showToast, dismiss } = useToast();
 
-  const projects = useMemo(() => {
-    let combined = [...fetchedProjects];
+  const projects = useMemo<Project[]>(() => {
+    let combined: Project[] = [...fetchedProjects];
 
     pendingActions.forEach(action => {
       if (action.type === 'update' && action.data.id) {
         const index = combined.findIndex(p => p.id === action.data.id);
         if (index !== -1) {
-          combined[index] = { ...combined[index], ...action.data };
+          const existing = combined[index];
+          if (existing) {
+            combined[index] = { ...existing, ...action.data };
+          }
         }
       } else if (action.type === 'delete' && action.data.id) {
         combined = combined.filter(p => p.id !== action.data.id);

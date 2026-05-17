@@ -124,7 +124,7 @@ router.get('/keys', verifyAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/keys', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return undefined;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const body = (req.body ?? {}) as Record<string, unknown>;
   const customerId = typeof body.customerId === 'string' ? body.customerId : '';
   const tier = typeof body.tier === 'string' ? body.tier : '';
@@ -193,7 +193,7 @@ router.post('/keys', verifyAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 router.post('/keys/:id/revoke', verifyAuth, async (req, res) => {
   if (!(await assertAdmin(req, res))) return undefined;
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const id = req.params.id;
   if (!KEY_DOC_ID_REGEX.test(id)) {
     return res.status(400).json({ error: 'Invalid key id' });

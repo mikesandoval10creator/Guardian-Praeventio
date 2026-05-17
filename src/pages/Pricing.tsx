@@ -1011,27 +1011,39 @@ function PricingInner() {
       // Best-effort receipt-validate ping. The server returns 202 here
       // because the authoritative grant flows through the store webhook;
       // this call is for fraud signal + audit trail.
-      try {
-        const idToken = await user.getIdToken();
-        const endpoint =
-          provider === 'google-play'
-            ? '/api/billing/google-play/validate-receipt'
-            : '/api/billing/app-store/validate-receipt';
-        await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            productId,
-            tierId: tier.id,
-            receiptId: result.receiptId,
-          }),
-        });
-      } catch (err) {
-        // Best-effort — never block the UI on this.
-        logger.warn('iap_receipt_ping_failed', { provider, tier: tier.id });
+      //
+      // Codex P2 (PR #307): the receipt ping is best-effort — if the
+      // user is unavailable (e.g. pricing route rendered before auth
+      // finishes loading, edge case but real), we must STILL run the
+      // success notification + reset `isProcessing`. Earlier
+      // `if (!user) return` jumped out of the outer purchase flow and
+      // left the button stuck in the processing state. Gate the ping
+      // with `if (user)` instead, mirroring the pre-strictNullChecks
+      // behavior where the missing-user path was caught by the outer
+      // try/catch and the success flow ran anyway.
+      if (user) {
+        try {
+          const idToken = await user.getIdToken();
+          const endpoint =
+            provider === 'google-play'
+              ? '/api/billing/google-play/validate-receipt'
+              : '/api/billing/app-store/validate-receipt';
+          await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              productId,
+              tierId: tier.id,
+              receiptId: result.receiptId,
+            }),
+          });
+        } catch (err) {
+          // Best-effort — never block the UI on this.
+          logger.warn('iap_receipt_ping_failed', { provider, tier: tier.id });
+        }
       }
 
       addNotification({
