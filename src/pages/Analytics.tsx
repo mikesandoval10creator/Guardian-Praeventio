@@ -72,17 +72,132 @@ export function Analytics() {
   const epps = projectNodes.filter(n => n.type === NodeType.EPP);
 
   // Dimensions for Radar Chart
-  const calculateSafetyDimensions = () => {
+  //
+  // 2026-05-17 (Sprint J): real derivation from projectNodes.
+  // Antes la función devolvía literales hard-coded {85, 90, 78, ...} que
+  // no representaban la realidad del proyecto — el radar era decorativo.
+  // Ahora cada dimensión se calcula desde los nodos cargados:
+  //   - EPP:        % NodeType.EPP con metadata.status === 'Conforme'
+  //   - Normativa:  % NodeType.AUDIT con metadata.status === 'Cumple'
+  //   - Conducta:   % findings cerrados vs total
+  //   - Procesos:   % audits sin no-conformidades (preferimos work permits
+  //                 sin observaciones cuando exista source en RiskNode;
+  //                 hoy los permits viven en otro adaptador, fallback audits)
+  //   - Entorno:    % NodeType.RISK con level !== 'Crítico' && !== 'Alto'
+  //
+  // Si una categoría no tiene nodos, marcamos `insufficient_data` y
+  // mostramos un score de 0 con tooltip explicativo en el radar.
+  //
+  // El benchmark `B` es 80 constante por ahora.
+  // TODO Sprint K §164-170: reemplazar por benchmark dinámico desde
+  //      "adoption analytics" (industria + tamaño empresa + región) una
+  //      vez se materialicen los datos comparativos. Mientras tanto 80
+  //      es el umbral interno mínimo aceptable de Praeventio.
+  type SafetyDimension = {
+    subject: string;
+    A: number;
+    B: number;
+    insufficient_data: boolean;
+  };
+
+  const RADAR_BENCHMARK = 80;
+  const calculateSafetyDimensions = (): SafetyDimension[] => {
+    const pct = (num: number, den: number): number =>
+      den > 0 ? Math.round((num / den) * 100) : 0;
+
+    // EPP — % conformes
+    const eppConformes = epps.filter(
+      (e) => e.metadata?.status === 'Conforme'
+    ).length;
+    const eppScore = pct(eppConformes, epps.length);
+
+    // Normativa — % auditorías con compliance status
+    const auditsCumple = audits.filter(
+      (a) => a.metadata?.status === 'Cumple'
+    ).length;
+    const normativaScore = pct(auditsCumple, audits.length);
+
+    // Conducta — % findings cerrados vs total
+    // (closedFindings ya está computado más abajo con tolerancia a 'cerrado',
+    //  'cerrada', 'completed', 'completado', 'completada'; replicamos aquí
+    //  para mantener el scope local — no podemos depender de la const que
+    //  se declara después.)
+    const closedFindingsForRadar = findings.filter((f) => {
+      const status = (f.metadata?.status || f.metadata?.estado || '')
+        .toString()
+        .toLowerCase();
+      return (
+        status === 'cerrado' ||
+        status === 'cerrada' ||
+        status === 'closed' ||
+        status === 'completed' ||
+        status === 'completado' ||
+        status === 'completada'
+      );
+    }).length;
+    const conductaScore = pct(closedFindingsForRadar, findings.length);
+
+    // Procesos — % audits sin no-conformidades.
+    // Los work permits no se persisten como RiskNode (viven en
+    // workPermitFirestoreAdapter), por lo que usamos el fallback
+    // descrito en el spec: audits sin items en estado 'No Cumple'.
+    // Si una auditoría no tiene items aún (planificada/pendiente),
+    // no la contamos ni como exitosa ni como no-conformidad.
+    const auditsConItems = audits.filter((a) => {
+      const items = a.metadata?.items;
+      return Array.isArray(items) && items.length > 0;
+    });
+    const auditsSinNoCumple = auditsConItems.filter((a) => {
+      const items = a.metadata?.items as Array<{ status?: string }>;
+      return !items.some((it) => it?.status === 'No Cumple');
+    }).length;
+    const procesosScore = pct(auditsSinNoCumple, auditsConItems.length);
+
+    // Entorno — % riesgos NO críticos ni altos (i.e. controlados/aceptables)
+    const riesgosControlados = risks.filter((r) => {
+      const level = r.metadata?.level;
+      return level !== 'Crítico' && level !== 'Alto';
+    }).length;
+    const entornoScore = pct(riesgosControlados, risks.length);
+
     return [
-      { subject: 'EPP', A: 85, B: 90 },
-      { subject: 'Normativa', A: 78, B: 85 },
-      { subject: 'Conducta', A: 92, B: 88 },
-      { subject: 'Procesos', A: 70, B: 80 },
-      { subject: 'Entorno', A: 88, B: 92 },
+      {
+        subject: 'EPP',
+        A: eppScore,
+        B: RADAR_BENCHMARK,
+        insufficient_data: epps.length === 0,
+      },
+      {
+        subject: 'Normativa',
+        A: normativaScore,
+        B: RADAR_BENCHMARK,
+        insufficient_data: audits.length === 0,
+      },
+      {
+        subject: 'Conducta',
+        A: conductaScore,
+        B: RADAR_BENCHMARK,
+        insufficient_data: findings.length === 0,
+      },
+      {
+        subject: 'Procesos',
+        A: procesosScore,
+        B: RADAR_BENCHMARK,
+        insufficient_data: auditsConItems.length === 0,
+      },
+      {
+        subject: 'Entorno',
+        A: entornoScore,
+        B: RADAR_BENCHMARK,
+        insufficient_data: risks.length === 0,
+      },
     ];
   };
 
   const safetyDimensionsData = calculateSafetyDimensions();
+  const dimensionsWithInsufficientData = safetyDimensionsData.filter(
+    (d) => d.insufficient_data
+  );
 
   const criticalRisks = risks.filter(r => r.metadata?.level === 'Crítico').length;
   const highRisks = risks.filter(r => r.metadata?.level === 'Alto').length;
@@ -474,7 +589,7 @@ export function Analytics() {
               className="h-80"
               role="img"
               aria-labelledby="safety-radar-title"
-              aria-label={`Comparativa Actual vs Objetivo (escala 0–100). ${safetyDimensionsData.map(d => `${d.subject}: actual ${d.A}, objetivo ${d.B}`).join('; ')}`}
+              aria-label={`Comparativa Actual vs Objetivo (escala 0–100). ${safetyDimensionsData.map(d => `${d.subject}: actual ${d.A}, objetivo ${d.B}${d.insufficient_data ? ' (datos insuficientes)' : ''}`).join('; ')}`}
             >
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="80%" data={safetyDimensionsData}>
@@ -484,10 +599,29 @@ export function Analytics() {
                   <Radar name="Actual" dataKey="A" stroke="#4f46e5" fill="#4f46e5" fillOpacity={0.6} />
                   <Radar name="Objetivo" dataKey="B" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
                   <Legend />
-                  <Tooltip />
+                  <Tooltip
+                    formatter={(value: number, name: string, props: any) => {
+                      const subject = props?.payload?.subject;
+                      const dim = safetyDimensionsData.find(d => d.subject === subject);
+                      if (dim?.insufficient_data && name === 'Actual') {
+                        return [`${value} (datos insuficientes)`, name];
+                      }
+                      return [value, name];
+                    }}
+                  />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
+            {dimensionsWithInsufficientData.length > 0 && (
+              <p
+                className="mt-3 text-[11px] font-medium text-zinc-500 dark:text-zinc-400"
+                role="note"
+              >
+                <span className="font-bold text-amber-600 dark:text-amber-400">⚠ Datos insuficientes:</span>{' '}
+                {dimensionsWithInsufficientData.map(d => d.subject).join(', ')}.
+                Registra nodos en estas categorías para obtener un puntaje real.
+              </p>
+            )}
           </div>
         </div>
 
