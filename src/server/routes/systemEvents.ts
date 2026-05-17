@@ -31,10 +31,10 @@ router.post(
   idempotencyKey(),
   validate(emitBodySchema),
   async (req, res) => {
-    const callerUid: string = req.user.uid;
+    const callerUid: string = req.user!.uid;
     const claimTenantId: string | null =
-      typeof req.user.tenantId === 'string'
-        ? req.user.tenantId
+      typeof req.user!.tenantId === 'string'
+        ? req.user!.tenantId
         : null;
     const { event } = req.body as z.infer<typeof emitBodySchema>;
 

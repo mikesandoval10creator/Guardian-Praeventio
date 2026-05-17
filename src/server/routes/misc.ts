@@ -131,7 +131,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
     return res.status(400).json({ error: 'invalid_payload', issues: parsed.error.issues });
   }
   const { erpType, action, payload } = parsed.data;
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   // Tenant context — viene del verifyAuth claim, no del body
   const tenantId =
     (req.user as { tenantId?: string }).tenantId ?? 'default';
@@ -263,7 +263,7 @@ router.post('/erp/sync', verifyAuth, erpSyncLimiter, async (req, res) => {
 // Seed Glossary Endpoint (gerente-only â€” prevents public abuse)
 router.post('/seed-glossary', verifyAuth, async (req, res) => {
   try {
-    const callerRecord = await admin.auth().getUser(req.user.uid);
+    const callerRecord = await admin.auth().getUser(req.user!.uid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: 'Forbidden: Requires gerente role' });
     }
@@ -285,7 +285,7 @@ router.post('/seed-glossary', verifyAuth, async (req, res) => {
 // Seed Data Endpoint (gerente-only â€” prevents public abuse)
 router.post('/seed-data', verifyAuth, async (req, res) => {
   try {
-    const callerRecord = await admin.auth().getUser(req.user.uid);
+    const callerRecord = await admin.auth().getUser(req.user!.uid);
     if (callerRecord.customClaims?.role !== 'gerente') {
       return res.status(403).json({ error: 'Forbidden: Requires gerente role' });
     }

@@ -77,6 +77,7 @@ Responde en JSON con la estructura:
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   const parsed = JSON.parse(response.text);
   // Attach RAG citations as a separate metadata field on a wrapper if the
   // shape is an array. Callers that expect the bare array still work
@@ -134,6 +135,7 @@ Proporciona resumen, alertas y citations.`;
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   const parsed = JSON.parse(response.text);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),
@@ -196,6 +198,7 @@ Incluye explicación clínica y citations al protocolo aplicable.`;
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   const parsed = JSON.parse(response.text);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),

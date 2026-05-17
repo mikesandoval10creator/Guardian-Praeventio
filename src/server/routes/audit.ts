@@ -38,8 +38,8 @@ import { captureRouteError } from '../middleware/captureRouteError.js';
 const router = Router();
 
 router.post('/audit-log', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
-  const callerEmail: string | null = req.user.email ?? null;
+  const callerUid = req.user!.uid;
+  const callerEmail: string | null = req.user!.email ?? null;
   const { action, module: mod, details, projectId } = req.body ?? {};
 
   if (typeof action !== 'string' || action.length === 0 || action.length > 64) {
@@ -108,7 +108,7 @@ router.post('/audit-log', verifyAuth, async (req, res) => {
 //   ?module=NAME    — filtra por módulo
 //   ?since=ISO_DATE — solo entradas posteriores
 router.get('/audit-log', verifyAuth, async (req, res) => {
-  const callerUid = req.user.uid;
+  const callerUid = req.user!.uid;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
   const moduleFilter = typeof req.query.module === 'string' ? req.query.module : undefined;
   const sinceIso = typeof req.query.since === 'string' ? req.query.since : undefined;

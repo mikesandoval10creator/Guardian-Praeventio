@@ -240,7 +240,7 @@ export function _clearCapsuleStatsCacheForTests() {
 }
 
 router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
   const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : '';
   const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : '';
@@ -300,7 +300,7 @@ router.get('/wisdom-capsule/stats', verifyAuth, async (req, res) => {
 });
 
 router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
   const date = typeof req.query.date === 'string' ? req.query.date : new Date().toISOString().slice(0, 10);
   if (!projectId) return res.status(400).json({ error: 'projectId required' });
@@ -400,7 +400,7 @@ router.get('/wisdom-capsule/today', verifyAuth, async (req, res) => {
  * award (we use `arrayUnion` + a transaction guard).
  */
 router.post('/wisdom-capsule/ack', verifyAuth, async (req, res) => {
-  const uid = req.user.uid;
+  const uid = req.user!.uid;
   const { projectId, date } = req.body ?? {};
   if (typeof projectId !== 'string' || !projectId) {
     return res.status(400).json({ error: 'projectId required' });

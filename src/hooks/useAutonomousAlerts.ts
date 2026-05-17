@@ -16,9 +16,16 @@ export function useAutonomousAlerts() {
 
     const checkConditions = () => {
       try {
-        const weather = environment.weather;
+        // The outer effect already gated on `environment?.weather` truthy,
+        // but the closure runs later and TS can't carry that narrowing
+        // through. Re-narrow here defensively. Skip silently when weather
+        // disappeared between scheduling and firing (e.g. tenant logged
+        // out, env stream resolved to null on retry).
+        const weather = environment?.weather;
+        if (!weather) return;
         const temp = weather.temp;
         const wind = weather.windSpeed;
+        if (typeof temp !== 'number' || typeof wind !== 'number') return;
         
         const today = new Date().toDateString();
 

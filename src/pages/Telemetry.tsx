@@ -314,8 +314,8 @@ export function Telemetry() {
       const { data } = await response.json();
 
       // Parse Google Fit aggregate data
-      let heartRate = null;
-      let steps = null;
+      let heartRate: number | null = null;
+      let steps: number | null = null;
 
       if (data && data.bucket && data.bucket.length > 0) {
         const bucket = data.bucket[0];
@@ -458,10 +458,10 @@ export function Telemetry() {
 
   // Check weather alerts
   useEffect(() => {
-    if (weather) {
+    if (weather && typeof weather.windSpeed === 'number') {
       if (weather.windSpeed > 40) {
         setAlerts(prev => {
-          const msg = `Vientos fuertes detectados (${Math.round(weather.windSpeed)} km/h). Sugerencia: Suspender trabajos en altura y maniobras de izaje (D.S. 594).`;
+          const msg = `Vientos fuertes detectados (${Math.round(weather.windSpeed!)} km/h). Sugerencia: Suspender trabajos en altura y maniobras de izaje (D.S. 594).`;
           return prev.includes(msg) ? prev : [...prev, msg];
         });
       }

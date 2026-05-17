@@ -68,7 +68,7 @@ export function DocumentOCRManager() {
       type = 'Hoja de Datos de Seguridad';
     }
 
-    const risks = [];
+    const risks: string[] = [];
     if (text.toLowerCase().includes('altura')) risks.push('Trabajo en Altura');
     if (text.toLowerCase().includes('caliente') || text.toLowerCase().includes('soldadura')) risks.push('Trabajo en Caliente');
     if (text.toLowerCase().includes('confinado')) risks.push('Espacio Confinado');

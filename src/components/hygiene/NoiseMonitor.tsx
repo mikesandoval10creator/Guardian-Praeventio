@@ -17,14 +17,17 @@ export function NoiseMonitor() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      audioContextRef.current = new AudioContextClass();
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-      
-      microphoneRef.current.connect(analyserRef.current);
-      analyserRef.current.fftSize = 256;
-      
-      const bufferLength = analyserRef.current.frequencyBinCount;
+      const audioContext = new AudioContextClass();
+      const analyser = audioContext.createAnalyser();
+      const microphone = audioContext.createMediaStreamSource(stream);
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+      microphoneRef.current = microphone;
+
+      microphone.connect(analyser);
+      analyser.fftSize = 256;
+
+      const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
       const updateDecibels = () => {
