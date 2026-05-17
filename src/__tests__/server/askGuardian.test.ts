@@ -125,7 +125,7 @@ function buildLimitedAskGuardianApp(deps: AskGuardianRateDeps = {}): Express {
   });
 
   app.post('/api/ask-guardian', verifyAuth, limiter, async (req: Request, res: Response) => {
-    const uid = req.user.uid as string;
+    const uid = req.user!.uid;
     const { query } = req.body ?? {};
     if (typeof query !== 'string' || query.length === 0) {
       return res.status(400).json({ error: 'query is required' });

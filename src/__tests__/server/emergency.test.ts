@@ -103,8 +103,8 @@ function buildSosApp(deps: SosTestDeps): Express {
   }
 
   app.post('/api/emergency/sos', verifyAuth, sosLimiter, async (req, res) => {
-    const callerUid = req.user.uid;
-    const callerEmail: string | null = req.user.email ?? null;
+    const callerUid = req.user!.uid;
+    const callerEmail: string | null = req.user!.email ?? null;
     const { type, projectId, geo, timestamp } = req.body ?? {};
     if (type !== 'sos') return res.status(400).json({ error: 'invalid_type' });
     if (typeof projectId !== 'string' || projectId.length === 0 || projectId.length > 128) {

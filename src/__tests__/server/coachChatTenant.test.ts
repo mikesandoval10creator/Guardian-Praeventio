@@ -91,7 +91,7 @@ function buildApp(fs: InMemoryFirestore, auth: FakeAuth): Express {
       action: 'coach.chat',
       module: 'coach',
       details: { projectId, messageLength: typeof message === 'string' ? message.length : 0 },
-      userId: req.user.uid,
+      userId: req.user!.uid,
       projectId,
       timestamp: fakeFieldValue.serverTimestamp(),
     });
