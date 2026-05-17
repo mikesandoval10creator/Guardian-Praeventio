@@ -64,6 +64,11 @@ const Splash = lazy(() => import('./pages/Splash').then(module => ({ default: mo
 const SafetyFeed = lazy(() => import('./pages/SafetyFeed').then(module => ({ default: module.SafetyFeed })));
 const Analytics = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
 const CorrectiveActions = lazy(() => import('./pages/CorrectiveActions').then(module => ({ default: module.CorrectiveActions })));
+// Sprint K §195-200 — Módulo PDCA + No Conformidades (ISO 45001 §10.2).
+// Kanban Plan/Do/Check/Act sobre ciclos vinculados a NCs. El motor
+// (`services/pdca/pdcaCycleEngine.ts` + `pdcaCycle.ts`) ya existía;
+// este lazy cierra el wire navegable.
+const PdcaModule = lazy(() => import('./pages/PdcaModule').then(module => ({ default: module.PdcaModule })));
 // Sprint K §74-78 — Brigada de Emergencia + Recursos (extintores, AED,
 // eyewash, kits, etc.). Service + panel ya existían; este wire cierra
 // el end-to-end con endpoint + hook + page navegable.
@@ -182,6 +187,7 @@ function AppRoutes() {
               <Route path="settings/system-health" element={<SystemHealth />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="corrective-actions" element={<CorrectiveActions />} />
+              <Route path="pdca" element={<PdcaModule />} />
               <Route path="emergency-brigade" element={<EmergencyBrigade />} />
               <Route path="positive-observations" element={<PositiveObservations />} />
               <Route path="inspections" element={<OfflineInspection />} />
@@ -322,6 +328,7 @@ function AppRoutes() {
                     <Route path="safety-feed" element={<SafetyFeed />} />
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
+                    <Route path="pdca" element={<PdcaModule />} />
                     <Route path="emergency-brigade" element={<EmergencyBrigade />} />
                     <Route path="positive-observations" element={<PositiveObservations />} />
                     <Route path="inspections" element={<OfflineInspection />} />
