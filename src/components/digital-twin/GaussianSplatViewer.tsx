@@ -82,6 +82,46 @@ export function GaussianSplatViewer({
     };
   }, [is3DOpen, engineState]);
 
+  // Sprint 49 — activación playcanvas: cuando el motor está ready y el
+  // <canvas> está montado, inicializamos una Application básica que
+  // pinta el fondo en negro (clear color). Esto valida que la dep
+  // funciona end-to-end. La carga del .splat real queda para el PR
+  // de pipeline de fotogrametría (Brecha C del roadmap).
+  useEffect(() => {
+    if (engineState !== 'ready') return undefined;
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    let app: { destroy?: () => void } | null = null;
+    let aborted = false;
+    (async () => {
+      try {
+        const pc = await import(/* @vite-ignore */ 'playcanvas');
+        if (aborted) return;
+        const Application = (pc as { Application?: new (...args: unknown[]) => unknown }).Application;
+        if (!Application) return;
+        // Construcción defensiva: PlayCanvas Application requiere canvas + options.
+        // Falla silenciosa si la firma cambia entre majors — preferible mostrar el
+        // canvas vacío que crashear el árbol React.
+        app = new Application(canvas, {
+          mouse: undefined,
+          touch: undefined,
+          keyboard: undefined,
+          graphicsDeviceOptions: { alpha: false, antialias: true },
+        }) as { destroy?: () => void };
+      } catch {
+        // No-op: ya marcamos `unavailable` si import falló.
+      }
+    })();
+    return () => {
+      aborted = true;
+      try {
+        app?.destroy?.();
+      } catch {
+        // ignore
+      }
+    };
+  }, [engineState]);
+
   if (!capture) {
     return (
       <section
