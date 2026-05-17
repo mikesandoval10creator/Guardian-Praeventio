@@ -33,6 +33,7 @@ export const suggestMeetingAgenda = async (projectRisks: any[], pendingAgreement
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };
 
@@ -70,5 +71,6 @@ export const summarizeAgreements = async (rawMeetingNotes: string) => {
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };

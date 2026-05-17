@@ -85,6 +85,7 @@ referenciadas.`;
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   const parsed = JSON.parse(response.text);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),

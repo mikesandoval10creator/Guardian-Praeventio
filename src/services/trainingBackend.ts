@@ -55,6 +55,7 @@ export const generateCustomSafetyTraining = async (gapDescription: string, audie
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };
 
@@ -91,5 +92,6 @@ export const generateTrainingQuiz = async (topic: string, description: string) =
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };

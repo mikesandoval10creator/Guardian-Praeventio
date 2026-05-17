@@ -85,6 +85,7 @@ referencias normativas que respaldan cada hallazgo.`;
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   const parsed = JSON.parse(response.text);
   // Ensure RAG citations are always present in the response, even if Gemini
   // omitted them, so downstream UI can always render the source list.
@@ -142,6 +143,7 @@ Responde en JSON e incluye "citations" con las normas usadas.`;
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   const parsed = JSON.parse(response.text);
   parsed.citations = Array.from(
     new Set([...(parsed.citations ?? []), ...usedCitations]),

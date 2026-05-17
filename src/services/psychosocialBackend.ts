@@ -64,6 +64,7 @@ export const analyzePsychosocialRisks = async (surveyResults: any[], organizatio
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };
 

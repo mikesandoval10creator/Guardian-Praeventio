@@ -357,7 +357,7 @@ export function makeSlmChecker(
     cachedBytes: number;
   } | null>,
 ): SubsystemChecker {
-  return async () => {
+  return async (_nowMs: number): Promise<Omit<SubsystemReport, 'checkLatencyMs'>> => {
     const s = await getStatus();
     if (!s) {
       return {
@@ -477,7 +477,7 @@ export function makeNetworkChecker(
     nowMs: number,
   ) => Promise<{ ok: boolean; latencyMs?: number }>,
 ): SubsystemChecker {
-  return async (nowMs) => {
+  return async (nowMs: number): Promise<Omit<SubsystemReport, 'checkLatencyMs'>> => {
     const online =
       typeof navigator !== 'undefined' ? navigator.onLine !== false : true;
     if (!online) {
@@ -528,7 +528,7 @@ export function makeNetworkChecker(
 export function makeDeviceKekChecker(
   inspect: () => Promise<{ exists: boolean; ageMs?: number }>,
 ): SubsystemChecker {
-  return async () => {
+  return async (_nowMs: number): Promise<Omit<SubsystemReport, 'checkLatencyMs'>> => {
     const info = await inspect();
     if (!info.exists) {
       return {

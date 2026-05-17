@@ -74,5 +74,6 @@ export const optimizePPEInventory = async (currentStock: any[], consumptionHisto
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };

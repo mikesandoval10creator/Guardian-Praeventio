@@ -24,7 +24,14 @@ export const updateGlobalEnvironmentalContext = async () => {
     const lon = DEFAULT_LON;
 
     // 1. Fetch Weather
-    let weatherData = null;
+    let weatherData: {
+      temp: number;
+      condition: string;
+      humidity: number;
+      windSpeed: number;
+      location: string;
+      timestamp: number;
+    } | null = null;
     if (OPENWEATHER_API_KEY) {
       const weatherRes = await fetch(
         `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`
@@ -43,7 +50,12 @@ export const updateGlobalEnvironmentalContext = async () => {
     }
 
     // 2. Fetch Seismic
-    let seismicData = null;
+    let seismicData: {
+      magnitude: number;
+      location: string;
+      time: number;
+      alertLevel: string;
+    } | null = null;
     const startTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const seismicRes = await fetch(
       `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=500&starttime=${startTime}&minmagnitude=3.0&limit=1&orderby=magnitude`

@@ -62,6 +62,7 @@ export const generateShiftHandoverInsights = async (previousShiftEvents: any[], 
     }
   });
 
+  if (!response.text) throw new Error('gemini_empty_response');
   return JSON.parse(response.text);
 };
 
