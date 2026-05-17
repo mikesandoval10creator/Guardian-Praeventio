@@ -5080,5 +5080,304 @@ router.get(
   },
 );
 
+// ─────────────────────────────────────────────────────────────────────
+// §74-78 — Brigada de Emergencia + Recursos
+// ─────────────────────────────────────────────────────────────────────
+//
+// Cierra el ciclo "respuesta a emergencias":
+//   - Brigade de emergencia con roles (jefe / primeros auxilios /
+//     fuego / evacuación / comunicaciones)
+//   - Recursos (extintores, kits, AED, eyewash, fire hose, ducha
+//     emergencia, kit derrames) con QR + inspección periódica
+//   - Snapshot agregado: coverage + readiness + needing-attention
+//
+// Path firestore: tenants/{tid}/projects/{pid}/emergency_brigade/{id}
+//   - Documento "_members" guarda la lista de brigadistas
+//   - Documento "_resources" guarda la lista de recursos
+//   - Documento "_inspections" guarda historial de inspecciones
+//
+// El servicio `emergencyBrigadeService` es pure — solo agregaciones.
+// Aquí persistimos el state, allá calculamos el report.
+
+import {
+  buildBrigadeCoverageReport,
+  buildResourceReadinessReport,
+  type BrigadeMember,
+  type BrigadeRole,
+  type EmergencyResource,
+} from '../../services/emergencyBrigade/emergencyBrigadeService.js';
+
+const brigadeRoleEnum = z.enum([
+  'brigade_chief',
+  'first_aid',
+  'fire_response',
+  'evacuation_coordinator',
+  'communications',
+]);
+
+const resourceKindEnum = z.enum([
+  'extinguisher',
+  'first_aid_kit',
+  'aed',
+  'eyewash',
+  'safety_shower',
+  'fire_hose',
+  'spill_kit',
+]);
+
+router.get(
+  '/:projectId/emergency-brigade',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+
+      // Per-domain safe reads. Mirrors the dataQuality pattern so a
+      // missing collection (fresh project) doesn't blank the snapshot —
+      // empty arrays drive the empty-state UI cleanly.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.emergencyBrigade.read.${label}.failed`, err);
+          return [];
+        }
+      };
+
+      const [members, resources] = await Promise.all([
+        safeRead<BrigadeMember & { id: string }>('members', async () => {
+          const snap = await baseRef
+            .where('docType', '==', 'member')
+            .get();
+          return snap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return {
+              id: d.id,
+              workerUid: String(data.workerUid ?? ''),
+              role: (data.role ?? 'brigade_chief') as BrigadeRole,
+              trainedAt: String(data.trainedAt ?? ''),
+              trainingValidYears:
+                typeof data.trainingValidYears === 'number'
+                  ? data.trainingValidYears
+                  : 2,
+              active: data.active !== false,
+            };
+          });
+        }),
+        safeRead<EmergencyResource>('resources', async () => {
+          const snap = await baseRef
+            .where('docType', '==', 'resource')
+            .get();
+          return snap.docs.map((d) => {
+            const data = d.data() as Record<string, unknown>;
+            return {
+              id: d.id,
+              kind:
+                (data.kind ?? 'extinguisher') as EmergencyResource['kind'],
+              location: String(data.location ?? ''),
+              lastInspectedAt: String(data.lastInspectedAt ?? ''),
+              nextExpirationAt: String(data.nextExpirationAt ?? ''),
+              operational: data.operational !== false,
+            };
+          });
+        }),
+      ]);
+
+      const brigadeReport = buildBrigadeCoverageReport(members);
+      const resourceReport = buildResourceReadinessReport(resources);
+
+      // Readiness rollup: combines brigade coverage + resource health.
+      // - green: minimum brigade coverage + 0 needing-attention
+      // - amber: one of (gap in coverage XOR ≥1 needing-attention)
+      // - rose:  both fail OR multiple coverage gaps OR multiple
+      //          resources needing attention
+      const coverageGapCount = brigadeReport.uncoveredRoles.length;
+      const resourceGapCount = resourceReport.needingAttention.length;
+      const totalGaps = coverageGapCount + resourceGapCount;
+      let readinessLevel: 'green' | 'amber' | 'rose';
+      if (totalGaps === 0 && brigadeReport.meetsMinimum) {
+        readinessLevel = 'green';
+      } else if (
+        totalGaps === 1 ||
+        (totalGaps <= 2 && brigadeReport.meetsMinimum)
+      ) {
+        readinessLevel = 'amber';
+      } else {
+        readinessLevel = 'rose';
+      }
+
+      return res.json({
+        members,
+        resources,
+        brigade: brigadeReport,
+        resourceReadiness: resourceReport,
+        readinessLevel,
+      });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.snapshot.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.snapshot');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const addBrigadeMemberSchema = z.object({
+  workerUid: z.string().min(1).max(120),
+  role: brigadeRoleEnum,
+  trainedAt: z.string().min(10),
+  trainingValidYears: z.number().int().min(1).max(10).optional(),
+  active: z.boolean().optional(),
+});
+
+router.post(
+  '/:projectId/emergency-brigade/members',
+  verifyAuth,
+  validate(addBrigadeMemberSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof addBrigadeMemberSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+      const doc = baseRef.doc();
+      const id = doc.id;
+      await doc.set({
+        docType: 'member',
+        workerUid: body.workerUid,
+        role: body.role,
+        trainedAt: body.trainedAt,
+        trainingValidYears: body.trainingValidYears ?? 2,
+        active: body.active !== false,
+        createdAt: new Date().toISOString(),
+        createdBy: callerUid,
+      });
+      return res.status(201).json({ ok: true, id });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.addMember.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.addMember');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const addResourceSchema = z.object({
+  kind: resourceKindEnum,
+  location: z.string().min(1).max(240),
+  lastInspectedAt: z.string().min(10),
+  nextExpirationAt: z.string().min(10),
+  operational: z.boolean().optional(),
+});
+
+router.post(
+  '/:projectId/emergency-brigade/resources',
+  verifyAuth,
+  validate(addResourceSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof addResourceSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+      const doc = baseRef.doc();
+      const id = doc.id;
+      await doc.set({
+        docType: 'resource',
+        kind: body.kind,
+        location: body.location,
+        lastInspectedAt: body.lastInspectedAt,
+        nextExpirationAt: body.nextExpirationAt,
+        operational: body.operational !== false,
+        createdAt: new Date().toISOString(),
+        createdBy: callerUid,
+      });
+      return res.status(201).json({ ok: true, id });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.addResource.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.addResource');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const inspectResourceSchema = z.object({
+  inspectedAt: z.string().min(10),
+  operational: z.boolean(),
+  nextExpirationAt: z.string().min(10).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/:projectId/emergency-brigade/resources/:id/inspect',
+  verifyAuth,
+  validate(inspectResourceSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof inspectResourceSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const baseRef = db.collection(
+        `tenants/${g.tenantId}/projects/${projectId}/emergency_brigade`,
+      );
+      const resourceRef = baseRef.doc(id);
+      const snap = await resourceRef.get();
+      if (!snap.exists || snap.data()?.docType !== 'resource') {
+        return res.status(404).json({ error: 'resource_not_found' });
+      }
+      // Patch the resource with the latest inspection + audit a separate
+      // inspection record so historical inspections survive the next
+      // patch.
+      const patch: Record<string, unknown> = {
+        lastInspectedAt: body.inspectedAt,
+        operational: body.operational,
+        lastInspectedBy: callerUid,
+      };
+      if (body.nextExpirationAt) {
+        patch.nextExpirationAt = body.nextExpirationAt;
+      }
+      const auditDoc = baseRef.doc();
+      const batch = db.batch();
+      batch.set(resourceRef, patch, { merge: true });
+      batch.set(auditDoc, {
+        docType: 'inspection',
+        resourceId: id,
+        inspectedAt: body.inspectedAt,
+        inspectedBy: callerUid,
+        operational: body.operational,
+        notes: body.notes ?? null,
+        createdAt: new Date().toISOString(),
+      });
+      await batch.commit();
+      return res.status(201).json({ ok: true, inspectionId: auditDoc.id });
+    } catch (err) {
+      logger.error?.('sprintK.emergencyBrigade.inspect.error', err);
+      captureRouteError(err, 'sprintK.emergencyBrigade.inspect');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;
