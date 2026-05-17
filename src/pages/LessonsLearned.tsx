@@ -18,9 +18,22 @@
 //
 // Cumple la promesa F.12: hace navegable la Biblioteca como surface
 // product, no sólo como dato interno del grafo.
+//
+// Codex P2 round 2 (PR #310): el endpoint subyacente es **tenant-scoped**
+// — devuelve lecciones de todos los proyectos del tenant — y `Lesson`
+// no carga `sourceProjectId`. Para no presentar conocimiento de otros
+// proyectos como aplicable al actual:
+//   - Filtramos en cliente a scopes tenant-wide (`global` + `industry`)
+//     porque project/crew sin source-project ID es engañoso.
+//   - Suprimimos el link al incidente origen (el guard server-side
+//     bloquearía cualquier ID que no pertenezca al proyecto actual).
+//     Mostramos sólo una referencia textual al ID para auditoría.
+//   - El chip por defecto ("Todas") se renombró a "Top adoptadas" y
+//     el subtítulo explica que el default trae el top-10 más adoptado
+//     del tenant (no el listado completo). Cuando el usuario aplica
+//     un riskCategory, el conteo refleja el resultado real del filtro.
 
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, WifiOff, Tag, Layers, Calendar, FileText } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
@@ -141,7 +154,35 @@ export function LessonsLearned() {
     projectId,
     riskCategoryFilter ? { riskCategory: riskCategoryFilter } : {},
   );
-  const lessons: Lesson[] = data?.lessons ?? [];
+  const rawLessons: Lesson[] = data?.lessons ?? [];
+
+  // Codex P2 round 2 (PR #310): el endpoint `/lessons` es
+  // **tenant-scoped**: la API devuelve lecciones de TODO el tenant,
+  // no sólo del proyecto seleccionado. El modelo `Lesson` (ver
+  // `services/lessonsLearned/lessonsLibrary.ts`) no incluye un
+  // `sourceProjectId`, así que no podemos verificar si una lección
+  // con scope `project` o `crew` realmente pertenece al proyecto
+  // actual. Sin ese campo, una lección scoped a Proyecto A se vería
+  // como aplicable al Proyecto B en el mismo tenant — engañoso y
+  // potencialmente dañino (puede sugerir controles que no aplican).
+  //
+  // Hasta que `Lesson` cargue `sourceProjectId` (cambio de schema,
+  // requiere migración Firestore + backfill), restringimos la lista
+  // a scopes tenant-wide: `global` (aplica a todos) e `industry` (un
+  // filtro coarse que la página puede tolerar). Las `project`/`crew`
+  // quedan filtradas en cliente porque no son seguras.
+  const lessons: Lesson[] = rawLessons.filter(
+    (l) => l.scope === 'global' || l.scope === 'industry',
+  );
+
+  // Codex P2 round 2 (PR #310): la ruta `GET /:projectId/lessons`
+  // sin query cae en `adapter.listTopAdopted()` con `limit=10`. Si
+  // el tenant tiene >10 lecciones, el usuario ve apenas un subset
+  // truncado, pero el chip "Todas" y el subtítulo decían "todas las
+  // lecciones disponibles" — etiqueta engañosa. Distinguimos el
+  // modo top-10 (sin filtro de riesgo) del modo filtrado para
+  // ajustar copy y count.
+  const isTopAdoptedDefault = !riskCategoryFilter;
 
   if (!selectedProject) {
     return (
@@ -179,11 +220,17 @@ export function LessonsLearned() {
             {t('lessons.page.title', 'Biblioteca de Lecciones Aprendidas')}
           </h1>
           <p className="text-xs text-secondary-token">
-            {t(
-              'lessons.page.subtitle',
-              'Conocimiento reutilizable derivado de incidentes cerrados. {{count}} lecciones disponibles.',
-              { count: lessons.length },
-            )}
+            {isTopAdoptedDefault
+              ? t(
+                  'lessons.page.subtitleTopAdopted',
+                  'Conocimiento reutilizable derivado de incidentes cerrados. Top {{count}} más adoptadas del tenant (filtra por riesgo para ver el resto).',
+                  { count: lessons.length },
+                )
+              : t(
+                  'lessons.page.subtitleFiltered',
+                  'Conocimiento reutilizable derivado de incidentes cerrados. {{count}} lecciones aplicables.',
+                  { count: lessons.length },
+                )}
           </p>
         </div>
         {!isOnline && (
@@ -218,8 +265,13 @@ export function LessonsLearned() {
               : 'bg-transparent text-secondary-token border-default-token hover:bg-surface-elevated'
           }`}
           aria-pressed={riskCategoryFilter === undefined}
+          // Codex P2 round 2 (PR #310): chip antes decía "Todas",
+          // pero la ruta `/lessons` sin filtro cae a
+          // `listTopAdopted(limit=10)`, no a un listado exhaustivo.
+          // Renombrado a "Top adoptadas" para que el contrato del
+          // chip coincida con lo que el backend realmente devuelve.
         >
-          {t('lessons.toolbar.all', 'Todas')}
+          {t('lessons.toolbar.topAdopted', 'Top adoptadas')}
         </button>
         {RISK_CATEGORIES.map((cat) => {
           const active = riskCategoryFilter === cat.key;
@@ -326,32 +378,37 @@ export function LessonsLearned() {
                   <Calendar className="w-3 h-3" aria-hidden="true" />
                   {formatPublishedAt(lesson.publishedAt, t as TLite)}
                 </span>
-                {/* Codex P2 (PR #310): link al incidente origen.
-                    - Usa <Link>, no <a href>, para preservar la
-                      selección de proyecto del ProjectContext (un full
-                      reload re-selecciona el primer proyecto y haría
-                      que IncidentBundle pegue al endpoint con el
-                      projectId equivocado → cross_project_forbidden).
-                    - Sólo se renderiza cuando la lección está scoped
-                      al proyecto/cuadrilla actual. Las lecciones
-                      'global'/'industry' son tenant-wide y pueden
-                      provenir de OTRO proyecto del tenant; sin un
-                      campo `sourceProjectId` en `Lesson` no podemos
-                      construir un href seguro que pase el guard de
-                      `incidentData.projectId !== projectId`. Lo
-                      honesto es suprimir el link en ese caso (el
-                      summary + acción preventiva siguen visibles). */}
-                {lesson.derivedFromIncidentId &&
-                  (lesson.scope === 'project' || lesson.scope === 'crew') && (
-                    <Link
-                      to={`/incidents/${lesson.derivedFromIncidentId}/bundle`}
-                      className="inline-flex items-center gap-1 text-teal-500 hover:underline"
-                      data-testid={`lesson-source-link-${lesson.id}`}
-                    >
-                      <FileText className="w-3 h-3" aria-hidden="true" />
-                      {t('lessons.card.sourceIncident', 'Incidente origen')}
-                    </Link>
-                  )}
+                {/* Codex P2 round 2 (PR #310): el link al incidente
+                    origen quedó suprimido en TODOS los scopes.
+                    Razonamiento: el endpoint `/lessons` es
+                    tenant-scoped y `Lesson` no carga `sourceProjectId`,
+                    así que aunque la lección tenga
+                    `derivedFromIncidentId`, no podemos construir un
+                    href seguro: el guard server-side
+                    `incidentData.projectId !== projectId` rechazará
+                    cualquier incidente que pertenezca a otro
+                    proyecto del tenant (→ `cross_project_forbidden`).
+                    La iteración previa filtraba sólo a
+                    `scope==='project' | 'crew'`, pero ese scope no
+                    garantiza el match — la lección con scope
+                    'project' pudo originarse en Proyecto A y estar
+                    siendo vista desde Proyecto B. Hasta que `Lesson`
+                    incluya `sourceProjectId` (cambio de schema +
+                    migración Firestore), el link queda oculto.
+                    Mostramos en su lugar una referencia textual al
+                    ID del incidente, suficiente para auditoría sin
+                    construir un href roto. */}
+                {lesson.derivedFromIncidentId && (
+                  <span
+                    className="inline-flex items-center gap-1 text-secondary-token"
+                    data-testid={`lesson-source-ref-${lesson.id}`}
+                  >
+                    <FileText className="w-3 h-3" aria-hidden="true" />
+                    {t('lessons.card.sourceIncidentRef', 'Origen: {{id}}', {
+                      id: lesson.derivedFromIncidentId,
+                    })}
+                  </span>
+                )}
                 <span className="ml-auto text-[10px] uppercase tracking-widest">
                   {t('lessons.card.adoption', 'Adopciones: {{count}}', {
                     count: lesson.adoptionCount,

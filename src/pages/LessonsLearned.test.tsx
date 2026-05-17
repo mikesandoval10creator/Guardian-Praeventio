@@ -7,12 +7,18 @@
 //   2. Loading state desde el hook.
 //   3. Empty state cuando el proyecto sí está pero el hook devuelve 0
 //      lecciones (mensaje explica que se generan desde incidentes).
-//   4. Render de tarjetas: summary, scope badge, link al incidente
-//      origen, acción preventiva.
-//   5. Chip de offline.
-//   6. Toolbar: clic en un filtro de riesgo aplica el filtro y se
+//   4. Render de tarjetas: summary, scope badge, referencia textual al
+//      incidente origen (Codex P2 round 2: el link se eliminó porque
+//      `Lesson` no carga `sourceProjectId`).
+//   5. Filtra en cliente lecciones con scope `project`/`crew` (Codex
+//      P2 round 2: la API es tenant-scoped y mostrarlas filtraría
+//      conocimiento de otro proyecto del tenant como aplicable).
+//   6. Chip default etiquetado "Top adoptadas" y subtítulo coherente
+//      (Codex P2 round 2: la ruta sin filtro devuelve top-10, no todo).
+//   7. Chip de offline.
+//   8. Toolbar: clic en un filtro de riesgo aplica el filtro y se
 //      refleja en aria-pressed.
-//   7. Error con mensaje del hook.
+//   9. Error con mensaje del hook.
 //
 // Mocks contexts/hooks para que el test sea hermético — no fetch, no
 // Firebase, no i18n internals.
@@ -22,22 +28,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LessonsLearned } from './LessonsLearned';
 import type { Lesson } from '../services/lessonsLearned/lessonsLibrary';
 
-// Codex P2 (PR #310): la página ahora usa <Link> de react-router-dom
-// (no <a href>) para preservar la selección de proyecto. Mock mínimo:
-// el Link sólo necesita renderizar un <a> con el `to` como `href` para
-// que el test siga validando el destino. Importamos React inline para
-// evitar tocar las dependencias del bundle de tests.
-vi.mock('react-router-dom', async () => {
-  const React = await import('react');
-  type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
-    to: string;
-    children?: React.ReactNode;
-  };
-  return {
-    Link: ({ to, children, ...rest }: LinkProps) =>
-      React.createElement('a', { ...rest, href: to }, children),
-  };
-});
+// Codex P2 round 2 (PR #310): la página ya NO renderiza un Link al
+// incidente origen — el endpoint `/lessons` es tenant-scoped y
+// `Lesson` no carga `sourceProjectId`, así que cualquier href que
+// armemos contra `/incidents/:id/bundle` puede caer en
+// `cross_project_forbidden`. En lugar del Link mostramos sólo una
+// referencia textual al ID del incidente. Ya no hace falta mock de
+// `react-router-dom`.
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -104,18 +101,20 @@ beforeEach(() => {
   };
 });
 
-// Codex P2 (PR #310): canonical risk category key is the Spanish
-// `altura` (matches the adapter/fixtures/work-permit kinds). Scope
-// stays 'project' so the source-incident link is rendered (the page
-// now suppresses the link for tenant-wide global/industry scopes
-// because the lesson may originate in a different project).
+// Codex P2 round 2 (PR #310): la página ahora filtra en cliente para
+// quedarse solo con scopes tenant-wide (`global` + `industry`). El
+// scope `project` se descarta porque `Lesson` no carga `sourceProjectId`
+// y mostrarla sería presentar conocimiento de otro proyecto como
+// aplicable al actual. Por eso el sample test usa `industry`: la
+// página la renderiza, y verifica el badge correcto.
 const sampleLesson: Lesson = {
   id: 'lesson_xyz_1',
   summary: 'Verificar arnés antes de subir andamio.',
   preventiveAction: 'Checklist diario de EPP con firma del supervisor.',
   riskCategories: ['altura'],
   tags: ['arnes', 'andamio', 'epp'],
-  scope: 'project',
+  scope: 'industry',
+  industry: 'construccion',
   derivedFromIncidentId: 'inc_abc_42',
   publishedAt: '2026-04-15T10:00:00.000Z',
   adoptionCount: 7,
@@ -157,7 +156,7 @@ describe('<LessonsLearned /> page wrapper (Fase F.12)', () => {
     ).toBeInTheDocument();
   });
 
-  it('renderiza una tarjeta por lección con summary, scope badge y link al incidente', () => {
+  it('renderiza una tarjeta por lección con summary, scope badge y referencia textual al incidente', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockLessonsState = {
       data: { lessons: [sampleLesson] },
@@ -171,18 +170,74 @@ describe('<LessonsLearned /> page wrapper (Fase F.12)', () => {
       screen.getByTestId(`lesson-card-${sampleLesson.id}`),
     ).toBeInTheDocument();
     expect(screen.getByText(sampleLesson.summary)).toBeInTheDocument();
-    // Scope badge — 'project' renderiza el label "Proyecto".
+    // Scope badge — 'industry' renderiza el label "Industria".
     expect(
       screen.getByTestId(`lesson-scope-${sampleLesson.id}`),
-    ).toHaveTextContent(/proyecto/i);
-    // Link al incidente origen.
-    const link = screen.getByTestId(`lesson-source-link-${sampleLesson.id}`);
-    expect(link).toHaveAttribute(
-      'href',
-      `/incidents/${sampleLesson.derivedFromIncidentId}/bundle`,
+    ).toHaveTextContent(/industria/i);
+    // Codex P2 round 2 (PR #310): ya no esperamos un Link clickeable
+    // al incidente origen — sólo una referencia textual con el ID.
+    // El elemento NO debe ser un anchor (no href).
+    const ref = screen.getByTestId(`lesson-source-ref-${sampleLesson.id}`);
+    expect(ref).toBeInTheDocument();
+    expect(ref).toHaveTextContent(sampleLesson.derivedFromIncidentId!);
+    expect(ref.tagName.toLowerCase()).not.toBe('a');
+    // Subtítulo: sin filtro de riesgo, el modo default es "Top
+    // adoptadas" y debe explicar que el listado está truncado al
+    // top-10 del tenant.
+    expect(screen.getByText(/top 1 más adoptadas del tenant/i)).toBeInTheDocument();
+  });
+
+  it('filtra en cliente lecciones con scope project/crew (no pueden verificarse contra el proyecto actual)', () => {
+    // Codex P2 round 2 (PR #310): la API es tenant-scoped, así que
+    // una lección con scope 'project' puede provenir de cualquier
+    // proyecto del tenant. Sin `sourceProjectId` no podemos
+    // validarla; debe omitirse del render.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const projectLesson: Lesson = {
+      ...sampleLesson,
+      id: 'lesson_proj_leak',
+      scope: 'project',
+    };
+    const crewLesson: Lesson = {
+      ...sampleLesson,
+      id: 'lesson_crew_leak',
+      scope: 'crew',
+    };
+    const globalLesson: Lesson = {
+      ...sampleLesson,
+      id: 'lesson_global_ok',
+      scope: 'global',
+    };
+    mockLessonsState = {
+      data: { lessons: [projectLesson, crewLesson, globalLesson] },
+      loading: false,
+      error: null,
+      refetch: refetchSpy,
+    };
+    render(<LessonsLearned />);
+    expect(screen.queryByTestId(`lesson-card-${projectLesson.id}`)).toBeNull();
+    expect(screen.queryByTestId(`lesson-card-${crewLesson.id}`)).toBeNull();
+    expect(
+      screen.getByTestId(`lesson-card-${globalLesson.id}`),
+    ).toBeInTheDocument();
+  });
+
+  it('etiqueta el chip default como "Top adoptadas" (no "Todas") y el subtítulo lo refleja', () => {
+    // Codex P2 round 2 (PR #310): el endpoint sin filtro cae en
+    // `listTopAdopted(limit=10)`, no en un listado exhaustivo. La
+    // copy debe ser honesta al respecto.
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockLessonsState = {
+      data: { lessons: [] },
+      loading: false,
+      error: null,
+      refetch: refetchSpy,
+    };
+    render(<LessonsLearned />);
+    expect(screen.getByTestId('lessons-filter-all')).toHaveTextContent(
+      /top adoptadas/i,
     );
-    // Subtítulo interpolado con count.
-    expect(screen.getByText(/1 lecciones disponibles/i)).toBeInTheDocument();
+    expect(screen.getByText(/top 0 más adoptadas del tenant/i)).toBeInTheDocument();
   });
 
   it('aplica un filtro de riesgo cuando el usuario clickea un chip', () => {
