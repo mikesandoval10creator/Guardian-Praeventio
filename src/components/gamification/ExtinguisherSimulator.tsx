@@ -63,7 +63,7 @@ export function ExtinguisherSimulator({ onComplete, onClose }: ExtinguisherSimul
               setHasGyro(false);
             }
           })
-          .catch(err => logger.error('DeviceMotionEvent.requestPermission failed', { message: (err as Error).message }));
+          .catch((err: unknown) => logger.error('DeviceMotionEvent.requestPermission failed', { message: (err as Error).message }));
       } else {
         window.addEventListener('deviceorientation', handleOrientation);
       }

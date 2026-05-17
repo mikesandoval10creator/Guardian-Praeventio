@@ -29,7 +29,7 @@ import {
   type FindingPoint,
   type HeatCell,
   type Severity,
-} from '../services/heatMap/findingsHeatmapBuilder';
+} from '../services/heatmap/findingsHeatmapBuilder';
 
 // Severity → color token (consistente con el sistema 4-modos).
 const SEVERITY_COLORS: Record<Severity, string> = {

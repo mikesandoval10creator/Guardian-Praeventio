@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { FindingsHeatMap } from './FindingsHeatMap';
-import type { FindingPoint } from '../services/heatMap/findingsHeatmapBuilder';
+import type { FindingPoint } from '../services/heatmap/findingsHeatmapBuilder';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

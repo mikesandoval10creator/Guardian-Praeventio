@@ -705,7 +705,7 @@ export function Gamification() {
               <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
                 {games.find(g => g.id === activeGame)?.type === 'find_objects' && (
                   <div className="mb-4 flex flex-wrap gap-2">
-                    {games.find(g => g.id === activeGame)?.objectsToFind?.map((obj, idx) => {
+                    {games.find(g => g.id === activeGame)?.objectsToFind?.map((obj: string, idx: number) => {
                       const isFound = foundObjects.some(found => String(found || '').toLowerCase().includes(String(obj || '').toLowerCase()) || String(obj || '').toLowerCase().includes(String(found || '').toLowerCase()));
                       return (
                         <div key={idx} className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border flex items-center gap-2 ${
