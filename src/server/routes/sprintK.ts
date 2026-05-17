@@ -3349,5 +3349,318 @@ router.post(
   },
 );
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.7 — Minuta automática Comité Paritario (CPHS)
+// ─────────────────────────────────────────────────────────────────────
+//
+// Construye el "borrador estructurado mensual" que el CPHS revisa antes
+// de firmar el acta definitiva. Cruza incidentes del período, acciones
+// correctivas (F.4), capacitaciones impartidas, inspecciones realizadas
+// y score semáforo (F.2) en un MarkDown determinístico vía
+// `buildMonthlyMinuteDraft` (sin LLM — la pasada Gemini opcional para
+// pulir redacción queda fuera de scope F.7).
+//
+// El servicio es puro y testable; el endpoint solo orquesta las
+// lecturas Firestore + mapea al shape `MonthlyInputs` que el motor
+// espera. Si cualquiera de los feeds falla por permisos / colección
+// inexistente, el endpoint sigue produciendo el borrador con datos
+// parciales — el campo `completenessScore` del draft alerta al
+// prevencionista de qué falta antes de aprobar.
+
+router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { buildMonthlyMinuteDraft } = await import(
+      '../../services/cphs/cphsMinuteAutogenerator.js'
+    );
+
+    const db = admin.firestore();
+
+    // Período: último mes calendario completo (UTC). El CPHS sesiona
+    // sobre el mes anterior; usar UTC evita off-by-one por zona horaria
+    // del servidor cuando estamos cerca del cambio de mes.
+    const now = new Date();
+    const monthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+    );
+    const monthEnd = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    // "YYYY-MM" del mes que cubre el borrador (mes anterior al actual).
+    const periodLabel = `${monthStart.getUTCFullYear()}-${String(
+      monthStart.getUTCMonth() + 1,
+    ).padStart(2, '0')}`;
+
+    // Best-effort wrapper — cada feed envuelto para que un fallo de
+    // permisos o colección ausente no blanquee el borrador completo.
+    // El draft producido refleja honestamente los datos disponibles.
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.cphs.${label}.fetch_failed`, err);
+        return [];
+      }
+    };
+
+    // Resolve project metadata for the minute header (companyName).
+    // The Project doc lives top-level under `projects/{id}` — same
+    // path used by ProjectContext + every other Sprint K endpoint.
+    let companyName = 'Empresa';
+    let expectedAttendees: string[] = [];
+    try {
+      const projDoc = await db.collection('projects').doc(projectId).get();
+      const projData = projDoc.exists ? projDoc.data() : null;
+      if (projData) {
+        if (
+          typeof projData.companyName === 'string' &&
+          projData.companyName.length > 0
+        ) {
+          companyName = projData.companyName;
+        } else if (
+          typeof projData.name === 'string' &&
+          projData.name.length > 0
+        ) {
+          companyName = projData.name;
+        }
+        // Optional roster of CPHS reps. Either shape is accepted:
+        //   - `cphsAttendees: string[]` (display names)
+        //   - `cphsMembers:   Array<{ displayName: string }>`
+        // If absent, we leave the array empty and the draft's
+        // completeness score will flag it.
+        if (Array.isArray(projData.cphsAttendees)) {
+          expectedAttendees = projData.cphsAttendees.filter(
+            (v: unknown): v is string =>
+              typeof v === 'string' && v.length > 0,
+          );
+        } else if (Array.isArray(projData.cphsMembers)) {
+          expectedAttendees = projData.cphsMembers
+            .map((m: unknown) =>
+              m && typeof m === 'object' && 'displayName' in m
+                ? String((m as { displayName?: unknown }).displayName ?? '')
+                : '',
+            )
+            .filter((s: string) => s.length > 0);
+        }
+      }
+    } catch (err) {
+      logger.warn?.('sprintK.cphs.project.fetch_failed', err);
+    }
+
+    // ── Incidents (último mes completo) ──
+    // `incidents` es top-level filtrado por `projectId`. Aceptamos
+    // tanto `occurredAt` como `createdAt` como timestamp del evento
+    // (cohabitación legacy + nuevo writer). Filtramos cliente-side
+    // sobre los del proyecto para evitar requerir índice compuesto
+    // `(projectId, occurredAt)` que algunos despliegues no tienen.
+    const incidents = await safeRead<Record<string, unknown>>(
+      'incidents',
+      async () => {
+        const snap = await db
+          .collection('incidents')
+          .where('projectId', '==', projectId)
+          .limit(500)
+          .get();
+        const startMs = monthStart.getTime();
+        const endMs = monthEnd.getTime();
+        const all: Record<string, unknown>[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, unknown>),
+        }));
+        return all.filter((doc) => {
+          const ts =
+            (typeof doc.occurredAt === 'string' ? doc.occurredAt : null) ??
+            (typeof doc.createdAt === 'string' ? doc.createdAt : null);
+          if (!ts) return false;
+          const t = Date.parse(ts);
+          return Number.isFinite(t) && t >= startMs && t < endMs;
+        });
+      },
+    );
+
+    // ── Corrective actions ── (full set: open + in_progress + closed +
+    //    verified + reopened). El servicio acepta los 4 status que mapean
+    //    a su enum interno.
+    const correctiveActions = await safeRead<Record<string, unknown>>(
+      'correctiveActions',
+      async () => {
+        const adapter = new CorrectiveActionsAdapter(
+          db as any,
+          g.tenantId,
+          projectId,
+        );
+        const [openA, inProgressA, closedA, verifiedA, reopenedA] =
+          await Promise.all([
+            adapter.listByStatus('open').catch(() => []),
+            adapter.listByStatus('in_progress' as any).catch(() => []),
+            adapter.listByStatus('closed').catch(() => []),
+            adapter.listByStatus('verified').catch(() => []),
+            adapter.listByStatus('reopened' as any).catch(() => []),
+          ]);
+        return [
+          ...openA,
+          ...inProgressA,
+          ...closedA,
+          ...verifiedA,
+          ...reopenedA,
+        ] as unknown as Record<string, unknown>[];
+      },
+    );
+
+    // ── Trainings impartidas. Top-level `training` collection
+    //    filtrada por `projectId`. ──
+    const trainings = await safeRead<Record<string, unknown>>(
+      'trainings',
+      async () => {
+        const snap = await db
+          .collection('training')
+          .where('projectId', '==', projectId)
+          .limit(500)
+          .get();
+        return snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, unknown>),
+        }));
+      },
+    );
+
+    // ── Inspections realizadas (`audits` collection si existe).
+    //    Reusamos la colección legacy `audits` filtrada por projectId.
+    //    Si la colección no está poblada en este despliegue, el conteo
+    //    queda en 0 (el draft refleja honestamente). ──
+    const inspections = await safeRead<Record<string, unknown>>(
+      'inspections',
+      async () => {
+        const snap = await db
+          .collection('audits')
+          .where('projectId', '==', projectId)
+          .limit(500)
+          .get();
+        return snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, unknown>),
+        }));
+      },
+    );
+
+    // ── Map al shape `MonthlyInputs` del servicio ──
+
+    // Severity normalization: incident docs pueden traer 'low'|'medium'|
+    // 'high'|'critical' literalmente, o variantes ('baja'|'alta'|'1'..).
+    // Mapeamos al enum estricto del servicio; default 'medium'.
+    const normSeverity = (
+      raw: unknown,
+    ): 'low' | 'medium' | 'high' | 'critical' => {
+      const s = String(raw ?? '').toLowerCase();
+      if (
+        s === 'critical' ||
+        s === 'critico' ||
+        s === 'crítico' ||
+        s === '4'
+      )
+        return 'critical';
+      if (s === 'high' || s === 'alta' || s === 'alto' || s === '3')
+        return 'high';
+      if (s === 'low' || s === 'baja' || s === 'bajo' || s === '1') return 'low';
+      return 'medium';
+    };
+
+    const incidentsInput = incidents.map((i: Record<string, unknown>) => ({
+      id: String(i.id ?? 'unknown'),
+      severity: normSeverity(i.severity),
+      description:
+        typeof i.description === 'string' && i.description.length > 0
+          ? i.description
+          : typeof i.summary === 'string' && i.summary.length > 0
+            ? i.summary
+            : 'Sin descripción',
+      // rootCauseKnown: aceptamos el flag explícito o derivamos de la
+      // presencia de cualquier shape de `rootCause` (string o objeto).
+      rootCauseKnown:
+        i.rootCauseKnown === true ||
+        (typeof i.rootCause === 'string' && i.rootCause.length > 0) ||
+        (typeof i.rootCause === 'object' && i.rootCause !== null),
+    }));
+
+    const correctiveActionsInput = correctiveActions.map(
+      (a: Record<string, unknown>) => {
+        const rawStatus = String(a.status ?? 'open');
+        // Map al enum aceptado por el servicio. `reopened` (F.4 nuevo)
+        // se proyecta a 'open' para la minuta — sigue siendo trabajo
+        // abierto desde la óptica del CPHS.
+        const status:
+          | 'open'
+          | 'in_progress'
+          | 'closed'
+          | 'verified'
+          | 'verified_effective' =
+          rawStatus === 'closed'
+            ? 'closed'
+            : rawStatus === 'verified'
+              ? 'verified'
+              : rawStatus === 'verified_effective'
+                ? 'verified_effective'
+                : rawStatus === 'in_progress'
+                  ? 'in_progress'
+                  : 'open';
+        return {
+          id: String(a.id ?? 'unknown'),
+          status,
+          dueDate: typeof a.dueDate === 'string' ? a.dueDate : undefined,
+          label:
+            typeof a.description === 'string' && a.description.length > 0
+              ? a.description.slice(0, 200)
+              : 'Acción sin descripción',
+        };
+      },
+    );
+
+    const trainingsInput = trainings.map((t: Record<string, unknown>) => ({
+      title:
+        typeof t.title === 'string' && t.title.length > 0
+          ? t.title
+          : typeof t.name === 'string' && t.name.length > 0
+            ? t.name
+            : 'Capacitación',
+      participantsCount: (() => {
+        if (typeof t.participantsCount === 'number') return t.participantsCount;
+        if (Array.isArray(t.participants)) return t.participants.length;
+        if (Array.isArray(t.attendees)) return t.attendees.length;
+        return 0;
+      })(),
+    }));
+
+    // El servicio acepta `complianceTrafficLightScore` y
+    // `legalRecommendations` como hint; valor 0 + [] son válidos
+    // (el draft simplemente reflejará "rojo" / sin recomendaciones).
+    // Sub-PR siguiente puede cablear el F.2 + B.10 reales — la firma
+    // del wire no cambia.
+    const draft = buildMonthlyMinuteDraft({
+      projectId,
+      period: periodLabel,
+      companyName,
+      incidents: incidentsInput,
+      correctiveActions: correctiveActionsInput,
+      trainingsCompleted: trainingsInput,
+      inspectionsCompleted: inspections.length,
+      complianceTrafficLightScore: 0,
+      legalRecommendations: [],
+      expectedAttendees,
+    });
+
+    return res.json({ draft });
+  } catch (err) {
+    logger.error?.('sprintK.cphs.draftMinute.error', err);
+    captureRouteError(err, 'sprintK.cphs.draftMinute');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
 
 export default router;

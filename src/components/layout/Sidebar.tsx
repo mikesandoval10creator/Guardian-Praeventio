@@ -135,6 +135,8 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // las actas en formato libre hasta que la migración del próximo
         // sprint consolide ambos en /cphs.
         { title: t("nav.cphs", "Comité Paritario (CPHS)"), icon: ShieldCheck, path: "/cphs", color: "text-[#4db6ac]" },
+        // Sprint 40 Fase F.7 — sub-link al borrador mensual automático.
+        { title: t("nav.cphs_draft", "Minuta CPHS"), icon: FileText, path: "/cphs/draft-minute", color: "text-teal-500" },
         { title: t("nav.mining_contractors", "Contratistas Mineros"), icon: Mountain, path: "/mining-contractors", color: "text-amber-500" },
         { title: t("nav.analytics", "Reportabilidad"), icon: BarChart3, path: "/analytics", color: "text-zinc-400" },
         // Sprint 40 Fase F.4 — Centro de Acciones Correctivas (PDCA).
