@@ -144,6 +144,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Genera challenge HMAC + TTL corto; firma del trabajador queda
         // como comprobante interno (no se empuja a SUSESO/SII/MINSAL).
         { title: t("nav.qr_signature", "Firma QR"), icon: ScanLine, path: "/qr-signature", color: "text-violet-500" },
+        // Sprint 41 Fase F.26 — Índice de Madurez Preventiva.
+        // Score 1..5 con palancas para subir de nivel (marketing + upsell).
+        { title: t("nav.maturity_index", "Índice de Madurez"), icon: Award, path: "/maturity-index", color: "text-violet-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

@@ -510,3 +510,53 @@ export async function persistQrAcknowledgement(
   const data = (await res.json()) as { acknowledgement: SignedAcknowledgement };
   return data.acknowledgement;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.26 — Indicador de Madurez Preventiva
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wraps GET /api/sprint-k/:projectId/maturity-index which derives 10
+// señales objetivas a partir de las colecciones canónicas del proyecto
+// y corre `computeMaturityLevel` + `recommendNextSteps`. Devuelve el
+// `MaturityReport` con sub-puntajes por categoría + 3 recomendaciones
+// concretas para subir de nivel.
+//
+// Cuando el proyecto es muy nuevo o no tiene actividad mínima el server
+// devuelve `{ insufficientData: true, reason }` y la UI muestra el
+// empty-state explicativo en vez de un score 1 alarmista.
+
+import type {
+  MaturityReport,
+  MaturityRecommendation,
+  MaturitySignals,
+} from '../services/maturity/preventionMaturityIndex';
+
+export interface MaturityIndexResponse {
+  // Caso "datos insuficientes": faena recién creada o sin señales.
+  insufficientData?: boolean;
+  reason?: 'project_too_new' | 'not_enough_signals';
+  signalsCount?: number;
+  /** Fuentes (feeds) distintas con ≥1 doc. Codex P2 fix: el gate y el
+   *  honest-data-completeness se basa en esto, no en signalsCount. */
+  feedsAvailable?: number;
+  /** Nombres de las fuentes pobladas (útil para diagnóstico/UI). */
+  populatedFeeds?: string[];
+  projectAgeDays?: number | null;
+  // Caso normal: reporte completo.
+  report?: MaturityReport;
+  recommendations?: MaturityRecommendation[];
+  signals?: MaturitySignals;
+  metadata?: {
+    signalsCount: number;
+    feedsAvailable: number;
+    populatedFeeds: string[];
+    projectAgeDays: number | null;
+    windowMonths: number;
+  };
+}
+
+export function usePreventionMaturity(projectId: string | null) {
+  return useEndpoint<MaturityIndexResponse>(
+    projectId ? `/api/sprint-k/${projectId}/maturity-index` : null,
+  );
+}

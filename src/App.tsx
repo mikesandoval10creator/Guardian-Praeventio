@@ -67,6 +67,8 @@ const CorrectiveActions = lazy(() => import('./pages/CorrectiveActions').then(mo
 // Sprint 40 Fase F.5 — Firma QR de Recepción (EPP, charlas, docs, capacitaciones).
 // Service + modal + HMAC engine ya existían; este page wire cierra el wire end-to-end.
 const QrSignature = lazy(() => import('./pages/QrSignature').then(module => ({ default: module.QrSignature })));
+// Sprint 41 Fase F.26 — Indicador de Madurez Preventiva (1..5).
+const MaturityIndicator = lazy(() => import('./pages/MaturityIndicator').then(module => ({ default: module.MaturityIndicator })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
 const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
@@ -137,6 +139,7 @@ function AppRoutes() {
               <Route path="analytics" element={<Analytics />} />
               <Route path="corrective-actions" element={<CorrectiveActions />} />
               <Route path="qr-signature" element={<QrSignature />} />
+              <Route path="maturity-index" element={<MaturityIndicator />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="*" element={<Dashboard />} />
@@ -264,6 +267,7 @@ function AppRoutes() {
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="corrective-actions" element={<CorrectiveActions />} />
                     <Route path="qr-signature" element={<QrSignature />} />
+                    <Route path="maturity-index" element={<MaturityIndicator />} />
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
