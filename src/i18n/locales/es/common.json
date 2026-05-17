@@ -2112,5 +2112,33 @@
     "registerTraining": "Registrar capacitación",
     "saving": "Guardando…",
     "trainingRegistered": "Capacitación registrada"
+  },
+  "focusAgenda": {
+    "title": "Agenda de bloques de foco",
+    "subtitle": "Tiempo protegido para inspección, capacitación, auditoría o tareas críticas.",
+    "newBlockButton": "Nuevo bloque",
+    "weekCount": "{{count}} esta semana",
+    "signInPrompt": "Inicia sesión para gestionar tus bloques de foco.",
+    "loading": "Cargando agenda…",
+    "weekViewAria": "Vista semanal",
+    "emptyDay": "Día libre",
+    "emptyWeek": "No tienes bloques de foco esta semana. Crea uno con el botón \"Nuevo bloque\".",
+    "kind": {
+      "inspection": "Inspección",
+      "training": "Capacitación",
+      "audit": "Auditoría",
+      "admin": "Administrativo"
+    },
+    "newBlock": {
+      "title": "Nuevo bloque de foco",
+      "close": "Cerrar",
+      "kind": "Tipo de bloque",
+      "startsAt": "Inicio (UTC)",
+      "endsAt": "Fin (UTC)",
+      "note": "Nota (opcional)",
+      "notePlaceholder": "Ej: Inspección zona A, izaje crítico",
+      "cancel": "Cancelar",
+      "save": "Crear bloque"
+    }
   }
 }
