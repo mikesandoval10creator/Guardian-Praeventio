@@ -2083,5 +2083,21 @@
     "driving_wildfire_banner": "Consider an alternate route — natural event in the area",
     "driving_wildfire_normative": "Regulatory reference: DS 594 + safe driving guidelines.",
     "driving_wildfire_dismiss": "Dismiss notice"
+  },
+  "webxr": {
+    "title": "Interactive Training — Work at Height",
+    "description": "Hands-on fall-arrest training under DS 594 Art. 53. Tick each PPE item on the visual checklist.",
+    "subtitle": "DS 594 Art. 53 · Tick every PPE item",
+    "start": "Start training",
+    "stop": "Stop",
+    "startPrompt": "Start the training to enable the checklist markers",
+    "verified": "verified",
+    "diagramAria": "PPE schematic for work at height",
+    "markVerified": "Mark as verified",
+    "checklistComplete": "Checklist complete",
+    "registerPrompt": "Save this training in your history.",
+    "registerTraining": "Register training",
+    "saving": "Saving…",
+    "trainingRegistered": "Training registered"
   }
 }

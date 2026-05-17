@@ -1,21 +1,22 @@
-// Round 15 / I4 — Capacitación EPP en altura con WebXR / AR.
+// Round 15 / I4 — Capacitación Interactiva EPP en altura.
 //
-// Propósito de seguridad: entrenamiento inmersivo de trabajo en altura
-// (>1.8 m, DS 594 Art. 53). El operario activa la cámara/headset y revisa una
-// checklist de fall-arrest (arnés, anclaje, línea de vida, casco con barbiquejo)
-// con marcadores AR sobre el equipamiento. Al completar, persiste en
-// `safety_trainings/{id}` y emite audit `training.webxr.completed`.
+// Propósito de seguridad: entrenamiento práctico de trabajo en altura
+// (>1.8 m, DS 594 Art. 53). El operario revisa una checklist visual
+// estática de fall-arrest (arnés, anclaje, línea de vida, casco con
+// barbiquejo) marcando cada elemento sobre un esquema 2D del EPP. Al
+// completar, persiste en `safety_trainings/{id}` y emite audit
+// `training.webxr.completed`.
 //
-// La parte técnica de WebXR full (immersive-vr / immersive-ar) queda para
-// Round 16 — esta versión usa getUserMedia + overlays HTML que funciona en
-// cualquier navegador moderno (incluido Cardboard via stereo CSS si fuera
-// necesario más adelante).
+// La parte técnica de WebXR full (immersive-ar real con ARCore Android /
+// AR Quick Look iOS) queda como Fase E.1 — long-pole 6-8 semanas — y se
+// implementará en `WebXRReal.tsx` separado (ver ADR-0018). Esta versión
+// es 100% offline-capable: no requiere cámara, sensores ni permisos.
 //
 // - Tier: canUseAdvancedAnalytics (Diamante+).
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Camera, AlertTriangle, CheckCircle2, X, Loader2, ShieldCheck, Award } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, X, Loader2, ShieldCheck, Award, ClipboardCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -28,7 +29,7 @@ interface ChecklistItem {
   id: string;
   title: string;
   description: string;
-  /** % overlay position (relative to camera frame) */
+  /** % overlay position (relative to the EPP diagram) */
   x: number;
   y: number;
 }
@@ -51,9 +52,9 @@ const HEIGHT_WORK_CHECKLIST: ChecklistItem[] = [
 export default function WebXR() {
   return (
     <PremiumFeatureGuard
-      featureName="Capacitación AR — Trabajo en Altura (Diamante+)"
+      featureName="Capacitación Interactiva — Trabajo en Altura (Diamante+)"
       feature="canUseAdvancedAnalytics"
-      description="Entrenamiento inmersivo de fall-arrest según DS 594 Art. 53. Marca cada elemento del EPP usando la cámara del dispositivo."
+      description="Entrenamiento práctico sobre fall-arrest según DS 594 Art. 53. Marca cada elemento del EPP en el checklist visual."
     >
       <WebXRInner />
     </PremiumFeatureGuard>
@@ -64,33 +65,30 @@ function WebXRInner() {
   const { t } = useTranslation();
   const { user } = useFirebase();
   const { selectedProject } = useProject();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isActive, setIsActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState<Set<string>>(new Set());
   const [activeMarker, setActiveMarker] = useState<ChecklistItem | null>(null);
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [trainingId, setTrainingId] = useState<string | null>(null);
-  // Round 18 (R5): track when the AR scan started so we can record
-  // `durationMin` on the `training.webxr.completed` audit log. The
-  // curriculum aggregator's `stats.safeHours` only sums `safety.*`
+  // Round 18 (R5): track when the interactive session started so we can
+  // record `durationMin` on the `training.webxr.completed` audit log.
+  // The curriculum aggregator's `stats.safeHours` only sums `safety.*`
   // events, but logging the duration here keeps the schema consistent
   // for future training-vs-safety dashboards.
-  const [scanStartedAtMs, setScanStartedAtMs] = useState<number | null>(null);
+  const [sessionStartedAtMs, setSessionStartedAtMs] = useState<number | null>(null);
 
+  // ADR-0018: this view no longer requests camera/getUserMedia/WebXR APIs.
+  // It is a static 2D EPP diagram with click-through markers. Real
+  // immersive-ar lives in a separate `WebXRReal.tsx` (Fase E.1).
   useEffect(() => {
-    let stream: MediaStream | null = null;
-
-    if (isScanning) {
-      // Round 18 (R5): mark the start of the AR scan exactly once per
-      // "Iniciar AR" → "Detener" cycle. Re-starting resets the clock.
-      setScanStartedAtMs(Date.now());
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(s => { stream = s; if (videoRef.current) videoRef.current.srcObject = s; })
-        .catch(() => setError('No se pudo acceder a la cámara. Verifique los permisos.'));
+    if (isActive && !sessionStartedAtMs) {
+      setSessionStartedAtMs(Date.now());
     }
-    return () => { stream?.getTracks().forEach(t => t.stop()); };
-  }, [isScanning]);
+    if (!isActive) {
+      setError(null);
+    }
+  }, [isActive, sessionStartedAtMs]);
 
   const verifyItem = (id: string) => {
     setVerified(prev => {
@@ -116,18 +114,18 @@ function WebXRInner() {
         completedAt: serverTimestamp(),
       });
       setTrainingId(docRef.id);
-      // Round 18 (R5): forward `durationMin` (scan-start → completion).
-      // We only attach it when the scan timer is set; if the user somehow
-      // bypassed the camera flow we omit the field rather than emitting a 0.
+      // Round 18 (R5): forward `durationMin` (session-start → completion).
+      // We only attach it when the session timer is set; if the user somehow
+      // bypassed the start flow we omit the field rather than emitting a 0.
       const auditDetails: Record<string, unknown> = {
         trainingId: docRef.id,
         type: 'webxr.height-work',
         items: verified.size,
       };
-      if (scanStartedAtMs) {
+      if (sessionStartedAtMs) {
         auditDetails.durationMin = Math.max(
           1,
-          Math.ceil((Date.now() - scanStartedAtMs) / 60_000),
+          Math.ceil((Date.now() - sessionStartedAtMs) / 60_000),
         );
       }
       await logAuditAction(
@@ -138,7 +136,7 @@ function WebXRInner() {
       );
       setSavingState('saved');
     } catch (err) {
-      console.error('WebXR training save failed', err);
+      console.error('Interactive training save failed', err);
       setSavingState('idle');
     }
   };
@@ -147,17 +145,17 @@ function WebXRInner() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('webxr.title', 'Capacitación AR — Trabajo en Altura')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('webxr.title', 'Capacitación Interactiva — Trabajo en Altura')}</h1>
           <p className="text-sm text-gray-500">{t('webxr.subtitle', 'DS 594 Art. 53 · Marca cada elemento de EPP')}</p>
         </div>
         <button
-          onClick={() => setIsScanning(!isScanning)}
+          onClick={() => setIsActive(!isActive)}
           className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
-            isScanning ? 'bg-rose-100 text-rose-700' : 'bg-indigo-600 text-white'
+            isActive ? 'bg-rose-100 text-rose-700' : 'bg-indigo-600 text-white'
           }`}
         >
-          <Camera className="w-5 h-5" />
-          {isScanning ? t('webxr.stop', 'Detener') : t('webxr.startAR', 'Iniciar AR')}
+          <ClipboardCheck className="w-5 h-5" />
+          {isActive ? t('webxr.stop', 'Detener') : t('webxr.start', 'Iniciar capacitación')}
         </button>
       </div>
 
@@ -176,15 +174,40 @@ function WebXRInner() {
         </div>
       )}
 
-      <div className="relative bg-gray-900 rounded-xl overflow-hidden aspect-video shadow-xl">
-        {!isScanning ? (
+      <div
+        role="img"
+        aria-label={t('webxr.diagramAria', 'Esquema visual de EPP para trabajo en altura')}
+        className="relative rounded-xl overflow-hidden aspect-video shadow-xl bg-gradient-to-br from-zinc-800 via-zinc-900 to-black"
+      >
+        {!isActive ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-            <Camera className="w-16 h-16 mb-4 opacity-50" />
-            <p>{t('webxr.startPrompt', 'Inicie AR para activar marcadores')}</p>
+            <ClipboardCheck className="w-16 h-16 mb-4 opacity-50" />
+            <p>{t('webxr.startPrompt', 'Inicie la capacitación para activar los marcadores del checklist')}</p>
           </div>
         ) : (
           <>
-            <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+            {/* Static EPP schematic background (SVG). No camera, no AR, no sensors. */}
+            <svg
+              viewBox="0 0 100 56"
+              preserveAspectRatio="xMidYMid meet"
+              className="absolute inset-0 w-full h-full"
+              aria-hidden="true"
+            >
+              {/* Anchor beam (top horizontal structure) */}
+              <line x1="10" y1="10" x2="90" y2="10" stroke="#94a3b8" strokeWidth="1.2" />
+              <rect x="26" y="8" width="8" height="4" fill="#64748b" rx="0.5" />
+              {/* Lifeline */}
+              <line x1="30" y1="12" x2="70" y2="22" stroke="#facc15" strokeWidth="0.6" strokeDasharray="1 1" />
+              <line x1="70" y1="22" x2="55" y2="38" stroke="#facc15" strokeWidth="0.6" />
+              {/* Worker silhouette (head + torso) */}
+              <circle cx="50" cy="20" r="3.5" fill="#cbd5f5" stroke="#1e293b" strokeWidth="0.4" />
+              <path d="M50 23.5 L46 40 L54 40 Z" fill="#cbd5f5" stroke="#1e293b" strokeWidth="0.4" />
+              {/* Harness straps */}
+              <path d="M47 26 L53 26 M48 30 L52 30 M49 34 L51 34" stroke="#1e293b" strokeWidth="0.4" />
+              {/* Ground */}
+              <line x1="0" y1="52" x2="100" y2="52" stroke="#475569" strokeWidth="0.4" strokeDasharray="2 2" />
+              <text x="50" y="55" textAnchor="middle" fontSize="2" fill="#64748b">Trabajo en altura · DS 594 Art. 53</text>
+            </svg>
             <AnimatePresence>
               {HEIGHT_WORK_CHECKLIST.map(item => {
                 const ok = verified.has(item.id);
