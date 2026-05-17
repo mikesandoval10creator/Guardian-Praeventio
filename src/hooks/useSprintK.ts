@@ -536,6 +536,11 @@ export interface MaturityIndexResponse {
   insufficientData?: boolean;
   reason?: 'project_too_new' | 'not_enough_signals';
   signalsCount?: number;
+  /** Fuentes (feeds) distintas con ≥1 doc. Codex P2 fix: el gate y el
+   *  honest-data-completeness se basa en esto, no en signalsCount. */
+  feedsAvailable?: number;
+  /** Nombres de las fuentes pobladas (útil para diagnóstico/UI). */
+  populatedFeeds?: string[];
   projectAgeDays?: number | null;
   // Caso normal: reporte completo.
   report?: MaturityReport;
@@ -543,6 +548,8 @@ export interface MaturityIndexResponse {
   signals?: MaturitySignals;
   metadata?: {
     signalsCount: number;
+    feedsAvailable: number;
+    populatedFeeds: string[];
     projectAgeDays: number | null;
     windowMonths: number;
   };

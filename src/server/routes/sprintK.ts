@@ -1390,12 +1390,20 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     const twelveMonthsAgoIso = new Date(now - TWELVE_MONTHS_MS).toISOString();
     const sixMonthsAgoIso = new Date(now - SIX_MONTHS_MS).toISOString();
 
+    // Ventana de 90 días para señales de voz del trabajador (positive
+    // observations + confidential reports) — F.211 / F.214. Window
+    // alineada a Codex P2#3.
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+    const ninetyDaysAgoIso = new Date(now - NINETY_DAYS_MS).toISOString();
+
     const [
       trainings,
       correctiveActions,
       cphsMeetings,
       incidents,
       criticalControls,
+      positiveObservations,
+      confidentialReports,
       projectDoc,
     ] = await Promise.all([
       safeRead('trainings', async () => {
@@ -1409,26 +1417,37 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
         return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
       }),
       safeRead('cphsMeetings', async () => {
-        // cphs_meetings es top-level (ver cphsService.ts); filtramos por
-        // projectId. Tomamos las últimas 6 reuniones (~6 meses) para
-        // calcular frecuencia.
-        const snap = await db
-          .collection('cphs_meetings')
+        // Codex P2 fix: cphs_meetings es top-level pero su FK a proyecto
+        // pasa por `committeeId` (ver `cphsService.ts`: meetings llevan
+        // `committeeId` + `scheduledAt`/`heldAt`, NO `projectId` ni
+        // `date`). El path canónico es:
+        //   cphs_committees where projectId == X
+        //     → cphs_meetings where committeeId IN (committee_ids)
+        // Resolvemos en dos pasos para no requerir un índice
+        // (projectId, scheduledAt) que no existe.
+        const committeesSnap = await db
+          .collection('cphs_committees')
           .where('projectId', '==', projectId)
-          .orderBy('date', 'desc')
-          .limit(6)
-          .get()
-          .catch(async () => {
-            // Fallback si el índice (projectId, date) no existe: leer
-            // sin orderBy y filtrar en memoria.
-            const fallback = await db
-              .collection('cphs_meetings')
-              .where('projectId', '==', projectId)
-              .limit(50)
-              .get();
-            return fallback;
-          });
-        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+          .get();
+        const committeeIds = committeesSnap.docs.map((d) => d.id);
+        if (committeeIds.length === 0) return [];
+
+        // Firestore `in` admite hasta 30 valores; en la práctica los
+        // proyectos tienen 1-2 comités vigentes. Si por algún motivo
+        // hubiera >30 partimos en chunks.
+        const chunkSize = 30;
+        const meetingDocs: Array<{ id: string; data: () => unknown }> = [];
+        for (let i = 0; i < committeeIds.length; i += chunkSize) {
+          const chunk = committeeIds.slice(i, i + chunkSize);
+          const snap = await db
+            .collection('cphs_meetings')
+            .where('committeeId', 'in', chunk)
+            .get();
+          meetingDocs.push(...snap.docs);
+        }
+        return meetingDocs.map(
+          (d) => ({ id: d.id, ...(d.data() as Record<string, unknown>) } as Record<string, unknown>),
+        );
       }),
       safeRead('incidents', async () => {
         const snap = await byProject('incidents').get();
@@ -1451,6 +1470,31 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
           .get();
         return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
       }),
+      safeRead('positiveObservations', async () => {
+        // Codex P2 fix: F.214 — observaciones positivas como señal de
+        // voz del trabajador. Path canónico (ver
+        // `positiveObservationsFirestoreAdapter.ts`):
+        //   tenants/{tid}/projects/{pid}/positive_observations
+        // Filtramos por `observedAt >= 90d` en server-side query para
+        // no traer historial completo.
+        const snap = await db
+          .collection(`${tenantProjectPath}/positive_observations`)
+          .where('observedAt', '>=', ninetyDaysAgoIso)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }),
+      safeRead('confidentialReports', async () => {
+        // Codex P2 fix: F.211 — reportes confidenciales como señal de
+        // voz del trabajador. Path canónico (ver
+        // `confidentialReportsFirestoreAdapter.ts`):
+        //   tenants/{tid}/projects/{pid}/confidential_reports
+        // Filtramos por `submittedAt >= 90d`.
+        const snap = await db
+          .collection(`${tenantProjectPath}/confidential_reports`)
+          .where('submittedAt', '>=', ninetyDaysAgoIso)
+          .get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+      }),
       safeRead('project', async () => {
         const snap = await projectRef.get();
         return snap.exists ? [{ id: snap.id, ...snap.data() } as Record<string, unknown>] : [];
@@ -1458,10 +1502,17 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     ]);
 
     // Gate de insuficiencia de datos: necesitamos al menos 3 meses de
-    // proyecto + algo de actividad mínima para que el score no sea
+    // proyecto + diversidad mínima de fuentes para que el score no sea
     // ruido. El criterio es conservador — preferimos mostrar
     // empty-state honesto que un nivel 1 alarmista para una faena que
     // recién arrancó.
+    //
+    // Codex P2 fix: contamos fuentes (feeds) DISTINTAS que devolvieron
+    // ≥1 doc, no la suma de docs. Si una faena tiene 3 trainings y nada
+    // más, su score no debe sobrevivir el gate — el avg de las 5
+    // categorías sale inflado por defaults cuando solo hay 1 feed.
+    // Incluimos incidents (omitido antes) porque alimenta RCA + leading
+    // indicators.
     const project = projectDoc[0];
     const projectCreatedAt =
       project &&
@@ -1472,11 +1523,28 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     const projectAgeMs = projectCreatedAt
       ? now - Date.parse(projectCreatedAt)
       : Number.POSITIVE_INFINITY;
+    const populatedFeeds: string[] = [];
+    if (trainings.length > 0) populatedFeeds.push('trainings');
+    if (correctiveActions.length > 0) populatedFeeds.push('corrective_actions');
+    if (cphsMeetings.length > 0) populatedFeeds.push('cphs_meetings');
+    if (criticalControls.length > 0) populatedFeeds.push('critical_controls');
+    if (incidents.length > 0) populatedFeeds.push('incidents');
+    if (positiveObservations.length > 0) populatedFeeds.push('positive_observations');
+    if (confidentialReports.length > 0) populatedFeeds.push('confidential_reports');
+    const feedsAvailable = populatedFeeds.length;
+    // Mantener `signalsCount` (suma de docs) en metadata para back-compat
+    // con consumers existentes, pero NO usarlo como gate.
     const totalSignals =
-      trainings.length + correctiveActions.length + cphsMeetings.length + criticalControls.length;
+      trainings.length +
+      correctiveActions.length +
+      cphsMeetings.length +
+      criticalControls.length +
+      incidents.length;
+    // Gate honesto: al menos 2 fuentes distintas pobladas. 1 sola fuente
+    // no es evidencia suficiente para grader cultura preventiva.
     const insufficient =
       (projectCreatedAt !== null && projectAgeMs < THREE_MONTHS_MS) ||
-      totalSignals < 3;
+      feedsAvailable < 2;
     if (insufficient) {
       return res.json({
         insufficientData: true,
@@ -1485,6 +1553,8 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
             ? 'project_too_new'
             : 'not_enough_signals',
         signalsCount: totalSignals,
+        feedsAvailable,
+        populatedFeeds,
         projectAgeDays: Number.isFinite(projectAgeMs)
           ? Math.round(projectAgeMs / (24 * 60 * 60 * 1000))
           : null,
@@ -1526,9 +1596,18 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
 
     // 3. cphsMeetingFrequency: reuniones/mes en últimos 6m. Esperado
     //    es 1 por mes → meetings / 6.
+    //
+    // Codex P2 fix: el shape canónico de `CphsMeeting` (ver
+    // `services/cphs/types.ts`) usa `heldAt` (cuando se realizó) y
+    // `scheduledAt` (cuando se agendó). NO existe `m.date`. Preferimos
+    // `heldAt` cuando está poblado (la reunión efectivamente se hizo),
+    // con fallback a `scheduledAt` si quedó en estado scheduled dentro
+    // de la ventana.
     const recentMeetings = cphsMeetings.filter((m) => {
-      const date = typeof m.date === 'string' ? m.date : null;
-      return date && date >= sixMonthsAgoIso;
+      const heldAt = typeof m.heldAt === 'string' ? m.heldAt : null;
+      const scheduledAt = typeof m.scheduledAt === 'string' ? m.scheduledAt : null;
+      const when = heldAt ?? scheduledAt;
+      return when !== null && when >= sixMonthsAgoIso;
     }).length;
     const cphsMeetingFrequency = Math.min(1, recentMeetings / 6);
 
@@ -1541,6 +1620,8 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     if (trainings.length > 0) leadingIndicatorsUsed.push('training_assignments');
     if (criticalControls.length > 0) leadingIndicatorsUsed.push('critical_controls');
     if (incidents.length > 0) leadingIndicatorsUsed.push('incident_reporting');
+    if (positiveObservations.length > 0) leadingIndicatorsUsed.push('positive_observations');
+    if (confidentialReports.length > 0) leadingIndicatorsUsed.push('confidential_reports');
     // El servicio normaliza con LEADING_INDICATORS_TARGET=6, así que
     // 5 fuentes ≈ 0.83. Marketing-honest: más fuentes = nivel mayor.
 
@@ -1575,11 +1656,31 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     //    crédito. Sin fuente clara, default 0.4 (cumplimiento mínimo).
     const executiveEngagement = project && project.executiveSponsorUid ? 0.6 : 0.4;
 
-    // 8. workerEmpowerment: heurística — si hay positive observations
-    //    o un canal de reporte anónimo (proyecto tiene
-    //    `anonymousReportingEnabled`), señal alta. Default 0.4.
-    const workerEmpowerment =
-      project && project.anonymousReportingEnabled === true ? 0.7 : 0.4;
+    // 8. workerEmpowerment: voz del trabajador. Codex P2 fix — los
+    //    feeds reales que evidencian participación son
+    //    `positive_observations` (F.214) y `confidential_reports`
+    //    (F.211). Heurística calibrada:
+    //      - 1.0 si ambas colecciones tienen ≥5 docs en 90d
+    //      - 0.5 si solo una tiene ≥5 docs en 90d
+    //      - 0.2 default (sin evidencia)
+    //    El flag declarativo `project.anonymousReportingEnabled` actúa
+    //    como piso suave (0.7) — si el proyecto declara el canal abierto
+    //    pero aún no hay reportes, le damos crédito al sistema instalado
+    //    sin permitir que entierre la evidencia real cuando existe.
+    const OBS_THRESHOLD = 5;
+    const obsReachThreshold = positiveObservations.length >= OBS_THRESHOLD;
+    const reportsReachThreshold = confidentialReports.length >= OBS_THRESHOLD;
+    let workerEmpowerment: number;
+    if (obsReachThreshold && reportsReachThreshold) {
+      workerEmpowerment = 1.0;
+    } else if (obsReachThreshold || reportsReachThreshold) {
+      workerEmpowerment = 0.5;
+    } else {
+      workerEmpowerment = 0.2;
+    }
+    if (project && project.anonymousReportingEnabled === true) {
+      workerEmpowerment = Math.max(workerEmpowerment, 0.7);
+    }
 
     // 9. integrationWithOperations: heurística — proyectos con
     //    `safetyPlanApproved` o `prevencionPlanId` están integrados.
@@ -1626,6 +1727,8 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
       signals,
       metadata: {
         signalsCount: totalSignals,
+        feedsAvailable,
+        populatedFeeds,
         projectAgeDays: Number.isFinite(projectAgeMs)
           ? Math.round(projectAgeMs / (24 * 60 * 60 * 1000))
           : null,
