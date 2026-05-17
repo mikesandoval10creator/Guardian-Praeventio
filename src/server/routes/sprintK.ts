@@ -1899,6 +1899,13 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
     const { composeShiftRiskPanel } = await import(
       '../../services/shiftRiskPanel/preShiftRiskComposer.js'
     );
+    // Codex P2 (PR #311): reuse the canonical severity normalizer so
+    // legacy Spanish labels ('Alta', 'Crítica', 'Media', 'Baja') don't
+    // silently downgrade to 'medium'. The composer accepts only the
+    // EN enum, so 'sif' is folded back to 'critical' (closest peer).
+    const { normalizeSeverity } = await import(
+      '../../services/incidentBundle/incidentEvidenceBundle.js'
+    );
     const db = admin.firestore();
 
     // Best-effort parallel reads. Each query wrapped so one failure
@@ -1942,6 +1949,55 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         ? req.query.date
         : todayStartIso.slice(0, 10);
 
+    // Codex P2 (PR #311): the shift-date window is ±24h around the
+    // requested date so tasks scheduled later in the week don't
+    // inflate today's pre-turno risk. Both endpoints normalized to
+    // Date instances so we can compare against any shape the task
+    // documents carry (Firestore Timestamp, ISO string, YYYY-MM-DD).
+    const shiftDayStart = new Date(`${dateParam}T00:00:00.000Z`);
+    const shiftDayEnd = new Date(shiftDayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    // Codex P2 (PR #311): unify date comparisons. Firestore stores
+    // dates as either an ISO string, a date-only `YYYY-MM-DD`, a JS
+    // number (epoch ms), or a Firestore `Timestamp` with `.toDate()`.
+    // Returning `null` for unparseable inputs lets callers fall back
+    // to a safe default instead of comparing NaN.
+    const coerceToDate = (raw: unknown): Date | null => {
+      if (!raw) return null;
+      if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+      if (typeof raw === 'number') {
+        const d = new Date(raw);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+      if (typeof raw === 'string') {
+        // Treat bare `YYYY-MM-DD` as UTC midnight so it lines up with
+        // `todayStart` and `shiftDayStart` (both UTC). Without this,
+        // `new Date('2026-05-17')` is UTC but `new Date('2026-05-17T10:00')`
+        // is local — mixing them caused lexicographic bugs upstream.
+        const iso = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+          ? `${raw}T00:00:00.000Z`
+          : raw;
+        const d = new Date(iso);
+        return Number.isNaN(d.getTime()) ? null : d;
+      }
+      if (typeof raw === 'object' && raw !== null) {
+        const maybeTs = raw as { toDate?: () => Date; seconds?: number };
+        if (typeof maybeTs.toDate === 'function') {
+          try {
+            const d = maybeTs.toDate();
+            return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+          } catch {
+            return null;
+          }
+        }
+        if (typeof maybeTs.seconds === 'number') {
+          const d = new Date(maybeTs.seconds * 1000);
+          return Number.isNaN(d.getTime()) ? null : d;
+        }
+      }
+      return null;
+    };
+
     const [
       workers,
       recentIncidents,
@@ -1956,15 +2012,23 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         return snap.docs.map((d) => {
           const data = d.data() as Record<string, unknown>;
           // Map Firestore shape to ShiftRiskInputs.workers[]. Workers
-          // collection commonly has: name/fullName, hireDate or
-          // createdAt, optional fatigueRisk + nightShiftHistory.
-          const hireRaw =
-            typeof data.hireDate === 'string'
-              ? data.hireDate
-              : typeof data.createdAt === 'string'
-                ? data.createdAt
-                : null;
-          const hireDate = hireRaw ? new Date(hireRaw) : null;
+          // collection commonly has: name/fullName, hire-date under
+          // any of several aliases, optional fatigueRisk + night-shift
+          // history.
+          //
+          // Codex P2 (PR #311): the project-worker creation flow
+          // writes `joinedAt`, importers write `hireDate`, and the
+          // legacy onboarding flow writes `startDate` / `createdAt`.
+          // Accept all of them — and any shape `coerceToDate`
+          // understands — so freshly hired workers actually trigger
+          // the new-worker factor instead of falling into the
+          // `daysSinceHire = 999` veteran branch.
+          const hireDate =
+            coerceToDate(data.hireDate) ??
+            coerceToDate(data.joinedAt) ??
+            coerceToDate(data.startDate) ??
+            coerceToDate(data.hiredAt) ??
+            coerceToDate(data.createdAt);
           const daysSinceHire = hireDate
             ? Math.max(
                 0,
@@ -2001,12 +2065,25 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
           .get();
         return snap.docs.map((d) => {
           const data = d.data() as Record<string, unknown>;
-          const sev = typeof data.severity === 'string' ? data.severity : 'medium';
+          // Codex P2 (PR #311): incident records carry either the EN
+          // canonical enum ('low'/'medium'/'high'/'critical') OR ES
+          // legacy labels ('Baja'/'Media'/'Alta'/'Crítica' — and
+          // 'leve'/'moderado'/'grave' via the incidentBundle alias
+          // table). Use the canonical normalizer so high/critical
+          // Spanish-labeled incidents aren't silently downgraded to
+          // 'medium' and don't fail to push the panel past the
+          // amber/red threshold. SUSESO `sif` folds back to
+          // 'critical' since the composer's weight table tops out
+          // there.
+          const sevRaw = typeof data.severity === 'string' ? data.severity : '';
+          const normalized = sevRaw ? normalizeSeverity(sevRaw) : null;
+          const severity: 'low' | 'medium' | 'high' | 'critical' =
+            normalized === 'sif'
+              ? 'critical'
+              : normalized ?? 'medium';
           return {
             id: d.id,
-            severity: (['low', 'medium', 'high', 'critical'].includes(sev)
-              ? sev
-              : 'medium') as 'low' | 'medium' | 'high' | 'critical',
+            severity,
             occurredAt: String(
               data.occurredAt ?? data.createdAt ?? new Date().toISOString(),
             ),
@@ -2015,22 +2092,57 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       }),
       safeRead('tasks', async () => {
         // Tasks may have `plannedDate` / `scheduledFor` and a
-        // `criticality` or boolean `isCriticalTask` flag. Read both
-        // conservatively. The composer only needs id + category +
-        // isCriticalTask + requiresPermit.
-        const snap = await byProject('tasks').limit(100).get();
+        // `criticality` or boolean `isCriticalTask` flag. The
+        // composer only needs id + category + isCriticalTask +
+        // requiresPermit.
+        //
+        // Codex P2 (PR #311):
+        //   - Filter by shift-date FIRST, then limit. The old shape
+        //     (`.limit(100)` before any where) could return 100
+        //     older/future/non-critical docs and silently drop the
+        //     handful of critical tasks actually scheduled for this
+        //     shift.
+        //   - Bound the window to ±24h around the requested shift
+        //     date instead of "≥ today" so a critical task two weeks
+        //     from now doesn't inflate the pre-turno panel today.
+        //   - Compare at the same granularity (Date instance via
+        //     `coerceToDate`) so `'2026-05-17'` and
+        //     `'2026-05-17T00:00:00.000Z'` aren't compared
+        //     lexicographically — the old `planned < todayStartIso`
+        //     dropped today's `YYYY-MM-DD`-formatted tasks on the
+        //     floor because `'2026-05-17' < '2026-05-17T...'` is
+        //     true.
+        //
+        // TODO(firestore-index): once a composite index exists on
+        //   `projectId + plannedDate` (and a parallel one on
+        //   `projectId + scheduledFor`), promote the JS filter back
+        //   to a Firestore where-clause for cheaper reads:
+        //     byProject('tasks')
+        //       .where('plannedDate', '>=', shiftDayStart.toISOString())
+        //       .where('plannedDate', '<', shiftDayEnd.toISOString())
+        //       .limit(200)
+        //   Until that index is deployed, the JS path below is the
+        //   correct fallback (Firestore would throw FAILED_PRECONDITION
+        //   without it). Raised the cap to 500 so we don't truncate
+        //   the candidate pool before the date filter runs.
+        const snap = await byProject('tasks').limit(500).get();
         return snap.docs
           .map((d) => {
             const data = d.data() as Record<string, unknown>;
-            const planned =
-              typeof data.plannedDate === 'string'
-                ? data.plannedDate
-                : typeof data.scheduledFor === 'string'
-                  ? data.scheduledFor
-                  : null;
-            // Filter in JS so we don't need a Firestore composite index
-            // for plannedDate + criticality.
-            if (planned && planned < todayStartIso) return null;
+            const plannedDate =
+              coerceToDate(data.plannedDate) ??
+              coerceToDate(data.scheduledFor) ??
+              coerceToDate(data.dueDate);
+            // If we can't pin down a date, keep the task — the
+            // composer will weight it as best-effort. The previous
+            // behavior of silently dropping it also dropped tasks
+            // with bad-shape dates that DID belong to this shift.
+            if (plannedDate) {
+              const ts = plannedDate.getTime();
+              if (ts < shiftDayStart.getTime() || ts >= shiftDayEnd.getTime()) {
+                return null;
+              }
+            }
             const criticality =
               typeof data.criticality === 'string'
                 ? data.criticality
@@ -2055,14 +2167,21 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
         const snap = await byProject('assets').get();
         return snap.docs.map((d) => {
           const data = d.data() as Record<string, unknown>;
-          const nextMaintRaw =
-            typeof data.nextMaintenanceAt === 'string'
-              ? data.nextMaintenanceAt
-              : typeof data.nextMaintenance === 'string'
-                ? data.nextMaintenance
-                : null;
-          const overdue = nextMaintRaw
-            ? new Date(nextMaintRaw).getTime() < Date.now()
+          // Codex P2 (PR #311): MaquinariaManager writes
+          // `nextMaintenance` from `<input type="date">`, which
+          // parses to UTC midnight. The old `< Date.now()` check
+          // flagged equipment whose maintenance is due TODAY as
+          // overdue for the entire shift (since midnight is < now
+          // by lunchtime), raising a false-positive risk factor.
+          // Compare against the start of the requested shift's day
+          // instead — equipment is only "overdue" if its due-date
+          // is strictly before the day we're calling the shift for.
+          // Also accept Firestore Timestamp via coerceToDate.
+          const nextMaint =
+            coerceToDate(data.nextMaintenanceAt) ??
+            coerceToDate(data.nextMaintenance);
+          const overdue = nextMaint
+            ? nextMaint.getTime() < shiftDayStart.getTime()
             : false;
           return {
             id: d.id,
@@ -2093,35 +2212,74 @@ router.get('/:projectId/pre-shift-risk', verifyAuth, async (req, res) => {
       }),
     ]);
 
-    // Map environment doc (NASA POWER / Open-Meteo cached blob) to
-    // ShiftRiskInputs.weather. Use conservative defaults when fields
-    // are missing so the composer always returns a valid score.
+    // Map environment doc (NASA POWER / Open-Meteo / OpenWeather
+    // cached blob) to ShiftRiskInputs.weather. Use conservative
+    // defaults when fields are missing so the composer always returns
+    // a valid score.
+    //
+    // Codex P2 (PR #311): the environment updater
+    // (src/services/environmentBackend.ts) stores readings nested
+    // under `global_context/environment.weather` — fields are
+    // `temp`, `windSpeed` (KM/H, not m/s — already converted with
+    // ×3.6), `humidity`, `condition`. The old mapper only looked at
+    // top-level `temperatureC`/`temperature` and `windSpeedMs`, so
+    // every read defaulted to 20°C and 0 m/s — silencing the heat
+    // and wind risk factors in exactly the conditions this panel
+    // exists to surface. Try the common nested shapes
+    // ({ weather }, { current }, { data }) before falling back to
+    // the top-level fields, and back-convert km/h → m/s when only
+    // the km/h field is present.
     const envDoc = environment[0] ?? {};
-    const env = envDoc as Record<string, unknown>;
+    const envRoot = envDoc as Record<string, unknown>;
+    const pickObj = (key: string): Record<string, unknown> | null => {
+      const v = envRoot[key];
+      return v && typeof v === 'object' && !Array.isArray(v)
+        ? (v as Record<string, unknown>)
+        : null;
+    };
+    const envWeather = pickObj('weather');
+    const envCurrent = pickObj('current');
+    const envData = pickObj('data');
+    // Search order: explicit `weather` sub-doc (environmentBackend),
+    // then `current` (OpenWeather-style), then `data` (some cached
+    // wrappers), then the root doc itself for back-compat.
+    const envSources: Array<Record<string, unknown>> = [
+      ...(envWeather ? [envWeather] : []),
+      ...(envCurrent ? [envCurrent] : []),
+      ...(envData ? [envData] : []),
+      envRoot,
+    ];
+    const readNumber = (...keys: string[]): number | undefined => {
+      for (const src of envSources) {
+        for (const k of keys) {
+          const v = src[k];
+          if (typeof v === 'number' && Number.isFinite(v)) return v;
+        }
+      }
+      return undefined;
+    };
+
+    const rainProbability = readNumber('rainProbability', 'pop', 'precipProbability') ?? 0;
+    // `windSpeed` in environmentBackend is already km/h (×3.6 applied
+    // at write time). If only that field is present, back-convert
+    // before handing to the composer (which expects m/s).
+    const windMs = readNumber('windSpeedMs', 'wind_ms');
+    const windKmh = readNumber('windKmh', 'windSpeedKmh');
+    const windFallbackKmh = readNumber('windSpeed', 'wind'); // ambient km/h convention from env cache
+    const windSpeedMs =
+      windMs ??
+      (typeof windKmh === 'number' ? windKmh / 3.6 : undefined) ??
+      (typeof windFallbackKmh === 'number' ? windFallbackKmh / 3.6 : 0);
+
     const weather = {
-      rainProbability:
-        typeof env.rainProbability === 'number'
-          ? env.rainProbability
-          : 0,
-      windSpeedMs:
-        typeof env.windSpeedMs === 'number'
-          ? env.windSpeedMs
-          : typeof env.windSpeed === 'number'
-            ? (env.windSpeed as number)
-            : 0,
-      uvIndex: typeof env.uvIndex === 'number' ? env.uvIndex : 0,
+      rainProbability,
+      windSpeedMs,
+      uvIndex: readNumber('uvIndex', 'uv', 'uvi') ?? 0,
       temperatureC:
-        typeof env.temperatureC === 'number'
-          ? env.temperatureC
-          : typeof env.temperature === 'number'
-            ? (env.temperature as number)
-            : 20,
-      lightningRiskWithinHours:
-        typeof env.lightningRiskWithinHours === 'number'
-          ? env.lightningRiskWithinHours
-          : undefined,
+        readNumber('temperatureC', 'temp', 'temperature') ?? 20,
+      lightningRiskWithinHours: readNumber('lightningRiskWithinHours'),
       visibilityKm:
-        typeof env.visibilityKm === 'number' ? env.visibilityKm : 10,
+        readNumber('visibilityKm', 'visibility') ?? 10,
     };
 
     // Brigade readiness flag lives in the project doc (project-level
