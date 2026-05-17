@@ -9,16 +9,23 @@
  *   - El markdown nunca contiene 'diagnóstico' ni 'patología'.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   buildOccupationalContextBundle,
   bundleToMarkdown,
   summarizeBundle,
+  exportOccupationalBundle,
+  vaultStoragePath,
+  vaultRecordDocPath,
   OCCUPATIONAL_BUNDLE_DISCLAIMER,
   type LaborHistoryEntry,
   type ErgonomicLogEntry,
   type SelfReportedSymptomEntry,
+  type VaultStorageUploader,
+  type VaultRecordSink,
+  type OccupationalVaultRecord,
 } from './occupationalContext';
+import { inMemoryKmsAdapter } from '../security/kmsAdapter';
 
 const FIXED_NOW = 1_730_000_000_000;
 
@@ -314,5 +321,261 @@ describe('NO inferencia clínica (regresión ADR 0012)', () => {
     expect(md).not.toContain('common_disease');
     expect(md).not.toContain('enfermedad profesional');
     expect(md).not.toContain('enfermedad común');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// exportOccupationalBundle — smoke wire Bucket VV
+// ─────────────────────────────────────────────────────────────────────
+//
+// Tests con storageClient + sink + KMS adapter inyectables. Verifican:
+//   - ZIP contiene bundle.json (parseable y con disclaimer)
+//   - Adjuntos llegan bajo attachments/
+//   - El payload subido NO está en cleartext (contiene magic PVB1)
+//   - sha256 hex 64 chars
+//   - signedUrl + expiresAt en el rango esperado (24h)
+//   - sink recibe el path Firestore canonical + record con shape correcto
+//   - El record persistido NO contiene el bundle en cleartext (solo
+//     metadata + envelope sin ciphertext crudo)
+
+describe('exportOccupationalBundle', () => {
+  // Helper: stub uploader que captura el path + bytes para inspección.
+  function makeUploader(): {
+    uploader: VaultStorageUploader;
+    captured: {
+      path?: string;
+      bytes?: Uint8Array;
+      contentType?: string;
+      signedUrlTtlMs?: number;
+    };
+  } {
+    const captured: {
+      path?: string;
+      bytes?: Uint8Array;
+      contentType?: string;
+      signedUrlTtlMs?: number;
+    } = {};
+    const uploader: VaultStorageUploader = {
+      upload: vi.fn(async (a) => {
+        captured.path = a.path;
+        captured.bytes = a.bytes;
+        captured.contentType = a.contentType;
+        captured.signedUrlTtlMs = a.signedUrlTtlMs;
+        return { url: `https://signed.example/${encodeURIComponent(a.path)}` };
+      }),
+    };
+    return { uploader, captured };
+  }
+
+  function makeSink(): {
+    sink: VaultRecordSink;
+    captured: { path?: string; record?: OccupationalVaultRecord };
+  } {
+    const captured: { path?: string; record?: OccupationalVaultRecord } = {};
+    const sink: VaultRecordSink = {
+      saveVaultRecord: vi.fn(async (a) => {
+        captured.path = a.path;
+        captured.record = a.record;
+      }),
+    };
+    return { sink, captured };
+  }
+
+  it('SM1. devuelve { url, expiresAt, sizeBytes, sha256, recordId } con shape correcto', async () => {
+    const bundle = buildSample();
+    const { uploader, captured } = makeUploader();
+    const { sink } = makeSink();
+
+    const result = await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      uploader,
+      sink,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    expect(result.url).toBe(
+      `https://signed.example/${encodeURIComponent(captured.path!)}`,
+    );
+    expect(result.expiresAt).toBe(FIXED_NOW + 24 * 60 * 60 * 1000);
+    expect(result.sizeBytes).toBe(captured.bytes!.length);
+    expect(result.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.recordId).toBe(`occ_worker-001_${FIXED_NOW}`);
+  });
+
+  it('SM2. usa el path Storage canonical tenants/{tid}/vault/{uid}/{ts}-occupational.zip', async () => {
+    const bundle = buildSample();
+    const { uploader, captured } = makeUploader();
+    const { sink } = makeSink();
+
+    await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      uploader,
+      sink,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    expect(captured.path).toBe(
+      `tenants/tenant-acme/vault/worker-001/${FIXED_NOW}-occupational.zip`,
+    );
+    expect(captured.path).toBe(
+      vaultStoragePath('tenant-acme', 'worker-001', FIXED_NOW),
+    );
+    expect(captured.contentType).toBe('application/octet-stream');
+    expect(captured.signedUrlTtlMs).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it('SM3. el payload subido NO está en cleartext — contiene magic PVB1 + no JSON visible', async () => {
+    const bundle = buildSample();
+    const { uploader, captured } = makeUploader();
+    const { sink } = makeSink();
+
+    await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      uploader,
+      sink,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    // Magic PVB1 al inicio.
+    expect(captured.bytes!.slice(0, 4)).toEqual(
+      new Uint8Array([0x50, 0x56, 0x42, 0x31]),
+    );
+
+    // Los datos del bundle (workerUid, employer, etc.) NO deben aparecer
+    // en cleartext en el payload cifrado. La verificación es probabilística
+    // pero suficientemente fuerte para un test smoke: si el envelope se
+    // omitiera por error el JSON aparecería tal cual.
+    const asText = new TextDecoder('utf-8', { fatal: false }).decode(
+      captured.bytes!,
+    );
+    expect(asText).not.toContain('Constructora Andes');
+    expect(asText).not.toContain('worker-001');
+    expect(asText).not.toContain(OCCUPATIONAL_BUNDLE_DISCLAIMER);
+    // Tampoco la magic ZIP local file header (PK\x03\x04) — eso indicaría
+    // que subimos el ZIP sin cifrar.
+    expect(asText).not.toContain('PK\x03\x04');
+  });
+
+  it('SM4. el envelope persistido NO contiene ciphertext crudo (vive en Storage)', async () => {
+    const bundle = buildSample();
+    const { uploader } = makeUploader();
+    const { sink, captured } = makeSink();
+
+    await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      uploader,
+      sink,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    expect(captured.path).toBe(
+      vaultRecordDocPath('tenant-acme', `occ_worker-001_${FIXED_NOW}`),
+    );
+    expect(captured.record!.kind).toBe('occupational');
+    expect(captured.record!.ownerUid).toBe('worker-001');
+    expect(captured.record!.tenantId).toBe('tenant-acme');
+    expect(captured.record!.envelope.ciphertext).toBe('');
+    expect(captured.record!.envelope.algorithm).toBe('AES-256-GCM');
+    expect(captured.record!.envelope.encryptedDek.length).toBeGreaterThan(0);
+    expect(captured.record!.signedUrl).toContain('https://signed.example/');
+    // El payload de Firestore NO contiene cleartext del bundle.
+    const recordJson = JSON.stringify(captured.record).toLowerCase();
+    expect(recordJson).not.toContain('constructora andes');
+    expect(recordJson).not.toContain('minería norte');
+  });
+
+  it('SM5. adjuntos firmados llegan bajo attachments/ y el resultado cambia su sha256', async () => {
+    const bundle = buildSample();
+    const { uploader: u1 } = makeUploader();
+    const { sink: s1 } = makeSink();
+    const baseline = await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      uploader: u1,
+      sink: s1,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    const { uploader: u2 } = makeUploader();
+    const { sink: s2 } = makeSink();
+    const withAttachment = await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      attachments: [
+        {
+          filename: 'audiometria-2026-03.pdf',
+          contentType: 'application/pdf',
+          bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]), // %PDF-1.4
+        },
+      ],
+      uploader: u2,
+      sink: s2,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    // El payload con adjunto pesa más + tiene sha256 distinto. (El DEK
+    // aleatorio del envelope también cambia el sha256, así que no
+    // verificamos igualdad — solo desigualdad.)
+    expect(withAttachment.sizeBytes).toBeGreaterThan(baseline.sizeBytes);
+    expect(withAttachment.sha256).not.toBe(baseline.sha256);
+  });
+
+  it('SM6. TTL custom se respeta tanto en uploader como en expiresAt', async () => {
+    const bundle = buildSample();
+    const { uploader, captured } = makeUploader();
+    const { sink } = makeSink();
+    const ONE_HOUR = 60 * 60 * 1000;
+
+    const result = await exportOccupationalBundle({
+      bundle,
+      tenantId: 'tenant-acme',
+      signedUrlTtlMs: ONE_HOUR,
+      uploader,
+      sink,
+      kmsAdapter: inMemoryKmsAdapter,
+      now: () => FIXED_NOW,
+    });
+
+    expect(captured.signedUrlTtlMs).toBe(ONE_HOUR);
+    expect(result.expiresAt).toBe(FIXED_NOW + ONE_HOUR);
+  });
+
+  it('SM7. rechaza tenantId vacío y workerUid vacío', async () => {
+    const bundle = buildSample();
+    const { uploader } = makeUploader();
+    const { sink } = makeSink();
+    await expect(
+      exportOccupationalBundle({
+        bundle,
+        tenantId: '',
+        uploader,
+        sink,
+        kmsAdapter: inMemoryKmsAdapter,
+      }),
+    ).rejects.toThrow(/tenantId required/);
+
+    const emptyUidBundle = buildOccupationalContextBundle(
+      '', [], [], [],
+      { now: () => FIXED_NOW },
+    );
+    await expect(
+      exportOccupationalBundle({
+        bundle: emptyUidBundle,
+        tenantId: 'tenant-acme',
+        uploader,
+        sink,
+        kmsAdapter: inMemoryKmsAdapter,
+      }),
+    ).rejects.toThrow(/bundle\.workerUid required/);
   });
 });
