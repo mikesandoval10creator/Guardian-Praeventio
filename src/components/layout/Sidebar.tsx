@@ -221,6 +221,11 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // de Impacto. Liderazgo preventivo trazable (NO castiga, mide qué
         // decisiones evitan más riesgo). Auditoría real para el SGSST.
         { title: t("nav.leadership_decisions", "Decisiones Supervisión"), icon: User, path: "/leadership-decisions", color: "text-blue-500" },
+        // Sprint K §69-71 — Conducción Segura + Rutas Críticas + Alertas Ruta.
+        // Score de conductor (incidentes + fatiga + speeding + licencia) +
+        // rutas con hazards + alertas en tiempo real (icy/fog/debris). No
+        // bloquea operación, asiste al supervisor con criterio.
+        { title: t("nav.driving_safety", "Conducción Segura"), icon: Car, path: "/driving-safety", color: "text-blue-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

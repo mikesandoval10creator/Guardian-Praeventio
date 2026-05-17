@@ -9792,4 +9792,570 @@ router.post('/:projectId/closure/finalize', verifyAuth, async (req, res) => {
 });
 
 
+
+// ─────────────────────────────────────────────────────────────────────
+// Sprint K §69-71 — Conducción Segura + Rutas Críticas + Alertas Ruta
+// ─────────────────────────────────────────────────────────────────────
+//
+// HTTP surface for the driving safety domain. The deterministic engines
+// (computeDriverScore / scoreRouteRisk / canAssignDriverToRoute) already
+// live in `services/drivingSafety/`. This endpoint block wires the
+// persisted Firestore shapes used by the page wrapper:
+//
+//   - routes:    `tenants/{tid}/projects/{pid}/driving_routes`
+//   - drivers:   `tenants/{tid}/projects/{pid}/driving_drivers`
+//   - journeys:  `tenants/{tid}/projects/{pid}/driving_drivers/{uid}/journeys`
+//
+// NO push to SUSESO / MINSAL / external authorities — directiva §4
+// (alertas externas son dato enriquecedor discreto, no autoridad de
+// emergencia). Engine outputs are scored client-side via the service
+// module, but ranking is computed server-side here to avoid shipping
+// every driver record over the wire for sort.
+
+type RouteCriticality = 'low' | 'medium' | 'high' | 'extreme';
+type RouteHazard =
+  | 'cliff'
+  | 'rockfall'
+  | 'flood_zone'
+  | 'sharp_curves'
+  | 'limited_visibility'
+  | 'wildlife'
+  | 'mining_traffic'
+  | 'icy_surface'
+  | 'fog'
+  | 'debris'
+  | 'accident_reported';
+type RouteAlertKind = 'icy' | 'fog' | 'debris' | 'accident_reported' | 'weather' | 'other';
+
+interface StoredRouteAlert {
+  kind: RouteAlertKind;
+  note: string | null;
+  flaggedAt: string;
+  flaggedBy: string;
+  /** ISO-8601; null = open. */
+  resolvedAt: string | null;
+}
+
+interface StoredDrivingRoute {
+  id: string;
+  name: string;
+  origin: string;
+  destination: string;
+  distanceKm: number;
+  criticality: RouteCriticality;
+  hazards: RouteHazard[];
+  weatherSensitive: boolean;
+  recommendedMaxSpeedKmh: number;
+  /** Active alert (most recent open). null when route is calm. */
+  activeAlert: StoredRouteAlert | null;
+  /** Append-only journal of all flags raised. */
+  alertHistory: StoredRouteAlert[];
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+}
+
+interface StoredDrivingDriver {
+  workerUid: string;
+  licenseClass: string;
+  licenseExpiresAt: string;
+  yearsExperience: number;
+  incidents12m: number;
+  speedingEvents30d: number;
+  /** Self-reported / wearable-fed fatigue 0-100 (higher = more fatigued). */
+  fatigueScore: number;
+  hoursThisWeek: number;
+  lastJourneyAt: string | null;
+  updatedAt: string;
+}
+
+interface StoredJourney {
+  id: string;
+  workerUid: string;
+  startedAt: string;
+  endedAt: string | null;
+  /** Hours driven (decimal, computed at end). */
+  hours: number | null;
+  routeId: string | null;
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+const ROUTE_HAZARD_VALUES: readonly RouteHazard[] = [
+  'cliff',
+  'rockfall',
+  'flood_zone',
+  'sharp_curves',
+  'limited_visibility',
+  'wildlife',
+  'mining_traffic',
+  'icy_surface',
+  'fog',
+  'debris',
+  'accident_reported',
+] as const;
+
+const ROUTE_CRITICALITY_VALUES: readonly RouteCriticality[] = [
+  'low',
+  'medium',
+  'high',
+  'extreme',
+] as const;
+
+const ROUTE_ALERT_KIND_VALUES: readonly RouteAlertKind[] = [
+  'icy',
+  'fog',
+  'debris',
+  'accident_reported',
+  'weather',
+  'other',
+] as const;
+
+const drivingRouteCreateSchema = z.object({
+  id: z.string().min(1).max(120).optional(),
+  name: z.string().min(1).max(200),
+  origin: z.string().min(1).max(200),
+  destination: z.string().min(1).max(200),
+  distanceKm: z.number().min(0).max(10_000),
+  criticality: z.enum(['low', 'medium', 'high', 'extreme']),
+  hazards: z
+    .array(
+      z.enum([
+        'cliff',
+        'rockfall',
+        'flood_zone',
+        'sharp_curves',
+        'limited_visibility',
+        'wildlife',
+        'mining_traffic',
+        'icy_surface',
+        'fog',
+        'debris',
+        'accident_reported',
+      ]),
+    )
+    .max(20)
+    .default([]),
+  weatherSensitive: z.boolean().default(false),
+  recommendedMaxSpeedKmh: z.number().min(5).max(200).default(60),
+});
+
+const drivingRouteAlertSchema = z.object({
+  kind: z.enum(['icy', 'fog', 'debris', 'accident_reported', 'weather', 'other']),
+  note: z.string().max(1000).optional(),
+  /** If true, resolves the active alert instead of raising a new one. */
+  resolve: z.boolean().optional(),
+});
+
+const drivingJourneySchema = z.object({
+  action: z.enum(['start', 'end']),
+  /** Required for `end`; ignored otherwise. */
+  journeyId: z.string().min(1).max(200).optional(),
+  startedAt: z.string().min(10).optional(),
+  endedAt: z.string().min(10).optional(),
+  /** Self-reported hours; if absent and both timestamps present we compute. */
+  hours: z.number().min(0).max(48).optional(),
+  routeId: z.string().min(1).max(200).optional(),
+  note: z.string().max(1000).optional(),
+});
+
+function ensureValidHazards(input: unknown): RouteHazard[] {
+  if (!Array.isArray(input)) return [];
+  const allowed = new Set<string>(ROUTE_HAZARD_VALUES);
+  return input.filter((x): x is RouteHazard => typeof x === 'string' && allowed.has(x));
+}
+
+function startOfIsoWeek(now: Date): Date {
+  const d = new Date(now);
+  d.setUTCHours(0, 0, 0, 0);
+  const day = d.getUTCDay() || 7; // treat Sunday as 7
+  if (day !== 1) d.setUTCDate(d.getUTCDate() - (day - 1));
+  return d;
+}
+
+/**
+ * GET /:projectId/driving/routes
+ * Optional ?status=active|critical|all (default: all).
+ *   - active   = has an open `activeAlert`
+ *   - critical = criticality in {'high','extreme'}
+ *   - all      = list everything (200 cap)
+ */
+router.get('/:projectId/driving/routes', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const statusRaw = typeof req.query.status === 'string' ? req.query.status : 'all';
+    const status: 'active' | 'critical' | 'all' =
+      statusRaw === 'active' || statusRaw === 'critical' ? statusRaw : 'all';
+
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.driving.routes.read.${label}.failed`, err);
+        return [];
+      }
+    };
+
+    const routes = await safeRead<StoredDrivingRoute>('list', async () => {
+      const snap = await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_routes`)
+        .orderBy('createdAt', 'desc')
+        .limit(200)
+        .get();
+      return snap.docs.map(
+        (d) => ({ id: d.id, ...(d.data() as Omit<StoredDrivingRoute, 'id'>) }),
+      );
+    });
+
+    const filtered = routes.filter((r) => {
+      if (status === 'active') return r.activeAlert !== null;
+      if (status === 'critical') return r.criticality === 'high' || r.criticality === 'extreme';
+      return true;
+    });
+
+    return res.json({ routes: filtered });
+  } catch (err) {
+    logger.error?.('sprintK.driving.routes.list.error', err);
+    captureRouteError(err, 'sprintK.driving.routes.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.post(
+  '/:projectId/driving/routes',
+  verifyAuth,
+  validate(drivingRouteCreateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof drivingRouteCreateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const id =
+        body.id ??
+        `route_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const payload: StoredDrivingRoute = {
+        id,
+        name: body.name,
+        origin: body.origin,
+        destination: body.destination,
+        distanceKm: body.distanceKm,
+        criticality: body.criticality,
+        hazards: ensureValidHazards(body.hazards),
+        weatherSensitive: body.weatherSensitive,
+        recommendedMaxSpeedKmh: body.recommendedMaxSpeedKmh,
+        activeAlert: null,
+        alertHistory: [],
+        createdAt: now,
+        createdBy: callerUid,
+        updatedAt: now,
+      };
+      await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_routes`)
+        .doc(id)
+        .set(payload, { merge: true });
+      return res.status(201).json({ ok: true, route: payload });
+    } catch (err) {
+      logger.error?.('sprintK.driving.routes.create.error', err);
+      captureRouteError(err, 'sprintK.driving.routes.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.post(
+  '/:projectId/driving/routes/:id/alert',
+  verifyAuth,
+  validate(drivingRouteAlertSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, id } = req.params;
+    const body = req.body as z.infer<typeof drivingRouteAlertSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const docRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_routes`)
+        .doc(id);
+      const snap = await docRef.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'route_not_found' });
+      }
+      const current = snap.data() as Omit<StoredDrivingRoute, 'id'>;
+      const now = new Date().toISOString();
+
+      if (body.resolve) {
+        // Resolve current open alert (if any).
+        const resolved: StoredRouteAlert | null = current.activeAlert
+          ? { ...current.activeAlert, resolvedAt: now }
+          : null;
+        const history = Array.isArray(current.alertHistory) ? current.alertHistory : [];
+        const updatedHistory = resolved
+          ? history.map((a) =>
+              a.flaggedAt === resolved.flaggedAt && a.resolvedAt === null ? resolved : a,
+            )
+          : history;
+        await docRef.set(
+          { activeAlert: null, alertHistory: updatedHistory, updatedAt: now },
+          { merge: true },
+        );
+        return res.status(200).json({ ok: true, activeAlert: null });
+      }
+
+      const alert: StoredRouteAlert = {
+        kind: body.kind,
+        note: body.note ?? null,
+        flaggedAt: now,
+        flaggedBy: callerUid,
+        resolvedAt: null,
+      };
+      const history = Array.isArray(current.alertHistory) ? current.alertHistory : [];
+      // If there's an open alert and we're raising a different one, close
+      // the previous one in history first to keep timeline consistent.
+      const closedPrev = current.activeAlert
+        ? history.map((a) =>
+            a.flaggedAt === current.activeAlert!.flaggedAt && a.resolvedAt === null
+              ? { ...a, resolvedAt: now }
+              : a,
+          )
+        : history;
+      const nextHistory = [...closedPrev, alert].slice(-200);
+
+      await docRef.set(
+        { activeAlert: alert, alertHistory: nextHistory, updatedAt: now },
+        { merge: true },
+      );
+      return res.status(201).json({ ok: true, activeAlert: alert });
+    } catch (err) {
+      logger.error?.('sprintK.driving.routes.alert.error', err);
+      captureRouteError(err, 'sprintK.driving.routes.alert');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.get('/:projectId/driving/drivers', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.driving.drivers.read.${label}.failed`, err);
+        return [];
+      }
+    };
+    const drivers = await safeRead<StoredDrivingDriver>('list', async () => {
+      const snap = await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_drivers`)
+        .limit(500)
+        .get();
+      return snap.docs.map((d) => ({
+        workerUid: d.id,
+        ...(d.data() as Omit<StoredDrivingDriver, 'workerUid'>),
+      }));
+    });
+    return res.json({ drivers });
+  } catch (err) {
+    logger.error?.('sprintK.driving.drivers.list.error', err);
+    captureRouteError(err, 'sprintK.driving.drivers.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.post(
+  '/:projectId/driving/drivers/:uid/journey',
+  verifyAuth,
+  validate(drivingJourneySchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, uid: driverUid } = req.params;
+    const body = req.body as z.infer<typeof drivingJourneySchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const driverRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_drivers`)
+        .doc(driverUid);
+      const journeysCol = driverRef.collection('journeys');
+      const driverSnap = await driverRef.get();
+      const driver = driverSnap.exists
+        ? (driverSnap.data() as Omit<StoredDrivingDriver, 'workerUid'>)
+        : null;
+
+      if (body.action === 'start') {
+        const journeyId =
+          body.journeyId ??
+          `j_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        const startedAt = body.startedAt ?? now;
+        const journey: StoredJourney = {
+          id: journeyId,
+          workerUid: driverUid,
+          startedAt,
+          endedAt: null,
+          hours: null,
+          routeId: body.routeId ?? null,
+          note: body.note ?? null,
+          createdBy: callerUid,
+          createdAt: now,
+        };
+        await journeysCol.doc(journeyId).set(journey, { merge: true });
+        await driverRef.set(
+          { lastJourneyAt: startedAt, updatedAt: now },
+          { merge: true },
+        );
+        return res.status(201).json({ ok: true, journey });
+      }
+
+      // action === 'end' — close the journey + roll up hoursThisWeek.
+      if (!body.journeyId) {
+        return res.status(400).json({ error: 'journeyId_required_for_end' });
+      }
+      const jRef = journeysCol.doc(body.journeyId);
+      const jSnap = await jRef.get();
+      if (!jSnap.exists) {
+        return res.status(404).json({ error: 'journey_not_found' });
+      }
+      const existing = jSnap.data() as StoredJourney;
+      const endedAt = body.endedAt ?? now;
+      let hours = body.hours;
+      if (typeof hours !== 'number' || !Number.isFinite(hours)) {
+        const startMs = Date.parse(existing.startedAt);
+        const endMs = Date.parse(endedAt);
+        if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs) {
+          hours = Math.round(((endMs - startMs) / 3_600_000) * 100) / 100;
+        } else {
+          hours = 0;
+        }
+      }
+      const closed: StoredJourney = { ...existing, endedAt, hours };
+      await jRef.set(closed, { merge: true });
+
+      // Roll up hoursThisWeek from journeys in current ISO week.
+      const weekStart = startOfIsoWeek(new Date()).toISOString();
+      const weekSnap = await journeysCol
+        .where('startedAt', '>=', weekStart)
+        .limit(200)
+        .get();
+      const hoursThisWeek = weekSnap.docs.reduce((acc, doc) => {
+        const j = doc.data() as StoredJourney;
+        return acc + (typeof j.hours === 'number' ? j.hours : 0);
+      }, 0);
+
+      await driverRef.set(
+        {
+          hoursThisWeek: Math.round(hoursThisWeek * 100) / 100,
+          lastJourneyAt: endedAt,
+          updatedAt: now,
+          // Preserve baseline fields when driver doc didn't exist yet.
+          ...(driver
+            ? {}
+            : {
+                licenseClass: 'unknown',
+                licenseExpiresAt: now,
+                yearsExperience: 0,
+                incidents12m: 0,
+                speedingEvents30d: 0,
+                fatigueScore: 0,
+              }),
+        },
+        { merge: true },
+      );
+
+      return res.status(200).json({ ok: true, journey: closed });
+    } catch (err) {
+      logger.error?.('sprintK.driving.journey.error', err);
+      captureRouteError(err, 'sprintK.driving.journey');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.get('/:projectId/driving/ranking', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const { computeDriverScore } = await import(
+      '../../services/drivingSafety/drivingSafetyService.js'
+    );
+    const db = admin.firestore();
+    const safeRead = async <T,>(
+      label: string,
+      fn: () => Promise<T[]>,
+    ): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.(`sprintK.driving.ranking.read.${label}.failed`, err);
+        return [];
+      }
+    };
+    const drivers = await safeRead<StoredDrivingDriver>('drivers', async () => {
+      const snap = await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/driving_drivers`)
+        .limit(500)
+        .get();
+      return snap.docs.map((d) => ({
+        workerUid: d.id,
+        ...(d.data() as Omit<StoredDrivingDriver, 'workerUid'>),
+      }));
+    });
+    const now = new Date().toISOString();
+    const ranked = drivers
+      .map((d) => {
+        const report = computeDriverScore(
+          {
+            workerUid: d.workerUid,
+            licenseClass: d.licenseClass,
+            licenseExpiresAt: d.licenseExpiresAt,
+            yearsExperience: d.yearsExperience,
+            incidents12m: d.incidents12m,
+            speedingEvents30d: d.speedingEvents30d,
+          },
+          now,
+        );
+        return {
+          workerUid: d.workerUid,
+          safetyScore: clampScore(report.safetyScore),
+          level: report.level,
+          canOperate: report.canOperate,
+          blockers: report.blockers,
+          fatigueScore: d.fatigueScore,
+          hoursThisWeek: d.hoursThisWeek,
+          licenseExpiresAt: d.licenseExpiresAt,
+        };
+      })
+      .sort((a, b) => b.safetyScore - a.safetyScore);
+    return res.json({ ranking: ranked });
+  } catch (err) {
+    logger.error?.('sprintK.driving.ranking.error', err);
+    captureRouteError(err, 'sprintK.driving.ranking');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+
 export default router;
