@@ -10,17 +10,56 @@
 // wrapper solo orquesta proyecto + hook + estados de borde (offline,
 // no project, error).
 
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Inbox as InboxIcon, WifiOff } from 'lucide-react';
 import { useProject } from '../contexts/ProjectContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useInbox, useDataQuality } from '../hooks/useSprintK';
 import { InboxPrevencionistaPanel } from '../components/inbox/InboxPrevencionistaPanel';
 import { DataQualityCard } from '../components/dataQuality/DataQualityCard';
+import type { InboxItem } from '../services/inbox/inboxAggregator';
 import { logger } from '../utils/logger';
+
+/**
+ * Resolve an inbox item's source ref to a SPA route path. Lets the
+ * "Ver detalle" / "Ir a investigación" / "Marcar realizada" actions
+ * deep-link the user to the actual record instead of being silent
+ * no-ops (Codex P2 PR #309).
+ */
+function routeForItem(item: InboxItem): string {
+  // SIF precursors live under the SIF dashboard which the prevencionista
+  // accesses from /hub/risks; the executive review CTA is on the panel
+  // itself. Until the SIF detail page lands as its own route, the
+  // /executive-dashboard view shows the precursor list — best deep link
+  // we can reach today.
+  if (item.kind === 'sif_precursor_pending') {
+    return '/executive-dashboard';
+  }
+  if (item.kind === 'corrective_action_open') {
+    return '/corrective-actions';
+  }
+  if (item.kind === 'incident_pending_review') {
+    return '/hub/risks';
+  }
+  if (item.kind === 'document_pending_approval') {
+    return '/hub/compliance';
+  }
+  if (item.kind === 'epp_pending_validation') {
+    return '/hub/operations';
+  }
+  if (item.kind === 'worker_pending_onboarding') {
+    return '/cuadrillas';
+  }
+  // Fallback: the operations hub catches the unmapped kinds so the
+  // user lands somewhere coherent instead of staying on the inbox.
+  return '/hub/operations';
+}
 
 export function Inbox() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { selectedProject } = useProject();
   const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
@@ -31,21 +70,64 @@ export function Inbox() {
   // parallel — own loading/error independent of the inbox feed.
   const { data: dataQuality } = useDataQuality(projectId);
 
+  // Codex P2 (PR #309): the panel doesn't track local dismissals on
+  // its own — onAction is just a callback. Without parent state the
+  // "Posponer 24h" / "Marcar realizada" buttons appeared to be no-ops
+  // until refresh. Track a Set of locally-dismissed item ids so the
+  // panel filter (`!i.dismissedAt`) hides them as soon as the user
+  // clicks. Server-side mutations are a follow-up sub-PR; this lets
+  // the prevencionista clear their inbox view honestly today.
+  const [locallyDismissed, setLocallyDismissed] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  const itemsWithDismissals: InboxItem[] = useMemo(() => {
+    if (!data?.items) return [];
+    if (locallyDismissed.size === 0) return data.items;
+    const nowIso = new Date().toISOString();
+    return data.items.map((it) =>
+      locallyDismissed.has(it.id) ? { ...it, dismissedAt: nowIso } : it,
+    );
+  }, [data?.items, locallyDismissed]);
+
   const handleAction = (
     item: { id: string; kind: string },
     actionKind: string,
   ): void => {
-    // Server-side mutation endpoints (POST /api/sprint-k/.../inbox/dismiss,
-    // POST .../assign, etc.) ship in the follow-up sub-PR. For now we
-    // log the intent so the prevencionista's click is auditable in the
-    // browser console; the UI still updates locally because the panel's
-    // own dismiss state lives in component state until the mutation
-    // round-trips.
+    // For dismiss-equivalent actions (approve / reject / mark_done /
+    // postpone), hide the item from this session immediately so the
+    // click isn't a UX no-op. Server-side mutation endpoints (POST
+    // /api/sprint-k/.../inbox/{action}) ship in the follow-up sub-PR;
+    // until then we log so the click is auditable in the browser
+    // console.
+    const dismissActions = new Set([
+      'approve',
+      'reject',
+      'mark_done',
+      'postpone',
+    ]);
+    if (dismissActions.has(actionKind)) {
+      setLocallyDismissed((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+    }
     logger.info('inbox.action', {
       itemId: item.id,
       itemKind: item.kind,
       actionKind,
+      localDismiss: dismissActions.has(actionKind),
     });
+  };
+
+  // Codex P2 (PR #309): the panel always shows a "Ver detalle" button.
+  // Without onOpenDetail wired the button was silent. Now navigate to
+  // the closest SPA route for the item's kind (mapping above).
+  const handleOpenDetail = (item: InboxItem): void => {
+    const path = routeForItem(item);
+    logger.info('inbox.openDetail', { itemId: item.id, itemKind: item.kind, path });
+    navigate(path);
   };
 
   if (!selectedProject) {
@@ -131,9 +213,10 @@ export function Inbox() {
 
       {!loading && !error && data && (
         <InboxPrevencionistaPanel
-          items={data.items}
+          items={itemsWithDismissals}
           summary={data.summary}
           onAction={handleAction}
+          onOpenDetail={handleOpenDetail}
         />
       )}
 

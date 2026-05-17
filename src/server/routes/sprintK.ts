@@ -505,7 +505,28 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
       }
     };
 
-    const projectCollections = db.collection('projects').doc(projectId);
+    // Codex P2 (PR #309): collection paths matched the UI writes.
+    //
+    // - workers       → nested `projects/{projectId}/workers`
+    //                   (LaborManagementModal.tsx line 42)
+    // - documents     → top-level `project_documents` filtered by projectId
+    //                   (ProjectDocuments.tsx line 103)
+    // - assets        → top-level `assets` filtered by projectId
+    //                   (MaquinariaManager.tsx line 70)
+    // - training      → top-level `training` filtered by projectId
+    //                   (Training.tsx line 141)
+    // - incidents     → top-level `incidents` filtered by projectId (idem)
+    // - epp_assignments → nested fallback (no top-level writer found)
+    //
+    // Earlier this endpoint scanned everything under
+    // `projects/{projectId}/...` which always returned empty arrays for
+    // the three top-level collections — the data-quality card reported
+    // a clean 100 even when the project had hundreds of documents/assets
+    // with real gaps.
+    const projectRef = db.collection('projects').doc(projectId);
+    const byProject = (col: string) =>
+      db.collection(col).where('projectId', '==', projectId);
+
     const [
       workers,
       epps,
@@ -516,37 +537,37 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
       thisProject,
     ] = await Promise.all([
       safeRead('workers', async () =>
-        (await projectCollections.collection('workers').get()).docs.map(
+        (await projectRef.collection('workers').get()).docs.map(
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
       safeRead('epps', async () =>
-        (await projectCollections.collection('epp_assignments').get()).docs.map(
+        (await projectRef.collection('epp_assignments').get()).docs.map(
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
       safeRead('documents', async () =>
-        (await projectCollections.collection('documents').get()).docs.map(
+        (await byProject('project_documents').get()).docs.map(
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
       safeRead('incidents', async () =>
-        (await projectCollections.collection('incidents').get()).docs.map(
+        (await byProject('incidents').get()).docs.map(
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
       safeRead('machines', async () =>
-        (await projectCollections.collection('machines').get()).docs.map(
+        (await byProject('assets').get()).docs.map(
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
       safeRead('trainings', async () =>
-        (await projectCollections.collection('trainings').get()).docs.map(
+        (await byProject('training').get()).docs.map(
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
       safeRead('project', async () => {
-        const snap = await projectCollections.get();
+        const snap = await projectRef.get();
         return snap.exists ? [{ id: snap.id, ...snap.data() }] : [];
       }),
     ]);
@@ -621,11 +642,28 @@ router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
       }),
     ]);
 
+    // Codex P2 (PR #309): filter corrective actions by responsibleUid
+    // so the prevencionista's inbox shows their OWN pending work, not
+    // every action in the project. Extended F.4 records carry
+    // `responsibleUid`; legacy weakActionDetector records don't —
+    // those collapse into the inbox by default (the safer fallback,
+    // since "unassigned" actions need someone to claim them).
+    const actionsForCaller = openActions.filter((a) => {
+      const extra = a as unknown as { responsibleUid?: string };
+      // If the record has an explicit responsibleUid, only include it
+      // when it matches the caller. Otherwise include it (legacy data
+      // that needs assignment + a prevencionista to triage it).
+      if (typeof extra.responsibleUid === 'string' && extra.responsibleUid.length > 0) {
+        return extra.responsibleUid === callerUid;
+      }
+      return true;
+    });
+
     const items = aggregateInbox(
       {
         documentsPending: [],
         incidentsPending: [],
-        correctiveActionsOpen: openActions.map((a) => {
+        correctiveActionsOpen: actionsForCaller.map((a) => {
           // Promote legacy weakActionDetector shape to the dueDate/
           // daysOverdue projection the inbox wants. Legacy actions
           // don't carry dueDate; we synthesize a conservative window

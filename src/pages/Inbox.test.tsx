@@ -9,10 +9,18 @@
 //   4. Offline chip.
 //   5. Hook error surfaces with message.
 
+import type { ReactElement } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { Inbox } from './Inbox';
 import type { InboxResponse } from '../hooks/useSprintK';
+
+// Codex P2 PR #309: page now uses useNavigate() for the onOpenDetail
+// handler. Wrap each render in a MemoryRouter so the hook resolves.
+function renderWithRouter(ui: ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -66,7 +74,7 @@ beforeEach(() => {
 describe('<Inbox /> page wrapper (Fase F.8)', () => {
   it('renderiza empty-state cuando no hay proyecto', () => {
     mockSelectedProject = null;
-    render(<Inbox />);
+    renderWithRouter(<Inbox />);
     expect(screen.getByTestId('inbox-page-empty')).toBeInTheDocument();
     expect(screen.getByText(/selecciona un proyecto/i)).toBeInTheDocument();
   });
@@ -74,7 +82,7 @@ describe('<Inbox /> page wrapper (Fase F.8)', () => {
   it('renderiza loading mientras el hook trae datos', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena' };
     mockUseInbox = { data: null, loading: true, error: null };
-    render(<Inbox />);
+    renderWithRouter(<Inbox />);
     expect(screen.getByTestId('inbox-loading')).toBeInTheDocument();
   });
 
@@ -93,7 +101,7 @@ describe('<Inbox /> page wrapper (Fase F.8)', () => {
       loading: false,
       error: null,
     };
-    render(<Inbox />);
+    renderWithRouter(<Inbox />);
     // Match within the page subtitle specifically (panel may also render
     // a summary with the same numbers; we anchor on the wrapper-only
     // sub-string "Pendientes ordenados por urgencia").
@@ -113,7 +121,7 @@ describe('<Inbox /> page wrapper (Fase F.8)', () => {
       loading: false,
       error: null,
     };
-    render(<Inbox />);
+    renderWithRouter(<Inbox />);
     expect(screen.getByTestId('inbox-offline-chip')).toBeInTheDocument();
   });
 
@@ -124,7 +132,7 @@ describe('<Inbox /> page wrapper (Fase F.8)', () => {
       loading: false,
       error: new Error('Network down'),
     };
-    render(<Inbox />);
+    renderWithRouter(<Inbox />);
     expect(screen.getByTestId('inbox-error')).toBeInTheDocument();
     expect(screen.getByText(/Network down/i)).toBeInTheDocument();
   });

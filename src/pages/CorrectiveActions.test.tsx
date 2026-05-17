@@ -44,11 +44,12 @@ type LegacyAction = {
   status: 'open' | 'closed' | 'verified';
   isSystemic: boolean;
 };
-let mockUseCorrectiveActionsReturn: {
-  data: { actions: LegacyAction[] } | null;
-  loading: boolean;
-  error: Error | null;
-};
+// Codex P2 fix on PR #309: page now fetches each PDCA status
+// independently (open/closed/verified). Track per-status mocks so tests
+// can assert what the page shows for each combination.
+let mockOpen: { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
+let mockClosed: { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
+let mockVerified: { data: { actions: LegacyAction[] } | null; loading: boolean; error: Error | null };
 
 vi.mock('../contexts/ProjectContext', () => ({
   useProject: () => ({ selectedProject: mockSelectedProject }),
@@ -57,17 +58,20 @@ vi.mock('../hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => mockIsOnline,
 }));
 vi.mock('../hooks/useSprintK', () => ({
-  useCorrectiveActions: () => mockUseCorrectiveActionsReturn,
+  useCorrectiveActions: (_pid: string | null, opts?: { status?: string }) => {
+    if (opts?.status === 'closed') return mockClosed;
+    if (opts?.status === 'verified') return mockVerified;
+    return mockOpen;
+  },
 }));
 
 beforeEach(() => {
   mockSelectedProject = null;
   mockIsOnline = true;
-  mockUseCorrectiveActionsReturn = {
-    data: null,
-    loading: false,
-    error: null,
-  };
+  const empty = { data: null, loading: false, error: null };
+  mockOpen = empty;
+  mockClosed = empty;
+  mockVerified = empty;
 });
 
 describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {
@@ -82,14 +86,14 @@ describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {
 
   it('renderiza loading mientras el hook trae datos', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
-    mockUseCorrectiveActionsReturn = { data: null, loading: true, error: null };
+    mockOpen = { data: null, loading: true, error: null };
     render(<CorrectiveActions />);
     expect(screen.getByTestId('corrective-actions-loading')).toBeInTheDocument();
   });
 
   it('promueve acciones legacy al shape extendido sin perder campos', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
-    mockUseCorrectiveActionsReturn = {
+    mockOpen = {
       data: {
         actions: [
           {
@@ -103,24 +107,45 @@ describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {
       loading: false,
       error: null,
     };
+    mockClosed = { data: { actions: [] }, loading: false, error: null };
+    mockVerified = { data: { actions: [] }, loading: false, error: null };
     render(<CorrectiveActions />);
     expect(screen.getByTestId('corrective-actions-page')).toBeInTheDocument();
-    // The panel sub-component renders with the promoted record.
     expect(
       screen.getByTestId('corrective-actions-center-panel'),
     ).toBeInTheDocument();
-    // Subtitle interpolates the count: header has `{{count}} acciones cargadas`.
+    // Subtitle interpolates the count: `{{count}} acciones cargadas`.
     expect(screen.getByText(/1 acciones cargadas/i)).toBeInTheDocument();
+  });
+
+  it('mezcla open + closed + verified en una sola lista (Codex P2 fix)', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    mockOpen = {
+      data: { actions: [{ id: 'a1', description: 'open one', status: 'open', isSystemic: false }] },
+      loading: false,
+      error: null,
+    };
+    mockClosed = {
+      data: { actions: [{ id: 'a2', description: 'closed one', status: 'closed', isSystemic: false }] },
+      loading: false,
+      error: null,
+    };
+    mockVerified = {
+      data: { actions: [{ id: 'a3', description: 'verified one', status: 'verified', isSystemic: false }] },
+      loading: false,
+      error: null,
+    };
+    render(<CorrectiveActions />);
+    // 1 + 1 + 1 = 3 actions cargadas — PDCA phases now reflect closed/verified.
+    expect(screen.getByText(/3 acciones cargadas/i)).toBeInTheDocument();
   });
 
   it('muestra el chip de offline cuando isOnline=false', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
     mockIsOnline = false;
-    mockUseCorrectiveActionsReturn = {
-      data: { actions: [] },
-      loading: false,
-      error: null,
-    };
+    mockOpen = { data: { actions: [] }, loading: false, error: null };
+    mockClosed = { data: { actions: [] }, loading: false, error: null };
+    mockVerified = { data: { actions: [] }, loading: false, error: null };
     render(<CorrectiveActions />);
     expect(
       screen.getByTestId('corrective-actions-offline-chip'),
@@ -129,7 +154,7 @@ describe('<CorrectiveActions /> page wrapper (Fase F.4)', () => {
 
   it('muestra error con el mensaje del hook', () => {
     mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
-    mockUseCorrectiveActionsReturn = {
+    mockOpen = {
       data: null,
       loading: false,
       error: new Error('Network down'),

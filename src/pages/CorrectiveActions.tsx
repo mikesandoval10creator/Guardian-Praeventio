@@ -80,12 +80,26 @@ export function CorrectiveActions() {
   const isOnline = useOnlineStatus();
   const projectId = selectedProject?.id ?? null;
 
-  const { data, loading, error } = useCorrectiveActions(projectId, { status: 'open' });
+  // Codex P2 (PR #309): fetch every PDCA status (open + closed + verified),
+  // not just 'open'. The panel computes Plan-Do-Check-Act phase counts,
+  // closure rate, status filters, and the schedule-effectiveness-review
+  // CTA from the FULL `actions` prop. Requesting only `open` would make
+  // the dashboard always show 0 closed/verified and a flat 0% closure
+  // rate — misleading for projects that already completed acciones.
+  const openResp = useCorrectiveActions(projectId, { status: 'open' });
+  const closedResp = useCorrectiveActions(projectId, { status: 'closed' });
+  const verifiedResp = useCorrectiveActions(projectId, { status: 'verified' });
+
+  const loading =
+    openResp.loading || closedResp.loading || verifiedResp.loading;
+  const error = openResp.error || closedResp.error || verifiedResp.error;
 
   const records: CorrectiveActionRecord[] = useMemo(() => {
-    const legacyActions = (data?.actions ?? []) as CorrectiveAction[];
-    return legacyActions.map(promote);
-  }, [data]);
+    const open = (openResp.data?.actions ?? []) as CorrectiveAction[];
+    const closed = (closedResp.data?.actions ?? []) as CorrectiveAction[];
+    const verified = (verifiedResp.data?.actions ?? []) as CorrectiveAction[];
+    return [...open, ...closed, ...verified].map(promote);
+  }, [openResp.data, closedResp.data, verifiedResp.data]);
 
   const handleScheduleReview = (entry: EffectivenessReviewEntry) => {
     // Wire to a Cloud Function in a follow-up; for now we just log so
