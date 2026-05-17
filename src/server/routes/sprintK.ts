@@ -10151,6 +10151,129 @@ function startOfIsoWeek(now: Date): Date {
  *   - all      = list everything (200 cap)
  */
 router.get('/:projectId/driving/routes', verifyAuth, async (req, res) => {
+// Sprint K §244-250 — Aprendices + Mentoría + Autorización Progresiva
+// ─────────────────────────────────────────────────────────────────────
+//
+// Aprendices y trabajadores nuevos NO deben tener la misma autonomía
+// que un veterano. Este bloque expone el motor determinístico que vive
+// en `services/apprenticeship/apprenticeshipProgressService.ts`:
+//
+//   GET  /:projectId/apprentices                       — lista aprendices
+//   POST /:projectId/apprentices                       — registra aprendiz
+//   POST /:projectId/apprentices/:uid/authorize        — sube nivel
+//   POST /:projectId/apprentices/:uid/expose           — registra exposición
+//   GET  /:projectId/mentors/availability              — carga por mentor
+//
+// Storage canónico:
+//   tenants/{tid}/projects/{pid}/apprentices/{workerUid}
+//   tenants/{tid}/projects/{pid}/apprentices/{workerUid}/exposures/{id}
+//
+// Patrón guard + safeRead consistente con leadership/decisions arriba.
+
+const APPRENTICE_AUTH_LEVELS = [
+  'none',
+  'observer',
+  'supervised',
+  'autonomous',
+] as const;
+type ApprenticeAuthLevelAPI = (typeof APPRENTICE_AUTH_LEVELS)[number];
+
+/**
+ * Bridge entre el shape público (UI/sidebar) y el shape canónico del
+ * servicio (`AuthorizationLevel = 'observer'|'supervised'|'autonomous'`).
+ * 'none' representa un aprendiz registrado pero sin haber observado
+ * todavía ninguna ejecución — más explícito que ausencia del campo y
+ * más fácil de pintar en la UI.
+ */
+const APPRENTICE_ROLES = [
+  'aprendiz',
+  'nuevo_ingreso',
+  'practicante',
+  'trabajador_general',
+] as const;
+type ApprenticeRoleAPI = (typeof APPRENTICE_ROLES)[number];
+
+interface StoredApprentice {
+  workerUid: string;
+  mentorUid: string;
+  /** Rol explícito para la UI (sidebar muestra solo aprendices, no veteranos). */
+  role: ApprenticeRoleAPI;
+  /** ISO-8601 inicio del programa. */
+  startDate: string;
+  /** Nivel global actual (más alto entre todas las tareas autorizadas). */
+  currentLevel: ApprenticeAuthLevelAPI;
+  /** Tarea → nivel. Espejo del shape del servicio. */
+  taskAuthorizations: Record<string, ApprenticeAuthLevelAPI>;
+  /** % progreso a `autonomous` (0..100). Calculado server-side. */
+  progress: number;
+  /** Las 5 exposiciones más recientes para la card. */
+  recentExposures: Array<{
+    id: string;
+    taskKind: string;
+    recordedAt: string;
+    supervisedBy: string;
+    outcome: 'success' | 'partial' | 'unsafe';
+  }>;
+  createdAt: string;
+  createdBy: string;
+  updatedAt?: string;
+}
+
+interface StoredExposure {
+  id: string;
+  workerUid: string;
+  taskKind: string;
+  /** UID del supervisor / mentor presente. */
+  supervisedBy: string;
+  /** ISO-8601 cuándo se ejecutó. */
+  recordedAt: string;
+  outcome: 'success' | 'partial' | 'unsafe';
+  notes?: string;
+  createdAt: string;
+  createdBy: string;
+}
+
+/**
+ * Calcula el "currentLevel" derivado del mapa por tarea. Si no hay
+ * autorizaciones, el aprendiz está en 'none'. Si hay autonomous en
+ * alguna tarea, el level reporta autonomous (la mayor capacidad
+ * habilitada). Esto es solo para la card — la decisión real de
+ * `canExecuteTask` sigue siendo por tarea.
+ */
+function deriveCurrentLevel(
+  taskAuths: Record<string, ApprenticeAuthLevelAPI> | undefined,
+): ApprenticeAuthLevelAPI {
+  if (!taskAuths) return 'none';
+  const levels = Object.values(taskAuths);
+  if (levels.length === 0) return 'none';
+  if (levels.includes('autonomous')) return 'autonomous';
+  if (levels.includes('supervised')) return 'supervised';
+  if (levels.includes('observer')) return 'observer';
+  return 'none';
+}
+
+/**
+ * Progreso 0..100 hacia autonomía. Pondera tareas por nivel:
+ *   observer = 33%, supervised = 66%, autonomous = 100%, none = 0%.
+ * Promedia sobre el total de tareas conocidas. Si no hay tareas,
+ * 0%. Esto es ilustrativo (barra de progreso) — no decide nada.
+ */
+function deriveProgress(
+  taskAuths: Record<string, ApprenticeAuthLevelAPI> | undefined,
+): number {
+  if (!taskAuths) return 0;
+  const entries = Object.entries(taskAuths);
+  if (entries.length === 0) return 0;
+  const points = entries.reduce((sum, [, lvl]) => {
+    if (lvl === 'autonomous') return sum + 100;
+    if (lvl === 'supervised') return sum + 66;
+    if (lvl === 'observer') return sum + 33;
+    return sum;
+  }, 0);
+  return Math.round(points / entries.length);
+}
+
+router.get('/:projectId/apprentices', verifyAuth, async (req, res) => {
   const callerUid = req.user!.uid;
   const { projectId } = req.params;
   const g = await guard(callerUid, projectId, res);
@@ -10160,6 +10283,9 @@ router.get('/:projectId/driving/routes', verifyAuth, async (req, res) => {
     const statusRaw = typeof req.query.status === 'string' ? req.query.status : 'all';
     const status: 'active' | 'critical' | 'all' =
       statusRaw === 'active' || statusRaw === 'critical' ? statusRaw : 'all';
+    const baseRef = db.collection(
+      `tenants/${g.tenantId}/projects/${projectId}/apprentices`,
+    );
 
     const safeRead = async <T,>(
       label: string,
@@ -10191,6 +10317,7 @@ router.get('/:projectId/driving/routes', verifyAuth, async (req, res) => {
         return await fn();
       } catch (err) {
         logger.warn?.(`sprintK.trends.${label}.read_failed`, err);
+        logger.warn?.(`sprintK.apprentices.read.${label}.failed`, err);
         return [];
       }
     };
@@ -10216,6 +10343,61 @@ router.get('/:projectId/driving/routes', verifyAuth, async (req, res) => {
   } catch (err) {
     logger.error?.('sprintK.driving.routes.list.error', err);
     captureRouteError(err, 'sprintK.driving.routes.list');
+    const apprentices = await safeRead<StoredApprentice>(
+      'apprentices',
+      async () => {
+        const snap = await baseRef.limit(500).get();
+        // Hydrate every apprentice with their recent exposures so the
+        // card render is single-pass. Limited to last 5 per apprentice
+        // to keep the response bounded.
+        const hydrated = await Promise.all(
+          snap.docs.map(async (d) => {
+            const data = d.data() as Omit<
+              StoredApprentice,
+              'workerUid' | 'recentExposures' | 'currentLevel' | 'progress'
+            > & {
+              currentLevel?: ApprenticeAuthLevelAPI;
+              progress?: number;
+              taskAuthorizations?: Record<string, ApprenticeAuthLevelAPI>;
+            };
+            const exposuresSnap = await baseRef
+              .doc(d.id)
+              .collection('exposures')
+              .orderBy('recordedAt', 'desc')
+              .limit(5)
+              .get()
+              .catch(() => null);
+            const recentExposures =
+              exposuresSnap?.docs.map((e) => {
+                const ed = e.data() as Omit<StoredExposure, 'id'>;
+                return {
+                  id: e.id,
+                  taskKind: ed.taskKind,
+                  recordedAt: ed.recordedAt,
+                  supervisedBy: ed.supervisedBy,
+                  outcome: ed.outcome,
+                };
+              }) ?? [];
+            const taskAuthorizations = data.taskAuthorizations ?? {};
+            return {
+              ...data,
+              workerUid: d.id,
+              taskAuthorizations,
+              currentLevel:
+                data.currentLevel ?? deriveCurrentLevel(taskAuthorizations),
+              progress: data.progress ?? deriveProgress(taskAuthorizations),
+              recentExposures,
+            } as StoredApprentice;
+          }),
+        );
+        return hydrated;
+      },
+    );
+
+    return res.json({ apprentices });
+  } catch (err) {
+    logger.error?.('sprintK.apprentices.list.error', err);
+    captureRouteError(err, 'sprintK.apprentices.list');
     return res.status(500).json({ error: 'internal_error' });
   }
 });
@@ -10228,6 +10410,21 @@ router.post(
     const callerUid = req.user!.uid;
     const { projectId } = req.params;
     const body = req.body as z.infer<typeof drivingRouteCreateSchema>;
+const apprenticeRegisterSchema = z.object({
+  uid: z.string().min(1).max(120),
+  mentorUid: z.string().min(1).max(120),
+  role: z.enum(APPRENTICE_ROLES).default('aprendiz'),
+  startDate: z.string().min(10),
+});
+
+router.post(
+  '/:projectId/apprentices',
+  verifyAuth,
+  validate(apprenticeRegisterSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof apprenticeRegisterSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
     try {
@@ -10791,6 +10988,48 @@ router.post(
       if (payload.allowsIdentity) {
         payload.reporterUid = callerUid;
       }
+      const apprenticeRef = db
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/apprentices`,
+        )
+        .doc(body.uid);
+
+      // Mentor load cap: §245 — un mentor no puede llevar más de 3
+      // aprendices simultáneos. Validamos al servidor para que ningún
+      // cliente pueda saltarse la regla escribiendo Firestore directo.
+      const currentLoadSnap = await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/apprentices`)
+        .where('mentorUid', '==', body.mentorUid)
+        .get()
+        .catch(() => null);
+      if (currentLoadSnap && currentLoadSnap.size >= 3) {
+        // Si el aprendiz ya existía bajo este mentor, NO contamos como
+        // nuevo (update de metadata). Solo bloqueamos altas reales.
+        const alreadyAssigned = currentLoadSnap.docs.some(
+          (d) => d.id === body.uid,
+        );
+        if (!alreadyAssigned) {
+          return res.status(409).json({
+            error: 'mentor_at_capacity',
+            mentorUid: body.mentorUid,
+            currentLoad: currentLoadSnap.size,
+          });
+        }
+      }
+
+      const payload: StoredApprentice = {
+        workerUid: body.uid,
+        mentorUid: body.mentorUid,
+        role: body.role,
+        startDate: body.startDate,
+        currentLevel: 'none',
+        taskAuthorizations: {},
+        progress: 0,
+        recentExposures: [],
+        createdAt: now,
+        createdBy: callerUid,
+      };
+      // Stripped of `undefined` keys — Firestore rejects them.
       const cleaned: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(payload)) {
         if (v !== undefined) cleaned[k] = v;
@@ -10811,6 +11050,85 @@ router.post(
     } catch (err) {
       logger.error?.('sprintK.confidential.create.error', err);
       captureRouteError(err, 'sprintK.confidential.create');
+      await apprenticeRef.set(cleaned, { merge: true });
+      return res.status(201).json({ ok: true, apprentice: payload });
+    } catch (err) {
+      logger.error?.('sprintK.apprentices.register.error', err);
+      captureRouteError(err, 'sprintK.apprentices.register');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const apprenticeAuthorizeSchema = z.object({
+  taskKind: z.string().min(1).max(200),
+  toLevel: z.enum(['observer', 'supervised', 'autonomous']),
+  /** Mentor que firma el avance. Server cruza con el mentorUid registrado. */
+  signedByUid: z.string().min(1).max(120),
+  /** Evidencia libre (ej: "10 ejecuciones supervisadas sin incidentes"). */
+  evidence: z.string().min(3).max(2000),
+});
+
+router.post(
+  '/:projectId/apprentices/:uid/authorize',
+  verifyAuth,
+  validate(apprenticeAuthorizeSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, uid } = req.params;
+    const body = req.body as z.infer<typeof apprenticeAuthorizeSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const apprenticeRef = db
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/apprentices`,
+        )
+        .doc(uid);
+      const snap = await apprenticeRef.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'apprentice_not_found' });
+      }
+      const stored = snap.data() as StoredApprentice;
+      // Validamos que el firmante sea el mentor registrado — esto
+      // cierra §245-247 (la autorización requiere firma del mentor).
+      if (stored.mentorUid !== body.signedByUid) {
+        return res.status(403).json({ error: 'signer_is_not_mentor' });
+      }
+      const nextAuths: Record<string, ApprenticeAuthLevelAPI> = {
+        ...(stored.taskAuthorizations ?? {}),
+        [body.taskKind]: body.toLevel,
+      };
+      const update: Partial<StoredApprentice> = {
+        taskAuthorizations: nextAuths,
+        currentLevel: deriveCurrentLevel(nextAuths),
+        progress: deriveProgress(nextAuths),
+        updatedAt: now,
+      };
+      await apprenticeRef.set(update, { merge: true });
+      // Trail of authorizations — separate subcollection so the
+      // apprentice doc stays compact and the audit log can grow.
+      await apprenticeRef.collection('authorizations').add({
+        taskKind: body.taskKind,
+        toLevel: body.toLevel,
+        signedByUid: body.signedByUid,
+        evidence: body.evidence,
+        recordedAt: now,
+        recordedBy: callerUid,
+      });
+      return res.status(200).json({
+        ok: true,
+        workerUid: uid,
+        taskKind: body.taskKind,
+        toLevel: body.toLevel,
+        currentLevel: update.currentLevel,
+        progress: update.progress,
+      });
+    } catch (err) {
+      logger.error?.('sprintK.apprentices.authorize.error', err);
+      captureRouteError(err, 'sprintK.apprentices.authorize');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -10931,6 +11249,60 @@ router.post(
     } catch (err) {
       logger.error?.('sprintK.confidential.close.error', err);
       captureRouteError(err, 'sprintK.confidential.close');
+const apprenticeExposeSchema = z.object({
+  taskKind: z.string().min(1).max(200),
+  supervisedBy: z.string().min(1).max(120),
+  outcome: z.enum(['success', 'partial', 'unsafe']),
+  recordedAt: z.string().min(10).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/:projectId/apprentices/:uid/expose',
+  verifyAuth,
+  validate(apprenticeExposeSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, uid } = req.params;
+    const body = req.body as z.infer<typeof apprenticeExposeSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const apprenticeRef = db
+        .collection(
+          `tenants/${g.tenantId}/projects/${projectId}/apprentices`,
+        )
+        .doc(uid);
+      const snap = await apprenticeRef.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'apprentice_not_found' });
+      }
+      const id = `exp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const exposure: StoredExposure = {
+        id,
+        workerUid: uid,
+        taskKind: body.taskKind,
+        supervisedBy: body.supervisedBy,
+        outcome: body.outcome,
+        recordedAt: body.recordedAt ?? now,
+        notes: body.notes,
+        createdAt: now,
+        createdBy: callerUid,
+      };
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(exposure)) {
+        if (v !== undefined) cleaned[k] = v;
+      }
+      await apprenticeRef.collection('exposures').doc(id).set(cleaned);
+      // Touch parent doc so listing reflects activity (and reads of
+      // recentExposures are consistent on the next GET).
+      await apprenticeRef.set({ updatedAt: now }, { merge: true });
+      return res.status(201).json({ ok: true, exposure });
+    } catch (err) {
+      logger.error?.('sprintK.apprentices.expose.error', err);
+      captureRouteError(err, 'sprintK.apprentices.expose');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
@@ -10938,6 +11310,7 @@ router.post(
 
 router.get(
   '/:projectId/confidential-reports/retaliation-alerts',
+  '/:projectId/mentors/availability',
   verifyAuth,
   async (req, res) => {
     const callerUid = req.user!.uid;
@@ -11026,10 +11399,75 @@ router.get(
     } catch (err) {
       logger.error?.('sprintK.confidential.retaliation.error', err);
       captureRouteError(err, 'sprintK.confidential.retaliation');
+      const db = admin.firestore();
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T[]>,
+      ): Promise<T[]> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.mentors.availability.read.${label}.failed`, err);
+          return [];
+        }
+      };
+
+      const apprentices = await safeRead<StoredApprentice>(
+        'apprentices',
+        async () => {
+          const snap = await db
+            .collection(
+              `tenants/${g.tenantId}/projects/${projectId}/apprentices`,
+            )
+            .limit(500)
+            .get();
+          return snap.docs.map((d) => ({
+            ...(d.data() as Omit<StoredApprentice, 'workerUid'>),
+            workerUid: d.id,
+          }));
+        },
+      );
+
+      // Aggregate apprentices per mentor.
+      const byMentor = new Map<
+        string,
+        { mentorUid: string; apprenticeUids: string[]; load: number }
+      >();
+      for (const a of apprentices) {
+        const entry = byMentor.get(a.mentorUid) ?? {
+          mentorUid: a.mentorUid,
+          apprenticeUids: [],
+          load: 0,
+        };
+        entry.apprenticeUids.push(a.workerUid);
+        entry.load = entry.apprenticeUids.length;
+        byMentor.set(a.mentorUid, entry);
+      }
+
+      const MAX = 3;
+      const mentors = Array.from(byMentor.values()).map((m) => ({
+        mentorUid: m.mentorUid,
+        apprenticeUids: m.apprenticeUids,
+        currentLoad: m.load,
+        maxLoad: MAX,
+        available: m.load < MAX,
+        availableSlots: Math.max(0, MAX - m.load),
+      }));
+      // Sort: available mentors first, then by load asc.
+      mentors.sort((a, b) => {
+        if (a.available !== b.available) return a.available ? -1 : 1;
+        return a.currentLoad - b.currentLoad;
+      });
+
+      return res.json({ mentors, maxLoad: MAX });
+    } catch (err) {
+      logger.error?.('sprintK.mentors.availability.error', err);
+      captureRouteError(err, 'sprintK.mentors.availability');
       return res.status(500).json({ error: 'internal_error' });
     }
   },
 );
+<<<<<<< HEAD
     // Incidents pueden vivir top-level (filtrados por projectId, según
     // backgroundTriggers.ts:374) o anidados en
     // `tenants/{tid}/projects/{pid}/incidents`. Leemos ambos paths y
@@ -11183,5 +11621,7 @@ router.get(
   }
 });
 
+=======
+>>>>>>> ca8e4b8b (feat(apprentices): §244-250 Aprendices + Mentoría + Autorización Progresiva — endpoint + hook + page wired)
 
 export default router;
