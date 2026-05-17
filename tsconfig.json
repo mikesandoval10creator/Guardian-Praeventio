@@ -33,7 +33,8 @@
     "strictFunctionTypes": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "noImplicitAny": true
   },
   "include": ["src", "server.ts"],
   "exclude": ["node_modules", "dist"]

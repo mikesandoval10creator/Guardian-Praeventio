@@ -38,13 +38,13 @@ function makeNasaResponse(samples: {
   };
 }
 
-function mockFetch(response: unknown, status = 200): typeof fetch {
+function mockFetch(response: unknown, status = 200): typeof globalThis.fetch {
   return vi.fn(async () =>
     new Response(JSON.stringify(response), {
       status,
       headers: { 'content-type': 'application/json' },
     }),
-  ) as unknown as typeof fetch;
+  ) as unknown as typeof globalThis.fetch;
 }
 
 describe('nasaKeyToIso', () => {
@@ -219,7 +219,7 @@ describe('NasaPowerAdapter — fetchClimate', () => {
       return new Response(JSON.stringify(makeNasaResponse({ T2M: { '2026051200': 10 } })), {
         status: 200,
       });
-    }) as unknown as typeof fetch;
+    }) as unknown as typeof globalThis.fetch;
     const adapter = new NasaPowerAdapter({ httpClient: fetch, now: fakeNow });
     const series = await adapter.fetchClimate({
       latitude: -33.45,
@@ -233,7 +233,7 @@ describe('NasaPowerAdapter — fetchClimate', () => {
   it('lanza tras 3 fallos consecutivos', async () => {
     const fetch = vi.fn(async () =>
       new Response('down', { status: 500 }),
-    ) as unknown as typeof fetch;
+    ) as unknown as typeof globalThis.fetch;
     const adapter = new NasaPowerAdapter({ httpClient: fetch, now: fakeNow });
     await expect(
       adapter.fetchClimate({ latitude: -33.45, longitude: -70.66, parameters: ['T2M'] }),
@@ -245,7 +245,7 @@ describe('NasaPowerAdapter — fetchClimate', () => {
     const fetch = vi.fn(async () => {
       calls += 1;
       return new Response('bad request', { status: 400 });
-    }) as unknown as typeof fetch;
+    }) as unknown as typeof globalThis.fetch;
     const adapter = new NasaPowerAdapter({ httpClient: fetch, now: fakeNow });
     await expect(
       adapter.fetchClimate({ latitude: -33.45, longitude: -70.66, parameters: ['T2M'] }),
