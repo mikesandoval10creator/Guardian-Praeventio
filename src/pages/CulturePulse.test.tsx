@@ -283,4 +283,35 @@ describe('<CulturePulse /> page wrapper (Sprint K §61-63)', () => {
       screen.queryByTestId('culture-pulse-punitive-flag'),
     ).not.toBeInTheDocument();
   });
+
+  // Codex P2 #2 round 2 (PR #323) — future-scheduled survey must NOT render
+  // active banner / response CTA. The server enforces this via
+  // `effectiveStatus` requiring `openAt <= now < closeAt`; when the server
+  // returns `status='closed'` (because openAt is in the future), the page
+  // must not surface a "Responder encuesta" CTA the respond endpoint would
+  // then reject with `survey_not_open`.
+  it('no muestra CTA de respuesta cuando status=closed (encuesta futura)', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const snap = emptySnapshot();
+    snap.snapshot.surveyId = 'pulse-jul';
+    // Server already mapped status -> closed because openAt is future.
+    snap.snapshot.status = 'closed';
+    snap.snapshot.openAt = '2027-07-01T00:00:00Z';
+    snap.snapshot.closeAt = '2027-07-31T00:00:00Z';
+    snap.snapshot.totalResponses = 0;
+    snap.snapshot.hasResponded = false;
+    mockPulse = {
+      data: snap,
+      loading: false,
+      error: null,
+      refetch: refetchPulse,
+    };
+    render(<CulturePulse />);
+    expect(
+      screen.queryByTestId('culture-pulse-active-banner'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('culture-pulse-respond-btn'),
+    ).not.toBeInTheDocument();
+  });
 });

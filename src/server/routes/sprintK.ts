@@ -6785,12 +6785,28 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
     const nowIso = new Date().toISOString();
     let surveyDoc: admin.firestore.QueryDocumentSnapshot | null = null;
 
-    // Prefer the most recent OPEN survey whose window hasn't expired.
+    // Codex P2 #2 round 2 (PR #323, line 5318) — Prefer the most recent OPEN
+    // survey whose window is CURRENTLY LIVE (openAt <= now < closeAt). The
+    // query orders by openAt desc, so a future-scheduled survey (status='open'
+    // since closeAt is in the future) would otherwise shadow a currently
+    // running one. We must require BOTH:
+    //   (a) openAt <= nowIso — the survey has actually started
+    //   (b) nowIso < closeAt — the survey has not yet expired
+    //
+    // Without (a), a survey scheduled for next month appears as the active
+    // pulse and the UI shows a CTA the respond endpoint then rejects with
+    // `survey_not_open` (line 5611), confusing the user.
     const openDocs = await fetchSurveyOrdered('open', 'openAt');
     if (openDocs && openDocs.length > 0) {
       const liveOpen = openDocs.find((d) => {
+        const openAt = d.get('openAt');
         const closeAt = d.get('closeAt');
-        return typeof closeAt === 'string' && nowIso < closeAt;
+        return (
+          typeof openAt === 'string' &&
+          typeof closeAt === 'string' &&
+          openAt <= nowIso &&
+          nowIso < closeAt
+        );
       });
       surveyDoc = liveOpen ?? null;
     }
@@ -6801,11 +6817,18 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
       if (closedDocs && closedDocs.length > 0) {
         surveyDoc = closedDocs[0];
       } else {
-        // Last-resort fallback: an "open" survey whose window expired but
-        // admin never flipped status — surface it as last snapshot so the
-        // dashboard isn't blank. We treat it as 'closed' in the response.
+        // Last-resort fallback: an "open" survey whose window has ALREADY
+        // PASSED (closeAt < now) but admin never flipped status — surface it
+        // as last snapshot so the dashboard isn't blank. We treat it as
+        // 'closed' in the response. We do NOT surface future-scheduled
+        // surveys here (openAt > now) because those have never collected
+        // responses and a blank "open" banner would be misleading.
         if (openDocs && openDocs.length > 0) {
-          surveyDoc = openDocs[0];
+          const expired = openDocs.find((d) => {
+            const closeAt = d.get('closeAt');
+            return typeof closeAt === 'string' && closeAt <= nowIso;
+          });
+          if (expired) surveyDoc = expired;
         }
       }
     }
@@ -6840,11 +6863,23 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
     const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
     const surveyId = surveyDoc.id;
 
-    // Determine the effective status: if persisted status is 'open' but
-    // closeAt has passed, expose it as 'closed' to clients so the page
-    // never shows an expired survey as the "active" banner CTA.
+    // Codex P1 #1 + P2 #2 round 2 (PR #323, line 5318) — Determine the
+    // effective status. Required conditions for "open":
+    //   - persisted status === 'open' (admin hasn't explicitly closed)
+    //   - openAt has been reached (the wave has started)
+    //   - closeAt has NOT been reached (the wave hasn't expired)
+    //
+    // Without the openAt check, a future-scheduled wave appears as the
+    // active pulse with a CTA the respond endpoint then rejects with
+    // `survey_not_open`. Without the closeAt check, expired waves keep
+    // showing the response CTA. Both must be enforced at read time —
+    // never trust the persisted creation-time status alone.
     const effectiveStatus: 'open' | 'closed' =
-      survey.status === 'open' && nowIso < survey.closeAt ? 'open' : 'closed';
+      survey.status === 'open' &&
+      survey.openAt <= nowIso &&
+      nowIso < survey.closeAt
+        ? 'open'
+        : 'closed';
 
     // Read all responses for aggregation.
     const responsesSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
