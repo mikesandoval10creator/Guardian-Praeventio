@@ -3036,5 +3036,300 @@ router.post(
     }
   },
 );
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.20 — Gestor de Simulacros
+// ─────────────────────────────────────────────────────────────────────
+//
+// Wires the deterministic `drillsManager` service to a project-scoped
+// CRUD surface so the prevencionista can:
+//   1. Planificar el próximo simulacro (DS 132 / DS 594 calendar).
+//   2. Registrar la ejecución (participantes, tiempos, brechas).
+//   3. Ver el reporte de preparación (excellent → critical) calculado
+//      por `evaluateDrillResult` — sin LLM, 100% determinístico.
+//
+// Storage path: `tenants/{tid}/projects/{pid}/drills/{drillId}`.
+// One document per simulacro: holds the plan, optional execution
+// payload, and the cached `DrillReadinessReport` (recomputed on each
+// execute call so a re-grading reflects fresh data).
+//
+// Status machine (server-authoritative):
+//   planned       → on plan()
+//   in_progress   → manual transition (out of scope for now; reserved)
+//   completed     → on execute() once result is recorded
+//   cancelled     → manual transition (out of scope; reserved)
+
+const DRILL_KINDS = [
+  'evacuation',
+  'fire',
+  'spill_chemical',
+  'first_aid',
+  'rescue_confined',
+  'rescue_height',
+  'gas_leak',
+  'earthquake',
+] as const;
+type DrillKind = (typeof DRILL_KINDS)[number];
+
+const DRILL_STATUSES = [
+  'planned',
+  'in_progress',
+  'completed',
+  'cancelled',
+] as const;
+type DrillStatus = (typeof DRILL_STATUSES)[number];
+
+interface StoredDrill {
+  id: string;
+  kind: DrillKind;
+  scheduledAt: string;
+  responsibleUid: string;
+  status: DrillStatus;
+  title?: string;
+  location?: string;
+  expectedCount?: number;
+  benchmarkSeconds?: number;
+  createdAt: string;
+  createdBy: string;
+  // Execution + report (populated on execute()).
+  executedAt?: string;
+  participantCount?: number;
+  responseTimeSeconds?: number;
+  observedGaps?: string[];
+  requiredExternal?: boolean;
+  notes?: string;
+  report?: {
+    participationRate: number;
+    speedDeficitPercent: number;
+    level: 'excellent' | 'good' | 'needs_improvement' | 'critical';
+    recommendations: string[];
+  };
+}
+
+router.get('/:projectId/drills', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const status =
+      typeof req.query.status === 'string' &&
+      (DRILL_STATUSES as readonly string[]).includes(req.query.status)
+        ? (req.query.status as DrillStatus)
+        : null;
+    const kind =
+      typeof req.query.kind === 'string' &&
+      (DRILL_KINDS as readonly string[]).includes(req.query.kind)
+        ? (req.query.kind as DrillKind)
+        : null;
+
+    // Best-effort partial read — the page still renders if the query
+    // throws (e.g. missing composite index in a brand-new tenant). The
+    // user sees an empty list instead of a stack trace.
+    const safeRead = async <T,>(fn: () => Promise<T[]>): Promise<T[]> => {
+      try {
+        return await fn();
+      } catch (err) {
+        logger.warn?.('sprintK.drills.list.read_failed', err);
+        return [];
+      }
+    };
+
+    const baseRef = db.collection(
+      `tenants/${g.tenantId}/projects/${projectId}/drills`,
+    );
+
+    const drills = await safeRead<StoredDrill>(async () => {
+      let q: admin.firestore.Query = baseRef;
+      if (status) q = q.where('status', '==', status);
+      if (kind) q = q.where('kind', '==', kind);
+      const snap = await q.limit(200).get();
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<StoredDrill, 'id'>) }));
+    });
+
+    return res.json({ drills });
+  } catch (err) {
+    logger.error?.('sprintK.drills.list.error', err);
+    captureRouteError(err, 'sprintK.drills.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+router.get('/:projectId/drills/:drillId', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId, drillId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const db = admin.firestore();
+    const docRef = db
+      .collection(`tenants/${g.tenantId}/projects/${projectId}/drills`)
+      .doc(drillId);
+    const snap = await docRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ error: 'drill_not_found' });
+    }
+    const drill: StoredDrill = {
+      id: snap.id,
+      ...(snap.data() as Omit<StoredDrill, 'id'>),
+    };
+    return res.json({ drill });
+  } catch (err) {
+    logger.error?.('sprintK.drills.get.error', err);
+    captureRouteError(err, 'sprintK.drills.get');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+const drillPlanSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.enum(DRILL_KINDS),
+  scheduledAt: z.string().min(10),
+  responsibleUid: z.string().min(1),
+  title: z.string().min(1).max(200).optional(),
+  location: z.string().min(1).max(200).optional(),
+  expectedCount: z.number().int().nonnegative().optional(),
+  benchmarkSeconds: z.number().int().positive().optional(),
+});
+
+router.post(
+  '/:projectId/drills/plan',
+  verifyAuth,
+  validate(drillPlanSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof drillPlanSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const now = new Date().toISOString();
+      const payload: StoredDrill = {
+        id: body.id,
+        kind: body.kind,
+        scheduledAt: body.scheduledAt,
+        responsibleUid: body.responsibleUid,
+        status: 'planned',
+        title: body.title,
+        location: body.location,
+        expectedCount: body.expectedCount,
+        benchmarkSeconds: body.benchmarkSeconds,
+        createdAt: now,
+        createdBy: callerUid,
+      };
+      // Strip undefined fields — Firestore rejects them.
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(payload)) {
+        if (v !== undefined) cleaned[k] = v;
+      }
+      await db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/drills`)
+        .doc(body.id)
+        .set(cleaned, { merge: true });
+      return res.status(201).json({ ok: true, drill: payload });
+    } catch (err) {
+      logger.error?.('sprintK.drills.plan.error', err);
+      captureRouteError(err, 'sprintK.drills.plan');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const drillExecuteSchema = z.object({
+  executedAt: z.string().min(10),
+  participantCount: z.number().int().nonnegative(),
+  expectedCount: z.number().int().nonnegative().optional(),
+  responseTimeSeconds: z.number().int().nonnegative(),
+  benchmarkSeconds: z.number().int().positive().optional(),
+  observedGaps: z.array(z.string().min(1).max(500)).max(50).optional(),
+  requiredExternal: z.boolean().optional(),
+  notes: z.string().max(4000).optional(),
+});
+
+router.post(
+  '/:projectId/drills/:drillId/execute',
+  verifyAuth,
+  validate(drillExecuteSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, drillId } = req.params;
+    const body = req.body as z.infer<typeof drillExecuteSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const { evaluateDrillResult } = await import(
+        '../../services/drillsManager/drillsManager.js'
+      );
+      const db = admin.firestore();
+      const docRef = db
+        .collection(`tenants/${g.tenantId}/projects/${projectId}/drills`)
+        .doc(drillId);
+      const snap = await docRef.get();
+      if (!snap.exists) {
+        return res.status(404).json({ error: 'drill_not_found' });
+      }
+      const existing = snap.data() as Omit<StoredDrill, 'id'>;
+      // Resolve effective values: execute payload overrides plan
+      // defaults for `expectedCount` / `benchmarkSeconds`.
+      const expectedCount =
+        body.expectedCount ?? existing.expectedCount ?? body.participantCount;
+      const benchmarkSeconds =
+        body.benchmarkSeconds ?? existing.benchmarkSeconds ?? body.responseTimeSeconds;
+      const observedGaps = body.observedGaps ?? [];
+      const requiredExternal = body.requiredExternal ?? false;
+
+      const report = evaluateDrillResult({
+        id: drillId,
+        drillKind: existing.kind,
+        executedAt: body.executedAt,
+        participantCount: body.participantCount,
+        expectedCount,
+        responseTimeSeconds: body.responseTimeSeconds,
+        benchmarkSeconds,
+        observedGaps,
+        requiredExternal,
+      });
+
+      const update: Partial<StoredDrill> = {
+        status: 'completed',
+        executedAt: body.executedAt,
+        participantCount: body.participantCount,
+        expectedCount,
+        responseTimeSeconds: body.responseTimeSeconds,
+        benchmarkSeconds,
+        observedGaps,
+        requiredExternal,
+        notes: body.notes,
+        report: {
+          participationRate: report.participationRate,
+          speedDeficitPercent: report.speedDeficitPercent,
+          level: report.level,
+          recommendations: report.recommendations,
+        },
+      };
+      // Strip undefined fields.
+      const cleaned: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(update)) {
+        if (v !== undefined) cleaned[k] = v;
+      }
+      await docRef.set(cleaned, { merge: true });
+
+      // Return the merged drill so the client doesn't need a follow-up
+      // GET to refresh its panel.
+      const after = await docRef.get();
+      const merged: StoredDrill = {
+        id: after.id,
+        ...(after.data() as Omit<StoredDrill, 'id'>),
+      };
+      return res.status(200).json({ ok: true, drill: merged });
+    } catch (err) {
+      logger.error?.('sprintK.drills.execute.error', err);
+      captureRouteError(err, 'sprintK.drills.execute');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;

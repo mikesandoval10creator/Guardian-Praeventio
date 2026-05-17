@@ -79,6 +79,8 @@ const LessonsLearned = lazy(() => import('./pages/LessonsLearned').then(module =
 // sobre incidentes, sin ML). Lazy para que el chunk solo se descargue al
 // entrar a /repeating-risks.
 const RepeatingRisks = lazy(() => import('./pages/RepeatingRisks').then(module => ({ default: module.RepeatingRisks })));
+// Sprint 41 Fase F.20 — Gestor de Simulacros (DS 132 / DS 594).
+const DrillsManager = lazy(() => import('./pages/DrillsManager').then(module => ({ default: module.DrillsManager })));
 const Inbox = lazy(() => import('./pages/Inbox').then(module => ({ default: module.Inbox })));
 const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module => ({ default: module.IncidentBundle })));
 // Sprint 40 Fase F.21 — Panel de Riesgo por Turno (pre-turno). Visible
@@ -157,6 +159,7 @@ function AppRoutes() {
               <Route path="work-permits" element={<WorkPermits />} />
               <Route path="lessons" element={<LessonsLearned />} />
               <Route path="repeating-risks" element={<RepeatingRisks />} />
+              <Route path="drills" element={<DrillsManager />} />
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
@@ -289,6 +292,7 @@ function AppRoutes() {
                     <Route path="work-permits" element={<WorkPermits />} />
                     <Route path="lessons" element={<LessonsLearned />} />
                     <Route path="repeating-risks" element={<RepeatingRisks />} />
+                    <Route path="drills" element={<DrillsManager />} />
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
