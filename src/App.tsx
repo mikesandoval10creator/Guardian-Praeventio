@@ -111,6 +111,10 @@ const PreShiftRisk = lazy(() => import('./pages/PreShiftRisk').then(module => ({
 // Sprint 41 Fase F.16 — Score de Preparación del Trabajador (asistente
 // no-bloqueante). Lazy-loaded; chunked away from the cold-start shell.
 const WorkerReadiness = lazy(() => import('./pages/WorkerReadiness').then(module => ({ default: module.WorkerReadiness })));
+// Sprint K §185-190 — Base de Conocimiento + Curador + Detector de
+// Obsolescencia. Service determinístico ya existía; este lazy import
+// cierra el último eslabón haciéndola navegable desde la sidebar IA.
+const KnowledgeBase = lazy(() => import('./pages/KnowledgeBase').then(module => ({ default: module.KnowledgeBase })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
 const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
 const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
@@ -193,6 +197,7 @@ function AppRoutes() {
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
               <Route path="worker-readiness" element={<WorkerReadiness />} />
+              <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -332,6 +337,7 @@ function AppRoutes() {
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
                     <Route path="worker-readiness" element={<WorkerReadiness />} />
+                    <Route path="knowledge-base" element={<KnowledgeBase />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />
