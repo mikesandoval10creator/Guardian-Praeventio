@@ -76,6 +76,50 @@ describe('POST /api/billing/verify', () => {
       .send({ purchaseToken: 't', productId: 'made-up-plan', type: 'subscription' });
     expect((fs.store.get('users/uid-A') as any).subscription.planId).toBe('comite');
   });
+
+  // Sprint E backend debt (2026-05-16) — `idempotencyKey()` smoke.
+  //
+  // The production handler at `src/server/routes/billing.ts:241` now has
+  // `idempotencyKey()` between `verifyAuth` and the body of the handler
+  // (same pattern as `/checkout`). The middleware is OPT-IN: only kicks
+  // in when the client sends `Idempotency-Key`. The full middleware
+  // semantics are covered in `middleware/idempotencyKey.test.ts`; here we
+  // just verify the wiring — double-call with the same key MUST NOT run
+  // `playVerify` twice and MUST NOT write two `transactions/*` rows.
+  it('idempotency: double-call with same Idempotency-Key replays the cached response', async () => {
+    const playVerify = vi.fn(async () => ({
+      data: {
+        orderId: 'GPA.idem-1',
+        paymentState: 1,
+        expiryTimeMillis: String(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    }));
+    handle = buildTestServer({ firestore: fs, playVerify });
+    fs.store.set('users/uid-A', { name: 'Alice' });
+
+    const send = () =>
+      request(handle.app)
+        .post('/api/billing/verify')
+        .set('Authorization', 'Bearer test:uid-A:a@test.com')
+        .set('Idempotency-Key', 'k-double-verify-001')
+        .send({ purchaseToken: 'tok-idem-1', productId: 'oro', type: 'subscription' });
+
+    const res1 = await send();
+    expect(res1.status).toBe(200);
+    expect(res1.body.success).toBe(true);
+    expect(playVerify).toHaveBeenCalledTimes(1);
+
+    const res2 = await send();
+    expect(res2.status).toBe(200);
+    // Replay header surfaced by the middleware: confirms the cache path,
+    // not the handler path, served this second response.
+    expect(res2.headers['idempotent-replayed']).toBe('true');
+    // CRITICAL: handler did NOT run a second time.
+    expect(playVerify).toHaveBeenCalledTimes(1);
+    // Exactly ONE transactions/* row exists (no duplicate).
+    const txKeys = [...fs.store.keys()].filter((k) => k.startsWith('transactions/'));
+    expect(txKeys).toHaveLength(1);
+  });
 });
 
 describe('POST /api/billing/checkout', () => {
