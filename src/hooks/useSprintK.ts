@@ -783,7 +783,13 @@ export type DrillLevelAPI =
   | 'excellent'
   | 'good'
   | 'needs_improvement'
-  | 'critical';
+  | 'critical'
+  /**
+   * Sin baseline real para gradear: el plan omitió `expectedCount` y/o
+   * `benchmarkSeconds`. La UI muestra "Baseline insuficiente" en vez de
+   * un nivel cuantitativo. (Codex PR #316 P2.)
+   */
+  | 'insufficient_baseline';
 
 export interface DrillRecord {
   id: string;
@@ -804,8 +810,10 @@ export interface DrillRecord {
   requiredExternal?: boolean;
   notes?: string;
   report?: {
-    participationRate: number;
-    speedDeficitPercent: number;
+    /** `null` cuando el baseline `expectedCount` no fue registrado. */
+    participationRate: number | null;
+    /** `null` cuando el baseline `benchmarkSeconds` no fue registrado. */
+    speedDeficitPercent: number | null;
     level: DrillLevelAPI;
     recommendations: string[];
   };

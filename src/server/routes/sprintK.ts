@@ -3098,9 +3098,20 @@ interface StoredDrill {
   requiredExternal?: boolean;
   notes?: string;
   report?: {
-    participationRate: number;
-    speedDeficitPercent: number;
-    level: 'excellent' | 'good' | 'needs_improvement' | 'critical';
+    /**
+     * `null` cuando el baseline (`expectedCount`) no estaba registrado en
+     * el plan y la ejecución tampoco lo aportó. La UI muestra "—" en ese
+     * caso en vez de un porcentaje engañoso. (Codex PR #316 P2.)
+     */
+    participationRate: number | null;
+    /** `null` cuando `benchmarkSeconds` no se registró. */
+    speedDeficitPercent: number | null;
+    level:
+      | 'excellent'
+      | 'good'
+      | 'needs_improvement'
+      | 'critical'
+      | 'insufficient_baseline';
     recommendations: string[];
   };
 }
@@ -3143,7 +3154,11 @@ router.get('/:projectId/drills', verifyAuth, async (req, res) => {
       let q: admin.firestore.Query = baseRef;
       if (status) q = q.where('status', '==', status);
       if (kind) q = q.where('kind', '==', kind);
-      const snap = await q.limit(200).get();
+      // Codex PR #316 P2 (line 1168): ordenar ANTES del limit para que
+      // proyectos con >200 simulacros vean los más recientes. Antes
+      // Firestore devolvía los primeros 200 IDs (ascending) y los
+      // simulacros nuevos quedaban invisibles.
+      const snap = await q.orderBy('createdAt', 'desc').limit(200).get();
       return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<StoredDrill, 'id'>) }));
     });
 
@@ -3270,12 +3285,15 @@ router.post(
         return res.status(404).json({ error: 'drill_not_found' });
       }
       const existing = snap.data() as Omit<StoredDrill, 'id'>;
-      // Resolve effective values: execute payload overrides plan
-      // defaults for `expectedCount` / `benchmarkSeconds`.
-      const expectedCount =
-        body.expectedCount ?? existing.expectedCount ?? body.participantCount;
-      const benchmarkSeconds =
-        body.benchmarkSeconds ?? existing.benchmarkSeconds ?? body.responseTimeSeconds;
+      // Codex PR #316 P2 (line 1300): NO defaulteamos a `participantCount`
+      // / `responseTimeSeconds`. Si el plan no registró `expectedCount`
+      // o `benchmarkSeconds` y la ejecución tampoco los aportó, el
+      // baseline queda `undefined` y `evaluateDrillResult` retorna
+      // `insufficient_baseline` con una recomendación explícita en vez
+      // de calificar como "Excelente" por falta de baseline. La execute
+      // payload sigue pudiendo sobrescribir el plan.
+      const expectedCount = body.expectedCount ?? existing.expectedCount;
+      const benchmarkSeconds = body.benchmarkSeconds ?? existing.benchmarkSeconds;
       const observedGaps = body.observedGaps ?? [];
       const requiredExternal = body.requiredExternal ?? false;
 
@@ -3284,9 +3302,9 @@ router.post(
         drillKind: existing.kind,
         executedAt: body.executedAt,
         participantCount: body.participantCount,
-        expectedCount,
+        ...(typeof expectedCount === 'number' ? { expectedCount } : {}),
         responseTimeSeconds: body.responseTimeSeconds,
-        benchmarkSeconds,
+        ...(typeof benchmarkSeconds === 'number' ? { benchmarkSeconds } : {}),
         observedGaps,
         requiredExternal,
       });

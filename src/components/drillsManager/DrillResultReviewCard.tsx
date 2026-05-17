@@ -24,6 +24,9 @@ const LEVEL_TONE = {
   good: { bg: 'bg-teal-500/10', color: 'text-teal-600', badge: 'bg-teal-500/15 text-teal-700 dark:text-teal-300' },
   needs_improvement: { bg: 'bg-amber-500/10', color: 'text-amber-600', badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
   critical: { bg: 'bg-rose-500/10', color: 'text-rose-600', badge: 'bg-rose-500/15 text-rose-700 dark:text-rose-300' },
+  // Codex PR #316 P2: nivel sin grading real por baseline ausente. Gris
+  // intencional para no confundir con "Excelente" o "Bueno".
+  insufficient_baseline: { bg: 'bg-zinc-500/10', color: 'text-zinc-600', badge: 'bg-zinc-500/15 text-zinc-700 dark:text-zinc-300' },
 } as const;
 
 function formatDuration(sec: number): string {
@@ -42,7 +45,11 @@ export function DrillResultReviewCard({
     [result, precomputedReport],
   );
   const tone = LEVEL_TONE[report.level];
-  const speedIsBetter = report.speedDeficitPercent < 0;
+  // Codex PR #316 P2: `speedDeficitPercent` puede ser `null` cuando
+  // falta `benchmarkSeconds`. Solo evaluamos "mejor que benchmark"
+  // si tenemos un valor real.
+  const speedIsBetter =
+    report.speedDeficitPercent !== null && report.speedDeficitPercent < 0;
 
   return (
     <section
@@ -77,9 +84,14 @@ export function DrillResultReviewCard({
             <Users className="w-3 h-3" aria-hidden="true" />
             {t('drillResult.participation', 'Participación')}
           </p>
-          <p className="text-xl font-black tabular-nums">{report.participationRate}%</p>
+          <p className="text-xl font-black tabular-nums">
+            {report.participationRate !== null
+              ? `${report.participationRate}%`
+              : '—'}
+          </p>
           <p className="text-[9px] text-secondary-token">
-            {result.participantCount}/{result.expectedCount}
+            {result.participantCount}/
+            {result.expectedCount !== undefined ? result.expectedCount : '—'}
           </p>
         </div>
         <div className="bg-surface rounded p-2" data-testid={`drill-result-speed-${result.id}`}>
@@ -90,12 +102,19 @@ export function DrillResultReviewCard({
           <p className="text-xl font-black tabular-nums">
             {formatDuration(result.responseTimeSeconds)}
           </p>
-          <p
-            className={`text-[9px] font-bold ${speedIsBetter ? 'text-emerald-600' : 'text-rose-600'}`}
-          >
-            {speedIsBetter ? '↓' : '↑'}
-            {Math.abs(report.speedDeficitPercent)}% {t('drillResult.vsBenchmark', 'vs benchmark')}
-          </p>
+          {report.speedDeficitPercent !== null ? (
+            <p
+              className={`text-[9px] font-bold ${speedIsBetter ? 'text-emerald-600' : 'text-rose-600'}`}
+            >
+              {speedIsBetter ? '↓' : '↑'}
+              {Math.abs(report.speedDeficitPercent)}%{' '}
+              {t('drillResult.vsBenchmark', 'vs benchmark')}
+            </p>
+          ) : (
+            <p className="text-[9px] font-bold text-zinc-500">
+              {t('drillResult.noBenchmark', 'Sin benchmark registrado')}
+            </p>
+          )}
         </div>
       </div>
 

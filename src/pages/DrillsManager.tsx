@@ -157,6 +157,14 @@ const LEVEL_META: Record<
     color: 'text-rose-600',
     bg: 'bg-rose-500/10 border-rose-500/30',
   },
+  // Codex PR #316 P2: nuevo nivel cuando faltan baselines reales
+  // (`expectedCount` / `benchmarkSeconds`). Se muestra en gris para no
+  // confundirlo con un grading real — no es "Excelente por default".
+  insufficient_baseline: {
+    label: 'Baseline insuficiente',
+    color: 'text-zinc-600',
+    bg: 'bg-zinc-500/10 border-zinc-500/30',
+  },
 };
 
 const KIND_OPTIONS: DrillKindAPI[] = [
@@ -208,6 +216,12 @@ export function DrillsManager() {
   const [kindFilter, setKindFilter] = useState<DrillKindAPI | null>(null);
   const [selectedDrillId, setSelectedDrillId] = useState<string | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  // Codex PR #316 P2 (line 330): banner page-level para fallos de
+  // ejecución. Antes el catch solo logueaba y el modal se cerraba,
+  // descartando lo que el usuario había escrito. Ahora `handleExecute`
+  // re-lanza el error; el modal queda abierto (no se cierra hasta que
+  // resuelve OK) y el banner aparece arriba con el detalle.
+  const [executeError, setExecuteError] = useState<string | null>(null);
 
   // For "all" status we fetch each tracked status independently and merge
   // — the endpoint takes a single optional `status`, so the simplest way
@@ -321,12 +335,25 @@ export function DrillsManager() {
     },
   ) => {
     if (!projectId) return;
+    // Codex PR #316 P2 (line 330): re-lanzamos el error en vez de
+    // silenciarlo. Antes el catch loggeaba y resolvía OK, el
+    // `onExecute` callback continuaba y cerraba el modal — el usuario
+    // pensaba que se había guardado pero perdía lo escrito. Ahora el
+    // page-level banner se actualiza y el modal NO se cierra (el
+    // callback corta antes del `setSelectedDrillId(null)`).
+    setExecuteError(null);
     try {
       await executeDrill(projectId, drillId, payload);
       logger.info('drills.execute.recorded', { projectId, drillId });
       refetchAll();
     } catch (err) {
       logger.error('drills.execute.failed', err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t('drills.execute.errorFallback', 'No se pudo registrar la ejecución.');
+      setExecuteError(msg);
+      throw err;
     }
   };
 
@@ -491,6 +518,40 @@ export function DrillsManager() {
         </div>
       )}
 
+      {executeError && (
+        <div
+          className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-600 dark:text-rose-400 flex items-start gap-3"
+          data-testid="drills-manager-execute-error"
+          role="alert"
+        >
+          <ShieldAlert
+            className="w-4 h-4 mt-0.5 shrink-0"
+            aria-hidden="true"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="font-bold uppercase tracking-widest text-[10px]">
+              {t('drills.page.executeErrorTitle', 'No se registró la ejecución')}
+            </p>
+            <p className="mt-1">
+              {t(
+                'drills.page.executeError',
+                'El simulacro no se guardó: {{msg}}. Tus datos siguen en el formulario — corrige y reintenta.',
+                { msg: executeError },
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setExecuteError(null)}
+            className="text-rose-600 dark:text-rose-400 hover:text-rose-700 shrink-0"
+            aria-label={t('common.close', 'Cerrar')}
+            data-testid="drills-manager-execute-error-dismiss"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {!loading && !error && drills.length === 0 && (
         <div
           className="rounded-2xl border border-default-token bg-surface p-8 text-center"
@@ -598,8 +659,15 @@ export function DrillsManager() {
       {selectedDrill && (
         <DrillDetailModal
           drill={selectedDrill}
-          onClose={() => setSelectedDrillId(null)}
+          onClose={() => {
+            setExecuteError(null);
+            setSelectedDrillId(null);
+          }}
           onExecute={async (payload) => {
+            // Codex PR #316 P2 (line 330): `handleExecute` ahora re-lanza
+            // en fallo. Dejamos que la excepción propague para que el
+            // modal NO se cierre (la línea `setSelectedDrillId(null)` no
+            // se ejecuta) y el banner del page surfacée el error.
             await handleExecute(selectedDrill.id, payload);
             setSelectedDrillId(null);
           }}
@@ -673,6 +741,11 @@ function DrillDetailModal(props: {
         requiredExternal,
         notes: notes.trim().length > 0 ? notes : undefined,
       });
+    } catch {
+      // Codex PR #316 P2 (line 330): el page-level `handleExecute` ya
+      // loguea + setea el banner. Acá solo evitamos la unhandled
+      // rejection y dejamos el modal abierto (no llamamos `onClose`).
+      // El form preserva todo lo que el usuario escribió.
     } finally {
       setSubmitting(false);
     }
@@ -766,12 +839,19 @@ function DrillDetailModal(props: {
               >
                 {LEVEL_META[drill.report.level].label}
               </p>
+              {/* Codex PR #316 P2 (line 1300): participación / velocidad
+                  pueden ser `null` cuando faltó el baseline. Mostramos
+                  "—" en vez de "0%" o "+0%" para no engañar al lector. */}
               <p className="text-xs text-secondary-token mt-1">
                 {t('drills.detail.participation', 'Participación')}:{' '}
-                {drill.report.participationRate}% ·{' '}
+                {drill.report.participationRate !== null
+                  ? `${drill.report.participationRate}%`
+                  : '—'}{' '}
+                ·{' '}
                 {t('drills.detail.speed', 'Velocidad')}:{' '}
-                {drill.report.speedDeficitPercent >= 0 ? '+' : ''}
-                {drill.report.speedDeficitPercent}%
+                {drill.report.speedDeficitPercent !== null
+                  ? `${drill.report.speedDeficitPercent >= 0 ? '+' : ''}${drill.report.speedDeficitPercent}%`
+                  : '—'}
               </p>
               {drill.report.recommendations.length > 0 && (
                 <ul className="mt-2 space-y-1 list-disc list-inside text-xs text-primary-token">

@@ -16,9 +16,13 @@
 // by `Inbox.test.tsx` and `CorrectiveActions.test.tsx`.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { DrillsManager } from './DrillsManager';
 import type { DrillRecord, DrillsResponse } from '../hooks/useSprintK';
+// `executeDrill` is mocked below; we re-grab the spy after `render`
+// so the failure test can assert/reject without coupling the order in
+// the manual mock factory.
+import * as sprintKHooks from '../hooks/useSprintK';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -238,6 +242,61 @@ describe('<DrillsManager /> page wrapper (Fase F.20)', () => {
     };
     render(<DrillsManager />);
     fireEvent.click(screen.getByTestId('drills-card-drill_p1'));
+    expect(screen.getByTestId('drills-detail-modal')).toBeInTheDocument();
+  });
+
+  // Codex PR #316 P2 (DrillsManager.tsx line 330): si `executeDrill`
+  // falla, el catch ya no se debe tragar el error. El modal queda
+  // abierto (no se cierra) y aparece un banner page-level con el
+  // mensaje real para que el usuario no pierda lo escrito.
+  it('cuando executeDrill rechaza, el modal queda abierto y muestra banner de error', async () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena' };
+    const planned = plannedDrill({
+      id: 'drill_p1',
+      // Plan con baselines para que el botón submit no se quede en
+      // estado inválido por NaN al construir el payload.
+      expectedCount: 100,
+      benchmarkSeconds: 240,
+    });
+    mockPlanned = {
+      data: { drills: [planned] },
+      loading: false,
+      error: null,
+    };
+    // Forzar el rechazo del mutador. Usamos `mockImplementationOnce`
+    // sobre el spy ya creado por el factory en `vi.mock` arriba.
+    const executeMock = vi.mocked(sprintKHooks.executeDrill);
+    executeMock.mockRejectedValueOnce(
+      new Error('Network down (firestore unavailable)'),
+    );
+
+    render(<DrillsManager />);
+    fireEvent.click(screen.getByTestId('drills-card-drill_p1'));
+    // El form ya viene pre-llenado con `participantCount` y
+    // `responseTimeSeconds` del drill. Si no, los seteamos.
+    const participants = screen.getByTestId(
+      'drills-detail-participants-input',
+    ) as HTMLInputElement;
+    if (!participants.value || participants.value === 'undefined') {
+      fireEvent.change(participants, { target: { value: '90' } });
+    }
+    const response = screen.getByTestId(
+      'drills-detail-response-input',
+    ) as HTMLInputElement;
+    if (!response.value || response.value === 'undefined') {
+      fireEvent.change(response, { target: { value: '200' } });
+    }
+
+    fireEvent.click(screen.getByTestId('drills-detail-execute-button'));
+
+    // Banner page-level visible con el mensaje real.
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('drills-manager-execute-error'),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Network down/i)).toBeInTheDocument();
+    // Modal sigue abierto — el usuario no perdió lo que escribió.
     expect(screen.getByTestId('drills-detail-modal')).toBeInTheDocument();
   });
 });
