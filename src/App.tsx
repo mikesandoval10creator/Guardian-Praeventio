@@ -87,6 +87,9 @@ const IncidentBundle = lazy(() => import('./pages/IncidentBundle').then(module =
 // para el supervisor antes de iniciar el turno; compone 7 fuentes
 // determinísticas en un score 0-100 + recomendaciones priorizadas.
 const PreShiftRisk = lazy(() => import('./pages/PreShiftRisk').then(module => ({ default: module.PreShiftRisk })));
+// Sprint 41 Fase F.16 — Score de Preparación del Trabajador (asistente
+// no-bloqueante). Lazy-loaded; chunked away from the cold-start shell.
+const WorkerReadiness = lazy(() => import('./pages/WorkerReadiness').then(module => ({ default: module.WorkerReadiness })));
 const GoogleDriveIntegrationManager = lazy(() => import('./pages/GoogleDriveIntegrationManager').then(module => ({ default: module.GoogleDriveIntegrationManager })));
 const ImmutableRender = lazy(() => import('./pages/ImmutableRender').then(module => ({ default: module.ImmutableRender })));
 const WearablesIntegration = lazy(() => import('./pages/WearablesIntegration').then(module => ({ default: module.WearablesIntegration })));
@@ -163,6 +166,7 @@ function AppRoutes() {
               <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
+              <Route path="worker-readiness" element={<WorkerReadiness />} />
               <Route path="*" element={<Dashboard />} />
             </Route>
           </Routes>
@@ -296,6 +300,7 @@ function AppRoutes() {
                     <Route path="inbox" element={<Inbox />} />
               <Route path="incidents/:incidentId/bundle" element={<IncidentBundle />} />
               <Route path="pre-shift-risk" element={<PreShiftRisk />} />
+                    <Route path="worker-readiness" element={<WorkerReadiness />} />
                     <Route path="executive-dashboard" element={<ExecutiveDashboard />} />
                     <Route path="admin/b2d" element={<B2dAdminPanel />} />
                     <Route path="my-data" element={<MyData />} />

@@ -4095,5 +4095,990 @@ router.get('/:projectId/cphs/draft-minute', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.16 — Score de Preparación del Trabajador
+// ─────────────────────────────────────────────────────────────────────
+//
+// Asistente NO BLOQUEANTE. El endpoint cruza:
+//   - Worker doc (projects/{pid}/workers/{workerUid})
+//   - Trainings vigentes desde training_assignments + training top-level
+//   - EPP entregado desde epp_assignments donde assignedTo == workerUid
+//   - Task opcional (projects/{pid}/tasks/{taskId}) para extraer
+//     requiredTrainings/requiredEpp/taskCategory
+//   - Incidentes recientes del trabajador (últimos 90 días) para calcular
+//     `daysSinceLastIncident`
+//
+// Llama `computeReadiness(profile, task)` del servicio inmutable y
+// devuelve el `ReadinessReport` exacto. Si falta data, popula con
+// defaults conservadores (NO inventa: campos vacíos se marcan como
+// gaps reales) — directiva del usuario: "no fabricar timestamps,
+// reportar honestamente."
+//
+// Datos sensibles (medicalAptitudeStatus, fatigueLevel) se leen
+// best-effort: si la colección no existe o está vacía, se asume
+// 'sin_aptitud' y 'low' respectivamente (el peor caso para aptitud,
+// el caso esperado para fatiga sin señal).
+
+router.get(
+  '/:projectId/worker-readiness/:workerUid',
+  verifyAuth,
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, workerUid } = req.params;
+    const taskIdParam =
+      typeof req.query.taskId === 'string' && req.query.taskId.length > 0
+        ? req.query.taskId
+        : null;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const { computeReadiness } = await import(
+        '../../services/workerReadiness/readinessScore.js'
+      );
+      const db = admin.firestore();
+
+      // Best-effort partial reads — one failure per feed degrades to
+      // an empty array / null rather than 500-ing the entire bundle.
+      // Matches the `safeRead` pattern used by the data-quality endpoint.
+      const safeRead = async <T,>(
+        label: string,
+        fn: () => Promise<T>,
+        fallback: T,
+      ): Promise<T> => {
+        try {
+          return await fn();
+        } catch (err) {
+          logger.warn?.(`sprintK.workerReadiness.read.${label}.failed`, err);
+          return fallback;
+        }
+      };
+
+      // Worker doc lives at `projects/{pid}/workers/{workerUid}` per
+      // Workers.tsx line 71. Reading by workerUid as docId rather than
+      // by field equality — that's the contract used by the modal that
+      // edits/creates workers.
+      const workerDocPromise = safeRead(
+        'worker',
+        async () => {
+          const snap = await db
+            .collection('projects')
+            .doc(projectId)
+            .collection('workers')
+            .doc(workerUid)
+            .get();
+          return snap.exists ? (snap.data() as Record<string, unknown>) : null;
+        },
+        null as Record<string, unknown> | null,
+      );
+
+      // Training assignments live in THREE collections (matching the
+      // data-quality scanner pattern at line 665 of this file):
+      //   1. `projects/{pid}/training_assignments` — active live data
+      //      (runConsistencyAudit.ts).
+      //   2. `projects/{pid}/trainings` — written by
+      //      TrainingRecommendations.tsx:104 with `workerId` (NOT
+      //      `workerUid`).
+      //   3. Top-level `training` filtered by projectId + workerUid for
+      //      legacy records.
+      //
+      // Codex PR #315 P2: previously the route only read (1) + (3),
+      // silently missing trainings assigned via the recommendations
+      // flow and falsely scoring those workers as untrained. De-dupe
+      // by document id with first-wins precedence to avoid
+      // double-counting when the same training is referenced from
+      // multiple paths.
+      const trainingsPromise = safeRead(
+        'trainings',
+        async () => {
+          // Codex PR #315 round-2 P2: the top-level `training` collection
+          // identifies workers via the `attendees: string[]` array (see
+          // Training.tsx:193, where `updateDoc` pushes the worker's uid
+          // into `attendees` and flips `status: 'completed'`). The
+          // previous top-level query only used `workerUid` equality and
+          // returned nothing for the canonical Training.tsx happy path,
+          // so trainings actually completed via the Training page were
+          // silently scored as missing. Add a 5th query against the
+          // `attendees` array filtered by `status: 'completed'`.
+          const [
+            nestedSnap,
+            projectTrainingsByUid,
+            projectTrainingsByWorkerId,
+            topSnap,
+            topByAttendees,
+          ] = await Promise.all([
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('training_assignments')
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            // `projects/{pid}/trainings` — TrainingRecommendations writes
+            // `workerId`; some other flows may write `workerUid` as well.
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('trainings')
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            db
+              .collection('projects')
+              .doc(projectId)
+              .collection('trainings')
+              .where('workerId', '==', workerUid)
+              .get()
+              .catch(() => null),
+            db
+              .collection('training')
+              .where('projectId', '==', projectId)
+              .where('workerUid', '==', workerUid)
+              .get()
+              .catch(() => null),
+            // Canonical Training.tsx shape: completed sessions where the
+            // worker's uid appears in `attendees`. Scoped by projectId
+            // for tenant isolation (training docs from other projects in
+            // the same tenant must not leak).
+            db
+              .collection('training')
+              .where('projectId', '==', projectId)
+              .where('status', '==', 'completed')
+              .where('attendees', 'array-contains', workerUid)
+              .get()
+              .catch(() => null),
+          ]);
+          const all = new Map<string, Record<string, unknown>>();
+          if (nestedSnap) {
+            for (const d of nestedSnap.docs) {
+              all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (projectTrainingsByUid) {
+            for (const d of projectTrainingsByUid.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (projectTrainingsByWorkerId) {
+            for (const d of projectTrainingsByWorkerId.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topSnap) {
+            for (const d of topSnap.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topByAttendees) {
+            for (const d of topByAttendees.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          return Array.from(all.values());
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      // EPP assignments — Codex PR #315 P1 (CRITICAL):
+      //
+      // The CANONICAL storage path is `projects/{pid}/epp_assignments`
+      // (per AssignEPPModal.tsx:88 + EPP.tsx:55 + firestore.rules:324
+      // + firebase-blueprint.json:347). The previous implementation only
+      // queried the top-level `epp_assignments` collection, which:
+      //   1. Misses every assignment written by the modal that records
+      //      EPP for workers — `activeEpp` stays empty and the score
+      //      falsely reports missing EPP for every selected worker/task.
+      //   2. Leaks across projects in the same tenant if the same
+      //      `workerUid` ever appears in another project's EPP feed.
+      //
+      // Project-scoped storage carries `workerId` (NOT `workerUid`,
+      // matching the modal's field). We also read top-level
+      // `epp_assignments` filtered by projectId for the insights.ts
+      // legacy shape (line 215 of that file) — both shapes coexist.
+      // De-dupe by document id with project-nested first-wins (the
+      // canonical store) so legacy records never overwrite a doc that
+      // the modal is the source of truth for.
+      const eppPromise = safeRead(
+        'epp',
+        async () => {
+          const [nestedByWorkerId, nestedByWorkerUid, topByUid, topByAssignedTo] =
+            await Promise.all([
+              // Canonical: `projects/{pid}/epp_assignments` with `workerId`.
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('epp_assignments')
+                .where('workerId', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // Same nested path, alternate field name (some flows
+              // may write `workerUid` directly).
+              db
+                .collection('projects')
+                .doc(projectId)
+                .collection('epp_assignments')
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // Top-level legacy (insights.ts:215 shape). Scoped by
+              // projectId to prevent cross-project leakage.
+              db
+                .collection('epp_assignments')
+                .where('projectId', '==', projectId)
+                .where('workerUid', '==', workerUid)
+                .get()
+                .catch(() => null),
+              // Top-level legacy with `assignedTo`. Scoped by projectId.
+              db
+                .collection('epp_assignments')
+                .where('projectId', '==', projectId)
+                .where('assignedTo', '==', workerUid)
+                .get()
+                .catch(() => null),
+            ]);
+          const all = new Map<string, Record<string, unknown>>();
+          if (nestedByWorkerId) {
+            for (const d of nestedByWorkerId.docs) {
+              all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (nestedByWorkerUid) {
+            for (const d of nestedByWorkerUid.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topByUid) {
+            for (const d of topByUid.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          if (topByAssignedTo) {
+            for (const d of topByAssignedTo.docs) {
+              if (!all.has(d.id)) all.set(d.id, { id: d.id, ...d.data() });
+            }
+          }
+          return Array.from(all.values());
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      // Task (optional). Without a taskId, requirements degrade to an
+      // "any" baseline so the report still renders for a worker-only
+      // self-check — the report just won't have task-specific gaps.
+      const taskPromise = safeRead(
+        'task',
+        async () => {
+          if (!taskIdParam) return null;
+          // Tasks are top-level (`tasks` collection per insights.ts:115),
+          // filtered by projectId — read by docId then assert projectId
+          // for cross-project safety.
+          const snap = await db.collection('tasks').doc(taskIdParam).get();
+          if (!snap.exists) return null;
+          const data = snap.data() as Record<string, unknown>;
+          if (
+            typeof data.projectId === 'string' &&
+            data.projectId !== projectId
+          ) {
+            // Cross-project: refuse silently (treat as no task) rather
+            // than leak. The caller still gets the worker-only baseline.
+            return null;
+          }
+          return { id: snap.id, ...data };
+        },
+        null as Record<string, unknown> | null,
+      );
+
+      // Recent incidents (last 90 days) where the worker was involved.
+      // Used purely to compute `daysSinceLastIncident`.
+      //
+      // Codex PR #315 P1 (CRITICAL): incident docs in this codebase
+      // identify the affected worker with FIVE possible shapes:
+      //   1. `involvedWorkers: string[]` (legacy array)
+      //   2. `affectedWorkerUid: string` (legacy single-uid alias)
+      //   3. `workerUid: string` (canonical — written by the close
+      //      trigger at backgroundTriggers.ts:396)
+      //   4. `workers: [{ uid: string }]` (subdoc shape)
+      //   5. `affectedWorkerUids: string[]` (variant of #1)
+      // The previous filter only accepted (1) + (2), so a worker with a
+      // recent canonical incident silently fell to the 90-day cap and
+      // the score lied about safety history. Iterate ALL shapes.
+      //
+      // Codex PR #315 P2 (#6): in projects with > 200 incidents in the
+      // last 90 days, the previous `.limit(200)` was applied BEFORE the
+      // in-memory worker filter — relevant incidents past the page
+      // boundary were dropped. We need ALL of the worker's recent
+      // incidents to find the most recent one, but we don't want to
+      // page the entire incident collection either.
+      //
+      // Fix: run FOUR Firestore-side filters covering the shapes that
+      // can be queried via `where` (`workerUid`, `affectedWorkerUid`,
+      // `array-contains` on the two array shapes). Each query is itself
+      // limited (50) — the worker-specific bound is small in practice
+      // because each query is already scoped by uid + 90-day date range.
+      // The subdoc `workers: [{ uid }]` shape can't be queried server-
+      // side; we accept the limit there because no current writer in
+      // the codebase produces it (it's listed for forward-compat).
+      const ninetyDaysAgo = new Date(
+        Date.now() - 90 * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const incidentsPromise = safeRead(
+        'incidents',
+        async () => {
+          const baseQuery = db
+            .collection('incidents')
+            .where('projectId', '==', projectId)
+            .where('occurredAt', '>=', ninetyDaysAgo);
+          const [byWorkerUid, byAffectedWorkerUid, byInvolvedWorkers, byAffectedWorkerUids] =
+            await Promise.all([
+              // Shape 3: canonical single-uid field.
+              baseQuery
+                .where('workerUid', '==', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+              // Shape 2: legacy single-uid alias.
+              baseQuery
+                .where('affectedWorkerUid', '==', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+              // Shape 1: legacy array — Firestore array-contains.
+              baseQuery
+                .where('involvedWorkers', 'array-contains', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+              // Shape 5: array variant — Firestore array-contains.
+              baseQuery
+                .where('affectedWorkerUids', 'array-contains', workerUid)
+                .limit(50)
+                .get()
+                .catch(() => null),
+            ]);
+          const all = new Map<string, Record<string, unknown>>();
+          const merge = (snap: FirebaseFirestore.QuerySnapshot | null) => {
+            if (!snap) return;
+            for (const d of snap.docs) {
+              if (!all.has(d.id)) {
+                all.set(d.id, d.data() as Record<string, unknown>);
+              }
+            }
+          };
+          merge(byWorkerUid);
+          merge(byAffectedWorkerUid);
+          merge(byInvolvedWorkers);
+          merge(byAffectedWorkerUids);
+          // Shape 4: subdoc `workers: [{ uid }]` — there's no Firestore
+          // index for nested object fields; the in-memory pass below
+          // catches matches in any other rows that happened to be
+          // pulled by the array-contains queries. Defensive — if a
+          // future writer uses this shape, audit it then.
+          return Array.from(all.values()).filter((data) => {
+            const inv = data.involvedWorkers;
+            if (Array.isArray(inv) && inv.includes(workerUid)) return true;
+            const invUids = data.affectedWorkerUids;
+            if (Array.isArray(invUids) && invUids.includes(workerUid)) return true;
+            if (data.affectedWorkerUid === workerUid) return true;
+            if (data.workerUid === workerUid) return true;
+            const workers = data.workers;
+            if (Array.isArray(workers)) {
+              for (const w of workers) {
+                if (w && typeof w === 'object' && (w as { uid?: string }).uid === workerUid) {
+                  return true;
+                }
+              }
+            }
+            return false;
+          });
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      // Codex PR #315 round-2 P2: completed task history for experience
+      // calculation. Organic tasks are written to the top-level `tasks`
+      // collection (server/routes/organic.ts:278) with `assignedUids:
+      // string[]` and `status: 'done'` + `completedAt` on completion
+      // (organic.ts:386). The previous implementation only read the
+      // worker doc's `experienceByCategory` map — but no code in this
+      // repo WRITES that map, so the count was permanently 0 and every
+      // worker received a false "sin experiencia" gap, even after
+      // completing dozens of tasks in the same category.
+      //
+      // Fix: query `tasks` filtered by projectId + `assignedUids
+      // array-contains workerUid` + `status == 'done'`. We pull all
+      // completed tasks (limit 500 to bound the response — projects
+      // shouldn't realistically exceed this for a single worker's
+      // career, and it's a cheap query). We bucket them by parent
+      // process type AFTER the parallel reads complete (we need to
+      // know each task's process to compute the category).
+      const completedTasksPromise = safeRead(
+        'completedTasks',
+        async () => {
+          const snap = await db
+            .collection('tasks')
+            .where('projectId', '==', projectId)
+            .where('assignedUids', 'array-contains', workerUid)
+            .where('status', '==', 'done')
+            .limit(500)
+            .get();
+          return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Record<string, unknown>));
+        },
+        [] as Array<Record<string, unknown>>,
+      );
+
+      const [worker, trainings, epps, taskDoc, incidents, completedTasks] = await Promise.all([
+        workerDocPromise,
+        trainingsPromise,
+        eppPromise,
+        taskPromise,
+        incidentsPromise,
+        completedTasksPromise,
+      ]);
+
+      if (!worker) {
+        return res.status(404).json({ error: 'worker_not_found' });
+      }
+
+      // Codex PR #315 round-2 P2: fetch the parent process EARLY so it
+      // can drive `taskCategory` AND the experience derivation. The
+      // previous order computed `taskCategory` from the task doc alone
+      // (which carries no `riskCategory`/`category` on organic tasks),
+      // then read processDoc later — too late for the profile.
+      let processDoc: Record<string, unknown> | null = null;
+      if (taskDoc && typeof taskDoc.processId === 'string' && taskDoc.processId.length > 0) {
+        processDoc = await safeRead(
+          'process',
+          async () => {
+            const snap = await db
+              .collection('processes')
+              .doc(taskDoc.processId as string)
+              .get();
+            if (!snap.exists) return null;
+            const data = snap.data() as Record<string, unknown>;
+            // Cross-project safety: refuse silently if mismatched.
+            if (typeof data.projectId === 'string' && data.projectId !== projectId) {
+              return null;
+            }
+            return data;
+          },
+          null as Record<string, unknown> | null,
+        );
+      }
+
+      // ───── Build WorkerProfile (the service contract) ─────
+
+      // Active trainings — Codex PR #315 round-2 P1 (CRITICAL):
+      //
+      // TrainingRecommendations.tsx:81 writes `projects/{pid}/trainings`
+      // with `status: 'assigned'` the moment a supervisor *assigns* a
+      // recommended course — the worker has NOT taken or completed it.
+      // The previous mapper accepted every non-expired record (and even
+      // treated records without an expiry as active), so a worker who
+      // had merely been assigned a critical safety course satisfied the
+      // `requiredTrainings` set and could receive a falsely HIGH
+      // readiness score for tasks like trabajo en altura / soldadura.
+      //
+      // Fix: explicitly EXCLUDE records whose status is one of the known
+      // "not-yet-completed" markers (`assigned`, `pending`, `scheduled`,
+      // `in_progress`, `expired`). Records that have no status at all
+      // remain active (legacy training_assignments don't carry a status
+      // field and have always been considered live — we can't regress
+      // those projects). Records that explicitly say `status: 'completed'`
+      // are active when not expired (the canonical happy path).
+      //
+      // Note: `expired` already filters on date; the status check is
+      // strictly about whether the worker has actually DONE the course.
+      const nowIso = new Date().toISOString();
+      const activeTrainings: string[] = [];
+      const trainingNotCompletedStatuses = new Set<string>([
+        'assigned',
+        'pending',
+        'scheduled',
+        'in_progress',
+        'expired',
+        'cancelled',
+        'canceled',
+        'rejected',
+        'no_show',
+      ]);
+      for (const t of trainings) {
+        const expiry =
+          (typeof t.expiresAt === 'string' && t.expiresAt) ||
+          (typeof t.validUntil === 'string' && t.validUntil) ||
+          null;
+        const expired = expiry !== null && expiry < nowIso;
+        if (expired) continue;
+        // Status gate: reject "not completed" markers explicitly.
+        // A missing status is treated as active (legacy compat).
+        if (typeof t.status === 'string' && trainingNotCompletedStatuses.has(t.status)) {
+          continue;
+        }
+        const code =
+          (typeof t.code === 'string' && t.code) ||
+          (typeof t.trainingCode === 'string' && t.trainingCode) ||
+          (typeof t.name === 'string' && t.name) ||
+          (typeof t.title === 'string' && t.title) ||
+          (typeof t.id === 'string' && t.id) ||
+          null;
+        if (code) activeTrainings.push(code);
+      }
+
+      // Active EPP — Codex PR #315 round-2 P1 (CRITICAL):
+      //
+      // AssignEPPModal.tsx:93 writes the delivered equipment label as
+      // `eppItemName` (the canonical UI-facing name shown to the worker
+      // when they receive the item, e.g. "Casco amarillo clase E" or
+      // "Arnés tipo paracaidista"). Some legacy shapes use `itemLabel`.
+      // The previous mapper accepted only `category`/`type`/`kind`/`name`
+      // before adding to `activeEpp`, so the nested-query fix in round 1
+      // started returning the canonical docs — but this mapper dropped
+      // their primary label field and `activeEpp` stayed empty.
+      //
+      // Net effect: workers with required helmets / harnesses assigned
+      // through the modal were scored as MISSING those items, producing
+      // a falsely low EPP subscore for any task that required them.
+      //
+      // Fix: read EPP labels from the FULL union of shapes that any
+      // writer in this codebase produces. Priority order:
+      //   1. `category` (canonical taxonomy field).
+      //   2. `type`/`kind` (legacy aliases).
+      //   3. `name` (legacy generic field).
+      //   4. `eppItemName` (AssignEPPModal canonical name).
+      //   5. `itemLabel` (existing legacy alias).
+      // We keep `category` first so that when both `category` and
+      // `eppItemName` exist on the same doc, the taxonomy field wins for
+      // requirement matching (the requirement set uses canonical labels).
+      const activeEpp: string[] = [];
+      for (const e of epps) {
+        const expiry =
+          (typeof e.expiresAt === 'string' && e.expiresAt) ||
+          (typeof e.validUntil === 'string' && e.validUntil) ||
+          null;
+        const expired = expiry !== null && expiry < nowIso;
+        if (expired) continue;
+        const cat =
+          (typeof e.category === 'string' && e.category) ||
+          (typeof e.type === 'string' && e.type) ||
+          (typeof e.kind === 'string' && e.kind) ||
+          (typeof e.name === 'string' && e.name) ||
+          (typeof e.eppItemName === 'string' && e.eppItemName) ||
+          (typeof e.itemLabel === 'string' && e.itemLabel) ||
+          null;
+        if (cat) activeEpp.push(cat);
+      }
+
+      // Medical aptitude — Codex PR #315 P2 (#4):
+      //
+      // Sources, in priority order:
+      //   1. `medicalAptitudeStatus` (canonical enum field).
+      //   2. `medicalStatus` (legacy alias).
+      //   3. `medicalAptitude.lastEvaluation` (typed Worker.medicalAptitude
+      //      shape — see MedicalAptitude service contract).
+      //   4. `medicalClearanceDate` (ISO date, written by
+      //      AccessControlModal.tsx:45 — when present and not expired
+      //      it counts as `vigente`).
+      // Previously the route only read (1) + (2) — workers cleared
+      // through the access-control UI (which only writes
+      // `medicalClearanceDate`) lost the medical subscore and got a
+      // false `sin_aptitud` blocker.
+      const medRaw = worker.medicalAptitudeStatus ?? worker.medicalStatus;
+      let medicalAptitudeStatus: 'vigente' | 'expirada' | 'restringida' | 'sin_aptitud' =
+        medRaw === 'vigente' || medRaw === 'expirada' || medRaw === 'restringida'
+          ? medRaw
+          : 'sin_aptitud';
+      if (medicalAptitudeStatus === 'sin_aptitud') {
+        // Source 3: typed `medicalAptitude.lastEvaluation`.
+        const medApt = worker.medicalAptitude;
+        if (medApt && typeof medApt === 'object') {
+          const lastEvalRaw = (medApt as Record<string, unknown>).lastEvaluation;
+          const lastEval = typeof lastEvalRaw === 'string' ? lastEvalRaw : null;
+          const expiryRaw =
+            (medApt as Record<string, unknown>).expiresAt ??
+            (medApt as Record<string, unknown>).validUntil;
+          const expiry = typeof expiryRaw === 'string' ? expiryRaw : null;
+          if (lastEval) {
+            medicalAptitudeStatus = expiry !== null && expiry < nowIso ? 'expirada' : 'vigente';
+          }
+        }
+      }
+      if (medicalAptitudeStatus === 'sin_aptitud') {
+        // Source 4: `medicalClearanceDate` (AccessControlModal).
+        // Treat as `vigente` if present (no separate expiry in that
+        // shape — the modal records the date the clearance was issued
+        // and the app considers it valid until a doctor updates it).
+        const clrDate = worker.medicalClearanceDate;
+        if (typeof clrDate === 'string' && clrDate.length > 0) {
+          medicalAptitudeStatus = 'vigente';
+        }
+      }
+
+      // Signed documents — Codex PR #315 P2 (#5):
+      //
+      // Sources (union):
+      //   1. `signedDocuments: string[]` (canonical).
+      //   2. `acknowledgements: string[]` (legacy alias).
+      //   3. `odiSigned: boolean` on the worker doc (written by
+      //      LaborManagementModal.tsx:79). When `true`, inject `'ODI'`
+      //      into the signed-docs set.
+      //   4. `digitalSignatureStatus === 'Firmado'` on the worker doc
+      //      (same modal) — counts as a generic acknowledgement signal;
+      //      inject `'DIGITAL'`.
+      //
+      // Previously the route only read (1) + (2), so workers who signed
+      // ODI through LaborManagementModal lost the document subscore
+      // and were falsely flagged for any task that required `ODI`.
+      const signedDocsRaw = worker.signedDocuments ?? worker.acknowledgements;
+      const signedDocsSet = new Set<string>(
+        Array.isArray(signedDocsRaw)
+          ? (signedDocsRaw.filter((s) => typeof s === 'string') as string[])
+          : [],
+      );
+      if (worker.odiSigned === true) {
+        signedDocsSet.add('ODI');
+      }
+      if (worker.digitalSignatureStatus === 'Firmado') {
+        signedDocsSet.add('DIGITAL');
+      }
+      const signedDocuments: string[] = Array.from(signedDocsSet);
+
+      // Fatigue — best-effort from worker doc; absent → 'low' so the
+      // score doesn't punish workers whose project hasn't wired the
+      // fatigueMonitor signal yet.
+      const fatRaw = worker.fatigueLevel;
+      const fatigueLevel: 'low' | 'moderate' | 'high' | 'critical' =
+        fatRaw === 'moderate' || fatRaw === 'high' || fatRaw === 'critical'
+          ? fatRaw
+          : 'low';
+
+      // daysSinceLastIncident — compute from the incidents fetched.
+      // No incidents in 90d → 90 (the cap; the score reads "≥50 = max").
+      let daysSinceLastIncident = 90;
+      if (incidents.length > 0) {
+        const mostRecent = incidents
+          .map((i) => (typeof i.occurredAt === 'string' ? i.occurredAt : ''))
+          .filter((s) => s.length > 0)
+          .sort()
+          .reverse()[0];
+        if (mostRecent) {
+          const diffMs = Date.now() - new Date(mostRecent).getTime();
+          daysSinceLastIncident = Math.max(
+            0,
+            Math.min(90, Math.floor(diffMs / (24 * 60 * 60 * 1000))),
+          );
+        }
+      }
+
+      // Task category resolution — Codex PR #315 round-2 P2:
+      //
+      // Organic task docs (created by server/routes/organic.ts) carry
+      // `processId` but NOT `riskCategory`/`category`. The task's
+      // EFFECTIVE category is the parent process `type` (e.g.
+      // `soldadura`, `fachada`, `instalacion_electrica`). The previous
+      // resolver fell back to the literal string 'general' before the
+      // process was read, so every worker with real category-specific
+      // experience (e.g. `experienceByCategory.soldadura`) was scored as
+      // having zero experience whenever a normal organic task was
+      // selected. Fix: read `processDoc.type` as the third source.
+      const taskCategoryRaw =
+        (taskDoc && typeof taskDoc.riskCategory === 'string'
+          ? taskDoc.riskCategory
+          : null) ??
+        (taskDoc && typeof taskDoc.category === 'string'
+          ? taskDoc.category
+          : null) ??
+        (processDoc && typeof processDoc.type === 'string'
+          ? processDoc.type
+          : null) ??
+        'general';
+      const taskCategory = taskCategoryRaw;
+
+      // Experience count — Codex PR #315 round-2 P2:
+      //
+      // Sources, in priority order:
+      //   1. `worker.experienceByCategory[taskCategory]` — typed map. No
+      //      writer in this repo produces it today, but it's the
+      //      forward-compat field and we honor it if a future migration
+      //      backfills it.
+      //   2. Completed organic tasks (top-level `tasks` collection) that
+      //      were assigned to this worker, bucketed by their parent
+      //      process `type`. We fetch the unique processIds across the
+      //      worker's completed tasks and resolve their types via a
+      //      `getAll` (cheap batched read; the IN-cardinality is capped
+      //      at 10 per chunk).
+      // The two sources are SUMMED (a project that backfills the typed
+      // map AND also has real task history should reflect both).
+      let taskCategoryExperienceCount = 0;
+      const expMap = worker.experienceByCategory;
+      if (expMap && typeof expMap === 'object') {
+        const v = (expMap as Record<string, unknown>)[taskCategory];
+        if (typeof v === 'number') taskCategoryExperienceCount = v;
+      }
+      // Source 2: bucket completed tasks by parent process type.
+      if (completedTasks.length > 0) {
+        // Collect unique processIds from the worker's completed tasks.
+        const processIds = new Set<string>();
+        for (const t of completedTasks) {
+          if (typeof t.processId === 'string' && t.processId.length > 0) {
+            processIds.add(t.processId);
+          }
+        }
+        // Resolve processId → type via batched `getAll` (chunks of 10
+        // for safety; `getAll` itself accepts arbitrary counts but
+        // smaller batches keep individual RPCs bounded and let a partial
+        // failure degrade gracefully). Best-effort: any chunk that
+        // throws contributes zero count for its processes.
+        const processIdToType = new Map<string, string>();
+        if (processIds.size > 0) {
+          const ids = Array.from(processIds);
+          const chunks: string[][] = [];
+          for (let i = 0; i < ids.length; i += 10) {
+            chunks.push(ids.slice(i, i + 10));
+          }
+          await Promise.all(
+            chunks.map(async (chunk) => {
+              try {
+                const refs = chunk.map((id) => db.collection('processes').doc(id));
+                const snaps = await db.getAll(...refs);
+                for (const snap of snaps) {
+                  if (!snap.exists) continue;
+                  const data = snap.data() as Record<string, unknown>;
+                  // Cross-project safety: skip if mismatched projectId.
+                  if (typeof data.projectId === 'string' && data.projectId !== projectId) {
+                    continue;
+                  }
+                  if (typeof data.type === 'string' && data.type.length > 0) {
+                    processIdToType.set(snap.id, data.type);
+                  }
+                }
+              } catch (err) {
+                logger.warn?.('sprintK.workerReadiness.read.processBatch.failed', err);
+              }
+            }),
+          );
+        }
+        // Count tasks whose process type matches the current taskCategory.
+        let historyCount = 0;
+        for (const t of completedTasks) {
+          const pid = typeof t.processId === 'string' ? t.processId : null;
+          if (!pid) continue;
+          const ptype = processIdToType.get(pid);
+          if (ptype && ptype === taskCategory) historyCount += 1;
+        }
+        taskCategoryExperienceCount += historyCount;
+      }
+
+      const profile = {
+        workerUid,
+        activeTrainings,
+        activeEpp,
+        medicalAptitudeStatus,
+        signedDocuments,
+        taskCategoryExperienceCount,
+        fatigueLevel,
+        daysSinceLastIncident,
+      };
+
+      // ───── Build TaskRequirements ─────
+      //
+      // Codex PR #315 P2 (#3): per ADR 0001 + firestore.rules:780-783,
+      // organic Task docs are constrained to the closed key set
+      // `['description', 'assignedUids', 'status', 'date', 'crewId',
+      // 'processId', 'projectId', 'completedAt']` — they do NOT carry
+      // `requiredTrainings`/`requiredEpp`/`requiredAcknowledgements`
+      // directly. The previous implementation always fell back to the
+      // empty-requirements baseline for organic tasks, producing a
+      // generic score that ignored the task's actual risk profile.
+      //
+      // Fix: requirements are sourced from FOUR layers (union, dedup):
+      //   1. The task doc itself, if present in any of these fields:
+      //      - `requiredTrainingIds` / `requiredTrainings` (string[])
+      //      - `requiredEppIds` / `requiredEpp` (string[])
+      //      - `requiredAcknowledgements` (string[])
+      //      Custom flows that bypass the rules constraint (server-side
+      //      writes) may attach these.
+      //   2. The parent Process (if `processId` is set) — Process docs
+      //      can carry `requiredTrainings`/`requiredEpp` (some flows
+      //      write them at the process level).
+      //   3. Deterministic mapping from `Process.type` → known SAFE
+      //      defaults (`ProcessType` is a closed union; we know
+      //      `soldadura` requires welding training, etc.).
+      //   4. Fuzzy match: name-based requirements are matched
+      //      case-insensitively (substring) against the worker's
+      //      training codes/names, so a task that says "Trabajo en
+      //      altura" can be satisfied by a training titled "Curso de
+      //      Trabajo en Altura — Avanzado".
+      //
+      // Task-less calls (taskId omitted) get a baseline that requires
+      // nothing — the report still surfaces medical/fatigue/incident
+      // gaps because those don't depend on the task.
+
+      // Deterministic baseline by Process.type. Conservative — we err
+      // on the side of FEWER requirements (the score reports a missing
+      // training as a real gap, so over-requiring would produce false
+      // negatives in the readiness verdict).
+      const processTypeBaseline: Record<
+        string,
+        { trainings: string[]; epp: string[]; acks: string[]; requiresMedical: boolean }
+      > = {
+        soldadura: {
+          trainings: ['Soldadura', 'Trabajo en caliente'],
+          epp: ['casco', 'careta', 'guantes', 'mandil'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        instalacion_electrica: {
+          trainings: ['Trabajo eléctrico', 'Bloqueo y etiquetado (LOTO)'],
+          epp: ['casco', 'guantes dieléctricos', 'calzado dieléctrico'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        demolicion: {
+          trainings: ['Demolición segura', 'Trabajo en altura'],
+          epp: ['casco', 'gafas', 'arnés'],
+          acks: ['ODI'],
+          requiresMedical: true,
+        },
+        fachada: {
+          trainings: ['Trabajo en altura'],
+          epp: ['arnés', 'casco', 'línea de vida'],
+          acks: ['ODI'],
+          requiresMedical: true,
+        },
+        movimiento_tierras: {
+          trainings: ['Operación maquinaria pesada'],
+          epp: ['casco', 'chaleco reflectante', 'calzado seguridad'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        concreto: {
+          trainings: [],
+          epp: ['casco', 'guantes', 'botas'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        mantenimiento: {
+          trainings: ['Bloqueo y etiquetado (LOTO)'],
+          epp: ['casco', 'guantes', 'gafas'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        pintura: {
+          trainings: ['Manejo solventes'],
+          epp: ['respirador', 'guantes', 'gafas'],
+          acks: ['ODI'],
+          requiresMedical: false,
+        },
+        topografia: { trainings: [], epp: ['casco'], acks: [], requiresMedical: false },
+        transporte: {
+          trainings: ['Conducción defensiva'],
+          epp: ['chaleco reflectante'],
+          acks: ['ODI'],
+          requiresMedical: true,
+        },
+      };
+
+      // Layer 2: parent process — already fetched earlier (see processDoc
+      // resolution above the profile build, round-2 P2 fix).
+
+      const collectStrings = (src: Record<string, unknown> | null, key: string): string[] => {
+        if (!src) return [];
+        const v = src[key];
+        if (!Array.isArray(v)) return [];
+        return v.filter((s): s is string => typeof s === 'string');
+      };
+
+      const reqTrainingsSet = new Set<string>();
+      // Layer 1: task doc directly.
+      for (const s of collectStrings(taskDoc, 'requiredTrainings')) reqTrainingsSet.add(s);
+      for (const s of collectStrings(taskDoc, 'requiredTrainingIds')) reqTrainingsSet.add(s);
+      // Layer 2: parent process.
+      for (const s of collectStrings(processDoc, 'requiredTrainings')) reqTrainingsSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredTrainingIds')) reqTrainingsSet.add(s);
+
+      const reqEppSet = new Set<string>();
+      for (const s of collectStrings(taskDoc, 'requiredEpp')) reqEppSet.add(s);
+      for (const s of collectStrings(taskDoc, 'requiredEppIds')) reqEppSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredEpp')) reqEppSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredEppIds')) reqEppSet.add(s);
+
+      const reqAcksSet = new Set<string>();
+      for (const s of collectStrings(taskDoc, 'requiredAcknowledgements')) reqAcksSet.add(s);
+      for (const s of collectStrings(processDoc, 'requiredAcknowledgements')) reqAcksSet.add(s);
+
+      let requiresMedicalAptitude: boolean = false;
+      if (taskDoc) requiresMedicalAptitude = Boolean(taskDoc.requiresMedicalAptitude);
+      if (!requiresMedicalAptitude && processDoc) {
+        requiresMedicalAptitude = Boolean(processDoc.requiresMedicalAptitude);
+      }
+
+      // Layer 3: deterministic baseline by Process.type.
+      if (processDoc && typeof processDoc.type === 'string') {
+        const baseline = processTypeBaseline[processDoc.type];
+        if (baseline) {
+          for (const s of baseline.trainings) reqTrainingsSet.add(s);
+          for (const s of baseline.epp) reqEppSet.add(s);
+          for (const s of baseline.acks) reqAcksSet.add(s);
+          if (baseline.requiresMedical) requiresMedicalAptitude = true;
+        }
+      }
+
+      // Layer 4: fuzzy resolution — Codex PR #315 round-2 P2 (SAFETY):
+      //
+      // Previous logic accepted EITHER direction of substring match:
+      //   `itemLower.includes(reqLower) || reqLower.includes(itemLower)`
+      // The second clause is dangerous: a worker with the generic owned
+      // item "guantes" would satisfy a specialized requirement like
+      // "guantes dieléctricos" (because "guantes dieléctricos" contains
+      // "guantes"). For electrical / hot-work / chemical-resistant PPE
+      // this falsely marks required specialized equipment as PRESENT —
+      // a worker handling 480V circuits with regular cotton gloves would
+      // pass the readiness check that explicitly required dielectric
+      // gloves. SAME RISK for trainings ("Trabajo en altura" satisfied
+      // by a generic "Trabajo" course).
+      //
+      // Fix: ONE-WAY match only. The owned item must CONTAIN the full
+      // requirement (i.e. the worker's record is at least as specific
+      // as the requirement). A generic owned item never satisfies a
+      // more specific requirement. This is the safe direction because
+      // canonical requirements describe the minimum specificity needed.
+      const fuzzyResolve = (req: string, owned: string[]): string => {
+        const reqLower = req.toLowerCase().trim();
+        if (reqLower.length === 0) return req;
+        // Walk the worker's owned items; ONLY accept items that contain
+        // the full requirement string. Reject the reverse direction
+        // (requirement contains owned) which would let generic items
+        // satisfy specialized requirements.
+        for (const item of owned) {
+          const itemLower = item.toLowerCase();
+          if (itemLower.includes(reqLower)) {
+            return item;
+          }
+        }
+        return req;
+      };
+      const reqTrainings = Array.from(reqTrainingsSet).map((r) =>
+        fuzzyResolve(r, activeTrainings),
+      );
+      const reqEpp = Array.from(reqEppSet).map((r) => fuzzyResolve(r, activeEpp));
+      const reqAcks = Array.from(reqAcksSet);
+
+      const task = {
+        requiredTrainings: reqTrainings,
+        requiredEpp: reqEpp,
+        taskCategory,
+        requiresMedicalAptitude,
+        requiredAcknowledgements: reqAcks,
+      };
+
+      const report = computeReadiness(profile, task);
+
+      return res.json({ report });
+    } catch (err) {
+      logger.error?.('sprintK.workerReadiness.error', err);
+      captureRouteError(err, 'sprintK.workerReadiness');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 
 export default router;

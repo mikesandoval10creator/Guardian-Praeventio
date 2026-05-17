@@ -129,6 +129,10 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         { title: t("nav.safety_feed", "Muro Social"), icon: Users, path: "/safety-feed", color: "text-[#4db6ac]" },
         { title: t("nav.projects", "Proyectos"), icon: Briefcase, path: "/projects", color: "text-blue-500" },
         { title: t("nav.cuadrillas", "Cuadrillas"), icon: Users, path: "/cuadrillas", color: "text-[#4db6ac]" },
+        // Sprint 41 Fase F.16 — Score de Preparación del Trabajador.
+        // Asistente NO bloqueante; muestra training/EPP/fatiga/historial
+        // del trabajador para que el supervisor decida con criterio.
+        { title: t("nav.worker_readiness", "Preparación Trabajador"), icon: UserCheck, path: "/worker-readiness", color: "text-teal-500" },
         // Sprint 28 Bucket B5 — CPHS formal module (audit hallazgo H29 P1).
         // Apunta a /cphs (registro formal con quórum DS 54 + firmas WebAuthn).
         // El link legacy a /comite-paritario sigue disponible en ModuleHub para

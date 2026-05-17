@@ -944,3 +944,33 @@ export function useCphsDraftMinute(projectId: string | null) {
     projectId ? `/api/sprint-k/${projectId}/cphs/draft-minute` : null,
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Fase F.16 — Worker Readiness Score (asistente NO bloqueante)
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wraps GET /api/sprint-k/:projectId/worker-readiness/:workerUid (with
+// optional ?taskId=) which calls `computeReadiness(profile, task)` from
+// the workerReadiness service. The report is purely informational —
+// the supervisor decides. Component MUST NOT gate any action on it.
+
+import type { ReadinessReport } from '../services/workerReadiness/readinessScore';
+
+export interface WorkerReadinessResponse {
+  report: ReadinessReport;
+}
+
+export function useWorkerReadiness(
+  projectId: string | null,
+  workerUid: string | null,
+  opts: { taskId?: string } = {},
+) {
+  let path: string | null = null;
+  if (projectId && workerUid) {
+    const qs = new URLSearchParams();
+    if (opts.taskId) qs.set('taskId', opts.taskId);
+    const query = qs.toString();
+    path = `/api/sprint-k/${projectId}/worker-readiness/${workerUid}${query ? `?${query}` : ''}`;
+  }
+  return useEndpoint<WorkerReadinessResponse>(path);
+}
