@@ -1058,4 +1058,135 @@ router.get('/:projectId/inbox', verifyAuth, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.5 — Firma de Recepción Digital con QR
+// ─────────────────────────────────────────────────────────────────────
+//
+// Cierra el wire end-to-end del flujo F.5:
+//   1) POST /qr-signature/challenge — supervisor genera challenge HMAC
+//      (server firma con QR_SIG_SECRET). El payload incluye TTL corto
+//      (5 min default, cap 30 min) y un nonce 16-byte para anti-replay.
+//   2) POST /qr-signature/acknowledge — al finalizar el escaneo + firma
+//      biométrica del trabajador, persistimos la confirmación en
+//      `tenants/{tid}/projects/{pid}/qr_acknowledgements/{challengeId}`.
+//      La escritura es IDEMPOTENTE: si el doc ya existe (re-submit del
+//      mismo challenge) devolvemos 200 con el ack ya almacenado en lugar
+//      de duplicar.
+//
+// Directiva: el documento queda con la empresa firmado, NO empujamos a
+// SUSESO/MINSAL/SII. Generamos el comprobante; la entrega al organismo
+// la hace la empresa.
+
+const qrSignatureKindEnum = z.enum([
+  'epp_delivery',
+  'safety_talk',
+  'document_read',
+  'training_completion',
+  'permit_acknowledgement',
+  'inspection_handover',
+]);
+
+router.post(
+  '/:projectId/qr-signature/challenge',
+  verifyAuth,
+  validate(
+    z.object({
+      itemId: z.string().min(1),
+      kind: qrSignatureKindEnum,
+      ttlMinutes: z.number().int().min(1).max(30).optional(),
+    }),
+  ),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as {
+      itemId: string;
+      kind: z.infer<typeof qrSignatureKindEnum>;
+      ttlMinutes?: number;
+    };
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const { buildChallenge } = await import(
+        '../../services/qrSignature/qrSignatureService.js'
+      );
+      const nodeCrypto = await import('node:crypto');
+      const secret = process.env.QR_SIG_SECRET ?? '';
+      if (secret.length < 16) {
+        return res
+          .status(500)
+          .json({ error: 'qr_signature_secret_not_configured' });
+      }
+      const challenge = buildChallenge(
+        {
+          challengeId: nodeCrypto.randomUUID(),
+          itemId: body.itemId,
+          kind: body.kind,
+          projectId,
+          initiatedByUid: callerUid,
+          nonceHex: nodeCrypto.randomBytes(16).toString('hex'),
+          ttlMinutes: body.ttlMinutes,
+        },
+        secret,
+      );
+      return res.status(201).json({ challenge });
+    } catch (err) {
+      logger.error?.('sprintK.qrSignature.challenge.error', err);
+      captureRouteError(err, 'sprintK.qrSignature.challenge');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+router.post(
+  '/:projectId/qr-signature/acknowledge',
+  verifyAuth,
+  validate(
+    z.object({
+      challengeId: z.string().min(1),
+      workerUid: z.string().min(1),
+      biometricUsed: z.boolean().optional(),
+      signedAt: z.string().min(10),
+    }),
+  ),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as {
+      challengeId: string;
+      workerUid: string;
+      biometricUsed?: boolean;
+      signedAt: string;
+    };
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const db = admin.firestore();
+      const path = `tenants/${g.tenantId}/projects/${projectId}/qr_acknowledgements`;
+      const ref = db.collection(path).doc(body.challengeId);
+      const existing = await ref.get();
+      if (existing.exists) {
+        // Idempotent re-submit: return the already-stored ack instead of
+        // duplicating. Lets the client retry safely on flaky networks
+        // without triggering double-signature audit noise.
+        return res.status(200).json({ acknowledgement: existing.data() });
+      }
+      const acknowledgement = {
+        challengeId: body.challengeId,
+        workerUid: body.workerUid,
+        acknowledgedByCallerUid: callerUid,
+        biometricUsed: Boolean(body.biometricUsed),
+        signedAt: body.signedAt,
+        recordedAt: new Date().toISOString(),
+      };
+      await ref.set(acknowledgement);
+      return res.status(201).json({ acknowledgement });
+    } catch (err) {
+      logger.error?.('sprintK.qrSignature.acknowledge.error', err);
+      captureRouteError(err, 'sprintK.qrSignature.acknowledge');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
 export default router;
