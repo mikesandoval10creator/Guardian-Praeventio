@@ -2096,5 +2096,21 @@
     "driving_wildfire_banner": "Considerar ruta alternativa por evento natural en zona",
     "driving_wildfire_normative": "Referencia normativa: DS 594 + lineamientos de conducción segura.",
     "driving_wildfire_dismiss": "Ocultar aviso"
+  },
+  "webxr": {
+    "title": "Capacitación Interactiva — Trabajo en Altura",
+    "description": "Entrenamiento práctico sobre fall-arrest según DS 594 Art. 53. Marca cada elemento del EPP en el checklist visual.",
+    "subtitle": "DS 594 Art. 53 · Marca cada elemento de EPP",
+    "start": "Iniciar capacitación",
+    "stop": "Detener",
+    "startPrompt": "Inicie la capacitación para activar los marcadores del checklist",
+    "verified": "verificados",
+    "diagramAria": "Esquema visual de EPP para trabajo en altura",
+    "markVerified": "Marcar como verificado",
+    "checklistComplete": "Checklist completa",
+    "registerPrompt": "Registra esta capacitación en tu historial.",
+    "registerTraining": "Registrar capacitación",
+    "saving": "Guardando…",
+    "trainingRegistered": "Capacitación registrada"
   }
 }
