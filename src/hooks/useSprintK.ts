@@ -1506,3 +1506,152 @@ export async function verifyControl(
     entry: EngineeringControlVerificationAPI;
   };
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Sprint K §61-63 — Encuesta de Percepción + Índice de Cultura Preventiva
+// ────────────────────────────────────────────────────────────────────────
+//
+// Wraps:
+//   GET  /api/sprint-k/:projectId/culture-pulse           snapshot actual
+//   GET  /api/sprint-k/:projectId/culture-pulse/history   últimas 6 olas
+//   POST /api/sprint-k/:projectId/culture-pulse/survey
+//   POST /api/sprint-k/:projectId/culture-pulse/survey/:id/respond
+//
+// PRIVACIDAD: el endpoint de respuestas NO requiere ni acepta
+// `responderUid`/`responderHash` desde el cliente. El servidor deriva
+// el hash a partir del token verificado (uid + surveyId). La respuesta
+// individual se persiste anónimamente y el snapshot sólo expone
+// agregados.
+
+export type CulturePulseQuestionKey =
+  | 'felt_safe_today'
+  | 'manager_listens'
+  | 'free_to_stop'
+  | 'reported_incident_safely'
+  | 'has_resources_to_be_safe';
+
+export interface CulturePulseSnapshot {
+  surveyId: string | null;
+  status: 'open' | 'closed' | null;
+  openAt: string | null;
+  closeAt: string | null;
+  cultureIndex: number;
+  level: 'low' | 'fair' | 'good' | 'strong';
+  totalResponses: number;
+  expectedRespondents: number | null;
+  participationRate: number | null;
+  punitiveCulturedFlagged: boolean;
+  byQuestion: Record<CulturePulseQuestionKey, number>;
+  topConcerns: Array<{
+    key: CulturePulseQuestionKey;
+    label: string;
+    score: number;
+  }>;
+  topStrengths: Array<{
+    key: CulturePulseQuestionKey;
+    label: string;
+    score: number;
+  }>;
+  hasResponded: boolean;
+  /**
+   * Codex P1 #3 (PR #323) — Anonymity threshold. When `true`, all
+   * derived aggregates (`cultureIndex`, `level`, `byQuestion`,
+   * `topConcerns`, `topStrengths`, `participationRate`, `punitiveCulturedFlagged`)
+   * are zeroed/empty and the UI must show a "waiting for enough
+   * responses" placeholder to preserve respondent anonymity.
+   */
+  insufficientResponses?: boolean;
+  /** Current response count, exposed when `insufficientResponses=true`. */
+  currentCount?: number;
+  /** Minimum responses required before aggregates are revealed. */
+  threshold?: number;
+}
+
+export interface CulturePulseResponse {
+  snapshot: CulturePulseSnapshot;
+}
+
+export function useCulturePulse(projectId: string | null) {
+  return useEndpoint<CulturePulseResponse>(
+    projectId ? `/api/sprint-k/${projectId}/culture-pulse` : null,
+  );
+}
+
+export interface CulturePulseHistoryPoint {
+  surveyId: string;
+  openAt: string;
+  closeAt: string | null;
+  cultureIndex: number;
+  totalResponses: number;
+  level: 'low' | 'fair' | 'good' | 'strong';
+}
+
+export interface CulturePulseHistoryResponse {
+  history: CulturePulseHistoryPoint[];
+}
+
+export function useCulturePulseHistory(projectId: string | null) {
+  return useEndpoint<CulturePulseHistoryResponse>(
+    projectId ? `/api/sprint-k/${projectId}/culture-pulse/history` : null,
+  );
+}
+
+export interface CulturePulseSchedulePayload {
+  surveyId: string;
+  openAt: string;
+  closeAt: string;
+  title?: string;
+  expectedRespondents?: number;
+}
+
+export async function scheduleCulturePulse(
+  projectId: string,
+  payload: CulturePulseSchedulePayload,
+): Promise<{ ok: true }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(`/api/sprint-k/${projectId}/culture-pulse/survey`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return { ok: true };
+}
+
+export interface CulturePulseResponsePayload {
+  workerRole: string;
+  area: string;
+  answers: Record<CulturePulseQuestionKey, number>;
+}
+
+export async function submitCulturePulseResponse(
+  projectId: string,
+  surveyId: string,
+  payload: CulturePulseResponsePayload,
+): Promise<{ ok: true }> {
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+  const res = await fetch(
+    `/api/sprint-k/${projectId}/culture-pulse/survey/${surveyId}/respond`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `http_${res.status}`);
+  }
+  return { ok: true };
+}
