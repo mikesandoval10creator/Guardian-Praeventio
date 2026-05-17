@@ -556,16 +556,42 @@ router.get('/:projectId/data-quality', verifyAuth, async (req, res) => {
           (d) => ({ id: d.id, ...d.data() }),
         ),
       ),
-      safeRead('machines', async () =>
-        (await byProject('assets').get()).docs.map(
-          (d) => ({ id: d.id, ...d.data() }),
-        ),
-      ),
-      safeRead('trainings', async () =>
-        (await byProject('training').get()).docs.map(
-          (d) => ({ id: d.id, ...d.data() }),
-        ),
-      ),
+      safeRead('machines', async () => {
+        // Codex P2 round 2 (PR #309): MaquinariaManager.tsx writes
+        // assets with `name` + `nextMaintenance`. The scanner
+        // (`scanMachines`) checks `code` + `nextMaintenanceAt`. Without
+        // normalization every asset shows as missing both fields and
+        // the score collapses falsely. Map at the edge.
+        const snap = await byProject('assets').get();
+        return snap.docs.map((d) => {
+          const data = d.data() as Record<string, unknown>;
+          return {
+            id: d.id,
+            ...data,
+            code: data.code ?? data.name,
+            nextMaintenanceAt: data.nextMaintenanceAt ?? data.nextMaintenance,
+          };
+        });
+      }),
+      safeRead('trainings', async () => {
+        // Codex P2 round 2 (PR #309): trainings live in BOTH the
+        // top-level `training` collection (Training.tsx) AND under
+        // `projects/{projectId}/trainings` (TrainingRecommendations.tsx
+        // + consistencyAuditor's training_assignments). Union both
+        // sources so the scanner sees every record. De-dupe by id.
+        const [topSnap, nestedSnap] = await Promise.all([
+          byProject('training').get(),
+          projectRef.collection('trainings').get(),
+        ]);
+        const map = new Map<string, Record<string, unknown>>();
+        for (const d of topSnap.docs) {
+          map.set(d.id, { id: d.id, ...d.data() });
+        }
+        for (const d of nestedSnap.docs) {
+          if (!map.has(d.id)) map.set(d.id, { id: d.id, ...d.data() });
+        }
+        return Array.from(map.values());
+      }),
       safeRead('project', async () => {
         const snap = await projectRef.get();
         return snap.exists ? [{ id: snap.id, ...snap.data() }] : [];
@@ -637,7 +663,17 @@ router.get(
       const incidentData = incidentDoc.data() ?? {};
       // Cross-tenant safety: the docId is global; assert the incident
       // belongs to the project the caller can read.
-      if (incidentData.projectId && incidentData.projectId !== projectId) {
+      //
+      // Codex P2 round 2 (PR #309): a legacy / partially-imported
+      // incident may not carry a `projectId` field. The earlier check
+      // `if (incidentData.projectId && ...)` short-circuited on the
+      // missing field and let the caller see ANY tenant's incident
+      // bundle. Tighten: require the field AND match it. Records
+      // without projectId can't be authorized through this route.
+      if (
+        typeof incidentData.projectId !== 'string' ||
+        incidentData.projectId !== projectId
+      ) {
         return res.status(403).json({ error: 'cross_project_forbidden' });
       }
 
@@ -699,6 +735,33 @@ router.get(
         requiredEpp: [],
         requiredTrainings: [],
         normativeRefs: [],
+        // Codex P2 round 2 (PR #309): if the incident doc already
+        // carries a `rootCause` payload (Alta/Crítica/SIF incidents
+        // usually do), preserve it so the bundle scorer doesn't emit
+        // a false `no_root_cause_assigned` gap and tank completeness.
+        rootCause:
+          typeof incidentData.rootCause === 'object' && incidentData.rootCause
+            ? {
+                analyzed: Boolean((incidentData.rootCause as any).analyzed ?? true),
+                primaryCauseKind:
+                  typeof (incidentData.rootCause as any).primaryCauseKind === 'string'
+                    ? (incidentData.rootCause as any).primaryCauseKind
+                    : undefined,
+                contributingFactors: Array.isArray(
+                  (incidentData.rootCause as any).contributingFactors,
+                )
+                  ? ((incidentData.rootCause as any).contributingFactors as string[])
+                  : undefined,
+                pendingOwnerUid:
+                  typeof (incidentData.rootCause as any).pendingOwnerUid === 'string'
+                    ? (incidentData.rootCause as any).pendingOwnerUid
+                    : undefined,
+                pendingDueDate:
+                  typeof (incidentData.rootCause as any).pendingDueDate === 'string'
+                    ? (incidentData.rootCause as any).pendingDueDate
+                    : undefined,
+              }
+            : undefined,
         auditLog,
       });
 

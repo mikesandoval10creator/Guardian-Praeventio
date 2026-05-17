@@ -10,7 +10,7 @@
 // wrapper solo orquesta proyecto + hook + estados de borde (offline,
 // no project, error).
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Inbox as InboxIcon, WifiOff } from 'lucide-react';
@@ -19,7 +19,10 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { useInbox, useDataQuality } from '../hooks/useSprintK';
 import { InboxPrevencionistaPanel } from '../components/inbox/InboxPrevencionistaPanel';
 import { DataQualityCard } from '../components/dataQuality/DataQualityCard';
-import type { InboxItem } from '../services/inbox/inboxAggregator';
+import {
+  summarizeInbox,
+  type InboxItem,
+} from '../services/inbox/inboxAggregator';
 import { logger } from '../utils/logger';
 
 /**
@@ -81,6 +84,15 @@ export function Inbox() {
     () => new Set(),
   );
 
+  // Codex P2 round 2 (PR #309): the deterministic InboxItem.id
+  // (`ca_<source>_<sourceNodeId>_<slug>`) is project-agnostic, so
+  // switching projects without resetting `locallyDismissed` would
+  // hide an item in project B if it happened to share an id with one
+  // dismissed in project A. Clear the Set whenever projectId changes.
+  useEffect(() => {
+    setLocallyDismissed(new Set());
+  }, [projectId]);
+
   const itemsWithDismissals: InboxItem[] = useMemo(() => {
     if (!data?.items) return [];
     if (locallyDismissed.size === 0) return data.items;
@@ -89,6 +101,18 @@ export function Inbox() {
       locallyDismissed.has(it.id) ? { ...it, dismissedAt: nowIso } : it,
     );
   }, [data?.items, locallyDismissed]);
+
+  // Codex P2 round 2 (PR #309): recompute summary from the visible
+  // (dismissed-aware) items, not the raw server response. Without this
+  // the panel would show "5 urgentes" while no urgent items render —
+  // contradicting itself after the prevencionista works through their
+  // queue.
+  const visibleSummary = useMemo(() => {
+    if (!data?.summary) return null;
+    if (locallyDismissed.size === 0) return data.summary;
+    const visible = itemsWithDismissals.filter((it) => !it.dismissedAt);
+    return summarizeInbox(visible, new Date().toISOString());
+  }, [data?.summary, itemsWithDismissals, locallyDismissed]);
 
   const handleAction = (
     item: { id: string; kind: string },
@@ -106,6 +130,12 @@ export function Inbox() {
       'mark_done',
       'postpone',
     ]);
+    // Codex P2 round 2 (PR #309): `open_detail` and `assign` are also
+    // exposed as quick actions by the panel (e.g. "Revisión ejecutiva",
+    // "Ir a investigación", "Escalar gerencia"). The user expects them
+    // to navigate to the underlying record, NOT just log silently.
+    const navigateActions = new Set(['open_detail', 'assign']);
+
     if (dismissActions.has(actionKind)) {
       setLocallyDismissed((prev) => {
         const next = new Set(prev);
@@ -113,11 +143,16 @@ export function Inbox() {
         return next;
       });
     }
+    if (navigateActions.has(actionKind)) {
+      const path = routeForItem(item as InboxItem);
+      navigate(path);
+    }
     logger.info('inbox.action', {
       itemId: item.id,
       itemKind: item.kind,
       actionKind,
       localDismiss: dismissActions.has(actionKind),
+      navigateTo: navigateActions.has(actionKind) ? routeForItem(item as InboxItem) : undefined,
     });
   };
 
@@ -173,8 +208,8 @@ export function Inbox() {
               'inbox.page.subtitle',
               'Pendientes ordenados por urgencia · {{count}} ítems · {{overdue}} vencidos',
               {
-                count: data?.summary?.total ?? 0,
-                overdue: data?.summary?.overdueCount ?? 0,
+                count: (visibleSummary ?? data?.summary)?.total ?? 0,
+                overdue: (visibleSummary ?? data?.summary)?.overdueCount ?? 0,
               },
             )}
           </p>
@@ -214,7 +249,7 @@ export function Inbox() {
       {!loading && !error && data && (
         <InboxPrevencionistaPanel
           items={itemsWithDismissals}
-          summary={data.summary}
+          summary={visibleSummary ?? data.summary}
           onAction={handleAction}
           onOpenDetail={handleOpenDetail}
         />
