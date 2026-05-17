@@ -246,4 +246,41 @@ describe('<CulturePulse /> page wrapper (Sprint K §61-63)', () => {
       screen.getByTestId('culture-pulse-respond-q-free_to_stop'),
     ).toBeInTheDocument();
   });
+
+  // Codex P1 #3 (PR #323) — anonymity threshold UX.
+  it('suprime gauge/concerns/strengths cuando insufficientResponses=true', () => {
+    mockSelectedProject = { id: 'p-1', name: 'Faena Norte' };
+    const snap = emptySnapshot();
+    snap.snapshot.surveyId = 'pulse-may';
+    snap.snapshot.status = 'open';
+    snap.snapshot.openAt = '2026-05-01T00:00:00Z';
+    snap.snapshot.closeAt = '2026-05-31T00:00:00Z';
+    snap.snapshot.totalResponses = 3;
+    snap.snapshot.insufficientResponses = true;
+    snap.snapshot.currentCount = 3;
+    snap.snapshot.threshold = 5;
+    mockPulse = {
+      data: snap,
+      loading: false,
+      error: null,
+      refetch: refetchPulse,
+    };
+    render(<CulturePulse />);
+    // Gate banner is visible.
+    const gate = screen.getByTestId('culture-pulse-anonymity-gate');
+    expect(gate).toBeInTheDocument();
+    expect(gate.textContent).toMatch(/anonimato/i);
+    expect(gate.textContent).toMatch(/3 de 5/);
+    // Aggregates are NOT rendered.
+    expect(screen.queryByTestId('culture-pulse-gauge')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('culture-pulse-concerns'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('culture-pulse-strengths'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('culture-pulse-punitive-flag'),
+    ).not.toBeInTheDocument();
+  });
 });

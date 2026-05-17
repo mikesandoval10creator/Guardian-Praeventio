@@ -6643,6 +6643,17 @@ const PULSE_QUESTION_LABEL: Record<PulseQuestionKey, string> = {
   has_resources_to_be_safe: 'Tengo los recursos para trabajar seguro',
 };
 
+// PRIVACIDAD CRÍTICA — umbral de anonimato. Cuando el conteo de respuestas
+// está por debajo de este umbral, el snapshot OMITE per-question averages,
+// topConcerns, topStrengths, byQuestion y punitive flag — devolver
+// agregados con n<5 puede permitir reconstruir respuestas individuales
+// (ej.: con 1 respuesta el promedio ES la respuesta del trabajador; con
+// 2-4 respuestas un atacante con conocimiento previo de un solo respondedor
+// puede inferir respuestas de los otros). La directiva del producto exige
+// que las respuestas sean anónimas, así que suprimimos todo agregado
+// derivado hasta que el conteo cruce el umbral.
+const PULSE_ANONYMITY_THRESHOLD = 5;
+
 interface CulturePulseSnapshot {
   surveyId: string | null;
   status: 'open' | 'closed' | null;
@@ -6658,6 +6669,33 @@ interface CulturePulseSnapshot {
   topConcerns: Array<{ key: PulseQuestionKey; label: string; score: number }>;
   topStrengths: Array<{ key: PulseQuestionKey; label: string; score: number }>;
   hasResponded: boolean;
+  /**
+   * Codex P1 #3 (PR #323, line 5304) — Bandera de "agregados suprimidos
+   * por anonimato". `true` cuando `totalResponses < PULSE_ANONYMITY_THRESHOLD`
+   * y la UI debe mostrar mensaje de "esperando respuestas suficientes para
+   * proteger el anonimato". Cuando es `true`, `byQuestion`, `topConcerns`,
+   * `topStrengths`, `cultureIndex`, `level`, `participationRate` y
+   * `punitiveCulturedFlagged` son valores neutros (cero / vacío / false).
+   */
+  insufficientResponses?: boolean;
+  /** Conteo actual (mismo que `totalResponses`, expuesto explícitamente
+   * cuando `insufficientResponses=true` para que la UI lo muestre). */
+  currentCount?: number;
+  /** Umbral mínimo de respuestas para revelar agregados. */
+  threshold?: number;
+}
+
+// Codex P1 #2 (PR #323, line 5217) — Detector de FAILED_PRECONDITION
+// para los índices compuestos que `/culture-pulse` y
+// `/culture-pulse/history` requieren. Una vez los índices se despliegan
+// estos fallbacks se vuelven código muerto (las consultas ordenadas
+// siempre tendrán éxito), pero los mantenemos para que el dashboard NO
+// se quede silenciosamente vacío durante una ventana de propagación.
+function isMissingFirestoreIndexError(err: unknown): boolean {
+  const code = (err as { code?: string | number } | null)?.code;
+  if (code === 9 || code === 'failed-precondition') return true;
+  const msg = String((err as Error | null)?.message ?? '');
+  return /index/i.test(msg) && /FAILED_PRECONDITION|requires an index/i.test(msg);
 }
 
 router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
@@ -6684,23 +6722,91 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
       }
     };
 
-    // Prefer the most recent OPEN survey, falling back to the most
-    // recent closed one — the page renders both states (active banner
-    // vs. last-snapshot card).
+    // Codex P1 #1 + #2 (PR #323, line 5217) — Survey discovery:
+    //
+    //   #1: Confiar en `survey.status === 'open'` (el doc field) garantiza
+    //       que un admin que cerró explícitamente la encuesta NO la siga
+    //       viendo como activa. PERO `status` se setea sólo a la creación
+    //       y no se flipa automáticamente cuando expira la ventana —
+    //       sólo si admin la cierra manualmente. Por lo tanto, además de
+    //       filtrar por `status == 'open'`, descartamos a nivel
+    //       aplicación las que ya pasaron `closeAt` (las tratamos como
+    //       cerradas implícitamente y caemos al snapshot cerrado más
+    //       reciente). Esto cubre los dos casos:
+    //         - admin la cerró → status flipped → no aparece como activa
+    //         - venció la ventana → status sigue 'open' pero filtramos
+    //
+    //   #2: La consulta `where('status', '==', X).orderBy('openAt'/'closeAt')`
+    //       requiere índice compuesto en Firestore. Si el índice todavía
+    //       no se desplegó, el snapshot debe degradar al unordered query
+    //       y ordenar en JS (no devolver "snapshot vacío" silencioso, que
+    //       hace pensar al admin que el sistema está roto). Ver
+    //       isMissingFirestoreIndexError + el fallback unordered abajo.
+    const fetchSurveyOrdered = async (
+      statusFilter: 'open' | 'closed',
+      orderField: 'openAt' | 'closeAt',
+    ): Promise<admin.firestore.QueryDocumentSnapshot[] | null> => {
+      try {
+        const snap = await baseRef
+          .where('status', '==', statusFilter)
+          .orderBy(orderField, 'desc')
+          .limit(10) // pull a few — we'll filter expired open surveys client-side
+          .get();
+        return snap.docs;
+      } catch (err) {
+        if (!isMissingFirestoreIndexError(err)) {
+          logger.warn?.('sprintK.culturePulse.snapshot.read_failed', err);
+          return null;
+        }
+        logger.warn?.(
+          'sprintK.culturePulse.snapshot.missing_index_fallback',
+          { statusFilter, orderField, err },
+        );
+        // Unordered fallback: pull everything with this status, sort in JS.
+        try {
+          const snap = await baseRef.where('status', '==', statusFilter).get();
+          const docs = snap.docs;
+          docs.sort((a, b) => {
+            const av = String(a.get(orderField) ?? '');
+            const bv = String(b.get(orderField) ?? '');
+            return bv.localeCompare(av); // desc
+          });
+          return docs.slice(0, 10);
+        } catch (innerErr) {
+          logger.warn?.(
+            'sprintK.culturePulse.snapshot.unordered_fallback_failed',
+            innerErr,
+          );
+          return null;
+        }
+      }
+    };
+
+    const nowIso = new Date().toISOString();
     let surveyDoc: admin.firestore.QueryDocumentSnapshot | null = null;
-    const openSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
-      () => baseRef.where('status', '==', 'open').orderBy('openAt', 'desc').limit(1).get(),
-      null,
-    );
-    if (openSnap && openSnap.size > 0) {
-      surveyDoc = openSnap.docs[0];
-    } else {
-      const closedSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
-        () => baseRef.where('status', '==', 'closed').orderBy('closeAt', 'desc').limit(1).get(),
-        null,
-      );
-      if (closedSnap && closedSnap.size > 0) {
-        surveyDoc = closedSnap.docs[0];
+
+    // Prefer the most recent OPEN survey whose window hasn't expired.
+    const openDocs = await fetchSurveyOrdered('open', 'openAt');
+    if (openDocs && openDocs.length > 0) {
+      const liveOpen = openDocs.find((d) => {
+        const closeAt = d.get('closeAt');
+        return typeof closeAt === 'string' && nowIso < closeAt;
+      });
+      surveyDoc = liveOpen ?? null;
+    }
+
+    // Fallback to the most recent closed snapshot (admin-closed OR expired).
+    if (!surveyDoc) {
+      const closedDocs = await fetchSurveyOrdered('closed', 'closeAt');
+      if (closedDocs && closedDocs.length > 0) {
+        surveyDoc = closedDocs[0];
+      } else {
+        // Last-resort fallback: an "open" survey whose window expired but
+        // admin never flipped status — surface it as last snapshot so the
+        // dashboard isn't blank. We treat it as 'closed' in the response.
+        if (openDocs && openDocs.length > 0) {
+          surveyDoc = openDocs[0];
+        }
       }
     }
 
@@ -6734,6 +6840,12 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
     const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
     const surveyId = surveyDoc.id;
 
+    // Determine the effective status: if persisted status is 'open' but
+    // closeAt has passed, expose it as 'closed' to clients so the page
+    // never shows an expired survey as the "active" banner CTA.
+    const effectiveStatus: 'open' | 'closed' =
+      survey.status === 'open' && nowIso < survey.closeAt ? 'open' : 'closed';
+
     // Read all responses for aggregation.
     const responsesSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
       () => baseRef.doc(surveyId).collection('responses').get(),
@@ -6743,17 +6855,77 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
     const responses =
       responsesSnap?.docs.map((d) => d.data() as StoredPulseResponse) ?? [];
 
+    const callerHash = pulseResponderHash(callerUid, surveyId);
+    const responderHashes = new Set(responses.map((r) => r.responderHash));
+    const hasResponded = responderHashes.has(callerHash);
+
+    const expectedRespondentsOut: number | null =
+      typeof survey.expectedRespondents === 'number'
+        ? survey.expectedRespondents
+        : null;
+
+    // ──────────────────────────────────────────────────────────────────
+    // Codex P1 #3 (PR #323, line 5304) — PRIVACIDAD: umbral de anonimato.
+    //
+    // Si el conteo de respuestas es menor a PULSE_ANONYMITY_THRESHOLD (5),
+    // suprimimos TODO agregado derivado (cultureIndex, level, byQuestion,
+    // topConcerns, topStrengths, punitiveCulturedFlagged, participationRate).
+    // Estos agregados con n<5 son trivialmente reversibles:
+    //   - n=1: el promedio ES la respuesta del trabajador.
+    //   - n=2-4: si un atacante conoce a un solo respondedor (ej.: él
+    //     mismo respondió), puede restar su respuesta del promedio y
+    //     derivar respuestas individuales del resto.
+    //   - Un "top concern" con texto identificable (ej.: "supervisor X")
+    //     en un grupo de 4 trabajadores re-identifica al disidente.
+    //
+    // Estado de la encuesta + conteo + flag de anonimato + `hasResponded`
+    // SÍ se exponen porque no permiten re-identificación: indican
+    // existencia y participación a nivel de actividad, no contenido.
+    //
+    // La directiva del producto ("Responses MUST be anonymous") aplica
+    // por encima del control de acceso (guard sólo verifica membresía
+    // de proyecto; cualquier miembro de la cuadrilla puede cargar este
+    // snapshot, así que el endpoint no puede asumir que el lector sea
+    // alguien autorizado a ver señales identificables).
+    // ──────────────────────────────────────────────────────────────────
+    if (responses.length < PULSE_ANONYMITY_THRESHOLD) {
+      const suppressedSnapshot: CulturePulseSnapshot = {
+        surveyId,
+        status: effectiveStatus,
+        openAt: survey.openAt,
+        closeAt: survey.closeAt,
+        cultureIndex: 0,
+        level: 'low',
+        totalResponses: responses.length,
+        expectedRespondents: expectedRespondentsOut,
+        participationRate: null,
+        punitiveCulturedFlagged: false,
+        byQuestion: {
+          felt_safe_today: 0,
+          manager_listens: 0,
+          free_to_stop: 0,
+          reported_incident_safely: 0,
+          has_resources_to_be_safe: 0,
+        },
+        topConcerns: [],
+        topStrengths: [],
+        hasResponded,
+        insufficientResponses: true,
+        currentCount: responses.length,
+        threshold: PULSE_ANONYMITY_THRESHOLD,
+      };
+      return res.json({ snapshot: suppressedSnapshot });
+    }
+
+    // n ≥ threshold — safe to surface aggregates.
     const index = computePulseIndex(responses);
 
-    // Top concerns: 3 questions with lowest avg. Top strengths: top 3.
+    // Top concerns: questions with lowest avg. Top strengths: top.
     const ranked = (Object.keys(index.byQuestion) as PulseQuestionKey[])
       .map((k) => ({ key: k, label: PULSE_QUESTION_LABEL[k], score: index.byQuestion[k] }))
       .filter((r) => r.score > 0); // 0 only happens for empty surveys
     const sortedAsc = [...ranked].sort((a, b) => a.score - b.score);
     const sortedDesc = [...ranked].sort((a, b) => b.score - a.score);
-
-    const callerHash = pulseResponderHash(callerUid, surveyId);
-    const responderHashes = new Set(responses.map((r) => r.responderHash));
 
     const participationRate =
       typeof survey.expectedRespondents === 'number' && survey.expectedRespondents > 0
@@ -6762,22 +6934,19 @@ router.get('/:projectId/culture-pulse', verifyAuth, async (req, res) => {
 
     const snapshot: CulturePulseSnapshot = {
       surveyId,
-      status: survey.status,
+      status: effectiveStatus,
       openAt: survey.openAt,
       closeAt: survey.closeAt,
       cultureIndex: index.cultureIndex,
       level: index.level,
       totalResponses: index.totalResponses,
-      expectedRespondents:
-        typeof survey.expectedRespondents === 'number'
-          ? survey.expectedRespondents
-          : null,
+      expectedRespondents: expectedRespondentsOut,
       participationRate,
       punitiveCulturedFlagged: index.punitiveCulturedFlagged,
       byQuestion: index.byQuestion,
       topConcerns: sortedAsc.slice(0, 5),
       topStrengths: sortedDesc.slice(0, 5),
-      hasResponded: responderHashes.has(callerHash),
+      hasResponded,
     };
 
     return res.json({ snapshot });
@@ -6807,6 +6976,16 @@ const culturePulseScheduleSchema = z
     path: ['closeAt'],
   });
 
+// Codex P2 (PR #323, line 5343) — schedule de encuesta es admin-only.
+// El UI sólo expone "Nueva encuesta" si `isAdmin`, pero la ruta sólo
+// chequeaba membresía de proyecto vía `guard`, así que cualquier worker
+// autenticado podía POSTear directo y alterar el dashboard de cultura
+// (crear encuestas falsas, manipular conteos, "responder" la propia).
+// Replicamos el patrón de PR #313/#319 P1 #1: `callerHasSupervisorRole`
+// incluye admin/prevencionista/supervisor — el conjunto autorizado a
+// programar olas de pulso de cultura.
+const CULTURE_PULSE_SCHEDULE_ROLES = Array.from(QR_SIG_CHALLENGE_ROLES);
+
 router.post(
   '/:projectId/culture-pulse/survey',
   verifyAuth,
@@ -6817,6 +6996,14 @@ router.post(
     const body = req.body as z.infer<typeof culturePulseScheduleSchema>;
     const g = await guard(callerUid, projectId, res);
     if (!g) return undefined;
+    // Codex P2 (PR #323, line 5343) — role gate después de guard
+    // (guard ya verificó membresía/tenant). Sin esto, cualquier worker
+    // del proyecto podía crear/borrar encuestas vía POST directo.
+    if (!callerHasSupervisorRole(req)) {
+      return res
+        .status(403)
+        .json({ error: 'forbidden_role', allowed: CULTURE_PULSE_SCHEDULE_ROLES });
+    }
     try {
       const db = admin.firestore();
       const docRef = db
@@ -6961,34 +7148,71 @@ router.get('/:projectId/culture-pulse/history', verifyAuth, async (req, res) => 
       }
     };
 
-    // Pull the last 6 surveys ordered by openAt desc. We sort the
-    // final output ASC (oldest → newest) so the sparkline reads
-    // left-to-right.
-    const surveysSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
-      () => baseRef.orderBy('openAt', 'desc').limit(6).get(),
-      null,
-    );
-
-    const points: CulturePulseHistoryPoint[] = [];
-    if (surveysSnap) {
-      for (const surveyDoc of surveysSnap.docs) {
-        const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
-        const responsesSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
-          () => surveyDoc.ref.collection('responses').get(),
-          null,
+    // Codex P1 #2 (PR #323, line 5217) — historic query también requiere
+    // índice: `culture_pulse.orderBy(openAt desc)` corre dentro de la
+    // sub-collection del proyecto, así que un índice single-field debería
+    // bastar; pero por defensa, si la consulta falla con
+    // FAILED_PRECONDITION caemos al unordered (cuesta más memoria, pero
+    // el límite de docs por proyecto es bajo — son olas mensuales/
+    // trimestrales, raramente >50 docs).
+    const fetchHistoryOrdered = async (): Promise<
+      admin.firestore.QueryDocumentSnapshot[]
+    > => {
+      try {
+        const snap = await baseRef.orderBy('openAt', 'desc').limit(6).get();
+        return snap.docs;
+      } catch (err) {
+        if (!isMissingFirestoreIndexError(err)) {
+          logger.warn?.('sprintK.culturePulse.history.read_failed', err);
+          return [];
+        }
+        logger.warn?.(
+          'sprintK.culturePulse.history.missing_index_fallback',
+          err,
         );
-        const responses =
-          responsesSnap?.docs.map((d) => d.data() as StoredPulseResponse) ?? [];
-        const idx = computePulseIndex(responses);
-        points.push({
-          surveyId: surveyDoc.id,
-          openAt: survey.openAt,
-          closeAt: survey.closeAt ?? null,
-          cultureIndex: idx.cultureIndex,
-          totalResponses: idx.totalResponses,
-          level: idx.level,
-        });
+        try {
+          const snap = await baseRef.get();
+          const docs = snap.docs;
+          docs.sort((a, b) => {
+            const av = String(a.get('openAt') ?? '');
+            const bv = String(b.get('openAt') ?? '');
+            return bv.localeCompare(av); // desc
+          });
+          return docs.slice(0, 6);
+        } catch (innerErr) {
+          logger.warn?.(
+            'sprintK.culturePulse.history.unordered_fallback_failed',
+            innerErr,
+          );
+          return [];
+        }
       }
+    };
+
+    const surveyDocs = await fetchHistoryOrdered();
+    const points: CulturePulseHistoryPoint[] = [];
+    for (const surveyDoc of surveyDocs) {
+      const survey = surveyDoc.data() as Omit<StoredPulseSurvey, 'id'>;
+      const responsesSnap = await safeRead<admin.firestore.QuerySnapshot | null>(
+        () => surveyDoc.ref.collection('responses').get(),
+        null,
+      );
+      const responses =
+        responsesSnap?.docs.map((d) => d.data() as StoredPulseResponse) ?? [];
+      // Codex P1 #3 (PR #323, line 5304) — anonimato también en history.
+      // Aunque el sparkline sólo expone `cultureIndex` agregado, con
+      // n<5 ese índice ES re-identificable; suprimimos el índice y
+      // dejamos sólo metadatos de existencia + conteo + nivel neutro.
+      const insufficient = responses.length < PULSE_ANONYMITY_THRESHOLD;
+      const idx = computePulseIndex(responses);
+      points.push({
+        surveyId: surveyDoc.id,
+        openAt: survey.openAt,
+        closeAt: survey.closeAt ?? null,
+        cultureIndex: insufficient ? 0 : idx.cultureIndex,
+        totalResponses: responses.length,
+        level: insufficient ? 'low' : idx.level,
+      });
     }
 
     // Sort ascending (oldest first) for the sparkline.

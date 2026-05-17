@@ -1553,6 +1553,18 @@ export interface CulturePulseSnapshot {
     score: number;
   }>;
   hasResponded: boolean;
+  /**
+   * Codex P1 #3 (PR #323) — Anonymity threshold. When `true`, all
+   * derived aggregates (`cultureIndex`, `level`, `byQuestion`,
+   * `topConcerns`, `topStrengths`, `participationRate`, `punitiveCulturedFlagged`)
+   * are zeroed/empty and the UI must show a "waiting for enough
+   * responses" placeholder to preserve respondent anonymity.
+   */
+  insufficientResponses?: boolean;
+  /** Current response count, exposed when `insufficientResponses=true`. */
+  currentCount?: number;
+  /** Minimum responses required before aggregates are revealed. */
+  threshold?: number;
 }
 
 export interface CulturePulseResponse {

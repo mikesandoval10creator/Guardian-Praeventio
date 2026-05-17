@@ -712,90 +712,131 @@ export function CulturePulse(): ReactElement {
             </div>
           )}
 
-          {/* Gauge + sparkline */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-default-token bg-surface p-5 flex flex-col items-center justify-center gap-3">
-              <CultureGauge index={cultureIndex} band={band} />
-              <p className="text-[11px] uppercase tracking-widest text-secondary-token">
-                Índice de Cultura Preventiva
-              </p>
-              {snapshot?.punitiveCulturedFlagged && (
-                <p
-                  className="text-[11px] font-bold uppercase tracking-widest text-rose-500 flex items-center gap-1"
-                  data-testid="culture-pulse-punitive-flag"
-                >
-                  <AlertTriangle className="w-3 h-3" />
-                  Posible cultura punitiva
-                </p>
-              )}
+          {/*
+            Codex P1 #3 (PR #323) — Anonymity threshold banner.
+            Cuando el snapshot suprime agregados por anonimato, NO renderizamos
+            gauge, top concerns ni top strengths. Mostramos en su lugar un
+            panel explicando por qué el sistema espera más respuestas. Es
+            UX-positivo: el trabajador entiende que su privacidad se respeta.
+          */}
+          {snapshot?.insufficientResponses ? (
+            <div
+              className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5"
+              data-testid="culture-pulse-anonymity-gate"
+            >
+              <div className="flex items-start gap-3">
+                <HeartPulse className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-sm font-black uppercase tracking-tight text-primary-token">
+                    Anonimato protegido — esperando más respuestas
+                  </h2>
+                  <p className="mt-1 text-xs text-secondary-token">
+                    Para garantizar que las respuestas sean realmente anónimas,
+                    el panel se desbloquea cuando hay al menos{' '}
+                    <strong>{snapshot.threshold ?? 5} respuestas</strong>.
+                    Llevamos{' '}
+                    <strong>
+                      {snapshot.currentCount ?? snapshot.totalResponses ?? 0} de{' '}
+                      {snapshot.threshold ?? 5}
+                    </strong>
+                    .
+                  </p>
+                  <p className="mt-1 text-[11px] text-secondary-token">
+                    Mostrar agregados con pocas respuestas podría permitir
+                    inferir quién respondió qué — y la directiva del producto
+                    es que ningún supervisor pueda re-identificar voces.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="rounded-2xl border border-default-token bg-surface p-5">
-              <h2 className="text-xs font-black uppercase tracking-widest text-secondary-token mb-3">
-                Tendencia — últimas {history.length || 0} olas
-              </h2>
-              <Sparkline points={history} />
-            </div>
-          </div>
+          ) : (
+            <>
+              {/* Gauge + sparkline */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-default-token bg-surface p-5 flex flex-col items-center justify-center gap-3">
+                  <CultureGauge index={cultureIndex} band={band} />
+                  <p className="text-[11px] uppercase tracking-widest text-secondary-token">
+                    Índice de Cultura Preventiva
+                  </p>
+                  {snapshot?.punitiveCulturedFlagged && (
+                    <p
+                      className="text-[11px] font-bold uppercase tracking-widest text-rose-500 flex items-center gap-1"
+                      data-testid="culture-pulse-punitive-flag"
+                    >
+                      <AlertTriangle className="w-3 h-3" />
+                      Posible cultura punitiva
+                    </p>
+                  )}
+                </div>
+                <div className="rounded-2xl border border-default-token bg-surface p-5">
+                  <h2 className="text-xs font-black uppercase tracking-widest text-secondary-token mb-3">
+                    Tendencia — últimas {history.length || 0} olas
+                  </h2>
+                  <Sparkline points={history} />
+                </div>
+              </div>
 
-          {/* Top concerns + strengths */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div
-              className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4"
-              data-testid="culture-pulse-concerns"
-            >
-              <h2 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-3">
-                <AlertTriangle className="w-3.5 h-3.5" /> Prioridades
-              </h2>
-              {snapshot && snapshot.topConcerns.length > 0 ? (
-                <ul className="space-y-2">
-                  {snapshot.topConcerns.slice(0, 5).map((c) => (
-                    <li
-                      key={c.key}
-                      className="flex items-center justify-between gap-2 text-sm text-primary-token"
-                      data-testid={`culture-pulse-concern-${c.key}`}
-                    >
-                      <span className="truncate">{c.label}</span>
-                      <span className="text-xs font-bold tabular-nums text-rose-500">
-                        {c.score.toFixed(1)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-secondary-token">
-                  Sin respuestas todavía.
-                </p>
-              )}
-            </div>
-            <div
-              className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4"
-              data-testid="culture-pulse-strengths"
-            >
-              <h2 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-teal-600 dark:text-teal-400 mb-3">
-                <ThumbsUp className="w-3.5 h-3.5" /> Fortalezas
-              </h2>
-              {snapshot && snapshot.topStrengths.length > 0 ? (
-                <ul className="space-y-2">
-                  {snapshot.topStrengths.slice(0, 5).map((s) => (
-                    <li
-                      key={s.key}
-                      className="flex items-center justify-between gap-2 text-sm text-primary-token"
-                      data-testid={`culture-pulse-strength-${s.key}`}
-                    >
-                      <span className="truncate">{s.label}</span>
-                      <span className="text-xs font-bold tabular-nums text-teal-500">
-                        {s.score.toFixed(1)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-secondary-token">
-                  Sin respuestas todavía.
-                </p>
-              )}
-            </div>
-          </div>
+              {/* Top concerns + strengths */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4"
+                  data-testid="culture-pulse-concerns"
+                >
+                  <h2 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400 mb-3">
+                    <AlertTriangle className="w-3.5 h-3.5" /> Prioridades
+                  </h2>
+                  {snapshot && snapshot.topConcerns.length > 0 ? (
+                    <ul className="space-y-2">
+                      {snapshot.topConcerns.slice(0, 5).map((c) => (
+                        <li
+                          key={c.key}
+                          className="flex items-center justify-between gap-2 text-sm text-primary-token"
+                          data-testid={`culture-pulse-concern-${c.key}`}
+                        >
+                          <span className="truncate">{c.label}</span>
+                          <span className="text-xs font-bold tabular-nums text-rose-500">
+                            {c.score.toFixed(1)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-secondary-token">
+                      Sin respuestas todavía.
+                    </p>
+                  )}
+                </div>
+                <div
+                  className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4"
+                  data-testid="culture-pulse-strengths"
+                >
+                  <h2 className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-teal-600 dark:text-teal-400 mb-3">
+                    <ThumbsUp className="w-3.5 h-3.5" /> Fortalezas
+                  </h2>
+                  {snapshot && snapshot.topStrengths.length > 0 ? (
+                    <ul className="space-y-2">
+                      {snapshot.topStrengths.slice(0, 5).map((s) => (
+                        <li
+                          key={s.key}
+                          className="flex items-center justify-between gap-2 text-sm text-primary-token"
+                          data-testid={`culture-pulse-strength-${s.key}`}
+                        >
+                          <span className="truncate">{s.label}</span>
+                          <span className="text-xs font-bold tabular-nums text-teal-500">
+                            {s.score.toFixed(1)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-secondary-token">
+                      Sin respuestas todavía.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
 
