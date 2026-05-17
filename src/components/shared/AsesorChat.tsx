@@ -119,8 +119,10 @@ export function AsesorChat() {
           capturedAt: new Date().toISOString()
         }
       });
-      setSavedNodeId(newNode.id);
-      setTimeout(() => setSavedNodeId(null), 3000);
+      if (newNode) {
+        setSavedNodeId(newNode.id);
+        setTimeout(() => setSavedNodeId(null), 3000);
+      }
     } catch (error) {
       logger.error('Error saving to Risk Network:', error);
     }
@@ -228,7 +230,29 @@ export function AsesorChat() {
       const seismic = seismicData.status === 'fulfilled' ? seismicData.value : null;
 
       const environmentContext = [
-        weather ? `Clima actual: ${weather.temp}Â°C, ${weather.condition}, Viento: ${Math.round(weather.windSpeed)} km/h, Humedad: ${weather.humidity}%, Calidad del aire: ${weather.airQuality}.` : '',
+        weather
+          ? (() => {
+              // Codex P2 (PR #308): the weather payload can return a
+              // partial snapshot where `windSpeed` is intentionally
+              // `undefined` (e.g. `getMockWeatherData()` when
+              // `unavailable: true`). Substituting `0` would tell the
+              // assistant prompt that wind is calm, which can produce
+              // unsafe height/izaje advice. Build the field list and
+              // OMIT wind when no real measurement exists.
+              const parts: string[] = [
+                `${weather.temp}°C`,
+                weather.condition,
+              ];
+              if (typeof weather.windSpeed === 'number') {
+                parts.push(`Viento: ${Math.round(weather.windSpeed)} km/h`);
+              } else {
+                parts.push('Viento: no disponible');
+              }
+              parts.push(`Humedad: ${weather.humidity}%`);
+              parts.push(`Calidad del aire: ${weather.airQuality}`);
+              return `Clima actual: ${parts.join(', ')}.`;
+            })()
+          : '',
         seismic ? `Sismo reciente: Magnitud ${seismic.magnitude} â€” Nivel de alerta: ${seismic.alertLevel}.` : '',
       ].filter(Boolean).join(' ');
 

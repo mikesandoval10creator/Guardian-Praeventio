@@ -8,7 +8,6 @@ import {
 
 function obj(over: Partial<PreventiveObjective> & { id: string }): PreventiveObjective {
   return {
-    id: over.id,
     fiscalYear: 2026,
     title: 'Reducir vencidos 30%',
     description: '',

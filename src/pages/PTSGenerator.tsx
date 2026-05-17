@@ -59,10 +59,10 @@ export function PTSGenerator() {
   const dangerousWeather = React.useMemo(() => {
     if (!environment?.weather) return null;
     const { windSpeed, temp } = environment.weather;
-    
-    if (windSpeed > 40) return `Vientos peligrosos (${windSpeed} km/h). Riesgo crítico para trabajos en altura o izaje.`;
-    if (temp > 35) return `Calor extremo (${temp}°C). Riesgo crítico de estrés térmico.`;
-    if (temp < -5) return `Frío extremo (${temp}°C). Riesgo crítico de hipotermia o congelamiento.`;
+
+    if (typeof windSpeed === 'number' && windSpeed > 40) return `Vientos peligrosos (${windSpeed} km/h). Riesgo crítico para trabajos en altura o izaje.`;
+    if (typeof temp === 'number' && temp > 35) return `Calor extremo (${temp}°C). Riesgo crítico de estrés térmico.`;
+    if (typeof temp === 'number' && temp < -5) return `Frío extremo (${temp}°C). Riesgo crítico de hipotermia o congelamiento.`;
     
     return null;
   }, [environment]);

@@ -326,7 +326,7 @@ export function GuardianVoiceAssistant() {
 
   const b64toBlob = (b64Data: string, contentType = '', sliceSize = 512) => {
     const byteCharacters = atob(b64Data);
-    const byteArrays = [];
+    const byteArrays: Uint8Array[] = [];
     for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
       const slice = byteCharacters.slice(offset, offset + sliceSize);
       const byteNumbers = new Array(slice.length);

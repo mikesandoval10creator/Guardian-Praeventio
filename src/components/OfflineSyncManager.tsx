@@ -138,7 +138,12 @@ export function OfflineSyncManager() {
               // `sync-critical-conflict-resolved` listener (below) will
               // apply them once the supervisor decides.
               if (Object.keys(resolvedUpdate).length > 0) {
-                await updateDoc(doc(db, action.collection, id), resolvedUpdate);
+                // Firestore web SDK `updateDoc` wants a strict UpdateData<T>
+                // shape; our `resolvedUpdate` is `Record<string, unknown>`
+                // which is structurally compatible at runtime. Cast via
+                // `unknown` first (TS refuses the direct cast because the
+                // types don't sufficiently overlap).
+                await updateDoc(doc(db, action.collection, id), resolvedUpdate as { [k: string]: any });
               }
               docId = id;
               if (manualPending) {
@@ -307,7 +312,8 @@ export function OfflineSyncManager() {
         }
         if (Object.keys(update).length > 0) {
           try {
-            await updateDoc(doc(db, detail.collection, detail.docId), update);
+            // Same cast pattern as above — strict UpdateData vs our Record.
+            await updateDoc(doc(db, detail.collection, detail.docId), update as { [k: string]: any });
           } catch (err) {
             handleFirestoreError(err, OperationType.UPDATE, detail.collection);
           }
