@@ -25,6 +25,7 @@
 // real venidera. Hoy basta con el ciclo on-mount / on-unmount.
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Shield, Power, PauseCircle } from 'lucide-react';
 import { LoneWorkerCard } from '../components/loneWorker/LoneWorkerCard';
 import { useFirebase } from '../contexts/FirebaseContext';
@@ -39,6 +40,7 @@ import type { LoneWorkerSession } from '../services/loneWorker/loneWorkerService
 const DEFAULT_INTERVAL_MIN = 15;
 
 export function LoneWorker() {
+  const { t } = useTranslation();
   const { user } = useFirebase();
   const workerUid = user?.uid ?? 'anonymous';
   const [fgsActive, setFgsActive] = useState<boolean>(false);
@@ -64,10 +66,10 @@ export function LoneWorker() {
         r.applied
           ? `FGS ${r.reason}.`
           : r.reason === 'not_native'
-            ? 'Plataforma web — foreground service no aplica.'
+            ? t('lone_worker.fgs_not_native')
             : r.reason === 'no_plugin'
-              ? 'Plugin no disponible en este build.'
-              : `FGS error: ${r.error ?? 'desconocido'}`,
+              ? t('lone_worker.fgs_no_plugin')
+              : `FGS error: ${r.error ?? t('lone_worker.fgs_error_unknown')}`,
       );
     })();
     return () => {
@@ -83,9 +85,9 @@ export function LoneWorker() {
     const r = await stopLoneWorkerFgs();
     setFgsActive(isRunning());
     setFgsMessage(
-      r.applied ? 'FGS detenido.' : r.error ?? 'FGS no estaba corriendo.',
+      r.applied ? t('lone_worker.fgs_stopped_msg') : r.error ?? t('lone_worker.fgs_not_running'),
     );
-  }, []);
+  }, [t]);
 
   const handleManualStart = useCallback(async () => {
     const r = await startLoneWorkerFgs({
@@ -111,11 +113,11 @@ export function LoneWorker() {
     <section
       className="p-4 space-y-4"
       data-testid="loneWorker.page"
-      aria-label="Trabajador solitario"
+      aria-label={t('lone_worker.title')}
     >
       <header className="flex items-center gap-2">
         <Shield className="w-5 h-5 text-teal-600" aria-hidden="true" />
-        <h1 className="text-lg font-bold">Trabajador solitario</h1>
+        <h1 className="text-lg font-bold">{t('lone_worker.title')}</h1>
       </header>
 
       <LoneWorkerCard session={mockSession} status="active" />
@@ -127,14 +129,14 @@ export function LoneWorker() {
         <header className="flex items-center gap-2">
           <Power className={`w-4 h-4 ${fgsActive ? 'text-teal-600' : 'text-slate-400'}`} aria-hidden="true" />
           <h2 className="text-sm font-bold">
-            Foreground service {fgsActive ? 'activo' : 'detenido'}
+            {fgsActive ? t('lone_worker.fgs_active') : t('lone_worker.fgs_stopped')}
           </h2>
         </header>
         <p className="text-[11px] text-slate-600" data-testid="loneWorker.fgs.message">
-          {fgsMessage || 'Iniciando…'}
+          {fgsMessage || t('lone_worker.fgs_starting')}
         </p>
         <p className="text-[11px] text-slate-500">
-          Plataforma: {isAndroidNative() ? 'Android nativo' : 'Web / iOS (no-op)'}
+          {t('lone_worker.platform_label')}: {isAndroidNative() ? t('lone_worker.platform_android') : t('lone_worker.platform_web')}
         </p>
         <div className="flex gap-2">
           <button
@@ -144,7 +146,7 @@ export function LoneWorker() {
             className="rounded-md px-3 py-2 text-xs font-bold bg-teal-600 text-white disabled:bg-slate-200 disabled:text-slate-400"
             data-testid="loneWorker.fgs.start"
           >
-            <Power className="w-3 h-3 inline mr-1" aria-hidden="true" /> Iniciar
+            <Power className="w-3 h-3 inline mr-1" aria-hidden="true" /> {t('lone_worker.btn_start')}
           </button>
           <button
             type="button"
@@ -153,7 +155,7 @@ export function LoneWorker() {
             className="rounded-md px-3 py-2 text-xs font-bold bg-rose-600 text-white disabled:bg-slate-200 disabled:text-slate-400"
             data-testid="loneWorker.fgs.stop"
           >
-            <PauseCircle className="w-3 h-3 inline mr-1" aria-hidden="true" /> Detener
+            <PauseCircle className="w-3 h-3 inline mr-1" aria-hidden="true" /> {t('lone_worker.btn_stop')}
           </button>
         </div>
       </div>

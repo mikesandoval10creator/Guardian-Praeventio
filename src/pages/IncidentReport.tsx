@@ -20,6 +20,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -44,31 +45,39 @@ interface ReportResponse {
   indexed: boolean;
 }
 
-const TYPE_OPTIONS: Array<{ value: IncidentEventType; label: string; hint: string }> = [
+const TYPE_OPTIONS: Array<{
+  value: IncidentEventType;
+  labelKey: string;
+  hintKey: string;
+}> = [
   {
     value: 'near_miss',
-    label: 'Near-miss',
-    hint: 'Casi pasó algo — observación temprana.',
+    labelKey: 'incident_report.type_near_miss_label',
+    hintKey: 'incident_report.type_near_miss_hint',
   },
-  { value: 'incident', label: 'Incidente', hint: 'Ocurrió, sin lesión grave.' },
+  {
+    value: 'incident',
+    labelKey: 'incident_report.type_incident_label',
+    hintKey: 'incident_report.type_incident_hint',
+  },
   {
     value: 'post_mortem',
-    label: 'Post-mortem',
-    hint: 'Análisis de causa raíz tras un evento mayor.',
+    labelKey: 'incident_report.type_post_mortem_label',
+    hintKey: 'incident_report.type_post_mortem_hint',
   },
 ];
 
 const SEVERITY_OPTIONS: Array<{
   value: IncidentSeverity;
-  label: string;
+  labelKey: string;
   badge: string;
 }> = [
-  { value: 'low', label: 'Baja', badge: 'bg-emerald-500/10 text-emerald-700' },
-  { value: 'med', label: 'Media', badge: 'bg-amber-500/10 text-amber-700' },
-  { value: 'high', label: 'Alta', badge: 'bg-orange-500/10 text-orange-700' },
+  { value: 'low', labelKey: 'incident_report.sev_low', badge: 'bg-emerald-500/10 text-emerald-700' },
+  { value: 'med', labelKey: 'incident_report.sev_med', badge: 'bg-amber-500/10 text-amber-700' },
+  { value: 'high', labelKey: 'incident_report.sev_high', badge: 'bg-orange-500/10 text-orange-700' },
   {
     value: 'critical',
-    label: 'Crítica',
+    labelKey: 'incident_report.sev_critical',
     badge: 'bg-rose-500/10 text-rose-700',
   },
 ];
@@ -78,6 +87,7 @@ function generateIdempotencyKey(): string {
 }
 
 export function IncidentReport() {
+  const { t } = useTranslation();
   const { selectedProject } = useProject();
   const [incidentType, setIncidentType] = useState<IncidentEventType>('near_miss');
   const [severity, setSeverity] = useState<IncidentSeverity>('med');
@@ -105,7 +115,7 @@ export function IncidentReport() {
     try {
       const user = auth.currentUser;
       if (!user) {
-        setError('Debes iniciar sesión para reportar.');
+        setError(t('incident_report.err_must_login'));
         setSubmitting(false);
         return;
       }
@@ -150,7 +160,7 @@ export function IncidentReport() {
       setWitnessesText('');
     } catch (err) {
       logger.error('incident_report_submit_failed', { error: err });
-      setError('No fue posible reportar. Intenta nuevamente.');
+      setError(t('incident_report.err_generic'));
     } finally {
       setSubmitting(false);
     }
@@ -164,27 +174,26 @@ export function IncidentReport() {
           className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100"
         >
           <ChevronLeft className="w-4 h-4" />
-          Emergencia
+          {t('incident_report.back_emergency')}
         </Link>
       </div>
 
       <header className="mb-6">
         <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-teal-700 dark:text-teal-300 bg-teal-500/10 px-3 py-1 rounded-full mb-3">
           <ShieldAlert className="w-3.5 h-3.5" />
-          Reportar
+          {t('incident_report.badge')}
         </div>
         <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-zinc-900 dark:text-white">
-          Reportar near-miss
+          {t('incident_report.title')}
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2 leading-relaxed">
-          Tu observación cuenta. Reportar near-miss salva vidas — y suma XP a tu
-          cuadrilla. Cero penalización: la cultura POSITIVA solo refuerza.
+          {t('incident_report.subtitle')}
         </p>
       </header>
 
       {!selectedProject && (
         <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-sm">
-          Selecciona un proyecto activo antes de reportar.
+          {t('incident_report.select_project')}
         </div>
       )}
 
@@ -192,15 +201,15 @@ export function IncidentReport() {
         <div className="mb-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-100">
           <div className="flex items-center gap-2 font-bold uppercase tracking-widest text-xs mb-1">
             <CheckCircle2 className="w-4 h-4" />
-            Reporte registrado
+            {t('incident_report.registered')}
           </div>
           <p className="text-sm">
-            Folio: <span className="font-mono">{result.incidentId}</span>
+            {t('incident_report.folio')}: <span className="font-mono">{result.incidentId}</span>
           </p>
           {result.xpAwarded > 0 && (
             <p className="text-sm mt-2 inline-flex items-center gap-1">
               <Sparkles className="w-4 h-4" />
-              <strong>+{result.xpAwarded} XP</strong> — gracias por reportar.
+              <strong>+{result.xpAwarded} XP</strong> — {t('incident_report.xp_thanks')}
             </p>
           )}
         </div>
@@ -216,7 +225,7 @@ export function IncidentReport() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2">
-            Tipo
+            {t('incident_report.label_type')}
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {TYPE_OPTIONS.map((opt) => (
@@ -232,10 +241,10 @@ export function IncidentReport() {
                 }`}
               >
                 <div className="font-bold uppercase tracking-widest text-xs">
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </div>
                 <div className="text-[11px] mt-1 leading-snug opacity-80">
-                  {opt.hint}
+                  {t(opt.hintKey)}
                 </div>
               </button>
             ))}
@@ -244,7 +253,7 @@ export function IncidentReport() {
 
         <div>
           <label className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2">
-            Severidad declarada
+            {t('incident_report.label_severity')}
           </label>
           <div className="flex flex-wrap gap-2">
             {SEVERITY_OPTIONS.map((opt) => (
@@ -259,7 +268,7 @@ export function IncidentReport() {
                     : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300'
                 }`}
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             ))}
           </div>
@@ -270,7 +279,7 @@ export function IncidentReport() {
             htmlFor="incident-description"
             className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2"
           >
-            ¿Qué pasó?
+            {t('incident_report.label_what_happened')}
           </label>
           <textarea
             id="incident-description"
@@ -278,7 +287,7 @@ export function IncidentReport() {
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
             maxLength={4000}
-            placeholder="Describe brevemente: lugar, qué viste, posible causa."
+            placeholder={t('incident_report.what_placeholder')}
             className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-teal-500"
             required
           />
@@ -292,7 +301,7 @@ export function IncidentReport() {
             htmlFor="incident-location"
             className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2"
           >
-            Ubicación (opcional)
+            {t('incident_report.label_location')}
           </label>
           <input
             id="incident-location"
@@ -300,7 +309,7 @@ export function IncidentReport() {
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             maxLength={256}
-            placeholder="Frente 2 — Piso 3 — Andamio sur"
+            placeholder={t('incident_report.location_placeholder')}
             className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-teal-500"
           />
         </div>
@@ -310,14 +319,14 @@ export function IncidentReport() {
             htmlFor="incident-witnesses"
             className="block text-xs font-bold uppercase tracking-widest text-zinc-700 dark:text-zinc-300 mb-2"
           >
-            Testigos (opcional, separados por coma)
+            {t('incident_report.label_witnesses')}
           </label>
           <input
             id="incident-witnesses"
             type="text"
             value={witnessesText}
             onChange={(e) => setWitnessesText(e.target.value)}
-            placeholder="Juan Pérez, María Soto"
+            placeholder={t('incident_report.witnesses_placeholder')}
             className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-teal-500"
           />
         </div>
@@ -330,12 +339,12 @@ export function IncidentReport() {
           {submitting ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              Enviando…
+              {t('incident_report.submitting')}
             </>
           ) : (
             <>
               <Send className="w-5 h-5" />
-              Reportar
+              {t('incident_report.submit')}
             </>
           )}
         </button>

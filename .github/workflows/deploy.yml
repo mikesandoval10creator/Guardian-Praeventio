@@ -67,8 +67,8 @@ jobs:
             NODE_ENV=production
             KMS_ADAPTER=cloud-kms
             KMS_KEY_RESOURCE_NAME=${{ secrets.KMS_KEY_RESOURCE_NAME }}
-            APP_BASE_URL=https://guardian-praeventio-565212386989.us-central1.run.app
-            APP_URL=https://guardian-praeventio-565212386989.us-central1.run.app
+            APP_BASE_URL=https://app.praeventio.net
+            APP_URL=https://app.praeventio.net
             PHOTOGRAMMETRY_WORKER_URL=${{ secrets.PHOTOGRAMMETRY_WORKER_URL }}
             DWG_CONVERTER_URL=${{ secrets.DWG_CONVERTER_URL }}
             MODAL_SUBMIT_URL=${{ secrets.MODAL_SUBMIT_URL }}
