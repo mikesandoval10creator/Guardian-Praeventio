@@ -159,8 +159,154 @@ export const REQUIRED_CHECKLIST_BY_KIND: Record<WorkPermitKind, string[]> = {
 // ────────────────────────────────────────────────────────────────────────
 
 /**
+ * Codex P1 #1 (Sprint F.15): permits the SUPERVISOR has not yet
+ * attested must NOT skip into 'active' just because the requesting client
+ * sent every checklist item as `checked: true`. The route creates the
+ * permit via this helper — it produces a `pending_approval` permit with
+ * the canonical (unchecked) checklist for the kind. The supervisor then
+ * attests preconditions + checklist in the sign step via
+ * `attestAndIssuePermit`, at which point the permit flips to 'active'.
+ *
+ * Approver role is validated up-front. We accept (and store) the worker
+ * and approver UIDs but do not yet enforce supervisor-level identity at
+ * this step — that is the route's job (server-trusted issuer / approver).
+ */
+export function createPendingPermit(input: WorkPermitInput): WorkPermit {
+  if (!APPROVER_ROLES.includes(input.approverRole)) {
+    throw new WorkPermitValidationError(
+      'INVALID_APPROVER_ROLE',
+      `approverRole '${input.approverRole}' not in ${APPROVER_ROLES.join(', ')}`,
+    );
+  }
+  if (input.durationHours <= 0 || input.durationHours > MAX_DURATION_HOURS) {
+    throw new WorkPermitValidationError(
+      'DURATION_OUT_OF_RANGE',
+      `durationHours must be in (0, ${MAX_DURATION_HOURS}]`,
+    );
+  }
+  // The server overwrites the body's checklist with the canonical template,
+  // every item explicitly `checked: false`. This is the source of truth
+  // for what the supervisor needs to attest. The engine is intentionally
+  // strict here — if the route mistakenly forwards a pre-attested seed
+  // (regression), the checklist will still arrive empty/unchecked because
+  // we re-seed from REQUIRED_CHECKLIST_BY_KIND ourselves.
+  const checklist: WorkPermitChecklist = {
+    items: REQUIRED_CHECKLIST_BY_KIND[input.kind].map((label, idx) => ({
+      id: `${input.kind}-check-${idx}`,
+      label,
+      checked: false,
+    })),
+  };
+  const now = input.now ?? new Date();
+  return {
+    id: input.id,
+    kind: input.kind,
+    workerUid: input.workerUid,
+    approverUid: input.approverUid,
+    approverRole: input.approverRole,
+    zoneId: input.zoneId,
+    taskDescription: input.taskDescription,
+    status: 'pending_approval',
+    preconditions: {
+      workerHasTraining: false,
+      workerHasEpp: false,
+      workerMedicallyFit: false,
+      checklist,
+    },
+    createdAt: now.toISOString(),
+    validFrom: now.toISOString(),
+    validUntil: new Date(now.getTime() + input.durationHours * 3_600_000).toISOString(),
+  };
+}
+
+/**
+ * Supervisor attestation step. Takes a pending_approval permit, an
+ * attestation payload (preconditions + checklist items the supervisor
+ * confirms), and either:
+ *   - returns an 'active' permit with the attested checklist + approvedAt
+ *     stamped to `now`, OR
+ *   - throws WorkPermitValidationError if any required check is missing
+ *     or any meta-precondition is false.
+ *
+ * This is what the /sign endpoint should call so the body of the sign
+ * request — NOT the body of the create request — controls what the
+ * permit attests.
+ */
+export interface PermitAttestationInput {
+  workerHasTraining: boolean;
+  workerHasEpp: boolean;
+  workerMedicallyFit: boolean;
+  /** Labels the supervisor confirms as checked. */
+  checkedLabels: string[];
+  now?: Date;
+}
+
+export function attestAndIssuePermit(
+  permit: WorkPermit,
+  attest: PermitAttestationInput,
+): WorkPermit {
+  if (permit.status !== 'pending_approval' && permit.status !== 'draft') {
+    throw new WorkPermitValidationError(
+      'NOT_PENDING',
+      `permit '${permit.id}' is in status '${permit.status}', cannot attest`,
+    );
+  }
+  if (!attest.workerHasTraining) {
+    throw new WorkPermitValidationError(
+      'WORKER_MISSING_TRAINING',
+      `worker ${permit.workerUid} lacks training for ${permit.kind}`,
+    );
+  }
+  if (!attest.workerHasEpp) {
+    throw new WorkPermitValidationError(
+      'WORKER_MISSING_EPP',
+      `worker ${permit.workerUid} lacks EPP required for ${permit.kind}`,
+    );
+  }
+  if (!attest.workerMedicallyFit) {
+    throw new WorkPermitValidationError(
+      'WORKER_NOT_FIT',
+      `worker ${permit.workerUid} has medical restrictions blocking ${permit.kind}`,
+    );
+  }
+  const required = REQUIRED_CHECKLIST_BY_KIND[permit.kind];
+  const checked = new Set(attest.checkedLabels);
+  const missing = required.filter((r) => !checked.has(r));
+  if (missing.length > 0) {
+    throw new WorkPermitValidationError(
+      'CHECKLIST_INCOMPLETE',
+      `${missing.length} items pending: ${missing.join('; ')}`,
+    );
+  }
+  const now = (attest.now ?? new Date()).toISOString();
+  // Stamp every item as checked (with verifiedAt = now) so the persisted
+  // checklist matches the attestation.
+  const items = permit.preconditions.checklist.items.map((it) => ({
+    ...it,
+    checked: checked.has(it.label),
+    verifiedAt: checked.has(it.label) ? now : it.verifiedAt,
+  }));
+  return {
+    ...permit,
+    status: 'active',
+    approvedAt: now,
+    preconditions: {
+      workerHasTraining: true,
+      workerHasEpp: true,
+      workerMedicallyFit: true,
+      checklist: { items },
+    },
+  };
+}
+
+/**
  * Emite un permiso si TODAS las pre-condiciones se cumplen. Si falta
  * algo, lanza WorkPermitValidationError con el código del check faltante.
+ *
+ * @deprecated Sprint F.15: prefer `createPendingPermit` +
+ * `attestAndIssuePermit` so the checklist attestation can never be
+ * forged at create-time. Kept for backwards compatibility with existing
+ * unit tests and any internal adapter that already attested upstream.
  */
 export function issuePermit(input: WorkPermitInput): WorkPermit {
   if (!APPROVER_ROLES.includes(input.approverRole)) {

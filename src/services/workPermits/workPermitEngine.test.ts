@@ -5,6 +5,8 @@ import {
   fulfillPermit,
   deriveStatus,
   edgesForPermit,
+  createPendingPermit,
+  attestAndIssuePermit,
   REQUIRED_CHECKLIST_BY_KIND,
   WorkPermitValidationError,
   type WorkPermitInput,
@@ -153,6 +155,93 @@ describe('fulfillPermit + deriveStatus', () => {
     const p = issuePermit(validInput({ durationHours: 1 }));
     const future = new Date(NOW.getTime() + 2 * 3_600_000);
     expect(deriveStatus(p, future)).toBe('expired');
+  });
+});
+
+describe('createPendingPermit (Codex P1 #1 — no auto-attest at create)', () => {
+  it('produces a pending_approval permit regardless of the body checklist', () => {
+    const input = validInput();
+    // Even if the caller pre-attested everything, createPendingPermit
+    // ignores it and emits the canonical unchecked template.
+    const p = createPendingPermit(input);
+    expect(p.status).toBe('pending_approval');
+    expect(p.approvedAt).toBeUndefined();
+    expect(p.preconditions.workerHasTraining).toBe(false);
+    expect(p.preconditions.workerHasEpp).toBe(false);
+    expect(p.preconditions.workerMedicallyFit).toBe(false);
+    // Every required item is present, but explicitly unchecked.
+    expect(p.preconditions.checklist.items).toHaveLength(
+      REQUIRED_CHECKLIST_BY_KIND.altura.length,
+    );
+    for (const item of p.preconditions.checklist.items) {
+      expect(item.checked).toBe(false);
+    }
+  });
+
+  it('still validates approver role and duration before persisting', () => {
+    expect(() =>
+      createPendingPermit(validInput({ approverRole: 'operador' })),
+    ).toThrow(/INVALID_APPROVER_ROLE/);
+    expect(() =>
+      createPendingPermit(validInput({ durationHours: 99 })),
+    ).toThrow(/DURATION_OUT_OF_RANGE/);
+  });
+});
+
+describe('attestAndIssuePermit (Codex P1 #1 — supervisor attests at sign)', () => {
+  it('flips a pending_approval permit to active when fully attested', () => {
+    const pending = createPendingPermit(validInput());
+    const issued = attestAndIssuePermit(pending, {
+      workerHasTraining: true,
+      workerHasEpp: true,
+      workerMedicallyFit: true,
+      checkedLabels: REQUIRED_CHECKLIST_BY_KIND.altura,
+      now: NOW,
+    });
+    expect(issued.status).toBe('active');
+    expect(issued.approvedAt).toBe(NOW.toISOString());
+    // Every required item is now checked, with verifiedAt set.
+    for (const item of issued.preconditions.checklist.items) {
+      expect(item.checked).toBe(true);
+      expect(item.verifiedAt).toBe(NOW.toISOString());
+    }
+  });
+
+  it('rejects attestation when a required check is missing', () => {
+    const pending = createPendingPermit(validInput());
+    const partial = REQUIRED_CHECKLIST_BY_KIND.altura.slice(0, 2);
+    expect(() =>
+      attestAndIssuePermit(pending, {
+        workerHasTraining: true,
+        workerHasEpp: true,
+        workerMedicallyFit: true,
+        checkedLabels: partial,
+      }),
+    ).toThrow(/CHECKLIST_INCOMPLETE/);
+  });
+
+  it('rejects attestation when a meta-precondition is false', () => {
+    const pending = createPendingPermit(validInput());
+    expect(() =>
+      attestAndIssuePermit(pending, {
+        workerHasTraining: false,
+        workerHasEpp: true,
+        workerMedicallyFit: true,
+        checkedLabels: REQUIRED_CHECKLIST_BY_KIND.altura,
+      }),
+    ).toThrow(/WORKER_MISSING_TRAINING/);
+  });
+
+  it('refuses to attest a permit that is not pending_approval / draft', () => {
+    const active = issuePermit(validInput());
+    expect(() =>
+      attestAndIssuePermit(active, {
+        workerHasTraining: true,
+        workerHasEpp: true,
+        workerMedicallyFit: true,
+        checkedLabels: REQUIRED_CHECKLIST_BY_KIND.altura,
+      }),
+    ).toThrow(/NOT_PENDING/);
   });
 });
 

@@ -147,6 +147,9 @@ export function Sidebar({ isOpen, onClose, isDarkMode, toggleTheme }: SidebarPro
         // Sprint 41 Fase F.26 — Índice de Madurez Preventiva.
         // Score 1..5 con palancas para subir de nivel (marketing + upsell).
         { title: t("nav.maturity_index", "Índice de Madurez"), icon: Award, path: "/maturity-index", color: "text-violet-500" },
+        // Sprint 42 Fase F.15 — Centro de Permisos de Trabajo.
+        // LOTO / altura / caliente / confinado / excavación / izaje — DS 594, DS 132, DS 109.
+        { title: t("nav.work_permits", "Permisos de Trabajo"), icon: ShieldCheck, path: "/work-permits", color: "text-amber-500" },
         ...(features.canUseExecutiveDashboard ? [{ title: t("nav.executive_dashboard", "Dashboard Ejecutivo"), icon: BarChart3, path: "/executive-dashboard", color: "text-violet-500" }] : []),
       ],
     },

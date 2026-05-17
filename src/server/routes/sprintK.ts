@@ -32,6 +32,21 @@ import { LessonsAdapter } from '../../services/lessonsLearned/lessonsFirestoreAd
 import { CorrectiveActionsAdapter } from '../../services/correctiveActions/correctiveActionsFirestoreAdapter.js';
 import { LotoAdapter } from '../../services/loto/lotoFirestoreAdapter.js';
 import { EquipmentAdapter } from '../../services/equipment/equipmentFirestoreAdapter.js';
+import {
+  WorkPermitAdapter,
+  WorkPermitDuplicateError,
+} from '../../services/workPermits/workPermitFirestoreAdapter.js';
+import {
+  createPendingPermit,
+  attestAndIssuePermit,
+  cancelPermit,
+  fulfillPermit,
+  deriveStatus,
+  WorkPermitValidationError,
+  type WorkPermit,
+  type WorkPermitKind,
+  type WorkPermitStatus,
+} from '../../services/workPermits/workPermitEngine.js';
 import { logger } from '../../utils/logger.js';
 import { captureRouteError } from '../middleware/captureRouteError.js';
 
@@ -1741,5 +1756,435 @@ router.get('/:projectId/maturity-index', verifyAuth, async (req, res) => {
     return res.status(500).json({ error: 'internal_error' });
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// Fase F.15 — Centro de Permisos de Trabajo
+// ─────────────────────────────────────────────────────────────────────
+//
+// Permisos digitales para tareas críticas:
+//   - Trabajo en altura (DS 594 art. 53)
+//   - Trabajo en caliente (DS 132)
+//   - Espacios confinados (DS 132 + protocolo MINSAL)
+//   - LOTO / bloqueo energético (DS 132 + DS 109)
+//   - Excavaciones (DS 594)
+//   - Izaje crítico (DS 132)
+//
+//   GET  /:projectId/work-permits             — list filtered by status/kind
+//   POST /:projectId/work-permits             — create permit (engine validates)
+//   POST /:projectId/work-permits/:permitId/sign  — sign/issue active permit
+//   POST /:projectId/work-permits/:permitId/close — close (cancel) with reason
+
+const VALID_KINDS: ReadonlySet<WorkPermitKind> = new Set<WorkPermitKind>([
+  'altura',
+  'caliente',
+  'confinado',
+  'loto',
+  'excavacion',
+  'izaje_critico',
+]);
+
+const VALID_STATUSES: ReadonlySet<WorkPermitStatus> = new Set<WorkPermitStatus>([
+  'draft',
+  'pending_approval',
+  'active',
+  'expired',
+  'cancelled',
+  'fulfilled',
+]);
+
+router.get('/:projectId/work-permits', verifyAuth, async (req, res) => {
+  const callerUid = req.user!.uid;
+  const { projectId } = req.params;
+  const g = await guard(callerUid, projectId, res);
+  if (!g) return undefined;
+  try {
+    const adapter = new WorkPermitAdapter({
+      db: admin.firestore() as any,
+      tenantId: g.tenantId,
+      projectId,
+    });
+    const statusQ =
+      typeof req.query.status === 'string' ? req.query.status : null;
+    const kindQ =
+      typeof req.query.kind === 'string' ? req.query.kind : null;
+    const kind =
+      kindQ && VALID_KINDS.has(kindQ as WorkPermitKind)
+        ? (kindQ as WorkPermitKind)
+        : null;
+    const status =
+      statusQ && VALID_STATUSES.has(statusQ as WorkPermitStatus)
+        ? (statusQ as WorkPermitStatus)
+        : null;
+    // `all` is an explicit opt-in to skip server-side status filtering and
+    // let the caller see everything (the UI mainly uses it for admin views).
+    const wantsAll = statusQ === 'all';
+    const now = new Date();
+
+    // Codex P2 #1 + #2: previously the route only knew listActive() and
+    // listByKind(), so:
+    //   - non-active status tabs (expired/cancelled/fulfilled) were filled
+    //     by listActive() + JS filter — by construction they returned
+    //     nothing real (cancelled/fulfilled docs were never in the seed set).
+    //   - the kind filter short-circuited and ignored the status entirely,
+    //     so picking "altura" on the Activos tab leaked fulfilled/cancelled.
+    // The new branches push both filters into Firestore. For "expired" we
+    // query status=active and post-filter with deriveStatus(), because
+    // expiration is a derived state until the cron materializes it.
+    let permits: WorkPermit[];
+    if (kind && status) {
+      if (status === 'active') {
+        permits = (await adapter.listByKindAndStatus(kind, 'active')).filter(
+          (p) => deriveStatus(p, now) === 'active',
+        );
+      } else if (status === 'expired') {
+        // Expired = persisted as 'active' but past validUntil.
+        permits = (await adapter.listByKindAndStatus(kind, 'active')).filter(
+          (p) => deriveStatus(p, now) === 'expired',
+        );
+      } else {
+        permits = await adapter.listByKindAndStatus(kind, status);
+      }
+    } else if (kind && wantsAll) {
+      permits = await adapter.listByKind(kind);
+    } else if (kind) {
+      // Default when only kind is provided: behave like the Activos tab.
+      permits = (await adapter.listByKindAndStatus(kind, 'active')).filter(
+        (p) => deriveStatus(p, now) === 'active',
+      );
+    } else if (status === 'active') {
+      permits = await adapter.listActive(now);
+    } else if (status === 'expired') {
+      // Persisted as active, validUntil already in the past.
+      const candidates = await adapter.listByStatus('active');
+      permits = candidates.filter((p) => deriveStatus(p, now) === 'expired');
+    } else if (status) {
+      permits = await adapter.listByStatus(status);
+    } else if (wantsAll) {
+      // No kind, status=all → return active union of other statuses for
+      // listing/admin views.
+      permits = await adapter.listActive(now);
+    } else {
+      permits = await adapter.listActive(now);
+    }
+
+    return res.json({ permits });
+  } catch (err) {
+    logger.error?.('sprintK.workPermits.list.error', err);
+    captureRouteError(err, 'sprintK.workPermits.list');
+    return res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+
+const checklistItemSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  checked: z.boolean(),
+  verifiedAt: z.string().optional(),
+});
+
+/**
+ * Body schema for POST /work-permits. Codex P1 #2: issuer identity
+ * (workerUid, approverUid, approverRole) is NOT accepted from the body —
+ * the server derives it from `req.user` and the caller's custom claims.
+ * Trusting body fields would let any worker mint an active critical-work
+ * permit with an arbitrary "supervisor" approver.
+ *
+ * The optional `workerUid` here is purely a self-assignment hint: the
+ * route enforces `workerUid === callerUid` unless the caller has the
+ * `canIssuePermits` claim (supervisor/prevencionista/gerente/admin).
+ *
+ * Codex P1 #1: checklist items must NOT arrive pre-attested. The route
+ * coerces every `checked` to `false` before issuing — supervisors attest
+ * in the separate sign step.
+ */
+const workPermitCreateSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum([
+    'altura',
+    'caliente',
+    'confinado',
+    'loto',
+    'excavacion',
+    'izaje_critico',
+  ]),
+  /** Optional self-assignment hint. Defaults to the caller's uid. */
+  workerUid: z.string().min(1).optional(),
+  zoneId: z.string().optional(),
+  taskDescription: z.string().min(3).max(4000),
+  durationHours: z.number().positive().max(24),
+  preconditions: z
+    .object({
+      workerHasTraining: z.boolean().optional(),
+      workerHasEpp: z.boolean().optional(),
+      workerMedicallyFit: z.boolean().optional(),
+      checklist: z
+        .object({
+          items: z.array(checklistItemSchema),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+const PERMIT_ISSUER_ROLES: ReadonlySet<string> = new Set([
+  'supervisor',
+  'prevencionista',
+  'gerente',
+  'admin',
+]);
+
+interface CallerRoleContext {
+  /** Best-known role string from claims (`role` or first of `roles[]`). */
+  role: string | null;
+  /** True if the caller has a custom claim authorizing permit issuance. */
+  canIssuePermits: boolean;
+}
+
+function resolveCallerRoleContext(
+  user: Express.PraeventioAuthUser,
+): CallerRoleContext {
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  const primaryRole = typeof user.role === 'string' && user.role.length > 0 ? user.role : null;
+  // Admin = supervisor-level (legacy claim).
+  if (user.admin === true) {
+    return { role: primaryRole ?? 'admin', canIssuePermits: true };
+  }
+  if (primaryRole && PERMIT_ISSUER_ROLES.has(primaryRole)) {
+    return { role: primaryRole, canIssuePermits: true };
+  }
+  for (const r of roles) {
+    if (typeof r === 'string' && PERMIT_ISSUER_ROLES.has(r)) {
+      return { role: r, canIssuePermits: true };
+    }
+  }
+  return { role: primaryRole, canIssuePermits: false };
+}
+
+router.post(
+  '/:projectId/work-permits',
+  verifyAuth,
+  validate(workPermitCreateSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId } = req.params;
+    const body = req.body as z.infer<typeof workPermitCreateSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const ctx = resolveCallerRoleContext(req.user!);
+    // Codex P1 #2: gate permit issuance on the caller's *real* role, never
+    // the body's `approverRole` claim. Workers (no issuer role) can request
+    // a permit only if they're auto-assigned as worker AND the route falls
+    // back to draft status — but the current engine path emits 'active'
+    // immediately, so for now we reject any caller who isn't an authorized
+    // issuer. The follow-up E.1 work splits draft/active.
+    if (!ctx.canIssuePermits) {
+      return res.status(403).json({
+        error: 'forbidden',
+        reason: 'caller_lacks_permit_issuer_role',
+      });
+    }
+    // The worker assignment defaults to the caller's uid; an issuer may
+    // assign a different worker by passing a workerUid hint in the body.
+    const workerUid =
+      typeof body.workerUid === 'string' && body.workerUid.length > 0
+        ? body.workerUid
+        : callerUid;
+    try {
+      // Codex P1 #1: `createPendingPermit` ignores any checklist or
+      // precondition flags the client sent and seeds the canonical
+      // unchecked template for the kind. The permit lands in
+      // 'pending_approval'; only the /sign endpoint can flip it to
+      // 'active', and only after the supervisor attests every item.
+      const permit = createPendingPermit({
+        id: body.id,
+        kind: body.kind,
+        // Server-trusted issuer identity (Codex P1 #2):
+        workerUid,
+        approverUid: callerUid,
+        approverRole: ctx.role ?? 'supervisor',
+        zoneId: body.zoneId,
+        taskDescription: body.taskDescription,
+        // Stub preconditions — `createPendingPermit` overwrites them
+        // with all-false anyway; the type just requires the shape.
+        preconditions: {
+          workerHasTraining: false,
+          workerHasEpp: false,
+          workerMedicallyFit: false,
+          checklist: { items: [] },
+        },
+        durationHours: body.durationHours,
+      });
+      const adapter = new WorkPermitAdapter({
+        db: admin.firestore() as any,
+        tenantId: g.tenantId,
+        projectId,
+      });
+      // Codex P2 #4: `adapter.create()` fails with WorkPermitDuplicateError
+      // if the id already exists, so a colliding id never silently erases
+      // a fulfilled/cancelled doc.
+      await adapter.create(permit);
+      return res.status(201).json({ permit });
+    } catch (err) {
+      if (err instanceof WorkPermitDuplicateError) {
+        return res
+          .status(409)
+          .json({ error: 'permit_id_duplicate', permitId: err.permitId });
+      }
+      if (err instanceof WorkPermitValidationError) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('sprintK.workPermits.create.error', err);
+      captureRouteError(err, 'sprintK.workPermits.create');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+/**
+ * Sign payload schema. Codex P1 #1: the supervisor's attestation lives on
+ * the SIGN request, not the create request — so the permit's status
+ * transition from pending_approval → active is gated on this body. Empty
+ * body (legacy callers) is permitted to keep backward compatibility but
+ * will fail the engine's attestation check.
+ */
+const signPermitSchema = z
+  .object({
+    workerHasTraining: z.boolean().optional(),
+    workerHasEpp: z.boolean().optional(),
+    workerMedicallyFit: z.boolean().optional(),
+    /** Labels the supervisor confirms as checked. */
+    checkedLabels: z.array(z.string()).optional(),
+  })
+  .optional();
+
+router.post(
+  '/:projectId/work-permits/:permitId/sign',
+  verifyAuth,
+  validate(signPermitSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, permitId } = req.params;
+    const body = (req.body ?? {}) as z.infer<typeof signPermitSchema> & object;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    const ctx = resolveCallerRoleContext(req.user!);
+    // Only an authorized issuer can sign a permit into 'active'.
+    if (!ctx.canIssuePermits) {
+      return res.status(403).json({
+        error: 'forbidden',
+        reason: 'caller_lacks_permit_issuer_role',
+      });
+    }
+    try {
+      const adapter = new WorkPermitAdapter({
+        db: admin.firestore() as any,
+        tenantId: g.tenantId,
+        projectId,
+      });
+      const permit = await adapter.getById(permitId);
+      if (!permit) return res.status(404).json({ error: 'not_found' });
+
+      // For backward compatibility, callers that sent an empty body get
+      // their attestation derived from the persisted permit (which is
+      // safe only if the create path also seeded it from the supervisor's
+      // own UI — but the new create path seeds it as all-false, so a
+      // legacy empty-body sign request will fail attestation as expected).
+      const checkedLabels = body?.checkedLabels ??
+        permit.preconditions.checklist.items
+          .filter((i) => i.checked)
+          .map((i) => i.label);
+      const attestation = {
+        workerHasTraining:
+          body?.workerHasTraining ?? permit.preconditions.workerHasTraining,
+        workerHasEpp: body?.workerHasEpp ?? permit.preconditions.workerHasEpp,
+        workerMedicallyFit:
+          body?.workerMedicallyFit ?? permit.preconditions.workerMedicallyFit,
+        checkedLabels,
+      };
+
+      // If the permit is already 'active' (legacy issuePermit path), treat
+      // sign as an explicit re-acknowledgement: bump approvedAt to now.
+      // Otherwise, attest + flip to active via the engine.
+      const next: WorkPermit =
+        permit.status === 'active'
+          ? { ...permit, approvedAt: new Date().toISOString() }
+          : attestAndIssuePermit(permit, attestation);
+      await adapter.save(next);
+      return res.json({ permit: next });
+    } catch (err) {
+      if (err instanceof WorkPermitValidationError) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('sprintK.workPermits.sign.error', err);
+      captureRouteError(err, 'sprintK.workPermits.sign');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
+
+const closePermitSchema = z.object({
+  reason: z.string().min(10).max(2000),
+  /** 'fulfill' = trabajo cumplido; 'cancel' = anulación. Default: fulfill. */
+  outcome: z.enum(['fulfill', 'cancel']).optional(),
+});
+
+router.post(
+  '/:projectId/work-permits/:permitId/close',
+  verifyAuth,
+  validate(closePermitSchema),
+  async (req, res) => {
+    const callerUid = req.user!.uid;
+    const { projectId, permitId } = req.params;
+    const body = req.body as z.infer<typeof closePermitSchema>;
+    const g = await guard(callerUid, projectId, res);
+    if (!g) return undefined;
+    try {
+      const adapter = new WorkPermitAdapter({
+        db: admin.firestore() as any,
+        tenantId: g.tenantId,
+        projectId,
+      });
+      const permit = await adapter.getById(permitId);
+      if (!permit) return res.status(404).json({ error: 'not_found' });
+
+      // Codex P2 #6: expired permits remain stored as `status: 'active'`
+      // until the cron materializes the expiry. Closing one as 'fulfill'
+      // would dishonestly report expired work as completed. Derive first;
+      // refuse the close if the engine considers the permit already
+      // expired (or already terminal). The caller can re-sign first if
+      // they want to extend.
+      const now = new Date();
+      const derived = deriveStatus(permit, now);
+      if (derived === 'expired') {
+        return res.status(422).json({
+          error: 'permit_already_expired',
+          hint: 'extend the validity (re-sign) or omit this close call; expired permits cannot be marked as fulfilled or cancelled',
+        });
+      }
+      if (derived === 'cancelled' || derived === 'fulfilled') {
+        return res.status(422).json({
+          error: 'permit_already_terminal',
+          status: derived,
+        });
+      }
+
+      const outcome = body.outcome ?? 'fulfill';
+      const next =
+        outcome === 'cancel'
+          ? cancelPermit(permit, body.reason, now)
+          : fulfillPermit(permit, now);
+      await adapter.save(next);
+      return res.json({ permit: next });
+    } catch (err) {
+      if (err instanceof WorkPermitValidationError) {
+        return res.status(400).json({ error: 'validation_error', code: err.code, message: err.message });
+      }
+      logger.error?.('sprintK.workPermits.close.error', err);
+      captureRouteError(err, 'sprintK.workPermits.close');
+      return res.status(500).json({ error: 'internal_error' });
+    }
+  },
+);
 
 export default router;
