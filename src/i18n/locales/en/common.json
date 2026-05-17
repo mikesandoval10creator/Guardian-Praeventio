@@ -2160,5 +2160,31 @@
       "nothing_to_commit": "No valid rows to import.",
       "no_project": "Select a project before confirming."
     }
+  },
+  "accessibility": {
+    "title": "Accessibility modes",
+    "subtitle": "Adapt Praeventio Guard to your needs. Each mode can be turned on independently and is saved on this device.",
+    "preview": "Preview",
+    "reset": "Reset everything",
+    "easyReading": {
+      "title": "Easy reading",
+      "description": "Increases text size and simplifies typography to improve readability.",
+      "previewBody": "This text appears larger with more line spacing when the mode is enabled."
+    },
+    "highContrast": {
+      "title": "High contrast",
+      "description": "Inverts the main colors to improve readability in low-visibility conditions.",
+      "previewBody": "Colors are inverted: black background with white text, ideal under strong sunlight."
+    },
+    "glovesMode": {
+      "title": "Gloves mode",
+      "description": "Enlarges buttons and tap targets to 56px or more so you can use the app with work gloves.",
+      "previewBody": "Every button becomes easily reachable with thick industrial gloves."
+    },
+    "lowConnectivity": {
+      "title": "Low connectivity",
+      "description": "Shows friendly hints when the network is slow or flaky and favours offline-first loading.",
+      "previewBody": "Instead of spinners you will see skeleton placeholders and clear messages about the network state."
+    }
   }
 }
